@@ -21,10 +21,9 @@ use windows_sys::Win32::Networking::WinHttp::{
 	WinHttpCloseHandle, WinHttpConnect, WinHttpCrackUrl, WinHttpOpen, WinHttpOpenRequest,
 	WinHttpQueryDataAvailable, WinHttpQueryHeaders, WinHttpReadData, WinHttpReceiveResponse,
 	WinHttpSendRequest, WinHttpSetOption, WinHttpSetTimeouts, URL_COMPONENTS,
-	WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-	WINHTTP_DISABLE_REDIRECTS, WINHTTP_FLAG_SECURE, WINHTTP_INTERNET_SCHEME_HTTPS,
-	WINHTTP_OPTION_DISABLE_FEATURE, WINHTTP_QUERY_CONTENT_LENGTH, WINHTTP_QUERY_FLAG_NUMBER,
-	WINHTTP_QUERY_LOCATION, WINHTTP_QUERY_STATUS_CODE,
+	WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_DISABLE_REDIRECTS, WINHTTP_FLAG_SECURE,
+	WINHTTP_INTERNET_SCHEME_HTTPS, WINHTTP_OPTION_DISABLE_FEATURE, WINHTTP_QUERY_CONTENT_LENGTH,
+	WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_QUERY_LOCATION, WINHTTP_QUERY_STATUS_CODE,
 };
 use windows_sys::Win32::Security::Cryptography::{
 	BCryptCloseAlgorithmProvider, BCryptCreateHash, BCryptDestroyHash, BCryptFinishHash,
@@ -37,9 +36,12 @@ use windows_sys::Win32::Security::WinTrust::{
 	WTD_CHOICE_FILE, WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT, WTD_REVOKE_WHOLECHAIN,
 	WTD_STATEACTION_CLOSE, WTD_STATEACTION_VERIFY, WTD_UI_NONE,
 };
+use windows_sys::Win32::System::Diagnostics::Debug::{
+	FormatMessageW, FORMAT_MESSAGE_FROM_HMODULE, FORMAT_MESSAGE_IGNORE_INSERTS,
+};
 use windows_sys::Win32::System::Environment::ExpandEnvironmentStringsW;
 use windows_sys::Win32::System::LibraryLoader::{
-	GetProcAddress, LoadLibraryExW, LOAD_LIBRARY_SEARCH_SYSTEM32,
+	GetModuleHandleW, GetProcAddress, LoadLibraryExW, LOAD_LIBRARY_SEARCH_SYSTEM32,
 };
 use windows_sys::Win32::System::Registry::{
 	RegGetValueW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_NOEXPAND, RRF_RT_REG_DWORD,
@@ -242,12 +244,40 @@ fn join_search_path<const N: usize>(
 
 // HTTP
 
+/// The last WinHTTP error. WinHTTP's messages are in `winhttp.dll`, not in the system message table that
+/// `io::Error` uses, so they are formatted from that module, in the user's display language.
+fn last_http_error() -> io::Error {
+	let error = io::Error::last_os_error();
+	let Some(code) = error
+		.raw_os_error()
+		.filter(|code| (12000..13000).contains(code))
+	else {
+		return error;
+	};
+	let mut buffer = [0_u16; 512];
+	let length = unsafe {
+		FormatMessageW(
+			FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS,
+			GetModuleHandleW(wide_str("winhttp.dll").as_ptr()).cast_const(),
+			code as u32,
+			0,
+			buffer.as_mut_ptr(),
+			buffer.len() as u32,
+			null(),
+		)
+	};
+	match String::from_utf16_lossy(&buffer[..length as usize]).trim() {
+		"" => error,
+		message => io::Error::other(format!("{message} (WinHTTP error {code})")),
+	}
+}
+
 struct InternetHandle(*mut core::ffi::c_void);
 
 impl InternetHandle {
 	fn new(handle: *mut core::ffi::c_void) -> io::Result<Self> {
 		if handle.is_null() {
-			Err(io::Error::last_os_error())
+			Err(last_http_error())
 		} else {
 			Ok(Self(handle))
 		}
@@ -291,7 +321,7 @@ fn crack_url(url: &str) -> io::Result<CrackedUrl> {
 		..Default::default()
 	};
 	if unsafe { WinHttpCrackUrl(url_wide.as_ptr(), 0, 0, &mut components) } == 0 {
-		return Err(io::Error::last_os_error());
+		return Err(last_http_error());
 	}
 	let slice = |pointer: *mut u16, length: u32| -> Vec<u16> {
 		if pointer.is_null() || length == 0 {
@@ -322,7 +352,7 @@ fn crack_url(url: &str) -> io::Result<CrackedUrl> {
 impl HttpClient {
 	pub(crate) fn new(timeout: Duration) -> io::Result<Self> {
 		let agent = wide_str(concat!("VSCodeCopilotShim/", env!("CARGO_PKG_VERSION")));
-		// Automatic proxy (Windows 8.1+) follows the system proxy settings, including PAC files; fall back otherwise.
+		// Automatic proxy follows the system proxy settings, including PAC files.
 		let session = InternetHandle::new(unsafe {
 			WinHttpOpen(
 				agent.as_ptr(),
@@ -331,17 +361,6 @@ impl HttpClient {
 				null(),
 				0,
 			)
-		})
-		.or_else(|_| {
-			InternetHandle::new(unsafe {
-				WinHttpOpen(
-					agent.as_ptr(),
-					WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-					null(),
-					null(),
-					0,
-				)
-			})
 		})?;
 		let milliseconds = i32::try_from(timeout.as_millis())
 			.unwrap_or(i32::MAX)
@@ -356,18 +375,24 @@ impl HttpClient {
 			)
 		} == 0
 		{
-			return Err(io::Error::last_os_error());
+			return Err(last_http_error());
 		}
 		Ok(Self { session })
 	}
 
-	/// Sends a GET request. When `follow_redirects` is false, a redirect is returned as-is so its `Location` can be read.
-	pub(crate) fn get(&self, url: &str, follow_redirects: bool) -> io::Result<HttpResponse> {
+	/// Sends a request with `verb`. When `follow_redirects` is false, a redirect is returned as-is so its `Location` can
+	/// be read.
+	pub(crate) fn request(
+		&self,
+		verb: &str,
+		url: &str,
+		follow_redirects: bool,
+	) -> io::Result<HttpResponse> {
 		let url = crack_url(url)?;
 		let connection = InternetHandle::new(unsafe {
 			WinHttpConnect(self.session.0, url.host.as_ptr(), url.port, 0)
 		})?;
-		let verb = wide_str("GET");
+		let verb = wide_str(verb);
 		let request = InternetHandle::new(unsafe {
 			WinHttpOpenRequest(
 				connection.0,
@@ -390,13 +415,13 @@ impl HttpClient {
 				)
 			} == 0
 			{
-				return Err(io::Error::last_os_error());
+				return Err(last_http_error());
 			}
 		}
 		if unsafe { WinHttpSendRequest(request.0, null(), 0, null(), 0, 0, 0) } == 0
 			|| unsafe { WinHttpReceiveResponse(request.0, null_mut()) } == 0
 		{
-			return Err(io::Error::last_os_error());
+			return Err(last_http_error());
 		}
 		let mut status = 0_u32;
 		let mut size = std::mem::size_of::<u32>() as u32;
@@ -411,7 +436,7 @@ impl HttpClient {
 			)
 		} == 0
 		{
-			return Err(io::Error::last_os_error());
+			return Err(last_http_error());
 		}
 		Ok(HttpResponse {
 			request,
@@ -471,7 +496,7 @@ impl Read for HttpResponse {
 		}
 		let mut available = 0_u32;
 		if unsafe { WinHttpQueryDataAvailable(self.request.0, &mut available) } == 0 {
-			return Err(io::Error::last_os_error());
+			return Err(last_http_error());
 		}
 		if available == 0 {
 			return Ok(0);
@@ -489,7 +514,7 @@ impl Read for HttpResponse {
 			)
 		} == 0
 		{
-			return Err(io::Error::last_os_error());
+			return Err(last_http_error());
 		}
 		Ok(read as usize)
 	}
@@ -723,6 +748,32 @@ mod tests {
 		assert_eq!(
 			expand_environment(OsStr::new(r"%SystemRoot%\System32")),
 			PathBuf::from(windows).join("System32").into_os_string()
+		);
+	}
+
+	#[test]
+	fn discovery_searches_the_msi_install_folder_after_path() {
+		let path =
+			discovery_path(Some(OsString::from(r"C:\first;C:\second"))).expect("search path");
+		assert_eq!(
+			std::env::split_paths(&path).collect::<Vec<_>>(),
+			vec![
+				PathBuf::from(r"C:\first"),
+				PathBuf::from(r"C:\second"),
+				cli_install_directory().expect("LOCALAPPDATA"),
+			]
+		);
+	}
+
+	#[test]
+	fn winhttp_errors_have_readable_messages() {
+		// ERROR_WINHTTP_NAME_NOT_RESOLVED; the standard library alone reports no text for it.
+		let code = 12007;
+		unsafe { windows_sys::Win32::Foundation::SetLastError(code) };
+		let message = last_http_error().to_string();
+		assert!(
+			message.ends_with("(WinHTTP error 12007)") && !message.contains("FormatMessageW"),
+			"{message}"
 		);
 	}
 

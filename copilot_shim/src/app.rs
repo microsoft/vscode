@@ -5,10 +5,11 @@
 
 use std::ffi::OsString;
 #[cfg(any(windows, test))]
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use crate::candidate::{discover, DiscoveryDiagnosticKind, DiscoveryError, DiscoveryOperation};
+#[cfg(any(windows, test))]
+use crate::candidate::path_directories;
+use crate::candidate::{discover, DiscoveryDiagnosticKind, DiscoveryError};
 use crate::command::{resolve_candidate, InterpreterInventory};
 use crate::install::{
 	discover_tools, installer_plan, run_installer, HostTarget, InstallerAttempt,
@@ -16,19 +17,18 @@ use crate::install::{
 };
 use crate::invocation::{self, Invocation};
 use crate::model::{
-	Cancellation, Candidate, ProcessError, ProcessOutcome, ProcessTermination, ResolvedCandidate,
-	SupervisionMode,
+	Candidate, ProcessError, ProcessOutcome, ProcessTermination, ResolvedCandidate,
+	SupervisionMode, SystemError,
 };
 #[cfg(any(windows, test))]
-use crate::model::{
-	CommandArguments, CommandSpec, DiscoveredCandidate, DiscoveredFileKind, LaunchAdapter,
-	ProbeLimits,
-};
+use crate::model::{CommandArguments, CommandSpec, DiscoveredFileKind, ProbeLimits};
 use crate::runtime::prompt::INSTALL_DOCUMENTATION_URL;
-use crate::runtime::{InspectedFileType, PromptResponse, Runtime};
+#[cfg(any(windows, test))]
+use crate::runtime::InspectedFileType;
+use crate::runtime::{PromptResponse, Runtime};
 use crate::setup;
 #[cfg(any(windows, test))]
-use crate::version::{first_version, CliVersion};
+use crate::version::{first_version, PowerShellVersion};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DiscoveryCycle {
@@ -36,20 +36,16 @@ enum DiscoveryCycle {
 	AfterInstall,
 }
 
-#[derive(Debug, Eq, PartialEq)]
-enum CandidateSelection {
-	Launch(Candidate),
-	Missing,
-}
-
 /// Exit code when Copilot CLI is missing and there is no terminal to offer an install: the code a shell uses for a
 /// command it can't find.
 const NOT_INSTALLED_EXIT_CODE: i32 = 127;
 
+/// Exit code after Ctrl+C, as a shell reports a command that SIGINT ended.
+const CANCELLED_EXIT_CODE: i32 = 130;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ApplicationExit {
 	Code(i32),
-	Cancelled(i32),
 	InternalFailure,
 }
 
@@ -62,30 +58,29 @@ enum WorkflowAction {
 impl ApplicationExit {
 	pub(super) fn code(self) -> i32 {
 		match self {
-			Self::Code(code) | Self::Cancelled(code) => code,
+			Self::Code(code) => code,
 			Self::InternalFailure => 1,
 		}
 	}
 }
 
-/// Interpreters for script candidates. PowerShell is located only when a `.ps1` candidate needs it, because running
-/// it to check its version takes hundreds of milliseconds.
+/// Interpreters for script candidates, located only when a candidate needs them. Running PowerShell to check its
+/// version takes hundreds of milliseconds.
 #[derive(Debug, Default)]
 struct Interpreters {
 	inventory: InterpreterInventory,
 	#[cfg(any(windows, test))]
+	command_shell_located: bool,
+	#[cfg(any(windows, test))]
 	power_shell_located: bool,
 }
 
-fn command_shell_interpreters<R: Runtime>(runtime: &R, target: Option<HostTarget>) -> Interpreters {
-	if !matches!(
-		target,
-		Some(HostTarget::WindowsX64 | HostTarget::WindowsArm64)
-	) {
-		return Interpreters::default();
+#[cfg(any(windows, test))]
+fn locate_command_shell<R: Runtime>(runtime: &R, interpreters: &mut Interpreters) {
+	if std::mem::replace(&mut interpreters.command_shell_located, true) {
+		return;
 	}
-
-	let command_shell = match runtime
+	interpreters.inventory.command_shell = match runtime
 		.environment_variable("ComSpec")
 		.filter(|value| !value.is_empty())
 	{
@@ -95,9 +90,6 @@ fn command_shell_interpreters<R: Runtime>(runtime: &R, target: Option<HostTarget
 			None
 		}
 	};
-	let mut interpreters = Interpreters::default();
-	interpreters.inventory.command_shell = command_shell;
-	interpreters
 }
 
 #[cfg(any(windows, test))]
@@ -105,10 +97,9 @@ fn locate_power_shell<R: Runtime>(
 	runtime: &R,
 	interpreters: &mut Interpreters,
 ) -> Result<(), ApplicationExit> {
-	if interpreters.power_shell_located {
+	if std::mem::replace(&mut interpreters.power_shell_located, true) {
 		return Ok(());
 	}
-	interpreters.power_shell_located = true;
 	let directories = path_directories(runtime);
 	interpreters.inventory.powershell_7_3_or_newer =
 		select_power_shell(runtime, &directories, "pwsh.exe", is_modern_power_shell)?;
@@ -123,6 +114,7 @@ fn locate_power_shell<R: Runtime>(
 	Ok(())
 }
 
+#[cfg(any(windows, test))]
 fn usable_program<R: Runtime>(runtime: &R, path: PathBuf, role: &str) -> Option<PathBuf> {
 	match runtime.inspect_path(&path) {
 		Ok(Some(inspection))
@@ -137,38 +129,14 @@ fn usable_program<R: Runtime>(runtime: &R, path: PathBuf, role: &str) -> Option<
 			None
 		}
 		Ok(None) => None,
+		// An app execution alias, such as PowerShell from the Microsoft Store, can be started but not opened
+		// (ERROR_CANT_ACCESS_FILE).
+		Err(error) if error.raw_os_error() == Some(1920) => Some(path),
 		Err(error) => {
 			runtime.write_diagnostic(&format!("failed to inspect {role} path {path:?}: {error}"));
 			None
 		}
 	}
-}
-
-#[cfg(any(windows, test))]
-fn path_directories<R: Runtime>(runtime: &R) -> Vec<PathBuf> {
-	let Some(path) = runtime.path().filter(|value| !value.is_empty()) else {
-		return Vec::new();
-	};
-	let current_directory = match runtime.current_directory() {
-		Ok(path) => path,
-		Err(error) => {
-			runtime.write_diagnostic(&format!(
-				"failed to resolve the current directory while locating interpreters: {error}"
-			));
-			return Vec::new();
-		}
-	};
-	std::env::split_paths(&path)
-		.map(|entry| {
-			if entry.as_os_str().is_empty() {
-				current_directory.clone()
-			} else if entry.is_absolute() {
-				entry
-			} else {
-				current_directory.join(entry)
-			}
-		})
-		.collect()
 }
 
 #[cfg(any(windows, test))]
@@ -180,7 +148,7 @@ fn select_power_shell<R, F>(
 ) -> Result<Option<PathBuf>, ApplicationExit>
 where
 	R: Runtime,
-	F: Fn(CliVersion) -> bool,
+	F: Fn(PowerShellVersion) -> bool,
 {
 	for directory in directories {
 		let path = directory.join(name);
@@ -198,7 +166,7 @@ where
 fn probe_power_shell_version<R: Runtime>(
 	runtime: &R,
 	path: &Path,
-) -> Result<Option<CliVersion>, ApplicationExit> {
+) -> Result<Option<PowerShellVersion>, ApplicationExit> {
 	let command = CommandSpec::new(
 		path.as_os_str().to_os_string(),
 		CommandArguments::Native(
@@ -213,9 +181,8 @@ fn probe_power_shell_version<R: Runtime>(
 			.map(OsString::from)
 			.collect(),
 		),
-		LaunchAdapter::Direct,
 	);
-	match runtime.supervise(
+	let problem = match runtime.supervise(
 		&command,
 		SupervisionMode::CapturedVersionProbe(ProbeLimits::PRODUCTION),
 	) {
@@ -223,44 +190,35 @@ fn probe_power_shell_version<R: Runtime>(
 			termination: ProcessTermination::NumericExit(0),
 			captured_output: Some(output),
 		}) => match first_version(&output.stdout) {
-			Some(version) => Ok(Some(version)),
-			None => {
-				runtime.write_diagnostic(&format!(
-					"PowerShell host {path:?} returned an unparseable version"
-				));
-				Ok(None)
-			}
+			Some(version) => return Ok(Some(version)),
+			None => String::from("returned an unparseable version"),
 		},
 		Ok(ProcessOutcome {
-			termination: ProcessTermination::HandledCancellation(cancellation),
+			termination: ProcessTermination::HandledCancellation,
 			..
-		}) => Err(ApplicationExit::Cancelled(cancellation_code(cancellation))),
-		Ok(outcome) => {
-			runtime.write_diagnostic(&format!(
-				"PowerShell host {:?} is unusable: {}",
-				path,
-				describe_outcome(&outcome)
-			));
-			Ok(None)
-		}
-		Err(error) => {
-			runtime.write_diagnostic(&format!(
-				"PowerShell host {:?} is unusable: {}",
-				path,
-				describe_process_error(&error)
-			));
-			Ok(None)
-		}
-	}
+		}) => return Err(ApplicationExit::Code(CANCELLED_EXIT_CODE)),
+		Ok(ProcessOutcome {
+			termination: ProcessTermination::NumericExit(code),
+			..
+		}) => format!("exited with code {code}"),
+		#[cfg(any(unix, test))]
+		Ok(ProcessOutcome {
+			termination: ProcessTermination::UnixSignal(signal),
+			..
+		}) => format!("ended from signal {signal}"),
+		Err(error) => describe_process_error(&error),
+	};
+	runtime.write_diagnostic(&format!("PowerShell host {path:?} is unusable: {problem}"));
+	Ok(None)
 }
 
 #[cfg(any(windows, test))]
-fn is_modern_power_shell(version: CliVersion) -> bool {
-	(version.major, version.minor, version.patch) >= (7, 3, 0)
+fn is_modern_power_shell(version: PowerShellVersion) -> bool {
+	(version.major, version.minor) >= (7, 3)
 }
 
 #[cfg(any(windows, test))]
-fn is_windows_power_shell_5_1(version: CliVersion) -> bool {
+fn is_windows_power_shell_5_1(version: PowerShellVersion) -> bool {
 	version.major == 5 && version.minor == 1
 }
 
@@ -269,7 +227,7 @@ fn is_windows_power_shell_5_1(version: CliVersion) -> bool {
 fn select_candidate<R: Runtime>(
 	runtime: &R,
 	interpreters: &mut Interpreters,
-) -> Result<CandidateSelection, ApplicationExit> {
+) -> Result<Option<Candidate>, ApplicationExit> {
 	let discovery = discover(runtime, crate::SHIM_MARKER).map_err(|error| {
 		report_discovery_error(runtime, &error);
 		ApplicationExit::InternalFailure
@@ -280,38 +238,39 @@ fn select_candidate<R: Runtime>(
 				"candidate discovery {:?} failed for {:?}: {}",
 				operation,
 				diagnostic.path,
-				describe_system_error(error.kind, error.raw_os_error)
+				describe_system_error(&error)
 			));
 		}
 	}
 
+	// Unix candidates need no interpreter.
 	#[cfg(not(any(windows, test)))]
-	let selection = discovery.candidates.into_iter().next().map(|discovered| {
+	return Ok(discovery.candidates.into_iter().next().map(|discovered| {
 		let ResolvedCandidate::Usable(candidate) =
 			resolve_candidate(discovered, &interpreters.inventory);
 		candidate
-	});
+	}));
+
 	#[cfg(any(windows, test))]
-	let selection = {
-		let mut selection = None;
+	{
 		for discovered in discovery.candidates {
-			if discovered.kind() == DiscoveredFileKind::PowerShellScript {
-				locate_power_shell(runtime, interpreters)?;
-			}
-			let path = discovered.discovered_path().to_path_buf();
-			match resolve_candidate(discovered, &interpreters.inventory) {
-				ResolvedCandidate::Usable(candidate) => {
-					selection = Some(candidate);
-					break;
+			match discovered.kind {
+				DiscoveredFileKind::CommandScript | DiscoveredFileKind::BatchScript => {
+					locate_command_shell(runtime, interpreters)
 				}
+				DiscoveredFileKind::PowerShellScript => locate_power_shell(runtime, interpreters)?,
+				_ => {}
+			}
+			let path = discovered.path.clone();
+			match resolve_candidate(discovered, &interpreters.inventory) {
+				ResolvedCandidate::Usable(candidate) => return Ok(Some(candidate)),
 				ResolvedCandidate::Unusable(reason) => runtime.write_diagnostic(&format!(
 					"candidate {path:?} is unusable because its interpreter is unavailable: {reason:?}"
 				)),
 			}
 		}
-		selection
-	};
-	Ok(selection.map_or(CandidateSelection::Missing, CandidateSelection::Launch))
+		Ok(None)
+	}
 }
 
 fn prepare_workflow<R: Runtime>(
@@ -322,23 +281,16 @@ fn prepare_workflow<R: Runtime>(
 	let mut cycle = DiscoveryCycle::Initial;
 	loop {
 		match (cycle, select_candidate(runtime, interpreters)?) {
-			(_, CandidateSelection::Launch(candidate)) => {
-				return Ok(WorkflowAction::Launch(candidate));
-			}
-			(DiscoveryCycle::Initial, CandidateSelection::Missing) => {
+			(_, Some(candidate)) => return Ok(WorkflowAction::Launch(candidate)),
+			(DiscoveryCycle::Initial, None) => {
 				match request_install(runtime, target)? {
 					PromptResponse::Declined => return Ok(WorkflowAction::Exit(0)),
-					PromptResponse::Accepted => {
-						if let Some(candidate) =
-							installed_msi_candidate(runtime, target, interpreters)
-						{
-							return Ok(WorkflowAction::Launch(candidate));
-						}
-						cycle = DiscoveryCycle::AfterInstall;
-					}
+					// Discovery searches the MSI install folder after PATH, so it finds a Copilot CLI that was just
+					// installed even though this terminal's PATH doesn't include it yet.
+					PromptResponse::Accepted => cycle = DiscoveryCycle::AfterInstall,
 				}
 			}
-			(DiscoveryCycle::AfterInstall, CandidateSelection::Missing) => {
+			(DiscoveryCycle::AfterInstall, None) => {
 				runtime.write_diagnostic(
 					"the installation completed, but GitHub Copilot CLI is not visible in the current PATH; restart the terminal or update PATH and retry",
 				);
@@ -346,49 +298,6 @@ fn prepare_workflow<R: Runtime>(
 			}
 		}
 	}
-}
-
-/// The Copilot CLI that GitHub's per-user MSI installs, launched by its full path right after installing: the MSI adds
-/// its folder to the user PATH, which this process and its terminal don't see yet.
-#[cfg(any(windows, test))]
-fn installed_msi_candidate<R: Runtime>(
-	runtime: &R,
-	target: Option<HostTarget>,
-	interpreters: &Interpreters,
-) -> Option<Candidate> {
-	if !matches!(
-		target,
-		Some(HostTarget::WindowsX64 | HostTarget::WindowsArm64)
-	) {
-		return None;
-	}
-	let path = PathBuf::from(runtime.environment_variable("LOCALAPPDATA")?)
-		.join(setup::CLI_INSTALL_FOLDER)
-		.join("copilot.exe");
-	let inspection = runtime
-		.inspect_path(&path)
-		.ok()
-		.flatten()
-		.filter(|inspection| inspection.file_type == InspectedFileType::RegularFile)?;
-	let discovered = DiscoveredCandidate::new(
-		path,
-		inspection.canonical_path,
-		inspection.file_identity,
-		DiscoveredFileKind::WindowsExecutable,
-	);
-	match resolve_candidate(discovered, &interpreters.inventory) {
-		ResolvedCandidate::Usable(candidate) => Some(candidate),
-		ResolvedCandidate::Unusable(_) => None,
-	}
-}
-
-#[cfg(not(any(windows, test)))]
-fn installed_msi_candidate<R: Runtime>(
-	_runtime: &R,
-	_target: Option<HostTarget>,
-	_interpreters: &Interpreters,
-) -> Option<Candidate> {
-	None
 }
 
 pub(crate) fn run<R: Runtime>(
@@ -401,7 +310,6 @@ pub(crate) fn run<R: Runtime>(
 	let (clear, arguments) = match invocation.result {
 		Ok(Invocation::Launch { clear, arguments }) => (clear, arguments),
 		// Commands for VS Code report and exit; they never launch the Copilot CLI.
-		Ok(Invocation::Info) => return setup::info(),
 		Ok(Invocation::Probe(options)) => return setup::probe(runtime, target, &options),
 		Ok(Invocation::Install(options)) => return setup::install(runtime, target, &options),
 		Err(error) => {
@@ -416,7 +324,7 @@ pub(crate) fn run<R: Runtime>(
 		}
 	}
 
-	let mut interpreters = command_shell_interpreters(runtime, target);
+	let mut interpreters = Interpreters::default();
 	let result = prepare_workflow(runtime, target, &mut interpreters).map(|action| match action {
 		WorkflowAction::Launch(candidate) => launch_candidate(runtime, candidate, arguments),
 		WorkflowAction::Exit(code) => ApplicationExit::Code(code),
@@ -429,16 +337,17 @@ fn launch_candidate<R: Runtime>(
 	candidate: Candidate,
 	arguments: Vec<OsString>,
 ) -> ApplicationExit {
-	let path = candidate.discovered_path().to_path_buf();
 	let command = match candidate.command(arguments) {
 		Ok(command) => command,
 		Err(error) => {
 			runtime.write_diagnostic(&format!(
-				"failed to build the final command for candidate {path:?}: {error:?}"
+				"failed to build the final command for candidate {:?}: {error:?}",
+				candidate.path
 			));
 			return ApplicationExit::InternalFailure;
 		}
 	};
+	// On Unix the shim becomes the Copilot CLI, so this only returns if the CLI couldn't be started.
 	match runtime.supervise(&command, SupervisionMode::FinalInteractiveCli) {
 		Ok(ProcessOutcome {
 			termination: ProcessTermination::NumericExit(code),
@@ -448,22 +357,21 @@ fn launch_candidate<R: Runtime>(
 		Ok(ProcessOutcome {
 			termination: ProcessTermination::UnixSignal(signal),
 			..
-		}) => ApplicationExit::Code(signal_exit_code(signal)),
+		}) => ApplicationExit::Code(128_i32.saturating_add(signal)),
 		Ok(ProcessOutcome {
-			termination: ProcessTermination::HandledCancellation(cancellation),
+			termination: ProcessTermination::HandledCancellation,
 			..
-		}) => ApplicationExit::Cancelled(cancellation_code(cancellation)),
+		}) => ApplicationExit::Code(CANCELLED_EXIT_CODE),
 		Err(error) => {
 			runtime.write_diagnostic(&format!(
 				"failed to launch candidate {:?}: {}",
-				path,
+				candidate.path,
 				describe_process_error(&error)
 			));
 			ApplicationExit::InternalFailure
 		}
 	}
 }
-
 fn request_install<R: Runtime>(
 	runtime: &R,
 	target: Option<HostTarget>,
@@ -500,14 +408,7 @@ fn request_install<R: Runtime>(
 		return Ok(response);
 	}
 
-	let tools = discover_tools(runtime, target).map_err(|error| {
-		runtime.write_diagnostic(&format!(
-			"failed to discover installer tools at {:?}: {}",
-			error.path,
-			describe_system_error(error.error.kind, error.error.raw_os_error)
-		));
-		ApplicationExit::InternalFailure
-	})?;
+	let tools = discover_tools(runtime, target);
 	let routes = installer_plan(target, &tools).map_err(|error| {
 		report_installer_plan_error(runtime, &error);
 		ApplicationExit::InternalFailure
@@ -519,18 +420,7 @@ fn request_install<R: Runtime>(
 		}
 		InstallerResult::Cancelled { attempts } => {
 			report_installer_attempts(runtime, &attempts);
-			Err(ApplicationExit::Cancelled(
-				attempts
-					.iter()
-					.rev()
-					.find_map(|attempt| match attempt.result {
-						InstallerAttemptResult::Cancelled(cancellation) => {
-							Some(cancellation_code(cancellation))
-						}
-						_ => None,
-					})
-					.unwrap_or(130),
-			))
+			Err(ApplicationExit::Code(CANCELLED_EXIT_CODE))
 		}
 		InstallerResult::Failed { failure, attempts } => {
 			report_installer_attempts(runtime, &attempts);
@@ -600,97 +490,46 @@ fn report_installer_attempt<R: Runtime>(runtime: &R, attempt: &InstallerAttempt)
 }
 
 fn report_discovery_error<R: Runtime>(runtime: &R, error: &DiscoveryError) {
-	let operation = match error.operation {
-		DiscoveryOperation::CurrentExecutable => "identify the running shim",
-		DiscoveryOperation::PathEntry => "resolve a PATH entry",
-		DiscoveryOperation::CandidateMetadata
-		| DiscoveryOperation::CandidateRead
-		| DiscoveryOperation::LegacyRead => "inspect a candidate",
-	};
 	runtime.write_diagnostic(&format!(
-		"failed to {operation}{}: {}",
+		"failed to identify the running shim{}: {}",
 		error
 			.path
 			.as_ref()
 			.map(|path| format!(" at {path:?}"))
 			.unwrap_or_default(),
-		describe_system_error(error.error.kind, error.error.raw_os_error)
+		describe_system_error(&error.error)
 	));
-}
-
-#[cfg(any(windows, test))]
-fn describe_outcome(outcome: &ProcessOutcome) -> String {
-	match outcome.termination {
-		ProcessTermination::NumericExit(code) => {
-			let stderr = outcome
-				.captured_output
-				.as_ref()
-				.map(|output| String::from_utf8_lossy(&output.stderr))
-				.filter(|stderr| !stderr.is_empty())
-				.map(|stderr| format!("; stderr: {stderr}"))
-				.unwrap_or_default();
-			format!("process exited with code {code}{stderr}")
-		}
-		#[cfg(any(unix, test))]
-		ProcessTermination::UnixSignal(signal) => {
-			format!("process terminated from Unix signal {signal}")
-		}
-		ProcessTermination::HandledCancellation(cancellation) => {
-			format!("process was cancelled: {cancellation:?}")
-		}
-	}
 }
 
 fn describe_process_error(error: &ProcessError) -> String {
 	match error {
-		ProcessError::TimedOut { timeout, .. } => {
-			format!("timed out after {:?}", timeout.duration())
-		}
-		ProcessError::OutputLimitExceeded { budget, .. } => {
-			format!("exceeded the {} byte output limit", budget.bytes())
+		#[cfg(windows)]
+		ProcessError::TimedOut(timeout) => format!("timed out after {timeout:?}"),
+		#[cfg(windows)]
+		ProcessError::OutputLimitExceeded(bytes) => {
+			format!("exceeded the {bytes} byte output limit")
 		}
 		ProcessError::SpawnFailed { program, error } => format!(
 			"could not start {:?}: {}",
 			program,
-			describe_system_error(error.kind, error.raw_os_error)
-		),
-		#[cfg(any(windows, test))]
-		ProcessError::InterpreterFailed { interpreter, error } => format!(
-			"could not start interpreter {:?}: {}",
-			interpreter,
-			describe_system_error(error.kind, error.raw_os_error)
+			describe_system_error(error)
 		),
 		ProcessError::SupervisionFailed(diagnostic) => format!(
-			"process supervision {:?} failed{}: {}",
+			"process supervision {:?} failed for {:?}: {}",
 			diagnostic.operation,
-			diagnostic
-				.subject
-				.as_ref()
-				.map(|path| format!(" for {path:?}"))
-				.unwrap_or_default(),
-			describe_system_error(diagnostic.error.kind, diagnostic.error.raw_os_error)
+			diagnostic.program,
+			describe_system_error(&diagnostic.error)
 		),
 	}
 }
 
-fn describe_system_error(kind: std::io::ErrorKind, raw_os_error: Option<i32>) -> String {
-	match raw_os_error {
-		Some(code) => format!("{kind:?} (OS error {code})"),
-		None => format!("{kind:?}"),
+/// The operating system's message for an error, in the user's display language.
+fn describe_system_error(error: &SystemError) -> String {
+	match error.raw_os_error {
+		Some(code) => std::io::Error::from_raw_os_error(code).to_string(),
+		None => format!("{:?}", error.kind),
 	}
 }
-
-fn cancellation_code(cancellation: Cancellation) -> i32 {
-	match cancellation {
-		Cancellation::Requested => 130,
-	}
-}
-
-#[cfg(any(unix, test))]
-fn signal_exit_code(signal: i32) -> i32 {
-	128_i32.saturating_add(signal)
-}
-
 #[cfg(test)]
 mod tests {
 	use std::cell::{Cell, RefCell};
@@ -700,13 +539,10 @@ mod tests {
 	use std::path::{Path, PathBuf};
 
 	use super::*;
-	use crate::model::{
-		CandidateKind, CapturedOutput, CommandSpec, FileIdentityState, ProcessError,
-		ProcessOutcome, ProcessTermination, SupervisionMode, SystemError,
-	};
+	use crate::model::{CandidateKind, CapturedOutput, FileIdentityState};
 	use crate::runtime::{
-		EnvironmentEffects, FileSystemEffects, InspectedFileType, PathInspection, PolicyEffects,
-		ProcessEffects, PromptResponse, UserInteractionEffects,
+		EnvironmentEffects, FileSystemEffects, PathInspection, PolicyEffects, ProcessEffects,
+		UserInteractionEffects,
 	};
 
 	struct ProcessStep {
@@ -769,19 +605,6 @@ mod tests {
 				Some(std::env::join_paths(paths).expect("join fake PATH entries"));
 		}
 
-		fn add_directory(&self, path: &Path) {
-			self.inspections.borrow_mut().insert(
-				path.to_path_buf(),
-				PathInspection {
-					canonical_path: path.to_path_buf(),
-					file_identity: FileIdentityState::Unsupported,
-					file_type: InspectedFileType::Directory,
-					executable: true,
-					file_size: 0,
-				},
-			);
-		}
-
 		fn add_program(&self, path: &Path) {
 			self.inspections.borrow_mut().insert(
 				path.to_path_buf(),
@@ -819,6 +642,7 @@ mod tests {
 			});
 		}
 
+		#[cfg(not(windows))]
 		fn push_prompt_response(&self, response: PromptResponse) {
 			self.prompt_responses.borrow_mut().push_back(response);
 		}
@@ -848,16 +672,6 @@ mod tests {
 				return Err(io::Error::new(*kind, "fake inspection failure"));
 			}
 			Ok(self.inspections.borrow().get(path).cloned())
-		}
-
-		fn read_directory(&self, path: &Path) -> io::Result<Vec<OsString>> {
-			Ok(self
-				.inspections
-				.borrow()
-				.keys()
-				.filter(|entry| entry.parent() == Some(path))
-				.filter_map(|entry| entry.file_name().map(OsString::from))
-				.collect())
 		}
 
 		fn open_file(&self, path: &Path) -> io::Result<Box<dyn io::Read>> {
@@ -948,7 +762,6 @@ mod tests {
 
 	#[cfg(not(windows))]
 	fn configure_script_installer(runtime: &FakeRuntime) {
-		runtime.add_directory(Path::new("/tools"));
 		runtime.add_program(Path::new("/tools/curl"));
 		runtime.add_program(Path::new("/tools/bash"));
 	}
@@ -974,40 +787,9 @@ mod tests {
 	}
 
 	#[test]
-	fn private_state_and_fake_runtime_are_ready() {
-		let runtime = FakeRuntime::default();
-		runtime.clear_terminal().expect("record clear");
-		runtime.write_diagnostic("diagnostic");
-
-		assert_eq!(
-			(
-				DiscoveryCycle::Initial,
-				DiscoveryCycle::AfterInstall,
-				CandidateSelection::Missing,
-				ApplicationExit::Code(17).code(),
-				ApplicationExit::Cancelled(130).code(),
-				ApplicationExit::InternalFailure.code(),
-				runtime.clears.get(),
-				runtime.diagnostics.into_inner(),
-			),
-			(
-				DiscoveryCycle::Initial,
-				DiscoveryCycle::AfterInstall,
-				CandidateSelection::Missing,
-				17,
-				130,
-				1,
-				1,
-				vec![String::from("diagnostic")],
-			)
-		);
-	}
-
-	#[test]
 	fn the_first_candidate_launches_without_being_run_first() {
 		let runtime = FakeRuntime::default();
 		for directory in ["/first", "/second"] {
-			runtime.add_directory(Path::new(directory));
 			runtime.add_program(&cli_path(directory));
 		}
 		runtime.set_path(&[Path::new("/first"), Path::new("/second")]);
@@ -1060,13 +842,12 @@ mod tests {
 	fn candidate_discovery_diagnostics_require_verbose() {
 		let configured_runtime = || {
 			let runtime = FakeRuntime::default();
-			runtime.add_directory(Path::new("/cli"));
 			runtime.add_program(&cli_path("/cli"));
 			runtime.set_path(&[Path::new("/denied"), Path::new("/cli")]);
 			runtime
 				.inspection_errors
 				.borrow_mut()
-				.insert(PathBuf::from("/denied"), io::ErrorKind::PermissionDenied);
+				.insert(cli_path("/denied"), io::ErrorKind::PermissionDenied);
 			runtime.push_process_result(Ok(interactive_exit(0)));
 			runtime
 		};
@@ -1086,13 +867,10 @@ mod tests {
 				quiet_exit,
 				quiet.diagnostics.borrow().clone(),
 				verbose_exit,
-				verbose
-					.diagnostics
-					.borrow()
-					.iter()
-					.any(|message| message.contains("candidate discovery PathEntry")
-						&& message.contains("/denied")
-						&& message.contains("PermissionDenied")),
+				verbose.diagnostics.borrow().iter().any(|message| message
+					.contains("candidate discovery CandidateMetadata")
+					&& message.contains("/denied")
+					&& message.contains("PermissionDenied")),
 				verbose
 					.commands
 					.borrow()
@@ -1129,7 +907,8 @@ mod tests {
 		runtime.push_process_result(Ok(captured_exit(0, b"7.2.9", b"")));
 		runtime.push_process_result(Ok(captured_exit(0, b"7.3.1", b"")));
 
-		let mut interpreters = command_shell_interpreters(&runtime, Some(HostTarget::WindowsX64));
+		let mut interpreters = Interpreters::default();
+		locate_command_shell(&runtime, &mut interpreters);
 		locate_power_shell(&runtime, &mut interpreters).expect("locate PowerShell");
 
 		assert_eq!(
@@ -1172,7 +951,8 @@ mod tests {
 		runtime.push_process_result(Ok(captured_exit(0, b"7.2.0", b"")));
 		runtime.push_process_result(Ok(captured_exit(0, b"5.1.22621.2506", b"")));
 
-		let mut interpreters = command_shell_interpreters(&runtime, Some(HostTarget::WindowsArm64));
+		let mut interpreters = Interpreters::default();
+		locate_command_shell(&runtime, &mut interpreters);
 		locate_power_shell(&runtime, &mut interpreters).expect("locate PowerShell");
 
 		assert_eq!(
@@ -1191,10 +971,10 @@ mod tests {
 	#[test]
 	fn missing_windows_interpreters_are_explicitly_absent() {
 		let runtime = FakeRuntime::default();
-		runtime.add_directory(Path::new("/empty"));
 		runtime.set_path(&[Path::new("/empty")]);
 
-		let mut interpreters = command_shell_interpreters(&runtime, Some(HostTarget::WindowsX64));
+		let mut interpreters = Interpreters::default();
+		locate_command_shell(&runtime, &mut interpreters);
 		locate_power_shell(&runtime, &mut interpreters).expect("locate PowerShell");
 
 		assert_eq!(
@@ -1216,9 +996,6 @@ mod tests {
 	fn power_shell_is_located_only_for_ps1_candidates() {
 		let with_hosts = |script: &str| {
 			let runtime = FakeRuntime::default();
-			for directory in ["/cli", "/hosts"] {
-				runtime.add_directory(Path::new(directory));
-			}
 			runtime.add_program(&Path::new("/cli").join(script));
 			runtime.add_program(Path::new("/hosts/pwsh.exe"));
 			runtime.set_path(&[Path::new("/cli"), Path::new("/hosts")]);
@@ -1258,7 +1035,6 @@ mod tests {
 	fn install_success_rediscovers_from_the_first_path_entry() {
 		let install = FakeRuntime::default();
 		configure_script_installer(&install);
-		install.add_directory(Path::new("/installed"));
 		install.add_program(Path::new("/installed/copilot"));
 		install.set_path(&[Path::new("/tools")]);
 		install.push_prompt_response(PromptResponse::Accepted);
@@ -1343,7 +1119,7 @@ mod tests {
 		cancelled.set_path(&[Path::new("/tools")]);
 		cancelled.push_prompt_response(PromptResponse::Accepted);
 		cancelled.push_process_result(Ok(ProcessOutcome {
-			termination: ProcessTermination::HandledCancellation(Cancellation::Requested),
+			termination: ProcessTermination::HandledCancellation,
 			captured_output: None,
 		}));
 
@@ -1387,7 +1163,7 @@ mod tests {
 				1,
 				1,
 				true,
-				Err(ApplicationExit::Cancelled(130)),
+				Err(ApplicationExit::Code(130)),
 				1,
 				1,
 				Err(ApplicationExit::InternalFailure),
@@ -1397,41 +1173,10 @@ mod tests {
 		);
 	}
 
-	#[test]
-	fn windows_installs_launch_the_msi_cli_by_its_full_path() {
-		let runtime = FakeRuntime::default();
-		runtime.add_directory(Path::new("/stale-path"));
-		runtime.set_path(&[Path::new("/stale-path")]);
-		runtime
-			.environment
-			.borrow_mut()
-			.insert(String::from("LOCALAPPDATA"), OsString::from("/local"));
-		let installed = Path::new("/local")
-			.join(setup::CLI_INSTALL_FOLDER)
-			.join("copilot.exe");
-		runtime.push_prompt_response(PromptResponse::Accepted);
-		// The interactive install succeeds and creates the CLI outside the terminal's PATH.
-		runtime.push_process_result(Ok(interactive_exit(0)));
-		runtime.push_process_result(Ok(interactive_exit(5)));
-		runtime.add_program(&installed);
-
-		let exit = run(
-			&runtime,
-			vec![OsString::from("-p")],
-			Some(HostTarget::WindowsX64),
-		);
-
-		assert_eq!(
-			(exit, runtime.prompts.borrow().len(), programs(&runtime)),
-			(5, 1, vec![PathBuf::from("/shim"), installed])
-		);
-	}
-
 	#[cfg(not(windows))]
 	#[test]
 	fn a_declined_install_exits_without_launch() {
 		let install = FakeRuntime::default();
-		install.add_directory(Path::new("/empty"));
 		install.set_path(&[Path::new("/empty")]);
 		install.push_prompt_response(PromptResponse::Declined);
 
@@ -1449,16 +1194,17 @@ mod tests {
 
 	#[cfg(not(windows))]
 	#[test]
-	fn tool_discovery_errors_are_diagnosed() {
+	fn tools_after_an_uninspectable_path_entry_are_found() {
 		let tools = FakeRuntime::default();
-		tools.add_directory(Path::new("/tools"));
 		tools.add_program(Path::new("/tools/bash"));
-		tools.set_path(&[Path::new("/tools")]);
+		tools.add_program(Path::new("/other/curl"));
+		tools.set_path(&[Path::new("/tools"), Path::new("/other")]);
 		tools.inspection_errors.borrow_mut().insert(
 			PathBuf::from("/tools/curl"),
 			io::ErrorKind::PermissionDenied,
 		);
 		tools.push_prompt_response(PromptResponse::Accepted);
+		tools.push_process_result(Ok(interactive_exit(9)));
 
 		let result = prepare_workflow(
 			&tools,
@@ -1467,26 +1213,18 @@ mod tests {
 		);
 
 		assert_eq!(
+			(result, programs(&tools)),
 			(
-				result,
-				tools
-					.diagnostics
-					.borrow()
-					.iter()
-					.any(|message| message.contains("/tools/curl")
-						&& message.contains("PermissionDenied")),
-				tools.commands.borrow().len(),
-			),
-			(Err(ApplicationExit::InternalFailure), true, 0)
+				Err(ApplicationExit::InternalFailure),
+				vec![PathBuf::from("/other/curl")]
+			)
 		);
 	}
-
 	#[test]
 	fn without_a_terminal_a_missing_cli_only_explains_exit_127_when_verbose() {
 		let configured_runtime = || {
 			let runtime = FakeRuntime::default();
 			runtime.no_terminal.set(true);
-			runtime.add_directory(Path::new("/empty"));
 			runtime.set_path(&[Path::new("/empty")]);
 			runtime
 		};
@@ -1536,7 +1274,6 @@ mod tests {
 		let policy_runtime = |directory: &str| {
 			let runtime = FakeRuntime::default();
 			runtime.policy_disabled.set(true);
-			runtime.add_directory(Path::new(directory));
 			runtime.set_path(&[Path::new(directory)]);
 			runtime
 		};
@@ -1580,7 +1317,7 @@ mod tests {
 	#[cfg(not(windows))]
 	fn action_path(action: WorkflowAction) -> Option<PathBuf> {
 		match action {
-			WorkflowAction::Launch(candidate) => Some(candidate.discovered_path().to_path_buf()),
+			WorkflowAction::Launch(candidate) => Some(candidate.path),
 			WorkflowAction::Exit(_) => None,
 		}
 	}
@@ -1606,7 +1343,7 @@ mod tests {
 
 		let cancelled = FakeRuntime::default();
 		cancelled.push_process_result(Ok(ProcessOutcome {
-			termination: ProcessTermination::HandledCancellation(Cancellation::Requested),
+			termination: ProcessTermination::HandledCancellation,
 			captured_output: None,
 		}));
 		let cancellation_exit =
@@ -1617,7 +1354,7 @@ mod tests {
 			program: OsString::from("/failed"),
 			error: SystemError {
 				kind: io::ErrorKind::PermissionDenied,
-				raw_os_error: Some(13),
+				raw_os_error: None,
 			},
 		}));
 		let failure_exit =
@@ -1637,18 +1374,16 @@ mod tests {
 				130,
 				1,
 				vec![String::from(
-					"failed to launch candidate \"/failed\": could not start \"/failed\": PermissionDenied (OS error 13)",
+					"failed to launch candidate \"/failed\": could not start \"/failed\": PermissionDenied",
 				)],
 			)
 		);
 	}
 
 	fn direct_candidate(path: &str) -> Candidate {
-		Candidate::new(
-			PathBuf::from(path),
-			PathBuf::from(path),
-			FileIdentityState::Unsupported,
-			CandidateKind::UnixExecutable,
-		)
+		Candidate {
+			path: PathBuf::from(path),
+			kind: CandidateKind::UnixExecutable,
+		}
 	}
 }

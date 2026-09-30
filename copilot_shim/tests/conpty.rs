@@ -468,17 +468,19 @@ fn windows_conpty_ctrl_c_cancels_without_fallback() {
 	for directory in [&tools, &working_directory] {
 		fs::create_dir_all(directory).expect("create cancellation test directory");
 	}
-	// A release server that accepts the connection and never answers keeps the MSI install waiting for Ctrl+C.
+	// A release server that accepts the connection and doesn't answer keeps the install waiting for Ctrl+C. It closes
+	// the connection only after Ctrl+C, and the shim waits for its install to stop instead of killing it.
 	let listener = TcpListener::bind("127.0.0.1:0").expect("bind fake release server");
 	let releases_url = OsString::from(format!(
 		"http://{}/releases",
 		listener.local_addr().expect("fake release server address")
 	));
 	let (connected, accepted) = mpsc::channel();
+	let (close, closed) = mpsc::channel::<()>();
 	let _server = thread::spawn(move || {
 		if let Ok((connection, _)) = listener.accept() {
 			let _ = connected.send(());
-			thread::sleep(IO_TIMEOUT);
+			let _ = closed.recv_timeout(IO_TIMEOUT);
 			drop(connection);
 		}
 	});
@@ -497,11 +499,16 @@ fn windows_conpty_ctrl_c_cancels_without_fallback() {
 		.recv_timeout(IO_TIMEOUT)
 		.expect("the install should contact the release server");
 	process.write(&[3]);
+	let _ = close.send(());
 	let exit_code = process.wait_for_exit();
 
 	assert_eq!(
-		(exit_code, count_bytes(process.transcript(), INSTALL_PROMPT),),
-		(130, 1),
+		(
+			exit_code,
+			count_bytes(process.transcript(), INSTALL_PROMPT),
+			contains_bytes(process.transcript(), b"could not be installed"),
+		),
+		(130, 1, false),
 		"ConPTY transcript:\n{}",
 		String::from_utf8_lossy(process.transcript())
 	);

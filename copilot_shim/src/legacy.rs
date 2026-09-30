@@ -5,32 +5,27 @@
 
 pub(crate) const LEGACY_INSPECTION_LIMIT: usize = 128 * 1024;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum LegacyClassification {
-	Legacy,
-	NotLegacy,
-	Undecodable,
-}
-
-pub(crate) fn classify_wrapper(bytes: &[u8]) -> LegacyClassification {
+/// Whether `bytes`, the start of a candidate file, is a script shim that an earlier version of VS Code wrote. Those
+/// shims were written as UTF-8, so text in another encoding, such as a `.cmd` file in the OEM code page or a UTF-16
+/// `.ps1` file, is never one.
+pub(crate) fn is_legacy_wrapper(bytes: &[u8]) -> bool {
 	let bytes = &bytes[..bytes.len().min(LEGACY_INSPECTION_LIMIT)];
 	let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
-	let Ok(text) = std::str::from_utf8(bytes) else {
-		return LegacyClassification::Undecodable;
+	let text = match std::str::from_utf8(bytes) {
+		Ok(text) => text,
+		// The inspected prefix can end inside a character.
+		Err(error) if error.error_len().is_none() => {
+			std::str::from_utf8(&bytes[..error.valid_up_to()]).unwrap_or_default()
+		}
+		Err(_) => return false,
 	};
 	let normalized = text.replace("\r\n", "\n");
 
-	if is_posix_launcher(&normalized)
+	is_posix_launcher(&normalized)
 		|| is_git_bash_wrapper(&normalized)
 		|| is_windows_bootstrapper(&normalized)
 		|| is_windows_command_wrapper(&normalized)
-	{
-		LegacyClassification::Legacy
-	} else {
-		LegacyClassification::NotLegacy
-	}
 }
-
 fn is_posix_launcher(text: &str) -> bool {
 	text.starts_with("#!/bin/sh")
 		&& contains_all(

@@ -4,39 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 use std::collections::HashSet;
-#[cfg(any(windows, test))]
-use std::ffi::{OsStr, OsString};
-use std::io::{self, Read};
+use std::io::{self, Cursor, Read};
 use std::path::{Path, PathBuf};
 
 use crate::identity::{contains_marker, is_same_file};
-use crate::legacy::{classify_wrapper, LegacyClassification, LEGACY_INSPECTION_LIMIT};
+use crate::legacy::{is_legacy_wrapper, LEGACY_INSPECTION_LIMIT};
 use crate::model::{DiscoveredCandidate, DiscoveredFileKind, SystemError};
 use crate::runtime::{EnvironmentEffects, FileSystemEffects, InspectedFileType, PathInspection};
 
-/// Only candidates up to this size are searched for the shim marker. The shim binary is about 1 MB, and skipping larger
-/// files keeps discovery from reading a large Copilot CLI executable (about 150 MB) on every launch.
+/// Only candidates up to this size are read. The shim binary is about 1 MB and a script shim is a few KB, so a larger
+/// file, such as the Copilot CLI executable (about 150 MB), is neither and isn't read on every launch.
 const SHIM_MARKER_SEARCH_LIMIT: u64 = 16 * 1024 * 1024;
+
+/// The file names looked up in each PATH directory, in order. Windows names match case-insensitively.
+#[cfg(windows)]
+const CANDIDATE_NAMES: [(&str, DiscoveredFileKind); 4] = [
+	("copilot.exe", DiscoveredFileKind::WindowsExecutable),
+	("copilot.cmd", DiscoveredFileKind::CommandScript),
+	("copilot.bat", DiscoveredFileKind::BatchScript),
+	("copilot.ps1", DiscoveredFileKind::PowerShellScript),
+];
+#[cfg(not(windows))]
+const CANDIDATE_NAMES: [(&str, DiscoveredFileKind); 1] =
+	[("copilot", DiscoveredFileKind::UnixExecutable)];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DiscoveryOperation {
-	CurrentExecutable,
-	PathEntry,
 	CandidateMetadata,
 	CandidateRead,
-	LegacyRead,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DiscoveryExclusion {
-	NotDirectory,
 	NotRegularFile,
 	#[cfg(any(not(windows), test))]
 	NotExecutable,
 	CurrentExecutable,
 	RustShimMarker,
 	LegacyShim,
-	UndecodableScript,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -54,16 +59,16 @@ pub(crate) struct DiscoveryDiagnostic {
 	pub(crate) kind: DiscoveryDiagnosticKind,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct DiscoveryResult {
 	pub(crate) candidates: Vec<DiscoveredCandidate>,
 	pub(crate) diagnostics: Vec<DiscoveryDiagnostic>,
 }
 
+/// The running shim couldn't be identified, so it couldn't be told apart from the candidates.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DiscoveryError {
 	pub(crate) path: Option<PathBuf>,
-	pub(crate) operation: DiscoveryOperation,
 	pub(crate) error: SystemError,
 }
 
@@ -78,162 +83,69 @@ where
 		.current_executable()
 		.map_err(|error| DiscoveryError {
 			path: None,
-			operation: DiscoveryOperation::CurrentExecutable,
 			error: SystemError::from(&error),
 		})?;
-	let current = required_inspection(runtime, &current_path)?;
-	let current_directory = runtime
-		.current_directory()
-		.map_err(|error| DiscoveryError {
-			path: None,
-			operation: DiscoveryOperation::PathEntry,
-			error: SystemError::from(&error),
-		})?;
-
-	let Some(path) = runtime.path() else {
-		return Ok(DiscoveryResult {
-			candidates: Vec::new(),
-			diagnostics: Vec::new(),
-		});
+	let current = match runtime.inspect_path(&current_path) {
+		Ok(Some(inspection)) => inspection,
+		Ok(None) => {
+			return Err(DiscoveryError {
+				path: Some(current_path),
+				error: SystemError {
+					kind: io::ErrorKind::NotFound,
+					raw_os_error: None,
+				},
+			})
+		}
+		Err(error) => {
+			return Err(DiscoveryError {
+				path: Some(current_path),
+				error: SystemError::from(&error),
+			})
+		}
 	};
-	if path.is_empty() {
-		return Ok(DiscoveryResult {
-			candidates: Vec::new(),
-			diagnostics: Vec::new(),
-		});
-	}
 
-	let mut result = DiscoveryResult {
-		candidates: Vec::new(),
-		diagnostics: Vec::new(),
-	};
+	let mut result = DiscoveryResult::default();
 	let mut visited_directories = HashSet::new();
-	for entry in std::env::split_paths(&path) {
-		let directory = resolve_path_entry(&current_directory, &entry);
-		let inspection = match runtime.inspect_path(&directory) {
-			Ok(Some(inspection)) => inspection,
-			Ok(None) => continue,
-			Err(error) => {
-				push_error(
-					&mut result,
-					directory,
-					DiscoveryOperation::PathEntry,
-					&error,
-				);
-				continue;
-			}
-		};
-		if inspection.file_type != InspectedFileType::Directory {
-			push_exclusion(&mut result, directory, DiscoveryExclusion::NotDirectory);
+	for directory in path_directories(runtime) {
+		if !visited_directories.insert(directory.clone()) {
 			continue;
 		}
-		if !visited_directories.insert(inspection.canonical_path) {
-			continue;
-		}
-
-		for (candidate_path, kind) in candidate_paths(runtime, &directory, &mut result) {
+		for (name, kind) in CANDIDATE_NAMES {
 			inspect_candidate(
 				runtime,
 				&current,
-				candidate_path,
+				directory.join(name),
 				kind,
 				shim_marker,
 				&mut result,
 			);
 		}
 	}
-
 	Ok(result)
 }
 
-fn required_inspection<R: FileSystemEffects>(
-	runtime: &R,
-	path: &Path,
-) -> Result<PathInspection, DiscoveryError> {
-	match runtime.inspect_path(path) {
-		Ok(Some(inspection)) => Ok(inspection),
-		Ok(None) => Err(DiscoveryError {
-			path: Some(path.to_path_buf()),
-			operation: DiscoveryOperation::CurrentExecutable,
-			error: SystemError {
-				kind: io::ErrorKind::NotFound,
-				raw_os_error: None,
-			},
-		}),
-		Err(error) => Err(DiscoveryError {
-			path: Some(path.to_path_buf()),
-			operation: DiscoveryOperation::CurrentExecutable,
-			error: SystemError::from(&error),
-		}),
-	}
-}
-
-fn resolve_path_entry(current_directory: &Path, entry: &Path) -> PathBuf {
-	if entry.as_os_str().is_empty() {
-		current_directory.to_path_buf()
-	} else if entry.is_absolute() {
-		entry.to_path_buf()
-	} else {
-		current_directory.join(entry)
-	}
-}
-
-#[cfg(not(windows))]
-fn candidate_paths<R: FileSystemEffects>(
-	_runtime: &R,
-	directory: &Path,
-	_result: &mut DiscoveryResult,
-) -> Vec<(PathBuf, DiscoveredFileKind)> {
-	vec![(
-		directory.join("copilot"),
-		DiscoveredFileKind::UnixExecutable,
-	)]
-}
-
-#[cfg(windows)]
-fn candidate_paths<R: FileSystemEffects>(
-	runtime: &R,
-	directory: &Path,
-	result: &mut DiscoveryResult,
-) -> Vec<(PathBuf, DiscoveredFileKind)> {
-	let entries = match runtime.read_directory(directory) {
-		Ok(entries) => entries,
-		Err(error) => {
-			push_error(
-				result,
-				directory.to_path_buf(),
-				DiscoveryOperation::PathEntry,
-				&error,
-			);
-			return Vec::new();
-		}
+/// The directories in PATH, in order. An empty or relative entry is resolved against the current directory, which is
+/// looked up only when such an entry exists; if it can't be, those entries are skipped.
+pub(crate) fn path_directories<R: EnvironmentEffects>(runtime: &R) -> Vec<PathBuf> {
+	let Some(path) = runtime.path().filter(|path| !path.is_empty()) else {
+		return Vec::new();
 	};
-
-	order_windows_candidates(&entries)
-		.into_iter()
-		.map(|(name, kind)| (directory.join(name), kind))
+	let mut current_directory = None;
+	std::env::split_paths(&path)
+		.filter_map(|entry| {
+			if entry.is_absolute() {
+				return Some(entry);
+			}
+			let base = current_directory
+				.get_or_insert_with(|| runtime.current_directory().ok())
+				.as_ref()?;
+			Some(if entry.as_os_str().is_empty() {
+				base.clone()
+			} else {
+				base.join(entry)
+			})
+		})
 		.collect()
-}
-
-#[cfg(any(windows, test))]
-pub(crate) fn order_windows_candidates(
-	entries: &[OsString],
-) -> Vec<(OsString, DiscoveredFileKind)> {
-	[
-		("copilot.exe", DiscoveredFileKind::WindowsExecutable),
-		("copilot.cmd", DiscoveredFileKind::CommandScript),
-		("copilot.bat", DiscoveredFileKind::BatchScript),
-		("copilot.ps1", DiscoveredFileKind::PowerShellScript),
-	]
-	.into_iter()
-	.filter_map(|(expected, kind)| {
-		entries
-			.iter()
-			.find(|entry| entry.as_os_str().eq_ignore_ascii_case(OsStr::new(expected)))
-			.cloned()
-			.map(|entry| (entry, kind))
-	})
-	.collect()
 }
 
 fn inspect_candidate<R: FileSystemEffects>(
@@ -267,82 +179,35 @@ fn inspect_candidate<R: FileSystemEffects>(
 		push_exclusion(result, path, DiscoveryExclusion::CurrentExecutable);
 		return;
 	}
-
-	if inspection.file_size <= SHIM_MARKER_SEARCH_LIMIT {
-		let reader = match runtime.open_file(&path) {
-			Ok(reader) => reader,
-			Err(error) => {
-				push_error(result, path, DiscoveryOperation::CandidateRead, &error);
-				return;
-			}
-		};
-		match contains_marker(reader.take(SHIM_MARKER_SEARCH_LIMIT), shim_marker) {
-			Ok(true) => {
-				push_exclusion(result, path, DiscoveryExclusion::RustShimMarker);
-				return;
-			}
-			Ok(false) => {}
-			Err(error) => {
-				push_error(result, path, DiscoveryOperation::CandidateRead, &error);
-				return;
-			}
-		}
+	match other_shim(runtime, &path, inspection.file_size, shim_marker) {
+		Ok(Some(exclusion)) => push_exclusion(result, path, exclusion),
+		Ok(None) => result.candidates.push(DiscoveredCandidate { path, kind }),
+		Err(error) => push_error(result, path, DiscoveryOperation::CandidateRead, &error),
 	}
-
-	let reader = match runtime.open_file(&path) {
-		Ok(reader) => reader,
-		Err(error) => {
-			push_error(result, path, DiscoveryOperation::LegacyRead, &error);
-			return;
-		}
-	};
-	let content = match read_legacy_prefix(reader) {
-		Ok(content) => content,
-		Err(error) => {
-			push_error(result, path, DiscoveryOperation::LegacyRead, &error);
-			return;
-		}
-	};
-	match classify_wrapper(&content) {
-		LegacyClassification::Legacy => {
-			push_exclusion(result, path, DiscoveryExclusion::LegacyShim);
-			return;
-		}
-		LegacyClassification::Undecodable if is_script(kind, &content) => {
-			push_exclusion(result, path, DiscoveryExclusion::UndecodableScript);
-			return;
-		}
-		LegacyClassification::NotLegacy | LegacyClassification::Undecodable => {}
-	}
-
-	result.candidates.push(DiscoveredCandidate::new(
-		path,
-		inspection.canonical_path,
-		inspection.file_identity,
-		kind,
-	));
 }
 
-fn read_legacy_prefix(mut reader: Box<dyn Read>) -> io::Result<Vec<u8>> {
-	let mut content = Vec::with_capacity(LEGACY_INSPECTION_LIMIT);
+/// Reads the start of a candidate once to tell whether it's another copy of this shim, by its marker, or a script
+/// shim that an earlier version of VS Code wrote.
+fn other_shim<R: FileSystemEffects>(
+	runtime: &R,
+	path: &Path,
+	size: u64,
+	shim_marker: &[u8],
+) -> io::Result<Option<DiscoveryExclusion>> {
+	if size > SHIM_MARKER_SEARCH_LIMIT {
+		return Ok(None);
+	}
+	let mut reader = runtime.open_file(path)?;
+	let mut prefix = Vec::with_capacity(size.min(LEGACY_INSPECTION_LIMIT as u64) as usize);
 	reader
 		.by_ref()
 		.take(LEGACY_INSPECTION_LIMIT as u64)
-		.read_to_end(&mut content)?;
-	Ok(content)
-}
-
-fn is_script(kind: DiscoveredFileKind, _content: &[u8]) -> bool {
-	match kind {
-		#[cfg(any(not(windows), test))]
-		DiscoveredFileKind::UnixExecutable => _content.starts_with(b"#!"),
-		#[cfg(any(windows, test))]
-		DiscoveredFileKind::CommandScript
-		| DiscoveredFileKind::BatchScript
-		| DiscoveredFileKind::PowerShellScript => true,
-		#[cfg(any(windows, test))]
-		DiscoveredFileKind::WindowsExecutable => false,
+		.read_to_end(&mut prefix)?;
+	let rest = reader.take(SHIM_MARKER_SEARCH_LIMIT.saturating_sub(prefix.len() as u64));
+	if contains_marker(Cursor::new(&prefix).chain(rest), shim_marker)? {
+		return Ok(Some(DiscoveryExclusion::RustShimMarker));
 	}
+	Ok(is_legacy_wrapper(&prefix).then_some(DiscoveryExclusion::LegacyShim))
 }
 
 fn push_error(
@@ -366,46 +231,6 @@ fn push_exclusion(result: &mut DiscoveryResult, path: PathBuf, exclusion: Discov
 		kind: DiscoveryDiagnosticKind::Excluded(exclusion),
 	});
 }
-
-#[cfg(test)]
-mod ordering_tests {
-	use super::*;
-
-	#[test]
-	fn windows_candidate_order_is_fixed_and_case_insensitive() {
-		let entries = [
-			OsString::from("copilot"),
-			OsString::from("COPILOT.PS1"),
-			OsString::from("Copilot.Bat"),
-			OsString::from("copilot.com"),
-			OsString::from("COPILOT.EXE"),
-			OsString::from("Copilot.Cmd"),
-		];
-
-		assert_eq!(
-			order_windows_candidates(&entries),
-			vec![
-				(
-					OsString::from("COPILOT.EXE"),
-					DiscoveredFileKind::WindowsExecutable,
-				),
-				(
-					OsString::from("Copilot.Cmd"),
-					DiscoveredFileKind::CommandScript,
-				),
-				(
-					OsString::from("Copilot.Bat"),
-					DiscoveredFileKind::BatchScript,
-				),
-				(
-					OsString::from("COPILOT.PS1"),
-					DiscoveredFileKind::PowerShellScript,
-				),
-			]
-		);
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use crate::{candidate, identity, legacy, model, runtime};
@@ -417,7 +242,7 @@ mod tests {
 	use std::sync::atomic::{AtomicU64, Ordering};
 
 	use candidate::{discover, DiscoveryDiagnosticKind, DiscoveryExclusion, DiscoveryOperation};
-	use legacy::{classify_wrapper, LegacyClassification};
+	use legacy::is_legacy_wrapper;
 	#[cfg(windows)]
 	use model::DiscoveredFileKind;
 	use model::FileIdentityState;
@@ -516,10 +341,6 @@ mod tests {
 			Ok(inspection)
 		}
 
-		fn read_directory(&self, path: &Path) -> io::Result<Vec<OsString>> {
-			self.native.read_directory(path)
-		}
-
 		fn open_file(&self, path: &Path) -> io::Result<Box<dyn Read>> {
 			if self.read_errors.contains(path) {
 				return Err(io::Error::new(
@@ -568,7 +389,7 @@ mod tests {
 		result
 			.candidates
 			.iter()
-			.map(|candidate| candidate.discovered_path().to_path_buf())
+			.map(|candidate| candidate.path.clone())
 			.collect()
 	}
 
@@ -675,7 +496,7 @@ mod tests {
 
 	#[cfg(unix)]
 	#[test]
-	fn unix_undecodable_shebang_script_is_skipped() {
+	fn unix_scripts_that_are_not_utf8_are_candidates() {
 		let directory = TestDirectory::new("undecodable-shebang");
 		let current = create_current_executable(&directory, b"current");
 		let candidate_directory = directory.directory("candidate");
@@ -694,13 +515,7 @@ mod tests {
 
 		assert_eq!(
 			(candidate_paths(&result), result.diagnostics),
-			(
-				vec![binary],
-				vec![candidate::DiscoveryDiagnostic {
-					path: candidate,
-					kind: DiscoveryDiagnosticKind::Excluded(DiscoveryExclusion::UndecodableScript),
-				}],
-			)
+			(vec![candidate, binary], Vec::new())
 		);
 	}
 
@@ -726,15 +541,9 @@ mod tests {
 			.candidates
 			.first()
 			.expect("candidate should be eligible");
-		let canonical_target = fs::canonicalize(&target).expect("canonicalize candidate target");
-
 		assert_eq!(
-			(
-				result.candidates.len(),
-				candidate.discovered_path(),
-				candidate.canonical_path(),
-			),
-			(1, symlink.as_path(), canonical_target.as_path())
+			(result.candidates.len(), candidate.path.as_path()),
+			(1, symlink.as_path())
 		);
 	}
 
@@ -788,13 +597,10 @@ mod tests {
 			expected
 		};
 
-		assert_eq!(candidate_paths(&result), expected);
+		// A PATH entry that is a file, like a missing one, has no candidates and isn't reported.
 		assert_eq!(
-			result.diagnostics.first(),
-			Some(&candidate::DiscoveryDiagnostic {
-				path: non_directory,
-				kind: DiscoveryDiagnosticKind::Excluded(DiscoveryExclusion::NotDirectory),
-			})
+			(candidate_paths(&result), result.diagnostics),
+			(expected, Vec::new())
 		);
 	}
 
@@ -926,19 +732,14 @@ mod tests {
 			(
 				candidate_paths(&result),
 				result
-					.candidates
-					.first()
-					.map(|candidate| candidate.file_identity()),
-				result
 					.diagnostics
 					.iter()
 					.map(|diagnostic| &diagnostic.kind)
 					.collect::<Vec<_>>(),
-				(fatal.operation, fatal.error.kind),
+				fatal.error.kind,
 			),
 			(
 				vec![valid],
-				Some(&FileIdentityState::Unsupported),
 				vec![
 					&DiscoveryDiagnosticKind::Excluded(DiscoveryExclusion::RustShimMarker),
 					&DiscoveryDiagnosticKind::Error {
@@ -949,10 +750,7 @@ mod tests {
 						},
 					},
 				],
-				(
-					DiscoveryOperation::CurrentExecutable,
-					io::ErrorKind::PermissionDenied,
-				),
+				io::ErrorKind::PermissionDenied,
 			)
 		);
 	}
@@ -998,33 +796,29 @@ mod tests {
 		let uppercase_windows = String::from_utf8(positives[2].to_vec())
 			.expect("UTF-8 fixture")
 			.to_ascii_uppercase();
+		let mut split_character = positives[0].to_vec();
+		split_character.resize(legacy::LEGACY_INSPECTION_LIMIT - 1, b' ');
+		split_character.extend_from_slice("\u{e9}".as_bytes());
 
 		assert_eq!(
 			(
-				positives.map(|bytes| classify_wrapper(bytes) == LegacyClassification::Legacy),
-				negatives.map(|bytes| classify_wrapper(bytes) == LegacyClassification::Legacy),
-				classify_wrapper(crlf_posix.as_bytes()) == LegacyClassification::Legacy,
-				classify_wrapper(&bom_posix) == LegacyClassification::Legacy,
-				classify_wrapper(uppercase_windows.as_bytes()) == LegacyClassification::Legacy,
-				classify_wrapper(&marker_after_limit),
-				classify_wrapper(b"\xFF#!/bin/sh"),
-				classify_wrapper(
+				positives.map(is_legacy_wrapper),
+				negatives.map(is_legacy_wrapper),
+				is_legacy_wrapper(crlf_posix.as_bytes()),
+				is_legacy_wrapper(&bom_posix),
+				is_legacy_wrapper(uppercase_windows.as_bytes()),
+				is_legacy_wrapper(&split_character),
+				is_legacy_wrapper(&marker_after_limit),
+				is_legacy_wrapper(b"\xFF#!/bin/sh"),
+				is_legacy_wrapper(
 					b"#!/bin/sh\nunset node_options\nELECTRON_RUN_AS_NODE=1 x copilotCLIShim.js \"$@\""
-				) == LegacyClassification::Legacy,
+				),
 			),
 			(
-				[true; 4],
-				[false; 2],
-				true,
-				true,
-				true,
-				LegacyClassification::NotLegacy,
-				LegacyClassification::Undecodable,
-				false,
+				[true; 4], [false; 2], true, true, true, true, false, false, false,
 			)
 		);
 	}
-
 	struct ChunkedReader {
 		content: Cursor<Vec<u8>>,
 		maximum_chunk: usize,
@@ -1095,7 +889,7 @@ mod tests {
 				.expect("discover Windows candidates")
 				.candidates
 				.into_iter()
-				.map(|candidate| candidate.kind())
+				.map(|candidate| candidate.kind)
 				.collect::<Vec<_>>(),
 			vec![
 				DiscoveredFileKind::WindowsExecutable,
