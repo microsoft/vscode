@@ -412,17 +412,9 @@
 	padding-right: var(--vscode-spacing-size80);
 }
 
-.monaco-workbench.floating-panels.modern-ui-compact .part.statusbar > .items-container > .statusbar-item.left.first-visible-item.has-background-color {
-	padding-left: var(--vscode-spacing-sizeNone);
-}
-
 .monaco-workbench.floating-panels.modern-ui-compact .part.statusbar > .items-container > .statusbar-item.left.first-visible-item.has-background-color > .statusbar-item-label {
 	padding-left: var(--vscode-spacing-size40);
 	padding-right: var(--vscode-spacing-size40);
-}
-
-.monaco-workbench.floating-panels.modern-ui-compact .part.statusbar > .items-container > .statusbar-item.right.last-visible-item.has-background-color {
-	padding-right: var(--vscode-spacing-sizeNone);
 }
 
 .monaco-workbench.floating-panels.modern-ui-compact .part.statusbar > .items-container > .statusbar-item.right.last-visible-item.has-background-color > .statusbar-item-label {

@@ -1362,10 +1362,10 @@ suite('ModernUIContribution', () => {
 		const statusbar = appendElement(root, 'part statusbar');
 		const items = appendElement(statusbar, 'left-items items-container');
 
-		const measure = (compact: boolean, alignment: 'left' | 'right', colored: boolean) => {
+		const measure = (compact: boolean, alignment: 'left' | 'right', colored: boolean, joinedClass?: 'compact-left' | 'compact-right') => {
 			root.classList.toggle('modern-ui-compact', compact);
 			const edgeClass = alignment === 'left' ? 'first-visible-item' : 'last-visible-item';
-			const item = appendElement(items, `statusbar-item ${alignment} ${edgeClass}${colored ? ' has-background-color' : ''}`);
+			const item = appendElement(items, `statusbar-item ${alignment} ${edgeClass}${colored ? ' has-background-color' : ''}${joinedClass ? ` ${joinedClass}` : ''}`);
 			const label = appendElement(item, 'statusbar-item-label');
 			const itemStyle = getWindow(item).getComputedStyle(item);
 			const labelStyle = getWindow(label).getComputedStyle(label);
@@ -1386,21 +1386,29 @@ suite('ModernUIContribution', () => {
 					return [geometry.itemPaddingLeft, geometry.labelPaddingLeft];
 				})(),
 				coloredLeft: measure(false, 'left', true),
+				coloredLeftJoinedRight: measure(false, 'left', true, 'compact-right'),
 				coloredRight: measure(false, 'right', true),
+				coloredRightJoinedLeft: measure(false, 'right', true, 'compact-left'),
 			},
 			compactDensity: {
 				coloredLeft: measure(true, 'left', true),
+				coloredLeftJoinedRight: measure(true, 'left', true, 'compact-right'),
 				coloredRight: measure(true, 'right', true),
+				coloredRightJoinedLeft: measure(true, 'right', true, 'compact-left'),
 			},
 		}, {
 			defaultDensity: {
 				standardLeftLeadingPadding: ['4px', '4px'],
 				coloredLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '8px', labelPaddingRight: '6px' },
+				coloredLeftJoinedRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '8px', labelPaddingRight: '6px' },
 				coloredRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '6px', labelPaddingRight: '8px' },
+				coloredRightJoinedLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '6px', labelPaddingRight: '8px' },
 			},
 			compactDensity: {
 				coloredLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '4px' },
+				coloredLeftJoinedRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '4px' },
 				coloredRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '6px' },
+				coloredRightJoinedLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '6px' },
 			},
 		});
 	});
