@@ -67,7 +67,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSections, setVirtualizedRowActionsTabbable } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
@@ -2317,6 +2317,7 @@ export class McpListWidget extends Disposable {
 
 	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void, ...classNames: string[]): HTMLButtonElement {
 		const primaryAction = createCustomizationCardPrimaryAction(surface, label, ...classNames);
+		trackCustomizationCardPrimaryActionFocus(primaryAction, surface.closest<HTMLElement>('.plugin-home-row') ?? surface, this.cardDisposables);
 		this.firstCardFocusElement ??= primaryAction;
 		this.cardDisposables.add(DOM.addDisposableListener(primaryAction, 'click', callback));
 		return primaryAction;

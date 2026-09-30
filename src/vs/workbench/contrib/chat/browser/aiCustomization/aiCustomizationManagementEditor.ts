@@ -19,7 +19,7 @@ import { Delayer, RunOnceScheduler, timeout } from '../../../../../base/common/a
 import { cancelOnDispose, CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
-import { DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -104,7 +104,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
-import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IExtension } from '../../../extensions/common/extensions.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
@@ -120,7 +120,6 @@ import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '.
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
-import { IPluginMarketplaceService, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
 import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationBanner, type ICustomizationMigrationCandidatePresentation, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import {
@@ -640,6 +639,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private mcpDetailBackHover: IManagedHover | undefined;
 	private mcpDetailOrigin: CustomizationDetailBaseOrigin | undefined;
 	private readonly mcpDetailDisposables = this._register(new DisposableStore());
+	private readonly mcpDetailScrollUpdate = this._register(new MutableDisposable());
 
 	// Embedded connector detail view
 	private connectorDetailContainer: HTMLElement | undefined;
@@ -652,6 +652,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private marketplaceDetailBackButton: HTMLButtonElement | undefined;
 	private marketplaceDetailOrigin: ICustomizationMarketplaceOrigin | undefined;
 	private marketplaceDetailResource: ICustomizationMarketplaceResource | undefined;
+	private readonly marketplaceDetailScrollUpdate = this._register(new MutableDisposable());
 
 	// Embedded plugin detail view
 	private pluginDetailContainer: HTMLElement | undefined;
@@ -660,6 +661,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private pluginDetailBackButton: HTMLButtonElement | undefined;
 	private pluginDetailBackHover: IManagedHover | undefined;
 	private readonly pluginDetailDisposables = this._register(new DisposableStore());
+	private readonly pluginDetailScrollUpdate = this._register(new MutableDisposable());
 	private pluginDetailInput: IAgentPluginItem | undefined;
 	private pluginDetailOrigin: CustomizationDetailBaseOrigin | undefined;
 
@@ -743,7 +745,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@ICustomizationMarketplaceService private readonly marketplaceService: ICustomizationMarketplaceService,
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
-		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
@@ -4012,7 +4013,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const width = this.marketplaceDetailContainer.offsetWidth || dimension.width;
 			this.marketplaceDetailContainer.classList.toggle('narrow', width < 600);
 		}
-		this.marketplaceDetailScrollable?.scanDomNode();
+		this.scheduleDetailScrollableScan(this.marketplaceDetailScrollable, this.marketplaceDetailScrollUpdate);
+		this.scheduleDetailScrollableScan(this.mcpDetailScrollable, this.mcpDetailScrollUpdate);
+		this.scheduleDetailScrollableScan(this.pluginDetailScrollable, this.pluginDetailScrollUpdate);
 	}
 
 	override focus(): void {
@@ -5202,13 +5205,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	//#region Marketplace Detail
 
+	private scheduleDetailScrollableScan(scrollable: DomScrollableElement | undefined, pendingUpdate: MutableDisposable<IDisposable>): void {
+		if (!scrollable) {
+			return;
+		}
+		scrollable.scanDomNode();
+		const scrollableNode = scrollable.getDomNode();
+		pendingUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(scrollableNode), () => scrollable.scanDomNode());
+	}
+
 	private createMarketplaceDetail(parent: HTMLElement): void {
 		this.marketplaceDetailContainer = DOM.append(parent, $('.marketplace-detail-container'));
 		const detailBody = $('.marketplace-detail-editor-container');
 		this.marketplaceDetailScrollable = this.editorDisposables.add(new DomScrollableElement(detailBody, {
 			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Auto,
-			useShadows: true,
+			vertical: ScrollbarVisibility.Visible,
+			useShadows: false,
 		}));
 		const scrollableNode = this.marketplaceDetailScrollable.getDomNode();
 		scrollableNode.classList.add('marketplace-detail-scrollable');
@@ -5217,6 +5229,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			getSourceLabel: sourceId => this.marketplaceService.sources.find(source => source.id === sourceId)?.displayName ?? sourceId,
 			install: resource => this.marketplaceInstallService.install(resource),
 			openExternal: resource => this.openMarketplaceExternal(resource),
+		}));
+		const resizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
+			'AICustomizationManagementEditor.marketplaceDetailScrollable',
+			() => this.scheduleDetailScrollableScan(this.marketplaceDetailScrollable, this.marketplaceDetailScrollUpdate),
+			DOM.getWindow(scrollableNode),
+		));
+		this.editorDisposables.add(resizeObserver.observe(scrollableNode));
+		this.editorDisposables.add(this.embeddedMarketplaceDetail.onDidChangeContent(() => {
+			this.scheduleDetailScrollableScan(this.marketplaceDetailScrollable, this.marketplaceDetailScrollUpdate);
 		}));
 		const backButton = DOM.append(this.embeddedMarketplaceDetail.leadingSlot, $('button.editor-back-button')) as HTMLButtonElement;
 		this.marketplaceDetailBackButton = backButton;
@@ -5232,19 +5253,48 @@ export class AICustomizationManagementEditor extends EditorPane {
 				keyboardEvent.preventDefault();
 				keyboardEvent.stopPropagation();
 				this.goBackFromMarketplaceDetail();
+				return;
 			}
+			const isArrowKey = keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.DownArrow;
+			if (event.defaultPrevented || (isArrowKey && event.target !== backButton) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+				return;
+			}
+			const scrollable = this.marketplaceDetailScrollable;
+			if (!scrollable) {
+				return;
+			}
+			const { scrollTop } = scrollable.getScrollPosition();
+			const { height, scrollHeight } = scrollable.getScrollDimensions();
+			let nextScrollTop: number;
+			switch (keyboardEvent.keyCode) {
+				case KeyCode.UpArrow:
+					nextScrollTop = scrollTop - 40;
+					break;
+				case KeyCode.DownArrow:
+					nextScrollTop = scrollTop + 40;
+					break;
+				case KeyCode.PageUp:
+					nextScrollTop = scrollTop - height;
+					break;
+				case KeyCode.PageDown:
+					nextScrollTop = scrollTop + height;
+					break;
+				case KeyCode.Home:
+					nextScrollTop = 0;
+					break;
+				case KeyCode.End:
+					nextScrollTop = scrollHeight;
+					break;
+				default:
+					return;
+			}
+			scrollable.setScrollPosition({ scrollTop: nextScrollTop });
+			keyboardEvent.preventDefault();
+			keyboardEvent.stopPropagation();
 		}));
 	}
 
 	private showMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void {
-		const pluginItem = this.resolveMarketplacePlugin(resource);
-		if (pluginItem && this.embeddedPluginDetail && this.marketplaceInstallService.getInstallState(resource).kind !== 'unavailable') {
-			this.marketplaceDetailResource = resource;
-			this.marketplaceDetailOrigin = origin;
-			this.embeddedMarketplaceDetail?.setInput(resource);
-			this.showEmbeddedPluginDetail(pluginItem, { kind: 'discover', marketplaceOrigin: origin });
-			return;
-		}
 		this.showGenericMarketplaceDetail(resource, origin);
 	}
 
@@ -5290,40 +5340,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private resolveMarketplacePlugin(resource: ICustomizationMarketplaceResource): IMarketplacePluginItem | undefined {
-		const installation = resource.installation;
-		if (installation?.kind !== 'plugin') {
-			return undefined;
-		}
-		const plugin = this.pluginMarketplaceService.lastFetchedPlugins?.get?.().find(candidate => {
-			if (resource.version !== undefined && candidate.version !== resource.version) {
-				return false;
-			}
-			const descriptor = candidate.sourceDescriptor;
-			if (descriptor.kind === PluginSourceKind.GitHub) {
-				return descriptor.repo.toLowerCase() === installation.repository.toLowerCase()
-					&& (descriptor.path ?? '') === installation.path
-					&& (descriptor.ref === installation.ref || descriptor.sha === installation.ref);
-			}
-			return descriptor.kind === PluginSourceKind.RelativePath
-				&& candidate.marketplaceReference.githubRepo?.toLowerCase() === installation.repository.toLowerCase()
-				&& candidate.marketplaceReference.ref === installation.ref
-				&& candidate.source.replace(/^\.\//, '').replace(/\/$/, '') === installation.path;
-		});
-		return plugin ? {
-			kind: AgentPluginItemKind.Marketplace,
-			name: plugin.name,
-			description: plugin.description,
-			version: plugin.version,
-			source: plugin.source,
-			sourceDescriptor: plugin.sourceDescriptor,
-			marketplace: plugin.marketplace,
-			marketplaceReference: plugin.marketplaceReference,
-			marketplaceType: plugin.marketplaceType,
-			readmeUri: plugin.readmeUri,
-		} : undefined;
-	}
-
 	private async openMarketplaceExternal(resource: URI | string): Promise<void> {
 		try {
 			await this.openerService.open(resource, { openExternal: true, allowCommands: false, allowContributedOpeners: false });
@@ -5352,13 +5368,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.mcpDetailContainer.appendChild(scrollableNode);
 		const resizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
 			'AICustomizationManagementEditor.mcpDetailScrollable',
-			() => this.mcpDetailScrollable?.scanDomNode(),
-			DOM.getWindow(detailBody),
+			() => this.scheduleDetailScrollableScan(this.mcpDetailScrollable, this.mcpDetailScrollUpdate),
+			DOM.getWindow(scrollableNode),
 		));
-		this.editorDisposables.add(resizeObserver.observe(detailBody));
+		this.editorDisposables.add(resizeObserver.observe(scrollableNode));
 
 		this.embeddedMcpDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMcpServerDetail, detailBody, {
 			openMigrationPage: () => void this.startCustomizationMigration(CustomizationMigrationCategoryId.McpServers),
+		}));
+		this.editorDisposables.add(this.embeddedMcpDetail.onDidChangeContent(() => {
+			this.scheduleDetailScrollableScan(this.mcpDetailScrollable, this.mcpDetailScrollUpdate);
 		}));
 
 		// Back button rendered into the detail's leading slot
@@ -5482,7 +5501,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const detailBody = $('.plugin-detail-editor-container');
 		this.pluginDetailScrollable = this.editorDisposables.add(new DomScrollableElement(detailBody, {
 			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Visible,
 			useShadows: false,
 		}));
 		const scrollableNode = this.pluginDetailScrollable.getDomNode();
@@ -5490,13 +5509,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.pluginDetailContainer.appendChild(scrollableNode);
 		const resizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
 			'AICustomizationManagementEditor.pluginDetailScrollable',
-			() => this.pluginDetailScrollable?.scanDomNode(),
-			DOM.getWindow(detailBody),
+			() => this.scheduleDetailScrollableScan(this.pluginDetailScrollable, this.pluginDetailScrollUpdate),
+			DOM.getWindow(scrollableNode),
 		));
-		this.editorDisposables.add(resizeObserver.observe(detailBody));
+		this.editorDisposables.add(resizeObserver.observe(scrollableNode));
 
 		this.embeddedPluginDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedAgentPluginDetail, detailBody));
-		this.editorDisposables.add(this.embeddedPluginDetail.onDidChangeContent(() => this.pluginDetailScrollable?.scanDomNode()));
+		this.editorDisposables.add(this.embeddedPluginDetail.onDidChangeContent(() => {
+			this.scheduleDetailScrollableScan(this.pluginDetailScrollable, this.pluginDetailScrollUpdate);
+		}));
 		this.editorDisposables.add(this.embeddedPluginDetail.onDidRequestOpenSkill(uri => {
 			this.openSkillFromPluginDetail(uri);
 		}));

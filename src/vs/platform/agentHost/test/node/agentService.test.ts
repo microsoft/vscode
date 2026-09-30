@@ -2207,6 +2207,18 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, ['copilot', 'other']);
 		});
 
+		test('uninstalls plugins through the owning provider', async () => {
+			const calls: unknown[] = [];
+			const provider: IAgent = copilotAgent;
+			provider.uninstallPlugin = async request => { calls.push(request); };
+			registerTestAgentProvider(service, provider);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+
+			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' });
+
+			assert.deepStrictEqual(calls, [{ name: 'spark', marketplace: 'copilot-plugins' }]);
+		});
+
 		test('maps progress events to protocol actions via onDidAction', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
