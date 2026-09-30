@@ -533,7 +533,7 @@ export class NewChatWidget extends Disposable {
 		if (!this._agentsPickerInAttachContextMenu.get()) {
 			return actions;
 		}
-		const agentAction = this._newSessionAttachContextMenu.getActions()
+		const agentAction = this._newSessionAttachContextMenu.getActions({ shouldForwardArgs: true })
 			.flatMap(([, menuActions]) => menuActions)
 			.find(action => action.id === 'sessions.agentHost.agentPicker');
 		if (!agentAction) {

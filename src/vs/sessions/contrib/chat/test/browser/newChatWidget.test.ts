@@ -2255,6 +2255,7 @@ suite('NewChatWidget', () => {
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			let openCount = 0;
 			let showAgentAction = true;
+			let forwardsActionArguments = false;
 			const providerId = eligibility === 'otherProvider' ? 'other-provider' : LOCAL_AGENT_HOST_PROVIDER_ID;
 			const agentAction = toAction({
 				id: 'sessions.agentHost.agentPicker',
@@ -2270,7 +2271,12 @@ suite('NewChatWidget', () => {
 				_workspacePicker: { getContextPickerActions: () => [existingAction] },
 				_useExperimentalComposerLayout: constObservable(experimentalLayout),
 				_agentsPickerInAttachContextMenu: constObservable(enabled),
-				_newSessionAttachContextMenu: { getActions: () => [['navigation', showAgentAction ? [agentAction] : []] as [string, IAction[]]] },
+				_newSessionAttachContextMenu: {
+					getActions: (options?: { shouldForwardArgs?: boolean }) => {
+						forwardsActionArguments = options?.shouldForwardArgs === true;
+						return [['navigation', showAgentAction ? [agentAction] : []] as [string, IAction[]]];
+					},
+				},
 				_newChatInput: {
 					runAttachContextAction: async (action: IAction) => { await action.run(); },
 				},
@@ -2283,7 +2289,7 @@ suite('NewChatWidget', () => {
 				},
 				telemetryService,
 			};
-			return { harness, telemetryService, hideAgentAction: () => showAgentAction = false, getOpenCount: () => openCount };
+			return { harness, telemetryService, hideAgentAction: () => showAgentAction = false, getOpenCount: () => openCount, forwardsActionArguments: () => forwardsActionArguments };
 		};
 		const control = createHarness(false);
 		const treatment = createHarness(true);
@@ -2305,6 +2311,7 @@ suite('NewChatWidget', () => {
 			})),
 			afterSelectionLabels: getContextPickerActions.call(treatment.harness).map(action => action.label),
 			openCount: treatment.getOpenCount(),
+			forwardsActionArguments: treatment.forwardsActionArguments(),
 			controlTriggers: control.telemetryService.triggers,
 			treatmentTriggers: treatment.telemetryService.triggers,
 		}, {
@@ -2318,6 +2325,7 @@ suite('NewChatWidget', () => {
 			],
 			afterSelectionLabels: ['Existing'],
 			openCount: 1,
+			forwardsActionArguments: true,
 			controlTriggers: [`config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`],
 			treatmentTriggers: [`config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`],
 		});
