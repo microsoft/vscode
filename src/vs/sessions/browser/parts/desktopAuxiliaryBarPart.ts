@@ -9,12 +9,12 @@ import { agentsDetailBackground } from '../../common/theme.js';
 import { AuxiliaryBarPart } from './auxiliaryBarPart.js';
 
 /**
- * Single-pane variant of the auxiliary bar. In the single-pane layout the
+ * Desktop variant of the auxiliary bar. In the desktop layout the
  * auxiliary bar is docked inside the editor part as a contextual detail panel:
  * it has no title/composite bar, uses the editor background by default, and
  * fills the exact rectangle the workbench positions it in.
  */
-export class SinglePaneAuxiliaryBarPart extends AuxiliaryBarPart {
+export class DesktopAuxiliaryBarPart extends AuxiliaryBarPart {
 
 	override create(parent: HTMLElement): void {
 		// Clear `hasTitle` so PartLayout does not reserve title height (there is no title strip).
