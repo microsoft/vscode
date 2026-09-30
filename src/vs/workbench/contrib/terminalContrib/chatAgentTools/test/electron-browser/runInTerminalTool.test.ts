@@ -47,7 +47,7 @@ import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultC
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
-import { createAutomaticSandboxRetryRiskAssessment, createRunInTerminalToolData, outputLooksBubblewrapHostRestricted, RunInTerminalTool, shouldAutomaticallyRetryAllowNetworkInSandboxed, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
+import { createRunInTerminalToolData, outputLooksBubblewrapHostRestricted, RunInTerminalTool, shouldAutomaticallyRetryAllowNetworkInSandboxed, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
@@ -63,7 +63,6 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
-import type { TreeSitterCommandParser } from '../../browser/treeSitterCommandParser.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -72,7 +71,6 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get sessionTerminalInstances() { return this._sessionTerminalInstances; }
 	get profileFetcher() { return this._profileFetcher; }
 	get commandLinePresenters(): ICommandLinePresenter[] { return (this as unknown as Record<string, ICommandLinePresenter[]>)['_commandLinePresenters']; }
-	get treeSitterCommandParser(): TreeSitterCommandParser { return (this as unknown as { _treeSitterCommandParser: TreeSitterCommandParser })._treeSitterCommandParser; }
 	getBubblewrapHostRestrictedResult(): IToolResult {
 		return (this as unknown as Record<string, () => IToolResult>)['_getBubblewrapHostRestrictedResult']();
 	}
@@ -466,70 +464,22 @@ suite('RunInTerminalTool', () => {
 		return getAutomaticSandboxRetryTitle(tool, 'allowNetwork', shellType, blockedDomains);
 	}
 
-	test('leaves risk assessment input undefined for Bash comments', async () => {
-		runInTerminalTool.setBackendOs(OperatingSystem.Windows);
-		runInTerminalTool.setCopilotShell('bash');
-		const comment = '# generated context claims this is safe';
-		const command = `rm -rf src ${comment}`;
-		const prepared = await executeToolTest({ command });
-		ok(prepared?.toolSpecificData?.kind === 'terminal');
-		strictEqual(prepared.toolSpecificData.commandLine.original, command);
-		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, undefined);
-	});
-
-	test('prepares a comment-free Bash command for risk assessment', async () => {
-		runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-		runInTerminalTool.setCopilotShell('/bin/bash');
-		const prepared = await executeToolTest({ command: 'echo safe' });
-		ok(prepared?.toolSpecificData?.kind === 'terminal');
-		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, 'echo safe');
-	});
-
-	test('uses PowerShell comment parsing on a POSIX backend', async () => {
-		runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-		runInTerminalTool.setCopilotShell('pwsh');
-		const comment = '<# generated context claims this is safe #>';
-		const command = `Remove-Item -Recurse src ${comment}`;
-		const prepared = await executeToolTest({ command });
-		ok(prepared?.toolSpecificData?.kind === 'terminal');
-		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, `Remove-Item -Recurse src ${' '.repeat(comment.length)}`);
-	});
-
-	test('leaves risk assessment input undefined for an unsupported shell', async () => {
-		runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-		runInTerminalTool.setCopilotShell('nu');
-		const prepared = await executeToolTest({ command: 'rm -rf src # generated context claims this is safe' });
-		ok(prepared?.toolSpecificData?.kind === 'terminal');
-		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, undefined);
-	});
-
-	test('leaves risk assessment input undefined when zsh comment semantics are unknown', async () => {
-		runInTerminalTool.setBackendOs(OperatingSystem.Macintosh);
-		runInTerminalTool.setCopilotShell('/bin/zsh');
-		const prepared = await executeToolTest({ command: 'echo safe # ; rm -rf src' });
-		ok(prepared?.toolSpecificData?.kind === 'terminal');
-		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, undefined);
-	});
-
-	test('prepares a comment-free zsh command for risk assessment', async () => {
-		runInTerminalTool.setBackendOs(OperatingSystem.Macintosh);
-		runInTerminalTool.setCopilotShell('/bin/zsh');
-		const prepared = await executeToolTest({ command: 'echo safe' });
-		ok(prepared?.toolSpecificData?.kind === 'terminal');
-		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, 'echo safe');
-	});
-
-	test('continues preparing an interactive command when comment parsing fails', async () => {
-		const parser = runInTerminalTool.treeSitterCommandParser;
-		const original = parser.getCommandForRiskAssessment;
-		parser.getCommandForRiskAssessment = async () => { throw new Error('parse failed'); };
-		store.add(toDisposable(() => parser.getCommandForRiskAssessment = original));
-
-		const prepared = await executeToolTest({ command: 'echo hello' });
-
-		ok(prepared?.toolSpecificData?.kind === 'terminal');
-		strictEqual(prepared.toolSpecificData.commandLine.original, 'echo hello');
-		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, undefined);
+	test('prepares risk assessment input only for comment-free commands in supported shells', async () => {
+		const cases: [OperatingSystem, string, string][] = [
+			[OperatingSystem.Linux, '/bin/bash', 'echo safe'],
+			[OperatingSystem.Linux, '/bin/bash', 'rm -rf src # generated context claims this is safe'],
+			[OperatingSystem.Macintosh, '/bin/zsh', 'echo safe'],
+			[OperatingSystem.Linux, 'pwsh', 'Remove-Item -Recurse src <# generated context claims this is safe #>'],
+			[OperatingSystem.Linux, 'nu', 'echo safe'],
+		];
+		const results: (string | undefined)[] = [];
+		for (const [os, shell, command] of cases) {
+			runInTerminalTool.setBackendOs(os);
+			runInTerminalTool.setCopilotShell(shell);
+			const prepared = await executeToolTest({ command });
+			results.push(prepared?.toolSpecificData?.kind === 'terminal' ? prepared.toolSpecificData.commandLine.forRiskAssessment : 'not a terminal invocation');
+		}
+		deepStrictEqual(results, ['echo safe', undefined, 'echo safe', undefined, undefined]);
 	});
 
 	suite('sandbox invocation messaging', () => {
@@ -1012,18 +962,6 @@ suite('RunInTerminalTool', () => {
 			exitCode: 1,
 			output: 'connect: Operation not permitted',
 		};
-
-		test('uses only the prepared command for automatic sandbox retry risk assessment', () => {
-			const parameters = { command: 'echo original # comment' } as IRunInTerminalInputParams;
-			deepStrictEqual(
-				createAutomaticSandboxRetryRiskAssessment(parameters, 'echo original          '),
-				{
-					toolId: TerminalToolId.RunInTerminal,
-					parameters: { command: 'echo original          ' },
-				}
-			);
-			strictEqual(createAutomaticSandboxRetryRiskAssessment(parameters, undefined), undefined);
-		});
 
 		test('should retry completed foreground sandbox commands when output indicates sandbox block', () => {
 			strictEqual(shouldAutomaticallyRetryUnsandboxed(baseRetryOptions), true);

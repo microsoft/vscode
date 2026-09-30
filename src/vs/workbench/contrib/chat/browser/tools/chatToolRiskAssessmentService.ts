@@ -71,12 +71,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 	}
 
 	getCached(tool: IToolData, parameters: unknown, kind?: ToolRiskPromptKind): IToolRiskAssessment | undefined {
-		const resolvedKind = resolveRiskPromptKind(tool, kind);
-		const normalizedParameters = normalizeRiskParameters(parameters, resolvedKind);
-		if (resolvedKind === 'terminal' && normalizedParameters === undefined) {
-			return undefined;
-		}
-		return this._cache.get(this._cacheKey(tool, normalizedParameters, resolvedKind))?.assessment;
+		return this._cache.get(this._cacheKey(tool, parameters, resolveRiskPromptKind(tool, kind)))?.assessment;
 	}
 
 	async assess(tool: IToolData, parameters: unknown, token: CancellationToken, kind?: ToolRiskPromptKind, options?: { ignoreEnablement?: boolean }): Promise<IToolRiskAssessment | undefined> {
@@ -85,11 +80,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 		}
 
 		const resolvedKind = resolveRiskPromptKind(tool, kind);
-		const normalizedParameters = normalizeRiskParameters(parameters, resolvedKind);
-		if (resolvedKind === 'terminal' && normalizedParameters === undefined) {
-			return undefined;
-		}
-		const key = this._cacheKey(tool, normalizedParameters, resolvedKind);
+		const key = this._cacheKey(tool, parameters, resolvedKind);
 
 		const cached = this._cache.get(key);
 		if (cached) {
@@ -103,7 +94,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 
 		const promise = (async () => {
 			try {
-				const assessment = await this._invokeModel(tool, normalizedParameters, resolvedKind, token);
+				const assessment = await this._invokeModel(tool, normalizeRiskCacheParameters(parameters, resolvedKind), resolvedKind, token);
 				if (token.isCancellationRequested) {
 					return undefined;
 				}
@@ -121,7 +112,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 	}
 
 	private _cacheKey(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string {
-		return kind + '::' + tool.id + '::' + stableStringify(parameters);
+		return kind + '::' + tool.id + '::' + stableStringify(normalizeRiskCacheParameters(parameters, kind));
 	}
 
 	private async _invokeModel(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind, token: CancellationToken): Promise<IToolRiskAssessment | undefined> {
@@ -181,15 +172,16 @@ function resolveRiskPromptKind(tool: IToolData, kind: ToolRiskPromptKind | undef
  * assessment, used as the prompt input and cache key so re-invocations of the same tool call
  * hit the cache even when model-generated descriptive fields differ.
  */
-function normalizeRiskParameters(parameters: unknown, kind: ToolRiskPromptKind): unknown {
+function normalizeRiskCacheParameters(parameters: unknown, kind: ToolRiskPromptKind): unknown {
 	if (kind === 'terminal' && parameters && typeof parameters === 'object') {
 		const p = parameters as Record<string, unknown>;
-		return typeof p.command === 'string' ? { command: p.command } : undefined;
+		return { command: p.command };
 	}
 	return parameters;
 }
 
 function buildPrompt(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string | undefined {
+	// A truncated command could hide the part that makes it risky
 	const argsJson = serializeParameters(parameters, kind !== 'terminal');
 	if (argsJson === undefined) {
 		return undefined;

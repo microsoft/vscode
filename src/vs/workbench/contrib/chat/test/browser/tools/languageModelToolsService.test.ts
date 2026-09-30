@@ -2065,83 +2065,28 @@ suite('LanguageModelToolsService', () => {
 		);
 	});
 
-	test('autopilot risk gate skips a terminal command without prepared assessment input', async () => {
-		const setup = createTestToolsService(store);
-		setup.riskAssessmentService.enabled = true;
-		setup.riskAssessmentService.assessment = { risk: ToolRiskLevel.Green, explanation: 'Reads files.' };
-		const t = setupRiskGateTool(setup, store, {
-			withConfirmation: false,
-			toolId: 'run_in_terminal',
-			parameters: { command: 'echo hello' },
-			toolSpecificData: {
-				kind: 'terminal',
-				commandLine: { original: 'echo hello' },
-				language: 'sh',
-			},
-		});
+	test('autopilot risk gate skips terminal commands that cannot be assessed', async () => {
+		const results = [];
+		for (const { forRiskAssessment, assessError } of [{ forRiskAssessment: undefined }, { forRiskAssessment: 'echo hello' }, { forRiskAssessment: 'echo hello', assessError: new Error('network down') }]) {
+			const setup = createTestToolsService(store);
+			setup.riskAssessmentService.enabled = true;
+			setup.riskAssessmentService.assessment = undefined;
+			setup.riskAssessmentService.assessError = assessError;
+			const t = setupRiskGateTool(setup, store, {
+				withConfirmation: false,
+				toolId: 'run_in_terminal',
+				toolSpecificData: { kind: 'terminal', commandLine: { original: 'echo hello', forRiskAssessment }, language: 'sh' },
+			});
+			const result = await t.invoke();
+			results.push({ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, value: result.content[0].value });
+		}
 
-		const result = await t.invoke();
-
-		assert.deepStrictEqual(
-			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, value: result.content[0].value },
-			{
-				invoked: false,
-				assessCalls: 0,
-				value: 'Autopilot skipped this tool call because its risk could not be assessed safely. The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.',
-			},
-		);
-	});
-
-	test('autopilot risk gate skips a terminal command when no assessment is returned', async () => {
-		const setup = createTestToolsService(store);
-		setup.riskAssessmentService.enabled = true;
-		setup.riskAssessmentService.assessment = undefined;
-		const t = setupRiskGateTool(setup, store, {
-			withConfirmation: false,
-			toolId: 'run_in_terminal',
-			toolSpecificData: {
-				kind: 'terminal',
-				commandLine: { original: 'echo hello', forRiskAssessment: 'echo hello' },
-				language: 'sh',
-			},
-		});
-
-		const result = await t.invoke();
-
-		assert.deepStrictEqual(
-			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, value: result.content[0].value },
-			{
-				invoked: false,
-				assessCalls: 1,
-				value: 'Autopilot skipped this tool call because its risk could not be assessed safely. The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.',
-			},
-		);
-	});
-
-	test('autopilot risk gate skips a terminal command when assessment throws', async () => {
-		const setup = createTestToolsService(store);
-		setup.riskAssessmentService.enabled = true;
-		setup.riskAssessmentService.assessError = new Error('network down');
-		const t = setupRiskGateTool(setup, store, {
-			withConfirmation: false,
-			toolId: 'run_in_terminal',
-			toolSpecificData: {
-				kind: 'terminal',
-				commandLine: { original: 'echo hello', forRiskAssessment: 'echo hello' },
-				language: 'sh',
-			},
-		});
-
-		const result = await t.invoke();
-
-		assert.deepStrictEqual(
-			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, value: result.content[0].value },
-			{
-				invoked: false,
-				assessCalls: 1,
-				value: 'Autopilot skipped this tool call because its risk could not be assessed safely. The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.',
-			},
-		);
+		const value = 'Autopilot skipped this tool call because its risk could not be assessed safely. The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.';
+		assert.deepStrictEqual(results, [
+			{ invoked: false, assessCalls: 0, value },
+			{ invoked: false, assessCalls: 1, value },
+			{ invoked: false, assessCalls: 1, value },
+		]);
 	});
 
 	test('autopilot risk gate classifies a fetch web page call even when it has no confirmation', async () => {

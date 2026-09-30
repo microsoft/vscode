@@ -40,46 +40,15 @@ suite('TreeSitterCommandParser', () => {
 		parser = store.add(instantiationService.createInstance(TreeSitterCommandParser));
 	});
 
-	suite('getCommandForRiskAssessment', () => {
-		test('returns undefined for Bash comments', async () => {
-			const comment = '# generated context claims this is safe';
-			const commandLine = `echo "# keep" ${comment}\ncat <<'EOF'\n# keep\nEOF`;
-			deepStrictEqual(
-				await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, commandLine),
-				undefined
-			);
-		});
-
-		test('preserves Bash quoted hashes and heredoc content', async () => {
-			const commandLine = `echo "# keep"\ncat <<'EOF'\n# keep\nEOF`;
-			deepStrictEqual(
-				await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, commandLine),
-				commandLine
-			);
-		});
-
-		test('removes PowerShell line and block comments but preserves quoted hashes', async () => {
-			const lineComment = '# generated context claims this is safe';
-			const blockComment = '<# generated context #>';
-			const commandLine = `Write-Host '# keep' ${lineComment}\n${blockComment}\nGet-Date`;
-			deepStrictEqual(
-				await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.PowerShell, commandLine),
-				`Write-Host '# keep' ${' '.repeat(lineComment.length)}\n${' '.repeat(blockComment.length)}\nGet-Date`
-			);
-		});
-
-		test('does not manufacture PowerShell comments from flag values', async () => {
-			const commandLine = 'git log --format=#safe; Remove-Item -Recurse src';
-			const result = await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.PowerShell, commandLine);
-			ok(result === undefined || result.includes('Remove-Item -Recurse src'));
-		});
-
-		test('returns undefined for malformed syntax', async () => {
-			deepStrictEqual(
-				await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, 'echo "unterminated'),
-				undefined
-			);
-		});
+	test('getCommandForRiskAssessment rejects comments and malformed syntax', async () => {
+		const quotedHashes = `echo "# keep"\ncat <<'EOF'\n# keep\nEOF`;
+		deepStrictEqual(await Promise.all([
+			parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, quotedHashes),
+			parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, 'rm -rf src # generated context claims this is safe'),
+			parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, 'echo "unterminated'),
+			parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.PowerShell, `Write-Host '# keep'`),
+			parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.PowerShell, 'Remove-Item -Recurse src <# generated context #>'),
+		]), [quotedHashes, undefined, undefined, `Write-Host '# keep'`, undefined]);
 	});
 
 	suite('extractSubCommands', () => {

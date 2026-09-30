@@ -672,7 +672,7 @@ export interface IChatTerminalToolInvocationData {
 		original: string;
 		userEdited?: string;
 		toolEdited?: string;
-		/** Command with shell comments removed, used only for risk assessment. */
+		/** Command to send to risk assessment, or `undefined` when it cannot be assessed safely. */
 		forRiskAssessment?: string;
 		// command to show in the chat UI (potentially different from what is actually run in the terminal)
 		forDisplay?: string;
