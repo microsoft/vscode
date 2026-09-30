@@ -2359,19 +2359,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 		candidates: readonly CustomizationMigrationCandidate[],
 		storage: PromptsStorage,
 	): Pick<ICustomizationMigrationDashboardCategory, 'destinationLabel' | 'destinationAriaLabel'> {
-		const labels = id === CustomizationMigrationCategoryId.McpServers
-			? candidates.filter(isMcpServerCustomizationMigrationCandidate)
-				.map(candidate => this.labelService.getUriLabel(candidate.targetUri, { relative: true }))
-			: this.getCustomizationMigrationDashboardDestinations(
-				candidates.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate)),
-			).map(destination => destination.label);
-		const uniqueLabels = [...new Set(labels)];
-		if (uniqueLabels.length === 0) {
+		const destinationLabel = id === CustomizationMigrationCategoryId.McpServers
+			? this.getMcpMigrationDestinationLabel(candidates.filter(isMcpServerCustomizationMigrationCandidate))
+			: this.getCustomizationMigrationDestinationLabel(candidates
+				.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate))
+				.flatMap(candidate => {
+					const folder = this.selectedCustomizationMigrationTargets.get(this.getCustomizationMigrationTargetKey(
+						getCustomizationMigrationTargetType(candidate),
+						candidate.storage,
+					));
+					return folder ? [{ ...folder, label: this.getCustomizationMigrationFolderLabel(folder) }] : [];
+				}));
+		if (!destinationLabel) {
 			return {};
 		}
-		const destinationLabel = uniqueLabels.length === 1
-			? uniqueLabels[0]
-			: localize('migrationMultipleDestinations', "{0} and {1} more", uniqueLabels[0], uniqueLabels.length - 1);
 		const scope = storage === PromptsStorage.local
 			? localize('migrationWorkspaceScope', "Workspace")
 			: localize('migrationUserScope', "User");
@@ -2379,6 +2380,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 			destinationLabel,
 			destinationAriaLabel: localize('changeMigrationGroupDestination', "Change destination for {0} {1} migrations, currently {2}", scope, getCustomizationMigrationCategory(id).cardLabel, destinationLabel),
 		};
+	}
+
+	private getMcpMigrationDestinationLabel(candidates: readonly IMcpServerCustomizationMigrationCandidate[]): string | undefined {
+		const targets = new ResourceSet(candidates.map(candidate => candidate.targetUri));
+		const first = targets.values().next().value;
+		if (!first) {
+			return undefined;
+		}
+		if (targets.size === 1) {
+			return this.labelService.getUriLabel(first, { relative: true });
+		}
+		const parent = dirname(first);
+		return [...targets].every(target => isEqual(dirname(target), parent))
+			? this.labelService.getUriLabel(parent, { relative: true })
+			: undefined;
 	}
 
 	private getMigrationGroupIgnoreKey(id: CustomizationMigrationCategoryId, storage: PromptsStorage): string {
@@ -2530,18 +2546,23 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.notificationService.info(localize('migrationNoEditableDestinations', "There are no file migration destinations to configure. Workspace MCP servers migrate to the root .mcp.json; user MCP servers migrate to mcp-config.json in Copilot home."));
 			return;
 		}
+		if (destinations.length === 1) {
+			await this.chooseCustomizationMigrationDestination(destinations[0]);
+			return;
+		}
 		const selected = await this.quickInputService.pick(destinations.map(destination => ({
-			label: destination.contextLabel,
-			description: destination.label,
-			destination,
-		})), {
+				label: destination.contextLabel,
+				description: destination.label,
+				destination,
+			})), {
 			canPickMany: false,
 			placeHolder: localize('chooseMigrationLocationToCustomize', "Choose a migration location to customize"),
 			matchOnDescription: true,
 		});
-		if (selected && this.isCustomizationMigrationSessionActive(sessionResource)) {
-			await this.chooseCustomizationMigrationDestination(selected.destination);
+		if (!selected || !this.isCustomizationMigrationSessionActive(sessionResource)) {
+			return;
 		}
+		await this.chooseCustomizationMigrationDestination(selected.destination);
 	}
 
 	private getCustomizationMigrationDestinationContextLabel(targetType: PromptsType, storage: PromptsStorage): string {
@@ -2584,31 +2605,40 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		let folder = selected.folder;
+		const folder = selected.folder;
 		if (selected.chooseAnother) {
-			const folders = await this.fileDialogService.showOpenDialog({
-				title: localize('chooseCustomMigrationDestination', "Choose a Custom Migration Destination"),
-				openLabel: localize('selectFolder', "Select Folder"),
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				defaultUri: currentFolder?.uri,
-			});
-			const uri = folders?.[0];
-			if (!uri || !this.isCustomizationMigrationSessionActive(sessionResource)) {
-				return;
-			}
-			folder = {
-				uri,
-				label: this.labelService.getUriLabel(uri, { relative: true }),
-				source: destination.storage,
-			};
+			await this.chooseCustomMigrationDestination(destination, sessionResource);
+			return;
 		}
 		if (!folder) {
 			return;
 		}
 
 		this.selectedCustomizationMigrationTargets.set(key, folder);
+		this.explicitlySelectedCustomizationMigrationTargets.add(key);
+		this.renderCustomizationMigrationDashboardState();
+	}
+
+	private async chooseCustomMigrationDestination(destination: ICustomizationMigrationDashboardDestination, sessionResource: URI): Promise<void> {
+		const key = this.getCustomizationMigrationTargetKey(destination.targetType, destination.storage);
+		const currentFolder = this.selectedCustomizationMigrationTargets.get(key);
+		const folders = await this.fileDialogService.showOpenDialog({
+			title: localize('chooseCustomMigrationDestination', "Choose a Custom Migration Destination"),
+			openLabel: localize('selectFolder', "Select Folder"),
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			defaultUri: currentFolder?.uri,
+		});
+		const uri = folders?.[0];
+		if (!uri || !this.isCustomizationMigrationSessionActive(sessionResource)) {
+			return;
+		}
+		this.selectedCustomizationMigrationTargets.set(key, {
+			uri,
+			label: this.labelService.getUriLabel(uri, { relative: true }),
+			source: destination.storage,
+		});
 		this.explicitlySelectedCustomizationMigrationTargets.add(key);
 		this.renderCustomizationMigrationDashboardState();
 	}

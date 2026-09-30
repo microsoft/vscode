@@ -155,6 +155,7 @@ interface IMigrationItemTemplateData {
 	readonly label: HTMLElement;
 	readonly metadata: HTMLElement;
 	readonly source: HTMLElement;
+	readonly reviewButton: Button;
 	readonly moreButton: Button;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -166,6 +167,7 @@ class MigrationItemRenderer implements IListRenderer<IMigrationItemEntry, IMigra
 	constructor(
 		private readonly hoverService: IHoverService,
 		private readonly selectionChanged: (entry: IMigrationItemEntry, selected: boolean) => void,
+		private readonly reviewItem: (entry: IMigrationItemEntry) => void,
 		private readonly showActions: (entry: IMigrationItemEntry, anchor: HTMLElement) => void,
 	) { }
 
@@ -181,6 +183,13 @@ class MigrationItemRenderer implements IListRenderer<IMigrationItemEntry, IMigra
 		const label = DOM.append(header, $('.migration-tree-item-label'));
 		const metadata = DOM.append(content, $('.migration-tree-item-metadata'));
 		const source = DOM.append(metadata, $('.migration-tree-item-source'));
+		const reviewButton = disposables.add(new Button(container, {
+			...defaultButtonStyles,
+			secondary: true,
+			title: false,
+		}));
+		reviewButton.element.classList.add('migration-tree-item-review');
+		reviewButton.label = localize('reviewMigrationItem', "Review");
 		const moreButton = disposables.add(new Button(container, {
 			...defaultButtonStyles,
 			secondary: true,
@@ -193,28 +202,37 @@ class MigrationItemRenderer implements IListRenderer<IMigrationItemEntry, IMigra
 		}));
 		moreButton.element.classList.add('migration-tree-item-more');
 		moreButton.label = `$(${Codicon.ellipsis.id})`;
-		return { container, checkbox, checkboxContainer, content, label, metadata, source, moreButton, disposables, elementDisposables };
+		return { container, checkbox, checkboxContainer, content, label, metadata, source, reviewButton, moreButton, disposables, elementDisposables };
 	}
 
 	renderElement(element: IMigrationItemEntry, _index: number, templateData: IMigrationItemTemplateData): void {
 		templateData.elementDisposables.clear();
 		templateData.label.textContent = element.label;
 		const manualReview = element.manualReviewReason !== undefined;
-		templateData.checkboxContainer.style.visibility = manualReview ? 'hidden' : '';
+		templateData.container.classList.toggle('manual-review', manualReview);
+		templateData.checkboxContainer.style.visibility = '';
 		templateData.checkbox.domNode.tabIndex = manualReview ? -1 : 0;
 		templateData.checkbox.domNode.setAttribute('aria-hidden', String(manualReview));
 		templateData.checkbox.checked = element.selected;
 		templateData.checkbox.domNode.setAttribute('aria-label', localize('selectMigrationItem', "Select {0} for migration", element.label));
+		templateData.reviewButton.element.style.display = manualReview ? '' : 'none';
+		templateData.reviewButton.element.setAttribute('aria-label', localize('reviewMigrationItemAriaLabel', "Review {0}", element.label));
 		templateData.moreButton.element.setAttribute('aria-label', localize('migrationItemActions', "More actions for {0}", element.label));
 		templateData.source.textContent = element.sourceLabel;
 		templateData.elementDisposables.add(templateData.checkbox.onChange(() => this.selectionChanged(element, templateData.checkbox.checked)));
 		templateData.elementDisposables.add(DOM.addDisposableListener(templateData.checkbox.domNode, DOM.EventType.CLICK, event => event.stopPropagation()));
+		templateData.elementDisposables.add(templateData.reviewButton.onDidClick(event => {
+			event.stopPropagation();
+			this.reviewItem(element);
+		}));
+		templateData.elementDisposables.add(DOM.addDisposableListener(templateData.reviewButton.element, DOM.EventType.CLICK, event => event.stopPropagation()));
 		templateData.elementDisposables.add(templateData.moreButton.onDidClick(event => {
 			event.stopPropagation();
 			this.showActions(element, templateData.moreButton.element);
 		}));
 		templateData.elementDisposables.add(DOM.addDisposableListener(templateData.moreButton.element, DOM.EventType.CLICK, event => event.stopPropagation()));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.moreButton.element, { content: localize('moreActions', "More Actions") }));
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.reviewButton.element, { content: localize('reviewMigrationItemAriaLabel', "Review {0}", element.label) }));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.label, {
 			content: element.manualReviewReason
 				? localize('manualReviewItemHover', "{0}\n\n{1}", element.label, element.manualReviewReason)
@@ -436,6 +454,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				asTreeRenderer(new MigrationItemRenderer(
 					this.hoverService,
 					(entry, selected) => this.setMigrationItemSelected(entry, selected),
+					entry => this.openMigrationItem(entry),
 					(entry, anchor) => this.callbacks.showItemActions(entry, entry.storage, anchor),
 				)),
 			],

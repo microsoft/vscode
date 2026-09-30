@@ -29,7 +29,7 @@ function overview(): ICustomizationMigrationDashboardOverview {
 					},
 					{
 						id: CustomizationMigrationCategoryId.UserData, label: 'User Data', description: 'Move agents and instructions to shared locations so they remain available to supported agent experiences.', count: 2, selectedCount: 2, countLabel: '1 agent · 1 instruction',
-						destinationLabel: '~/.agents/agents and 1 more',
+						destinationLabel: '~/.agents',
 						items: [
 							{ id: 'profile-agent', label: 'release-manager', scopeLabel: 'User', sourceLabel: '~/.copilot/agents/release-manager.agent.md' },
 							{ id: 'profile-instructions', label: 'typescript-style', scopeLabel: 'User', sourceLabel: '~/.copilot/instructions/typescript-style.instructions.md' },

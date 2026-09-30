@@ -211,13 +211,19 @@ suite('CustomizationMigrationDashboard', () => {
 
 		[...parent.querySelectorAll<HTMLElement>('.migration-tree-item-label')]
 			.find(element => element.textContent === 'Postgres')?.click();
-		[...parent.querySelectorAll<HTMLElement>('.migration-tree-item-label')]
-			.find(element => element.textContent === 'Legacy')?.click();
+		button(parent, 'Review Legacy').click();
 
 		assert.deepStrictEqual(opened, [
 			`workspace-mcp:${PromptsStorage.local}`,
 			`workspace-mcp-manual:${PromptsStorage.local}`,
 		]);
+		assert.deepStrictEqual({
+			manualReviewCheckboxDisplay: DOM.getWindow(parent).getComputedStyle(parent.querySelector<HTMLElement>('.migration-tree-item.manual-review .migration-tree-item-checkbox')!).display,
+			reviewButtons: [...parent.querySelectorAll('.migration-tree-item-review')].filter(element => (element as HTMLElement).style.display !== 'none').map(element => element.textContent),
+		}, {
+			manualReviewCheckboxDisplay: 'none',
+			reviewButtons: ['Review'],
+		});
 	});
 
 	test('sizes the migration tree to the available height so it owns scrolling', () => {

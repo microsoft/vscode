@@ -158,6 +158,10 @@
 	gap: var(--vscode-spacing-size20);
 }
 
+.customization-migration-dashboard .migration-tree .group-title-row {
+	max-width: 100%;
+}
+
 .customization-migration-dashboard .migration-tree .group-label {
 	line-height: normal;
 }
@@ -217,6 +221,14 @@
 	flex: 0 0 auto;
 }
 
+.customization-migration-dashboard .migration-tree-item.manual-review {
+	padding-left: var(--vscode-spacing-size40);
+}
+
+.customization-migration-dashboard .migration-tree-item.manual-review .migration-tree-item-checkbox {
+	display: none;
+}
+
 .customization-migration-dashboard .migration-tree-item-content {
 	display: flex;
 	flex: 1;
@@ -253,6 +265,12 @@
 	padding: 0;
 	border-color: transparent;
 	background: transparent;
+}
+
+.customization-migration-dashboard .migration-tree-item-review.monaco-button {
+	flex: 0 0 auto;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label2);
 }
 
 .customization-migration-dashboard .migration-tree-item-metadata {

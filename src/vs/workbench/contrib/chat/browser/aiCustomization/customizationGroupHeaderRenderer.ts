@@ -64,9 +64,10 @@ export class CustomizationGroupHeaderRenderer<T extends ICustomizationGroupHeade
 		const chevron = DOM.append(container, $('.group-chevron'));
 		const icon = DOM.append(container, $('.group-icon'));
 		const labelGroup = DOM.append(container, $('.group-label-group'));
-		const label = DOM.append(labelGroup, $('.group-label'));
+		const titleRow = DOM.append(labelGroup, $('.group-title-row'));
+		const label = DOM.append(titleRow, $('.group-label'));
+		const count = DOM.append(titleRow, $('.group-count'));
 		const description = DOM.append(labelGroup, $('.group-description'));
-		const count = DOM.append(container, $('.group-count'));
 		const infoIcon = DOM.append(container, $('.group-info'));
 		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 		const actions = DOM.append(container, $('.group-actions'));

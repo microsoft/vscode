@@ -182,7 +182,7 @@ suite('aiCustomizationManagementEditor', () => {
 		customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService;
 		dialogService: { confirm(): Promise<{ confirmed: boolean }> };
 		quickInputService: {
-			pick(items: readonly { label: string; description?: string; folder?: ICustomizationSourceFolder; chooseAnother?: boolean }[]): Promise<{ label?: string; folder?: ICustomizationSourceFolder; chooseAnother?: boolean } | undefined>;
+			pick(items: readonly { label: string; description?: string; folder?: ICustomizationSourceFolder; destination?: ICustomizationMigrationDashboardDestination; chooseAnother?: boolean }[]): Promise<{ label?: string; folder?: ICustomizationSourceFolder; destination?: ICustomizationMigrationDashboardDestination; chooseAnother?: boolean } | undefined>;
 		};
 		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
 		fileDialogService: { showOpenDialog(): Promise<URI[]> };
@@ -228,7 +228,6 @@ suite('aiCustomizationManagementEditor', () => {
 		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>, mcpServerMigrationExclusions?: readonly IMcpServerCustomizationMigrationExclusion[]): void;
 		isCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate): boolean;
 		setCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate, selected: boolean): void;
-		isCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate): boolean;
 		resolveCustomizationMigrationTargetFolders(
 			customizations: readonly MigratableConfiguration[],
 			availableSourceFolders: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
@@ -246,6 +245,7 @@ suite('aiCustomizationManagementEditor', () => {
 		getMigrationActivityState(storage: PromptsStorage): { activity: readonly ICustomizationMigrationDashboardActivity[]; skipped: boolean; started?: boolean };
 		getMigrationActivityContext(storage: PromptsStorage): { storage: PromptsStorage; key: string; label: string };
 		recordMigrationActivity(category: ICustomizationMigrationCategory, context: { storage: PromptsStorage; key: string; label: string }, items: ICustomizationMigrationDashboardActivity['items']): void;
+		configureCustomizationMigrationLocations(id: CustomizationMigrationCategoryId, storage: PromptsStorage): Promise<void>;
 		chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination): Promise<void>;
 		updateContentVisibility(): void;
 		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void;
@@ -1296,6 +1296,128 @@ suite('aiCustomizationManagementEditor', () => {
 				ariaLabel: 'Change destination for User skills, currently ~/.copilot/skills',
 			},
 		]);
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('uses the common parent for migration groups with multiple destinations', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const agent: MigratableConfiguration = {
+			uri: URI.file('/user-data/prompts/reviewer.agent.md'),
+			storage: PromptsStorage.user,
+			type: PromptsType.agent,
+			source: PromptFileSource.UserData,
+		};
+		const instructions: MigratableConfiguration = {
+			uri: URI.file('/user-data/prompts/style.instructions.md'),
+			storage: PromptsStorage.user,
+			type: PromptsType.instructions,
+			source: PromptFileSource.UserData,
+		};
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.UserData, [agent, instructions]]]), new Map());
+		editor.selectedCustomizationMigrationTargets.set(`${PromptsType.agent}:${PromptsStorage.user}`, {
+			uri: URI.file('/home/test/.agents/agents'),
+			label: '~/.agents/agents',
+			source: PromptsStorage.user,
+		});
+		editor.selectedCustomizationMigrationTargets.set(`${PromptsType.instructions}:${PromptsStorage.user}`, {
+			uri: URI.file('/home/test/.agents/instructions'),
+			label: '~/.agents/instructions',
+			source: PromptsStorage.user,
+		});
+		const category = editor.getCustomizationMigrationDashboardOverview().scopes
+			.find(scope => scope.storage === PromptsStorage.user)?.categories
+			.find(category => category.id === CustomizationMigrationCategoryId.UserData);
+
+		assert.strictEqual(category?.destinationLabel, '~/.agents');
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('opens the folder picker directly for a single-type migration group', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const prompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const targetFolders = new Map([[PromptsType.skill, [{
+			uri: URI.file('/workspace/.github/skills'),
+			label: 'skills',
+			source: PromptsStorage.local,
+		}]]]);
+		editor.labelService.getUriLabel = (uri, options) => options?.relative ? uri.path.replace('/workspace/', '') : uri.path;
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.PromptFiles, [prompt]]]), targetFolders);
+		const pickerLabels: string[][] = [];
+		editor.quickInputService = {
+			pick: async items => {
+				pickerLabels.push(items.map(item => item.label));
+				return { folder: items[0].folder };
+			},
+		};
+		editor.renderCustomizationMigrationDashboardState = () => { };
+		const destinationLabel = editor.getCustomizationMigrationDashboardOverview().scopes
+			.find(scope => scope.storage === PromptsStorage.local)?.categories
+			.find(category => category.id === CustomizationMigrationCategoryId.PromptFiles)?.destinationLabel;
+
+		await editor.configureCustomizationMigrationLocations(CustomizationMigrationCategoryId.PromptFiles, PromptsStorage.local);
+
+		assert.deepStrictEqual({
+			destinationLabel,
+			pickerLabels,
+		}, {
+			destinationLabel: '.github/skills',
+			pickerLabels: [['skills', 'Choose another folder...']],
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('offers another folder only after choosing a multi-type migration location', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const agent: MigratableConfiguration = {
+			uri: URI.file('/user-data/prompts/reviewer.agent.md'),
+			storage: PromptsStorage.user,
+			type: PromptsType.agent,
+			source: PromptFileSource.UserData,
+		};
+		const instructions: MigratableConfiguration = {
+			uri: URI.file('/user-data/prompts/style.instructions.md'),
+			storage: PromptsStorage.user,
+			type: PromptsType.instructions,
+			source: PromptFileSource.UserData,
+		};
+		const targetFolders = new Map([
+			[PromptsType.agent, [{ uri: URI.file('/home/test/.agents/agents'), label: 'agents', source: PromptsStorage.user }]],
+			[PromptsType.instructions, [{ uri: URI.file('/home/test/.agents/instructions'), label: 'instructions', source: PromptsStorage.user }]],
+		]);
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.UserData, [agent, instructions]]]), targetFolders);
+		const pickerLabels: string[][] = [];
+		editor.quickInputService = {
+			pick: async items => {
+				pickerLabels.push(items.map(item => item.label));
+				return pickerLabels.length === 1 ? { destination: items[0].destination } : { chooseAnother: true };
+			},
+		};
+		editor.fileDialogService = { showOpenDialog: async () => [URI.file('/home/test/custom/agents')] };
+		editor.renderCustomizationMigrationDashboardState = () => { };
+
+		await editor.configureCustomizationMigrationLocations(CustomizationMigrationCategoryId.UserData, PromptsStorage.user);
+
+		assert.deepStrictEqual({
+			pickerLabels,
+			selectedPath: editor.selectedCustomizationMigrationTargets.get(`${PromptsType.agent}:${PromptsStorage.user}`)?.uri.path,
+		}, {
+			pickerLabels: [
+				['User agents', 'User instructions'],
+				['agents', 'Choose another folder...'],
+			],
+			selectedPath: '/home/test/custom/agents',
+		});
 		editor.editorPreviewDisposables.dispose();
 	});
 
