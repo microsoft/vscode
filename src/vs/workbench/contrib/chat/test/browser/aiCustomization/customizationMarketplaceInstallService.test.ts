@@ -131,8 +131,8 @@ function galleryMcpResource(): ICustomizationMarketplaceResource {
 	});
 }
 
-function installedPlugin(sourceDescriptor: IPluginSourceDescriptor, source = 'plugins/demo', version = '1.0.0', pluginUri = URI.file('/cache/installed-plugin')): IMarketplaceInstalledPlugin {
-	const reference = parseMarketplaceReference('owner/catalog#release');
+function installedPlugin(sourceDescriptor: IPluginSourceDescriptor, source = 'plugins/demo', version = '1.0.0', pluginUri = URI.file('/cache/installed-plugin'), marketplace = 'owner/catalog#release'): IMarketplaceInstalledPlugin {
+	const reference = parseMarketplaceReference(marketplace);
 	assert.ok(reference);
 	return {
 		pluginUri,
@@ -307,10 +307,14 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}();
 		const repositoryService = new class extends mock<IAgentPluginRepositoryService>() {
 			override readonly agentPluginsHome = URI.file('/cache');
+			readonly marketplaceRepository = URI.file('/cache/indexed-marketplace-repository');
 			readonly calls: { reference: IMarketplaceReference; options: IEnsureRepositoryOptions | undefined }[] = [];
 			onEnsure: (() => Promise<URI>) | undefined;
 			override getPluginSource(): IPluginSource {
 				return pluginSource;
+			}
+			override getRepositoryUri(): URI {
+				return this.marketplaceRepository;
 			}
 			override async ensureRepository(reference: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
 				this.calls.push({ reference, options });
@@ -327,7 +331,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}();
 		const pluginGitService = new class extends mock<IPluginGitService>() {
 			revision = 'a'.repeat(40);
-			override async revParse(): Promise<string> {
+			readonly revParseCalls: URI[] = [];
+			override async revParse(repository: URI): Promise<string> {
+				this.revParseCalls.push(repository);
 				return this.revision;
 			}
 		}();
@@ -1737,6 +1743,72 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual({ states, installedV2: fixture.service.getInstallState(v2).kind, installs: fixture.pluginService.calls }, {
 				states: ['available', 'available', 'available'], installedV2: 'installed',
 				installs: [{ source: 'owner/catalog#v2', options: { path: 'plugins/demo' } }],
+			});
+		});
+
+		for (const sourceKind of [PluginSourceKind.GitHub, PluginSourceKind.RelativePath]) {
+			test(`rejects a ${sourceKind} plugin result that omits the requested ref`, async () => {
+				const fixture = await createFixture();
+				const candidate = pluginResource();
+				const installed = sourceKind === PluginSourceKind.GitHub
+					? installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', path: 'plugins/demo' })
+					: installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }, 'plugins/demo', '1.0.0', URI.file('/cache/ref-less-plugin'), 'owner/catalog');
+				fixture.pluginService.autoMatch = false;
+				fixture.pluginService.result = { success: true, matchedPlugin: installed.plugin };
+
+				await assert.rejects(fixture.service.install(candidate), /could not be installed/i);
+
+				assert.deepStrictEqual({
+					state: fixture.service.getInstallState(candidate).kind,
+					revisionChecks: fixture.pluginGitService.revParseCalls,
+				}, {
+					state: 'available',
+					revisionChecks: [],
+				});
+			});
+		}
+
+		test('installs and repairs a marketplace-declared relative plugin at its recorded revision', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			const resolvedRevision = 'a'.repeat(40);
+			fixture.pluginService.autoMatch = false;
+			fixture.pluginService.onInstall = async () => {
+				const source = fixture.pluginService.calls.at(-1)!.source;
+				const installed = installedPlugin(
+					{ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' },
+					'plugins/demo',
+					'1.0.0',
+					URI.file(`/cache/installed-plugin-${source.split('#')[1]}`),
+					source,
+				);
+				fixture.installedPlugins.set([installed], undefined);
+				return { success: true, matchedPlugin: installed.plugin };
+			};
+
+			await fixture.service.install(candidate);
+			const installedState = fixture.service.getInstallState(candidate).kind;
+			const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
+			fixture.installedPlugins.set([], undefined);
+			await missing;
+			await fixture.service.repair(candidate);
+
+			assert.deepStrictEqual({
+				installedState,
+				repairedState: fixture.service.getInstallState(candidate).kind,
+				calls: fixture.pluginService.calls,
+				revisionChecks: fixture.pluginGitService.revParseCalls,
+			}, {
+				installedState: 'installed',
+				repairedState: 'installed',
+				calls: [
+					{ source: 'owner/catalog#release', options: { path: 'plugins/demo' } },
+					{ source: `owner/catalog#${resolvedRevision}`, options: { path: 'plugins/demo' } },
+				],
+				revisionChecks: [
+					fixture.repositoryService.marketplaceRepository,
+					fixture.repositoryService.marketplaceRepository,
+				],
 			});
 		});
 

@@ -160,20 +160,26 @@ export class PluginInstallService implements IPluginInstallService {
 				}
 			}
 			const manifest = await this._pluginMarketplaceService.readSinglePluginManifest(pluginDir, reference);
-			if (!manifest || options.plugin && options.plugin !== manifest.name) {
-				return { success: false, message: localize('pluginManifestNotFound', "No supported plugin manifest was found in '{0}'.", options.path || reference.displayLabel) };
+			if (manifest) {
+				if (options.plugin && options.plugin !== manifest.name) {
+					return { success: false, message: localize('pluginManifestNotFound', "No supported plugin manifest or marketplace entry was found in '{0}'.", options.path || reference.displayLabel) };
+				}
+				const plugin: IMarketplacePlugin = {
+					...manifest,
+					source: options.path,
+					sourceDescriptor: { ...sourceDescriptor, path: options.path || undefined },
+				};
+				return this._installTargetedPlugin(plugin);
 			}
-			const plugin: IMarketplacePlugin = {
-				...manifest,
-				source: options.path,
-				sourceDescriptor: { ...sourceDescriptor, path: options.path || undefined },
-			};
-			await this.installPlugin(plugin);
-			const installedUri = this.getPluginInstallUri(plugin);
-			if (!this._pluginMarketplaceService.installedPlugins.get().some(installed => isEqual(installed.pluginUri, installedUri))) {
-				return { success: false, message: localize('pluginSourceInstallIncomplete', "The plugin could not be installed. Review the installation error and try again.") };
+
+			const marketplaceMatches = (await this._pluginMarketplaceService.readPluginsFromDirectory(repoDir, reference))
+				.filter(plugin => plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath &&
+					plugin.sourceDescriptor.path === options.path &&
+					(!options.plugin || plugin.name === options.plugin));
+			if (marketplaceMatches.length !== 1) {
+				return { success: false, message: localize('pluginManifestNotFound', "No supported plugin manifest or marketplace entry was found in '{0}'.", options.path || reference.displayLabel) };
 			}
-			return { success: true, matchedPlugin: plugin };
+			return this._installTargetedPlugin(marketplaceMatches[0]);
 		}
 
 		// Scan for marketplace.json to discover plugins.
@@ -208,6 +214,15 @@ export class PluginInstallService implements IPluginInstallService {
 
 		// When targeting a specific plugin, find it, register it, and return.
 		return this._installDiscoveredPlugins(reference, discoveredPlugins, options);
+	}
+
+	private async _installTargetedPlugin(plugin: IMarketplacePlugin): Promise<IInstallPluginFromSourceResult> {
+		await this.installPlugin(plugin);
+		const installedUri = this.getPluginInstallUri(plugin);
+		if (!this._pluginMarketplaceService.installedPlugins.get().some(installed => isEqual(installed.pluginUri, installedUri))) {
+			return { success: false, message: localize('pluginSourceInstallIncomplete', "The plugin could not be installed. Review the installation error and try again.") };
+		}
+		return { success: true, matchedPlugin: plugin };
 	}
 
 	/**

@@ -37,7 +37,7 @@ import { IAgentPluginService } from '../../common/plugins/agentPluginService.js'
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginGitService } from '../../common/plugins/pluginGitService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { IPluginMarketplaceService, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IPluginMarketplaceService, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
 import { SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -50,6 +50,7 @@ import { CustomizationMarketplaceInstallationRecordStore, CustomizationMarketpla
 import { CustomizationMarketplaceSkillInstaller } from './customizationMarketplaceSkillInstaller.js';
 
 type McpGalleryInstallation = Extract<CustomizationMarketplaceInstallation, { readonly kind: 'mcpGallery' }>;
+type PluginInstallation = Extract<CustomizationMarketplaceInstallation, { readonly kind: 'plugin' }>;
 
 type InstallationRecordState =
 	| { readonly kind: 'checking' | 'installed' | 'missing' }
@@ -58,6 +59,21 @@ type InstallationRecordState =
 interface IPendingOperation {
 	readonly promise: Promise<void>;
 	cancel(): void;
+}
+
+function matchesPluginInstallation(plugin: IMarketplacePlugin, source: PluginInstallation, resolvedRevision?: string): boolean {
+	const descriptor = plugin.sourceDescriptor;
+	if (descriptor.kind === PluginSourceKind.GitHub) {
+		return descriptor.repo.toLowerCase() === source.repository.toLowerCase() &&
+			(descriptor.path ?? '') === source.path &&
+			(descriptor.ref === source.ref || descriptor.sha === source.ref ||
+				resolvedRevision !== undefined && (descriptor.ref === resolvedRevision || descriptor.sha === resolvedRevision));
+	}
+	return descriptor.kind === PluginSourceKind.RelativePath &&
+		plugin.marketplaceReference.githubRepo?.toLowerCase() === source.repository.toLowerCase() &&
+		(plugin.marketplaceReference.ref === source.ref ||
+			resolvedRevision !== undefined && plugin.marketplaceReference.ref === resolvedRevision) &&
+		plugin.source.replace(/^\.\//, '').replace(/\/$/, '') === source.path;
 }
 
 export class CustomizationMarketplaceInstallService extends Disposable implements ICustomizationMarketplaceInstallService {
@@ -1097,11 +1113,15 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (!result.matchedPlugin || resource.version !== undefined && result.matchedPlugin.version !== resource.version) {
 				throw new Error(localize('customizationMarketplace.pluginInstallIncomplete', "The plugin could not be installed. Review the installation error and try again."));
 			}
-			const descriptor = result.matchedPlugin.sourceDescriptor;
-			if (descriptor.kind !== PluginSourceKind.GitHub) {
+			if (!matchesPluginInstallation(result.matchedPlugin, source)) {
 				throw new Error(localize('customizationMarketplace.pluginInstallIncomplete', "The plugin could not be installed. Review the installation error and try again."));
 			}
-			const repository = this.repositoryService.getPluginSource(descriptor.kind).getCleanupTarget(this.repositoryService.agentPluginsHome, descriptor);
+			const descriptor = result.matchedPlugin.sourceDescriptor;
+			const repository = descriptor.kind === PluginSourceKind.RelativePath
+				? this.repositoryService.getRepositoryUri(result.matchedPlugin.marketplaceReference, result.matchedPlugin.marketplaceType)
+				: descriptor.kind === PluginSourceKind.GitHub
+					? this.repositoryService.getPluginSource(descriptor.kind).getCleanupTarget(this.repositoryService.agentPluginsHome, descriptor)
+					: undefined;
 			if (!repository) {
 				throw new Error(localize('customizationMarketplace.pluginInstallIncomplete', "The plugin could not be installed. Review the installation error and try again."));
 			}
@@ -1143,17 +1163,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (record.version !== undefined && plugin.version !== record.version) {
 				return false;
 			}
-			const descriptor = plugin.sourceDescriptor;
 			const resolvedRevision = record.target.kind === 'plugin' ? record.target.resolvedRevision : undefined;
-			if (descriptor.kind === PluginSourceKind.GitHub) {
-				return descriptor.repo.toLowerCase() === source.repository.toLowerCase() &&
-					(descriptor.path ?? '') === source.path &&
-					(descriptor.ref === source.ref || descriptor.sha === source.ref || descriptor.ref === resolvedRevision || descriptor.sha === resolvedRevision);
-			}
-			return descriptor.kind === PluginSourceKind.RelativePath &&
-				plugin.marketplaceReference.githubRepo?.toLowerCase() === source.repository.toLowerCase() &&
-				plugin.marketplaceReference.ref === source.ref &&
-				plugin.source.replace(/^\.\//, '').replace(/\/$/, '') === source.path;
+			return matchesPluginInstallation(plugin, source, resolvedRevision);
 		});
 	}
 
