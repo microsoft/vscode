@@ -63,6 +63,7 @@ export const Menus = {
 
 	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
+	NewSessionAttachContext: new MenuId('NewSessions.AttachContextMenu'),
 	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
 	NewSessionWelcome: new MenuId('NewSessions.WelcomeMenu'),
 	NewSessionWelcomeContext: new MenuId('NewSessions.WelcomeContextMenu'),
