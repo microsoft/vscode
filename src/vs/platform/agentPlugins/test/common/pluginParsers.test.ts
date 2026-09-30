@@ -746,7 +746,8 @@ suite('pluginParsers', () => {
 			});
 
 			test('applies Agent Plugin MCP runtime path semantics', async () => {
-				const pluginFsPath = URI.from({ scheme: Schemas.inMemory, path: '/plugins/example' }).fsPath;
+				const pluginRoot = URI.from({ scheme: Schemas.inMemory, path: '/plugins/example' });
+				const pluginFsPath = pluginRoot.fsPath;
 				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
 				await write('/plugins/example/mcp.json', JSON.stringify({
 					$schema: AGENT_PLUGIN_MCP_SCHEMA.replace('/1.0.0/', '/1.0.1/'),
@@ -788,7 +789,7 @@ suite('pluginParsers', () => {
 					env: stdio.env,
 					cwd: stdio.cwd,
 				}, {
-					command: `${pluginFsPath}/bin/server`,
+					command: URI.joinPath(pluginRoot, 'bin', 'server').fsPath,
 					args: [`${pluginFsPath}/data`, '${PLUGIN_DATA}', '${UNKNOWN}'],
 					env: { ROOT: pluginFsPath, DATA: '${PLUGIN_DATA}', PLUGIN_ROOT: pluginFsPath },
 					cwd: `${pluginFsPath}/work`,
