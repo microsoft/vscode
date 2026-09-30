@@ -46,11 +46,15 @@ export function isSafeTerminalHistoryText(value: string | undefined): boolean {
 
 export async function runRecentSelection(instance: ITerminalInstance, type: 'command' | 'cwd', rawLabel: string, shouldExecute: boolean): Promise<boolean> {
 	let text: string;
-	try {
-		text = type === 'cwd' ? `cd ${await instance.preparePathForShell(rawLabel)}` : rawLabel;
-	} catch {
-		instance.focus();
-		return false;
+	if (type === 'cwd') {
+		try {
+			text = `cd ${await instance.preparePathForShell(rawLabel)}`;
+		} catch {
+			instance.focus();
+			return false;
+		}
+	} else { // command
+		text = rawLabel;
 	}
 	if (!isSafeTerminalHistoryText(text)) {
 		instance.focus();

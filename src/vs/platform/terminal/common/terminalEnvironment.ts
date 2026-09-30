@@ -15,6 +15,7 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 	if (/[\x00-\x1F\x7F-\x9F]/.test(path)) {
 		throw new Error('Path contains terminal control characters');
 	}
+	// Apply shell-specific escaping
 	switch (shellType) {
 		case PosixShellType.Csh:
 			if (path.includes('!')) {
@@ -34,6 +35,7 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 			}
 			return `'${path.replaceAll('\'', '\'\'')}'`;
 		default:
+			// Default to POSIX shell escaping for unknown shells
 			return `'${path.replaceAll('\'', '\'\\\'\'')}'`;
 	}
 }
