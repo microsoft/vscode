@@ -294,20 +294,25 @@ suite('Product test checkpoint templates', () => {
 		const compile = records(job).find(record => record.template === './steps/product-build-win32-compile.yml@self');
 		const compileTemplate = readTemplate('win32/steps/product-build-win32-compile.yml');
 		const setup = readTemplate('win32/steps/product-build-win32-setup.yml');
-		const product = readTemplate('win32/product-build-win32.yml');
-		const productTestJob = records(product).find(record => record.job === 'Windows_${{ parameters.VSCODE_ARCH }}_Test_${{ testJob.name }}');
-		const productSteps = records(product).filter(record => record.template === './steps/product-build-win32-test.yml@self' || record.template === './steps/product-build-win32-setup.yml@self');
+		const productTestTemplate = readTemplate('win32/product-build-win32-test.yml');
+		const productTestJob = records(productTestTemplate).find(record => record.job === 'Windows_${{ parameters.VSCODE_ARCH }}_Test_${{ parameters.VSCODE_JOB_NAME }}');
+		const productSteps = records(productTestTemplate).filter(record => record.template === './steps/product-build-win32-test.yml@self' || record.template === './steps/product-build-win32-setup.yml@self');
 		const compileSteps = records(compileTemplate).filter(record => record.template === 'product-build-win32-test.yml@self' || record.template === 'product-build-win32-setup.yml@self');
 		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
 		const jobsByPipeline = pipelineFiles.map(file => ciJobs(file, 'win32'));
 		const jobs = jobsByPipeline[0];
-		const productJobsByPipeline = ['product-build.yml', 'product-build-template.yml'].map(file => records(readTemplate(file))
-			.filter(record => typeof record.template === 'string' && record.template.endsWith('win32/product-build-win32.yml@self'))
-			.map(record => {
-				const parameters = record.parameters as Record<string, unknown>;
-				const testJobs = (parameters['${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}'] as { VSCODE_TEST_JOBS?: { name: string; displayName: string; testIds: string[] }[] } | undefined)?.VSCODE_TEST_JOBS;
-				return { arch: parameters.VSCODE_ARCH, jobs: testJobs?.map(job => ({ name: job.name, displayName: job.displayName, ids: job.testIds })) };
-			}));
+		const productJobsByPipeline = ['product-build.yml', 'product-build-template.yml'].map(file => {
+			const pipeline = readTemplate(file);
+			return {
+				runTests: records(pipeline).filter(record => typeof record.template === 'string' && record.template.endsWith('win32/product-build-win32.yml@self'))
+					.map(record => (record.parameters as Record<string, unknown>).VSCODE_RUN_TESTS),
+				jobs: records(pipeline).filter(record => typeof record.template === 'string' && record.template.endsWith('win32/product-build-win32-test.yml@self'))
+					.map(record => {
+						const parameters = record.parameters as { VSCODE_ARCH: string; VSCODE_JOB_NAME: string; VSCODE_JOB_DISPLAY_NAME: string; VSCODE_TEST_IDS: string[] };
+						return { arch: parameters.VSCODE_ARCH, name: parameters.VSCODE_JOB_NAME, displayName: parameters.VSCODE_JOB_DISPLAY_NAME, ids: parameters.VSCODE_TEST_IDS };
+					}),
+			};
+		});
 		const assignedIds = jobs.flatMap(job => job.ids).sort();
 		const copilotCheckpoints = copilotCalls('win32').map(call => call.testId);
 		const availableIds = [
@@ -357,16 +362,16 @@ suite('Product test checkpoint templates', () => {
 			ciTestIds: '${{ parameters.VSCODE_TEST_IDS }}',
 			defaultTestIds: [[], [], []],
 			forwardedTestIds: ['${{ parameters.VSCODE_TEST_IDS }}', '${{ parameters.VSCODE_TEST_IDS }}'],
-			productTestIds: ['${{ testJob.testIds }}', '${{ testJob.testIds }}'],
+			productTestIds: ['${{ parameters.VSCODE_TEST_IDS }}', '${{ parameters.VSCODE_TEST_IDS }}'],
 			productTestJob: {
 				dependsOn: 'Windows_${{ parameters.VSCODE_ARCH }}_Compile',
-				displayName: 'Windows (${{ upper(parameters.VSCODE_ARCH) }}) - ${{ testJob.displayName }}',
+				displayName: 'Windows (${{ upper(parameters.VSCODE_ARCH) }}) - ${{ parameters.VSCODE_JOB_DISPLAY_NAME }}',
 			},
 			// The product build runs the same test jobs as CI, and only for x64
-			productJobsByPipeline: [
-				[{ arch: 'x64', jobs }, { arch: 'arm64', jobs: undefined }],
-				[{ arch: 'x64', jobs }, { arch: 'arm64', jobs: undefined }],
-			],
+			productJobsByPipeline: [0, 1].map(() => ({
+				runTests: ['${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}', undefined],
+				jobs: jobs.map(job => ({ arch: 'x64', ...job })),
+			})),
 			copilotSetup: ['${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}'],
 			copilotTests: ['${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}'],
 			agentHostSmoke: ['${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'))) }}'],
