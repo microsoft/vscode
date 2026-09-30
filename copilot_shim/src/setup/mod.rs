@@ -24,6 +24,10 @@ use crate::runtime::{
 #[cfg(windows)]
 pub(crate) mod windows;
 
+/// Folder under `%LOCALAPPDATA%` that GitHub's per-user Copilot CLI MSI installs `copilot.exe` into.
+#[cfg(any(windows, test))]
+pub(crate) const CLI_INSTALL_FOLDER: &str = "GitHubCopilotCLI";
+
 /// Version of the setup contract. VS Code setup rejects probe results that report a different version.
 pub(crate) const PROTOCOL_VERSION: u32 = 1;
 
@@ -593,6 +597,14 @@ where
 						.map(|tag| format!(" {tag}"))
 						.unwrap_or_default()
 				),
+				InstallStatus::AlreadyInstalled => eprintln!(
+					"GitHub Copilot CLI is already installed{}.",
+					outcome
+						.cli_path
+						.as_ref()
+						.map(|path| format!(" at {}", path.display()))
+						.unwrap_or_default()
+				),
 				_ => runtime.write_diagnostic(&format!(
 					"GitHub Copilot CLI could not be installed ({}): {}",
 					outcome.status.name(),
@@ -697,6 +709,23 @@ fn install_cli(target: Option<HostTarget>, reporter: &mut dyn InstallReporter) -
 	let Some(asset) = msi_asset(target) else {
 		return InstallOutcome::failed(InstallStatus::Unsupported, "no MSI for this architecture");
 	};
+	// The MSI has no MajorUpgrade, so running it over an existing installation could register a second copy. Copilot CLI
+	// updates itself, so this only installs where there is no Copilot CLI.
+	if let Some(path) = windows::cli_install_directory()
+		.map(|directory| directory.join("copilot.exe"))
+		.filter(|path| path.is_file())
+	{
+		return InstallOutcome {
+			cli_path: Some(path),
+			..InstallOutcome::failed(InstallStatus::AlreadyInstalled, "")
+		};
+	}
+	if matches!(windows::cli_msi_registered(), Ok(true)) {
+		return InstallOutcome::failed(
+			InstallStatus::Error,
+			"GitHub Copilot CLI is registered in Installed apps, but its copilot.exe is missing; repair or uninstall it in Settings > Apps > Installed apps",
+		);
+	}
 	reporter.report(InstallPhase::Resolving, 0, 0);
 	let base = releases_base();
 	let client = match windows::HttpClient::new(INSTALL_REQUEST_TIMEOUT) {

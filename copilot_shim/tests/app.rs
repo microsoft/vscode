@@ -27,6 +27,50 @@ fn rediscovery_and_shadowing_matrix() {
 	assert_eq!(status.code(), Some(23));
 }
 
+/// VS Code setup replaces a published shim only when this version differs.
+#[cfg(windows)]
+#[test]
+fn windows_binary_embeds_the_package_version() {
+	use std::os::windows::ffi::OsStrExt;
+	use windows_sys::Win32::Storage::FileSystem::{
+		GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO,
+	};
+
+	let path: Vec<u16> = Path::new(env!("CARGO_BIN_EXE_copilot"))
+		.as_os_str()
+		.encode_wide()
+		.chain([0])
+		.collect();
+	let size = unsafe { GetFileVersionInfoSizeW(path.as_ptr(), std::ptr::null_mut()) };
+	assert_ne!(size, 0, "the shim has no version resource");
+	let mut data = vec![0_u8; size as usize];
+	assert_ne!(
+		unsafe { GetFileVersionInfoW(path.as_ptr(), 0, size, data.as_mut_ptr().cast()) },
+		0
+	);
+	let mut fixed: *mut std::ffi::c_void = std::ptr::null_mut();
+	let mut length = 0;
+	let root: Vec<u16> = "\\".encode_utf16().chain([0]).collect();
+	assert_ne!(
+		unsafe { VerQueryValueW(data.as_ptr().cast(), root.as_ptr(), &mut fixed, &mut length) },
+		0
+	);
+	let fixed = unsafe { &*(fixed as *const VS_FIXEDFILEINFO) };
+	let expected: Vec<u32> = env!("CARGO_PKG_VERSION")
+		.split(['.', '-', '+'])
+		.take(3)
+		.map(|part| part.parse().expect("numeric package version"))
+		.collect();
+	assert_eq!(
+		vec![
+			fixed.dwFileVersionMS >> 16,
+			fixed.dwFileVersionMS & 0xFFFF,
+			fixed.dwFileVersionLS >> 16,
+		],
+		expected
+	);
+}
+
 #[test]
 fn copied_shim_is_skipped_and_binary_marker_is_retained() {
 	let directory = tempfile::tempdir().expect("create fake PATH");

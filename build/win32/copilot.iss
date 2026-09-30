@@ -542,76 +542,156 @@ begin
   CopilotReadProbeResult();
 end;
 
-function CopilotNextAsideName(const Dir: String): String;
+// Publishing the shim. inno_updater three-way-renames the files directly in {app}\bin but never enters its subfolders,
+// so setup does the same for {app}\bin\copilot-shim (see perform_three_way_rename, find_available_old_path, util::retry,
+// and remove_files in microsoft/inno-updater src/main.rs). A running shim (an open Copilot session) can't be deleted or
+// overwritten but can be renamed, so it's renamed to old_copilot.exe and the session keeps running from that file.
+
+const
+  CopilotShimName = 'copilot.exe';
+  CopilotRetryAttempts = 11;
+
+var
+  // Overrides CopilotRetryAttempts when positive; for tests.
+  CopilotRetryLimit: Integer;
+
+function CopilotMaxAttempts(): Integer;
+begin
+  if CopilotRetryLimit > 0 then
+    Result := CopilotRetryLimit
+  else
+    Result := CopilotRetryAttempts;
+end;
+
+// Retries like inno_updater's util::retry, which absorbs transient locks such as antivirus scans: up to 11 attempts,
+// waiting attempt^2 * 50 ms after each failure.
+function CopilotRenameWithRetry(const Source, Target: String): Boolean;
+var
+  Attempt: Integer;
+begin
+  Attempt := 0;
+  repeat
+    Attempt := Attempt + 1;
+    Result := RenameFile(Source, Target);
+    if not Result and (Attempt < CopilotMaxAttempts()) then
+      Sleep(Attempt * Attempt * 50);
+  until Result or (Attempt >= CopilotMaxAttempts());
+  if not Result then
+    Log('Copilot: could not rename ' + Source + ' to ' + Target + ' after ' + IntToStr(Attempt) + ' attempts');
+end;
+
+function CopilotCopyWithRetry(const Source, Target: String): Boolean;
+var
+  Attempt: Integer;
+begin
+  Attempt := 0;
+  repeat
+    Attempt := Attempt + 1;
+    Result := CopyFile(Source, Target, False);
+    if not Result and (Attempt < CopilotMaxAttempts()) then
+      Sleep(Attempt * Attempt * 50);
+  until Result or (Attempt >= CopilotMaxAttempts());
+  if not Result then
+    Log('Copilot: could not copy ' + Source + ' to ' + Target + ' after ' + IntToStr(Attempt) + ' attempts');
+end;
+
+// Returns old_copilot.exe, or old_1_copilot.exe, old_2_copilot.exe, and so on when an older session still holds it.
+function CopilotAvailableOldPath(const Dir: String): String;
 var
   I: Integer;
 begin
+  Result := Dir + '\old_' + CopilotShimName;
   I := 1;
-  repeat
-    Result := Dir + '\copilot.exe.old-' + IntToStr(I);
+  while FileExists(Result) do begin
+    Result := Dir + '\old_' + IntToStr(I) + '_' + CopilotShimName;
     I := I + 1;
-  until not FileExists(Result);
+  end;
 end;
 
-procedure CopilotDeleteStaleShims(const Dir: String);
+// Deletes the old_* copies left by earlier updates and any staged new_copilot.exe. A copy that a Copilot session still
+// runs is locked; it's skipped and deleted by a later install or update.
+procedure CopilotDeleteOldShims(const Dir: String);
 var
   FindRec: TFindRec;
 begin
-  // Copies renamed aside by earlier updates can be deleted once the Copilot sessions using them have ended.
-  if FindFirst(Dir + '\copilot.exe.old-*', FindRec) then begin
+  if FindFirst(Dir + '\old_*', FindRec) then begin
     try
       repeat
-        if DeleteFile(Dir + '\' + FindRec.Name) then
-          Log('Copilot: deleted ' + FindRec.Name);
+        if FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY = 0 then begin
+          if DeleteFile(Dir + '\' + FindRec.Name) then
+            Log('Copilot: deleted ' + FindRec.Name)
+          else
+            Log('Copilot: skipped ' + FindRec.Name + ', which is still in use');
+        end;
       until not FindNext(FindRec);
     finally
       FindClose(FindRec);
     end;
   end;
-  DeleteFile(Dir + '\copilot.exe.new');
+  DeleteFile(Dir + '\new_' + CopilotShimName);
 end;
 
-// Copies the shim into place without Restart Manager. A running shim (an open Copilot session) can't be overwritten
-// but can be renamed, so it's moved aside and replaced; the session keeps running from the renamed file.
+// Renames Current to Old and New to Current. If New can't take Current's place, Old is renamed back, so a failed
+// update keeps the previous shim instead of leaving none.
+function CopilotThreeWayRename(const Current, Old, New: String): Boolean;
+begin
+  Result := False;
+  if not FileExists(New) then begin
+    Result := True;
+    exit;
+  end;
+  if FileExists(Current) and not CopilotRenameWithRetry(Current, Old) then
+    exit;
+  if CopilotRenameWithRetry(New, Current) then
+    Result := True
+  else if FileExists(Old) then begin
+    Log('Copilot: restoring ' + Current);
+    CopilotRenameWithRetry(Old, Current);
+  end;
+end;
+
+function CopilotVersionString(const FileName: String): String;
+begin
+  if not GetVersionNumbersString(FileName, Result) then
+    Result := 'none';
+end;
+
+// Whether both files carry the same file version. Signing changes a build's bytes, so the version decides whether the
+// shim changed; the shim's package version is bumped whenever it changes.
+function CopilotSameShimVersion(const Source, Target: String): Boolean;
+var
+  SourceVersion, TargetVersion: Int64;
+begin
+  Result := FileExists(Target) and GetPackedVersion(Source, SourceVersion) and GetPackedVersion(Target, TargetVersion)
+    and SamePackedVersion(SourceVersion, TargetVersion);
+end;
+
 function CopilotPublishShimFile(const Source, Dir: String): Boolean;
 var
   Target, Staging: String;
 begin
   Result := False;
-  Target := Dir + '\copilot.exe';
-  Staging := Dir + '\copilot.exe.new';
+  Target := Dir + '\' + CopilotShimName;
+  Staging := Dir + '\new_' + CopilotShimName;
   try
     if not ForceDirectories(Dir) then begin
       Log('Copilot: could not create ' + Dir);
       exit;
     end;
-    CopilotDeleteStaleShims(Dir);
+    CopilotDeleteOldShims(Dir);
 
-    if FileExists(Target) then begin
-      if GetSHA256OfFile(Target) = GetSHA256OfFile(Source) then begin
-        Log('Copilot: the published shim is up to date');
-        Result := True;
-        exit;
-      end;
-    end;
-
-    if not CopyFile(Source, Staging, False) then begin
-      Log('Copilot: could not copy the shim to ' + Staging);
+    if CopilotSameShimVersion(Source, Target) then begin
+      Log('Copilot: the published shim is up to date, version ' + CopilotVersionString(Target));
+      Result := True;
       exit;
     end;
 
-    if FileExists(Target) then begin
-      if not DeleteFile(Target) then begin
-        if not RenameFile(Target, CopilotNextAsideName(Dir)) then begin
-          Log('Copilot: could not replace ' + Target + '; keeping the current shim');
-          DeleteFile(Staging);
-          exit;
-        end;
-      end;
-    end;
-
-    Result := RenameFile(Staging, Target);
-    Log('Copilot: published the shim, success=' + BoolToStr(Result));
+    if CopilotCopyWithRetry(Source, Staging) then
+      Result := CopilotThreeWayRename(Target, CopilotAvailableOldPath(Dir), Staging);
+    Log('Copilot: published shim version ' + CopilotVersionString(Source) + ' over ' + CopilotVersionString(Target)
+      + ', success=' + BoolToStr(Result));
+    // Removes the previous shim unless a Copilot session still runs it, and any staged copy left by a failure.
+    CopilotDeleteOldShims(Dir);
   except
     Log('Copilot: failed to publish the shim: ' + GetExceptionMessage);
   end;
@@ -627,12 +707,11 @@ var
   Dir, Target: String;
 begin
   Dir := CopilotShimDir();
-  Target := Dir + '\copilot.exe';
-  if FileExists(Target) then begin
-    if not DeleteFile(Target) then
-      RenameFile(Target, CopilotNextAsideName(Dir));
-  end;
-  CopilotDeleteStaleShims(Dir);
+  Target := Dir + '\' + CopilotShimName;
+  // A shim that a Copilot session still runs can't be deleted; renaming it removes the command right away.
+  if FileExists(Target) and not DeleteFile(Target) then
+    CopilotRenameWithRetry(Target, CopilotAvailableOldPath(Dir));
+  CopilotDeleteOldShims(Dir);
 end;
 
 // Install now
@@ -878,8 +957,9 @@ var
   Link: TNewLinkLabel;
 begin
   Note := CustomMessage('CopilotCliLicenseNote');
+  // Copilot CLI supports Windows PowerShell 5.1, so a missing PowerShell 7 is only a recommendation.
   if CopilotProbeCompleted and not CopilotProbePwshFound then
-    Note := Note + ' ' + CustomMessage('CopilotCliPwshMissing');
+    Note := Note + ' ' + CustomMessage('CopilotCliPwshRecommended');
 
   Link := TNewLinkLabel.Create(Page);
   Link.Parent := Page.Surface;
