@@ -570,7 +570,7 @@ suite('pluginParsers', () => {
 				await write('/plugins/example/com.github.copilot/rules/project.instructions.md', '---\nname: project-rule\n---');
 				await write('/plugins/example/com.github.copilot/hooks/hooks.json', JSON.stringify({
 					hooks: {
-						PostToolUse: [{ hooks: [{ type: 'command', command: 'echo done' }] }],
+						PostToolUse: [{ hooks: [{ type: 'command', command: 'echo ${PLUGIN_ROOT}' }] }],
 					},
 				}));
 				await write('/plugins/example/agents/legacy.md', '# Legacy agent');
@@ -582,12 +582,21 @@ suite('pluginParsers', () => {
 					instructions: plugin.instructions.map(instruction => instruction.name),
 					hooks: plugin.hooks.map(hook => ({
 						type: hook.type,
-						commands: hook.commands.map(command => command.command),
+						commands: hook.commands.map(command => ({
+							command: command.command,
+							env: command.env,
+						})),
 					})),
 				}, {
 					agents: ['helper'],
 					instructions: ['project'],
-					hooks: [{ type: 'PostToolUse', commands: ['echo done'] }],
+					hooks: [{
+						type: 'PostToolUse',
+						commands: [{
+							command: 'echo /plugins/example',
+							env: { PLUGIN_ROOT: '/plugins/example' },
+						}],
+					}],
 				});
 			});
 

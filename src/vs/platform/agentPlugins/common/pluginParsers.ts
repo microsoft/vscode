@@ -184,8 +184,9 @@ const COPILOT_FORMAT: IPluginFormatConfig = {
 	hookConfigPath: 'hooks.json',
 	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
 	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
-	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
-		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
+	hookPluginRoot: PLUGIN_ROOT,
+	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, PLUGIN_ROOT);
 	},
 };
 
@@ -232,8 +233,9 @@ const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
 	requiresManifest: true,
 	pluginRootTokens: [],
 	pluginRootEnvVars: [],
-	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
-		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
+	hookPluginRoot: PLUGIN_ROOT,
+	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, PLUGIN_ROOT);
 	},
 };
 
@@ -586,7 +588,7 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
 }
 
 /**
- * Applies the plugin-root convention for a Claude or Open Plugin hook command.
+ * Applies the plugin-root convention for a plugin hook command.
  */
 export function interpolateHookCommandPluginRoot(hook: Record<string, unknown>, pluginUri: URI, format: PluginFormat): Record<string, unknown> {
 	const root = PLUGIN_FORMAT_CONFIGS[format].hookPluginRoot;
@@ -873,8 +875,7 @@ export function parseHooksJson(
 }
 
 /**
- * Applies plugin-root token interpolation to hook commands for
- * Claude and OpenPlugin formats.
+ * Applies plugin-root token interpolation to hook commands.
  */
 export function interpolateHookPluginRoot(
 	hookUri: URI,
