@@ -997,6 +997,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		setSessionCreationMetadata: (sessionResource, metadata) => sessionCreationMetadata.set(sessionResource.toString(), metadata),
 		clearSessionCreationMetadata: sessionResource => sessionCreationMetadata.delete(sessionResource.toString()),
 		waitForPending: async () => undefined,
+		tryAdopt: async () => undefined,
 		getOrCreate: async () => undefined,
 		tryRebind: async () => undefined,
 		disposeSession: async () => { },
@@ -1004,6 +1005,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
 	instantiationService.stub(IAgentHostImportConversationStore, {
 		set: () => { },
+		peek: () => undefined,
 		take: () => undefined,
 		rename: () => { },
 	} as Partial<IAgentHostImportConversationStore> as IAgentHostImportConversationStore);
@@ -4630,6 +4632,24 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('newChatSessionItem retains an adopted backend identity without rebinding', async () => {
+			const adopted = URI.from({ scheme: 'agent-host-copilot', path: '/prepared-id' });
+			const { instantiationService, agentHostService, newSessionFolderService } = createTestServices(disposables);
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				tryAdopt: async () => adopted,
+				tryRebind: async () => assert.fail('an adopted session must not be recreated'),
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+			const controller = createSessionListController(disposables, instantiationService, agentHostService);
+			const untitledResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-adopt' });
+			const folder = URI.file('/workspace/chosen');
+			newSessionFolderService.setFolder(untitledResource, folder);
+			const item = await controller.newChatSessionItem({ prompt: 'hello', untitledResource }, CancellationToken.None);
+			assert.ok(item);
+			assert.strictEqual(item.resource.toString(), adopted.toString());
+			assert.strictEqual(controller.isNewSession(item.resource), true);
+			assert.strictEqual(newSessionFolderService.getFolder(item.resource), undefined, 'Controller must not overwrite the adopted primary with its fallback');
+		});
+
 		test('newChatSessionItem creates final-looking resource used for requested backend session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { listController, sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -4705,6 +4725,7 @@ suite('AgentHostChatContribution', () => {
 					rebindCalls.push({ oldResource, newResource, provider });
 					return newResource;
 				},
+				tryAdopt: async () => undefined,
 				disposeSession: async () => { },
 			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
 
@@ -4736,6 +4757,7 @@ suite('AgentHostChatContribution', () => {
 				waitForPending: async () => undefined,
 				getOrCreate: async () => undefined,
 				tryRebind: async () => { rebindCalls++; return undefined; },
+				tryAdopt: async () => undefined,
 				disposeSession: async () => { },
 			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
 
@@ -4773,6 +4795,7 @@ suite('AgentHostChatContribution', () => {
 					rebindCalls.push({ oldResource, newResource });
 					return newResource;
 				},
+				tryAdopt: async () => undefined,
 				disposeSession: async () => { },
 			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
 

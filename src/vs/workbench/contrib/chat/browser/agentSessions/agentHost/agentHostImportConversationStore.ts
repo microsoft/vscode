@@ -36,6 +36,9 @@ export interface IAgentHostImportConversationStore {
 	/** Stash the imported conversation for a session resource (no-op when it has no turns). */
 	set(resource: URI, conversation: IAgentHostImportConversation): void;
 
+	/** Read a pending import without consuming it. */
+	peek(resource: URI): IAgentHostImportConversation | undefined;
+
 	/** Read and remove the imported conversation for a session resource, if any. */
 	take(resource: URI): IAgentHostImportConversation | undefined;
 
@@ -57,6 +60,10 @@ export class AgentHostImportConversationStore implements IAgentHostImportConvers
 		if (conversation.turns.length > 0) {
 			this._pending.set(resource.toString(), conversation);
 		}
+	}
+
+	peek(resource: URI): IAgentHostImportConversation | undefined {
+		return this._pending.get(resource.toString());
 	}
 
 	take(resource: URI): IAgentHostImportConversation | undefined {

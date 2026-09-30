@@ -895,6 +895,7 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 			instantiationService.stub(IAgentHostImportConversationStore, {
 				set: () => { },
+				peek: () => undefined,
 				take: () => undefined,
 				rename: () => { },
 			} as Partial<IAgentHostImportConversationStore> as IAgentHostImportConversationStore);
@@ -957,6 +958,7 @@ suite('AgentHostClientTools', () => {
 				getOrCreate: async () => undefined,
 				applyConfigChange: async () => undefined,
 				tryRebind: async () => undefined,
+				tryAdopt: async () => undefined,
 				disposeSession: async () => { },
 				getResolvedConfig: () => undefined,
 				refreshResolvedConfig: async () => { },

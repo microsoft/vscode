@@ -46,6 +46,12 @@ suite('Agent Host timing OTel', () => {
 		trustInteractionRequired: false, totalElapsedMs: 70, hasResponseText: true,
 	};
 
+	test('exports observed provider preparation and omits unobserved preparation', () => {
+		assert.strictEqual(agentHostTimingAttributes(host, 'host')?.[`${prefix}sendStageProviderPreparationMs`], undefined);
+		assert.strictEqual(agentHostTimingAttributes({ ...host, sendStageProviderPreparationMs: 0 }, 'host')?.[`${prefix}sendStageProviderPreparationMs`], 0);
+		assert.strictEqual(agentHostTimingAttributes({ ...host, sendStageProviderPreparationMs: 123 }, 'host')?.[`${prefix}sendStageProviderPreparationMs`], 123);
+	});
+
 	setup(async () => {
 		disposables = testDisposables.add(new DisposableStore());
 		directory = join(process.cwd(), '.build', `agent-host-timing-test-${generateUuid()}`);

@@ -44,6 +44,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 */
 	private readonly _repositoryRoots = new LRUCache<string, URI>(100);
 	private readonly _repositoryRootSequencer = new SequencerByKey<string>();
+	private readonly _startupProbeGitLimiter = process.env['STARTUP_CONTROL_GIT_CONCURRENCY'] === '4' ? new Limiter<string | undefined>(4) : undefined;
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
@@ -131,16 +132,23 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
+		const id = performance.timeOrigin + performance.now();
+		const traceStartup = (stage: string, foundRoot?: boolean) => this._logService.trace('[StartupProbe]', { component: 'gitRoot', stage, id, directory: workingDirectory.fsPath, foundRoot, epochMs: performance.timeOrigin + performance.now() });
+		traceStartup('root_enqueued');
 		const workingDirectoryKey = workingDirectory.toString();
 
 		return this._repositoryRootSequencer.queue(workingDirectoryKey, async () => {
+			traceStartup('root_enter');
 			let repositoryRoot = this._repositoryRoots.get(workingDirectoryKey);
 			if (repositoryRoot) {
+				traceStartup('root_cache_hit', true);
 				return repositoryRoot;
 			}
 
 			try {
+				traceStartup('root_git_begin');
 				const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
+				traceStartup('root_git_end', !!repositoryRootPath);
 				if (repositoryRootPath) {
 					repositoryRoot = URI.file(repositoryRootPath);
 					this._repositoryRoots.set(workingDirectoryKey, repositoryRoot);
@@ -878,6 +886,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 		const changedPaths = parseChangedPaths(statusOut);
+		if (statusOut.length === 0) {
+			// A clean checkout already has the exact snapshot tree. Avoid creating
+			// a temporary index and spawning read-tree/write-tree for every turn.
+			const headTree = await this.revParse(repositoryRoot, 'HEAD^{tree}');
+			if (headTree) {
+				return headTree;
+			}
+		}
 		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-checkpoint-${generateUuid()}`);
 		await this._fileService.createFolder(tempDir);
 		const indexFile = URI.joinPath(tempDir, 'index').fsPath;
@@ -1182,9 +1198,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void; readonly input?: string }): Promise<string | undefined> {
+		const probeId = performance.timeOrigin + performance.now();
 		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
 
-		return new Promise((resolve, reject) => {
+		const run = () => new Promise<string | undefined>((resolve, reject) => {
+			this._logService.trace('[StartupProbe]', { component: 'gitCommand', stage: 'git_begin', id: probeId, command: args[0], concurrencyLimit: this._startupProbeGitLimiter ? 4 : undefined, epochMs: performance.timeOrigin + performance.now() });
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
 			const timeoutMs = options?.timeout ?? 5000;
 			// Use our own timer rather than execFile's `timeout` option so
@@ -1196,6 +1214,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// easy to exceed for diff output in large repos. Exceeding it
 			// causes execFile to error and we'd silently drop the diff.
 			const child = cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+				this._logService.trace('[StartupProbe]', { component: 'gitCommand', stage: 'git_end', id: probeId, command: args[0], exitCode: error?.code ?? 0, timedOut: didTimeOut, epochMs: performance.timeOrigin + performance.now() });
 				if (error) {
 					// stderr is summarized in the thrown error message to keep
 					// it readable; log the full unmodified output here so the
@@ -1222,6 +1241,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 				resolve(stdout);
 			});
+			this._logService.trace('[StartupProbe]', { component: 'gitCommand', stage: 'git_spawn_returned', id: probeId, command: args[0], epochMs: performance.timeOrigin + performance.now() });
 			// `execFile` keeps its own listener for the buffered result; an
 			// extra one just tees the same chunks for live progress.
 			const onStderr = options?.onStderr;
@@ -1241,6 +1261,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}, timeoutMs);
 			child.on('exit', () => clearTimeout(timer));
 		});
+		return this._startupProbeGitLimiter ? this._startupProbeGitLimiter.queue(run) : run();
 	}
 }
 

@@ -59,6 +59,8 @@ export type AgentHostTurnSendStage =
 	| 'attachments'
 	/** Running the outgoing-turn chat contributions. */
 	| 'contributions'
+	/** Preparing provider state without sending the prompt. */
+	| 'providerPreparation'
 	/**
 	 * Waiting for the turn-start checkpoint. The capture is started earlier and
 	 * runs alongside the stages above, so this measures only the time it still

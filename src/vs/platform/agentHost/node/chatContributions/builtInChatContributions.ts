@@ -11,6 +11,7 @@ import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
 import { ChatInputContribution } from './chatInput/chatInputContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
+import { DraftPreparationContribution } from './draftPreparation/draftPreparationContribution.js';
 import { ExternalSessionAdoptionContribution } from './externalSessionAdoption/externalSessionAdoptionContribution.js';
 import { GitHubReferencesContribution } from './githubReferences/githubReferencesContribution.js';
 import { LocalCommandContribution } from './localCommand/localCommandContribution.js';
@@ -54,6 +55,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(SessionTitleContribution));
 	registrations.add(contributions.registerContribution(MarkUnreadContribution));
 	registrations.add(contributions.registerContribution(ChatDraftContribution));
+	registrations.add(contributions.registerContribution(DraftPreparationContribution));
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
 	registrations.add(contributions.registerContribution(RemoteSessionOriginContribution));

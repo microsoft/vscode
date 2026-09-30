@@ -4414,6 +4414,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+		const traceStartup = (stage: string) => this._logService.trace('[StartupProbe]', { component: 'hostCreate', stage, session: config?.session?.toString(), epochMs: performance.timeOrigin + performance.now() });
+		traceStartup('create_begin');
 		const provider = this._providerService.resolveProvider(config?.provider);
 		const isEphemeral = config ? readEphemeralSessionMeta(config).isEphemeral === true : false;
 		if (!provider) {
@@ -4455,6 +4457,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// materializing in the picked folder before the host creates the worktree.
 		const initializeSideEffects = this._sideEffects.initialize();
 		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
+		traceStartup('config_end');
 		const deferWorktreeCreation = sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' && !config?.importConversation;
 
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
@@ -4462,6 +4465,7 @@ export class AgentService extends Disposable implements IAgentService {
 			initializeSideEffects,
 			this._createProviderSession(provider, config, deferWorktreeCreation),
 		]);
+		traceStartup('provider_end');
 		const session = created.session;
 		const isIdleProvisional = created.provisional === true && !config?.importConversation;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
@@ -4530,6 +4534,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// during a reconnect that returned `missing`); without this, the
 		// timer would still fire and dispose the just-revived session
 		// before the follow-up `subscribe` arrives.
+		traceStartup('registry_end');
 		this._cancelPendingSessionGc(session);
 		this._sessionResidency.touch(session);
 
@@ -4581,6 +4586,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// actions published by `PluginController`.
 		const defaultChat = URI.parse(buildDefaultChatUri(session));
 		const workingDirectories = config?.workingDirectories;
+		traceStartup('customizations_begin');
 		const [initialCustomizations, folderPickerDecision] = await Promise.all([
 			provider.getChatCustomizations(defaultChat, this._chatContext(session, defaultChat), this._hostCustomizations(session)).catch(err => {
 				this._logService.error('[AgentService] createSession: failed to resolve initial customizations', err);
@@ -4599,6 +4605,7 @@ export class AgentService extends Disposable implements IAgentService {
 				})
 				: Promise.resolve(undefined),
 		]);
+		traceStartup('customizations_end');
 
 		if (config?.importConversation) {
 			// An imported conversation arrives with pre-existing turns (assigned
@@ -4682,7 +4689,9 @@ export class AgentService extends Disposable implements IAgentService {
 		void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
 
 		this._sessionResidency.touch(session);
+		traceStartup('residency_begin');
 		await this._sessionResidency.reconcile();
+		traceStartup('create_end');
 		return session;
 	}
 
@@ -5994,6 +6003,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _doDisposeSession(session: URI): Promise<void> {
+		const traceStartup = (stage: string) => this._logService.trace('[StartupProbe]', { component: 'hostDispose', stage, session: session.toString(), epochMs: performance.timeOrigin + performance.now() });
+		traceStartup('dispose_begin');
 		const sessionKey = session.toString();
 		const catalogDeletionFence = this._catalogSyncService.beginSessionDeletion(session);
 		let peerChatDeletionBegun = false;
@@ -6014,6 +6025,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// is reordered ahead of the data deletion.
 			const sessionId = AgentSession.id(session);
 			const persistedPeerChats = await this._peerChatStore.tryRead(session);
+			traceStartup('peer_read_end');
 			const configuredWorkingDirectories = [
 				...(this._configurationService.getEffectiveWorkingDirectories(session.toString()) ?? []),
 				...sessionChats.flatMap(chat => this._configurationService.getEffectiveWorkingDirectories(chat.resource) ?? []),
@@ -6028,6 +6040,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
 			const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
+			traceStartup('worktree_metadata_end');
 			const candidateCleanupWorkingDirectoryUris = (worktree?.repositoryRoot
 				? [worktree.repositoryRoot.toString(), ...(workingDirectories?.slice(1) ?? [])]
 				: workingDirectories ?? []).map(directory => URI.parse(directory, true));
@@ -6051,6 +6064,7 @@ export class AgentService extends Disposable implements IAgentService {
 				? cleanupWorkingDirectoryUris.map(directory => directory.toString())
 				: undefined;
 			await this._peerChatStore.beginSessionDeletion(session);
+			traceStartup('peer_fence_end');
 			peerChatDeletionBegun = true;
 			const provider = this._providerService.getProviderForSession(session);
 			let chatsToDelete = this._orderSessionChatsForTeardown(session, [
@@ -6060,9 +6074,11 @@ export class AgentService extends Disposable implements IAgentService {
 			// Providers may read host-owned session metadata (including workspaceless) during disposal.
 			await this._whenBackgroundCatalogStateWritesIdle(sessionKey);
 			await catalogDeletionFence.whenDrained;
+			traceStartup('catalog_fence_end');
 			if (provider) {
 				chatsToDelete = [...await this._disposeSession(provider, session)];
 			}
+			traceStartup('provider_end');
 			if (!isEphemeral) {
 				await this._retryRegistryMutation(
 					() => this._sessionRegistry.tombstone(session),
@@ -6072,6 +6088,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!isIdleProvisional) {
 				this._invalidateSessionList();
 			}
+			traceStartup('registry_end');
 			if (provider) {
 				this._providerService.releaseSession(session.toString());
 				this._clearDownloadProgressInterest(session.toString());
@@ -6079,6 +6096,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sideEffects.clearSessionTitleState(session.toString(), sessionChats.map(chat => chat.resource));
 			this._chatContributions.disposeSessionState(session.toString());
 			await this._whenSessionDataIdle(session);
+			traceStartup('data_idle_end');
 			for (const chat of chatsToDelete) {
 				await this._sessionDataService.deleteSessionData(chat);
 			}
@@ -6094,6 +6112,7 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._worktree.deleteDetachedWorktree(additionalWorktree.handle);
 			}
 			await this._sessionDataService.deleteSessionData(session, cleanupWorkingDirectories);
+			traceStartup('data_delete_end');
 			await this._worktree.removeSessionWorktree(sessionId, worktree);
 			this._changesetCoordinator.onSessionDisposed(session.toString());
 			this._sideEffects.clearInputRequestsForSession(session.toString());
@@ -6104,6 +6123,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// The durable marker is dropped with the registration itself; keep the
 			// mirror listing reads in step with it.
 			this._provisionalSessionKeys.delete(sessionKey);
+			traceStartup('dispose_end');
 			if (isEphemeral) {
 				await this._retryRegistryMutation(
 					() => this._sessionRegistry.clearTombstone(session),
@@ -8755,6 +8775,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * concrete backing cannot be restored.
 	 */
 	private async _persistDefaultChatBacking(created: IAgentCreateSessionResult): Promise<void> {
+		const traceStartup = (stage: string) => this._logService.trace('[StartupProbe]', { component: 'persistBacking', stage, session: created.session.toString(), epochMs: performance.timeOrigin + performance.now() });
+		traceStartup('persist_begin');
 		const providerData = created.chat?.providerData;
 		let providerDataError: Error | undefined;
 		if (providerData !== undefined) {
@@ -8768,6 +8790,7 @@ export class AgentService extends Disposable implements IAgentService {
 			} finally {
 				ref.dispose();
 			}
+			traceStartup('chat_metadata_end');
 			try {
 				const compatibilityRef = this._sessionDataService.openDatabase(created.session);
 				try {
@@ -8778,10 +8801,12 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (err) {
 				this._logService.warn(`[AgentService] failed to mirror default-chat provider data for ${created.session.toString()}`, err);
 			}
+			traceStartup('compat_metadata_end');
 		}
 		if (created.chat?.backingSession) {
 			await this._markChatBacking(created.chat.backingSession, URI.parse(buildDefaultChatUri(created.session)));
 		}
+		traceStartup('persist_end');
 		if (providerDataError) {
 			throw providerDataError;
 		}

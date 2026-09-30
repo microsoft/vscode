@@ -56,6 +56,7 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ChatArchiveContribution } from '../../node/chatContributions/chatArchive/chatArchiveContribution.js';
+import { DraftPreparationContribution } from '../../node/chatContributions/draftPreparation/draftPreparationContribution.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
@@ -1102,6 +1103,72 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual([first.get(), second.get(), factoryCalls], [1, 2, 2]);
 		contributions.dispose();
 	});
+
+	for (const scenario of ['selection', 'cleared', 'rejected', 'active-client', 'chat-added', 'unsupported', 'failure'] as const) {
+		test(`draft preparation contribution handles ${scenario}`, async () => {
+			const session = 'agent-host-session://draft-preparation';
+			const chat = buildDefaultChatUri(session);
+			type PreparationArgs = Parameters<NonNullable<MockAgent['chats']['prepareDraft']>>;
+			const prepared: { chat: string; selection: PreparationArgs[2]; context: PreparationArgs[1] }[] = [];
+			const warnings: string[] = [];
+			const logService = new class extends NullLogService {
+				override warn(message: string): void {
+					warnings.push(message);
+				}
+			};
+			const stateManager = disposables.add(new AgentHostStateManager(logService));
+			stateManager.createSession({
+				resource: session, provider: 'copilotcli', title: 'Draft', status: SessionStatus.Idle,
+				createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-01-01T00:00:00.000Z',
+			});
+			const agent = disposables.add(new MockAgent('copilotcli'));
+			if (scenario !== 'unsupported') {
+				agent.chats.prepareDraft = async (chat, context, selection) => {
+					prepared.push({ chat: chat.toString(), selection, context });
+					if (scenario === 'failure') {
+						throw new Error('preparation failed');
+					}
+				};
+			}
+			const services = new ServiceCollection(
+				[ILogService, logService],
+				[IAgentHostStateManager, stateManager],
+				[IAgentHostProviderService, createTestAgentHostProviderService(() => agent)],
+			);
+			const instantiationService = disposables.add(new InstantiationService(services, true));
+			const contributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+			disposables.add(contributions.registerContribution(DraftPreparationContribution));
+			const draft = {
+				text: 'draft', origin: { kind: MessageKind.User },
+				model: { id: 'selected-model' }, agent: { uri: 'file:///custom.agent.md' },
+			};
+			const action = { type: ActionType.ChatDraftChanged, draft: scenario === 'cleared' ? undefined : draft } as const;
+			stateManager.dispatchServerAction(chat, action);
+			if (scenario === 'active-client') {
+				const activeClient = { clientId: 'client', tools: [] };
+				contributions.didDispatchAction(dispatchedAction(session, session, { type: ActionType.SessionActiveClientSet, activeClient }));
+				assert.deepStrictEqual(prepared, [], 'Preparation must wait until active-client fan-out has completed');
+				contributions.didApplyClientAction(appliedClientAction(session, session, { type: ActionType.SessionActiveClientSet, activeClient }));
+			} else if (scenario === 'chat-added') {
+				const activeClient = { clientId: 'client', tools: [] };
+				stateManager.dispatchServerAction(session, { type: ActionType.SessionActiveClientSet, activeClient });
+				contributions.didDispatchAction(dispatchedAction(session, session, {
+					type: ActionType.SessionChatAdded, summary: stateManager.getSessionState(session)!.chats[0],
+				}));
+			} else {
+				contributions.didDispatchAction(dispatchedAction(chat, session, action, scenario === 'rejected' ? 'rejected' : undefined));
+			}
+			await Promise.resolve();
+			assert.deepStrictEqual({ prepared, warnings }, {
+				prepared: scenario === 'rejected' || scenario === 'unsupported' ? [] : [{
+					chat,
+					selection: scenario === 'cleared' ? {} : { model: draft.model, agent: draft.agent },
+					context: { resource: URI.parse(session), configurationResource: URI.parse(session), origin: { kind: ChatOriginKind.User } },
+				}],
+				warnings: scenario === 'failure' ? ['[DraftPreparationContribution] Experimental draft preparation failed'] : [],
+			});
+		});
+	}
 
 	test('chat archive contribution persists accepted peer chat actions and logs failures', async () => {
 		const session = 'agent-host-session://archive';

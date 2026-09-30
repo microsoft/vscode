@@ -2019,6 +2019,12 @@ export class AgentSideEffects extends Disposable {
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 				return;
 			}
+			// Providers opt in only when initialization cannot mutate the working
+			// tree being captured. A prompt still waits for both prerequisites.
+			if (agent.chats.prepareTurn) {
+				this._turnTracker.markSendStage(turnChannel, turnId, 'providerPreparation');
+				await agent.chats.prepareTurn(chatUri, resolvedWorkingDirectories, sendContext);
+			}
 			if (checkpointCapture) {
 				// Measures only what the checkpoint still costs the critical path
 				// after overlapping the work above, not the capture's total cost.
