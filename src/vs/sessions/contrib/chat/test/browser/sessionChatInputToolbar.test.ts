@@ -101,26 +101,6 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	test('uses lightweight chat summary counts without reading chat details', () => {
-		const chat = upcastPartial<IChat>({
-			changesSummary: constObservable({ files: 2, additions: 12, deletions: 3 }),
-			get workspace(): IChat['workspace'] {
-				throw new Error('workspace should not be read');
-			},
-			get changesets(): IChat['changesets'] {
-				throw new Error('changesets should not be read');
-			},
-			get changes(): IChat['changes'] {
-				throw new Error('changes should not be read');
-			},
-		});
-
-		assert.deepStrictEqual(
-			derived(reader => computeSessionInputPillStats(undefined, chat, reader)).get(),
-			{ files: 2, insertions: 12, deletions: 3 },
-		);
-	});
-
 	test('uses Session Changes for folders and Branch Changes for worktrees', () => {
 		const createWorkspace = (worktree: boolean) => upcastPartial<ISessionWorkspace>({
 			folders: [upcastPartial<ISessionFolder>({

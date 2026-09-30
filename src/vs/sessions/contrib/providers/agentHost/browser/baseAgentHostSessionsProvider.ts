@@ -396,6 +396,7 @@ function chatMetadataFromSummary(summary: Pick<SessionSummary, 'chats' | 'defaul
 		kind: summary.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 		origin: chat.origin,
 		...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+		...(chat.archived === true ? { archived: true } : {}),
 	}));
 }
 
@@ -986,18 +987,6 @@ function createChangesObservable(changesets: IObservable<readonly ISessionChange
 		reader => defaultChangesetObs.read(reader)?.changes.read(reader) ?? []);
 }
 
-function toSessionChangesSummary(changes: ChangesSummary | undefined): ISessionChangesSummary | undefined {
-	if (!changes) {
-		return undefined;
-	}
-
-	return {
-		additions: changes.additions ?? 0,
-		deletions: changes.deletions ?? 0,
-		files: changes.files ?? 0,
-	};
-}
-
 class AdditionalChat extends Disposable {
 
 	readonly chat: IChat;
@@ -1006,7 +995,6 @@ class AdditionalChat extends Disposable {
 	private readonly _title: ISettableObservable<string>;
 	private readonly _status: ISettableObservable<SessionStatus>;
 	private readonly _updatedAt: ISettableObservable<Date>;
-	private readonly _changesSummary: ISettableObservable<ISessionChangesSummary | undefined>;
 	private readonly _workingDirectories: ISettableObservable<readonly string[] | undefined>;
 	private readonly _modelId: ISettableObservable<string | undefined>;
 	private readonly _modelSource: ISettableObservable<ChatModelSource | undefined>;
@@ -1024,7 +1012,6 @@ class AdditionalChat extends Disposable {
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
 		this._status = observableValue<SessionStatus>('chatStatus', mapProtocolStatus(summary.status));
 		this._updatedAt = observableValueOpts<Date>({ owner: this, debugName: 'chatUpdatedAt', equalsFn: dateEquals }, modifiedAt);
-		this._changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ owner: this, debugName: 'chatChangesSummary', equalsFn: structuralEquals }, toSessionChangesSummary(summary.changes));
 		this._workingDirectories = observableValueOpts<readonly string[] | undefined>({ owner: this, debugName: 'chatWorkingDirectories', equalsFn: structuralEquals }, summary.workingDirectories);
 		this._modelId = observableValue<string | undefined>('chatModelId', undefined);
 		this._modelSource = observableValue<ChatModelSource | undefined>('chatModelSource', undefined);
@@ -1060,7 +1047,6 @@ class AdditionalChat extends Disposable {
 			updatedAt: this._withDetails(this._updatedAt),
 			status: this._withDetails(toPresentedSessionStatus(this, status, connectionStatus)),
 			changes: createChangesObservable(changesets),
-			changesSummary: this._changesSummary,
 			changesets,
 			lastTurnChanges: output?.lastTurnChanges,
 			customizations: output?.customizations,
@@ -1101,7 +1087,6 @@ class AdditionalChat extends Disposable {
 			this._title.set(summary.title || localize('newChatTab', "New Chat"), tx);
 			this._status.set(mapProtocolStatus(summary.status), tx);
 			this._updatedAt.set(modifiedAt, tx);
-			this._changesSummary.set(toSessionChangesSummary(summary.changes), tx);
 			this._workingDirectories.set(summary.workingDirectories, tx);
 			this._description.set(summary.activity ? new MarkdownString().appendText(summary.activity) : undefined, tx);
 			this._lastTurnEnd.set(modifiedAt, tx);
@@ -1245,7 +1230,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * (which may have been promoted by a running peer chat).
 	 */
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
-	private readonly _defaultChatChangesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ owner: this, debugName: 'defaultChatChangesSummary', equalsFn: structuralEquals }, undefined);
 	private readonly _defaultChatWorkingDirectories = observableValueOpts<readonly string[] | undefined>({ owner: this, debugName: 'defaultChatWorkingDirectories', equalsFn: structuralEquals }, undefined);
 	/** GitHub info per folder, keyed by working-directory key and created on demand. */
 	private readonly _folderGitHubInfos = new Map<string, IObservable<IGitHubInfo | undefined>>();
@@ -1333,17 +1317,26 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * observers before the enclosing update has applied its remaining fields.
 	 */
 	setChangesSummary(changes: ChangesSummary | undefined, tx?: ITransaction): boolean {
-		const summary = toSessionChangesSummary(changes);
-		if (!summary) {
+		if (!changes) {
 			return false;
 		}
 
+		const { additions, deletions, files } = changes;
 		const currentChangesSummary = this._changesSummary.get();
-		if (structuralEquals(currentChangesSummary, summary)) {
+
+		if (
+			(currentChangesSummary?.files ?? 0) === (files ?? 0) &&
+			(currentChangesSummary?.additions ?? 0) === (additions ?? 0) &&
+			(currentChangesSummary?.deletions ?? 0) === (deletions ?? 0)
+		) {
 			return false;
 		}
 
-		this._changesSummary.set(summary, tx);
+		this._changesSummary.set({
+			additions: additions ?? 0,
+			deletions: deletions ?? 0,
+			files: files ?? 0
+		}, tx);
 
 		return true;
 	}
@@ -1525,7 +1518,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			updatedAt: this.updatedAt,
 			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus),
 			changes: defaultChatChanges,
-			changesSummary: this._defaultChatChangesSummary,
 			changesets: defaultChatChangesets,
 			lastTurnChanges: derived(reader => {
 				const chatUri = defaultChatUriObs.read(reader);
@@ -1703,7 +1695,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			: isDefaultChatUri(summary.resource);
 		const defaultSummary = state.chats.find(isDefault);
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
-		this._defaultChatChangesSummary.set(toSessionChangesSummary(defaultSummary?.changes), undefined);
 		this._defaultChatInteractivity.set(toChatInteractivity(defaultSummary?.interactivity), undefined);
 		this._defaultChatWorkingDirectories.set(defaultSummary?.workingDirectories, undefined);
 

@@ -189,7 +189,6 @@ function buildChatFromSession(chat: Omit<ICopilotChatSession, 'mainChat'>): ICha
 		updatedAt: chat.updatedAt,
 		status: chat.status,
 		changes: chat.changes,
-		changesSummary: chat.changesSummary,
 		changesets: constObservable(undefined),
 		checkpoints: chat.checkpoints,
 		modelId: chat.modelId,

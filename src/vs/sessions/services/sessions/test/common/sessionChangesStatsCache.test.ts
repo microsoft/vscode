@@ -10,7 +10,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChat, ISession, ISessionChangeset, ISessionFileChange } from '../../common/session.js';
-import { ISessionChangesStats, MAX_CACHED_SESSION_CHANGES_STATS, readChatChangesStats, readSessionChangesStats, SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
+import { ISessionChangesStats, MAX_CACHED_SESSION_CHANGES_STATS, readSessionChangesStats, SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
 
 const stats = (files: number): ISessionChangesStats => ({ files, insertions: files * 10, deletions: files });
 
@@ -102,19 +102,5 @@ suite('readSessionChangesStats', () => {
 			summarized: { files: 5, insertions: 20, deletions: 7 },
 			fromMainChatChanges: { files: 1, insertions: 3, deletions: 1 },
 		});
-	});
-
-	test('uses the lightweight chat summary without reading changesets or changes', () => {
-		const chat = upcastPartial<IChat>({
-			changesSummary: constObservable({ files: 5, additions: 20, deletions: 7 }),
-			get changesets(): IChat['changesets'] {
-				throw new Error('changesets should not be read');
-			},
-			get changes(): IChat['changes'] {
-				throw new Error('changes should not be read');
-			},
-		});
-
-		assert.deepStrictEqual(readChatChangesStats(chat, undefined), { files: 5, insertions: 20, deletions: 7 });
 	});
 });

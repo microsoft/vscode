@@ -28,7 +28,6 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { sessionReducer } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/reducer.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -7412,57 +7411,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentHost.setSessionState('multi-values', 'copilotcli', makeCatalog());
 
 			assert.strictEqual(updateCount, 1);
-		});
-
-		test('maps chat change summaries and reconciles session/chatUpdated without detail subscriptions', () => {
-			const provider = createProvider(disposables, agentHost);
-			const rawId = 'multi-change-summaries';
-			const session = setupMultiChatSession(provider, rawId);
-			const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
-			const defaultChat = buildDefaultChatUri(sessionUri);
-			const peerChat = buildChatUri(sessionUri, 'peer-1');
-			const initialState = makeState([
-				{ ...makeChatSummary(defaultChat, ''), changes: { additions: 10, deletions: 2, files: 1 } },
-				{ ...makeChatSummary(peerChat, 'Peer'), changes: { additions: 20, deletions: 4, files: 2 } },
-			], { defaultChat });
-
-			agentHost.setSessionState(rawId, 'copilotcli', initialState);
-			const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
-			assert.ok(peer);
-			const subscriptionsBeforeRead = [...agentHost.sessionSubscribeCounts.entries()].sort();
-			const initial = {
-				defaultChat: session.mainChat.get().changesSummary?.get(),
-				peer: peer.changesSummary?.get(),
-			};
-			const subscriptionsAfterRead = [...agentHost.sessionSubscribeCounts.entries()].sort();
-
-			const updatedState = sessionReducer(initialState, {
-				type: ActionType.SessionChatUpdated,
-				chat: peerChat,
-				changes: { changes: { additions: 30, deletions: 6, files: 3 } },
-			});
-			agentHost.setSessionState(rawId, 'copilotcli', updatedState);
-
-			assert.deepStrictEqual({
-				initial,
-				updated: {
-					title: peer.title.get(),
-					changes: peer.changesSummary?.get(),
-				},
-				subscriptionsBeforeRead,
-				subscriptionsAfterRead,
-			}, {
-				initial: {
-					defaultChat: { additions: 10, deletions: 2, files: 1 },
-					peer: { additions: 20, deletions: 4, files: 2 },
-				},
-				updated: {
-					title: 'Peer',
-					changes: { additions: 30, deletions: 6, files: 3 },
-				},
-				subscriptionsBeforeRead,
-				subscriptionsAfterRead: subscriptionsBeforeRead,
-			});
 		});
 
 		test('peer chats map protocol interactivity to the provider-agnostic tri-state', () => {

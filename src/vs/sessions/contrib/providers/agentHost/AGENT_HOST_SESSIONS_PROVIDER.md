@@ -79,8 +79,6 @@ The provider cache owns adapter identity. Catalog notifications describe members
 
 Provider-specific metadata such as pull-request provenance, changesets, agent configuration, and external visibility is translated inside this provider. Shared Sessions code consumes only provider-neutral fields and capabilities.
 
-Optional aggregate counts from AHP chat summaries are projected through the provider-neutral chat change summary. Count presentation consumes this lightweight metadata before loading chat details or subscribing to a changeset; hosts that omit it retain the existing lazy changeset fallback.
-
 Selectable Agent Host changesets have one catalogue owner for each scope. The default chat exists from initial draft creation and owns repository-preparation changes before provider materialization. After materialization, the session continues publishing its cumulative Session Changes entry while each chat owns its repository and turn catalogue. The client projects the session-owned Session Changes entry into every chat catalogue, so all chats share the same cumulative summary while retaining chat-scoped Branch, Uncommitted, This Turn, and Compare entries.
 
 Session workflow operations such as pull-request creation and Agent Merge are advertised by Branch Changes sourced from the default chat. Changesets from other scopes, along with Uncommitted, This Turn, and Compare entries, keep those operations filtered out.

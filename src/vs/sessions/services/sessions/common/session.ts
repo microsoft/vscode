@@ -704,8 +704,6 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
-	/** Summary of file changes produced by the chat. */
-	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
 	/** Changesets produced by the chat. `undefined` means they have not been published yet. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
