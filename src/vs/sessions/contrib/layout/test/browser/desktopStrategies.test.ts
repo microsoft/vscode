@@ -18,12 +18,12 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
-import { SinglePaneDetailPanelCoordinator } from '../../browser/singlePane/singlePaneDetailPanelCoordinator.js';
-import { SinglePaneDraftSessionStrategy } from '../../browser/singlePane/singlePaneDraftSessionStrategy.js';
-import { SinglePaneExistingSessionStrategy } from '../../browser/singlePane/singlePaneExistingSessionStrategy.js';
-import { ISinglePaneLayoutContext } from '../../browser/singlePane/singlePaneLayoutStrategy.js';
-import { isFileEditorInput } from '../../browser/singlePane/singlePaneSharedHelpers.js';
-import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from '../../browser/singlePane/singlePaneVisibilityProfileStore.js';
+import { DesktopDetailPanelCoordinator } from '../../browser/desktop/desktopDetailPanelCoordinator.js';
+import { DesktopDraftSessionStrategy } from '../../browser/desktop/desktopDraftSessionStrategy.js';
+import { DesktopExistingSessionStrategy } from '../../browser/desktop/desktopExistingSessionStrategy.js';
+import { IDesktopLayoutContext } from '../../browser/desktop/desktopLayoutStrategy.js';
+import { isFileEditorInput } from '../../browser/desktop/desktopSharedHelpers.js';
+import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from '../../browser/desktop/desktopVisibilityProfileStore.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
 interface ITestContextState {
@@ -33,7 +33,7 @@ interface ITestContextState {
 	endSessionLayoutRestore(): void;
 }
 
-function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutHarness): { readonly ctx: ISinglePaneLayoutContext; readonly state: ITestContextState } {
+function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutHarness): { readonly ctx: IDesktopLayoutContext; readonly state: ITestContextState } {
 	const onDidEndSessionLayoutRestore = store.add(new Emitter<void>());
 	const savedWorkingSets = new Set<string>();
 	const state: ITestContextState = {
@@ -49,7 +49,7 @@ function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutH
 		},
 		endSessionLayoutRestore: () => onDidEndSessionLayoutRestore.fire(),
 	};
-	const ctx: ISinglePaneLayoutContext = {
+	const ctx: IDesktopLayoutContext = {
 		get isRestoringSessionLayout() { return state.isRestoringSessionLayout; },
 		withSessionLayoutRestore: work => {
 			const wasRestoring = state.isRestoringSessionLayout;
@@ -80,7 +80,7 @@ function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutH
 	return { ctx, state };
 }
 
-suite('SinglePane layout strategies', () => {
+suite('Desktop layout strategies', () => {
 
 	const store = new DisposableStore();
 	let harness: ITestLayoutHarness;
@@ -88,7 +88,7 @@ suite('SinglePane layout strategies', () => {
 	teardown(() => store.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: ICreateOptions = {}): ISinglePaneLayoutContext {
+	function setup(options: ICreateOptions = {}): IDesktopLayoutContext {
 		harness = createTestHarness(store, options);
 		return createStrategyTestContext(store, harness).ctx;
 	}
@@ -98,12 +98,12 @@ suite('SinglePane layout strategies', () => {
 		harness.visibleSessionsObs.set(session ? [session] : [], undefined);
 	}
 
-	function createDetailPanel(): SinglePaneDetailPanelCoordinator {
-		return store.add(harness.instaService.createInstance(SinglePaneDetailPanelCoordinator));
+	function createDetailPanel(): DesktopDetailPanelCoordinator {
+		return store.add(harness.instaService.createInstance(DesktopDetailPanelCoordinator));
 	}
 
-	function createVisibilityStore(): SinglePaneVisibilityProfileStore {
-		return harness.instaService.createInstance(SinglePaneVisibilityProfileStore);
+	function createVisibilityStore(): DesktopVisibilityProfileStore {
+		return harness.instaService.createInstance(DesktopVisibilityProfileStore);
 	}
 
 	test('untitled editors map to Files Details', () => {
@@ -112,8 +112,8 @@ suite('SinglePane layout strategies', () => {
 		assert.strictEqual(isFileEditorInput(editor), true);
 	});
 
-	function createDraftStrategy(ctx: ISinglePaneLayoutContext, visibilityStore = createVisibilityStore()): SinglePaneDraftSessionStrategy {
-		return store.add(harness.instaService.createInstance(SinglePaneDraftSessionStrategy, ctx, createDetailPanel(), visibilityStore));
+	function createDraftStrategy(ctx: IDesktopLayoutContext, visibilityStore = createVisibilityStore()): DesktopDraftSessionStrategy {
+		return store.add(harness.instaService.createInstance(DesktopDraftSessionStrategy, ctx, createDetailPanel(), visibilityStore));
 	}
 
 	test('Existing Session toggles only the detail panel', () => {
@@ -121,9 +121,9 @@ suite('SinglePane layout strategies', () => {
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
 		const strategy = store.add(harness.instaService.createInstance(
-			SinglePaneExistingSessionStrategy,
+			DesktopExistingSessionStrategy,
 			ctx,
-			harness.instaService.createInstance(SinglePaneVisibilityProfileStore),
+			harness.instaService.createInstance(DesktopVisibilityProfileStore),
 			createDetailPanel()
 		));
 		harness.setPartHiddenCalls.length = 0;
@@ -152,7 +152,7 @@ suite('SinglePane layout strategies', () => {
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		activate(session);
 		store.add(harness.instaService.createInstance(
-			SinglePaneExistingSessionStrategy,
+			DesktopExistingSessionStrategy,
 			ctx,
 			createVisibilityStore(),
 			createDetailPanel(),
@@ -303,7 +303,7 @@ suite('SinglePane layout strategies', () => {
 		harness.activeEditorInput = emptyFiles;
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		store.add(harness.instaService.createInstance(
-			SinglePaneExistingSessionStrategy,
+			DesktopExistingSessionStrategy,
 			ctx,
 			visibilityStore,
 			createDetailPanel()
@@ -333,7 +333,7 @@ suite('SinglePane layout strategies', () => {
 		harness.activeGroupEditors.push(otherEditor, emptyFiles);
 		harness.activeEditorInput = emptyFiles;
 		const strategy = store.add(harness.instaService.createInstance(
-			SinglePaneExistingSessionStrategy,
+			DesktopExistingSessionStrategy,
 			ctx,
 			createVisibilityStore(),
 			createDetailPanel()
@@ -465,10 +465,10 @@ suite('SinglePane layout strategies', () => {
 		const ctx = setup();
 		const session = makeSession(URI.parse('session:/existing'));
 		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
-		const visibilityStore = harness.instaService.createInstance(SinglePaneVisibilityProfileStore);
+		const visibilityStore = harness.instaService.createInstance(DesktopVisibilityProfileStore);
 		harness.activeGroupEditors.push(editor);
 		store.add(harness.instaService.createInstance(
-			SinglePaneExistingSessionStrategy,
+			DesktopExistingSessionStrategy,
 			ctx,
 			visibilityStore,
 			createDetailPanel()
@@ -509,9 +509,9 @@ suite('SinglePane layout strategies', () => {
 		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
 		harness.activeGroupEditors.push(editor);
 		store.add(harness.instaService.createInstance(
-			SinglePaneExistingSessionStrategy,
+			DesktopExistingSessionStrategy,
 			ctx,
-			harness.instaService.createInstance(SinglePaneVisibilityProfileStore),
+			harness.instaService.createInstance(DesktopVisibilityProfileStore),
 			createDetailPanel()
 		));
 		harness.activeSessionObs.set(session, undefined);

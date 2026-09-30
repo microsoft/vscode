@@ -6,7 +6,7 @@
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { IBrowserMainWorkbench } from '../../workbench/browser/web.main.js';
-import { Workbench as SessionsWorkbench } from '../browser/workbench.js';
+import { MobileWorkbench as SessionsWorkbench } from '../browser/mobileWorkbench.js';
 import { SessionsBrowserMain } from '../browser/web.main.js';
 import { Emitter, Event } from '../../base/common/event.js';
 import { CancellationToken } from '../../base/common/cancellation.js';

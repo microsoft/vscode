@@ -10,9 +10,9 @@ import { IEditorWillOpenEvent } from '../../workbench/common/editor.js';
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { DockedEditorInput } from '../common/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from './dockedAuxiliaryBarController.js';
-import { SinglePaneMainEditorPart } from './parts/singlePaneEditorPart.js';
+import { DesktopMainEditorPart } from './parts/desktopEditorPart.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from './parts/editorPartSizing.js';
-import { Workbench } from './workbench.js';
+import { AgentWorkbenchLayout, Workbench } from './workbench.js';
 
 /**
  * Remembers the editor width captured around visibility transitions.
@@ -23,13 +23,17 @@ export class DockedEditorSizeMemento {
 }
 
 /**
- * Single-pane workbench: the auxiliary bar is docked inside the editor part (below
+ * Desktop workbench: the auxiliary bar is docked inside the editor part (below
  * a shared tab bar) rather than being its own grid column. The editor part
- * ({@link SinglePaneMainEditorPart}) owns the auxiliary bar and its docked
+ * ({@link DesktopMainEditorPart}) owns the auxiliary bar and its docked
  * controller; this workbench owns the docked width, the reveal-sync, and the
  * docked size bookkeeping.
  */
-export class SinglePaneWorkbench extends Workbench {
+export class DesktopWorkbench extends Workbench {
+
+	override get agentWorkbenchLayout(): AgentWorkbenchLayout {
+		return AgentWorkbenchLayout.Desktop;
+	}
 
 	/** Node width past the detail width at which editor content counts as visible. */
 	private static readonly _EDITOR_CONTENT_VISIBLE_THRESHOLD = 4;
@@ -37,10 +41,6 @@ export class SinglePaneWorkbench extends Workbench {
 	private _dockedAuxiliaryBarWidth = DockedAuxiliaryBarController.DEFAULT_WIDTH;
 	private _syncingEditorVisibility = false;
 	private readonly _memento = new DockedEditorSizeMemento();
-
-	override get isSinglePaneLayoutEnabled(): boolean {
-		return true;
-	}
 
 	override isEditorPaneVisible(): boolean {
 		return this.workbenchGrid
@@ -114,7 +114,7 @@ export class SinglePaneWorkbench extends Workbench {
 
 	/** Re-layouts the docked auxiliary bar, which the editor part owns. */
 	private _layoutDockedAuxBar(): void {
-		(this.editorGroupService.mainPart as SinglePaneMainEditorPart).layoutDockedAuxiliaryBar();
+		(this.editorGroupService.mainPart as DesktopMainEditorPart).layoutDockedAuxiliaryBar();
 	}
 
 	protected override _applyLayoutContainerClass(): void {
@@ -277,7 +277,7 @@ export class SinglePaneWorkbench extends Workbench {
 		this._syncingEditorVisibility = true;
 		try {
 			const effectiveAuxiliaryBarWidth = DockedAuxiliaryBarController.getEffectiveWidth(this._dockedAuxiliaryBarWidth, nodeWidth);
-			const editorContentVisible = nodeWidth > effectiveAuxiliaryBarWidth + SinglePaneWorkbench._EDITOR_CONTENT_VISIBLE_THRESHOLD;
+			const editorContentVisible = nodeWidth > effectiveAuxiliaryBarWidth + DesktopWorkbench._EDITOR_CONTENT_VISIBLE_THRESHOLD;
 
 			// Hide: editor content is visible and the node is squeezed down to the detail
 			// width. Only hide when the detail is visible, so we don't hide when both parts
@@ -425,7 +425,7 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	protected override _handleAllEditorsClosed(): void {
-		// Lifecycle strategies own empty-group behavior in the single-pane layout.
+		// Lifecycle strategies own empty-group behavior in the desktop layout.
 	}
 
 }
