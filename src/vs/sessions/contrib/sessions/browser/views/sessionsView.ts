@@ -5,6 +5,7 @@
 
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -53,6 +54,8 @@ import { SessionsListRearrangeExperimentState } from '../sessionsListRearrangeEx
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
+import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
+import { SessionsListNotification } from './sessionsListNotification.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -108,7 +111,7 @@ export function renderSessionsHeader(
 		toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.SidebarSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'sessionsView.header',
-			toolbarOptions: { primaryGroup: () => true },
+			toolbarOptions: { primaryGroup: group => group.startsWith('navigation') },
 			actionViewItemProvider: (action, options) => onDidShowFilters && action instanceof SubmenuItemAction && action.item.submenu === SessionsViewFilterSubMenu
 				? scopedInstantiationService.createInstance(SessionsFilterActionViewItem, action, options, onDidShowFilters)
 				: undefined,
@@ -154,6 +157,7 @@ export class SessionsView extends ViewPane {
 	private readonly sessionsHeaders = new Set<IRegisteredSessionsHeader>();
 	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
+	archiveNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private readonly sessionsListRearrangeExperimentState: SessionsListRearrangeExperimentState;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
@@ -315,7 +319,10 @@ export class SessionsView extends ViewPane {
 				return this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
+		const storageCleanupNotice = this._register(this.instantiationService.createInstance(SessionStorageCleanupNotice, () => sessionsControl.focus(), status));
+		sessionsContent.appendChild(storageCleanupNotice.domNode);
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
+		this.archiveNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {

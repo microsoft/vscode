@@ -53,7 +53,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const persisted = URI.parse('agent-host-copilot:/persisted');
 		await handleOpenIntent.call(harness, URI.file('/source'), persisted, false, CancellationToken.None, undefined, draft);
 		assert.deepStrictEqual({ drafts, sessions }, {
-			drafts: [{ folderUri: undefined, preferDevContainer: false, isDefault: true, draft }],
+			drafts: [{ folderUri: undefined, preferDevContainer: false, isDefault: true, draft, noWorkspace: false }],
 			sessions: [persisted],
 		});
 	});

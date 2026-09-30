@@ -58,7 +58,7 @@ export interface ICopilotRuntimeSlashCommandQueryOptions {
  */
 export class CopilotSlashCommandCompletionProvider implements IAgentHostCompletionItemProvider {
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
-	readonly triggerCharacters = [CompletionTriggerCharacter.Slash] as const;
+	readonly triggerCharacters = [CompletionTriggerCharacter.Slash, CompletionTriggerCharacter.Space] as const;
 
 	constructor(
 		private readonly copilotcliId: string,
@@ -70,6 +70,15 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		if (AgentSession.provider(params.channel) !== this.copilotcliId) {
 			return [];
 		}
+		const sessionId = AgentSession.id(params.channel);
+		const customizationCompletions = await this._getCustomizationCompletions(params.text, params.offset, sessionId);
+		if (customizationCompletions) {
+			return customizationCompletions;
+		}
+		const commandArgument = extractSlashCommandArgument(params.text, params.offset);
+		if (commandArgument) {
+			return this._getRuntimeSlashCommandCompletionInfo(sessionId, commandArgument.command, commandArgument, false, commandArgument.typed);
+		}
 		const leadingTokenForSkills = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
 		const leadingTokenForCommands = extractLeadingSlashToken(params.text, params.offset);
 		const leading = leadingTokenForCommands ?? leadingTokenForSkills;
@@ -79,10 +88,53 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		}
 
 		// Raw session id is the URI path without the leading slash.
-		const sessionId = AgentSession.id(params.channel);
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
 		return await this._getRuntimeSlashCommandCompletionInfo(sessionId, typed, leading, returnJustSkills);
+	}
+
+	private async _getCustomizationCompletions(text: string, offset: number, sessionId: string): Promise<CompletionItem[] | undefined> {
+		const range = getWordRangeAtOffset(text, offset);
+		if (!range) {
+			return undefined;
+		}
+		const command = /^\/(?<command>mcp|skills)\s+(?<subcommand>enable|disable|show|info)\s*$/i.exec(text.slice(0, range.start));
+		if (!command?.groups) {
+			return undefined;
+		}
+
+		const { command: commandName, subcommand } = command.groups;
+		if ((commandName.toLowerCase() === 'mcp' && !['enable', 'disable', 'show'].includes(subcommand.toLowerCase()))
+			|| (commandName.toLowerCase() === 'skills' && subcommand.toLowerCase() !== 'info')) {
+			return undefined;
+		}
+
+		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
+		const candidates = new Set<string>();
+		for (const customization of customizations) {
+			if (commandName.toLowerCase() === 'mcp' && customization.type === CustomizationType.McpServer) {
+				candidates.add(customization.name);
+			}
+			for (const child of customization.type === CustomizationType.McpServer ? [] : customization.children ?? []) {
+				if ((commandName.toLowerCase() === 'mcp' && child.type === CustomizationType.McpServer)
+					|| (commandName.toLowerCase() === 'skills' && child.type === CustomizationType.Skill)) {
+					candidates.add(child.name);
+				}
+			}
+		}
+
+		return Array.from(candidates)
+			.filter(name => matchesSlashCompletion(text.slice(range.start, offset), name))
+			.map((name): CompletionItem => ({
+				insertText: name,
+				rangeStart: range.start,
+				rangeEnd: range.end,
+				attachment: {
+					type: MessageAttachmentKind.Simple,
+					label: name,
+				},
+			}))
+			.sort((a, b) => a.insertText.localeCompare(b.insertText));
 	}
 
 	private async _getKnownSkills(sessionId: string): Promise<{ readonly known: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
@@ -149,7 +201,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		return slashCommandName;
 	}
 
-	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean): Promise<CompletionItem[]> {
+	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean, argumentTyped?: string): Promise<CompletionItem[]> {
 		const [runtimeCommands, { known: knownSkills, syncedContainerNames }] = await Promise.all([
 			this._sessionInfo.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
 			this._getKnownSkills(sessionId)
@@ -182,7 +234,11 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
 				continue;
 			}
-			if (!matchesSlashCompletion(typedLower, command.name) && !command.aliases?.some(alias => matchesSlashCompletion(typedLower, alias))) {
+			const aliases = Array.from(new Set([command.name].concat(command.aliases ?? [])));
+			const commandMatches = argumentTyped === undefined
+				? aliases.some(alias => matchesSlashCompletion(typedLower, alias))
+				: aliases.some(alias => alias.toLowerCase() === typedLower);
+			if (!commandMatches) {
 				continue;
 			}
 			// Use structured input choices as options; if there are none, emit a single item for the command and surface any free-text hint as a prompt.
@@ -199,17 +255,26 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 			// Generate completion items for each alias and option combination.
 			// If there are no options, generate a single completion item for the alias.
-			const aliases = Array.from(new Set([command.name].concat(command.aliases ?? [])));
 			aliases
 				.filter(alias => !addedAliases.has(alias))
 				.forEach(alias => {
 					options
+						.filter(option => argumentTyped === undefined
+							|| (!!option.name && matchesSlashCompletion(argumentTyped, option.name)))
 						.forEach(option => {
 							// Add a trailing space after the command (and sub command/option if present).
 							// This is so user can continue to type additional arguments after the command and option.
-							const insertText = `/${alias}${option.name ? ' ' + option.name : ''} `;
+							const insertText = argumentTyped === undefined
+								? `/${alias}${option.name ? ' ' + option.name : ''} `
+								: `${option.name} `;
 							const description = option.description ?? command.description;
 							const argumentHint = option.argumentHint;
+							const retriggerSuggestions = !option.name
+								? ['mcp', 'skills'].includes(command.name)
+								: command.name === 'mcp'
+									? ['enable', 'disable', 'show'].includes(option.name)
+									: command.name === 'skills' && option.name === 'info';
+							const submitOnAccept = ['mcp', 'skills'].includes(command.name) && ['list', 'reload'].includes(option.name);
 							addedAliases.add(alias);
 
 							completionItems.push({
@@ -218,12 +283,16 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 								rangeEnd: rangeEnd,
 								attachment: {
 									type: MessageAttachmentKind.Simple,
-									label: insertText,
+									label: argumentTyped === undefined
+										? `${alias}${option.name ? ' ' + option.name : ''}`
+										: option.name,
 									_meta: toCommandCompletionAttachmentMeta({
 										command: command.name,
 										...(command.kind === 'skill' ? { isSkill: true } : {}),
 										...(description !== undefined ? { description } : {}),
-										...(argumentHint !== undefined ? { argumentHint } : {})
+										...(argumentHint !== undefined ? { argumentHint } : {}),
+										...(retriggerSuggestions ? { retriggerSuggestions: true } : {}),
+										...(submitOnAccept ? { submitOnAccept: true } : {}),
 									}),
 								},
 							});
@@ -236,7 +305,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		// bag on their `_meta` that the workbench interprets on accept. Only
 		// offered for leading `/command` tokens (not the whitespace-delimited
 		// skill form).
-		if (!returnJustSkills) {
+		if (!returnJustSkills && argumentTyped === undefined) {
 			const configState = this._sessionInfo.getSessionConfigState?.(sessionId);
 			for (const item of getCopilotConfigSlashCommandItems(typed, configState)) {
 				completionItems.push({
@@ -268,4 +337,37 @@ export type ICopilotRuntimeSlashCommandInfo = RuntimeSlashCommandInfo;
 
 function isSyncedCustomization(container: PluginCustomization): boolean {
 	return container.uri.startsWith(SYNCED_CUSTOMIZATION_SCHEME + ':');
+}
+
+function getWordRangeAtOffset(text: string, offset: number): { start: number; end: number } | undefined {
+	if (offset < 0 || offset > text.length) {
+		return undefined;
+	}
+
+	let start = offset;
+	while (start > 0 && !/\s/.test(text[start - 1])) {
+		start--;
+	}
+	let end = offset;
+	while (end < text.length && !/\s/.test(text[end])) {
+		end++;
+	}
+	return { start, end };
+}
+
+function extractSlashCommandArgument(text: string, offset: number): { command: string; typed: string; rangeStart: number; rangeEnd: number } | undefined {
+	const range = getWordRangeAtOffset(text, offset);
+	if (!range) {
+		return undefined;
+	}
+	const match = /^\/(?<command>\S+)\s+$/i.exec(text.slice(0, range.start));
+	if (!match?.groups) {
+		return undefined;
+	}
+	return {
+		command: match.groups.command,
+		typed: text.slice(range.start, offset),
+		rangeStart: range.start,
+		rangeEnd: range.end,
+	};
 }

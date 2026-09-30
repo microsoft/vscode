@@ -25,6 +25,7 @@ import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setN
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
+import '../../browser/parts/media/chatCompositeBar.css';
 
 interface IViewSize { width: number; height: number }
 
@@ -469,13 +470,20 @@ suite('Sessions - Workbench', () => {
 			return part;
 		};
 		const sessions = createPart('sessionspart agents-part-card');
+		const sessionView = document.createElement('div');
+		sessionView.className = 'session-view session-grid-bottom-left session-grid-bottom-right';
+		sessions.appendChild(sessionView);
+		const internalSessionView = document.createElement('div');
+		internalSessionView.className = 'session-view';
+		sessions.appendChild(internalSessionView);
 		const customView = createPart('customviewgrid agents-part-card');
 		const editor = createPart('editor');
 		const auxiliaryBar = createPart('auxiliarybar');
 		const panel = createPart('panel');
-		const corners = (part: HTMLElement, classes: string) => {
+		const connectedTabs = 'modern-ui-tabs modern-ui-connected-editor-tabs';
+		const corners = (part: HTMLElement, classes: string, pseudoElement?: string) => {
 			root.className = `monaco-workbench agent-sessions-workbench mac macos-tahoe ${classes}`;
-			const style = mainWindow.getComputedStyle(part);
+			const style = mainWindow.getComputedStyle(part, pseudoElement);
 			return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
 		};
 		document.body.appendChild(root);
@@ -486,6 +494,15 @@ suite('Sessions - Workbench', () => {
 				sessionsWithoutSidebar: corners(sessions, 'nopanel noeditorpane nosidebar'),
 				sessionsBesideEditor: corners(sessions, 'nopanel noauxiliarybar'),
 				sessionsBesideEditorWithoutSidebar: corners(sessions, 'nopanel noauxiliarybar nosidebar'),
+				sessionView: corners(sessionView, `${connectedTabs} nopanel noeditorpane`),
+				sessionViewWithoutSidebar: corners(sessionView, `${connectedTabs} nopanel noeditorpane nosidebar`),
+				sessionViewBesideEditor: corners(sessionView, `${connectedTabs} nopanel noauxiliarybar`),
+				sessionViewBesideEditorWithoutSidebar: corners(sessionView, `${connectedTabs} nopanel noauxiliarybar nosidebar`),
+				sessionViewAbovePanel: corners(sessionView, `${connectedTabs} noeditorpane nosidebar`),
+				sessionViewBorder: corners(sessionView, `${connectedTabs} nopanel noeditorpane nosidebar`, '::after'),
+				internalSessionView: corners(internalSessionView, `${connectedTabs} nopanel noeditorpane nosidebar`),
+				sessionViewWithoutConnectedTabs: corners(sessionView, 'modern-ui-tabs nopanel noeditorpane nosidebar'),
+				sessionViewWithoutModernTabs: corners(sessionView, 'modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar'),
 				customView: corners(customView, 'nopanel noeditorpane nosessionspart'),
 				editor: corners(editor, 'nopanel noauxiliarybar'),
 				dockedEditor: corners(editor, 'nopanel dock-detail-panel'),
@@ -500,6 +517,15 @@ suite('Sessions - Workbench', () => {
 				sessionsWithoutSidebar: ['8px', '8px', '12px', '12px'],
 				sessionsBesideEditor: ['8px', '8px', '8px', '8px'],
 				sessionsBesideEditorWithoutSidebar: ['8px', '8px', '8px', '12px'],
+				sessionView: ['7px', '7px', '11px', '7px'],
+				sessionViewWithoutSidebar: ['7px', '7px', '11px', '11px'],
+				sessionViewBesideEditor: ['7px', '7px', '7px', '7px'],
+				sessionViewBesideEditorWithoutSidebar: ['7px', '7px', '7px', '11px'],
+				sessionViewAbovePanel: ['7px', '7px', '7px', '7px'],
+				sessionViewBorder: ['7px', '7px', '11px', '11px'],
+				internalSessionView: ['7px', '7px', '7px', '7px'],
+				sessionViewWithoutConnectedTabs: ['0px', '0px', '0px', '0px'],
+				sessionViewWithoutModernTabs: ['0px', '0px', '0px', '0px'],
 				customView: ['8px', '8px', '12px', '8px'],
 				editor: ['8px', '8px', '12px', '8px'],
 				dockedEditor: ['8px', '8px', '12px', '8px'],
@@ -517,15 +543,21 @@ suite('Sessions - Workbench', () => {
 
 	test('keeps Agents window corner geometry native-only and zoom-aware', () => {
 		const root = document.createElement('div');
-		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px;';
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px;';
 		const card = document.createElement('div');
 		card.className = 'part sessionspart agents-part-card';
+		const sessionView = document.createElement('div');
+		sessionView.className = 'session-view session-grid-bottom-left session-grid-bottom-right';
+		card.appendChild(sessionView);
 		root.appendChild(card);
 		document.body.appendChild(root);
 		const radius = (classes: string, zoomFactor = 1) => {
-			root.className = `monaco-workbench agent-sessions-workbench nopanel noeditorpane ${classes}`;
+			root.className = `monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs nopanel noeditorpane ${classes}`;
 			root.style.setProperty('--window-zoom-factor', String(zoomFactor));
-			return mainWindow.getComputedStyle(card).borderBottomRightRadius;
+			return [
+				mainWindow.getComputedStyle(card).borderBottomRightRadius,
+				mainWindow.getComputedStyle(sessionView).borderBottomRightRadius,
+			];
 		};
 
 		try {
@@ -542,17 +574,17 @@ suite('Sessions - Workbench', () => {
 				windows: radius('windows'),
 				linux: radius('linux'),
 			}, {
-				tahoe: '12px',
-				olderMacOS: '6px',
-				zoomedIn: '4px',
-				zoomedOut: '28px',
-				clamped: '0px',
-				highContrast: '12px',
-				fullscreen: '8px',
-				web: '8px',
-				phone: '0px',
-				windows: '8px',
-				linux: '8px',
+				tahoe: ['12px', '11px'],
+				olderMacOS: ['6px', '5px'],
+				zoomedIn: ['4px', '3px'],
+				zoomedOut: ['28px', '27px'],
+				clamped: ['0px', '0px'],
+				highContrast: ['12px', '11px'],
+				fullscreen: ['8px', '7px'],
+				web: ['8px', '7px'],
+				phone: ['0px', '0px'],
+				windows: ['8px', '7px'],
+				linux: ['8px', '7px'],
 			});
 		} finally {
 			root.remove();

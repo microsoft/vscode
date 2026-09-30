@@ -35,6 +35,7 @@ export interface IAgentsWindowWorkspaceHandoff {
 	readonly preferDevContainer: boolean;
 	readonly isDefault: boolean;
 	readonly draft?: IAgentsWindowDraft;
+	readonly noWorkspace?: boolean;
 }
 
 /** Keeps one opening intent alive until the target composer applies it or a newer user intent wins. */
@@ -88,13 +89,13 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		}));
 		const selectionVersion = this.composerService.userWorkspaceSelectionVersion.get();
 		const navigationVersion = this.composerService.userNavigationVersion.get();
-		const inputVersion = this.composerService.inputVersion.get();
+		const draftInputVersion = this.composerService.draftInputVersion.get();
 		const navigationRequest = this.sessionsService.navigationRequest.get();
 		store.add(autorun(reader => {
 			const currentNavigation = this.sessionsService.navigationRequest.read(reader);
 			if (this.composerService.userWorkspaceSelectionVersion.read(reader) !== selectionVersion
 				|| this.composerService.userNavigationVersion.read(reader) !== navigationVersion
-				|| (intent.draft && this.composerService.inputVersion.read(reader) !== inputVersion)
+				|| (intent.draft && this.composerService.draftInputVersion.read(reader) !== draftInputVersion)
 				|| (currentNavigation !== navigationRequest && currentNavigation?.token !== source.token)) {
 				cancel('userChanged');
 			}
@@ -143,6 +144,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			}
 
 			let draftNeedsNavigation = !!intent.draft;
+			let noWorkspaceNeedsSelection = !!intent.noWorkspace;
 			const deadline = Date.now() + WORKSPACE_HANDOFF_TIMEOUT_MS;
 			while (!source.token.isCancellationRequested) {
 				const currentSession = this.sessionsService.activeSession.get();
@@ -166,6 +168,11 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 					return;
 				}
 				const view = draftNeedsNavigation ? undefined : this.sessionsPartService.getSessionView(session?.sessionId);
+				if (noWorkspaceNeedsSelection && view) {
+					view.selectNoWorkspace({ userSelection: false, preserveNavigation: true });
+					noWorkspaceNeedsSelection = false;
+					continue;
+				}
 				const options = {
 					providerId: resolved?.providerId,
 					preferDevContainer: intent.preferDevContainer,
@@ -224,9 +231,12 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 	}
 
 	private _hasDraftInput(): boolean {
-		const mountedInput = this.composerService.hasDraftInput;
-		if (mountedInput !== undefined) {
-			return mountedInput;
+		const activeSession = this.sessionsService.activeSession.get();
+		if (!activeSession?.isCreated.get() && !activeSession?.isQuickChat?.get()) {
+			const mountedInput = this.composerService.getDraftInputStateForSession(activeSession?.resource);
+			if (mountedInput !== undefined) {
+				return mountedInput;
+			}
 		}
 		const savedDraft = readNewChatDraftState(this.storageService);
 		return !!savedDraft && (!!savedDraft.inputText || savedDraft.attachments.length > 0);

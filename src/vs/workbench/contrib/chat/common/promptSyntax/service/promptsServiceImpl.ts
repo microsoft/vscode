@@ -375,15 +375,22 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		let listPromise = this.cachedFileLocations[type];
-		if (!listPromise) {
-			listPromise = this.computeListPromptFiles(type, token);
-			if (!this.fileLocatorEvents[type]) {
-				return listPromise;
+		const cached = this.cachedFileLocations[type];
+		if (cached) {
+			return cached;
+		}
+		// Drop the entry if the computation fails (e.g. it was cancelled), otherwise a
+		// cancelled scan would stay cached as a permanent empty result.
+		const listPromise: Promise<readonly IPromptPath[]> = this.computeListPromptFiles(type, token).catch(err => {
+			if (this.cachedFileLocations[type] === listPromise) {
+				this.cachedFileLocations[type] = undefined;
 			}
-			this.cachedFileLocations[type] = listPromise;
+			throw err;
+		});
+		if (!this.fileLocatorEvents[type]) {
 			return listPromise;
 		}
+		this.cachedFileLocations[type] = listPromise;
 		return listPromise;
 	}
 

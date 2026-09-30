@@ -27,14 +27,14 @@ import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
-import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { MenuId, IMenuService, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
+import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -141,7 +141,6 @@ export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.sho
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
-export const SessionShowsArchivedChatsContext = new RawContextKey<boolean>('sessionItem.showsArchivedChats', false);
 export const SessionChatItemCanRenameContext = new RawContextKey<boolean>('sessionChatItem.canRename', false);
 export const SessionChatItemCanArchiveContext = new RawContextKey<boolean>('sessionChatItem.canArchive', false);
 export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
@@ -179,6 +178,7 @@ const SORT_FALLBACK_STEP_MS = 60_000;
 
 export interface ISessionSection {
 	readonly id: string;
+	readonly collapseStateId?: string;
 	readonly label: string;
 	readonly sessions: ISession[];
 }
@@ -264,20 +264,44 @@ function getSessionListChatDiffStats(session: ISession, chat: IChat, activeSessi
 	return getSessionDiffStats(session, reader);
 }
 
-/** Preserves active main-chat states and uses the session aggregate for collapsed child progress. */
+/** Includes side-chat activity on the parent row and uses the session aggregate for collapsed peer progress. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
 	if (!deriveFromMainChat) {
 		return sessionStatus;
 	}
-	const mainChatStatus = session.mainChat.read(reader).status.read(reader);
-	if (mainChatStatus === SessionStatus.InProgress || mainChatStatus === SessionStatus.NeedsInput) {
-		return mainChatStatus;
+	let rowStatus = session.mainChat.read(reader).status.read(reader);
+	if (rowStatus === SessionStatus.NeedsInput) {
+		return rowStatus;
+	}
+	const chats = session.chats.read(reader);
+	let excludedSideChatInProgress = false;
+	// Side chats have no list rows of their own, even when peer chats are expanded.
+	for (const chat of chats) {
+		if (chat.origin?.kind !== ChatOriginKind.SideChat) {
+			continue;
+		}
+		if (chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
+			excludedSideChatInProgress ||= collapsed && sessionStatus === SessionStatus.InProgress && chat.status.read(reader) === SessionStatus.InProgress;
+			continue;
+		}
+		const status = chat.status.read(reader);
+		if (status === SessionStatus.NeedsInput) {
+			return status;
+		}
+		if (status === SessionStatus.InProgress) {
+			rowStatus = status;
+		}
+	}
+	if (rowStatus === SessionStatus.InProgress) {
+		return rowStatus;
 	}
 	if (collapsed && sessionStatus === SessionStatus.InProgress) {
-		return SessionStatus.InProgress;
+		if (!excludedSideChatInProgress || chats.some(chat => chat.origin?.kind !== ChatOriginKind.SideChat && chat.status.read(reader) === SessionStatus.InProgress)) {
+			return SessionStatus.InProgress;
+		}
 	}
-	return mainChatStatus;
+	return rowStatus;
 }
 
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
@@ -636,7 +660,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly onDidFinishRename: () => void,
 		private readonly getSummaryHoverOptions: (item: ISessionChatItem) => IDelayedHoverOptions,
 		private readonly compact: () => boolean,
-		private readonly showArchivedChats: (session: ISession) => boolean,
+		private readonly showArchivedChats: () => boolean,
 		/**
 		 * Session IDs whose hierarchy indent/connector guides should be shown —
 		 * i.e. the session (or one of its chats) is currently hovered or
@@ -675,6 +699,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, Menus.SessionChatItemToolbar, {
 			menuOptions: { shouldForwardArgs: true },
+			telemetrySource: 'sessionsList.chatRow',
 		}));
 
 		// Approval row — mirrors the session row's approval prompt but scoped to
@@ -699,7 +724,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.clear();
 		template.titleToolbar.context = element;
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
-		const chats = getSessionListChats(element.session, undefined, this.showArchivedChats(element.session));
+		const chats = getSessionListChats(element.session, undefined, this.showArchivedChats());
 		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
 		let hadFolderRow: boolean | undefined;
 		template.elementDisposables.add(autorun(reader => {
@@ -1244,7 +1269,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	constructor(
 		private readonly options: {
-			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			activeSession?: IObservable<IActiveSession | undefined>;
@@ -1360,6 +1385,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, this.options.toolbarMenuId, {
 				menuOptions: { shouldForwardArgs: true },
 				actionRunner,
+				telemetrySource: this.options.toolbarTelemetrySource,
 				actionViewItemProvider: (action, options) => {
 					if (action.id !== ARCHIVE_SESSION_COMMAND_ID || !(action instanceof MenuItemAction) || !this.options.onboardingTarget) {
 						return actionViewItemProvider(action, options);
@@ -2117,7 +2143,13 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, SessionSectionToolbarMenuId, {
 			menuOptions: { shouldForwardArgs: true },
+			telemetrySource: 'sessionsList.section',
 			actionViewItemProvider: (action, options) => {
+				// Dropdowns share the toolbar's action runner, which already logs
+				// `workbenchActionExecuted`; skip the duplicate `contextMenu` event.
+				if (action instanceof SubmenuItemAction) {
+					return createActionViewItem(scopedInstantiationService, action, { ...options, skipTelemetry: true });
+				}
 				if (action.id !== NEW_SESSION_FOR_WORKSPACE_ACTION_ID || !(action instanceof MenuItemAction)) {
 					return undefined;
 				}
@@ -2141,7 +2173,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					'',
 					{
 						hoverDelegate: options.hoverDelegate,
-						menuAsChild: false
+						menuAsChild: false,
+						skipTelemetry: true,
 					},
 				);
 
@@ -2369,6 +2402,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, SessionGroupToolbarMenuId, {
 			menuOptions: { shouldForwardArgs: true },
+			telemetrySource: 'sessionsList.group',
 		}));
 
 		return { container, icon, collapsed: observableValue(this, false), labelContainer, label, inputContainer, toolbarContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
@@ -3233,8 +3267,6 @@ export interface ISessionsList {
 	isStatusExcluded(status: SessionStatus): boolean;
 	setExcludeArchived(exclude: boolean): void;
 	isExcludeArchived(): boolean;
-	setSessionArchivedChatsVisible(session: ISession, visible: boolean): void;
-	isSessionArchivedChatsVisible(session: ISession): boolean;
 	setExcludeRead(exclude: boolean): void;
 	isExcludeRead(): boolean;
 	setShowEmptyGroups(show: boolean): void;
@@ -3322,7 +3354,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly onboardingTarget = observableValue<ISessionOnboardingTarget | undefined>(this, undefined);
 	private readonly excludedSessionTypes: Set<string>;
 	private readonly excludedStatuses: Set<SessionStatus>;
-	private readonly sessionArchivedChatVisibilityOverrides = new Map<string, boolean>();
 	private _excludeArchived: boolean;
 	/** Whether the archived filter still follows {@link SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING} because the user has not chosen one. */
 	private _excludeArchivedIsDefault: boolean;
@@ -3491,6 +3522,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES,
 				aggregateChatApprovals: false,
 				toolbarMenuId: Menus.SessionItemToolbar,
+				toolbarTelemetrySource: 'sessionsList.row',
 				inlineRename: true,
 				contextViewService: this.contextViewService,
 				onDidDoubleClickRename: session => this.preservePendingOpenFocus(session),
@@ -3539,7 +3571,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.preferencesService,
 			)),
 			() => this.isCompact(),
-			session => this.isSessionArchivedChatsVisible(session),
+			() => !this._excludeArchived,
 			this.activeGuideSessionIds,
 		);
 		this._chatRenderer = chatRenderer;
@@ -3748,7 +3780,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 				overrideStyles: this.options.overrideStyles,
 				renderIndentGuides: RenderIndentGuides.None,
-				twistieAdditionalCssClass: element => isSessionItem(element) && getSessionListChats(element, undefined, this.isSessionArchivedChatsVisible(element)).length > 0
+				twistieAdditionalCssClass: element => isSessionItem(element) && getSessionListChats(element, undefined, !this._excludeArchived).length > 0
 					? 'session-chat-twistie'
 					: 'force-no-twistie',
 			}
@@ -3916,7 +3948,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			} else if (element && isSessionSection(element)) {
 				sectionRenderer.updateCollapseState(element, e.node.collapsed);
 				if (!this.suspendCollapseStatePersistence) {
-					this.saveSectionCollapseState(element.id, e.node.collapsed);
+					this.saveSectionCollapseState(element.collapseStateId ?? element.id, e.node.collapsed);
 				}
 			} else if (element && isSessionItem(element)) {
 				this.syncCollapsedSessionIds();
@@ -4049,7 +4081,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		let initialized = false;
 		this.sessionChatsObserver.value = autorun(reader => {
 			for (const session of this.sessions) {
-				getSessionListChats(session, reader, this.isSessionArchivedChatsVisible(session));
+				getSessionListChats(session, reader, !this._excludeArchived);
 				session.isExternal?.read(reader);
 			}
 			if (initialized && this.visible) {
@@ -4065,12 +4097,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	update(expandAll?: boolean): void {
-		for (const sessionId of this.sessionArchivedChatVisibilityOverrides.keys()) {
-			const session = this.sessions.find(candidate => candidate.sessionId === sessionId);
-			if (!session) {
-				this.sessionArchivedChatVisibilityOverrides.delete(sessionId);
-			}
-		}
 		const activeSession = this._sessionsService.activeSession.get();
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const nextNestedSessionResources = new Set(
@@ -4232,7 +4258,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
 			sessions.map(session => {
-				const chats = getSessionListChats(session, undefined, this.isSessionArchivedChatsVisible(session));
+				const chats = getSessionListChats(session, undefined, !this._excludeArchived);
 				const resource = session.resource.toString();
 				const wasNested = this.nestedSessionResources.has(resource);
 				const persistedCollapsed = this.collapsedSessionResources.has(resource);
@@ -4310,7 +4336,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return {
 				element: section as SessionListItem,
 				collapsible: true,
-				collapsed: this.getSavedCollapseState(section.id) ?? defaultCollapsed,
+				collapsed: this.getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined) ?? defaultCollapsed,
 				children: sectionChildren,
 			};
 		};
@@ -5164,15 +5190,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		const selectedSessions = this.getMultiSelectedSessions(element);
-		if (!this.sessionArchivedChatVisibilityOverrides.has(element.sessionId)) {
-			// The menu's Show Done Chats option then follows the Done filter default.
-			this.reportArchivedFilterShown();
-		}
 
 		const inGroup = this._sessionGroupsService.getGroupOfSession(element.sessionId) !== undefined;
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
-			[SessionShowsArchivedChatsContext.key, this.isSessionArchivedChatsVisible(element)],
+			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
 			[SessionIsReadContext.key, element.isRead.get()],
 			[SessionItemInGroupContext.key, inGroup],
@@ -5546,9 +5568,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// -- Archived / Read filtering --
 
 	setExcludeArchived(exclude: boolean): void {
-		if (this._excludeArchived !== exclude) {
-			this.sessionArchivedChatVisibilityOverrides.clear();
-		}
 		this._excludeArchived = exclude;
 		this._excludeArchivedIsDefault = false;
 		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
@@ -5564,21 +5583,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this._excludeArchivedIsDefault) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
 		}
-	}
-
-	setSessionArchivedChatsVisible(session: ISession, visible: boolean): void {
-		if (this.isSessionArchivedChatsVisible(session) === visible) {
-			return;
-		}
-		this.sessionArchivedChatVisibilityOverrides.set(session.sessionId, visible);
-		this.update();
-		if (visible && this.tree.hasElement(session)) {
-			this.tree.expand(session);
-		}
-	}
-
-	isSessionArchivedChatsVisible(session: ISession): boolean {
-		return this.sessionArchivedChatVisibilityOverrides.get(session.sessionId) ?? !this._excludeArchived;
 	}
 
 	setExcludeRead(exclude: boolean): void {
@@ -5608,7 +5612,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.saveExcludedStatuses();
 		this._excludeArchived = true;
 		this._excludeArchivedIsDefault = false;
-		this.sessionArchivedChatVisibilityOverrides.clear();
 		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this._excludeRead = false;
 		this.storageService.store(SessionsList.EXCLUDE_READ_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
@@ -5658,13 +5661,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	// -- Section collapse persistence --
 
-	private getSavedCollapseState(sectionId: string): boolean | undefined {
+	private getSavedCollapseState(sectionId: string, legacySectionId?: string): boolean | undefined {
 		const raw = this.storageService.get(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
 				const state: Record<string, boolean> = JSON.parse(raw);
 				if (typeof state[sectionId] === 'boolean') {
 					return state[sectionId];
+				}
+				if (legacySectionId && typeof state[legacySectionId] === 'boolean') {
+					const collapsed = state[legacySectionId];
+					delete state[legacySectionId];
+					state[sectionId] = collapsed;
+					this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+					return collapsed;
 				}
 			} catch {
 				// ignore corrupt data
@@ -5694,7 +5704,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const state: Record<string, boolean> = {};
 		const collectSections = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
 			if (node.element && isSessionSection(node.element) && node.element.id !== SESSIONS_HEADER_SECTION_ID && !isShortcutSection(node.element.id)) {
-				state[node.element.id] = collapsed;
+				state[node.element.collapseStateId ?? node.element.id] = collapsed;
 			}
 			for (const child of node.children) {
 				collectSections(child);
@@ -6032,6 +6042,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 
 	const result: ISessionSection[] = order.map(label => ({
 		id: `workspace:${label}`,
+		collapseStateId: workspaceCollapseStateId(groups.get(label)!),
 		label,
 		sessions: groups.get(label)!,
 	}));
@@ -6043,6 +6054,13 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	}
 
 	return result;
+}
+
+function workspaceCollapseStateId(sessions: readonly ISession[]): string | undefined {
+	const resource = sessions[0]?.workspace.get()?.uri.toString();
+	return resource && sessions.every(session => session.workspace.get()?.uri.toString() === resource)
+		? `workspace:${resource}`
+		: undefined;
 }
 
 /** Maximum number of sessions shown in the "Recent" date section. */
@@ -6118,6 +6136,11 @@ export interface ISessionsFlatListOptions {
 	 * item toolbar menu.
 	 */
 	readonly toolbarMenuId?: MenuId;
+	/**
+	 * The `from` value of the `workbenchActionExecuted` event sent for row toolbar
+	 * actions. Defaults to `sessionsFlatList.row`.
+	 */
+	readonly toolbarTelemetrySource?: string;
 	/** Allows focused list surfaces to handle actions from their custom toolbar menu. */
 	readonly onToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>;
 	/** Optional context menu shown for each session row. */
@@ -6208,6 +6231,7 @@ export class SessionsFlatList extends Disposable {
 				// only place an approval on any of its chats can surface.
 				aggregateChatApprovals: true,
 				toolbarMenuId: this.options.toolbarMenuId ?? Menus.SessionItemToolbar,
+				toolbarTelemetrySource: this.options.toolbarTelemetrySource ?? 'sessionsFlatList.row',
 				inlineRename: false,
 				handleToolbarAction: this.options.onToolbarAction,
 			},

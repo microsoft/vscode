@@ -28,7 +28,7 @@ import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
+import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
@@ -623,7 +623,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly onDidActiveEditorChange = harness.onDidActiveEditorChange.event;
 		override readonly onWillOpenEditor = harness.onWillOpenEditor.event;
 		override readonly onDidCloseEditor = harness.onDidCloseEditor.event as unknown as IEditorService['onDidCloseEditor'];
-		override readonly onDidEditorsChange = harness.onDidEditorsChange.event as unknown as IEditorService['onDidEditorsChange'];
+		override readonly onDidEditorsChange = Event.map(harness.onDidEditorsChange.event, event => event ?? { groupId: 1, event: { kind: GroupModelChangeKind.EDITOR_ACTIVE } });
 		override get activeEditor() {
 			if (harness.activeEditorInput) {
 				return harness.activeEditorInput as IEditorService['activeEditor'];

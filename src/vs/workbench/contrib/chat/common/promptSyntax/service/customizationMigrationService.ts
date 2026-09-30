@@ -9,7 +9,6 @@ import { Event } from '../../../../../../base/common/event.js';
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { ChatConfiguration } from '../../constants.js';
 import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { PromptsStorage } from './promptsService.js';
 
@@ -22,15 +21,6 @@ export enum CustomizationMigrationType {
 	McpServers = 'mcpServers',
 }
 
-export function getCustomizationMigrationEnablementSetting(type: CustomizationMigrationType): ChatConfiguration {
-	switch (type) {
-		case CustomizationMigrationType.UserData: return ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled;
-		case CustomizationMigrationType.PromptFiles: return ChatConfiguration.ChatCustomizationsPromptMigrationEnabled;
-		case CustomizationMigrationType.ConfiguredLocations: return ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled;
-		case CustomizationMigrationType.McpServers: return ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled;
-	}
-}
-
 export interface MigratableConfiguration {
 	readonly uri: URI;
 	readonly type: PromptsType;
@@ -38,6 +28,7 @@ export interface MigratableConfiguration {
 	readonly name?: string;
 	readonly description?: string;
 	readonly source?: PromptFileSource;
+	readonly workspaceGroupId?: string;
 }
 
 export function getCustomizationMigrationTargetType(customization: MigratableConfiguration): PromptsType {

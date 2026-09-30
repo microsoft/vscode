@@ -1075,7 +1075,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Update visibility based on entries
 		this.renderDisposables.add(autorun(reader => {
-			if (this.changesViewService.activeSessionLoadingObs.read(reader)) {
+			if (this.changesViewService.activeSessionChangesetLoadingObs.read(reader)) {
 				return;
 			}
 
@@ -1160,7 +1160,7 @@ export class ChangesViewPane extends ViewPane {
 		this.renderDisposables.add(autorun(reader => {
 			const changes = changesObs.read(reader);
 			const viewMode = this.changesViewService.viewModeObs.read(reader);
-			const activeSessionLoading = this.changesViewService.activeSessionLoadingObs.read(reader);
+			const activeSessionChangesetLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
 			const sessionResource = this.changesViewService.activeSessionResourceObs.read(reader);
 
 			// Read session state so this autorun re-runs when git state (e.g. branch
@@ -1169,7 +1169,7 @@ export class ChangesViewPane extends ViewPane {
 			const workspace = this.getActiveChangesetWorkspace(reader);
 			const folder = this.getTreeRootFolder(workspace);
 
-			if (!this.tree || activeSessionLoading) {
+			if (!this.tree || activeSessionChangesetLoading) {
 				return;
 			}
 			const detailsViewStateTransfer = this.changesViewService.detailsViewStateTransferObs.read(reader);

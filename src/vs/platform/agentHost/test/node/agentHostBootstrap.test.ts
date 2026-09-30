@@ -10,10 +10,12 @@ import { join } from '../../../../base/common/path.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { parseArgs, OPTIONS } from '../../../environment/node/argv.js';
 import { NativeEnvironmentService } from '../../../environment/node/environmentService.js';
 import { LogLevel, NullLogService } from '../../../log/common/log.js';
-import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import product from '../../../product/common/product.js';
 import { createAgentHostRuntime } from '../../node/agentHostBootstrap.js';
 import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
@@ -21,7 +23,7 @@ import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
-import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
@@ -120,6 +122,47 @@ suite('agentHostBootstrap', () => {
 		});
 
 		assert.strictEqual(foundation.proxyResolver.getConfigurationValue(AgentHostProxyConfigKey.Proxy), 'http://proxy.example:8080');
+	});
+
+	test('supplies product and component identification for Node GitHub egress', () => {
+		const foundation = createAgentServiceFoundation({
+			services: new StrictServiceCollection(),
+			owned: disposables.add(new DisposableStore()),
+			logService: new NullLogService(),
+			productService: { _serviceBrand: undefined, ...product, applicationName: 'code-insiders', version: '1.141.0' },
+			transientProxyConfiguration: false,
+		});
+		assert.deepStrictEqual(foundation.gitHubServiceOptions.clientMetadata, {
+			application: 'vscode-insiders/1.141.0',
+			source: 'vscode-insiders-agent-host/1.141.0',
+			egress: 'node',
+		});
+	});
+
+	test('drops pending GitHub telemetry when root configuration disables collection', async () => {
+		const foundation = createAgentServiceFoundation({
+			services: new StrictServiceCollection(),
+			owned: disposables.add(new DisposableStore()),
+			logService: new NullLogService(),
+			productService: { _serviceBrand: undefined, ...product },
+			transientProxyConfiguration: false,
+		});
+		const events: string[] = [];
+		const service = disposables.add(new AgentHostGitHubService(foundation.gitHubServiceOptions, foundation.authenticationService, foundation.gitHubEndpointService, new NullLogService(), new class extends mock<ITelemetryService>() {
+			override readonly telemetryLevel = TelemetryLevel.USAGE;
+			override publicLog2(name: string): void { events.push(name); }
+		}()));
+		const controller = new AbortController();
+		const reason = new Error('cancelled');
+		controller.abort(reason);
+		const client = disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
+		await assert.rejects(client.transport.rest({ host: 'api.github.com', accountId: '1' }, 'token', {
+			method: 'GET', url: 'https://api.github.com/user',
+		}, controller.signal), error => error === reason);
+		foundation.configurationService.updateRootConfig({ [AgentHostTelemetryLevelConfigKey]: 'off' });
+		foundation.configurationService.updateRootConfig({ [AgentHostTelemetryLevelConfigKey]: 'all' });
+		service.dispose();
+		assert.deepStrictEqual(events, []);
 	});
 
 	test('clears local proxy configuration before resolver construction and persistence', async () => {
