@@ -17,7 +17,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionPermissionOption, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -255,6 +255,7 @@ interface ISendHarness {
 			getModelsSnapshotForCreation(workspace: URI, sessionTypeId: string, desiredModelId?: string): {
 				readonly desiredModelResolution: { readonly kind: 'available'; readonly model: { readonly identifier: string; readonly metadata: { readonly name: string } } };
 			};
+			getPermissionOptionsForCreation?(sessionTypeId: string): readonly ISessionPermissionOption[];
 		} | undefined;
 	};
 	readonly sessionComparisonService?: { startComparison(options: IStartSessionComparisonOptions): Promise<{ readonly id: string; readonly participants: readonly { readonly role: SessionComparisonParticipantRole; readonly sessionResource?: URI }[] }> };
@@ -2301,7 +2302,7 @@ suite('NewChatWidget', () => {
 		const configuredAttempts: readonly ISessionComparisonAttemptConfiguration[] = [
 			{
 				id: 'first-run',
-				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'high' }, permissionId: 'autoApprove', permissionLabel: 'Allow all' },
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'high' }, modeId: 'autopilot', permissionId: 'autoApprove', permissionLabel: 'Allow all' },
 			},
 			{
 				id: 'second-run',
@@ -2348,6 +2349,18 @@ suite('NewChatWidget', () => {
 			},
 			sessionsProvidersService: {
 				getProvider: providerId => ({
+					getPermissionOptionsForCreation: () => [{
+						id: 'default',
+						label: 'Manual permissions',
+						description: 'Ask before running tools.',
+						isDefault: true,
+					}, {
+						id: 'autoApprove',
+						label: 'Allow all',
+						description: 'Run tools without asking.',
+						isAllowAll: true,
+						comparisonModeId: 'autopilot',
+					}],
 					getModelsSnapshotForCreation: (_workspace, _sessionTypeId, desiredModelId) => ({
 						models: [{
 							identifier: `${providerId}/auto`,

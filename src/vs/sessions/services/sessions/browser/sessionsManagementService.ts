@@ -684,6 +684,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				modelConfiguration: options.modelConfiguration,
 			} : {}),
 			...(permissionOption ? { permissionId: permissionOption.id } : {}),
+			...(options?.modeId ? { modeId: options.modeId } : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
 		};
 	}

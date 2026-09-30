@@ -78,6 +78,8 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
 	/** Provider-owned permission option resolved before the first request. */
 	readonly permissionId?: string;
+	/** Initial chat mode applied before the provider creates the draft session. */
+	readonly modeId?: string;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 }

@@ -565,12 +565,8 @@ export class SessionComparisonSetupDialog extends Disposable {
 				return options.find(option => option.id === harness.permissionId && !option.locked)
 					?? options.find(option => option.isDefault && !option.locked);
 			};
-			const applyPermission = (harness: ISessionComparisonHarness, permission: ISessionPermissionOption): ISessionComparisonHarness => ({
-				...harness,
-				modeId: undefined,
-				permissionId: permission.id,
-				permissionLabel: permission.label,
-			});
+			const applyPermission = (harness: ISessionComparisonHarness, permission: ISessionPermissionOption): ISessionComparisonHarness =>
+				this._applyPermissionSelection(harness, permission);
 			const participantHarnesses = () => [...attempts.map(attempt => attempt.harness), judgeHarness, synthesisHarness];
 			const getBulkPermissionState = () => {
 				const harnesses = participantHarnesses();
@@ -1241,17 +1237,21 @@ export class SessionComparisonSetupDialog extends Disposable {
 		const selectPermission = (harness: ISessionComparisonHarness): ISessionComparisonHarness => {
 			const options = this.sessionsProvidersService.getProvider(harness.providerId)?.getPermissionOptionsForCreation?.(harness.sessionTypeId) ?? [];
 			const permission = options.find(option => (allowAll ? option.isAllowAll : option.isDefault) && !option.locked);
-			return permission ? {
-				...harness,
-				modeId: allowAll ? permission.comparisonModeId : undefined,
-				permissionId: permission.id,
-				permissionLabel: permission.label,
-			} : harness;
+			return permission ? this._applyPermissionSelection(harness, permission) : harness;
 		};
 		return {
 			attempts: attempts.map(attempt => ({ ...attempt, harness: selectPermission(attempt.harness) })),
 			judgeHarness: selectPermission(judgeHarness),
 			synthesisHarness: selectPermission(synthesisHarness),
+		};
+	}
+
+	private _applyPermissionSelection(harness: ISessionComparisonHarness, permission: ISessionPermissionOption): ISessionComparisonHarness {
+		return {
+			...harness,
+			modeId: permission.comparisonModeId,
+			permissionId: permission.id,
+			permissionLabel: permission.label,
 		};
 	}
 

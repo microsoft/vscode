@@ -1819,6 +1819,9 @@ export class NewChatWidget extends Disposable {
 					} : {}),
 					...(preserveModelConfiguration && harness.modelConfiguration ? { modelConfiguration: harness.modelConfiguration } : {}),
 					...(preserveModelConfiguration && harness.modelConfigurationLabel ? { modelConfigurationLabel: harness.modelConfigurationLabel } : {}),
+					...(permissionOptions
+						? permission?.comparisonModeId ? { modeId: permission.comparisonModeId } : {}
+						: harness.modeId ? { modeId: harness.modeId } : {}),
 					permissionId: permissionOptions ? permission?.id : harness.permissionId,
 					permissionLabel: permissionOptions ? permission?.label : harness.permissionLabel,
 				} : undefined;

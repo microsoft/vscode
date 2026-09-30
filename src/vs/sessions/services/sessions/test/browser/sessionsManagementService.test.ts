@@ -3567,7 +3567,7 @@ suite('SessionsManagementService', () => {
 		}), /does not support model configuration/);
 	});
 
-	test('createNewSession forwards exact permission choices and rejects unavailable permissions', () => {
+	test('createNewSession forwards exact permission and mode choices and rejects unavailable permissions', () => {
 		const session = stubSession({
 			sessionId: 's1',
 			providerId: 'test',
@@ -3597,6 +3597,7 @@ suite('SessionsManagementService', () => {
 		service.createNewSession(URI.parse('test:///folder'), {
 			sessionTypeId: 'supported',
 			permissionId: 'allowAll',
+			modeId: 'autopilot',
 		});
 		assert.throws(() => service.createNewSession(URI.parse('test:///folder'), {
 			sessionTypeId: 'unsupported',
@@ -3606,6 +3607,7 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual(providerOptions, [{
 			metadata: undefined,
 			permissionId: 'allowAll',
+			modeId: 'autopilot',
 		}]);
 	});
 

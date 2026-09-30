@@ -5804,7 +5804,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('createNewSession permission choice overrides remembered approvals before eager creation', async () => {
+	test('createNewSession explicit mode overrides the permission choice default before eager creation', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
 			[SessionConfigKey.Mode]: 'autopilot',
@@ -5821,13 +5821,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 			permissionId: 'autoApprove',
 		});
 		await waitForSessionConfig(provider, allowAllSession.sessionId, config => config?.values.autoApprove === 'autoApprove');
+		const comparisonSession = provider.createNewSession(URI.file('/home/user/project'), sessionTypeId, {
+			permissionId: 'autoApprove',
+			modeId: 'autopilot',
+		});
+		await waitForSessionConfig(provider, comparisonSession.sessionId, config => config?.values.mode === 'autopilot');
 
-		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.slice(-2).map(request => request.config), [{
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.slice(-3).map(request => request.config), [{
 			mode: 'interactive',
 			autoApprove: 'default',
 			isolation: 'worktree',
 		}, {
 			mode: 'interactive',
+			autoApprove: 'autoApprove',
+			isolation: 'worktree',
+		}, {
+			mode: 'autopilot',
 			autoApprove: 'autoApprove',
 			isolation: 'worktree',
 		}]);

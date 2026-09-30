@@ -4252,6 +4252,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			options?.modelId,
 			options?.modelConfiguration,
 			options?.permissionId,
+			options?.modeId,
 		);
 	}
 
@@ -4290,6 +4291,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			options?.modelId,
 			options?.modelConfiguration,
 			options?.permissionId,
+			options?.modeId,
 		);
 	}
 
@@ -4307,6 +4309,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		initialModelId?: string,
 		initialModelConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
 		initialPermissionId?: string,
+		initialModeId?: string,
 	): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
@@ -4334,9 +4337,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (initialPermissionId && !permissionConfig) {
 			throw new Error(`Agent '${sessionType.id}' does not support permission '${initialPermissionId}'.`);
 		}
-		const initialConfigValues = permissionConfig
-			? { ...baseInitialConfigValues, ...permissionConfig }
-			: baseInitialConfigValues;
+		const initialConfigValues = {
+			...baseInitialConfigValues,
+			...permissionConfig,
+			...(initialModeId ? { [SessionConfigKey.Mode]: initialModeId } : {}),
+		};
 		let newSession: NewSession;
 		try {
 			newSession = this._instantiationService.createInstance(NewSession, {

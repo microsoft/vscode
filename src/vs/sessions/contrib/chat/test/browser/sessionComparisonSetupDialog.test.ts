@@ -15,6 +15,7 @@ import { TestStorageService } from '../../../../../workbench/test/common/workben
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { applySessionComparisonModelConfigurationDefaults, getSessionComparisonModelConfigurationLabel, getSessionComparisonModelPickerPresentationOptions, getSessionComparisonWorkspaceError, resolveSessionComparisonHarnessModel, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
 import { getSessionComparisonHarnessDisplayLabel, ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionPermissionOption } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const WIDTH_STORAGE_KEY = 'sessions.comparisonSetupDialog.width';
 const HEIGHT_STORAGE_KEY = 'sessions.comparisonSetupDialog.height';
@@ -384,6 +385,53 @@ suite('SessionComparisonDialogResizeController', () => {
 				allowedModes: ['autopilot', undefined, undefined, undefined],
 				defaults: ['default', 'default', 'default', 'default'],
 				defaultModes: [undefined, undefined, undefined, undefined],
+			});
+		});
+
+		test('applies the permission comparison mode for participant selections', () => {
+			const applyPermissionSelection = Reflect.get(SessionComparisonSetupDialog.prototype, '_applyPermissionSelection') as (
+				this: object,
+				harness: ISessionComparisonHarness,
+				permission: ISessionPermissionOption,
+			) => ISessionComparisonHarness;
+			const dialog = Object.create(SessionComparisonSetupDialog.prototype);
+			const harness = { providerId: 'provider', sessionTypeId: 'copilotcli', label: 'Copilot', permissionId: 'default', permissionLabel: 'Default' };
+			const allowAll = applyPermissionSelection.call(dialog, harness, {
+				id: 'autoApprove',
+				label: 'Allow all',
+				description: 'Allow all permissions',
+				isAllowAll: true,
+				comparisonModeId: 'autopilot',
+			});
+			const defaults = applyPermissionSelection.call(dialog, allowAll, {
+				id: 'default',
+				label: 'Default',
+				description: 'Default permissions',
+				isDefault: true,
+			});
+
+			assert.deepStrictEqual({
+				allowAll: {
+					modeId: allowAll.modeId,
+					permissionId: allowAll.permissionId,
+					permissionLabel: allowAll.permissionLabel,
+				},
+				defaults: {
+					modeId: defaults.modeId,
+					permissionId: defaults.permissionId,
+					permissionLabel: defaults.permissionLabel,
+				},
+			}, {
+				allowAll: {
+					modeId: 'autopilot',
+					permissionId: 'autoApprove',
+					permissionLabel: 'Allow all',
+				},
+				defaults: {
+					modeId: undefined,
+					permissionId: 'default',
+					permissionLabel: 'Default',
+				},
 			});
 		});
 
