@@ -142,7 +142,8 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		const modelSupportsHistoricalThinking = !!this.promptEndpoint.supportsAdaptiveThinking;
 		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
 			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking);
-		const continuesCurrentTask = this.props.isCurrentTask && this.promptEndpoint.apiType === 'chatCompletions';
+		const continuesCurrentTask = this.props.isCurrentTask
+			&& (this.promptEndpoint.apiType === 'chatCompletions' || this.promptEndpoint.apiType === undefined);
 		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || continuesCurrentTask || apiSupportsHistoricalThinking);
 		// Record which API produced this round so the request builders can tell replayable
 		// reasoning from foreign state without guessing from the payload's id.

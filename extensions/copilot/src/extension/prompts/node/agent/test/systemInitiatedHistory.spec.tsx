@@ -28,7 +28,7 @@ import { AgentPrompt } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
 
 class ChatCompletionsEndpoint extends MockEndpoint {
-	readonly apiType = 'chatCompletions';
+	apiType: string | undefined = 'chatCompletions';
 	readonly supportsThinkingContentInHistory = false;
 	override supportsToolCalls = true;
 }
@@ -75,7 +75,7 @@ suite('System-initiated task continuation', () => {
 	}
 
 	for (const enableSummarization of [false, true]) {
-		test(`terminal completion preserves only the current task's reasoning (summarization: ${enableSummarization})`, async () => {
+		test.each(['chatCompletions', undefined])(`terminal completion preserves only the current task's reasoning (summarization: ${enableSummarization}, API: %s)`, async apiType => {
 			const earlierTask = Turn.fromRequest('earlier', new TestChatRequest('An earlier user task'));
 			earlierTask.setResponse(TurnStatus.Success, undefined, undefined, {
 				metadata: {
@@ -112,8 +112,11 @@ suite('System-initiated task continuation', () => {
 
 			const notification = '[Terminal terminal-1 notification: command completed.]\nTerminal output:\nNOTIFY-DONE';
 			const request = { ...new TestChatRequest(notification), isSystemInitiated: true };
-			const { parts, toolCallIds } = await renderHistory([earlierTask, task], request, enableSummarization);
+			const selectedEndpoint = accessor.get(IInstantiationService).createInstance(ChatCompletionsEndpoint, endpoint.model);
+			selectedEndpoint.apiType = apiType;
+			const { parts, toolCallIds } = await renderHistory([earlierTask, task], request, enableSummarization, selectedEndpoint);
 			const switchedEndpoint = accessor.get(IInstantiationService).createInstance(ChatCompletionsEndpoint, 'different-model');
+			switchedEndpoint.apiType = apiType;
 			const switched = await renderHistory([earlierTask, task], request, enableSummarization, switchedEndpoint);
 			expect({
 				thinking: parts.flatMap(part => part.type === Raw.ChatCompletionContentPartKind.Opaque ? rawPartAsThinkingData(part) ?? [] : []),
