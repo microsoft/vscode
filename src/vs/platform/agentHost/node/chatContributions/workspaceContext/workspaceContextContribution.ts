@@ -16,7 +16,7 @@ import { AgentSession } from '../../../common/agent.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
-import { renderWorkspaceSnapshotStructure, type IWorkspaceSnapshotEntry, type IWorkspaceSnapshotRoot } from '../../../common/workspaceSnapshot.js';
+import type { IWorkspaceSnapshotDelivery, IWorkspaceSnapshotEntry, IWorkspaceSnapshotRoot } from '../../../common/workspaceSnapshot.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostWorkspaceSnapshotPreparation, type IAgentHostWorkspaceSnapshotEvent } from '../../agentHostTelemetryReporter.js';
@@ -64,8 +64,14 @@ function withProcessRoot(worktree: URI, workingDirectories: readonly URI[]): URI
 /** A first turn being tracked until it reaches the provider or ends. */
 interface ICandidateTurn {
 	readonly turnId: string;
-	/** Set once the outgoing turn added a snapshot; reported only if the turn reaches the provider. */
+	/** Set once the outgoing turn ran; reported only if the turn reaches the provider. */
 	report?: { readonly event: IAgentHostWorkspaceSnapshotEvent; readonly detail: string };
+	/**
+	 * Whether the turn carries a snapshot. Such a turn counts as reaching the
+	 * provider only when the provider submits it to the model, after content
+	 * exclusion, rather than when the host hands it over.
+	 */
+	awaitingDelivery?: boolean;
 }
 
 function snapshotKey(enumerationRoots: readonly URI[]): string {
@@ -134,14 +140,13 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 				}
 			}
 			const waitMs = Date.now() - waitStarted;
-			const workspaceSnapshot = { roots: prepared.roots.flatMap(root => root.outcome === 'included' && root.snapshot ? [root.snapshot] : []) };
-			// The provider drops paths excluded by its content exclusion policy, so this is the length before exclusion.
-			const structure = renderWorkspaceSnapshotStructure(workspaceSnapshot);
-			candidate.report = this._createReport(prepared, preparation, waitMs, structure.length);
-			if (!structure) {
+			const roots = prepared.roots.flatMap(root => root.outcome === 'included' && root.snapshot ? [root.snapshot] : []);
+			candidate.report = this._createReport(prepared, preparation, waitMs);
+			if (roots.length === 0) {
 				return undefined;
 			}
-			return { workspaceSnapshot };
+			candidate.awaitingDelivery = true;
+			return { workspaceSnapshot: { roots, onDidDeliver: delivery => this._onSnapshotDelivered(turn.chat, turn.turnId, delivery) } };
 		} finally {
 			if (this._isActiveTurn(turn)) {
 				this._stopPreparing(turn.chat);
@@ -231,7 +236,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	}
 
 	/** Records why each root was or was not included, so a missing snapshot can be diagnosed. */
-	private _createReport(prepared: IPreparedSnapshot, preparation: AgentHostWorkspaceSnapshotPreparation, waitMs: number, snapshotLength: number): ICandidateTurn['report'] {
+	private _createReport(prepared: IPreparedSnapshot, preparation: AgentHostWorkspaceSnapshotPreparation, waitMs: number): ICandidateTurn['report'] {
 		const count = (outcome: RootOutcome) => prepared.roots.filter(root => root.outcome === outcome).length;
 		const omitted = prepared.roots.filter(root => root.outcome !== 'included').map(root => `${root.outcome}: ${root.root.fsPath}`);
 		return {
@@ -244,22 +249,47 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 				emptyRootCount: count('empty') + count('gitAdministrative'),
 				failedRootCount: count('failed'),
 				waitMs,
-				snapshotLength,
+				// Replaced by what the provider delivered, when it had a snapshot to deliver.
+				contentExclusion: 'notApplicable',
+				excludedPathCount: 0,
+				snapshotLength: 0,
 			},
 		};
 	}
 
-	/** Consumes the snapshot once its turn reaches the provider, then logs and reports it. */
+	/** A first turn without a snapshot reaches the provider when the host hands it over. */
 	private _onTurnDispatched(chat: ProtocolURI, turnId: string): void {
+		const candidate = this._candidates.get(chat);
+		if (candidate?.turnId === turnId && !candidate.awaitingDelivery) {
+			this._consume(chat, candidate.report);
+		}
+	}
+
+	/**
+	 * A first turn with a snapshot reaches the provider when the provider
+	 * submits it to the model, which it reports along with what content
+	 * exclusion left. A send abandoned before then, such as one cancelled
+	 * during the content exclusion check, leaves the snapshot for the next turn.
+	 */
+	private _onSnapshotDelivered(chat: ProtocolURI, turnId: string, delivery: IWorkspaceSnapshotDelivery): void {
 		const candidate = this._candidates.get(chat);
 		if (candidate?.turnId !== turnId) {
 			return;
 		}
+		const report = candidate.report && {
+			detail: `${candidate.report.detail}; content exclusion ${delivery.contentExclusion}, ${delivery.excludedPathCount} paths excluded, ${delivery.includedRootCount} roots sent`,
+			event: { ...candidate.report.event, ...delivery },
+		};
+		this._consume(chat, report);
+	}
+
+	/** Records that the chat's conversation reached the provider, then logs and reports the snapshot. */
+	private _consume(chat: ProtocolURI, report: ICandidateTurn['report']): void {
 		this._candidates.delete(chat);
 		this._context.memento(providerTurnSeenMemento, chat).set(true, undefined);
-		if (candidate.report) {
-			this._logService.info(`[WorkspaceContext] First turn of ${chat}: ${candidate.report.detail}`);
-			this._telemetryReporter.workspaceSnapshotSent(candidate.report.event);
+		if (report) {
+			this._logService.info(`[WorkspaceContext] First turn of ${chat}: ${report.detail}`);
+			this._telemetryReporter.workspaceSnapshotSent(report.event);
 		}
 	}
 
@@ -342,7 +372,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			if (tree === undefined) {
 				return { outcome: 'pending' };
 			}
-			return tree.entries.length ? { outcome: 'included', snapshot: { heading, ...tree } } : { outcome: 'empty' };
+			return tree.entries.length ? { outcome: 'included', snapshot: { path: root.fsPath, heading, ...tree } } : { outcome: 'empty' };
 		} catch (err) {
 			this._logService.warn(`[WorkspaceContext] Could not list ${root.fsPath} for the initial workspace snapshot: ${toErrorMessage(err)}`);
 			return { outcome: 'failed' };

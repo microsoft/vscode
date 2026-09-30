@@ -43,7 +43,7 @@ import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
-import { getWorkspaceSnapshotPaths, renderWorkspaceSnapshot, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
+import { filterWorkspaceSnapshot, getWorkspaceSnapshotPaths, renderWorkspaceSnapshot, renderWorkspaceSnapshotStructure, type IWorkspaceSnapshot, type IWorkspaceSnapshotDelivery } from '../../common/workspaceSnapshot.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
@@ -857,6 +857,8 @@ interface IPendingSteering {
  */
 export class CopilotAgentSession extends Disposable {
 	private _hostInstructions: readonly string[] | undefined;
+	/** Reports the workspace snapshot as delivered once the SDK takes the host instructions that carry it. */
+	private _pendingWorkspaceSnapshotDelivery: (() => void) | undefined;
 	private _pendingSnapshotReminder: string | undefined;
 	readonly sessionId: string;
 	readonly resourceUri: URI;
@@ -3062,17 +3064,20 @@ export class CopilotAgentSession extends Disposable {
 			currentTurn.messageCharLen = prompt.length;
 		}
 		const turn = this._currentTurn.value;
+		let pendingWorkspaceSnapshotDelivery: (() => void) | undefined;
 		if (workspaceSnapshot) {
 			const abortToken = this._abortToken;
-			const snapshotInstruction = await this._renderWorkspaceSnapshot(workspaceSnapshot);
+			const { instruction, delivery } = await this._applyContentExclusion(workspaceSnapshot);
 			if (!this._canSendTurn(turn, abortToken)) {
 				return;
 			}
-			if (snapshotInstruction) {
-				hostInstructions = [...(hostInstructions ?? []), snapshotInstruction];
+			if (instruction) {
+				hostInstructions = [...(hostInstructions ?? []), instruction];
 			}
+			pendingWorkspaceSnapshotDelivery = () => workspaceSnapshot.onDidDeliver?.(delivery);
 		}
 		this._hostInstructions = hostInstructions;
+		this._pendingWorkspaceSnapshotDelivery = pendingWorkspaceSnapshotDelivery;
 		this._pendingSnapshotReminder = this._snapshotReadonlyReminder(attachments);
 		if (this._tryStartDevelopmentRecoverableError(prompt)) {
 			return;
@@ -3090,21 +3095,19 @@ export class CopilotAgentSession extends Disposable {
 				this._clearActiveTurn();
 			}
 			this._hostInstructions = undefined;
+			this._pendingWorkspaceSnapshotDelivery = undefined;
 			this._pendingSnapshotReminder = undefined;
 			throw err;
 		}
 	}
 
 	/**
-	 * Renders the workspace snapshot without the paths the session's content
-	 * exclusion policy excludes. Fails closed: returns `undefined` when the
-	 * policy cannot be evaluated in time.
+	 * Drops the workspace snapshot's paths that the session's content exclusion
+	 * policy excludes, and renders the rest. Fails closed: sends no snapshot
+	 * when the policy cannot be evaluated in time.
 	 */
-	private async _renderWorkspaceSnapshot(snapshot: IWorkspaceSnapshot): Promise<string | undefined> {
+	private async _applyContentExclusion(snapshot: IWorkspaceSnapshot): Promise<{ readonly instruction?: string; readonly delivery: IWorkspaceSnapshotDelivery }> {
 		const paths = getWorkspaceSnapshotPaths(snapshot);
-		if (paths.length === 0) {
-			return undefined;
-		}
 		let excluded: Set<string> | undefined;
 		try {
 			const result = await raceTimeout(this._wrapper.session.rpc.contentExclusion.checkPaths({ paths }), CONTENT_EXCLUSION_CHECK_TIMEOUT_MS);
@@ -3116,13 +3119,17 @@ export class CopilotAgentSession extends Disposable {
 		}
 		if (!excluded) {
 			this._logService.info(`[Copilot:${this.sessionId}] Omitting the workspace snapshot: content exclusion could not be evaluated`);
-			return undefined;
+			return { delivery: { contentExclusion: 'unavailable', excludedPathCount: 0, includedRootCount: 0, snapshotLength: 0 } };
 		}
 		if (excluded.size > 0) {
 			this._logService.info(`[Copilot:${this.sessionId}] Workspace snapshot: dropped ${excluded.size} of ${paths.length} paths excluded by content exclusion`);
 		}
 		const excludedPaths = excluded;
-		return renderWorkspaceSnapshot(snapshot, path => excludedPaths.has(path));
+		const filtered = filterWorkspaceSnapshot(snapshot, path => excludedPaths.has(path));
+		return {
+			instruction: renderWorkspaceSnapshot(filtered),
+			delivery: { contentExclusion: 'evaluated', excludedPathCount: excluded.size, includedRootCount: filtered.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(filtered).length },
+		};
 	}
 
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined {
@@ -3130,8 +3137,15 @@ export class CopilotAgentSession extends Disposable {
 			...(this._hostInstructions ?? []),
 			...(this._pendingSnapshotReminder ? [this._pendingSnapshotReminder] : []),
 		];
+		const deliverWorkspaceSnapshot = this._pendingWorkspaceSnapshotDelivery;
 		this._hostInstructions = undefined;
+		this._pendingWorkspaceSnapshotDelivery = undefined;
 		this._pendingSnapshotReminder = undefined;
+		try {
+			deliverWorkspaceSnapshot?.();
+		} catch (err) {
+			this._logService.error(`[Copilot:${this.sessionId}] Failed to report workspace snapshot delivery: ${getErrorMessage(err)}`);
+		}
 		const additionalContext = parts.length > 0 ? parts.join('\n\n') : undefined;
 		return additionalContext ? { additionalContext } : undefined;
 	}
@@ -3423,6 +3437,7 @@ export class CopilotAgentSession extends Disposable {
 			totalFailures,
 		};
 		this._hostInstructions = undefined;
+		this._pendingWorkspaceSnapshotDelivery = undefined;
 		this._pendingSnapshotReminder = undefined;
 		if (match.groups?.tool) {
 			this._emitDevelopmentCompletedToolCall(turn);

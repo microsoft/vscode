@@ -102,6 +102,9 @@ export type IAgentHostExecutionModeChangedClassification = IAgentHostEventClassi
 /** How a first-turn workspace snapshot was prepared relative to the send. */
 export type AgentHostWorkspaceSnapshotPreparation = 'prepared' | 'startedAtSend' | 'directoriesChanged';
 
+/** Whether the provider evaluated content exclusion for the snapshot; `notApplicable` when there was no snapshot to check. */
+export type AgentHostWorkspaceSnapshotContentExclusion = 'evaluated' | 'unavailable' | 'notApplicable';
+
 export interface IAgentHostWorkspaceSnapshotEvent {
 	preparation: AgentHostWorkspaceSnapshotPreparation;
 	rootCount: number;
@@ -110,18 +113,22 @@ export interface IAgentHostWorkspaceSnapshotEvent {
 	emptyRootCount: number;
 	failedRootCount: number;
 	waitMs: number;
+	contentExclusion: AgentHostWorkspaceSnapshotContentExclusion;
+	excludedPathCount: number;
 	snapshotLength: number;
 }
 
 type IAgentHostWorkspaceSnapshotClassification = {
 	preparation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the snapshot was prepared before the send, started at the send, or restarted because the turn ran in different directories.' };
 	rootCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of working-directory roots the first turn runs in.' };
-	includedRootCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of roots whose file-name tree was included in the first turn.' };
+	includedRootCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of roots whose file-name tree reached the model in the first turn, after content exclusion.' };
 	pendingRootCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of roots omitted because their tree was not ready within the send wait.' };
 	emptyRootCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of roots omitted because they had no visible files or are Git storage directories.' };
 	failedRootCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of roots omitted because they could not be read.' };
 	waitMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds the first send waited for unfinished roots.' };
-	snapshotLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Length in characters of the included file-name tree, or 0 when none was included.' };
+	contentExclusion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the provider evaluated content exclusion for the snapshot, could not (so none was sent), or had no snapshot to check.' };
+	excludedPathCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of listed paths dropped because content exclusion excludes them.' };
+	snapshotLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Length in characters of the file-name tree that reached the model, after content exclusion, or 0 when none did.' };
 	owner: 'bhavyaus';
 	comment: 'Reports whether the first turn of a new Copilot Agent Host conversation included its initial workspace file-name snapshot, and why roots were left out.';
 };

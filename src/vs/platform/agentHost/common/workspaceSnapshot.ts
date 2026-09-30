@@ -16,6 +16,8 @@ export interface IWorkspaceSnapshotEntry {
 }
 
 export interface IWorkspaceSnapshotRoot {
+	/** Absolute file system path of the root, checked against content exclusion like its entries. */
+	readonly path: string;
 	/** The rendered root path. */
 	readonly heading: string;
 	/** Entries in display order. */
@@ -24,29 +26,49 @@ export interface IWorkspaceSnapshotRoot {
 	readonly truncated: boolean;
 }
 
+/** What reached the model when a turn carrying a {@link IWorkspaceSnapshot} was submitted. */
+export interface IWorkspaceSnapshotDelivery {
+	/** `unavailable` when content exclusion could not be evaluated, in which case no snapshot was sent. */
+	readonly contentExclusion: 'evaluated' | 'unavailable';
+	/** Listed paths, roots included, that content exclusion excludes. */
+	readonly excludedPathCount: number;
+	/** Roots that remained after content exclusion. */
+	readonly includedRootCount: number;
+	/** Length of the tree that was sent, or 0 when none was. */
+	readonly snapshotLength: number;
+}
+
 /**
  * A bounded file-name tree of the directories a conversation starts in. It is
- * kept structured until the provider sends it, so that paths excluded by the
- * session's content exclusion policy can be dropped first.
+ * kept structured until the provider submits the turn, so that paths excluded
+ * by the session's content exclusion policy can be dropped first.
  */
 export interface IWorkspaceSnapshot {
 	readonly roots: readonly IWorkspaceSnapshotRoot[];
+	/**
+	 * Called by the provider when it submits the turn's prompt to the model,
+	 * with what remained of the snapshot. Not called when the send is
+	 * abandoned before submission, so the snapshot is not considered sent.
+	 */
+	readonly onDidDeliver?: (delivery: IWorkspaceSnapshotDelivery) => void;
 }
 
-/** The unique paths the snapshot lists. */
+/** The unique paths the snapshot lists, roots included. */
 export function getWorkspaceSnapshotPaths(snapshot: IWorkspaceSnapshot): string[] {
-	return [...new Set(snapshot.roots.flatMap(root => root.entries.map(entry => entry.path)))];
+	return [...new Set(snapshot.roots.flatMap(root => [root.path, ...root.entries.map(entry => entry.path)]))];
 }
 
 /**
- * Renders the snapshot's roots as a tree. An entry for which `isExcluded`
- * returns true is dropped together with everything below it, and a root left
- * without entries is dropped.
+ * Drops each root and entry for which `isExcluded` returns true, together
+ * with everything below it, and each root left without entries.
  */
-export function renderWorkspaceSnapshotStructure(snapshot: IWorkspaceSnapshot, isExcluded: (path: string) => boolean = () => false): string {
-	const trees: string[] = [];
+export function filterWorkspaceSnapshot(snapshot: IWorkspaceSnapshot, isExcluded: (path: string) => boolean): IWorkspaceSnapshot {
+	const roots: IWorkspaceSnapshotRoot[] = [];
 	for (const root of snapshot.roots) {
-		const lines: string[] = [];
+		if (isExcluded(root.path)) {
+			continue;
+		}
+		const entries: IWorkspaceSnapshotEntry[] = [];
 		let excludedDepth: number | undefined;
 		for (const entry of root.entries) {
 			if (excludedDepth !== undefined && entry.depth > excludedDepth) {
@@ -57,22 +79,25 @@ export function renderWorkspaceSnapshotStructure(snapshot: IWorkspaceSnapshot, i
 				excludedDepth = entry.depth;
 				continue;
 			}
-			lines.push(entry.line);
+			entries.push(entry);
 		}
-		if (lines.length) {
-			trees.push([root.heading, ...lines, ...(root.truncated ? ['...'] : [])].join('\n'));
+		if (entries.length) {
+			roots.push({ ...root, entries });
 		}
 	}
-	return trees.join('\n\n');
+	return { roots };
 }
 
-/**
- * Renders the snapshot as a host instruction, dropping excluded entries as
- * {@link renderWorkspaceSnapshotStructure} does. Returns `undefined` when
- * nothing is left.
- */
-export function renderWorkspaceSnapshot(snapshot: IWorkspaceSnapshot, isExcluded?: (path: string) => boolean): string | undefined {
-	const structure = renderWorkspaceSnapshotStructure(snapshot, isExcluded);
+/** Renders the snapshot's roots as a tree. */
+export function renderWorkspaceSnapshotStructure(snapshot: IWorkspaceSnapshot): string {
+	return snapshot.roots
+		.map(root => [root.heading, ...root.entries.map(entry => entry.line), ...(root.truncated ? ['...'] : [])].join('\n'))
+		.join('\n\n');
+}
+
+/** Renders the snapshot as a host instruction, or `undefined` when it has no roots. */
+export function renderWorkspaceSnapshot(snapshot: IWorkspaceSnapshot): string | undefined {
+	const structure = renderWorkspaceSnapshotStructure(snapshot);
 	if (!structure) {
 		return undefined;
 	}

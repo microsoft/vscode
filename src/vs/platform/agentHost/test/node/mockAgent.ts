@@ -11,7 +11,8 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCapabilities, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentPendingMessageSender, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
+import { AgentSession, resolveAgentWorkspaceSnapshot, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCapabilities, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentPendingMessageSender, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
+import { renderWorkspaceSnapshotStructure } from '../../common/workspaceSnapshot.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -376,6 +377,11 @@ export class MockAgent implements IAgent {
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
 			this._recordContext('sendMessage', chatUri, operationContext);
 			const { session, chat } = this._resolveChatTarget(chatUri, operationContext);
+			// Submits the workspace snapshot the way a provider does when content exclusion excludes nothing.
+			const workspaceSnapshot = resolveAgentWorkspaceSnapshot(operationContext);
+			if (workspaceSnapshot && !this.sendMessageError) {
+				workspaceSnapshot.onDidDeliver?.({ contentExclusion: 'evaluated', excludedPathCount: 0, includedRootCount: workspaceSnapshot.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(workspaceSnapshot).length });
+			}
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId, clientType);
 		},
 		abort: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
