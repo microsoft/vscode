@@ -1397,7 +1397,8 @@ export class NewChatWidget extends Disposable {
 	private _restoreSessionOptionsExpanded(): void {
 		const storedExpanded = this.storageService.getBoolean(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE);
 		let initialExpanded = storedExpanded ?? true;
-		if (storedExpanded === undefined && isExperimentalSessionComposerLayoutEnabled(this.configurationService)) {
+		const hasCreatedSession = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) > 0;
+		if (storedExpanded === undefined && !hasCreatedSession && isExperimentalSessionComposerLayoutEnabled(this.configurationService)) {
 			logSettingExperimentTrigger(this.telemetryService, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING);
 			initialExpanded = this.configurationService.getValue<boolean>(NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING) ?? true;
 		}

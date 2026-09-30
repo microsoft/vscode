@@ -21,7 +21,7 @@ import { ISendRequestOptions, ISessionsProvider } from '../../../../services/ses
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
-import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
@@ -33,6 +33,7 @@ import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessio
 import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import { TOTAL_SESSIONS_KEY } from '../../../sessions/browser/sessionsLifecycleTracker.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -342,10 +343,8 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('remembers the session options expanded state across composers', () => {
-		const storageService = disposables.add(new InMemoryStorageService());
-		const telemetryService = new TestExperimentTriggerTelemetryService();
-		const restore = (initial: boolean, expandedByDefault: boolean | undefined) => {
+	test('applies the session options experiment only before the first created session', () => {
+		const restore = (storageService: IStorageService, telemetryService: ITelemetryService, initial: boolean, expandedByDefault: boolean | undefined) => {
 			const expanded = observableValue('sessionOptionsExpanded', initial);
 			const harness: ISessionOptionsPersistenceHarness = {
 				storageService,
@@ -363,25 +362,41 @@ suite('NewChatWidget', () => {
 			return { expanded, harness };
 		};
 
-		const first = restore(true, false);
+		const firstTimeStorage = disposables.add(new InMemoryStorageService());
+		const firstTimeTelemetry = new TestExperimentTriggerTelemetryService();
+		const first = restore(firstTimeStorage, firstTimeTelemetry, true, false);
 		const configuredDefault = first.expanded.get();
-		const defaultBeforeInteraction = restore(true, false).expanded.get();
-		const fallbackDefault = restore(false, undefined).expanded.get();
+		const defaultBeforeInteraction = restore(firstTimeStorage, firstTimeTelemetry, true, false).expanded.get();
 		setSessionOptionsExpandedFromUser.call(first.harness, true);
-		const restoredUserChoice = restore(false, false).expanded.get();
+		const restoredUserChoice = restore(firstTimeStorage, firstTimeTelemetry, false, false).expanded.get();
+
+		const returningStorage = disposables.add(new InMemoryStorageService());
+		returningStorage.store(TOTAL_SESSIONS_KEY, 1, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const returningTelemetry = new TestExperimentTriggerTelemetryService();
+		const returningDefault = restore(returningStorage, returningTelemetry, false, false).expanded.get();
+
+		const fallbackStorage = disposables.add(new InMemoryStorageService());
+		const fallbackTelemetry = new TestExperimentTriggerTelemetryService();
+		const fallbackDefault = restore(fallbackStorage, fallbackTelemetry, false, undefined).expanded.get();
 
 		assert.deepStrictEqual({
 			configuredDefault,
 			defaultBeforeInteraction,
-			fallbackDefault,
 			restoredUserChoice,
-			triggers: telemetryService.triggers,
+			returningDefault,
+			fallbackDefault,
+			firstTimeTriggers: firstTimeTelemetry.triggers,
+			returningTriggers: returningTelemetry.triggers,
+			fallbackTriggers: fallbackTelemetry.triggers,
 		}, {
 			configuredDefault: false,
 			defaultBeforeInteraction: false,
-			fallbackDefault: true,
 			restoredUserChoice: true,
-			triggers: [`config.${NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING}`],
+			returningDefault: true,
+			fallbackDefault: true,
+			firstTimeTriggers: [`config.${NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING}`],
+			returningTriggers: [],
+			fallbackTriggers: [`config.${NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING}`],
 		});
 	});
 
