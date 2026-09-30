@@ -4,22 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { IAction } from '../../../../../base/common/actions.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -35,6 +38,11 @@ import { SessionCollectionsController } from '../../browser/sessionCollections.j
 
 suite('SessionCollections', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	interface ICollectionMenuItem {
+		readonly checked?: boolean;
+		readonly run: () => void;
+	}
 
 	class TestCollectionsService extends Disposable implements ISessionCollectionsService {
 		declare readonly _serviceBrand: undefined;
@@ -155,7 +163,19 @@ suite('SessionCollections', () => {
 		const sessionsService = new TestSessionsService();
 		instantiationService.stub(ISessionCollectionsService, collectionsService);
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
-		const shownMenus: IAction[][] = [];
+		const shownMenus: { readonly items: readonly IActionListItem<ICollectionMenuItem>[]; readonly delegate: IActionListDelegate<ICollectionMenuItem> }[] = [];
+		const actionWidgetService = new class extends mock<IActionWidgetService>() {
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				shownMenus.push({ items: items as readonly IActionListItem<unknown>[] as readonly IActionListItem<ICollectionMenuItem>[], delegate: delegate as IActionListDelegate<unknown> as IActionListDelegate<ICollectionMenuItem> });
+			}
+			override hide(): void { }
+		};
+		const keybindingService = new class extends MockKeybindingService {
+			override lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
+				const index = Number(commandId.match(/^sessions\.collections\.switchTo(?<index>\d)$/)?.groups?.index);
+				return index ? createUSLayoutResolvedKeybinding(KeyMod.WinCtrl | (KeyCode.Digit0 + index), OperatingSystem.Macintosh) : undefined;
+			}
+		};
 		const controller = store.add(new SessionCollectionsController(
 			configurationService,
 			contextKeyService,
@@ -164,33 +184,36 @@ suite('SessionCollections', () => {
 			sessionsManagementService,
 			instantiationService,
 			new NullActionViewItemService(),
-			new class extends mock<IContextMenuService>() {
-				override readonly onDidShowContextMenu = Event.None;
-				override readonly onDidHideContextMenu = Event.None;
-				override showContextMenu(delegate: IContextMenuDelegate): void {
-					shownMenus.push([...delegate.getActions()]);
-				}
-			},
+			actionWidgetService,
 			upcastPartial<IWorkbenchLayoutService>({}),
-			new MockKeybindingService(),
+			keybindingService,
 			new NullLogService(),
 		));
 		return { controller, collectionsService, sessionsManagementService, sessionsService, shownMenus };
 	}
 
-	test('the header collection menu switches collections', async () => {
+	test('the header collection menu shows switch shortcuts and switches collections', async () => {
 		const { controller, collectionsService, shownMenus } = setup();
 		controller.showCollectionMenu(mainWindow.document.body);
-		const personal = shownMenus[0].find(action => action.label === 'Personal');
-		await personal?.run();
+		const [{ items, delegate }] = shownMenus;
+		const personal = items.find(item => item.label === 'Personal');
+		if (personal?.item) {
+			await delegate.onSelect(personal.item);
+		}
+		await timeout(0);
 
 		assert.deepStrictEqual({
-			labels: shownMenus[0].map(action => action.label),
-			checked: shownMenus[0].filter(action => action.checked).map(action => action.label),
+			rows: items.map(item => [item.label, item.keybinding?.getLabel() ?? undefined, item.item?.checked]),
 			activeCollection: collectionsService.activeCollectionId.get(),
 		}, {
-			labels: ['Engineering', 'Personal', 'Misc', '', 'New Collection...', 'Edit Collection...'],
-			checked: ['Engineering'],
+			rows: [
+				['Engineering', '⌃1', true],
+				['Personal', '⌃2', false],
+				['Misc', '⌃3', false],
+				['', undefined, undefined],
+				['New Collection...', undefined, undefined],
+				['Edit Collection...', undefined, undefined],
+			],
 			activeCollection: 'personal',
 		});
 	});

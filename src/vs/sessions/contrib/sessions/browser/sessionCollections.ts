@@ -6,21 +6,21 @@
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import * as DOM from '../../../../base/browser/dom.js';
-import { IContextMenuDelegate } from '../../../../base/browser/contextmenu.js';
-import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -39,6 +39,7 @@ import { DraggedSessionIdentifier, DraggedSessionListHeaderIdentifier } from '..
 import { ISessionCollectionsService } from '../../../services/sessions/browser/sessionCollectionsService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { sessionPaletteColorIds } from '../../../services/sessions/common/sessionColors.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionCollectionAttention, SessionCollectionsIconStrip, ISessionCollectionsSwitcherDelegate, SESSION_COLLECTIONS_CONTROLLER_ID } from './sessionCollectionsSwitcher.js';
 import { SessionHeaderEditors } from './views/sessionHeaderEditors.js';
@@ -212,6 +213,12 @@ class SessionCollectionsTitleBarActionViewItem extends BaseActionViewItem {
 	}
 }
 
+/** An entry of the collection switch menu. `checked` is set for collection entries only. */
+interface ISessionCollectionMenuItem {
+	readonly checked?: boolean;
+	readonly run: () => void;
+}
+
 export class SessionCollectionsController extends Disposable implements IWorkbenchContribution, ISessionCollectionsSwitcherDelegate {
 
 	static readonly ID = SESSION_COLLECTIONS_CONTROLLER_ID;
@@ -237,7 +244,7 @@ export class SessionCollectionsController extends Disposable implements IWorkben
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILogService private readonly logService: ILogService,
@@ -333,24 +340,66 @@ export class SessionCollectionsController extends Disposable implements IWorkben
 	showCollectionMenu(anchor: HTMLElement): void {
 		const active = this.collectionsService.activeCollectionId.get();
 		const collections = this.collectionsService.collections.get();
-		// Menu entries show the keybinding of the matching switch command.
-		const keybindingCommands = new Map<string, string>();
-		const actions: IAction[] = collections.map((collection, index) => {
-			const id = `sessions.collections.menu.switch.${collection.id}`;
-			if (index < 9) {
-				keybindingCommands.set(id, `${SWITCH_COLLECTION_TO_INDEX_COMMAND_PREFIX}${index + 1}`);
-			}
-			return toAction({ id, label: collection.name, checked: collection.id === active, run: () => this.switchTo(collection.id) });
+		const items: IActionListItem<ISessionCollectionMenuItem>[] = collections.map((collection, index) => {
+			const checked = collection.id === active;
+			return {
+				kind: ActionListItemKind.Action,
+				label: collection.name,
+				group: { title: '', icon: { id: collection.icon, color: { id: sessionPaletteColorIds[collection.color] } } },
+				// Shows the switch shortcut so the menu teaches it.
+				keybinding: index < 9 ? this.keybindingService.lookupKeybinding(`${SWITCH_COLLECTION_TO_INDEX_COMMAND_PREFIX}${index + 1}`) : undefined,
+				className: checked ? 'session-collections-menu-item checked' : 'session-collections-menu-item',
+				item: { checked, run: () => this.switchToCollection(collection.id) },
+			};
 		});
-		actions.push(new Separator());
-		actions.push(toAction({ id: 'sessions.collections.menu.new', label: localize('newCollectionMenu', "New Collection..."), run: () => this.showNewCollectionEditor(anchor) }));
-		actions.push(toAction({ id: 'sessions.collections.menu.edit', label: localize('editCollectionMenu', "Edit Collection..."), run: () => this.showEditCollectionEditor(active, anchor) }));
-		keybindingCommands.set('sessions.collections.menu.new', NEW_COLLECTION_COMMAND_ID);
-		keybindingCommands.set('sessions.collections.menu.edit', EDIT_COLLECTION_COMMAND_ID);
-		this.contextMenuForAnchor(anchor, actions, action => {
-			const commandId = keybindingCommands.get(action.id);
-			return commandId ? this.keybindingService.lookupKeybinding(commandId) ?? undefined : undefined;
+		items.push({ kind: ActionListItemKind.Separator, label: '' });
+		items.push({
+			kind: ActionListItemKind.Action,
+			label: localize('newCollectionMenu', "New Collection..."),
+			group: { title: '', icon: Codicon.add },
+			keybinding: this.keybindingService.lookupKeybinding(NEW_COLLECTION_COMMAND_ID),
+			item: { run: () => this.showNewCollectionEditor(anchor) },
 		});
+		items.push({
+			kind: ActionListItemKind.Action,
+			label: localize('editCollectionMenu', "Edit Collection..."),
+			group: { title: '', icon: Codicon.edit },
+			keybinding: this.keybindingService.lookupKeybinding(EDIT_COLLECTION_COMMAND_ID),
+			item: { run: () => this.showEditCollectionEditor(active, anchor) },
+		});
+
+		anchor.setAttribute('aria-expanded', 'true');
+		this.actionWidgetService.show<ISessionCollectionMenuItem>(
+			'sessionCollectionsMenu',
+			false,
+			items,
+			{
+				onSelect: item => {
+					this.actionWidgetService.hide();
+					item.run();
+				},
+				onHide: () => {
+					anchor.setAttribute('aria-expanded', 'false');
+					if (anchor.isConnected) {
+						anchor.focus();
+					}
+				},
+			},
+			anchor,
+			undefined,
+			[],
+			{
+				getAriaLabel: element => {
+					const keybinding = element.keybinding?.getAriaLabel();
+					return keybinding ? localize('collectionMenuItemAria', "{0}, {1}", element.label ?? '', keybinding) : element.label ?? '';
+				},
+				isChecked: element => element.kind === ActionListItemKind.Action && element.item?.checked !== undefined ? element.item.checked : undefined,
+				getRole: element => element.kind !== ActionListItemKind.Action ? 'separator' : element.item?.checked !== undefined ? 'menuitemradio' : 'menuitem',
+				getWidgetRole: () => 'menu',
+				getWidgetAriaLabel: () => localize('collectionMenuAria', "Collections"),
+			},
+			{ className: 'session-collections-menu', minWidth: 200, hideDefaultKeybindingTooltip: true },
+		);
 	}
 
 	getCollectionAttention(collectionId: string, reader?: IReader): SessionCollectionAttention {
@@ -418,18 +467,11 @@ export class SessionCollectionsController extends Disposable implements IWorkben
 		return true;
 	}
 
-	private contextMenuForAnchor(anchor: HTMLElement, actions: readonly IAction[], getKeyBinding: NonNullable<IContextMenuDelegate['getKeyBinding']>): void {
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => [...actions],
-			getKeyBinding: (action: IAction): ResolvedKeybinding | undefined => getKeyBinding(action),
-		});
-	}
-
 	private showCollectionEditor(collectionId: string | undefined, anchor: HTMLElement | undefined): void {
 		const editor = this.getHeaderEditors();
 		editor.showCollectionEditor({
-			anchor: anchor ?? this.getEditorAnchor(collectionId),
+			// A new collection opens under the active collection's switcher.
+			anchor: anchor ?? this.getEditorAnchor(collectionId ?? this.collectionsService.activeCollectionId.get()),
 			collectionId,
 		});
 	}

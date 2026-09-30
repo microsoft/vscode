@@ -209,3 +209,24 @@
 	align-items: center;
 	-webkit-app-region: no-drag;
 }
+
+/* Collection switch menu: the switch shortcut uses the same chip as the New session button's keybinding hint. */
+.action-widget .session-collections-menu .monaco-list-row .description {
+	flex-shrink: 0;
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: 1;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background-color: var(--vscode-keybindingLabel-background);
+	color: var(--vscode-keybindingLabel-foreground);
+}
+
+.action-widget .session-collections-menu .session-collections-menu-item.checked .title::after {
+	content: var(--vscode-icon-check-content);
+	font-family: var(--vscode-icon-check-font-family);
+	font-size: var(--vscode-codiconFontSize-compact);
+	margin-left: var(--vscode-spacing-size40);
+	vertical-align: middle;
+}
