@@ -1525,6 +1525,33 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('detail links open from pointer and keyboard without selecting their item', () => {
+		const links: string[] = [];
+		const selections: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), { ...action('documented'), detail: 'Description', detailLink: { label: 'Learn more', uri: URI.parse('https://example.com/docs') } }],
+			onSelect: item => selections.push(item.id),
+			listOptions: { showFilter: false, linkHandler: uri => links.push(uri.toString(true)) },
+		});
+		widget.focus();
+		widget.focusNext();
+		const link = widget.domNode.querySelector<HTMLElement>('.detail .monaco-link')!;
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+
+		dispatchKeyDown(list, { key: 'Tab' });
+		const tabFocusedLink = document.activeElement === link;
+		dispatchKeyDown(link, { key: 'Enter', keyCode: 13 });
+		link.click();
+		dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
+
+		assert.deepStrictEqual({ tabFocusedLink, shiftTabFocusedList: document.activeElement === list, links, selections }, {
+			tabFocusedLink: true,
+			shiftTabFocusedList: true,
+			links: ['https://example.com/docs', 'https://example.com/docs'],
+			selections: [],
+		});
+	});
+
 	test('keeps titled separator above first filtered match', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [

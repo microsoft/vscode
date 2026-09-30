@@ -1715,6 +1715,39 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		test('a main chat turn forwards its modified time to session subscribers', () => {
+			const initialModifiedAt = '2025-01-01T00:00:00.000Z';
+			const startedAt = '2025-01-02T00:00:00.000Z';
+			manager.createSession({ ...makeSessionSummary(), modifiedAt: initialModifiedAt });
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-default',
+				startedAt,
+				message: { text: 'new request', origin: { kind: MessageKind.User } },
+			});
+
+			const chatUpdate = envelopes.find(envelope => envelope.action.type === ActionType.SessionChatUpdated);
+			assert.deepStrictEqual({
+				catalogModifiedAt: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.modifiedAt,
+				action: chatUpdate?.action,
+			}, {
+				catalogModifiedAt: startedAt,
+				action: {
+					type: ActionType.SessionChatUpdated,
+					chat: defaultChat,
+					changes: {
+						status: SessionStatus.InProgress,
+						activity: undefined,
+						modifiedAt: startedAt,
+					},
+				},
+			});
+		});
+
 		test('active-turn event and active-session count flip once per session across concurrent chats', () => {
 			manager.createSession(makeSessionSummary());
 			const defaultChat = buildDefaultChatUri(sessionUri);
@@ -1970,8 +2003,10 @@ suite('AgentHostStateManager', () => {
 				},
 			];
 			const draft = { text: 'work in progress', origin: { kind: MessageKind.User } };
+			const modifiedAt = new Date(42_000).toISOString();
 			manager.registerRestoredChatSummary(sessionUri, peerChat, {
 				title: 'Restored Peer',
+				modifiedAt,
 				draft,
 				resolver: async () => ({ turns }),
 			});
@@ -1980,6 +2015,7 @@ suite('AgentHostStateManager', () => {
 				{
 					chatResources: manager.getSessionState(sessionUri)?.chats.map(c => c.resource.toString()).sort(),
 					restoredTitle: manager.getSessionState(sessionUri)?.chats.find(c => c.resource === peerChat)?.title,
+					restoredModifiedAt: manager.getSessionState(sessionUri)?.chats.find(c => c.resource === peerChat)?.modifiedAt,
 					peerTurns: peerState?.turns.length,
 					peerDraft: peerState?.draft?.text,
 					chatAddedEvents: envelopes.filter(e => e.action.type === ActionType.SessionChatAdded).length,
@@ -1987,11 +2023,66 @@ suite('AgentHostStateManager', () => {
 				{
 					chatResources: [buildDefaultChatUri(sessionUri), peerChat].sort(),
 					restoredTitle: 'Restored Peer',
+					restoredModifiedAt: modifiedAt,
 					peerTurns: 1,
 					peerDraft: 'work in progress',
 					chatAddedEvents: 0,
 				},
 			);
+		});
+
+		test('refreshChatHistory preserves independent modified times in a multi-chat session', async () => {
+			const sessionModifiedAt = new Date(60_000).toISOString();
+			const peerModifiedAt = new Date(30_000).toISOString();
+			manager.restoreSession({ ...makeSessionSummary(), modifiedAt: sessionModifiedAt }, []);
+			manager.registerRestoredChatSummary(sessionUri, peerChat, {
+				modifiedAt: peerModifiedAt,
+				resolver: async () => ({ turns: [] }),
+			});
+			await manager.resolveChatState(peerChat);
+
+			manager.refreshChatHistory(peerChat, [], [{
+				id: 'restored-turn',
+				message: { text: 'restored', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}]);
+
+			assert.deepStrictEqual({
+				sessionModifiedAt: manager.getSessionSummary(sessionUri)?.modifiedAt,
+				peerModifiedAt: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat)?.modifiedAt,
+			}, {
+				sessionModifiedAt,
+				peerModifiedAt,
+			});
+		});
+
+		test('refreshChatHistory preserves the chat modified time in a single-chat session', () => {
+			const sessionModifiedAt = new Date(60_000).toISOString();
+			const chatModifiedAt = new Date(30_000).toISOString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			manager.restoreSession(
+				{ ...makeSessionSummary(), modifiedAt: sessionModifiedAt },
+				[],
+				{ defaultChatModifiedAt: chatModifiedAt },
+			);
+
+			manager.refreshChatHistory(defaultChat, [], [{
+				id: 'restored-turn',
+				message: { text: 'restored', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}]);
+
+			assert.deepStrictEqual({
+				sessionModifiedAt: manager.getSessionSummary(sessionUri)?.modifiedAt,
+				chatModifiedAt: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.modifiedAt,
+			}, {
+				sessionModifiedAt,
+				chatModifiedAt,
+			});
 		});
 
 		test('registerRestoredChatSummary applies archived state to a listed peer', () => {

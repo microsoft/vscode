@@ -1112,7 +1112,7 @@ suite('PromptsService', () => {
 					'powershell: "${PLUGIN_ROOT}/scripts/pre-tool.ps1"',
 				],
 			);
-			const quotedScript = (name: string) => `"${pluginUri.fsPath}/scripts/${name}"`;
+			const quotedScript = (name: string) => `'${pluginUri.fsPath}/scripts/${name}'`;
 
 			assert.deepStrictEqual(hooks, [{
 				type: 'command',
@@ -1122,6 +1122,44 @@ suite('PromptsService', () => {
 				windowsSource: 'powershell',
 				linuxSource: 'bash',
 				osxSource: 'bash',
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves PLUGIN_ROOT in hooks from Copilot plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/copilot-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.Copilot,
+				['command: "echo ${PLUGIN_ROOT}"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `echo ${pluginUri.fsPath}`,
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves PLUGIN_ROOT in hooks from Agent Plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/agent-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.AgentPlugin,
+				['command: "echo ${PLUGIN_ROOT}"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `echo ${pluginUri.fsPath}`,
 				cwd: workspaceUri,
 				env: {
 					EXISTING: 'value',

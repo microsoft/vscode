@@ -11,7 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import type { PullRequestFragment, PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../../github/common/githubPullRequestService.js';
-import type { IGitHubService } from '../../../github/common/githubService.js';
+import type { IGitHubClient } from '../../../github/common/githubService.js';
+import { createTestGitHubService } from './testGitHubService.js';
 import type { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
@@ -158,22 +159,29 @@ class TestCredentials implements IGitHubCredentials {
 
 	private readonly _onDidInvalidate = new Emitter<GitHubCredentialInvalidation>();
 	readonly onDidInvalidate = this._onDidInvalidate.event;
+	private _controller = new AbortController();
+	lookups = 0;
 
 	/** Resolved by the test so a sync can be suspended mid-flight. */
 	pending: DeferredPromise<void> | undefined;
 
 	async getCredential(): Promise<GitHubCredential> {
+		this.lookups++;
+		const signal = this._controller.signal;
 		if (this.pending) {
 			await this.pending.p;
 		}
-		return { account, token: 'token', generation: 1, signal: new AbortController().signal };
+		return { account, token: 'token', generation: 1, signal };
 	}
 
 	async resolveCredential(): Promise<GitHubCredential> { throw new Error('not implemented'); }
 	handleRequestError(): void { }
 
 	invalidate(reason: GitHubCredentialInvalidation['reason']): void {
-		this._onDidInvalidate.fire({ credential: { account, token: 'token', generation: 1, signal: new AbortController().signal }, reason });
+		const controller = this._controller;
+		this._controller = new AbortController();
+		controller.abort();
+		this._onDidInvalidate.fire({ credential: { account, token: 'token', generation: 1, signal: controller.signal }, reason });
 	}
 
 	dispose(): void { this._onDidInvalidate.dispose(); }
@@ -236,10 +244,10 @@ suite('AgentHostPullRequestStatusService', () => {
 		const gitHubStates: ISessionGitHubState[] = [];
 		const publishedStateKeys: string[] = [];
 		const chatGitStates = new Map<string, ISessionGitState>();
-		const gitHubService = new class extends mock<IGitHubService>() {
+		const gitHubService = createTestGitHubService(new class extends mock<IGitHubClient>() {
 			override readonly credentials = credentials;
 			override readonly pullRequests = resources;
-		}();
+		}(), Event.signal(Event.filter(credentials.onDidInvalidate, event => event.reason === 'account' || event.reason === 'endpoint')));
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
@@ -647,6 +655,16 @@ suite('AgentHostPullRequestStatusService', () => {
 			subscribed: 2,
 			disposed: 1,
 			live: 1,
+		});
+	});
+
+	test('retries a credential invalidated before its watch is installed', async () => {
+		const { subscriptions, credentials, resources, session } = createHarness();
+		subscriptions.addSubscription(session, `${session}/changes`);
+		credentials.invalidate('account');
+		await waitForWatch(resources);
+		assert.deepStrictEqual({ lookups: credentials.lookups, subscribed: resources.subscribed.length, live: resources.liveSubscriptions }, {
+			lookups: 2, subscribed: 1, live: 1,
 		});
 	});
 

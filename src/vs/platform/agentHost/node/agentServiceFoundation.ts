@@ -87,7 +87,7 @@ export interface IAgentServiceFoundation {
 	readonly proxyResolver: IAgentHostProxyResolver;
 	readonly requestService: IRequestService;
 	readonly fetchFn: typeof globalThis.fetch;
-	readonly gitHubServiceOptions: GitHubServiceOptions;
+	readonly gitHubServiceOptions: Omit<GitHubServiceOptions, 'credentialProvider'>;
 }
 
 export interface ICreateAgentServiceFoundationOptions {
@@ -145,18 +145,11 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 		requestService,
 		fetchFn,
 		gitHubServiceOptions: {
-			endpoint: gitHubEndpointService,
 			telemetrySource: 'agentHost',
 			clientMetadata: createGitHubClientMetadata(options.productService, 'agent-host', 'node'),
 			onDidChangeTelemetryLevel: Event.filter<TelemetryLevel, undefined>(Event.map(configurationService.onDidRootConfigChange, () =>
 				agentHostConfigValueToTelemetryLevel(configurationService.getRootConfigValues()[AgentHostTelemetryLevelConfigKey])
 				, options.owned), (level): level is TelemetryLevel => level !== undefined, options.owned),
-			tokenProvider: {
-				getToken: () => {
-					const resource = gitHubEndpointService.getRepoResource();
-					return authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-			},
 			fetch: fetchFn,
 		},
 	};

@@ -2240,6 +2240,18 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, ['copilot', 'other']);
 		});
 
+		test('uninstalls plugins through the owning provider', async () => {
+			const calls: unknown[] = [];
+			const provider: IAgent = copilotAgent;
+			provider.uninstallPlugin = async request => { calls.push(request); };
+			registerTestAgentProvider(service, provider);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+
+			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' });
+
+			assert.deepStrictEqual(calls, [{ name: 'spark', marketplace: 'copilot-plugins' }]);
+		});
+
 		test('maps progress events to protocol actions via onDidAction', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -2765,6 +2777,43 @@ suite('AgentService (node dispatcher)', () => {
 			persistedAfterMaterialize: JSON.stringify(decision),
 			restored: decision,
 		});
+	});
+
+	test('materialization preserves the chat modified time until a turn starts', async () => {
+		class ProvisionalAgent extends MockAgent {
+			private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
+			override readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
+			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+				createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
+			}));
+
+			materialize(session: URI): void {
+				this._onDidMaterializeChat.fire({
+					chat: URI.parse(buildDefaultChatUri(session)),
+					workingDirectories: undefined,
+					project: undefined,
+				});
+			}
+
+			override dispose(): void {
+				this._onDidMaterializeChat.dispose();
+				super.dispose();
+			}
+		}
+
+		const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const agent = disposables.add(new ProvisionalAgent('copilot'));
+		registerTestAgentProvider(service, agent);
+		const session = await service.createSession({ provider: agent.id });
+		const before = getStateManager(service).getSessionSummary(session.toString())?.modifiedAt;
+		assert.ok(before);
+		while (Date.now() <= Date.parse(before)) {
+			await timeout(1);
+		}
+
+		agent.materialize(session);
+
+		assert.strictEqual(getStateManager(service).getSessionSummary(session.toString())?.modifiedAt, before);
 	});
 
 	test('publishes a materialized worktree with its generated branch', async () => {
@@ -21254,6 +21303,81 @@ suite('AgentService (node dispatcher)', () => {
 					origin: peerOrigin,
 					turns: ['peer-turn-1'],
 				},
+			});
+		});
+
+		test('restore keeps catalog session recency separate from default chat metadata', async () => {
+			const providerModifiedTime = 60_000;
+			const turnStartedAt = new Date(30_000).toISOString();
+			const turnDuration = 2_000;
+			class MultiChatAgent extends MockAgent {
+				override async getSessionMessages(): Promise<readonly Turn[]> {
+					return [{
+						id: 'default-turn',
+						state: TurnState.Complete,
+						message: { text: 'hello', origin: { kind: MessageKind.User } },
+						responseParts: [],
+						usage: undefined,
+						startedAt: turnStartedAt,
+						duration: turnDuration,
+					}];
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			agent.sessionMetadataOverrides = { startTime: 1_000, modifiedTime: providerModifiedTime };
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+			const registry = (localService as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const sessionModifiedTime = (await registry.get(session))!.modifiedTime + 30_000;
+			await registry.updateModifiedTime(session, sessionModifiedTime);
+
+			getStateManager(localService).deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const stateManager = getStateManager(localService);
+			const state = stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual({
+				sessionModifiedAt: stateManager.getSessionSummary(session.toString())?.modifiedAt,
+				defaultChatModifiedAt: state?.chats.find(chat => isDefaultChatUri(chat.resource))?.modifiedAt,
+			}, {
+				sessionModifiedAt: new Date(sessionModifiedTime).toISOString(),
+				defaultChatModifiedAt: new Date(providerModifiedTime).toISOString(),
+			});
+		});
+
+		test('restore does not require peer metadata before lazy materialization', async () => {
+			let peerMetadataCalls = 0;
+			class MultiChatAgent extends MockAgent {
+				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+					if (!isDefaultChatUri(chat)) {
+						peerMetadataCalls++;
+						throw new Error('Peer metadata requires materialization');
+					}
+					return super.getChatMetadata(chat, context);
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peerUri = URI.parse(buildChatUri(session, 'peer-without-metadata'));
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString() }]));
+
+			getStateManager(localService).deleteSession(session.toString());
+			await localService.restoreSession(session);
+			const state = getStateManager(localService).getSessionState(session.toString());
+
+			assert.deepStrictEqual({
+				peerMetadataCalls,
+				chatIds: state?.chats.map(chat => parseChatUri(chat.resource)?.chatId),
+			}, {
+				peerMetadataCalls: 0,
+				chatIds: ['default', 'peer-without-metadata'],
 			});
 		});
 

@@ -143,6 +143,8 @@ export interface IActionListItem<T> {
 	 * Optional detail text displayed as a second line below the label.
 	 */
 	readonly detail?: string;
+	/** Optional link shown at the end of {@link detail}, reached with Tab from the focused item. */
+	readonly detailLink?: IActionListHeaderLink;
 	/**
 	 * Optional inline toggle switch rendered on its own row inside the item.
 	 */
@@ -354,6 +356,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _stopToolbarPointerPropagation: boolean,
 		private readonly _registerStandaloneToggle: (item: IActionListItem<T>, toggle: Switch) => IDisposable,
 		private readonly _registerToolbar: (item: IActionListItem<T>, toolbar: ActionBar) => IDisposable,
+		private readonly _registerDetailLinks: (item: IActionListItem<T>, links: readonly HTMLElement[]) => IDisposable,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -503,11 +506,24 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		if (element.detail) {
 			data.detail.textContent = stripNewlines(element.detail);
 			data.detail.style.display = '';
+			if (element.detailLink) {
+				const { label, uri } = element.detailLink;
+				const linkHandler = this._linkHandler;
+				data.elementDisposables.add(new Link(data.detail, { label, href: uri.toString(true) }, { opener: linkHandler && (() => linkHandler(uri, element)) }, this._hoverService, this._openerService));
+				const link = data.detail.lastElementChild;
+				if (dom.isHTMLElement(link)) {
+					// Placed before the text so it floats to the end of the last visible line.
+					data.detail.prepend(link);
+					link.tabIndex = -1;
+					data.elementDisposables.add(this._registerDetailLinks(element, [link]));
+				}
+			}
 		} else {
 			data.detail.textContent = '';
 			data.detail.style.display = 'none';
 		}
 		data.container.classList.toggle('has-detail', !!element.detail);
+		data.detail.classList.toggle('has-link', !!element.detail && !!element.detailLink);
 
 		// Render optional inline toggle (shown as its own row below the detail)
 		dom.clearNode(data.inlineToggleContainer);
@@ -890,6 +906,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _groupTitleByIndex = new Map<number, string>();
 	private readonly _standaloneToggles = new Map<IActionListItem<T>, Switch>();
 	private readonly _itemToolbars = new Map<IActionListItem<T>, ActionBar>();
+	private readonly _itemDetailLinks = new Map<IActionListItem<T>, readonly HTMLElement[]>();
 	private _visibleMenuItems: readonly IActionListItem<T>[];
 
 	private readonly _onDidRequestLayout = this._register(new Emitter<void>());
@@ -1030,6 +1047,13 @@ export class ActionListWidget<T> extends Disposable {
 				return toDisposable(() => {
 					if (this._itemToolbars.get(item) === toolbar) {
 						this._itemToolbars.delete(item);
+					}
+				});
+			}, (item, links) => {
+				this._itemDetailLinks.set(item, links);
+				return toDisposable(() => {
+					if (this._itemDetailLinks.get(item) === links) {
+						this._itemDetailLinks.delete(item);
 					}
 				});
 			}, this._keybindingService, this._openerService, this._hoverService),
@@ -2415,6 +2439,7 @@ export class ActionListWidget<T> extends Disposable {
 		return {
 			toolbar: this._itemToolbars.get(element),
 			panelControls: [
+				...this._itemDetailLinks.get(element) ?? [],
 				...element.hover?.getTabbableElements?.() ?? [],
 				...this._submenuHoverActionElements,
 			],
@@ -2440,7 +2465,8 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		const index = focused[0];
 		const element = this._list.element(index);
-		if (!element.hover?.tabThroughPanel && !this._options?.tabThroughItemActions) {
+		const detailLinks = this._itemDetailLinks.get(element) ?? [];
+		if (!element.hover?.tabThroughPanel && !this._options?.tabThroughItemActions && !detailLinks.length) {
 			return;
 		}
 		const row = this._getRowElement(index);
@@ -2449,7 +2475,7 @@ export class ActionListWidget<T> extends Disposable {
 			return;
 		}
 		const inToolbar = this._itemToolbars.get(element)?.isFocused() ?? false;
-		const inPanel = this._submenuContainer.contains(activeElement);
+		const inPanel = this._submenuContainer.contains(activeElement) || detailLinks.includes(activeElement);
 
 		if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && (inToolbar || inPanel)) {
 			dom.EventHelper.stop(event, true);
