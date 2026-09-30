@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -224,6 +225,103 @@ suite('GitHubService', () => {
 			assert.deepStrictEqual({ duringCooldown, calls }, { duringCooldown: 1, calls: 2 });
 		});
 	}
+
+	for (const change of ['rotate', 'release', 'revoke'] as const) {
+		for (const quota of ['core', 'secondary', 'search'] as const) {
+			test(`${quota} cooldown is preserved before identity bootstrap after ${change}`, () => runWithFakedTimers({}, async () => {
+				const changes = disposables.add(new Emitter<GitHubCredentialChange>());
+				let token = 'first-token';
+				const requests: { path: string; at: number }[] = [];
+				const start = Date.now();
+				const resource = quota === 'core' ? '/repos/owner/repo' : '/search/issues';
+				const service = setup({
+					credentialProvider: { onDidChange: changes.event, getToken: () => token },
+					fetch: async input => {
+						const path = new URL(String(input)).pathname;
+						requests.push({ path, at: Date.now() - start });
+						return path === '/user' ? new Response('{"id":101}') : new Response(JSON.stringify({
+							message: quota === 'secondary' ? 'You have exceeded a secondary rate limit' : 'API rate limit exceeded',
+						}), {
+							status: 403,
+							headers: { 'Retry-After': '5', 'x-ratelimit-resource': quota === 'core' ? 'core' : 'search' },
+						});
+					},
+				});
+				try {
+					const first = disposables.add(service.acquireClient(clientOptions()));
+					const credential = await first.object.credentials.getCredential(signal());
+					await assert.rejects(first.object.transport.rest(credential.account, credential.token, {
+						method: 'GET', url: `https://api.github.com${resource}`,
+					}, signal()), { kind: 'rateLimit' });
+					token = 'replacement-token';
+					if (change === 'release') {
+						first.dispose();
+					} else if (change === 'revoke') {
+						changes.fire({ providerId: 'github', sessionIds: ['session'] });
+					}
+					const replacement = disposables.add(service.acquireClient(clientOptions()));
+					await replacement.object.credentials.getCredential(signal());
+					assert.deepStrictEqual(requests, [
+						{ path: '/user', at: 0 },
+						{ path: resource, at: 0 },
+						{ path: '/user', at: quota === 'search' ? 0 : 5_000 },
+					]);
+				} finally {
+					service.dispose();
+				}
+			}));
+		}
+	}
+
+	test('a retained bootstrap cooldown does not delay a peer with an already-resolved identity', () => runWithFakedTimers({}, async () => {
+		const service = setup({ fetch: async () => new Response('{"id":101}') });
+		try {
+			const first = disposables.add(service.acquireClient(clientOptions()));
+			const peer = disposables.add(service.acquireClient(clientOptions(undefined, 'session', ['repo', 'user:email'])));
+			const credential = await first.object.credentials.getCredential(signal());
+			const peerCredential = await peer.object.credentials.getCredential(signal());
+			first.object.transport.rateLimits.updateFromResponse(credential.account, new Response(null, {
+				status: 429, headers: { 'Retry-After': '5', 'x-ratelimit-resource': 'core' },
+			}));
+			first.dispose();
+			const start = Date.now();
+			const retained = await peer.object.credentials.getCredential(signal());
+			assert.deepStrictEqual({ sameCredential: retained === peerCredential, elapsed: Date.now() - start }, {
+				sameCredential: true, elapsed: 0,
+			});
+		} finally {
+			service.dispose();
+		}
+	}));
+
+	test('a token replaced during the inherited bootstrap cooldown is not dispatched', () => runWithFakedTimers({}, async () => {
+		let token = 'first-token';
+		const tokens: (string | null)[] = [];
+		const service = setup({
+			credentialProvider: { onDidChange: Event.None, getToken: () => token },
+			fetch: async (_input, init) => {
+				tokens.push(new Headers(init?.headers).get('Authorization'));
+				return new Response('{"id":101}');
+			},
+		});
+		try {
+			const client = disposables.add(service.acquireClient(clientOptions())).object;
+			const credential = await client.credentials.getCredential(signal());
+			client.transport.rateLimits.updateFromResponse(credential.account, new Response(null, {
+				status: 429, headers: { 'Retry-After': '5' },
+			}));
+			token = 'superseded-token';
+			const obsolete = assert.rejects(client.credentials.getCredential(signal()), { kind: 'authentication' });
+			await timeout(1);
+			token = 'latest-token';
+			const replacement = client.credentials.getCredential(signal());
+			await obsolete;
+			await replacement;
+			assert.deepStrictEqual(tokens, ['Bearer first-token', 'Bearer latest-token']);
+		} finally {
+			service.dispose();
+		}
+	}));
 
 	test('reacquiring a failed client cannot reset identity failure backoff', async () => {
 		let calls = 0;

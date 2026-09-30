@@ -183,6 +183,82 @@ suite('Workbench GitHub service', () => {
 		});
 	});
 
+	for (const selection of ['default', 'explicit'] as const) {
+		test(`${selection} client survives same-session token renewal`, async () => {
+			const { service, sessions, changed } = setup([session('session', 'account', ['repo', 'user:email'])]);
+			const acquire = () => selection === 'default'
+				? service.acquireDefaultAccountClient(signal())
+				: service.acquireSessionClient('github', 'session', signal());
+			const first = store.add(await acquire()).object;
+			let invalidations = 0;
+			let selectionsChanged = 0;
+			store.add(first.onDidInvalidate(() => invalidations++));
+			store.add(service.onDidChangeDefaultClient(() => selectionsChanged++));
+			sessions[0] = { ...sessions[0], accessToken: 'renewed-token', scopes: ['user:email', 'repo'] };
+			changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [sessions[0]] } });
+			const next = store.add(await acquire()).object;
+			assert.deepStrictEqual({ sameClient: next === first, invalidations, selectionsChanged }, {
+				sameClient: true, invalidations: 0, selectionsChanged: 0,
+			});
+		});
+	}
+
+	test('token renewal during default selection does not invalidate the selection', async () => {
+		let renew = () => { };
+		const original = [session()];
+		const { service, sessions, changed } = setup(original, undefined, async () => {
+			renew();
+			return original;
+		});
+		const first = store.add(await service.acquireDefaultAccountClient(signal())).object;
+		renew = () => {
+			renew = () => { };
+			sessions[0] = { ...sessions[0], accessToken: 'renewed-token' };
+			changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [sessions[0]] } });
+		};
+		const next = store.add(await service.acquireDefaultAccountClient(signal())).object;
+		assert.strictEqual(next === first, true);
+	});
+
+	test('refreshing default-account metadata does not replace an unchanged selection', async () => {
+		const { service, state, defaultChanged } = setup();
+		const first = store.add(await service.acquireDefaultAccountClient(signal()));
+		first.dispose();
+		let selectionsChanged = 0;
+		store.add(service.onDidChangeDefaultClient(() => selectionsChanged++));
+		defaultChanged.fire(state.account);
+		const next = store.add(await service.acquireDefaultAccountClient(signal()));
+		assert.deepStrictEqual({ sameClient: next.object === first.object, selectionsChanged }, {
+			sameClient: true, selectionsChanged: 0,
+		});
+	});
+
+	for (const grant of ['account', 'scopes', 'issuer'] as const) {
+		test(`${grant} changes retire only the affected workbench client`, async () => {
+			const { service, sessions, changed } = setup([session(), session('peer', 'other-account')]);
+			const first = store.add(await service.acquireDefaultAccountClient(signal())).object;
+			const peer = store.add(await service.acquireSessionClient('github', 'peer', signal())).object;
+			const invalidations: string[] = [];
+			let selectionsChanged = 0;
+			store.add(first.onDidInvalidate(() => invalidations.push('first')));
+			store.add(peer.onDidInvalidate(() => invalidations.push('peer')));
+			store.add(service.onDidChangeDefaultClient(() => selectionsChanged++));
+			sessions[0] = {
+				...sessions[0],
+				...(grant === 'account' ? { account: { id: 'replacement', label: 'replacement' } }
+					: grant === 'scopes' ? { scopes: ['repo', 'gist'] }
+						: { authorizationServer: URI.parse('https://github.com/login/oauth') }),
+			};
+			changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [sessions[0]] } });
+			await assert.rejects(first.credentials.getCredential(signal()), /disposed/);
+			const retained = store.add(await service.acquireSessionClient('github', 'peer', signal())).object;
+			const replacement = store.add(await service.acquireDefaultAccountClient(signal())).object;
+			assert.deepStrictEqual({ invalidations, selectionsChanged, retainedPeer: retained === peer, replaced: replacement !== first }, {
+				invalidations: ['first'], selectionsChanged: 1, retainedPeer: true, replaced: true,
+			});
+		});
+	}
+
 	test('session changes invalidate only the affected authorization context', async () => {
 		const { service, sessions, changed } = setup([session('first'), session('second', 'other')]);
 		const first = store.add(await service.acquireSessionClient('github', 'first', signal())).object;

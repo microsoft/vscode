@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
-import { IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { scopesMatch } from '../../../../base/common/oauth.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,48 +20,98 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { IWorkbenchGitHubService } from '../common/githubService.js';
 
-class WorkbenchGitHubCredentialProvider implements IGitHubCredentialProvider {
-	readonly onDidChange: Event<GitHubCredentialChange>;
+interface IGitHubSessionGrant {
+	readonly accountId: string;
+	readonly scopes: readonly string[];
+	readonly authorizationServer: string | undefined;
+}
+
+class WorkbenchGitHubCredentialProvider extends Disposable implements IGitHubCredentialProvider {
+	private readonly _sessions = new Map<string, { version: number; grants: Map<string, IGitHubSessionGrant> }>();
+	private readonly _onDidChangeSessions = this._register(new Emitter<{ providerId: string; event: AuthenticationSessionsChangeEvent }>());
+	readonly onDidChangeSessions = this._onDidChangeSessions.event;
+	readonly onDidChange: Event<GitHubCredentialChange> = Event.map(this.onDidChangeSessions, event => ({
+		providerId: event.providerId,
+		sessionIds: [...event.event.changed ?? [], ...event.event.removed ?? []].map(session => session.id),
+	}));
 
 	constructor(private readonly _authenticationService: IAuthenticationService) {
-		this.onDidChange = Event.map(_authenticationService.onDidChangeSessions, event => ({
-			providerId: event.providerId,
-			sessionIds: [...event.event.changed ?? [], ...event.event.removed ?? []].map(session => session.id),
+		super();
+		this._register(toDisposable(() => this._sessions.clear()));
+		this._register(_authenticationService.onDidChangeSessions(event => {
+			const state = this._sessions.get(event.providerId);
+			const changed = event.event.changed?.filter(session => {
+				const previous = state?.grants.get(session.id);
+				return !previous || previous.accountId !== session.account.id
+					|| previous.authorizationServer !== session.authorizationServer?.toString()
+					|| !scopesMatch(previous.scopes, session.scopes);
+			});
+			if (state) {
+				state.version++;
+				for (const session of event.event.removed ?? []) {
+					state.grants.delete(session.id);
+				}
+				for (const session of [...event.event.added ?? [], ...event.event.changed ?? []]) {
+					state.grants.set(session.id, sessionGrant(session));
+				}
+			}
+			if (event.event.added?.length || event.event.removed?.length || changed?.length) {
+				this._onDidChangeSessions.fire({ providerId: event.providerId, event: { ...event.event, changed } });
+			}
 		}));
 	}
 
-	async getToken(context: GitHubAuthorizationContext, signal: AbortSignal): Promise<string | undefined> {
+	async getSessions(providerId: string, signal: AbortSignal): Promise<readonly AuthenticationSession[]> {
 		signal.throwIfAborted();
-		const sessions = await this._authenticationService.getSessions(context.providerId, [], { silent: true }, true);
+		let state = this._sessions.get(providerId);
+		if (!state) {
+			state = { version: 0, grants: new Map() };
+			this._sessions.set(providerId, state);
+		}
+		const version = state.version;
+		const sessions = await this._authenticationService.getSessions(providerId, [], { silent: true }, true);
 		signal.throwIfAborted();
-		return sessions.find(session => session.id === context.sessionId
-			&& session.scopes.length === context.scopes.length
-			&& session.authorizationServer?.toString() === context.authorizationServer
-			&& context.scopes.every(scope => session.scopes.includes(scope)))?.accessToken;
+		if (state.version === version) {
+			state.grants = new Map(sessions.map(session => [session.id, sessionGrant(session)]));
+		}
+		return sessions;
 	}
+
+	async getToken(context: GitHubAuthorizationContext, signal: AbortSignal): Promise<string | undefined> {
+		const sessions = await this.getSessions(context.providerId, signal);
+		return sessions.find(session => session.id === context.sessionId
+			&& session.authorizationServer?.toString() === context.authorizationServer
+			&& scopesMatch(session.scopes, context.scopes))?.accessToken;
+	}
+}
+
+function sessionGrant(session: AuthenticationSession): IGitHubSessionGrant {
+	return { accountId: session.account.id, scopes: [...session.scopes], authorizationServer: session.authorizationServer?.toString() };
 }
 
 export class WorkbenchGitHubService extends GitHubService implements IWorkbenchGitHubService {
 
 	readonly onDidChangeDefaultClient: Event<void>;
+	private readonly _credentialProvider: WorkbenchGitHubCredentialProvider;
 	private readonly _defaultClient = this._register(new MutableDisposable<IReference<IGitHubClient>>());
 	private readonly _lifetime = new AbortController();
 	private _defaultClientGeneration = 0;
 	private _defaultSessionAccountId: string | undefined;
 
 	constructor(
-		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ILogService logService: ILogService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
+		const credentialProvider = new WorkbenchGitHubCredentialProvider(authenticationService);
 		super({
-			credentialProvider: new WorkbenchGitHubCredentialProvider(_authenticationService),
+			credentialProvider,
 			telemetrySource: isWeb ? 'web' : 'workbench',
 			clientMetadata: createGitHubClientMetadata(productService, 'workbench', 'browser'),
 			onDidChangeTelemetryLevel: Event.map(Event.filter(configurationService.onDidChangeConfiguration, event =>
@@ -69,19 +120,29 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 				|| event.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)
 			), () => getTelemetryLevel(configurationService)),
 		}, logService, telemetryService);
+		this._credentialProvider = this._register(credentialProvider);
+		let defaultAccountKey = this._getDefaultAccountKey();
 		this.onDidChangeDefaultClient = Event.any(
-			Event.map(_defaultAccountService.onDidChangeDefaultAccount, () => {
+			Event.signal(Event.filter(_defaultAccountService.onDidChangeDefaultAccount, () => {
+				const key = this._getDefaultAccountKey();
+				if (key === defaultAccountKey) {
+					return false;
+				}
+				defaultAccountKey = key;
 				this._defaultSessionAccountId = undefined;
-			}, this._store),
-			Event.signal(Event.filter(_authenticationService.onDidChangeSessions, event =>
+				return true;
+			}, this._store)),
+			Event.signal(Event.filter(credentialProvider.onDidChangeSessions, event =>
 				event.providerId === _defaultAccountService.getDefaultAccountAuthenticationProvider().id
 				&& [...event.event.added ?? [], ...event.event.changed ?? [], ...event.event.removed ?? []].some(session =>
 					!this._defaultSessionAccountId || session.account.id === this._defaultSessionAccountId
+					|| session.id === this._defaultClient.value?.object.authorization.sessionId
+					|| session.id === _defaultAccountService.currentDefaultAccount?.sessionId
 				), this._store)),
 		);
 		this._register(this.onDidChangeDefaultClient(() => {
-				this._defaultClientGeneration++;
-				this._defaultClient.clear();
+			this._defaultClientGeneration++;
+			this._defaultClient.clear();
 		}));
 		this._register(toDisposable(() => this._lifetime.abort(new GitHubRequestError('GitHub service was disposed', 'unknown'))));
 	}
@@ -92,7 +153,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		const { options, accountId } = await withGitHubCredentialDeadline(combinedSignal, signal => this._getDefaultAccountOptions(signal));
 		combinedSignal.throwIfAborted();
 		if (generation !== this._defaultClientGeneration) {
-				throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
+			throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
 		}
 		this._defaultSessionAccountId = accountId;
 		this._defaultClient.value = this.acquireClient(options);
@@ -106,6 +167,12 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		return this.acquireClient(options);
 	}
 
+	private _getDefaultAccountKey(): string {
+		const account = this._defaultAccountService.currentDefaultAccount;
+		const provider = account?.authenticationProvider ?? this._defaultAccountService.getDefaultAccountAuthenticationProvider();
+		return JSON.stringify([provider.id, account?.sessionId, provider.enterprise, provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined]);
+	}
+
 	private async _getDefaultAccountOptions(signal: AbortSignal): Promise<{ options: GitHubClientOptions; accountId: string }> {
 		signal.throwIfAborted();
 		const account = this._defaultAccountService.currentDefaultAccount ?? await this._defaultAccountService.getDefaultAccount();
@@ -114,7 +181,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 			throw new GitHubRequestError(localize('githubAuthenticationRequired', "Sign in to GitHub to load GitHub data."), 'authentication');
 		}
 		const provider = account.authenticationProvider;
-		const sessions = await this._authenticationService.getSessions(provider.id, [], { silent: true }, true);
+		const sessions = await this._credentialProvider.getSessions(provider.id, signal);
 		signal.throwIfAborted();
 		const selected = sessions.find(session => session.id === account.sessionId);
 		if (!selected) {
@@ -137,7 +204,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 
 	private async _getSessionOptions(providerId: string, sessionId: string, signal: AbortSignal): Promise<GitHubClientOptions> {
 		signal.throwIfAborted();
-		const sessions = await this._authenticationService.getSessions(providerId, [], { silent: true }, true);
+		const sessions = await this._credentialProvider.getSessions(providerId, signal);
 		signal.throwIfAborted();
 		const session = sessions.find(session => session.id === sessionId);
 		if (!session) {

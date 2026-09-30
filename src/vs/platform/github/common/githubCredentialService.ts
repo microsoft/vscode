@@ -176,11 +176,17 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 
 	private async _resolve(token: string, signal: AbortSignal, deadline: number): Promise<GitHubCredential> {
 		this._throwIfExpired(signal, deadline);
-		while (this._bootstrapQuotaAccount && this._transport.rateLimits.getDelay(this._bootstrapQuotaAccount, 'core') > 0) {
+		if (this._current?.token !== token) {
+			this._preserveBootstrapCooldown();
+		}
+		let waitedForCooldown = false;
+		while (this._current?.token !== token && this._bootstrapQuotaAccount && this._transport.rateLimits.getDelay(this._bootstrapQuotaAccount, 'core') > 0) {
+			waitedForCooldown = true;
 			await this._transport.rateLimits.wait(this._bootstrapQuotaAccount, 'core', signal);
 			this._throwIfExpired(signal, deadline);
 		}
-		if (await this._backoff.wait(this._backoffKey(token, this._currentHost()), signal)) {
+		const waitedForBackoff = await this._backoff.wait(this._backoffKey(token, this._currentHost()), signal);
+		if (waitedForCooldown || waitedForBackoff) {
 			// The wait is long enough for the credential to have been replaced,
 			// and resolving the superseded one would abort the request the
 			// replacement is already making.
@@ -200,6 +206,9 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 			const apiBaseUri = this._endpointProvider.getApiBaseUri();
 			const host = new URL(apiBaseUri).host.toLowerCase();
 			const bootstrapAccount: GitHubAccountHandle = { host, accountId: `bootstrap:${this._identity}:${generation}` };
+			if (this._bootstrapQuotaAccount) {
+				this._transport.rateLimits.preserveCooldown(bootstrapAccount, 'core', this._transport.rateLimits.getDelay(this._bootstrapQuotaAccount, 'core'));
+			}
 			this._logService?.debug(`[GitHubCredentialService] Resolving account identity for ${host} (generation ${generation})`);
 			const current: ICredentialGeneration = {
 				token,
@@ -298,6 +307,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		if (reason === 'endpoint') {
 			this._backoff.reset();
 		}
+		this._preserveBootstrapCooldown();
 		const current = this._current;
 		if (!current) {
 			if (reason === 'replacement' && this._lastCredential) {
@@ -325,6 +335,14 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		this._onDidInvalidate.fire({ credential: current.credential, reason });
 		if (reason === 'endpoint' || reason === 'shutdown') {
 			this._lastCredential = undefined;
+		}
+	}
+
+	private _preserveBootstrapCooldown(): void {
+		const credential = this._current?.credential ?? this._lastCredential;
+		if (this._bootstrapQuotaAccount && credential
+			&& credential.account.host.toLowerCase() === this._bootstrapQuotaAccount.host.toLowerCase()) {
+			this._transport.rateLimits.preserveCooldown(this._bootstrapQuotaAccount, 'core', this._transport.rateLimits.getDelay(credential.account, 'core'));
 		}
 	}
 }
