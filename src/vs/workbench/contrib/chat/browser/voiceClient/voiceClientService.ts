@@ -163,6 +163,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _gptLiveOutputStarted = false;
 	private _gptLiveOutputTimer: ReturnType<typeof setTimeout> | undefined;
 	private _usingGptLive = false;
+	private _gptLiveSessionInitSent = false;
 	private _gptLiveAvailability: GptLiveSessionCommandResult | undefined;
 	private _connectionAttempt = 0;
 	private _intentionalDisconnect = false;
@@ -578,7 +579,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				this._lastSessionId = sessionId;
 				this._sessionStartedOnSocket = true;
 				this._setConnected(true);
-				this._onSessionInit.fire({ sessionId });
 				break;
 			}
 			case 'session.input_transcript.delta': {
@@ -951,6 +951,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._micCaptureService?.stopCapture();
 		}
 		this._usingGptLive = false;
+		this._gptLiveSessionInitSent = false;
 		this._gptLiveTurnId = undefined;
 		this._gptLiveDelegationId = undefined;
 		this._gptLiveInputTranscript = '';
@@ -1305,6 +1306,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	 */
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void {
 		if (this._usingGptLive) {
+			const sessionId = this._lastSessionId ?? '';
+			queueMicrotask(() => {
+				if (this._usingGptLive && this._isConnected && !this._gptLiveSessionInitSent) {
+					this._gptLiveSessionInitSent = true;
+					this._onSessionInit.fire({ sessionId });
+				}
+			});
 			return;
 		}
 		if (this._ws?.readyState === WebSocket.OPEN) {

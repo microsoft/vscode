@@ -278,12 +278,17 @@ suite('VoiceClientService', () => {
 		const transcriptions: IVoiceTranscription[] = [];
 		const toolCalls: { callId: string; name: string; args: Record<string, unknown> }[] = [];
 		const remoteAudioStates: boolean[] = [];
+		const initializedSessions: string[] = [];
 		store.add(service.onTranscription(event => transcriptions.push(event)));
 		store.add(service.onToolCall(event => toolCalls.push(event)));
 		store.add(service.onDidChangeRemoteAudioState(state => remoteAudioStates.push(state)));
+		store.add(service.onSessionInit(event => initializedSessions.push(event.sessionId)));
 
 		await service.connect(createTestWindow());
 		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-123' } });
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+		await Promise.resolve();
 		service.sendPttStart('turn-1', { hasActiveSession: true });
 		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Fix the tests' });
 		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'delegation-1', target: 'client' } });
@@ -297,6 +302,7 @@ suite('VoiceClientService', () => {
 			sessionId: service.currentSessionId,
 			remoteDescription: peer.remoteDescription,
 			trackEnabled: track.enabled,
+			initializedSessions,
 			transcriptions,
 			toolCalls,
 			remoteAudioStates,
@@ -306,6 +312,7 @@ suite('VoiceClientService', () => {
 			sessionId: 'live-123',
 			remoteDescription: { type: 'answer', sdp: 'answer-sdp' },
 			trackEnabled: false,
+			initializedSessions: ['live-123'],
 			transcriptions: [
 				{ text: 'Fix the tests', status: 'partial', turnId: 'turn-1' },
 				{ text: 'Fix the tests', status: 'final', turnId: 'turn-1' },
