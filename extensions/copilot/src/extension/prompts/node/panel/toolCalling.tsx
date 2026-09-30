@@ -49,6 +49,8 @@ export interface ChatToolCallsProps extends BasePromptElementProps {
 	readonly toolCallRounds: readonly IToolCallRound[] | undefined;
 	readonly toolCallResults: Record<string, LanguageModelToolResult2> | undefined;
 	readonly isHistorical?: boolean;
+	/** Whether completed rounds belong to the user task continued by a system notification. */
+	readonly isCurrentTask?: boolean;
 	readonly toolCallMode?: CopilotToolMode;
 	readonly enableCacheBreakpoints?: boolean;
 	readonly truncateAt?: number;
@@ -140,7 +142,8 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		const modelSupportsHistoricalThinking = !!this.promptEndpoint.supportsAdaptiveThinking;
 		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
 			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking);
-		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || apiSupportsHistoricalThinking);
+		const continuesCurrentTask = this.props.isCurrentTask && this.promptEndpoint.apiType === 'chatCompletions';
+		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || continuesCurrentTask || apiSupportsHistoricalThinking);
 		// Record which API produced this round so the request builders can tell replayable
 		// reasoning from foreign state without guessing from the payload's id.
 		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} originApi={round.originApi} />;

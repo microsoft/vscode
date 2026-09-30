@@ -1065,6 +1065,119 @@ suite('ChatService', () => {
 		await response.data.responseCompletePromise;
 	});
 
+	for (const duringActiveRequest of [true, false]) {
+		test(`system notifications retain their provenance after ${duringActiveRequest ? 'steering an active' : 'resuming an idle'} task`, async () => {
+			const started = new DeferredPromise<void>();
+			const complete = new DeferredPromise<void>();
+			const invocations: { message: string; isSystemInitiated: boolean; history: { message: string; isSystemInitiated: boolean }[] }[] = [];
+			const canceled: string[] = [];
+			const agentId = 'notificationAgent';
+			testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+				async invoke(request, _progress, history, token) {
+					invocations.push({
+						message: request.message,
+						isSystemInitiated: !!request.isSystemInitiated,
+						history: history.map(entry => ({ message: entry.request.message, isSystemInitiated: !!entry.request.isSystemInitiated })),
+					});
+					testDisposables.add(token.onCancellationRequested(() => canceled.push(request.message)));
+					if (invocations.length === 1) {
+						started.complete();
+						await complete.p;
+					}
+					return {};
+				},
+			}));
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const first = await service.sendRequest(model.sessionResource, 'task', { agentId });
+			ChatSendResult.assertSent(first);
+			await started.p;
+			if (!duringActiveRequest) {
+				complete.complete();
+				await first.data.responseCompletePromise;
+			}
+
+			const notification = '[Terminal terminal-1 notification: command completed.]\nTerminal output:\nNOTIFY-DONE';
+			const pending = await service.sendRequest(model.sessionResource, notification, { agentId, queue: ChatRequestQueueKind.Steering, isSystemInitiated: true });
+			if (duringActiveRequest) {
+				assert.ok(ChatSendResult.isQueued(pending));
+				complete.complete();
+				await first.data.responseCompletePromise;
+			}
+			const sent = ChatSendResult.isQueued(pending) ? await pending.deferred : pending;
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+			const nextPending = await service.sendRequest(model.sessionResource, 'next notification', { agentId, queue: ChatRequestQueueKind.Steering, isSystemInitiated: true });
+			const next = ChatSendResult.isQueued(nextPending) ? await nextPending.deferred : nextPending;
+			ChatSendResult.assertSent(next);
+			await next.data.responseCompletePromise;
+			service.processPendingRequests(model.sessionResource);
+
+			assert.deepStrictEqual({ invocations, canceled, pending: model.getPendingRequests().length }, {
+				invocations: [
+					{ message: 'task', isSystemInitiated: false, history: [] },
+					{ message: notification, isSystemInitiated: true, history: [{ message: 'task', isSystemInitiated: false }] },
+					{ message: 'next notification', isSystemInitiated: true, history: [{ message: 'task', isSystemInitiated: false }, { message: notification, isSystemInitiated: true }] },
+				],
+				canceled: [],
+				pending: 0,
+			});
+		});
+	}
+
+	for (const { name, firstIsSystem, secondIsSystem, expectSystem } of [
+		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expectSystem: true },
+		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expectSystem: false },
+		{ name: 'user input then notification', firstIsSystem: false, secondIsSystem: true, expectSystem: false },
+	]) {
+		test(`steering batches preserve user turn boundaries: ${name}`, async () => {
+			const started = new DeferredPromise<void>();
+			const complete = new DeferredPromise<void>();
+			const invoked: { message: string; isSystemInitiated: boolean }[] = [];
+			const agentId = 'notificationAgent';
+			testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+				async invoke(request) {
+					invoked.push({ message: request.message, isSystemInitiated: !!request.isSystemInitiated });
+					if (invoked.length === 1) {
+						started.complete();
+						await complete.p;
+					}
+					return {};
+				},
+			}));
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const first = await service.sendRequest(model.sessionResource, 'task', { agentId });
+			ChatSendResult.assertSent(first);
+			await started.p;
+			const pending = [];
+			for (const [i, isSystemInitiated] of [firstIsSystem, secondIsSystem].entries()) {
+				const result = await service.sendRequest(model.sessionResource, `message ${i + 1}`, {
+					agentIdSilent: agentId,
+					queue: ChatRequestQueueKind.Steering,
+					isSystemInitiated,
+					systemInitiatedLabel: isSystemInitiated ? 'Terminal completed' : undefined,
+				});
+				assert.ok(ChatSendResult.isQueued(result));
+				pending.push(result);
+			}
+			complete.complete();
+			await first.data.responseCompletePromise;
+			for (const queued of pending) {
+				const result = await queued.deferred;
+				ChatSendResult.assertSent(result);
+				await result.data.responseCompletePromise;
+			}
+			assert.deepStrictEqual({ invoked, label: model.lastRequest?.systemInitiatedLabel, pending: model.getPendingRequests().length }, {
+				invoked: [{ message: 'task', isSystemInitiated: false }, { message: 'message 1\n\nmessage 2', isSystemInitiated: expectSystem }],
+				label: expectSystem ? 'Terminal completed' : undefined,
+				pending: 0,
+			});
+		});
+	}
+
 	test('multiple steering messages are combined into a single request', async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();
