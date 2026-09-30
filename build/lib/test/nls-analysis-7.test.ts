@@ -36,7 +36,22 @@ suite('TypeScript 7 NLS analysis', () => {
 				'import { localize } from "other/module";',
 				'const ignored = localize("ignored", "Ignored");',
 			].join('\n'),
+			[
+				'import * as nls from "vs/nls.js";',
+				'const one = nls.localize("one", "One");',
+				'function nested(nls: { localize(key: string, value: string): string }) {',
+				'\treturn nls.localize("shadowed", "Shadowed");',
+				'}',
+			].join('\n'),
+			[
+				'import { localize as translate } from "vs/nls.js";',
+				'const one = translate("one", "One");',
+				'function nested(translate: (key: string, value: string) => string) {',
+				'\treturn translate("shadowed", "Shadowed");',
+				'}',
+			].join('\r\n'),
 		];
+		sources.push('', sources[0], sources[0]);
 
 		const expected = sources.map(source => ({
 			localize: analyzeLocalizeCalls6(source, 'localize'),

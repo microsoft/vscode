@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { API, type Checker, type Project, type Snapshot } from '@typescript/native/unstable/sync';
-import { createVirtualFileSystem, type FileSystem } from '@typescript/native/unstable/fs';
+import { createFileSystem } from '@typescript/native/unstable/fs';
 import {
 	isCallExpression,
 	isExternalModuleReference,
@@ -207,19 +207,16 @@ function analyzeSourceFile(sourceFile: SourceFile, project: Project, functionNam
 }
 
 export class NlsAnalyzer {
-	private readonly fileSystem: FileSystem;
 	private readonly api: API;
 	private snapshot: Snapshot | undefined;
 	private project: Project | undefined;
 	private sourceFile: SourceFile | undefined;
-	private fileName: string | undefined;
 	private fileCounter = 0;
 	private contents: string | undefined;
 	private disposed = false;
 
 	constructor() {
-		this.fileSystem = createVirtualFileSystem({});
-		this.api = new API({ cwd: virtualRoot, fs: this.fileSystem, collectTiming: true });
+		this.api = new API({ cwd: virtualRoot, collectTiming: true });
 	}
 
 	analyzeLocalizeCalls(contents: string, functionName: 'localize' | 'localize2'): ILocalizeCall[] {
@@ -243,24 +240,24 @@ export class NlsAnalyzer {
 	}
 
 	private updateSourceFile(contents: string): void {
-		const previousFileName = this.fileName;
 		const fileName = `${virtualRoot}/file-${this.fileCounter++}.ts`;
-		this.fileSystem.writeFile!(fileName, contents);
 		const previousSnapshot = this.snapshot;
-		this.snapshot = this.api.updateSnapshot(previousFileName
-			? { closeFiles: [previousFileName], openFiles: [fileName] }
-			: { openFiles: [fileName] });
+		const snapshot = this.api.createSnapshot({
+			fileSystem: createFileSystem([[fileName, contents]]),
+			createPrograms: [{
+				rootFiles: [fileName],
+				compilerOptions: { noLib: true, noResolve: true, types: [] }
+			}]
+		});
+		this.snapshot = snapshot;
 		previousSnapshot?.dispose();
-		if (previousFileName) {
-			this.fileSystem.removeFile!(previousFileName);
-		}
 
-		this.project = this.snapshot.getDefaultProjectForFile(fileName);
-		this.sourceFile = this.project?.program.getSourceFile(fileName);
-		if (!this.project || !this.sourceFile) {
+		const program = snapshot.operation.createdPrograms[0];
+		this.project = program.getProject();
+		this.sourceFile = program.getSourceFile(fileName);
+		if (!this.sourceFile) {
 			throw new Error('Unable to create a TypeScript project for NLS analysis.');
 		}
-		this.fileName = fileName;
 		this.contents = contents;
 	}
 }
