@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptElement, PromptSizing } from '@vscode/prompt-tsx';
-import { isGpt6Family } from '../../../../../platform/endpoint/common/chatModelCapabilities';
+import { isGpt6Family, isHiddenModelI } from '../../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
 import { ToolName } from '../../../../tools/common/toolNames';
 import { Gpt55CopilotIdentityRule as Gpt6CopilotIdentityRule } from '../../base/copilotIdentity';
@@ -263,7 +263,7 @@ class Gpt6Prompt extends PromptElement<DefaultAgentPromptProps> {
 export class Gpt6PromptResolver implements IAgentPrompt {
 
 	static async matchesModel(endpoint: IChatEndpoint): Promise<boolean> {
-		return isGpt6Family(endpoint);
+		return isGpt6Family(endpoint) || isHiddenModelI(endpoint);
 	}
 
 	static readonly familyPrefixes = [];

@@ -54,14 +54,14 @@ class OpenPullRequestAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | PullRequestActionContext): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
-		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
-		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
-		if (!pullRequest) {
-			return;
-		}
-
 		const openerService = accessor.get(IOpenerService);
-		await openerService.open(pullRequest.uri, { openExternal: true, allowContributedOpeners: true });
+		const targets = Array.isArray(sessionOrContext) ? sessionOrContext : [sessionOrContext ?? sessionsService.activeSession.get()];
+		for (const target of targets) {
+			const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
+			if (pullRequest) {
+				await openerService.open(pullRequest.uri, { openExternal: true, allowContributedOpeners: true });
+			}
+		}
 	}
 }
 registerAction2(OpenPullRequestAction);
@@ -91,13 +91,16 @@ class CopyPullRequestUrlAction extends Action2 {
 	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | PullRequestActionContext): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const sessionsService = accessor.get(ISessionsService);
-		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
-		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
-		if (!pullRequest) {
+		const targets = Array.isArray(sessionOrContext) ? sessionOrContext : [sessionOrContext ?? sessionsService.activeSession.get()];
+		const pullRequestUrls = targets.flatMap(target => {
+			const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
+			return pullRequest ? [pullRequest.uri.toString(true)] : [];
+		});
+		if (pullRequestUrls.length === 0) {
 			return;
 		}
 
-		await clipboardService.writeText(pullRequest.uri.toString(true));
+		await clipboardService.writeText(pullRequestUrls.join('\n'));
 	}
 }
 registerAction2(CopyPullRequestUrlAction);

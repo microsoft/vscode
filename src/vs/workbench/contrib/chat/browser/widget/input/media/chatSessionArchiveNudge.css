@@ -22,6 +22,11 @@
 	min-width: 0;
 }
 
+.chat-session-archive-nudge-content,
+.chat-session-archive-nudge-heading {
+	display: contents;
+}
+
 .chat-session-archive-nudge-icon {
 	flex-shrink: 0;
 	width: var(--vscode-codiconFontSize);
@@ -125,4 +130,42 @@
 
 .chat-session-archive-nudge-footer > .monaco-button {
 	width: auto;
+}
+
+.chat-session-archive-nudge.compact {
+	padding-block: var(--vscode-spacing-size80);
+}
+
+.chat-session-archive-nudge.compact .chat-session-archive-nudge-content {
+	display: flex;
+	flex: 1;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.chat-session-archive-nudge.compact .chat-session-archive-nudge-heading {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	max-width: 100%;
+}
+
+.chat-session-archive-nudge.compact .chat-session-archive-nudge-icon {
+	margin-top: 0;
+}
+
+.chat-session-archive-nudge.compact .chat-session-archive-nudge-title {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.chat-session-archive-nudge.compact .chat-session-archive-nudge-footer {
+	max-width: 100%;
+	margin-inline-start: 0;
 }

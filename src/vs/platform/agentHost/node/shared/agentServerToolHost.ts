@@ -87,7 +87,9 @@ export interface IServerToolGroup {
 	/** Whether each session keeps the definitions first advertised to it instead of following later enablement changes. */
 	readonly materializeDefinitions?: boolean;
 	/** Whether a contributed tool is currently enabled for advertisement and execution. */
-	isEnabled(toolName: string): boolean;
+	isEnabled(toolName: string, sessionUri?: URI): boolean;
+	/** Tailors current tool wording to a session without changing its materialized membership. */
+	getDefinitionForSession?(definition: IAgentServerToolDefinition, sessionUri: URI): IAgentServerToolDefinition;
 	/** Whether a contributed tool is supported by a specific session. */
 	isEnabledForSession(toolName: string, sessionUri: URI): boolean;
 	/**
@@ -199,22 +201,26 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 				// of pinning the descriptions they were first advertised with. Tools
 				// with no current definition (e.g. the retired create_chat) keep their
 				// stored metadata.
-				const currentByName = new Map(currentDefinitions.map(definition => [definition.name, definition]));
+				const currentByName = new Map(currentDefinitions.map(definition => [definition.name, group.getDefinitionForSession?.(definition, sessionUri) ?? definition]));
 				return materializedDefinitions
 					.filter(definition => this._groupByToolName.get(definition.name) === group)
 					.filter(definition => !currentByName.has(definition.name) || group.isEnabledForSession(definition.name, sessionUri))
 					.map(definition => currentByName.get(definition.name) ?? definition);
 			}
-			const definitions = currentDefinitions.filter(definition => group.isEnabled(definition.name) && group.isEnabledForSession(definition.name, sessionUri));
+			const definitions = currentDefinitions
+				.filter(definition => group.isEnabled(definition.name, sessionUri) && group.isEnabledForSession(definition.name, sessionUri))
+				.map(definition => group.getDefinitionForSession?.(definition, sessionUri) ?? definition);
 			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;
 		});
 	}
 
 	get toolNames(): readonly string[] {
 		return [
-			...this.definitions.map(definition => definition.name),
+			...this._groups.flatMap(group => group.definitions
+				.filter(definition => group.materializeDefinitions || group.isEnabled(definition.name))
+				.map(definition => definition.name)),
 			...this._groups.flatMap(group => [...(group.legacyToolNames ?? [])]
-				.filter(([, currentName]) => group.isEnabled(currentName))
+				.filter(([, currentName]) => group.materializeDefinitions || group.isEnabled(currentName))
 				.map(([legacyName]) => legacyName)),
 		];
 	}
@@ -279,6 +285,6 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		const advertisedTools = this._stateManager.getSessionState(chatUri)?.serverTools;
 		return advertisedTools
 			? advertisedTools.some(tool => tool.name === toolName) || group.legacyToolNames?.has(requestedToolName) === true
-			: group.isEnabled(toolName);
+			: group.isEnabled(toolName, sessionUri);
 	}
 }

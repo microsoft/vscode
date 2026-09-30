@@ -92,11 +92,13 @@ export function getModelPickerAccessibilityProvider(isSearch = false) {
 	return {
 		getAriaLabel(element: IActionListItem<IActionWidgetDropdownAction>) {
 			if (element.kind !== ActionListItemKind.Action) {
-				return null;
+				return element.additionalBadges?.length
+					? [element.label, ...element.additionalBadges.map(badge => badge.label)].join(', ')
+					: null;
 			}
 			const description = element.ariaDescription ?? (typeof element.description === 'string' ? element.description : element.description?.value);
 			const currentModel = isSearch && element.item?.checked ? localize('chat.modelPicker.currentModel', "Current model") : undefined;
-			return [element.label, element.badge, description, currentModel].filter((part): part is string => !!part).join(', ');
+			return [element.label, element.badge, ...(element.additionalBadges?.map(badge => badge.label) ?? []), description, currentModel].filter((part): part is string => !!part).join(', ');
 		},
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
 			if (isSearch || element.isSectionToggle) {

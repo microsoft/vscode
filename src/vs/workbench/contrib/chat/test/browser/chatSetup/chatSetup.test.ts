@@ -145,6 +145,17 @@ suite('Chat setup dialog presentation', () => {
 		});
 	});
 
+	test('keeps settings text without a link when the enterprise URL is unavailable', () => {
+		const footer = getChatSetupDialogFooter(undefined, TelemetryLevel.USAGE, undefined, {
+			providerName: 'GitHub',
+			termsStatementUrl: 'https://example.com/terms',
+			privacyStatementUrl: 'https://example.com/privacy',
+			publicCodeMatchesUrl: 'https://example.com/public-code',
+		});
+
+		assert.strictEqual(footer, 'By continuing, you agree to GitHub\'s [Terms](https://example.com/terms) and [Privacy Statement](https://example.com/privacy). GitHub Copilot may show [public code](https://example.com/public-code) suggestions and use your data to improve the product. You can change these settings anytime.');
+	});
+
 	test('places Microsoft after the other providers and before the signed-out continuation', () => {
 		assert.deepStrictEqual({
 			withMicrosoft: buttonLabels({ allowContinueWithoutSignIn: true }, false, true),

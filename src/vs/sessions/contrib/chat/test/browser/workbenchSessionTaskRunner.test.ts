@@ -47,8 +47,6 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
 		loading: observableValue('loading', false),
@@ -211,7 +209,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		registerMockTask('build', worktreeUri, TaskSourceKind.User);
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 
-		(await runner.runTask(makeTask('build'), session, { taskTarget: 'user' }))?.dispose();
+		(await runner.runTask(makeTask('build'), session, undefined, { taskTarget: 'user' }))?.dispose();
 
 		assert.strictEqual(taskLookups[0], USER_TASKS_GROUP_KEY);
 		assert.deepStrictEqual(ranTasks, [{ label: 'build' }]);
@@ -221,7 +219,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		registerMockTask('build', worktreeUri, TaskSourceKind.User);
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 
-		await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace' });
+		await runner.runTask(makeTask('build'), session, undefined, { taskTarget: 'workspace' });
 
 		assert.deepStrictEqual(ranTasks, []);
 	});
@@ -230,7 +228,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		registerMockTask('build', worktreeUri, TaskSourceKind.Extension);
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 
-		await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace' });
+		await runner.runTask(makeTask('build'), session, undefined, { taskTarget: 'workspace' });
 
 		assert.deepStrictEqual(ranTasks, []);
 	});
@@ -239,7 +237,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		registerMockTask('build', worktreeUri, TaskSourceKind.User);
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 
-		await runner.runTask({ ...makeTask('build'), dependsOn: 'prepare' }, session, {
+		await runner.runTask({ ...makeTask('build'), dependsOn: 'prepare' }, session, undefined, {
 			taskTarget: 'user',
 			allowWorkspaceTaskDependencies: false,
 		});
@@ -252,7 +250,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 		const cancellation = new CancellationTokenSource();
 
-		(await runner.runTask(makeTask('build'), session, { taskTarget: 'user', token: cancellation.token }))?.dispose();
+		(await runner.runTask(makeTask('build'), session, undefined, { taskTarget: 'user', token: cancellation.token }))?.dispose();
 
 		assert.deepStrictEqual({ taskLookups, taskRunSources }, {
 			taskLookups: [USER_TASKS_GROUP_KEY],
@@ -266,7 +264,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 		const cancellation = new CancellationTokenSource();
 
-		const handle = await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace', token: cancellation.token });
+		const handle = await runner.runTask(makeTask('build'), session, undefined, { taskTarget: 'workspace', token: cancellation.token });
 		cancellation.cancel();
 
 		assert.deepStrictEqual(terminatedTasks, [{ label: 'build' }]);
@@ -279,7 +277,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 		const cancellation = new CancellationTokenSource();
 
-		const handle = await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace', token: cancellation.token });
+		const handle = await runner.runTask(makeTask('build'), session, undefined, { taskTarget: 'workspace', token: cancellation.token });
 		cancellation.cancel();
 		handle?.dispose();
 
@@ -293,7 +291,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 		const cancellation = new CancellationTokenSource();
 
-		const handle = await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace', token: cancellation.token });
+		const handle = await runner.runTask(makeTask('build'), session, undefined, { taskTarget: 'workspace', token: cancellation.token });
 		cancellation.cancel();
 		assert.deepStrictEqual({ ranTasks, terminatedTasks }, { ranTasks: [], terminatedTasks: [] });
 
@@ -316,7 +314,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 		const cancellation = new CancellationTokenSource();
 
-		const handle = await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace', token: cancellation.token });
+		const handle = await runner.runTask(makeTask('build'), session, undefined, { taskTarget: 'workspace', token: cancellation.token });
 		startDeferredTask!();
 		await new Promise(resolve => setTimeout(resolve, 0));
 		handle?.dispose();

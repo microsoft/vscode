@@ -17,7 +17,7 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { ISessionTaskRunner, ISessionTaskRunOptions } from '../../chat/browser/sessionTaskRunner.js';
 import { osToTaskTargetOS, resolveTaskCommand } from '../../chat/browser/taskCommand.js';
 import { ITaskEntry, ISessionsTasksService, ISessionTaskWithTarget, TaskStorageTarget } from '../../chat/browser/sessionsTasksService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationResolverService } from '../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
@@ -56,7 +56,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		return this._isSessionRemoteHostAvailable(session) && this._getAddress(session) !== undefined;
 	}
 
-	async runTask(task: ITaskEntry, session: ISession, options?: ISessionTaskRunOptions): Promise<IDisposable | undefined> {
+	async runTask(task: ITaskEntry, session: ISession, chat?: IChat, options?: ISessionTaskRunOptions): Promise<IDisposable | undefined> {
 		if (options?.token?.isCancellationRequested || !this._isSessionRemoteHostAvailable(session)) {
 			return undefined;
 		}
@@ -65,12 +65,13 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			return undefined;
 		}
 
-		const allTasks = await this._sessionsTasksService.getAllTasks(session);
+		const owner = chat ?? session;
+		const allTasks = await this._sessionsTasksService.getAllTasks(owner);
 		if (options?.token?.isCancellationRequested) {
 			return undefined;
 		}
 
-		const cwd = this._getCwd(session);
+		const cwd = this._getCwd(owner);
 		const command = await resolveTaskCommand(task, {
 			// Local host shares the renderer's OS, so use it to pick OS-specific
 			// overrides; remote host OS is unknown, so fall back to the default.
@@ -161,7 +162,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		return status === undefined || status.kind === 'connected';
 	}
 
-	private _getCwd(session: ISession): URI | undefined {
+	private _getCwd(session: ISession | IChat): URI | undefined {
 		const folder = session.workspace.get()?.folders[0];
 		const cwd = folder?.workingDirectory ?? folder?.root;
 		if (!cwd) {

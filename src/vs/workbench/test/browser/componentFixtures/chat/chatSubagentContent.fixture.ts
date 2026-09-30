@@ -14,7 +14,12 @@ import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/ac
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
 import { AgentHostSubagentProgress } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSubagentProgress.js';
+import { systemNotificationToChatPart, toolCallStateToInvocation } from '../../../../contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { AgentSystemNotificationKind } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { ToolCallConfirmationReason, ToolCallStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatListItemRenderer } from '../../../../contrib/chat/browser/widget/chatListRenderer.js';
@@ -26,13 +31,16 @@ import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, isResponseVM } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../../contrib/chat/common/tools/languageModelToolsConfirmationService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { registerChatFixtureServices, registerSubagentFixtureServices } from './chatFixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
-async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete', readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
+type FusionFixtureState = 'fusion-routing' | 'fusion-single' | 'fusion-cascade' | 'fusion-critique' | 'fusion-failed' | 'fusion-cancelled' | 'fusion-permission';
+
+async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete' | 'inline' | 'inline-expanded' | FusionFixtureState, readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
 	const { container, disposableStore } = context;
 	const width = 620;
 	const instantiationService = createEditorServices(disposableStore, {
@@ -40,6 +48,10 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
 			registerSubagentFixtureServices(reg);
+			reg.define(IMarkerService, MarkerService);
+			reg.defineInstance(ILanguageModelToolsConfirmationService, new class extends mock<ILanguageModelToolsConfirmationService>() {
+				override getPreConfirmActions() { return []; }
+			}());
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 				override getWidgetBySessionResource() { return undefined; }
 				override async openSession(resource: URI) {
@@ -49,8 +61,8 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 			}());
 		},
 	});
+	instantiationService.stub(ILanguageModelToolsService, instantiationService.get(ILanguageModelToolsService), 'getTool', () => undefined);
 	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, true);
 	configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 	configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', state === 'thinking' ? CollapsedToolsDisplayMode.Always : CollapsedToolsDisplayMode.Off);
 	if (state === 'thinking') {
@@ -76,7 +88,7 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 	const model = disposableStore.add(instantiationService.createInstance(ChatModel, undefined, {
 		initialLocation: ChatAgentLocation.Chat,
 		canUseTools: true,
-		resource: URI.parse('agent-host-copilotcli:/session'),
+		resource: state.startsWith('inline') ? undefined : URI.parse('agent-host-copilotcli:/session'),
 	}));
 	const request = model.addRequest({
 		text: 'Review',
@@ -119,6 +131,51 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		renderer.disposeElement(node, 0, template);
 		renderer.renderElement(node, 0, template);
 	}));
+	if (state.startsWith('fusion-')) {
+		if (state === 'fusion-routing') {
+			publisher.publish([{ kind: 'progressMessage', content: new MarkdownString('Choosing a HydraFusion workflow...') }]);
+			return;
+		}
+		const pattern = state === 'fusion-cascade' ? 'Cascade' : state === 'fusion-critique' ? 'Critique' : 'Single';
+		const description = pattern === 'Cascade'
+			? 'Using Cascade: a solver will work on your request, then another model will review and fix up the result if needed.'
+			: pattern === 'Critique'
+				? 'Using Critique: a solver will draft a result, another model will critique it, and the original solver will revise it if needed.'
+				: 'Using Single: one solver will work on your request.';
+		const introduction = systemNotificationToChatPart(`Selected ${pattern} workflow\n\n${description}`, 'local', {
+			kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected',
+		});
+		if (introduction) {
+			publisher.publish([introduction]);
+		}
+		const phases = pattern === 'Cascade' ? ['Main pass', 'Review pass', 'Fix-up pass']
+			: pattern === 'Critique' ? ['First pass', 'Critique pass', 'Revision pass'] : ['Main pass'];
+		for (const [index, label] of phases.entries()) {
+			const status = state === 'fusion-failed' ? 'failed' : state === 'fusion-cancelled' ? 'cancelled'
+				: index === phases.length - 1 ? 'running' : 'succeeded';
+			const phaseModel = index === 1 || pattern === 'Cascade' && index === 2 ? 'Claude Sonnet 4.6' : 'GPT-5.6 Sol';
+			const base = {
+				toolCallId: `fusion:fixture:${index}`, toolName: 'hydrafusion_phase', displayName: label, invocationMessage: label,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: {
+					toolKind: 'fusionPhase', subagentDescription: label, progressMessage: `${label} running`,
+					fusionPhase: { fusionId: 'fixture', phaseId: String(index), model: phaseModel, status, startedAt: Date.now(), duration: status === 'running' ? undefined : 2000 },
+				},
+			};
+			publisher.publish([toolCallStateToInvocation(status === 'running'
+				? { ...base, status: ToolCallStatus.Running }
+				: { ...base, status: ToolCallStatus.Completed, success: status === 'succeeded', pastTenseMessage: label, content: [] },
+				undefined, URI.parse('agent-host-copilotcli:/session'), 'local')]);
+		}
+		if (state === 'fusion-permission') {
+			publisher.publish([toolCallStateToInvocation({
+				status: ToolCallStatus.PendingConfirmation,
+				toolCallId: 'actual-permission-tool', toolName: 'runTests', displayName: 'Run tests',
+				invocationMessage: 'Run unit tests', toolInput: '{"files":["test/example.test.ts"],"mode":"run"}', confirmationTitle: 'Allow running unit tests?',
+			}, undefined, URI.parse('agent-host-copilotcli:/session'), 'local')]);
+		}
+		return;
+	}
 	if (state === 'thinking') {
 		publisher.publish([{ kind: 'systemNotification', content: new MarkdownString('Background agent `Factorial 1` is complete') }]);
 		publisher.publish([{ kind: 'thinking', id: 'before', value: '**Processing agent notifications**\nReview the first result.' }]);
@@ -139,6 +196,30 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 			{ id: 'read-agent', displayName: 'Read agent', modelDescription: 'Read agent', source: ToolDataSource.Internal },
 			'read-remaining', undefined, {},
 		)]);
+		return;
+	}
+	if (state === 'inline' || state === 'inline-expanded') {
+		publisher.publish([new ChatToolInvocation(
+			{
+				invocationMessage: 'Reviewing child chat lifecycle',
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Review child chat lifecycle',
+					agentName: 'Explore',
+					prompt: 'Review the subagent lifecycle and find missing cleanup.',
+					modelName: 'Claude Sonnet 4.6',
+				},
+			},
+			{ id: 'runSubagent', displayName: 'Run subagent', modelDescription: 'Run subagent', source: ToolDataSource.Internal },
+			'inline-review', undefined, {},
+		), new ChatToolInvocation(
+			{ invocationMessage: 'Search for subagent lifecycle handlers' },
+			{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+			'inline-search', 'inline-review', {},
+		)]);
+		if (state === 'inline-expanded') {
+			template.value.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+		}
 		return;
 	}
 	publisher.publish([{ kind: 'markdownContent', content: new MarkdownString('Starting two read-only reviews. Other work can continue while they initialize.') }]);
@@ -228,9 +309,18 @@ function renderCompletionNotices(context: ComponentFixtureContext): void {
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
+	FusionRouting: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-routing') }),
+	FusionSingle: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-single') }),
+	FusionCascade: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-cascade') }),
+	FusionCritique: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-critique') }),
+	FusionFailed: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-failed') }),
+	FusionCancelled: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-cancelled') }),
+	FusionPermission: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-permission') }),
 	Pending: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'pending') }),
 	Initializing: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'initializing') }),
 	Running: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'running') }),
+	Inline: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'inline') }),
+	InlineExpanded: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'inline-expanded') }),
 	StartedAfterParentComplete: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'parent-complete') }),
 	CompletionNotices: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderCompletionNotices }),
 	ThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking') }),

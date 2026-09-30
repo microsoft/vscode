@@ -153,7 +153,7 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 			}
 			this._logService.trace(`${LOG_PREFIX} Running worktreeCreated task '${task.label}' for session '${session.sessionId}'`);
 			try {
-				const handle = await this._sessionsTasksService.runTask(task, session, {
+				const handle = await this._sessionsTasksService.runTask(task, session, undefined, {
 					taskTarget: target,
 					allowWorkspaceTaskDependencies: workspaceTasksApproved,
 					token,

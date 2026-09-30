@@ -45,16 +45,15 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 
 	override readonly id: string;
 	override readonly remoteAddress: string;
-	override readonly label: string;
+	override get label(): string { return this.name; }
 
 	private readonly _status = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connecting);
 	override readonly connectionStatus = this._status;
 
-	constructor(address: string, name: string) {
+	constructor(address: string, private readonly name: string) {
 		super();
 		this.id = `agenthost-${address}`;
 		this.remoteAddress = address;
-		this.label = name;
 	}
 
 	override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {

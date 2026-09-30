@@ -67,8 +67,6 @@ function makeSession(opts: { id?: string; providerId?: string; runsWorktreeCreat
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
 		loading,
@@ -111,7 +109,7 @@ class FakeSessionsTasksService implements Partial<ISessionsTasksService> {
 		return this._tasks.get(session.sessionId) ?? [];
 	}
 
-	async runTask(task: ITaskEntry, session: ISession, options?: ISessionTaskRunOptions): Promise<IDisposable | undefined> {
+	async runTask(task: ITaskEntry, session: ISession, _chat?: IChat, options?: ISessionTaskRunOptions): Promise<IDisposable | undefined> {
 		this.ranTasks.push({ label: task.label, sessionId: session.sessionId });
 		this.runOptions.push(options);
 		if (this.runTaskFails) {

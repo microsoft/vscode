@@ -1,0 +1,20 @@
+parameters:
+  - name: VSCODE_DOWNLOAD_OUT_BUILD
+    type: boolean
+    default: false
+
+# Downloads the compilation artifact published by the x64 compile job and
+# places its contents where that job created them.
+steps:
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: compilation_linux_$(VSCODE_ARCH)
+      path: $(Agent.TempDirectory)/compilation
+    displayName: Download compilation artifact
+
+  - script: tar -xzf $(Agent.TempDirectory)/compilation/builds.tar.gz -C $(Agent.BuildDirectory)
+    displayName: Extract client, server and web server builds
+
+  - ${{ if eq(parameters.VSCODE_DOWNLOAD_OUT_BUILD, true) }}:
+    - script: tar -xzf $(Agent.TempDirectory)/compilation/out-build.tar.gz -C $(Build.SourcesDirectory)
+      displayName: Extract out-build

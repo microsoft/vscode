@@ -332,7 +332,8 @@ export abstract class BaseLayoutController extends Disposable {
 		const activeSessionForWorkingSet = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, lastValue) => {
 			const workspaceFolders = workspaceFoldersObs.read(reader);
 			const activeSession = this._sessionsService.activeSession.read(reader);
-			const activeSessionWorkspaceUri = activeSession?.workspace.read(reader)?.folders[0]?.workingDirectory;
+			const activeChat = activeSession?.activeChat.read(reader);
+			const activeSessionWorkspaceUri = activeChat?.workspace.read(reader)?.folders[0]?.workingDirectory;
 
 			if (
 				activeSessionWorkspaceUri &&
@@ -362,13 +363,11 @@ export abstract class BaseLayoutController extends Disposable {
 		// closes run — captures which editor was active (e.g. the Changes tab) so it
 		// is restored active on return.
 		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
-			if (
-				previousSession
-				&& !isEqual(previousSession.resource, session?.resource)
-				&& previousSession.status.read(undefined) !== SessionStatus.Untitled
-				&& !this._isRestoringSessionLayout
-			) {
-				this._saveWorkingSet(previousSession.resource);
+			if (previousSession && !isEqual(previousSession.resource, session?.resource)) {
+				this._onActiveSessionSwitched(previousSession, session);
+				if (previousSession.status.read(undefined) !== SessionStatus.Untitled && !this._isRestoringSessionLayout) {
+					this._saveWorkingSet(previousSession.resource);
+				}
 			}
 		}));
 
@@ -408,7 +407,7 @@ export abstract class BaseLayoutController extends Disposable {
 		}));
 
 		// Side-pane toggle UI (menu item, keybinding, command-palette entry).
-		this._register(this._registerSidePaneToggleAction());
+		this._register(BaseLayoutController.registerSidePaneToggleAction());
 
 		// Platform-specific auxiliary bar / view-state management.
 		this._registerViewStateManagement();
@@ -439,7 +438,7 @@ export abstract class BaseLayoutController extends Disposable {
 	 * command-palette entry). The command calls the workbench layout service
 	 * directly; this controller observes the service's toggle lifecycle events.
 	 */
-	private _registerSidePaneToggleAction(): IDisposable {
+	static registerSidePaneToggleAction(): IDisposable {
 		return registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -619,6 +618,8 @@ export abstract class BaseLayoutController extends Disposable {
 
 	/** Hook invoked before a session working set is queued for application. */
 	protected _onWillApplyWorkingSet(_workingSet: IEditorWorkingSet | 'empty'): void { }
+
+	protected _onActiveSessionSwitched(_previousSession: IActiveSession, _session: IActiveSession | undefined): void { }
 
 	// --- Editor part reveal ---
 
