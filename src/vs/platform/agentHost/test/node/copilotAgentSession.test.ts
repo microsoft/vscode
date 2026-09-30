@@ -12065,7 +12065,7 @@ Use the attached image as context.
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-task-complete',
 				toolName: 'task_complete',
-				arguments: { summary: 'Completed the requested work.' },
+				arguments: { summary: '## Summary\n\nCompleted the requested work.' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-task-complete',
@@ -12083,7 +12083,7 @@ Use the attached image as context.
 			assert.deepStrictEqual(responsePart.part, {
 				kind: ResponsePartKind.Markdown,
 				id: responsePart.part.id,
-				content: '\n\n**Task completed:** Completed the requested work.',
+				content: '\n\n**Task completed:**\n\n## Summary\n\nCompleted the requested work.',
 			});
 		});
 
@@ -13258,7 +13258,7 @@ Use the attached image as context.
 
 				assert.deepStrictEqual(fusionTranscript(signals), [
 					'subagent_started fusion:fusion-1:phase-1',
-					'fusion:fusion-1:phase-1: \n\n**Task completed:** Phase summary',
+					'fusion:fusion-1:phase-1: \n\n**Task completed:**\n\nPhase summary',
 				]);
 			});
 		}
