@@ -107,6 +107,23 @@ suite('LocalGitService', () => {
 		assert.strictEqual(expectations.length, 0);
 	});
 
+	test('clone fetches and checks out a full commit SHA', async () => {
+		const commit = 'AABBCCDDEEFF00112233445566778899AABBCCDD';
+		const normalizedCommit = commit.toLowerCase();
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['clone', '--', 'https://github.com/test/repo.git', '/tmp/repo'] },
+			{ args: ['fetch', 'origin', normalizedCommit] },
+			{ args: ['rev-parse', `${normalizedCommit}^{commit}`], stdout: `${normalizedCommit}\n` },
+			{ args: ['checkout', '--detach', normalizedCommit] },
+			{ args: ['rev-parse', 'HEAD'], stdout: `${normalizedCommit}\n` },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		await service.clone('test-op', 'https://github.com/test/repo.git', '/tmp/repo', commit);
+
+		assert.strictEqual(expectations.length, 0);
+	});
+
 	test('authenticated Git removes tracing variables case-insensitively', async () => {
 		const inherited = {
 			git_trace_curl: '1',
