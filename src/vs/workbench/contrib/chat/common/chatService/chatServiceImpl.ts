@@ -7,7 +7,7 @@ import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../..
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { BugIndicatingError, ErrorNoTelemetry, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, ErrorNoTelemetry, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -1741,7 +1741,9 @@ export class ChatService extends Disposable implements IChatService {
 					const originalIds = new Set((options?.attachedContext ?? []).map(v => v.id));
 					return variableSet.asArray().filter(v => !originalIds.has(v.id));
 				} catch (err) {
-					this.logService.error('[ChatService] Failed to collect instructions:', err);
+					if (!isCancellationError(err)) {
+						this.logService.error('[ChatService] Failed to collect instructions:', err);
+					}
 					return [];
 				} finally {
 					markChat(sessionResource, ChatPerfMark.DidCollectInstructions);

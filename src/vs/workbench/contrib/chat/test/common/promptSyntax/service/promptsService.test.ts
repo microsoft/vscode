@@ -2164,6 +2164,37 @@ suite('PromptsService', () => {
 				],
 			});
 		});
+
+		test('does not cache canceled prompt discovery', async () => {
+			const rootFolder = '/prompts-discovery-cancellation';
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/prompts/workspace-prompt.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Workspace prompt.\'',
+						'---',
+						'I am a workspace prompt.',
+					]
+				},
+			]);
+
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			cancellationTokenSource.cancel();
+
+			await assert.rejects(service.listPromptFiles(PromptsType.prompt, cancellationTokenSource.token), CancellationError);
+
+			const prompts = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+			assert.deepStrictEqual(
+				prompts.map(prompt => basename(prompt.uri)),
+				['workspace-prompt.prompt.md'],
+			);
+		});
 	});
 
 	suite('listPromptFiles - instructions', () => {
@@ -2719,7 +2750,12 @@ suite('PromptsService', () => {
 			const errorSpy = sinon.spy(logService, 'error');
 
 			try {
-				await service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token);
+				// Cancellation must surface as an error rather than an empty result,
+				// otherwise it gets cached as "no prompt files".
+				await assert.rejects(
+					service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token),
+					CancellationError,
+				);
 
 				assert.deepStrictEqual({
 					secondProviderCalled,
