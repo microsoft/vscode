@@ -117,7 +117,7 @@ export class DownloadRemoteFileAction extends Action2 {
 			icon: Codicon.cloudDownload,
 			precondition,
 			menu: [{
-				id: Menus.SessionsEditorHeaderPrimary,
+				id: Menus.SessionsEditorTitle,
 				group: '2_download',
 				when: ContextKeyExpr.and(precondition, SinglePaneLayoutEnabledContext),
 			}, {

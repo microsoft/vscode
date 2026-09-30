@@ -80,15 +80,20 @@ suite('Sessions Files view availability', () => {
 suite('Sessions Download Remote File action', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shows Download in its own header group only for remote filesystem resources', () => {
+	test('shows Download in the editor title menu only for remote filesystem resources', () => {
 		const context = store.add(new MockContextKeyService());
 		const sessions = IsSessionsWindowContext.bindTo(context);
 		const scheme = ResourceContextKey.Scheme.bindTo(context);
 		const fileSystem = ResourceContextKey.IsFileSystemResource.bindTo(context);
 		const singlePane = SinglePaneLayoutEnabledContext.bindTo(context);
-		const menuItems = [Menus.SessionsEditorHeaderPrimary, MenuId.EditorTitle].flatMap(menuId =>
-			MenuRegistry.getMenuItems(menuId).filter(isIMenuItem).filter(item => item.command.id === DownloadRemoteFileAction.ID)
-		);
+		const menuItems = [
+			{ id: Menus.SessionsEditorHeaderPrimary, name: 'header' },
+			{ id: Menus.SessionsEditorTitle, name: 'sessionsEditorTitle' },
+			{ id: MenuId.EditorTitle, name: 'editorTitle' },
+		].flatMap(menu => MenuRegistry.getMenuItems(menu.id)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === DownloadRemoteFileAction.ID)
+			.map(item => ({ item, menu: menu.name })));
 		const cases = [
 			{ scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: true },
 			{ scheme: Schemas.vscodeRemote, sessions: true, fileSystem: true, singlePane: true },
@@ -103,10 +108,18 @@ suite('Sessions Download Remote File action', () => {
 			scheme.set(testCase.scheme);
 			fileSystem.set(testCase.fileSystem);
 			singlePane.set(testCase.singlePane);
-			return menuItems.filter(item => item.when?.evaluate({
+			return menuItems.filter(({ item }) => item.when?.evaluate({
 				getValue: key => context.getContextKeyValue(key),
-			})).map(item => item.group);
-		}), [['2_download'], ['2_download'], ['navigation'], [], [], [], []]);
+			})).map(({ item, menu }) => ({ menu, group: item.group }));
+		}), [
+			[{ menu: 'sessionsEditorTitle', group: '2_download' }],
+			[{ menu: 'sessionsEditorTitle', group: '2_download' }],
+			[{ menu: 'editorTitle', group: 'navigation' }],
+			[],
+			[],
+			[],
+			[],
+		]);
 	});
 
 	function createFileStat(resource: URI): IFileStatWithMetadata {
