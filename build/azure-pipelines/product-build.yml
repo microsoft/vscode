@@ -373,17 +373,40 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_TEST_SUITE: Electron
+                  VSCODE_JOB_NAME: Smoke
+                  VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - smoke-electron
               - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_TEST_SUITE: Browser
+                  VSCODE_JOB_NAME: Integration
+                  VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-electron
               - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_TEST_SUITE: Remote
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_TEST_IDS:
+                    - unit-electron
+                    - unit-node
+                    - unit-browser-chromium
+                    - copilot
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: BrowserRemote
+                  VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                  VSCODE_TEST_IDS:
+                    - integration-browser-firefox
+                    - integration-remote
+                    - smoke-browser-chromium
+                    - smoke-remote
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - template: build/azure-pipelines/win32/product-build-win32.yml@self

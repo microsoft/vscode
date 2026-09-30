@@ -5,6 +5,9 @@ parameters:
     type: boolean
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_TEST_IDS
+    type: object
+    default: []
   - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
     type: boolean
     default: false
@@ -24,6 +27,7 @@ steps:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
       VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
       VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: ${{ parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL }}
+      VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
       VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
       VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
       VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
@@ -136,7 +140,7 @@ steps:
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build server
 
-  - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), or(ne(parameters.VSCODE_CIBUILD, true), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'))) }}:
     - powershell: node build/azure-pipelines/common/smokeTestAgentHost.ts "$(Agent.BuildDirectory)\vscode-server-win32-$(VSCODE_ARCH)"
       displayName: 🧪 Smoke test packaged Agent Host
 
@@ -153,10 +157,11 @@ steps:
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build server (web)
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+  - ${{ if or(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: product-build-win32-test.yml@self
       parameters:
         VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+        VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
         VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
         VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
         VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}

@@ -31,7 +31,7 @@ interface CheckpointParameters {
 }
 
 interface Template {
-	parameters?: { name: string; type: string; default?: boolean; values?: string[] }[];
+	parameters?: { name: string; type: string; default?: boolean | string | string[]; values?: string[] }[];
 	steps: ScriptStep[];
 }
 
@@ -261,6 +261,105 @@ suite('Product test checkpoint templates', () => {
 		})));
 	});
 
+	test('Windows x64 CI assigns every test ID to one job', () => {
+		const steps = readTemplate(windowsTestFile).steps;
+		const selectedTests = (parameter: string, value: string) => steps.flatMap(step =>
+			Object.entries(step)
+				.filter(([key]) => key.startsWith('${{ if ') && key.includes(`eq(parameters.${parameter}, ${value})`))
+				.flatMap(([, branch]) => calls(branch).map(call => call.testId))
+		);
+		const selectedIds = steps.flatMap(step => Object.entries(step)
+			.filter(([key]) => key.startsWith('${{ if ') && key.includes('containsValue(parameters.VSCODE_TEST_IDS, '))
+			.flatMap(([key, branch]) => {
+				const selectedId = key.match(/containsValue\(parameters\.VSCODE_TEST_IDS, '(?<id>[^']+)'\)/)?.groups?.id;
+				if (!selectedId) {
+					throw new Error(`Missing test ID in ${key}`);
+				}
+				return [
+					...calls(branch).map(call => ({ selectedId, testId: call.testId })),
+					...records(branch).filter(record => record.template === '../../copilot/test-integration-steps.yml@self').map(() => ({ selectedId, testId: 'copilot' })),
+				];
+			})
+		);
+		const ci = readTemplate('win32/product-build-win32-ci.yml');
+		const job = records(ci).find(record => record.job === 'Windows${{ parameters.VSCODE_JOB_NAME }}');
+		const compile = records(job).find(record => record.template === './steps/product-build-win32-compile.yml@self');
+		const compileTemplate = readTemplate('win32/steps/product-build-win32-compile.yml');
+		const setup = readTemplate('win32/steps/product-build-win32-setup.yml');
+		const product = readTemplate('win32/product-build-win32.yml');
+		const productSteps = records(product).filter(record => record.template === './steps/product-build-win32-test.yml@self' || record.template === './steps/product-build-win32-setup.yml@self');
+		const compileSteps = records(compileTemplate).filter(record => record.template === 'product-build-win32-test.yml@self' || record.template === 'product-build-win32-setup.yml@self');
+		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
+		const jobsByPipeline = pipelineFiles.map(file => records(readTemplate(file))
+			.filter(record => typeof record.template === 'string' && record.template.endsWith('win32/product-build-win32-ci.yml@self'))
+			.map(record => {
+				const parameters = record.parameters as { VSCODE_JOB_NAME: string; VSCODE_JOB_DISPLAY_NAME: string; VSCODE_TEST_IDS: string[] };
+				return { name: parameters.VSCODE_JOB_NAME, displayName: parameters.VSCODE_JOB_DISPLAY_NAME, ids: parameters.VSCODE_TEST_IDS };
+			}));
+		const jobs = jobsByPipeline[0];
+		const assignedIds = jobs.flatMap(job => job.ids).sort();
+		const copilotCheckpoints = copilotCalls('win32').map(call => call.testId);
+		const availableIds = [
+			...allCalls(windowsTestFile, 'win32').map(call => call.testId).filter(id => !copilotCheckpoints.includes(id)),
+			'copilot',
+		].sort();
+
+		assert.deepStrictEqual({
+			testIdsType: ci.parameters?.find(parameter => parameter.name === 'VSCODE_TEST_IDS')?.type,
+			jobDisplayName: job?.displayName,
+			displayNames: jobs.filter(job => ['Smoke', 'Integration', 'Unit', 'BrowserRemote'].includes(job.name))
+				.map(job => ({ name: job.name, displayName: job.displayName })),
+			sameJobsInEachPipeline: jobsByPipeline.every(pipelineJobs => JSON.stringify(pipelineJobs) === JSON.stringify(jobs)),
+			uniqueJobNames: new Set(jobs.map(job => job.name)).size === jobs.length,
+			validJobNames: jobs.every(job => /^[A-Za-z_][A-Za-z0-9_]*$/.test(`Windows${job.name}`) && job.ids.length > 0),
+			assignedIds,
+			availableIds,
+			ciTestIds: (compile?.parameters as Record<string, string> | undefined)?.VSCODE_TEST_IDS,
+			defaultTestIds: [compileTemplate, setup, readTemplate(windowsTestFile)].map(template => template.parameters?.find(parameter => parameter.name === 'VSCODE_TEST_IDS')?.default),
+			forwardedTestIds: compileSteps.map(step => (step.parameters as Record<string, string>).VSCODE_TEST_IDS),
+			productTestIds: productSteps.map(step => (step.parameters as Record<string, string>).VSCODE_TEST_IDS).filter(value => value !== undefined),
+			copilotSetup: Object.keys(setup.steps.find(step => records(step).some(record => record.template === '../../copilot/pull-test-cache.yml@self')) ?? {}),
+			copilotTests: Object.keys(steps.find(step => records(step).some(record => record.template === '../../copilot/test-integration-steps.yml@self')) ?? {}),
+			agentHostSmoke: Object.keys(compileTemplate.steps.find(step => records(step).some(record => record.displayName === '🧪 Smoke test packaged Agent Host')) ?? {}),
+			selectedIds: selectedIds.map(selection => selection.selectedId).sort(),
+			selectionsMatchTests: selectedIds.every(selection => selection.selectedId === selection.testId),
+			copilotCheckpoints,
+			productTests: ['ELECTRON', 'BROWSER', 'REMOTE'].map(environment => ({
+				environment,
+				tests: selectedTests(`VSCODE_RUN_${environment}_TESTS`, 'true'),
+			})),
+		}, {
+			testIdsType: 'object',
+			jobDisplayName: '${{ parameters.VSCODE_JOB_DISPLAY_NAME }}',
+			displayNames: [
+				{ name: 'Smoke', displayName: 'Smoke Tests (Electron)' },
+				{ name: 'Integration', displayName: 'Integration Tests (Electron)' },
+				{ name: 'Unit', displayName: 'Unit Tests' },
+				{ name: 'BrowserRemote', displayName: 'Browser & Remote Tests' },
+			],
+			sameJobsInEachPipeline: true,
+			uniqueJobNames: true,
+			validJobNames: true,
+			assignedIds: availableIds,
+			availableIds,
+			ciTestIds: '${{ parameters.VSCODE_TEST_IDS }}',
+			defaultTestIds: [[], [], []],
+			forwardedTestIds: ['${{ parameters.VSCODE_TEST_IDS }}', '${{ parameters.VSCODE_TEST_IDS }}'],
+			productTestIds: [],
+			copilotSetup: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'copilot\'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}'],
+			copilotTests: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'copilot\'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}'],
+			agentHostSmoke: ['${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(ne(parameters.VSCODE_CIBUILD, true), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'))) }}'],
+			selectedIds: availableIds,
+			selectionsMatchTests: true,
+			copilotCheckpoints: ['copilot-extension', 'copilot-completions-core', 'copilot-sanity'],
+			productTests: [
+				{ environment: 'ELECTRON', tests: ['unit-electron', 'unit-node', 'integration-electron', 'smoke-electron'] },
+				{ environment: 'BROWSER', tests: ['unit-browser-chromium', 'integration-browser-firefox', 'smoke-browser-chromium'] },
+				{ environment: 'REMOTE', tests: ['integration-remote', 'smoke-remote'] },
+			],
+		});
+	});
+
 	test('the Linux policy fixture is skipped with the Electron smoke test', () => {
 		const electron = readTemplate(linuxTestFile).steps.flatMap(step => (step['${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}'] ?? []) as ScriptStep[]);
 		assert.deepStrictEqual(electron.filter(step => step.displayName?.includes('native policy smoke fixture')).map(step => ({
@@ -276,8 +375,12 @@ suite('Product test checkpoint templates', () => {
 	});
 
 	test('the WSL Dev Container setup is skipped together with the Electron smoke tests', () => {
-		const electron = readTemplate(windowsTestFile).steps.flatMap(step => (step['${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}'] ?? []) as ScriptStep[]);
-		const wsl = electron.flatMap(step => (step['${{ if eq(parameters.VSCODE_ARCH, \'x64\') }}'] ?? []) as ScriptStep[]);
+		const smoke = readTemplate(windowsTestFile).steps.flatMap(step =>
+			Object.entries(step)
+				.filter(([key]) => key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\')') && key.includes('eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)'))
+				.flatMap(([, branch]) => branch as ScriptStep[])
+		);
+		const wsl = smoke.flatMap(step => (step['${{ if eq(parameters.VSCODE_ARCH, \'x64\') }}'] ?? []) as ScriptStep[]);
 		const gated = 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'))';
 		assert.deepStrictEqual(wsl.map(step => ({ displayName: step.displayName, condition: step.condition })), [
 			{ displayName: 'Set WSL kernel cache day', condition: gated },
