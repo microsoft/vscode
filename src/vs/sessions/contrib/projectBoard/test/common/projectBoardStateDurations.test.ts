@@ -47,4 +47,39 @@ suite('ProjectBoardStateDurations', () => {
 		assert.strictEqual(durations.getLabel(card.id, 21000), 'Time in state: at least 00:01');
 		assert.strictEqual(durations.getLabel(card.id, 10000), 'Time in state: at least 00:00');
 	});
+
+	test('busy severity changes strictly after 30 minutes and 2 hours, including lower bounds', () => {
+		const durations = new ProjectBoardStateDurations();
+		const start = 1000;
+		durations.update([card], start);
+		assert.deepStrictEqual(
+			[-1, 0, 1799999, 1800000, 1800001, 7199999, 7200000, 7200001].map(elapsed => durations.getSeverity(card.id, start + elapsed)),
+			[undefined, undefined, undefined, undefined, 'warning', 'warning', 'warning', 'error'],
+		);
+		durations.update([{ ...card }], start + 7200002);
+		assert.strictEqual(durations.getSeverity(card.id, start + 7200002), 'error');
+	});
+
+	test('non-busy states never escalate and a new busy period starts without a warning', () => {
+		const durations = new ProjectBoardStateDurations();
+		for (const status of [SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed, SessionStatus.Untitled]) {
+			durations.update([{ ...card, status }], 0);
+			assert.strictEqual(durations.getSeverity(card.id, 8000000), undefined);
+			durations.update([card], 8000000);
+			assert.strictEqual(durations.getSeverity(card.id, 8000001), undefined);
+			assert.strictEqual(durations.getSeverity(card.id, 9800001), 'warning');
+		}
+	});
+
+	test('disconnect, removal and reconnect clear busy severity rather than counting unseen time', () => {
+		const durations = new ProjectBoardStateDurations();
+		durations.update([card], 0);
+		assert.strictEqual(durations.getSeverity(card.id, 8000000), 'error');
+		durations.update([{ ...card, connection: 'disconnected' }], 8000000);
+		assert.strictEqual(durations.getSeverity(card.id, 16000000), undefined);
+		durations.update([card], 16000000);
+		assert.strictEqual(durations.getSeverity(card.id, 16000001), undefined);
+		durations.update([], 20000000);
+		assert.strictEqual(durations.getSeverity(card.id, 30000000), undefined);
+	});
 });

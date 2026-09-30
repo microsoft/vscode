@@ -277,6 +277,10 @@
 	flex-direction: column;
 }
 
+.project-board-state-count {
+	display: inline-block;
+}
+
 .project-board-empty {
 	padding: 8px;
 	color: var(--vscode-descriptionForeground);
@@ -452,6 +456,14 @@
 .project-board-card-metrics .codicon,
 .project-board-credit-icon {
 	flex-shrink: 0;
+}
+
+.project-board-card-duration-warning {
+	color: var(--vscode-agentsHub-busyTimerWarningForeground);
+}
+
+.project-board-card-duration-error {
+	color: var(--vscode-editorError-foreground);
 }
 
 .project-board-card-status-running {

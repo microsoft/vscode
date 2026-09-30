@@ -14,7 +14,7 @@ import { localize } from '../../nls.js';
 import { Color } from '../../base/common/color.js';
 import { darken, lighten, registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
 import { contrastBorder, focusBorder } from '../../platform/theme/common/colorRegistry.js';
-import { editorWidgetBackground, editorWidgetBorder, editorBackground, toolbarHoverBackground } from '../../platform/theme/common/colors/editorColors.js';
+import { editorWidgetBackground, editorWidgetBorder, editorBackground, toolbarHoverBackground, editorWarningForeground } from '../../platform/theme/common/colors/editorColors.js';
 import { foreground } from '../../platform/theme/common/colors/baseColors.js';
 import { buttonBackground, buttonSecondaryBorder, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from '../../platform/theme/common/colors/inputColors.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
@@ -53,6 +53,12 @@ export const agentsPanelBorder = registerColor(
 export const agentsCardBorder = registerColor(
 	'agentsCard.border', agentsPanelBorder,
 	localize('agentsCard.border', 'Border color of the floating content card (sessions grid and custom view grid) in the agent sessions window.')
+);
+
+export const agentsHubBusyTimerWarningForeground = registerColor(
+	'agentsHub.busyTimerWarningForeground',
+	{ dark: '#D18616', light: '#A65C00', hcDark: editorWarningForeground, hcLight: editorWarningForeground },
+	localize('agentsHub.busyTimerWarningForeground', 'Foreground color of an Agents Hub timer after more than 30 minutes in the busy state.')
 );
 
 export const agentsBottomPanelBorder = registerColor(

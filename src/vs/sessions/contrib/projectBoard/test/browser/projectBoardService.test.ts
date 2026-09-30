@@ -426,7 +426,7 @@ suite('ProjectBoardService', () => {
 			child.status.set(SessionStatus.NeedsInput, undefined);
 			assert.deepStrictEqual({
 				collapsed, stillHidden: children().hidden, summary: h.container.querySelector('.project-board-child-summary')?.textContent,
-			}, { collapsed: { hidden: true, expanded: 'false', opened: [] }, stillHidden: true, summary: '1 child chat · 1 Needs Input' });
+			}, { collapsed: { hidden: true, expanded: 'false', opened: [] }, stillHidden: true, summary: '1 child chat · 🙋 1 Needs Input' });
 			disclosure().click();
 			children().querySelector<HTMLElement>('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
 			assert.deepStrictEqual(h.opened, [child.resource]);
@@ -544,7 +544,7 @@ suite('ProjectBoardService', () => {
 				axis: h.container.querySelector('.project-board-column-heading .project-board-collapsed-summary')?.textContent,
 				cell: h.container.querySelector('[aria-label="General, P0"] .project-board-collapsed-summary')?.textContent,
 				attention: h.container.querySelector('[aria-label="General, P0"] .project-board-attention')?.textContent,
-			}, { axis: '2 sessions · 1 Busy · 1 Needs Input', cell: '2 sessions · 1 Busy · 1 Needs Input', attention: undefined });
+			}, { axis: '2 sessions · 🏃 1 Busy · 🙋 1 Needs Input', cell: '2 sessions · 🏃 1 Busy · 🙋 1 Needs Input', attention: undefined });
 		});
 
 		test('archiving or losing a parent preserves its visible children and folds survive live additions', async () => {
@@ -1647,9 +1647,9 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
 		assert.strictEqual(toggle().getAttribute('aria-controls'), tray().querySelector('.project-board-card-list')!.id);
 		assert.strictEqual(mainWindow.getComputedStyle(tray().querySelector('.project-board-card-list')!).display, 'none');
-		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 sessions · 2 Busy · 1 Draft');
+		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 sessions · 🏃 2 Busy · ✏️ 1 Draft');
 		chats[1].status.set(SessionStatus.NeedsInput, undefined);
-		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 sessions · 1 Busy · 1 Needs Input · 1 Draft');
+		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 sessions · 🏃 1 Busy · 🙋 1 Needs Input · ✏️ 1 Draft');
 		assert.strictEqual(tray().querySelector('.project-board-attention'), null);
 		assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
 		toggle().click();
@@ -1679,7 +1679,7 @@ suite('ProjectBoardService', () => {
 		assert.ok(cell('P0').querySelector<HTMLElement>('.project-board-card-list')!.hidden);
 		toggle('column:p1');
 		assert.ok(cell('P1').getBoundingClientRect().width < width);
-		assert.strictEqual(cell('P1').querySelector('.project-board-collapsed-summary')?.textContent, '1 session · 1 Busy');
+		assert.strictEqual(cell('P1').querySelector('.project-board-collapsed-summary')?.textContent, '1 session · 🏃 1 Busy');
 		toggle('row:general');
 		assert.strictEqual(cell('P0').querySelector<HTMLElement>('.project-board-card-list')!.hidden, false);
 		assert.strictEqual(cell('P1').querySelector<HTMLElement>('.project-board-card-list')!.hidden, true);
@@ -1712,7 +1712,11 @@ suite('ProjectBoardService', () => {
 		const toggle = (key: string) => h.container.querySelector<HTMLElement>(`[data-board-control="collapse:${key}"]`)!.click();
 		const summary = (selector: string) => h.container.querySelector(`${selector} .project-board-collapsed-summary`)?.textContent;
 		toggle('unassigned');
-		assert.strictEqual(summary('.project-board-unassigned'), '8 sessions · 1 Busy · 1 Needs Input · 2 Error · 1 Idle · 2 Starting · 1 Draft');
+		assert.strictEqual(summary('.project-board-unassigned'), '8 sessions · 🏃 1 Busy · 🙋 1 Needs Input · ⚠️ 2 Error · 😴 1 Idle · ⏳ 2 Starting · ✏️ 1 Draft');
+		assert.deepStrictEqual(
+			[...h.container.querySelectorAll('.project-board-unassigned > .project-board-collapsed-summary .project-board-state-count-icon')].map(icon => [icon.textContent, icon.getAttribute('aria-hidden')]),
+			[['🏃', 'true'], ['🙋', 'true'], ['⚠️', 'true'], ['😴', 'true'], ['⏳', 'true'], ['✏️', 'true']],
+		);
 		h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
 			...configuration,
 			placements: [
@@ -1723,16 +1727,17 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.container.querySelectorAll('[aria-label="General, P0"] > .project-board-card-list > .project-board-card, [aria-label="General, P0"] > .project-board-card-list > .project-board-card-family').length, 3);
 		toggle('row:general');
 		toggle('column:p0');
-		const expected = '7 sessions · 1 Busy · 1 Needs Input · 2 Error · 1 Idle · 1 Starting · 1 Unavailable';
+		const expected = '7 sessions · 🏃 1 Busy · 🙋 1 Needs Input · ⚠️ 2 Error · 😴 1 Idle · ⏳ 1 Starting · 🚫 1 Unavailable';
 		for (const selector of ['.project-board-row-heading', '.project-board-column-heading', '[aria-label="General, P0"]']) {
 			assert.strictEqual(summary(selector), expected);
 		}
-		assert.strictEqual(summary('.project-board-unassigned'), '2 sessions · 1 Starting · 1 Draft');
-		assert.ok(h.service.getAccessibleContent().includes(expected));
+		assert.strictEqual(summary('.project-board-unassigned'), '2 sessions · ⏳ 1 Starting · ✏️ 1 Draft');
+		assert.ok(h.service.getAccessibleContent().includes('7 sessions · 1 Busy · 1 Needs Input · 2 Error · 1 Idle · 1 Starting · 1 Unavailable'));
+		assert.ok([...h.container.querySelectorAll('.project-board-state-count-icon')].every(icon => icon.getAttribute('aria-hidden') === 'true'));
 		chats[0].status.set(SessionStatus.Completed, undefined);
 		child.status.set(SessionStatus.Completed, undefined);
-		assert.strictEqual(summary('[aria-label="General, P0"]'), '7 sessions · 1 Needs Input · 1 Error · 3 Idle · 1 Starting · 1 Unavailable');
-		assert.strictEqual(h.container.querySelector('.project-board-child-summary')?.textContent, '1 child chat · 1 Idle');
+		assert.strictEqual(summary('[aria-label="General, P0"]'), '7 sessions · 🙋 1 Needs Input · ⚠️ 1 Error · 😴 3 Idle · ⏳ 1 Starting · 🚫 1 Unavailable');
+		assert.strictEqual(h.container.querySelector('.project-board-child-summary')?.textContent, '1 child chat · 😴 1 Idle');
 		assert.deepStrictEqual(h.opened, []);
 		assert.ok([...chats, child].every(chat => !chat.isRead.get()));
 	});
@@ -1746,11 +1751,11 @@ suite('ProjectBoardService', () => {
 		h.service.toggleDisplayOption('showSessionList');
 		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
 		const summary = () => h.container.querySelector('.project-board-unassigned .project-board-collapsed-summary')?.textContent;
-		assert.strictEqual(summary(), '1 session · 1 Needs Input');
+		assert.strictEqual(summary(), '1 session · 🙋 1 Needs Input');
 		status.set(SessionStatus.Completed, undefined);
-		assert.strictEqual(summary(), '1 session · 1 Idle');
+		assert.strictEqual(summary(), '1 session · 😴 1 Idle');
 		h.service.toggleDisplayOption('showSessionList');
-		assert.strictEqual(summary(), '2 sessions · 2 Busy');
+		assert.strictEqual(summary(), '2 sessions · 🏃 2 Busy');
 	});
 
 	test('PB-22 dropping into a collapsed cell expands its axes and returning from chat reveals its card', async () => {
@@ -1849,13 +1854,13 @@ suite('ProjectBoardService', () => {
 		store.add(h.service.createView(h.container));
 		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
 		const summary = () => h.container.querySelector('.project-board-unassigned .project-board-collapsed-summary')?.textContent;
-		assert.strictEqual(summary(), '2 sessions · 1 Busy · 1 Draft');
+		assert.strictEqual(summary(), '2 sessions · 🏃 1 Busy · ✏️ 1 Draft');
 		h.service.toggleAutoIncludeSessions();
 		assert.strictEqual(summary(), '0 sessions');
 		assert.strictEqual(h.container.querySelectorAll('.project-board-unassigned .project-board-card').length, 0);
 		assert.strictEqual(h.drafts.get().length, 1);
 		h.service.toggleAutoIncludeSessions();
-		assert.strictEqual(summary(), '2 sessions · 1 Busy · 1 Draft');
+		assert.strictEqual(summary(), '2 sessions · 🏃 1 Busy · ✏️ 1 Draft');
 		assert.strictEqual(h.container.querySelectorAll('.project-board-unassigned .project-board-card').length, 2);
 		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-unassigned .project-board-card-list')!.hidden, true);
 		assert.deepStrictEqual(h.state.deletedDrafts, []);
@@ -2013,6 +2018,105 @@ suite('ProjectBoardService', () => {
 		assert.ok(h.currentContainer.querySelector('.project-board-card-permissions'));
 		assert.deepStrictEqual(h.opened, []);
 		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('PB-18 relative prompt times refresh without the state timer and retain the full timestamp hover', async () => {
+		const { document } = createBoardDocument();
+		const submittedAt = new Date('2026-09-29T20:00:00Z').getTime();
+		const clock = sinon.useFakeTimers({ now: submittedAt + 3600000, toFake: ['Date'] });
+		store.add(toDisposable(() => clock.restore()));
+		const h = createBoard(document, [new TestChat('Relative timestamp')]);
+		h.metadata.set({ kind: 'ready', prompt: 'Known prompt', submittedAt, context: [] }, undefined);
+		const hover = sinon.spy(h.instantiationService.invokeFunction(accessor => accessor.get(IHoverService)), 'setupDelayedHover');
+		const interval = sinon.spy(document.defaultView!, 'setInterval');
+		const clearInterval = sinon.spy(document.defaultView!, 'clearInterval');
+		store.add(toDisposable(() => { hover.restore(); interval.restore(); clearInterval.restore(); }));
+		await h.service.open();
+		const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
+		const recency = card.querySelector<HTMLElement>('.project-board-card-recency')!;
+		const fullTimestamp = `Last prompt: ${new Date(submittedAt).toLocaleString()}`;
+		const options = hover.getCalls().findLast(call => call.args[0] === recency)?.args[1];
+		assert.deepStrictEqual({
+			text: recency.textContent,
+			aria: recency.getAttribute('aria-label'),
+			time: recency.dataset.submittedAt,
+			hover: (typeof options === 'function' ? options() : options)?.content,
+			stateTimer: card.querySelector('.project-board-card-duration'),
+		}, { text: '1 hour ago', aria: fullTimestamp, time: String(submittedAt), hover: fullTimestamp, stateTimer: null });
+		card.focus();
+		clock.tick(3600000);
+		interval.lastCall.args[0]();
+		assert.deepStrictEqual({
+			text: recency.textContent,
+			cardPreserved: h.container.querySelector('[data-chat-resource]') === card,
+			focused: document.activeElement === card,
+			aria: recency.getAttribute('aria-label'),
+		}, { text: '2 hours ago', cardPreserved: true, focused: true, aria: fullTimestamp });
+		h.metadata.set({ kind: 'ready', prompt: 'Newer prompt', submittedAt: Date.now() - 60000, context: [] }, undefined);
+		await timeout(0);
+		assert.strictEqual(h.container.querySelector('.project-board-card-recency')?.textContent, '1 minute ago');
+		h.metadata.set({ kind: 'ready', prompt: 'Unknown time', context: [] }, undefined);
+		await timeout(0);
+		const unknown = h.container.querySelector('.project-board-card-recency')!;
+		assert.deepStrictEqual({ text: unknown.textContent, aria: unknown.getAttribute('aria-label') }, { text: 'Recency unavailable', aria: null });
+		h.closeBoard();
+		await Promise.resolve();
+		assert.strictEqual(clearInterval.callCount, interval.callCount);
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('PB-18 busy timer colors cross strict thresholds on ticks and reset with state changes', async () => {
+		const clock = sinon.useFakeTimers({ now: 10000, toFake: ['Date'] });
+		store.add(toDisposable(() => clock.restore()));
+		const chat = new TestChat('Busy thresholds');
+		const h = createBoard(mainWindow.document, [chat]);
+		h.container.style.setProperty('--vscode-descriptionForeground', 'rgb(128, 128, 128)');
+		h.container.style.setProperty('--vscode-agentsHub-busyTimerWarningForeground', 'rgb(209, 134, 22)');
+		h.container.style.setProperty('--vscode-editorError-foreground', 'rgb(241, 76, 76)');
+		const interval = sinon.spy(mainWindow, 'setInterval');
+		store.add(toDisposable(() => interval.restore()));
+		await h.service.open();
+		h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
+		await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.stateDuration')!.run();
+		const card = h.container.querySelector('[data-chat-resource]')!;
+		const duration = card.querySelector('.project-board-card-duration')!;
+		const tick = interval.lastCall.args[0];
+		let elapsed = 0;
+		for (const [next, warning, error, color] of [
+			[1800000, false, false, 'rgb(128, 128, 128)'],
+			[1800001, true, false, 'rgb(209, 134, 22)'],
+			[7200000, true, false, 'rgb(209, 134, 22)'],
+			[7200001, false, true, 'rgb(241, 76, 76)'],
+		] as const) {
+			clock.tick(next - elapsed);
+			elapsed = next;
+			tick();
+			assert.deepStrictEqual({
+				warning: duration.classList.contains('project-board-card-duration-warning'),
+				error: duration.classList.contains('project-board-card-duration-error'),
+				color: mainWindow.getComputedStyle(duration).color,
+				cardPreserved: h.container.querySelector('[data-chat-resource]') === card,
+				iconPreserved: !!duration.querySelector('.codicon-clock'),
+			}, { warning, error, color, cardPreserved: true, iconPreserved: true });
+		}
+		h.container.style.setProperty('--vscode-agentsHub-busyTimerWarningForeground', 'rgb(255, 204, 0)');
+		h.container.style.setProperty('--vscode-editorError-foreground', 'rgb(255, 0, 0)');
+		clock.setSystemTime(10000 + 1800001);
+		tick();
+		assert.strictEqual(mainWindow.getComputedStyle(duration).color, 'rgb(255, 204, 0)', 'Timer responds to high-contrast theme colors');
+		clock.setSystemTime(10000 + 7200001);
+		tick();
+		assert.strictEqual(mainWindow.getComputedStyle(duration).color, 'rgb(255, 0, 0)', 'Timer responds to the error foreground');
+		chat.title.set('Renamed while busy', undefined);
+		assert.ok(h.container.querySelector('.project-board-card-duration-error'), 'Rerender keeps the observed busy age and severity');
+		chat.status.set(SessionStatus.NeedsInput, undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-card-duration-warning, .project-board-card-duration-error'), null);
+		clock.tick(8000000);
+		interval.lastCall.args[0]();
+		assert.strictEqual(h.container.querySelector('.project-board-card-duration-warning, .project-board-card-duration-error'), null);
+		chat.status.set(SessionStatus.InProgress, undefined);
+		assert.strictEqual(h.container.querySelector('.project-board-card-duration')?.textContent, '00:00');
+		assert.strictEqual(h.container.querySelector('.project-board-card-duration-warning, .project-board-card-duration-error'), null);
 	});
 
 	test('PB-18 timer ticks update only text and preserve focused cards, state age and scroll', async () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { IProjectBoardCard } from './projectBoardModel.js';
 
 interface IObservedState {
@@ -36,6 +37,15 @@ export class ProjectBoardStateDurations {
 		}
 	}
 
+	getSeverity(cardId: string, now = Date.now()): 'warning' | 'error' | undefined {
+		const state = this.states.get(cardId);
+		if (!state || state.disconnected || state.status !== SessionStatus.InProgress) {
+			return undefined;
+		}
+		const elapsed = now - state.since;
+		return elapsed > 2 * 60 * 60 * 1000 ? 'error' : elapsed > 30 * 60 * 1000 ? 'warning' : undefined;
+	}
+
 	getLabel(cardId: string, now = Date.now(), compact = false): string {
 		const state = this.states.get(cardId);
 		if (!state || state.disconnected) {
@@ -46,7 +56,7 @@ export class ProjectBoardStateDurations {
 		const minutes = Math.floor(seconds / 60) % 60;
 		const duration = `${hours ? `${hours}:` : ''}${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 		if (compact) {
-			return state.lowerBound ? localize('projectBoard.durationLowerBoundCompact', "≥ {0}", duration) : duration;
+			return state.lowerBound ? localize('projectBoard.durationLowerBoundCompact', "\u2265 {0}", duration) : duration;
 		}
 		return state.lowerBound
 			? localize('projectBoard.durationLowerBound', "Time in state: at least {0}", duration)
