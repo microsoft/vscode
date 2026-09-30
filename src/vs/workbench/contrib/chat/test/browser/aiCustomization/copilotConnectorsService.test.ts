@@ -502,18 +502,40 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
-	test('refreshes live sessions when the active account gains connector authorization', async () => {
+	test('refreshes live sessions only when the active account connector authorization changes', async () => {
 		const fixture = createFixture([{ body: catalogResponse('connected') }]);
 		const unscoped = { ...fixture.initialSession, scopes: ['read:user'] };
 		fixture.setSessions([unscoped]);
 		await fixture.service.refresh(CancellationToken.None);
 
+		const renewedUnscoped = { ...unscoped, accessToken: 'renewed-unscoped-token' };
+		fixture.setSessions([renewedUnscoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, changed: [renewedUnscoped], removed: undefined } });
+		await timeout(0);
+
+		const afterUnscopedRenewal = fixture.reconciliations.length;
 		const upscoped = { ...unscoped, id: 'connector-authorized-session', scopes: [...unscoped.scopes, 'write:plugin_gateway_connections'] };
-		fixture.setSessions([unscoped, upscoped]);
+		fixture.setSessions([renewedUnscoped, upscoped]);
 		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: [upscoped], changed: undefined, removed: undefined } });
 		await timeout(0);
 
-		assert.deepStrictEqual(fixture.reconciliations.length, 1);
+		const afterGain = fixture.reconciliations.length;
+		const renewed = { ...upscoped, accessToken: 'renewed-token' };
+		fixture.setSessions([renewedUnscoped, renewed]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, changed: [renewed], removed: undefined } });
+		await timeout(0);
+
+		const afterRenewal = fixture.reconciliations.length;
+		fixture.setSessions([renewedUnscoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, changed: undefined, removed: [renewed] } });
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterUnscopedRenewal, afterGain, afterRenewal, afterLoss: fixture.reconciliations.length }, {
+			afterUnscopedRenewal: 0,
+			afterGain: 1,
+			afterRenewal: 1,
+			afterLoss: 2,
+		});
 	});
 
 	for (const outcome of ['cancelled', 'denied', 'wrong-account', 'missing-scope']) {
