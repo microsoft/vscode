@@ -331,8 +331,15 @@ pub(crate) fn run_installer<R: ProcessEffects>(
 	runtime: &R,
 	routes: &[InstallerRoute],
 	tools: &ToolInventory,
+	verbose: bool,
 ) -> InstallerResult {
-	run_installer_with(runtime, &NativeTemporaryScriptFactory, routes, tools)
+	run_installer_with(
+		runtime,
+		&NativeTemporaryScriptFactory,
+		routes,
+		tools,
+		verbose,
+	)
 }
 
 pub(crate) fn run_installer_with<R, T>(
@@ -340,6 +347,7 @@ pub(crate) fn run_installer_with<R, T>(
 	temporary_scripts: &T,
 	routes: &[InstallerRoute],
 	tools: &ToolInventory,
+	verbose: bool,
 ) -> InstallerResult
 where
 	R: ProcessEffects,
@@ -352,7 +360,7 @@ where
 				runtime,
 				*route,
 				InstallerStage::Install,
-				msi_command(tools),
+				msi_command(tools, verbose),
 				&mut attempts,
 			),
 			InstallerRoute::Homebrew => run_command(
@@ -480,15 +488,14 @@ fn run_command<R: ProcessEffects>(
 	}
 }
 
-fn msi_command(tools: &ToolInventory) -> Option<CommandSpec> {
+fn msi_command(tools: &ToolInventory, verbose: bool) -> Option<CommandSpec> {
 	tools.shim.as_ref().map(|shim| {
-		native_command(
-			shim.as_os_str(),
-			["--vscode-shim", "install", "--interactive"]
-				.into_iter()
-				.map(OsString::from)
-				.collect(),
-		)
+		let mut arguments = vec![OsString::from("--vscode-shim")];
+		if verbose {
+			arguments.extend([OsString::from("verbose"), OsString::from("--vscode-shim")]);
+		}
+		arguments.extend([OsString::from("install"), OsString::from("--interactive")]);
+		native_command(shim.as_os_str(), arguments)
 	})
 }
 
@@ -966,11 +973,20 @@ mod tests {
 		routes: &[InstallerRoute],
 		tools: &ToolInventory,
 	) -> (InstallerResult, FakeProcesses) {
+		run_fake_with_verbose(results, routes, tools, false)
+	}
+
+	fn run_fake_with_verbose(
+		results: impl IntoIterator<Item = FakeProcessResult>,
+		routes: &[InstallerRoute],
+		tools: &ToolInventory,
+		verbose: bool,
+	) -> (InstallerResult, FakeProcesses) {
 		let processes = FakeProcesses::new(results);
 		let scripts = TrackedTemporaryScriptFactory {
 			tracked: Rc::clone(&processes.tracked_scripts),
 		};
-		let result = run_installer_with(&processes, &scripts, routes, tools);
+		let result = run_installer_with(&processes, &scripts, routes, tools, verbose);
 		(result, processes)
 	}
 
@@ -1154,18 +1170,29 @@ mod tests {
 	}
 
 	#[test]
-	fn windows_command_runs_the_shim_msi_install() {
+	fn windows_command_runs_the_shim_msi_install_with_matching_verbosity() {
 		let tools = all_tools();
-		let (result, processes) =
+		let (quiet_result, quiet_processes) =
 			run_fake([FakeProcessResult::Exit(0)], &[InstallerRoute::Msi], &tools);
-		let commands = processes.commands.borrow();
+		let (verbose_result, verbose_processes) = run_fake_with_verbose(
+			[FakeProcessResult::Exit(0)],
+			&[InstallerRoute::Msi],
+			&tools,
+			true,
+		);
+		let quiet_commands = quiet_processes.commands.borrow();
+		let verbose_commands = verbose_processes.commands.borrow();
 
-		assert!(matches!(result, InstallerResult::Succeeded { .. }));
+		assert!(matches!(quiet_result, InstallerResult::Succeeded { .. }));
+		assert!(matches!(verbose_result, InstallerResult::Succeeded { .. }));
 		assert_eq!(
 			(
-				commands[0].0.program(),
-				native_arguments(&commands[0].0),
-				commands[0].1,
+				quiet_commands[0].0.program(),
+				native_arguments(&quiet_commands[0].0),
+				quiet_commands[0].1,
+				verbose_commands[0].0.program(),
+				native_arguments(&verbose_commands[0].0),
+				verbose_commands[0].1,
 			),
 			(
 				OsStr::new("copilot.exe"),
@@ -1173,6 +1200,18 @@ mod tests {
 					.into_iter()
 					.map(OsString::from)
 					.collect(),
+				SupervisionMode::InteractiveBootstrap,
+				OsStr::new("copilot.exe"),
+				[
+					"--vscode-shim",
+					"verbose",
+					"--vscode-shim",
+					"install",
+					"--interactive"
+				]
+				.into_iter()
+				.map(OsString::from)
+				.collect(),
 				SupervisionMode::InteractiveBootstrap,
 			)
 		);

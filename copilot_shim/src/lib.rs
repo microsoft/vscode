@@ -28,7 +28,7 @@ const SHIM_MARKER: &[u8] = b"VSCODE_COPILOT_RUST_SHIM_V1";
 pub fn run(arguments: impl IntoIterator<Item = OsString>) -> i32 {
 	retain_binary_marker();
 
-	let runtime = NativeRuntime;
+	let runtime = NativeRuntime::default();
 	let arguments = arguments.into_iter().collect();
 	app::run(&runtime, arguments, HostTarget::current())
 }
