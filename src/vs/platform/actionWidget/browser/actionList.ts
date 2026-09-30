@@ -5,7 +5,7 @@
 import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext, renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { getAnchorRect, IAnchor, IContextViewCloseAnimation } from '../../../base/browser/ui/contextview/contextview.js';
@@ -138,9 +138,10 @@ export interface IActionListItem<T> {
 	readonly disabled?: boolean;
 	readonly label?: string;
 	/**
-	 * Optional detail text displayed as a second line below the label.
+	 * Optional detail text displayed as a second line below the label. Links in
+	 * markdown detail are reached with Tab from the focused item.
 	 */
-	readonly detail?: string;
+	readonly detail?: string | IMarkdownString;
 	/**
 	 * Optional inline toggle switch rendered on its own row inside the item.
 	 */
@@ -352,6 +353,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _stopToolbarPointerPropagation: boolean,
 		private readonly _registerStandaloneToggle: (item: IActionListItem<T>, toggle: Switch) => IDisposable,
 		private readonly _registerToolbar: (item: IActionListItem<T>, toolbar: ActionBar) => IDisposable,
+		private readonly _registerDetailLinks: (item: IActionListItem<T>, links: readonly HTMLElement[]) => IDisposable,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -468,18 +470,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			if (typeof element.description === 'string') {
 				data.description!.textContent = stripNewlines(element.description);
 			} else {
-				const rendered = renderMarkdown(element.description, {
-					actionHandler: (content: string) => {
-						const uri = URI.parse(content);
-						if (this._linkHandler) {
-							this._linkHandler(uri, element);
-						} else {
-							void this._openerService.open(uri, { allowCommands: true });
-						}
-					}
-				});
-				data.elementDisposables.add(rendered);
-				data.description!.appendChild(rendered.element);
+				data.description!.appendChild(this._renderMarkdown(element.description, element, data.elementDisposables));
 			}
 			data.description!.style.display = 'inline';
 		} else {
@@ -498,11 +489,22 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 
 		// Render optional detail (shown as second line below the label)
-		if (element.detail) {
+		dom.clearNode(data.detail);
+		if (typeof element.detail === 'string') {
 			data.detail.textContent = stripNewlines(element.detail);
 			data.detail.style.display = '';
+		} else if (element.detail) {
+			const rendered = this._renderMarkdown(element.detail, element, data.elementDisposables);
+			// eslint-disable-next-line no-restricted-syntax
+			const links = Array.from(rendered.getElementsByTagName('a'));
+			// The list moves focus into these links, so native Tab should not reach other rows' links.
+			for (const link of links) {
+				link.tabIndex = -1;
+			}
+			data.elementDisposables.add(this._registerDetailLinks(element, links));
+			data.detail.appendChild(rendered);
+			data.detail.style.display = '';
 		} else {
-			data.detail.textContent = '';
 			data.detail.style.display = 'none';
 		}
 		data.container.classList.toggle('has-detail', !!element.detail);
@@ -624,6 +626,20 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				data.container.removeAttribute('aria-expanded');
 			}
 		}
+	}
+
+	private _renderMarkdown(markdown: IMarkdownString, element: IActionListItem<T>, store: DisposableStore): HTMLElement {
+		const rendered = store.add(renderMarkdown(markdown, {
+			actionHandler: (content: string) => {
+				const uri = URI.parse(content);
+				if (this._linkHandler) {
+					this._linkHandler(uri, element);
+				} else {
+					void this._openerService.open(uri, { allowCommands: true });
+				}
+			}
+		}));
+		return rendered.element;
 	}
 
 	disposeTemplate(templateData: IActionMenuTemplateData): void {
@@ -888,6 +904,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _groupTitleByIndex = new Map<number, string>();
 	private readonly _standaloneToggles = new Map<IActionListItem<T>, Switch>();
 	private readonly _itemToolbars = new Map<IActionListItem<T>, ActionBar>();
+	private readonly _itemDetailLinks = new Map<IActionListItem<T>, readonly HTMLElement[]>();
 	private _visibleMenuItems: readonly IActionListItem<T>[];
 
 	private readonly _onDidRequestLayout = this._register(new Emitter<void>());
@@ -1030,6 +1047,13 @@ export class ActionListWidget<T> extends Disposable {
 						this._itemToolbars.delete(item);
 					}
 				});
+			}, (item, links) => {
+				this._itemDetailLinks.set(item, links);
+				return toDisposable(() => {
+					if (this._itemDetailLinks.get(item) === links) {
+						this._itemDetailLinks.delete(item);
+					}
+				});
 			}, this._keybindingService, this._openerService, this._hoverService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(this._hoverService),
@@ -1047,8 +1071,9 @@ export class ActionListWidget<T> extends Disposable {
 						for (const badge of element.additionalBadges ?? []) {
 							label = label + ', ' + stripNewlines(badge.label);
 						}
-						if (element.detail) {
-							label = label + ', ' + stripNewlines(element.detail);
+						const detailText = element.detail ? stripNewlines(renderAsPlaintext(element.detail)) : undefined;
+						if (detailText) {
+							label = label + ', ' + detailText;
 						}
 						if (element.ariaDescription) {
 							label = label + ', ' + stripNewlines(element.ariaDescription);
@@ -1058,7 +1083,7 @@ export class ActionListWidget<T> extends Disposable {
 						}
 						if (element.hover?.content && !element.ariaDescription && !element.description) {
 							const hoverContent = element.hover.content;
-							const hoverText = typeof hoverContent === 'string' ? hoverContent : isMarkdownString(hoverContent) ? hoverContent.value : dom.isHTMLElement(hoverContent) ? hoverContent.textContent ?? undefined : undefined; if (hoverText && (!element.detail || stripNewlines(element.detail) !== stripNewlines(hoverText))) {
+							const hoverText = typeof hoverContent === 'string' ? hoverContent : isMarkdownString(hoverContent) ? hoverContent.value : dom.isHTMLElement(hoverContent) ? hoverContent.textContent ?? undefined : undefined; if (hoverText && detailText !== stripNewlines(hoverText)) {
 								label = label + ', ' + stripNewlines(hoverText);
 							}
 						}
@@ -2409,6 +2434,7 @@ export class ActionListWidget<T> extends Disposable {
 		return {
 			toolbar: this._itemToolbars.get(element),
 			panelControls: [
+				...this._itemDetailLinks.get(element) ?? [],
 				...element.hover?.getTabbableElements?.() ?? [],
 				...this._submenuHoverActionElements,
 			],
@@ -2434,7 +2460,8 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		const index = focused[0];
 		const element = this._list.element(index);
-		if (!element.hover?.tabThroughPanel && !this._options?.tabThroughItemActions) {
+		const detailLinks = this._itemDetailLinks.get(element) ?? [];
+		if (!element.hover?.tabThroughPanel && !this._options?.tabThroughItemActions && !detailLinks.length) {
 			return;
 		}
 		const row = this._getRowElement(index);
@@ -2443,7 +2470,7 @@ export class ActionListWidget<T> extends Disposable {
 			return;
 		}
 		const inToolbar = this._itemToolbars.get(element)?.isFocused() ?? false;
-		const inPanel = this._submenuContainer.contains(activeElement);
+		const inPanel = this._submenuContainer.contains(activeElement) || detailLinks.includes(activeElement);
 
 		if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && (inToolbar || inPanel)) {
 			dom.EventHelper.stop(event, true);

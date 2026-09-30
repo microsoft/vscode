@@ -13,6 +13,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event as CommonEvent } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -1438,6 +1439,50 @@ suite('ActionListWidget', () => {
 				toolbarMarginRight: '10px',
 				clearsScrollbar: true,
 			},
+		});
+	});
+
+	test('markdown detail links open from pointer and keyboard without selecting their item', () => {
+		const links: string[] = [];
+		const selections: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [
+				action('first'),
+				{ ...action('documented'), detail: new MarkdownString('Description ').appendLink('https://example.com/docs', 'Learn more') },
+				action('last'),
+			],
+			onSelect: item => selections.push(item.id),
+			listOptions: { showFilter: false, linkHandler: uri => links.push(uri.toString(true)) },
+		});
+		widget.focus();
+		widget.focusNext();
+		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		const link = row.querySelector<HTMLAnchorElement>('.detail a')!;
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		const nativeTabIndex = link.tabIndex;
+
+		dispatchKeyDown(list, { key: 'Tab' });
+		const tabFocusedLink = document.activeElement === link;
+		dispatchKeyDown(link, { key: 'Enter', keyCode: 13 });
+		link.click();
+		dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
+
+		assert.deepStrictEqual({
+			detail: row.querySelector('.detail')?.textContent,
+			ariaLabel: row.getAttribute('aria-label'),
+			nativeTabIndex,
+			tabFocusedLink,
+			shiftTabFocusedList: document.activeElement === list,
+			links,
+			selections,
+		}, {
+			detail: 'Description Learn more',
+			ariaLabel: 'documented, Description Learn more',
+			nativeTabIndex: -1,
+			tabFocusedLink: true,
+			shiftTabFocusedList: true,
+			links: ['https://example.com/docs', 'https://example.com/docs'],
+			selections: [],
 		});
 	});
 

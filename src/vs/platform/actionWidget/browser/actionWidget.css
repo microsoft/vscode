@@ -242,6 +242,13 @@
 	opacity: 1;
 }
 
+/* Keep rendered markdown in the detail line's text flow, so clamping and ellipsis still apply. */
+.action-widget .monaco-list-row.action .detail > div,
+.action-widget .monaco-list-row.action .detail p {
+	display: inline;
+	margin: 0;
+}
+
 .action-widget .monaco-list-row.action .action-item-additional-badges {
 	display: flex;
 	align-items: center;
@@ -317,12 +324,15 @@
 	font-size: 12px;
 }
 
-.action-widget .monaco-list .monaco-list-row .description a {
+.action-widget .monaco-list .monaco-list-row .description a,
+.action-widget .monaco-list .monaco-list-row .detail a {
 	color: var(--vscode-textLink-foreground);
 }
 
 .action-widget .monaco-list .monaco-list-row .description a:hover,
-.action-widget .monaco-list .monaco-list-row .description a:active {
+.action-widget .monaco-list .monaco-list-row .description a:active,
+.action-widget .monaco-list .monaco-list-row .detail a:hover,
+.action-widget .monaco-list .monaco-list-row .detail a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
 

@@ -165,6 +165,7 @@ suite('TabbedModelPicker', () => {
 			onDidChange: changed.event,
 		};
 		const selections: string[] = [];
+		const links: string[] = [];
 		const pins: string[] = [];
 		const configurationChanges: Parameters<ITabbedModelPickerContext['onConfigurationChanged']>[] = [];
 		let hintDismissed = false;
@@ -175,7 +176,7 @@ suite('TabbedModelPicker', () => {
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
 			configurationAccess: access, isUBB: false, showManageModels: false, providerPlaceholders: options.providerPlaceholders ?? [],
 			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: undefined, updateStateType: StateType.Idle },
-			onUnavailableLinkClick: () => { },
+			onUnavailableLinkClick: uri => links.push(uri.toString(true)),
 			onSelect: model => selections.push(model.identifier),
 			onTogglePin: (id, pinned) => { if (pinned) { pins.push(id); } },
 			onManageModels: () => { },
@@ -188,7 +189,7 @@ suite('TabbedModelPicker', () => {
 		const picker = disposables.add(instantiationService.createInstance(TabbedModelPicker));
 		picker.show(anchor, context, options.details);
 		return {
-			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges,
+			picker, popup, anchor, context, selections, links, pins, values, changed, configurationService, configurationChanges,
 			get hintDismissed() { return hintDismissed; },
 		};
 	}
@@ -407,59 +408,42 @@ suite('TabbedModelPicker', () => {
 		row.click();
 	}
 
-	test('HydraFusion routing shows a concise description and Learn more in its accessible flyout', () => {
+	test('HydraFusion routing shows its description and Learn more under the entry like the Auto tiers, without a flyout', () => {
 		const auto = createAutoModel();
-		const result = createPicker({ models: [auto, createHydraFusionModel(), ...models], selectedModelId: auto.identifier });
+		const hydra = createHydraFusionModel();
+		const result = createPicker({ models: [auto, hydra, ...models], selectedModelId: auto.identifier });
 		const row = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-routing-model'))
 			.find(row => row.querySelector('.title')?.textContent === 'HydraFusion');
 		assert.ok(row);
-		row.querySelector<HTMLElement>('.action-list-submenu-indicator')?.click();
-		const panel = result.popup.querySelector<HTMLElement>('.action-list-submenu-panel');
-		const link = panel?.querySelector<HTMLAnchorElement>('a');
-		assert.deepStrictEqual({
-			detail: row.querySelector('.detail')?.textContent,
-			ariaDescription: row.getAttribute('aria-label'),
-			expanded: row.getAttribute('aria-expanded'),
-			panelRole: panel?.getAttribute('role'),
-			description: panel?.querySelector('.chat-model-hover-description p')?.textContent?.trim(),
-			paragraphCount: panel?.querySelectorAll('.chat-model-hover-description p').length,
-			linkInline: link?.parentElement === panel?.querySelector('.chat-model-hover-description p'),
-			link: { label: link?.textContent, href: link?.getAttribute('href') },
-			selections: result.selections,
-		}, {
-			detail: 'May use multiple models',
-			ariaDescription: 'HydraFusion, Research preview, HydraFusion picks a workflow for each task, using one or more models to draft, review, or escalate when needed.',
-			expanded: 'true',
-			panelRole: 'dialog',
-			description: 'HydraFusion picks a workflow for each task, using one or more models to draft, review, or escalate when needed. Learn more',
-			paragraphCount: 1,
-			linkInline: true,
-			link: { label: 'Learn more', href: 'https://aka.ms/hydrafusion-blog' },
-			selections: [],
-		});
-	});
-
-	test('HydraFusion flyout link is reachable by keyboard without selecting the model', () => {
-		const auto = createAutoModel();
-		const result = createPicker({ models: [auto, createHydraFusionModel(), ...models], selectedModelId: auto.identifier });
-		const row = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-routing-model'))
-			.find(row => row.querySelector('.title')?.textContent === 'HydraFusion');
-		assert.ok(row);
+		const link = element(row, '.detail a');
 		const list = element(result.popup, '.monaco-list');
 		list.focus();
-		for (let i = 0; i < 5 && !row.closest('.monaco-list-row')?.classList.contains('focused'); i++) {
+		for (let i = 0; i < 5 && !row.classList.contains('focused'); i++) {
 			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
 		}
-		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
-		const link = result.popup.querySelector<HTMLAnchorElement>('.action-list-submenu-panel a');
-		assert.deepStrictEqual({
-			linkFocused: document.activeElement === link,
-			expanded: row.getAttribute('aria-expanded'),
-			selections: result.selections,
-		}, {
-			linkFocused: true,
-			expanded: 'true',
-			selections: [],
+		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+		const tabFocusedLink = document.activeElement === link;
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		link.click();
+		const snapshot = {
+			detail: row.querySelector('.detail')?.textContent,
+			ariaLabel: row.getAttribute('aria-label'),
+			hasPopup: row.hasAttribute('aria-haspopup'),
+			chevron: !!row.querySelector('.action-list-submenu-indicator.has-submenu'),
+			tabFocusedLink,
+			links: [...result.links],
+			selectionsAfterLink: [...result.selections],
+		};
+		row.click();
+		assert.deepStrictEqual({ ...snapshot, selections: result.selections }, {
+			detail: 'Picks a workflow per task, using one or more models to draft, review, or escalate. Learn more',
+			ariaLabel: 'HydraFusion, Research preview, Picks a workflow per task, using one or more models to draft, review, or escalate.',
+			hasPopup: false,
+			chevron: false,
+			tabFocusedLink: true,
+			links: ['https://aka.ms/hydrafusion-blog', 'https://aka.ms/hydrafusion-blog'],
+			selectionsAfterLink: [],
+			selections: [hydra.identifier],
 		});
 	});
 

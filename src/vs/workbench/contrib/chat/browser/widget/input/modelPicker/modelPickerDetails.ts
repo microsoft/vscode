@@ -42,13 +42,18 @@ export function getMaxContextLabel(): string {
 	return localize('models.contextSize', "Max context");
 }
 
-/** Renders a model's description markdown. The caller places and classes the element. */
-export function renderModelDescription(tooltip: string, openerService: IOpenerService, store: DisposableStore, learnMoreUrl?: URI): { readonly element: HTMLElement; readonly learnMoreLink: HTMLAnchorElement | undefined } {
+/** A model's description markdown, ending with an optional Learn more link. */
+export function getModelDescriptionMarkdown(tooltip: string, learnMoreUrl?: URI): MarkdownString {
 	const content = new MarkdownString(tooltip, { supportThemeIcons: true });
 	if (learnMoreUrl) {
 		content.appendMarkdown(tooltip ? ' ' : '').appendLink(learnMoreUrl, localize('chat.modelPicker.learnMore', "Learn more"));
 	}
-	const rendered = store.add(renderMarkdown(content, {
+	return content;
+}
+
+/** Renders a model's description markdown. The caller places and classes the element. */
+export function renderModelDescription(tooltip: string, openerService: IOpenerService, store: DisposableStore, learnMoreUrl?: URI): { readonly element: HTMLElement; readonly learnMoreLink: HTMLAnchorElement | undefined } {
+	const rendered = store.add(renderMarkdown(getModelDescriptionMarkdown(tooltip, learnMoreUrl), {
 		actionHandler: link => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
 	}));
 	const possibleLearnMoreLink = learnMoreUrl ? rendered.element.lastElementChild?.lastElementChild : undefined;
