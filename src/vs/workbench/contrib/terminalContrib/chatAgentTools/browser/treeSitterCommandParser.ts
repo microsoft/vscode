@@ -13,7 +13,7 @@ import { ITreeSitterLibraryService } from '../../../../../editor/common/services
 import type { ITerminalSandboxCommand } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { shouldRequireConfirmationForAutoApproveParse } from '../../../../../platform/terminal/common/autoApprove/autoApproveParseSafety.js';
 import { SedFileWriteParser } from '../../../../../platform/terminal/common/autoApprove/sedFileWriteParser.js';
-import { ICommandFileWrite, ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
+import { ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
@@ -70,17 +70,6 @@ export class TreeSitterCommandParser extends Disposable {
 		}
 		const captures = await this._queryTree(languageId, commandLine, '(command) @command');
 		return captures.map(e => e.node.text);
-	}
-
-	async countExecutionUnits(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<number> {
-		const query = languageId === TreeSitterCommandParserLanguage.Bash
-			? '[(command) (redirected_statement)] @unit'
-			: '[(command) (assignment_expression) (invokation_expression)] @unit';
-		const captures = await this._queryTree(languageId, commandLine, query);
-		return captures.filter(capture =>
-			capture.node.type !== 'command' ||
-			capture.node.parent?.type !== 'redirected_statement'
-		).length;
 	}
 
 	async extractAutoApprovalSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<IAutoApprovalCommandParseResult> {
@@ -168,21 +157,6 @@ export class TreeSitterCommandParser extends Disposable {
 	 * Returns an array of file paths that would be modified.
 	 */
 	async getCommandFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
-		return (await this.getCommandFileWriteDetails(languageId, commandLine)).map(write => write.path);
-	}
-
-	async hasCommandFileWriteCommand(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<boolean> {
-		if (languageId !== TreeSitterCommandParserLanguage.Bash) {
-			return false;
-		}
-		const captures = await this._queryTree(languageId, commandLine, '(command) @command');
-		return captures.some(capture => {
-			const commandText = this._getCommandFileWriteParserText(commandLine, capture);
-			return this._commandFileWriteParsers.some(parser => parser.canHandle(commandText));
-		});
-	}
-
-	async getCommandFileWriteDetails(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<ICommandFileWrite[]> {
 		// Currently only bash-like shells are supported for command-specific parsing
 		if (languageId !== TreeSitterCommandParserLanguage.Bash) {
 			return [];
@@ -192,21 +166,16 @@ export class TreeSitterCommandParser extends Disposable {
 		const query = '(command) @command';
 		const captures = await this._queryTree(languageId, commandLine, query);
 
-		const result: ICommandFileWrite[] = [];
+		const result: string[] = [];
 		for (const capture of captures) {
-			const commandText = this._getCommandFileWriteParserText(commandLine, capture);
+			const commandText = capture.node.text;
 			for (const parser of this._commandFileWriteParsers) {
 				if (parser.canHandle(commandText)) {
-					result.push(...(parser.extractFileWriteDetails?.(commandText) ?? parser.extractFileWrites(commandText).map(path => ({ path, hasUnquotedPathExpansion: true }))));
+					result.push(...parser.extractFileWrites(commandText));
 				}
 			}
 		}
 		return result;
-	}
-
-	private _getCommandFileWriteParserText(commandLine: string, capture: QueryCapture): string {
-		const commandStart = capture.node.namedChildren.find(child => child !== null && child.type !== 'variable_assignment')?.startIndex ?? capture.node.startIndex;
-		return commandLine.substring(commandStart, capture.node.endIndex);
 	}
 
 	private async _queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {

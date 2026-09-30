@@ -6,10 +6,11 @@
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { win32, posix } from '../../../../../../../base/common/path.js';
+import { extUri, normalizePath } from '../../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
 import { containsCmdDelayedExpansion } from '../../../../../../../platform/terminal/common/autoApprove/cmdDelayedExpansion.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
@@ -17,15 +18,10 @@ import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAna
 import { OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { isString } from '../../../../../../../base/common/types.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
-import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { parseCommand } from '../terminalCommandParser.js';
-import { isZsh } from '../../runInTerminalHelpers.js';
-import { Schemas } from '../../../../../../../base/common/network.js';
 
 const nullDevice = Symbol('null device');
 
 type FileWrite = URI | string | typeof nullDevice;
-type RawFileWrite = { readonly value: string; readonly source: 'redirect' | 'command'; readonly hasUnquotedPathExpansion?: boolean } | typeof nullDevice;
 
 export class CommandLineFileWriteAnalyzer extends Disposable implements ICommandLineAnalyzer {
 	constructor(
@@ -34,7 +30,6 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILabelService private readonly _labelService: ILabelService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
@@ -42,17 +37,8 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
 		let fileWrites: FileWrite[];
-		let hasSequentialCommands: boolean;
-		let hasUnquotedPathExpansion: boolean;
-		let hasUnanalyzablePath: boolean;
-		let hasAmbiguousCommandFileWrite: boolean;
 		try {
-			({ fileWrites, hasUnquotedPathExpansion, hasUnanalyzablePath, hasAmbiguousCommandFileWrite } = await this._getFileWrites(options));
-			const parsedCommand = parseCommand(options.commandLine);
-			const executionUnitCount = await this._treeSitterCommandParser.countExecutionUnits(options.treeSitterLanguage, options.commandLine);
-			hasSequentialCommands =
-				(parsedCommand?.segments.length ?? 0) > 1 ||
-				executionUnitCount > (parsedCommand?.segments.length ?? 0);
+			fileWrites = await this._getFileWrites(options);
 		} catch (e) {
 			console.error(e);
 			this._log('Failed to get file writes via grammar', options.treeSitterLanguage);
@@ -60,88 +46,21 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				isAutoApproveAllowed: false
 			};
 		}
-		return this._getResult(options, fileWrites, hasSequentialCommands, hasUnquotedPathExpansion, hasUnanalyzablePath, hasAmbiguousCommandFileWrite);
+		return this._getResult(options, fileWrites);
 	}
 
-	private _maskUnquotedZshNumericRanges(commandLine: string, shell: string, os: OperatingSystem): string {
-		if (!isZsh(shell, os)) {
-			return commandLine;
-		}
-		let inSingleQuote = false;
-		let inDoubleQuote = false;
-		let inAnsiCQuote = false;
-		let result = '';
-		let lastIndex = 0;
-		for (let i = 0; i < commandLine.length; i++) {
-			const char = commandLine[i];
-			if (char === '\\' && (!inSingleQuote || inAnsiCQuote)) {
-				i++;
-				continue;
-			}
-			if (char === '\'' && !inDoubleQuote) {
-				if (inAnsiCQuote) {
-					inAnsiCQuote = false;
-					inSingleQuote = false;
-				} else if (!inSingleQuote && commandLine[i - 1] === '$') {
-					inAnsiCQuote = true;
-					inSingleQuote = true;
-				} else {
-					inSingleQuote = !inSingleQuote;
-				}
-				continue;
-			}
-			if (char === '"' && !inSingleQuote) {
-				inDoubleQuote = !inDoubleQuote;
-				continue;
-			}
-			if (char === '<' && !inSingleQuote && !inDoubleQuote) {
-				const match = /^<\d*-\d*>/.exec(commandLine.slice(i));
-				if (match) {
-					result += commandLine.slice(lastIndex, i);
-					result += ' '.repeat(match[0].length);
-					i += match[0].length - 1;
-					lastIndex = i + 1;
-				}
-			}
-		}
-		return lastIndex === 0 ? commandLine : result + commandLine.slice(lastIndex);
-	}
-
-	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<{ fileWrites: FileWrite[]; hasUnquotedPathExpansion: boolean; hasUnanalyzablePath: boolean; hasAmbiguousCommandFileWrite: boolean }> {
+	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<FileWrite[]> {
 		let fileWrites: FileWrite[] = [];
-		const commandLineForFileWriteParsing = this._maskUnquotedZshNumericRanges(options.commandLine, options.shell, options.os);
-		const hasUnquotedZshNumericRange = commandLineForFileWriteParsing !== options.commandLine;
 
 		// Get file writes from redirections (via tree-sitter grammar)
-		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, commandLineForFileWriteParsing))
-			.map(rawFileWrite => this._mapRawFileWrite(options, rawFileWrite, 'redirect'));
+		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine))
+			.map(this._mapNullDevice.bind(this, options));
 
 		// Get file writes from command-specific parsers (e.g., sed -i in-place editing)
-		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWriteDetails(options.treeSitterLanguage, commandLineForFileWriteParsing))
-			.map(write => this._mapRawFileWrite(options, write.path, 'command', write.hasUnquotedPathExpansion));
-		const hasAmbiguousCommandFileWrite =
-			hasUnquotedZshNumericRange &&
-			await this._treeSitterCommandParser.hasCommandFileWriteCommand(options.treeSitterLanguage, commandLineForFileWriteParsing);
+		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWrites(options.treeSitterLanguage, options.commandLine))
+			.map(this._mapNullDevice.bind(this, options));
 
 		const allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
-		const zsh = isZsh(options.shell, options.os);
-		const bashPaths = options.treeSitterLanguage === TreeSitterCommandParserLanguage.Bash
-			? allCapturedFileWrites
-				.filter((fileWrite): fileWrite is Exclude<RawFileWrite, typeof nullDevice> => fileWrite !== nullDevice)
-				.map(fileWrite => fileWrite.source === 'redirect'
-					? this._parseBashLiteralPath(fileWrite.value, zsh)
-					: {
-						value: fileWrite.value,
-						hasUnquotedPathExpansion: fileWrite.hasUnquotedPathExpansion ?? true,
-						hasHistoryExpansion: this._parseBashLiteralPath(fileWrite.value, zsh)?.hasHistoryExpansion ?? true,
-					})
-			: [];
-		const hasUnquotedPathExpansion = bashPaths.some(path => path?.hasUnquotedPathExpansion);
-		let hasUnanalyzablePath =
-			bashPaths.some(path => path === undefined) ||
-			bashPaths.some(path => path?.hasHistoryExpansion) ||
-			hasAmbiguousCommandFileWrite ||
-			this._isCmdShell(options);
 
 		if (allCapturedFileWrites.length) {
 			const cwd = options.cwd;
@@ -152,154 +71,32 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 						return e;
 					}
 
-					let value = e.value;
-					if (options.treeSitterLanguage === TreeSitterCommandParserLanguage.Bash && e.source === 'redirect') {
-						value = this._parseBashLiteralPath(value, zsh)?.value ?? value;
-					} else if (options.treeSitterLanguage === TreeSitterCommandParserLanguage.PowerShell) {
-						const parsed = this._parsePowerShellLiteralPath(value);
-						if (parsed === undefined) {
-							hasUnanalyzablePath = true;
-						} else {
-							value = parsed;
-						}
-					}
-
 					// Surrounding quotes where it's difficult to determine whether this is absolute
 					// or relative
-					if (options.treeSitterLanguage !== TreeSitterCommandParserLanguage.Bash && /^['"].*['"]$/.test(value)) {
+					if (/^['"].*['"]$/.test(e)) {
 						// Strip surrounding quotes to get a more reasonable view of the path. Note
 						// that this may not get the real file in the case of inner quotes, but the
 						// important thing here is the resolving whether it's absolute or not.
-						value = this._stripSurroundingQuotes(value);
+						e = this._stripSurroundingQuotes(e);
 					}
-
-					if (options.os === OperatingSystem.Windows && /^[A-Za-z]:[^\\/]/.test(value)) {
-						hasUnanalyzablePath = true;
-					}
-
-					const uriPath = options.os === OperatingSystem.Windows ? value.replaceAll('\\', '/') : value;
 
 					// Absolute
-					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(value) : posix.isAbsolute(value);
+					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(e) : posix.isAbsolute(e);
 					if (isAbsolute) {
-						if (options.os === OperatingSystem.Windows && uriPath.startsWith('//') && cwd.scheme === Schemas.file) {
-							const authorityEnd = uriPath.indexOf('/', 2);
-							return cwd.with({
-								authority: uriPath.substring(2, authorityEnd === -1 ? undefined : authorityEnd),
-								path: authorityEnd === -1 ? '/' : uriPath.substring(authorityEnd),
-							});
-						}
 						// Ensure cwd's scheme and authority is retained
-						return cwd.with({ path: uriPath });
+						return cwd.with({ path: e });
 					}
 
 					// Relative
-					return cwd.with({ path: `${cwd.path}${cwd.path.endsWith('/') ? '' : '/'}${uriPath}` });
+					return URI.joinPath(cwd, e);
 				});
 			} else {
 				this._log('Cwd could not be detected');
-				fileWrites = allCapturedFileWrites.map(fileWrite => fileWrite === nullDevice ? fileWrite : fileWrite.value);
+				fileWrites = allCapturedFileWrites;
 			}
 		}
 		this._log('File writes detected', fileWrites.map(e => e.toString()));
-		return { fileWrites, hasUnquotedPathExpansion, hasUnanalyzablePath, hasAmbiguousCommandFileWrite };
-	}
-
-	private _isCmdShell(options: ICommandLineAnalyzerOptions): boolean {
-		return options.os === OperatingSystem.Windows && /(?:^|[\\/])cmd(?:\.exe)?$/i.test(options.shell);
-	}
-
-	private _parseBashLiteralPath(value: string, zsh: boolean): { value: string; hasUnquotedPathExpansion: boolean; hasHistoryExpansion: boolean } | undefined {
-		let inSingleQuotes = false;
-		let inDoubleQuotes = false;
-		let result = '';
-		let hasUnquotedPathExpansion = false;
-		let hasHistoryExpansion = false;
-		for (let i = 0; i < value.length; i++) {
-			const char = value[i];
-
-			if (inSingleQuotes) {
-				if (char === '\'') {
-					inSingleQuotes = false;
-				} else {
-					result += char;
-				}
-				continue;
-			}
-
-			if (inDoubleQuotes) {
-				if (char === '"') {
-					inDoubleQuotes = false;
-				} else if (char === '\\' && i + 1 < value.length && '$`"\\\n'.includes(value[i + 1])) {
-					i++;
-					if (value[i] !== '\n') {
-						result += value[i];
-					}
-				} else if (char === '\\' && value[i + 1] === '!') {
-					result += '\\!';
-					i++;
-				} else {
-					if (char === '!' && this._isBashHistoryDesignator(value, i)) {
-						hasHistoryExpansion = true;
-					}
-					if (char === '$') {
-						hasUnquotedPathExpansion = true;
-					}
-					result += char;
-				}
-				continue;
-			}
-
-			if (char === '\'') {
-				inSingleQuotes = true;
-				continue;
-			}
-			if (char === '"') {
-				inDoubleQuotes = true;
-				continue;
-			}
-			if (char === '\\') {
-				if (++i >= value.length) {
-					return undefined;
-				}
-				if (value[i] !== '\n') {
-					result += value[i];
-				}
-				continue;
-			}
-			if (char === '$' || char === '*' || char === '?' || char === '[' || zsh && (char === '~' || char === '^' || char === '#' || char === '=')) {
-				hasUnquotedPathExpansion = true;
-			}
-			if (char === '!' && this._isBashHistoryDesignator(value, i)) {
-				hasHistoryExpansion = true;
-			}
-			result += char;
-		}
-		return inSingleQuotes || inDoubleQuotes ? undefined : { value: result, hasUnquotedPathExpansion, hasHistoryExpansion };
-	}
-
-	private _isBashHistoryDesignator(value: string, index: number): boolean {
-		return index < value.length;
-	}
-
-	private _parsePowerShellLiteralPath(value: string): string | undefined {
-		if (value.startsWith('\'') || value.endsWith('\'')) {
-			if (!(value.startsWith('\'') && value.endsWith('\''))) {
-				return undefined;
-			}
-			return value.slice(1, -1).replaceAll('\'\'', '\'');
-		}
-		if (value.startsWith('"') || value.endsWith('"')) {
-			if (!(value.startsWith('"') && value.endsWith('"'))) {
-				return undefined;
-			}
-			const inner = value.slice(1, -1);
-			if (inner.includes('`')) {
-				return undefined;
-			}
-			return inner;
-		}
-		return value;
+		return fileWrites;
 	}
 
 	private _stripSurroundingQuotes(text: string): string {
@@ -313,20 +110,20 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		return result;
 	}
 
-	private _mapRawFileWrite(options: ICommandLineAnalyzerOptions, rawFileWrite: string, source: 'redirect' | 'command', hasUnquotedPathExpansion?: boolean): RawFileWrite {
+	private _mapNullDevice(options: ICommandLineAnalyzerOptions, rawFileWrite: string): string | typeof nullDevice {
 		if (options.treeSitterLanguage === TreeSitterCommandParserLanguage.PowerShell) {
 			return rawFileWrite === '$null'
 				? nullDevice
-				: { value: rawFileWrite, source, hasUnquotedPathExpansion };
+				: rawFileWrite;
 		}
 		return rawFileWrite === '/dev/null'
 			? nullDevice
-			: { value: rawFileWrite, source, hasUnquotedPathExpansion };
+			: rawFileWrite;
 	}
 
-	private async _getResult(options: ICommandLineAnalyzerOptions, fileWrites: FileWrite[], hasSequentialCommands: boolean, hasUnquotedPathExpansion: boolean, hasUnanalyzablePath: boolean, hasAmbiguousCommandFileWrite: boolean): Promise<ICommandLineAnalyzerResult> {
+	private async _getResult(options: ICommandLineAnalyzerOptions, fileWrites: FileWrite[]): Promise<ICommandLineAnalyzerResult> {
 		let isAutoApproveAllowed = true;
-		if (fileWrites.length > 0 || hasAmbiguousCommandFileWrite) {
+		if (fileWrites.length > 0) {
 			const blockDetectedFileWrites = this._configurationService.getValue<string>(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites);
 			switch (blockDetectedFileWrites) {
 				case 'all': {
@@ -337,25 +134,6 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				case 'outsideWorkspace': {
 					const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
 					if (workspaceFolders.length > 0) {
-						if (hasUnanalyzablePath) {
-							isAutoApproveAllowed = false;
-							this._log('File writes blocked because the destination could not be parsed');
-							break;
-						}
-						if (hasUnquotedPathExpansion) {
-							isAutoApproveAllowed = false;
-							this._log('File writes blocked because the destination contains unquoted pathname expansion');
-							break;
-						}
-						if (hasSequentialCommands && fileWrites.some(fileWrite => fileWrite !== nullDevice)) {
-							isAutoApproveAllowed = false;
-							this._log('File writes blocked because earlier commands can change the destination');
-							break;
-						}
-						const workspaceRoots = await Promise.all(workspaceFolders.map(async folder => ({
-							literal: this._uriIdentityService.extUri.normalizePath(folder.uri),
-							canonical: await this._canonicalize(folder.uri),
-						})));
 						for (const fileWrite of fileWrites) {
 							if (fileWrite === nullDevice) {
 								this._log('File write to null device allowed', URI.isUri(fileWrite) ? fileWrite.toString() : fileWrite);
@@ -370,8 +148,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 									break;
 								}
 							}
-							const rawFileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
-							const fileUri = this._uriIdentityService.extUri.normalizePath(rawFileUri);
+							const fileUri = normalizePath(URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite));
 							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
 							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
 							// `~` catches POSIX tilde expansion (e.g. `~/foo`), `%` catches Windows
@@ -380,42 +157,31 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							// not recognized as absolute by `posix.isAbsolute` / `win32.isAbsolute`, so
 							// without this guard they would be joined onto cwd and incorrectly classified
 							// as inside the workspace while expanding at runtime to a location outside it.
-							if (
-								fileUri.fsPath.match(/[\(\){}`~%]/) ||
-								options.treeSitterLanguage !== TreeSitterCommandParserLanguage.Bash && fileUri.fsPath.includes('$') ||
-								containsCmdDelayedExpansion(fileUri.fsPath)
-							) {
+							if (fileUri.fsPath.match(/[$\(\){}`~%]/) || containsCmdDelayedExpansion(fileUri.fsPath)) {
 								isAutoApproveAllowed = false;
 								this._log('File write blocked due to likely containing a variable, sub-command, or tilde/environment-variable expansion', fileUri.toString());
 								break;
 							}
 
-							const canonicalFileUri = await this._canonicalize(rawFileUri);
-							if (!canonicalFileUri) {
-								isAutoApproveAllowed = false;
-								this._log('File write blocked because the canonical path could not be resolved', fileUri.toString());
-								break;
-							}
-
-							const isInsideWorkspace = workspaceRoots.some(folder =>
-								!!folder.canonical &&
-								this._uriIdentityService.extUri.isEqualOrParent(fileUri, folder.literal) &&
-								this._uriIdentityService.extUri.isEqualOrParent(canonicalFileUri, folder.canonical)
+							const isInsideWorkspace = workspaceFolders.some(folder =>
+								folder.uri.scheme === fileUri.scheme &&
+								extUri.isEqualOrParent(fileUri, folder.uri)
 							);
 							if (!isInsideWorkspace) {
 								// Allow writes to OS temp locations when the user has opted into
 								// "Allow All Commands in this Session" via the confirmation.
-								if (
-									options.hasSessionAutoApproval &&
-									fileUri.scheme === canonicalFileUri.scheme &&
-									fileUri.authority === canonicalFileUri.authority &&
-									this._isInTempDirectory(fileUri.path, options.os) &&
-									this._isInTempDirectory(canonicalFileUri.path, options.os)
-								) {
+								if (options.hasSessionAutoApproval && this._isInTempDirectory(fileUri.path, options.os)) {
 									continue;
 								}
 								isAutoApproveAllowed = false;
 								this._log('File write blocked outside workspace', fileUri.toString());
+								break;
+							}
+
+							// The shell follows symlinks, so the real path must also stay inside the workspace
+							if (!await this._isRealPathInsideWorkspace(fileUri, workspaceFolders)) {
+								isAutoApproveAllowed = false;
+								this._log('File write blocked because its real path is outside the workspace', fileUri.toString());
 								break;
 							}
 						}
@@ -451,51 +217,54 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		};
 	}
 
-	private async _canonicalize(uri: URI): Promise<URI | undefined> {
-		const suffix: string[] = [];
+	/**
+	 * Returns whether `fileUri` still resolves inside a workspace folder once
+	 * symlinks are followed.
+	 */
+	private async _isRealPathInsideWorkspace(fileUri: URI, workspaceFolders: readonly IWorkspaceFolder[]): Promise<boolean> {
+		const realFileUri = await this._realpathOfNearestExisting(fileUri);
+		if (!realFileUri) {
+			return false;
+		}
+		for (const folder of workspaceFolders) {
+			const realFolderUri = await this._realpathOfNearestExisting(folder.uri);
+			if (realFolderUri && extUri.isEqualOrParent(realFileUri, realFolderUri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Resolves the real path of `uri`, walking up to its nearest existing ancestor
+	 * when it does not exist yet. Returns `undefined` when an entry exists but has
+	 * no real path, such as a dangling symlink, since a write would follow it.
+	 */
+	private async _realpathOfNearestExisting(uri: URI): Promise<URI | undefined> {
+		const missingSegments: string[] = [];
 		let current = uri;
 		while (true) {
 			try {
-				const real = await this._fileService.realpath(current);
-				if (!real) {
-					return undefined;
-				}
-				// A missing parent could be created as a symlink earlier in the
-				// same compound command, so only a missing final path segment is safe.
-				if (suffix.length > 1) {
-					return undefined;
-				}
-				return suffix.length ? this._uriIdentityService.extUri.joinPath(real, ...suffix) : real;
-			} catch (error) {
-				if (!this._isFileNotFound(error)) {
-					return undefined;
-				}
+				const realUri = await this._fileService.realpath(current);
+				return realUri && extUri.joinPath(realUri, ...missingSegments);
+			} catch {
+				// Check below whether `current` is missing or unresolvable
 			}
-
 			try {
 				await this._fileService.stat(current);
 				return undefined;
 			} catch (error) {
-				if (!this._isFileNotFound(error)) {
+				if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 					return undefined;
 				}
 			}
-
-			const parent = this._uriIdentityService.extUri.dirname(current);
-			if (this._uriIdentityService.extUri.isEqual(parent, current)) {
+			const parent = extUri.dirname(current);
+			if (extUri.isEqual(parent, current)) {
 				return undefined;
 			}
-			suffix.unshift(this._uriIdentityService.extUri.basename(current));
+			missingSegments.unshift(extUri.basename(current));
 			current = parent;
 		}
-	}
-
-	private _isFileNotFound(error: unknown): boolean {
-		if (!(error instanceof Error)) {
-			return false;
-		}
-		return toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND ||
-			(error as Error & { code?: string }).code === 'ENOENT';
 	}
 
 	/**
