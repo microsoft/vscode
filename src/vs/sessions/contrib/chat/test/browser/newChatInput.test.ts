@@ -165,7 +165,7 @@ interface IAttachmentPickerHarness {
 			anchor: HTMLElement | undefined;
 			anchorPosition: 'above' | 'below' | 'overlay' | undefined;
 			items: readonly unknown[];
-			readonly selectedItems: readonly { readonly contextAction?: IWorkspacePickerContextAction }[];
+			readonly selectedItems: readonly { readonly id?: string; readonly label?: string; readonly contextAction?: IWorkspacePickerContextAction }[];
 			show(): void;
 			hide(): void;
 			dispose(): void;
@@ -174,7 +174,8 @@ interface IAttachmentPickerHarness {
 		};
 	};
 	isPickerVisibleAt(anchor: HTMLElement): boolean;
-	_getStaticPicks?(contextActions: readonly IWorkspacePickerContextAction[]): readonly { readonly contextAction?: IWorkspacePickerContextAction }[];
+	_getStaticPicks?(contextActions: readonly IWorkspacePickerContextAction[]): readonly { readonly id?: string; readonly label?: string; readonly contextAction?: IWorkspacePickerContextAction }[];
+	_handleFileDialog?(): Promise<void>;
 }
 
 interface IAttachmentRenderingHarness {
@@ -435,6 +436,58 @@ suite('NewChatInputWidget', () => {
 		showAttachmentPicker.call(harness, undefined, [action], attachButton);
 		onDidAcceptEmitter.fire();
 		await actionRan.p;
+
+		assert.deepStrictEqual({
+			anchor: inheritedAnchor === attachButton ? 'attachButton' : undefined,
+			anchorPosition: inheritedPosition,
+		}, {
+			anchor: 'attachButton',
+			anchorPosition: 'below',
+		});
+		onDidHideEmitter.fire();
+	});
+
+	test('anchors the Files picker to the attach button', async () => {
+		const attachButton = document.createElement('div');
+		const onDidAcceptEmitter = disposables.add(new Emitter<void>());
+		const onDidHideEmitter = disposables.add(new Emitter<void>());
+		const fileDialogOpened = new DeferredPromise<void>();
+		const filePick = { id: 'sessions.filesAndFolders', label: 'Files...' };
+		const picker = {
+			placeholder: '',
+			matchOnDescription: false,
+			sortByLabel: true,
+			anchor: undefined as HTMLElement | undefined,
+			anchorPosition: undefined as 'above' | 'below' | 'overlay' | undefined,
+			items: [] as readonly unknown[],
+			selectedItems: [filePick],
+			show: () => { },
+			hide: () => { },
+			dispose: () => { },
+			onDidAccept: onDidAcceptEmitter.event,
+			onDidHide: onDidHideEmitter.event,
+		};
+		let inheritedAnchor: HTMLElement | undefined;
+		let inheritedPosition: 'above' | 'below' | 'overlay' | undefined;
+		const harness: IAttachmentPickerHarness = {
+			quickInputService: {
+				currentQuickInput: undefined,
+				cancel: async () => { },
+				createQuickPick: () => picker,
+				withQuickInputAnchor: async (anchor, anchorPosition, operation) => {
+					inheritedAnchor = anchor;
+					inheritedPosition = anchorPosition;
+					return operation();
+				},
+			},
+			isPickerVisibleAt: () => false,
+			_getStaticPicks: () => [filePick],
+			_handleFileDialog: async () => fileDialogOpened.complete(),
+		};
+
+		showAttachmentPicker.call(harness, undefined, [], attachButton);
+		onDidAcceptEmitter.fire();
+		await fileDialogOpened.p;
 
 		assert.deepStrictEqual({
 			anchor: inheritedAnchor === attachButton ? 'attachButton' : undefined,

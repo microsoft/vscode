@@ -333,15 +333,17 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 
 			picker.hide();
 
-			if (selected.contextAction) {
-				await this.quickInputService.withQuickInputAnchor(anchor, anchor ? 'below' : undefined, () => selected.contextAction!.run());
-			} else if (selected.id === 'sessions.filesAndFolders') {
-				await this._handleFileDialog();
-			} else if (selected.id === 'sessions.imageFromClipboard') {
-				await this._handleClipboardImage();
-			} else if (selected.id) {
-				await this._attachFileUri(URI.parse(selected.id), selected.label);
-			}
+			await this.quickInputService.withQuickInputAnchor(anchor, anchor ? 'below' : undefined, async () => {
+				if (selected.contextAction) {
+					await selected.contextAction.run();
+				} else if (selected.id === 'sessions.filesAndFolders') {
+					await this._handleFileDialog();
+				} else if (selected.id === 'sessions.imageFromClipboard') {
+					await this._handleClipboardImage();
+				} else if (selected.id) {
+					await this._attachFileUri(URI.parse(selected.id), selected.label);
+				}
+			});
 		}));
 
 		disposables.add(picker.onDidHide(() => {
