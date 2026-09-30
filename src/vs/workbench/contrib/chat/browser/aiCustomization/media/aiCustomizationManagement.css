@@ -1490,6 +1490,19 @@ per-word capitalization does not survive translation. */
 	color: inherit;
 }
 
+.ai-customization-management-editor .prompt-migration-item.has-migration-changes {
+	align-items: flex-start;
+}
+
+.ai-customization-management-editor .prompt-migration-item-changes {
+	color: var(--vscode-editorWarning-foreground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 20px;
+	margin-top: var(--vscode-spacing-size40);
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+
 .ai-customization-management-editor .prompt-migration-unsupported-item {
 	align-items: center;
 	min-height: 64px;

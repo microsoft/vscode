@@ -74,7 +74,7 @@ import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/comm
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
@@ -1083,6 +1083,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
+	if (options.migrationCategory === CustomizationMigrationCategoryId.McpServers) {
+		fileContents.set(URI.file('/workspace/.vscode/mcp.json'), JSON.stringify({
+			servers: {
+				'Remote Browser': { type: 'http', url: 'https://mcp.example.com' },
+				'Development Server': { command: 'node', gallery: true, version: '1', dev: { watch: 'src/**/*.ts' }, sandboxEnabled: true },
+				'Environment File Server': { command: 'node', envFile: '.env' },
+			},
+		}));
+	}
 	const delayedReadFiles = new ResourceSet();
 	if (options.pluginReadmeContent !== undefined) {
 		const pluginReadmeUri = URI.file('/workspace/.copilot/plugins/circleci/README.md');
@@ -1355,8 +1364,28 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						discoveryComplete: true,
 						coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 					};
+					const migrationSupport: IAgentHostMcpServerSupportSnapshot = options.migrationCategory === CustomizationMigrationCategoryId.McpServers ? {
+						...support,
+						servers: [
+							...support.servers,
+							{
+								...support.servers[0],
+								id: 'mcp.config.ws0.development',
+								name: 'Development Server',
+								compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.DevelopmentModeIgnored, AgentHostMcpSupportReason.SandboxConfigurationIgnored, AgentHostMcpSupportReason.GalleryMetadataNotPortable, AgentHostMcpSupportReason.ServerVersionNotPortable] },
+								projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+							},
+							{
+								...support.servers[0],
+								id: 'mcp.config.ws0.env-file',
+								name: 'Environment File Server',
+								compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.EnvironmentFileIgnored] },
+								projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', envFile: '.env' },
+							},
+						],
+					} : support;
 					return {
-						support: constObservable(support),
+						support: constObservable(migrationSupport),
 						isResolved: constObservable(true),
 						whenResolved: () => Promise.resolve(),
 						dispose: () => { },
@@ -1996,7 +2025,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	}
 
 	if (options.migrationCategory) {
-		editor.showCustomizationMigrationPage(options.migrationCategory);
+		await editor.showCustomizationMigrationPage(options.migrationCategory);
 	}
 
 	if (options.migrationPartialSelection) {
@@ -3262,10 +3291,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpMigration: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Migrate MCP Servers page shows Remote Browser moving from the workspace .vscode/mcp.json file to the root .mcp.json file, with no file open or more-actions controls.'],
+		expectedVisualDescriptions: ['The Migrate MCP Servers page has three sections: Ready to migrate with Remote Browser, Migrates with changes with Development Server and wrapped explanations of each property removal in its row, and Not migratable with Environment File Server. Each migratable section has its own Select all checkbox. The page scrolls when the explanations exceed the available height.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.McpServers,
+		}),
+	}),
+
+	McpMigrationNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationCategory: CustomizationMigrationCategoryId.McpServers,
+			width: 650,
+			height: 650,
 		}),
 	}),
 

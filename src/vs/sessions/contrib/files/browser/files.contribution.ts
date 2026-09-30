@@ -22,13 +22,14 @@ import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensi
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { IsSessionsWindowContext, ResourceContextKey, WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext, ResourceContextKey, WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
 import { FileDownload } from '../../../../workbench/contrib/files/browser/fileImportExport.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../browser/menus.js';
+import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
@@ -105,6 +106,7 @@ export class DownloadRemoteFileAction extends Action2 {
 	constructor() {
 		const precondition = ContextKeyExpr.and(
 			IsSessionsWindowContext,
+			ActiveEditorContext.notEqualsTo(EmptyFileEditorInput.EDITOR_ID),
 			ResourceContextKey.IsFileSystemResource,
 			ContextKeyExpr.or(
 				ResourceContextKey.Scheme.isEqualTo(AGENT_HOST_SCHEME),
@@ -117,7 +119,7 @@ export class DownloadRemoteFileAction extends Action2 {
 			icon: Codicon.cloudDownload,
 			precondition,
 			menu: [{
-				id: Menus.SessionsEditorHeaderPrimary,
+				id: Menus.SessionsEditorTitle,
 				group: '2_download',
 				when: ContextKeyExpr.and(precondition, DesktopLayoutContext),
 			}, {

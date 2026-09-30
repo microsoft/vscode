@@ -345,6 +345,7 @@ interface IMigrationItemTemplateData {
 	readonly staticText: HTMLElement;
 	readonly staticNameLabel: HTMLElement;
 	readonly staticPathLabel: HTMLElement;
+	readonly changesLabel: HTMLElement;
 	readonly moreButton: HTMLButtonElement;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -363,8 +364,14 @@ type CustomizationDetailOrigin =
 	| { readonly kind: 'pluginDetail'; readonly item: IAgentPluginItem; readonly origin: CustomizationDetailBaseOrigin };
 
 class MigrationItemDelegate implements IListVirtualDelegate<CustomizationMigrationCandidate> {
-	getHeight(): number {
-		return MIGRATION_ITEM_HEIGHT;
+	constructor(private readonly getPresentation: (customization: CustomizationMigrationCandidate) => ICustomizationMigrationCandidatePresentation) { }
+
+	getHeight(customization: CustomizationMigrationCandidate): number {
+		return this.getPresentation(customization).changesLabel ? MIGRATION_ITEM_HEIGHT + 20 : MIGRATION_ITEM_HEIGHT;
+	}
+
+	hasDynamicHeight(customization: CustomizationMigrationCandidate): boolean {
+		return !!this.getPresentation(customization).changesLabel;
 	}
 
 	getTemplateId(): string {
@@ -406,6 +413,7 @@ class MigrationItemRenderer implements IListRenderer<CustomizationMigrationCandi
 		const staticNameRow = DOM.append(staticText, $('span.item-name-row'));
 		const staticNameLabel = DOM.append(staticNameRow, $('span.item-name.prompt-migration-item-name'));
 		const staticPathLabel = DOM.append(staticText, $('span.item-description.is-filename.prompt-migration-item-path'));
+		const changesLabel = DOM.append(staticText, $('span.item-description.prompt-migration-item-changes'));
 
 		const itemRight = DOM.append(container, $('span.item-right'));
 		const moreButton = DOM.append(itemRight, $('button.icon-button.prompt-migration-more-action', { type: 'button' })) as HTMLButtonElement;
@@ -420,6 +428,7 @@ class MigrationItemRenderer implements IListRenderer<CustomizationMigrationCandi
 			staticText,
 			staticNameLabel,
 			staticPathLabel,
+			changesLabel,
 			moreButton,
 			templateDisposables,
 			elementDisposables,
@@ -435,6 +444,7 @@ class MigrationItemRenderer implements IListRenderer<CustomizationMigrationCandi
 		templateData.currentIndex = index;
 		templateData.currentElement = customization;
 		const presentation = this.getPresentation(customization);
+		templateData.container.classList.toggle('has-migration-changes', !!presentation.changesLabel);
 		const file = presentation.file;
 		templateData.hasFileActions = file !== undefined;
 		this.updateCheckboxState(templateData, customization);
@@ -443,6 +453,8 @@ class MigrationItemRenderer implements IListRenderer<CustomizationMigrationCandi
 		templateData.openPathLabel.textContent = presentation.pathLabel;
 		templateData.staticNameLabel.textContent = presentation.name;
 		templateData.staticPathLabel.textContent = presentation.pathLabel;
+		templateData.changesLabel.textContent = presentation.changesLabel ?? '';
+		templateData.changesLabel.style.display = presentation.changesLabel ? '' : 'none';
 		templateData.openButton.element.style.display = file ? '' : 'none';
 		templateData.staticText.style.display = file ? 'none' : '';
 		templateData.moreButton.style.display = file ? '' : 'none';
@@ -469,6 +481,9 @@ class MigrationItemRenderer implements IListRenderer<CustomizationMigrationCandi
 		} else {
 			templateData.openButton.element.removeAttribute('aria-label');
 			templateData.moreButton.removeAttribute('aria-label');
+			templateData.elementDisposables.add(this.hoverService.setupManagedHover(
+				getDefaultHoverDelegate('element'), templateData.staticPathLabel, presentation.pathLabel,
+			));
 		}
 	}
 
@@ -2064,7 +2079,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const contexts = new Map(servers.map(server => [server.storage, this.getMigrationActivityContext(server.storage)]));
 		const confirmation = category.getConfirmation(servers, this.getActiveHarnessLabel());
 		const confirmResult = await this.dialogService.confirm({
-			type: 'question',
+			type: servers.some(server => Object.keys(server.removedProperties ?? {}).length > 0) ? 'warning' : 'question',
 			message: confirmation.message,
 			detail: confirmation.detail,
 			primaryButton: confirmation.primaryButton,
@@ -2553,9 +2568,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	): IMigrationSectionList {
 		container.style.height = `${MIGRATION_ITEM_HEIGHT}px`;
 		const category = this.getActiveMigrationCategory() ?? CUSTOMIZATION_MIGRATION_CATEGORIES[0];
+		const getPresentation = (customization: CustomizationMigrationCandidate) => category.getCandidatePresentation(customization, uri => this.labelService.getUriLabel(uri, { relative: true }), this.getActiveHarnessLabel());
 		const renderer = new MigrationItemRenderer(
 			customization => this.isCustomizationSelectedForMigration(customization),
-			customization => category.getCandidatePresentation(customization, uri => this.labelService.getUriLabel(uri, { relative: true })),
+			getPresentation,
 			(customization, selected) => {
 				this.setCustomizationSelectedForMigration(customization, selected);
 				this.updateCustomizationMigrationActionState();
@@ -2579,16 +2595,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 			WorkbenchList<CustomizationMigrationCandidate>,
 			`CustomizationMigration.${label}`,
 			container,
-			new MigrationItemDelegate(),
+			new MigrationItemDelegate(getPresentation),
 			[renderer],
 			{
 				multipleSelectionSupport: false,
 				horizontalScrolling: false,
+				supportDynamicHeights: true,
 				accessibilityProvider: {
 					getWidgetAriaLabel: () => label,
 					getAriaLabel: customization => {
-						const presentation = category.getCandidatePresentation(customization, uri => this.labelService.getUriLabel(uri, { relative: true }));
-						return localize('customizationMigrationItemAriaLabel', "{0}, {1}", presentation.name, presentation.pathLabel);
+						const presentation = getPresentation(customization);
+						return presentation.changesLabel
+							? localize('customizationMigrationItemWithChangesAriaLabel', "{0}, {1}. {2}", presentation.name, presentation.pathLabel, presentation.changesLabel)
+							: localize('customizationMigrationItemAriaLabel', "{0}, {1}", presentation.name, presentation.pathLabel);
 					},
 					getSetSize: (_element, _index, listLength) => listLength,
 					getPosInSet: (_element, index) => index + 1,
@@ -2634,6 +2653,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 		const section = { list, renderer, container, items, key };
 		this.migrationSectionLists.push(section);
+		this.migrationPageDisposables.add(list.onDidChangeContentHeight(() => this.scheduleMigrationSectionLayout()));
 		return section;
 	}
 
@@ -2659,8 +2679,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		const heights = layoutVirtualizedSections(this.migrationListContainer, this.migrationSectionLists.map(section => ({
 			container: section.container,
-			contentHeight: section.items.length * MIGRATION_ITEM_HEIGHT,
-			minimumHeight: getVirtualizedSectionMinimumHeight(section.items, () => MIGRATION_ITEM_HEIGHT),
+			contentHeight: section.list.contentHeight,
+			minimumHeight: getVirtualizedSectionMinimumHeight(section.items.map((_item, index) => index), index => section.list.getElementHeight(index)),
 		})));
 		for (let index = 0; index < this.migrationSectionLists.length; index++) {
 			const section = this.migrationSectionLists[index];
@@ -2738,10 +2758,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const exclusions = activeCategory.id === CustomizationMigrationCategoryId.McpServers ? this.getMcpMigrationExclusions(this.activeMigrationStorage) : [];
 			return [
 				activeCategory.pageTitle,
-				...candidates.map(candidate => {
-					const presentation = activeCategory.getCandidatePresentation(candidate, uri => this.labelService.getUriLabel(uri, { relative: true }));
-					return localize('migrationAccessibleCandidate', "{0}: {1}", presentation.name, presentation.pathLabel);
-				}),
+				...activeCategory.group(candidates).filter(group => group.customizations.length > 0).flatMap(group => [
+					group.label,
+					...group.customizations.map(candidate => {
+						const presentation = activeCategory.getCandidatePresentation(candidate, uri => this.labelService.getUriLabel(uri, { relative: true }), this.getActiveHarnessLabel());
+						return presentation.changesLabel
+							? localize('migrationAccessibleCandidateWithChanges', "{0}: {1}. {2}", presentation.name, presentation.pathLabel, presentation.changesLabel)
+							: localize('migrationAccessibleCandidate', "{0}: {1}", presentation.name, presentation.pathLabel);
+					}),
+				]),
+				...(exclusions.length > 0 ? [localize('mcpMigrationUnavailableGroup', "Not migratable")] : []),
 				...exclusions.map(exclusion => localize(
 					'mcpMigrationAccessibleExclusion',
 					"{0} cannot be migrated: {1}",
