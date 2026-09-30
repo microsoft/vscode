@@ -788,19 +788,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._openAiResponseRequestedForCurrentUtterance = true;
 		this._openAiCurrentResponseId = undefined;
 		this._ws.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
-		this._ws.send(JSON.stringify({
-			type: 'response.create',
-			response: {
-				modalities: ['audio'],
-				voice: this._getOpenAiVoice(),
-				output_audio_format: 'pcm16',
-				audio: {
-					voice: this._getOpenAiVoice(),
-					format: 'pcm16',
-				},
-			},
-		}));
-		this._logService.info(`[voice] OpenAI response.create requested trigger=${trigger} voice=${this._getOpenAiVoice()} output_audio_format=pcm16`);
+		this._ws.send(JSON.stringify({ type: 'response.create' }));
+		this._logService.info(`[voice] OpenAI response.create requested trigger=${trigger}`);
 	}
 
 	private _resolveOpenAiResponseId(message: { response_id?: unknown; response?: { id?: unknown }; event_id?: unknown }): string {
@@ -1070,7 +1059,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 						audio: {
 							output: {
 								voice: this._getOpenAiVoice(),
-								format: 'pcm16',
+								format: { type: 'pcm16' },
 							},
 						},
 					},
