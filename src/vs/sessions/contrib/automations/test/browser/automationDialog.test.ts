@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -31,6 +30,7 @@ import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/
 import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -50,6 +50,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -60,16 +61,229 @@ import { SessionModelSelection } from '../../../chat/browser/sessionModelSelecti
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, buildChangedAutomationFields, buildAutomationDisableConditions, canSelectAutomationWorkspace, getAutomationDialogProviders, getAutomationEndDateError, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { AutomationDialogService } from '../../browser/automationDialogService.js';
+import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
 const FOLDER = URI.file('/workspace');
 
+suite('Automation dialog creation', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function openDialog(options: IShowAutomationDialogOptions = {}) {
+		const configurationService = new TestConfigurationService();
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService,
+			contextKeyService: () => contextKeyService,
+		}, disposables);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
+		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IActionWidgetService, new RecordingActionWidgetService());
+		instantiationService.stub(IGitService, upcastPartial<IGitService>({ openRepository: async () => undefined }));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			onDidChangeProviders: Event.None,
+			getProviders: () => [],
+			getProvider: () => undefined,
+		}));
+		const types = [{
+			providerId: 'host',
+			sessionType: { id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None },
+		}];
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			automationSession: constObservable(undefined),
+			onDidChangeSessionTypes: Event.None,
+			getSessionTypesForFolder: () => types,
+			getQuickChatSessionTypes: () => types,
+			isNewSessionTargetAvailable: () => true,
+			isQuickChatTargetAvailable: () => true,
+			resolveWorkspace: () => ({ providerId: 'host', workspace: createWorkspace(false) }),
+			createAutomationQuickChat: () => upcastPartial<ISession>({ sessionId: 'draft' }),
+			createAutomationSession: () => upcastPartial<ISession>({ sessionId: 'draft' }),
+			supportsAutomationSessionConfiguration: () => false,
+			getAutomationSessionConfiguration: async () => null,
+			discardAutomationSession: () => { },
+		}));
+		instantiationService.stub(IAutomationService, upcastPartial<IAutomationService>({
+			availableProviders: constObservable([{ id: 'host', label: 'Host' }]),
+			automations: constObservable(options.existing ? [options.existing] : []),
+			catalogueState: constObservable('ready'),
+			canUpdateAutomation: () => true,
+		}));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		let targetModel: AutomationIsolationModel | undefined;
+		let selectedWorkspace: URI | undefined;
+		instantiationService.stubInstance(MobileAutomationsWorkspacePicker, {
+			setTargetModel: model => { targetModel = model; },
+			setLayoutService: () => { },
+			setSelectedWorkspace: uri => { selectedWorkspace = uri; },
+			onDidSelectWorkspace: Event.None,
+			render: container => container,
+			dispose: () => { },
+		});
+		instantiationService.stubInstance(SessionModelSelection, { dispose: () => { } });
+		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
+		const promptChanged = disposables.add(new Emitter<void>());
+		const promptInput = document.createElement('textarea');
+		instantiationService.stubInstance(ChatInputPart, {
+			render: (container, value) => {
+				promptInput.value = value ?? '';
+				container.appendChild(promptInput);
+			},
+			inputToolbarElement: DOM.$('div'),
+			setInputToolbarAriaLabel: () => { },
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				updateOptions: () => { },
+				onDidChangeModelContent: Event.map(promptChanged.event, () => ({
+					changes: [], eol: '\n', versionId: 1, isUndoing: false, isRedoing: false, isFlush: false, isEolChange: false,
+					detailedReasons: [], detailedReasonsChangeLengths: [],
+				})),
+				getValue: () => promptInput.value,
+			}),
+			layout: () => { },
+			dispose: () => { },
+		});
+		const result = instantiationService.createInstance(AutomationDialogService).showAutomationDialog(options);
+		const container = instantiationService.get(IWorkbenchLayoutService).activeContainer;
+		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.automation-dialog-footer-actions .monaco-button'));
+		const saveButton = buttons.find(button => button.textContent === (options.existing ? 'Save' : 'Create'))!;
+		const cancelButton = buttons.find(button => button.textContent === 'Cancel')!;
+		disposables.add(toDisposable(() => cancelButton.click()));
+		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
+		return {
+			result, saveButton, nameInput, container,
+			getTarget: () => ({ quickChat: targetModel?.isQuickChat, workspace: selectedWorkspace }),
+			setPrompt: (prompt: string) => {
+				promptInput.value = prompt;
+				promptChanged.fire();
+			},
+			setName: (name: string) => {
+				nameInput.value = name;
+				nameInput.dispatchEvent(new InputEvent('input'));
+			},
+		};
+	}
+
+	for (const { label, prompt, name } of [
+		{ label: 'short prompt', prompt: '  Review changes  ', name: 'Review changes' },
+		{ label: 'multiline whitespace', prompt: '\n Review\t the  changes\n today ', name: 'Review the changes today' },
+		{ label: 'word boundary', prompt: 'Review the recent changes and summarize outstanding work for the team', name: 'Review the recent changes and summarize' },
+		{ label: 'exact limit', prompt: 'a'.repeat(50), name: 'a'.repeat(50) },
+		{ label: 'word ending at limit', prompt: `${'a'.repeat(50)} next`, name: 'a'.repeat(50) },
+		{ label: 'long word', prompt: 'a'.repeat(60), name: 'a'.repeat(50) },
+		{ label: 'Unicode characters', prompt: '\u{1F600}'.repeat(60), name: '\u{1F600}'.repeat(50) },
+	]) {
+		test(`creates from prompt only (${label}), deriving the name and defaulting to quick chat`, async () => {
+			const dialog = openDialog();
+			dialog.setPrompt(prompt);
+			assert.deepStrictEqual({
+				name: dialog.nameInput.value,
+				target: dialog.getTarget(),
+				disabled: dialog.saveButton.getAttribute('aria-disabled'),
+			}, { name: '', target: { quickChat: true, workspace: undefined }, disabled: 'false' });
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.ok(result?.kind === 'create');
+			assert.deepStrictEqual(result.value, {
+				name, prompt,
+				target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+				enabled: true,
+			});
+		});
+	}
+
+	test('requires a non-whitespace prompt and derives a whitespace-only name', async () => {
+		const dialog = openDialog();
+		dialog.setName(' \t ');
+		const initialDisabled = dialog.saveButton.getAttribute('aria-disabled');
+		dialog.setPrompt(' \n\t ');
+		const whitespaceDisabled = dialog.saveButton.getAttribute('aria-disabled');
+		dialog.setPrompt('Summarize changes');
+		assert.deepStrictEqual([initialDisabled, whitespaceDisabled, dialog.saveButton.getAttribute('aria-disabled')], ['true', 'true', 'false']);
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.ok(result?.kind === 'create');
+		assert.strictEqual(result.value.name, 'Summarize changes');
+	});
+
+	test('preserves a supplied quick-chat target and custom name', async () => {
+		const initialValues = {
+			name: ' Custom title ', prompt: 'Review changes',
+			target: { kind: 'quickChat' as const, providerId: 'host', sessionTypeId: 'copilotcli' },
+			schedule: { interval: 'daily' as const, scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+			enabled: true,
+		};
+		const dialog = openDialog({ initialValues });
+		assert.deepStrictEqual(dialog.getTarget(), { quickChat: true, workspace: undefined });
+		dialog.saveButton.click();
+		assert.deepStrictEqual(await dialog.result, { kind: 'create', value: initialValues });
+	});
+
+	for (const editing of [false, true]) {
+		test(`preserves a supplied title and workspace when ${editing ? 'editing' : 'creating'}`, async () => {
+			const existing: IAutomationDescriptor = {
+				id: 'existing', name: 'My custom title', prompt: 'Review changes',
+				target: { kind: 'workspace', folderUri: FOLDER, providerId: 'host', sessionTypeId: 'copilotcli', isolation: { kind: 'folder' } },
+				schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+				enabled: false, createdAt: '', updatedAt: '',
+			};
+			const dialog = openDialog(editing ? { existing } : { initialValues: existing });
+			assert.deepStrictEqual({ name: dialog.nameInput.value, target: dialog.getTarget() }, {
+				name: existing.name, target: { quickChat: false, workspace: FOLDER },
+			});
+			if (editing) {
+				dialog.setName(' ');
+				assert.strictEqual(dialog.saveButton.getAttribute('aria-disabled'), 'true');
+				dialog.setName(existing.name);
+			}
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.deepStrictEqual(result, {
+				kind: editing ? 'update' : 'create',
+				...(editing ? { id: existing.id } : {}),
+				value: { name: existing.name, prompt: existing.prompt, target: existing.target, schedule: existing.schedule, ...(!editing ? { enabled: existing.enabled } : {}) },
+			});
+		});
+	}
+
+	for (const editing of [false, true]) {
+		test(`preserves agent-configured end dates without exposing a field when ${editing ? 'editing' : 'duplicating'}`, async () => {
+			const existing: IAutomationDescriptor = {
+				id: 'dated', name: 'Nightly review', prompt: 'Review changes',
+				target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+				schedule: { interval: 'hourly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+				enabled: true, createdAt: '', updatedAt: '',
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T08:00:00Z' }],
+			};
+			const dialog = openDialog(editing ? { existing } : { initialValues: existing });
+			const hasEndDateInput = !!dialog.container.querySelector('input[type="datetime-local"]');
+			dialog.setName('Updated review');
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.deepStrictEqual({
+				hasEndDateInput,
+				kind: result?.kind,
+				enabled: result?.value.enabled,
+				disableConditions: result?.value.disableConditions,
+				name: result?.value.name,
+			}, {
+				hasEndDateInput: false,
+				kind: editing ? 'update' : 'create',
+				enabled: editing ? undefined : true,
+				disableConditions: editing ? undefined : existing.disableConditions,
+				name: 'Updated review',
+			});
+		});
+	}
+});
+
 suite('Automation dialog layout', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders a single workspace picker before the prompt in DOM and keyboard order', () => {
+	test('renders target and prompt controls before the schedule in DOM and keyboard order', () => {
 		const configurationService = new TestConfigurationService();
 		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 		const instantiationService = workbenchInstantiationService({
@@ -153,7 +367,6 @@ suite('Automation dialog layout', () => {
 			new NullLogService(), sessionsManagementService, instantiationService.get(IWorkspaceTrustRequestService),
 			'Review the workspace', undefined, undefined,
 			constObservable([]),
-			undefined,
 		);
 		disposables.add(registerAutomationDialogKeyboardNavigation(DOM.getWindow(form), handle.getFocusableElements, () => false));
 		workspaceButton.focus();
@@ -163,8 +376,11 @@ suite('Automation dialog layout', () => {
 		const promptSection = form.querySelector('.automation-prompt-section')!;
 		const inputContainer = form.querySelector('.chat-input-container')!;
 		const sessionControls = form.querySelector('.automation-session-configuration')!;
+		const scheduleRow = form.querySelector('.automation-form-schedule-row')!;
 		assert.deepStrictEqual({
-			targetLabel: targetRow.querySelector('.automation-form-label')?.textContent,
+			formSections: Array.from(form.querySelector('.automation-form-content')!.children, element => element.className),
+			enabledCheckbox: form.querySelector('[role="checkbox"][aria-label="Enabled"]'),
+			targetLabel: targetRow.querySelector('.automation-target-toolbar')?.getAttribute('aria-label'),
 			targetContainsWorkspace: targetRow.contains(workspaceButton),
 			targetBeforePrompt: !!(targetRow.compareDocumentPosition(promptSection) & Node.DOCUMENT_POSITION_FOLLOWING),
 			targetControls: Array.from(targetRow.querySelectorAll('button, a[href]'), element => element.textContent),
@@ -175,6 +391,7 @@ suite('Automation dialog layout', () => {
 			configurationInsideInput: inputContainer.contains(inputToolbar),
 			controlsInsideInput: inputContainer.contains(sessionControls),
 			controlsAfterInput: !!(inputContainer.compareDocumentPosition(sessionControls) & Node.DOCUMENT_POSITION_FOLLOWING),
+			scheduleAfterControls: !!(sessionControls.compareDocumentPosition(scheduleRow) & Node.DOCUMENT_POSITION_FOLLOWING),
 			configurationHeader: form.querySelector('#automation-session-configuration-label'),
 			inputToolbarWrapperRole: inputToolbar.getAttribute('role'),
 			inputToolbarLabel: inputToolbar.querySelector('[role="toolbar"]')?.getAttribute('aria-label'),
@@ -184,6 +401,12 @@ suite('Automation dialog layout', () => {
 			controlsLabelCount: form.querySelectorAll('[aria-label="Session controls"]').length,
 			inputToolbarHidden: inputToolbar.style.display === 'none',
 		}, {
+			formSections: [
+				'automation-form-row',
+				'automation-session-section',
+				'automation-form-row automation-form-schedule-row',
+			],
+			enabledCheckbox: null,
 			targetLabel: 'Target',
 			targetContainsWorkspace: true,
 			targetBeforePrompt: true,
@@ -195,6 +418,7 @@ suite('Automation dialog layout', () => {
 			configurationInsideInput: true,
 			controlsInsideInput: false,
 			controlsAfterInput: true,
+			scheduleAfterControls: true,
 			configurationHeader: null,
 			inputToolbarWrapperRole: null,
 			inputToolbarLabel: 'Session configuration options',
@@ -203,6 +427,18 @@ suite('Automation dialog layout', () => {
 			controlsLabel: 'Session controls',
 			controlsLabelCount: 1,
 			inputToolbarHidden: true,
+		});
+
+		dispatchKey(promptInput, 'keydown', 'Tab');
+		const scheduleInput = scheduleRow.querySelector<HTMLElement>('[aria-label="Schedule"]')!;
+		const scheduleFocused = document.activeElement === scheduleInput;
+		dispatchKey(scheduleInput, 'keydown', 'Tab', true);
+		assert.deepStrictEqual({
+			scheduleFocused,
+			promptFocusedOnShiftTab: document.activeElement === promptInput,
+		}, {
+			scheduleFocused: true,
+			promptFocusedOnShiftTab: true,
 		});
 
 		assert.ok(targetModel);
@@ -409,7 +645,6 @@ function createFormState(overrides?: Partial<IFormState>): IFormState {
 		isolationMode: 'worktree',
 		branch: undefined,
 		enabled: true,
-		endDate: undefined,
 		...overrides,
 	};
 }
@@ -1030,6 +1265,7 @@ suite('Automation branch picker', () => {
 		readonly providerInitiallyUnavailable?: boolean;
 		readonly revalidate?: () => void;
 		readonly visible?: boolean;
+		readonly hasRepository?: boolean | ((folder: URI) => boolean | Promise<boolean>);
 	}): {
 		readonly container: HTMLElement;
 		readonly state: IFormState;
@@ -1066,12 +1302,13 @@ suite('Automation branch picker', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IActionWidgetService, actionWidgetService);
 		instantiationService.stub(IGitService, upcastPartial<IGitService>({
-			openRepository: async () => {
+			openRepository: async folder => {
 				openRepositoryAttempts++;
 				if (options?.failOpenRepositoryOnce && openRepositoryAttempts === 1) {
 					throw new Error('failed to open repository');
 				}
-				return repository;
+				const hasRepository = typeof options?.hasRepository === 'function' ? await options.hasRepository(folder) : options?.hasRepository;
+				return hasRepository === false ? undefined : repository;
 			},
 		}));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
@@ -1501,6 +1738,82 @@ suite('Automation branch picker', () => {
 		});
 	});
 
+	test('hides the Worktree and branch pickers for a non-Git workspace', async () => {
+		const { container, model, state } = createItem({ visible: true, hasRepository: false });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			display: container.style.display,
+			ariaHidden: container.getAttribute('aria-hidden'),
+			isolationMode: state.isolationMode,
+			branch: model.persistedBranch,
+		}, {
+			display: 'none',
+			ariaHidden: 'true',
+			isolationMode: 'workspace',
+			branch: undefined,
+		});
+	});
+
+	test('keeps saving available when switching from Worktree to a non-Git workspace', async () => {
+		const { container, model, state } = createItem({ hasRepository: folder => isEqual(folder, FOLDER) });
+		const form = document.createElement('form');
+		const saveButton = disposables.add(new Button(form, defaultButtonStyles));
+		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
+		const snapshot = () => {
+			updateSaveButtonState(saveButton, state, validation, form, () => 'prompt', () => model.persistedBranch, sessionsManagementService);
+			return {
+				display: container.style.display,
+				isolationMode: state.isolationMode,
+				branch: model.persistedBranch,
+				branchError: validation.branchError,
+				canSave: saveButton.enabled,
+			};
+		};
+		await timeout(0);
+		const git = snapshot();
+		model.setWorkspace(URI.file('/non-git'));
+		await timeout(0);
+		const nonGit = snapshot();
+		model.setWorkspace(FOLDER);
+		await timeout(0);
+		const restoredGit = snapshot();
+		model.selectIsolationMode('worktree');
+
+		assert.deepStrictEqual({ git, nonGit, restoredGit, reselectedWorktree: snapshot() }, {
+			git: { display: '', isolationMode: 'worktree', branch: 'main', branchError: undefined, canSave: true },
+			nonGit: { display: 'none', isolationMode: 'workspace', branch: undefined, branchError: undefined, canSave: true },
+			restoredGit: { display: '', isolationMode: 'workspace', branch: undefined, branchError: undefined, canSave: true },
+			reselectedWorktree: { display: '', isolationMode: 'worktree', branch: 'main', branchError: undefined, canSave: true },
+		});
+	});
+
+	test('ignores a stale non-Git result after returning to a Git workspace', async () => {
+		const nonGitResult = new DeferredPromise<boolean>();
+		const { container, model, state } = createItem({
+			hasRepository: folder => isEqual(folder, FOLDER) ? true : nonGitResult.p,
+		});
+		await timeout(0);
+		model.setWorkspace(URI.file('/non-git'));
+		const pendingMode = state.isolationMode;
+		model.setWorkspace(FOLDER);
+		await timeout(0);
+		await nonGitResult.complete(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			pendingMode,
+			display: container.style.display,
+			isolationMode: state.isolationMode,
+			branch: model.persistedBranch,
+		}, {
+			pendingMode: 'worktree',
+			display: '',
+			isolationMode: 'worktree',
+			branch: 'main',
+		});
+	});
+
 	test('reloads repository state when returning to workspace mode', async () => {
 		const state = createFormState({
 			isQuickChat: true,
@@ -1542,171 +1855,6 @@ suite('Automation branch picker', () => {
 		}, {
 			sheet: true,
 			suggestion: true,
-		});
-	});
-
-});
-
-suite('Automation dialog end date', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	function renderEndDateForm(options: {
-		readonly state: IFormState;
-		readonly selectedPick?: MobileSessionTypePicker['selectedPick'];
-		readonly allowedProviders?: readonly string[];
-		readonly disableConditions?: IAutomationDescriptor['disableConditions'];
-	}) {
-		const configurationService = new TestConfigurationService();
-		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
-		const instantiationService = workbenchInstantiationService({
-			configurationService: () => configurationService,
-			contextKeyService: () => contextKeyService,
-		}, disposables);
-		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
-		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
-		instantiationService.stub(IActionWidgetService, new RecordingActionWidgetService());
-		instantiationService.stub(IGitService, upcastPartial<IGitService>({ openRepository: async () => undefined }));
-		const sessionTypesChanged = disposables.add(new Emitter<void>());
-		const sessionsManagementService = instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
-			automationSession: constObservable(undefined),
-			onDidChangeSessionTypes: sessionTypesChanged.event,
-			getSessionTypesForFolder: () => [],
-			getQuickChatSessionTypes: () => [],
-			isNewSessionTargetAvailable: () => true,
-			isQuickChatTargetAvailable: () => true,
-		}));
-		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
-		instantiationService.stubInstance(MobileAutomationsWorkspacePicker, {
-			setTargetModel: () => { },
-			setLayoutService: () => { },
-			onDidSelectWorkspace: Event.None,
-			render: container => container.appendChild(document.createElement('button')),
-			setSelectedWorkspace: () => { },
-			dispose: () => { },
-		});
-		instantiationService.stubInstance(MobileSessionTypePicker, {
-			setQuickChatSource: () => { },
-			setFolderSource: () => { },
-			modelTargetChatSessionType: constObservable(undefined),
-			onDidChangeSelectedPick: Event.None,
-			selectedPick: options.selectedPick,
-			render: () => { },
-			dispose: () => { },
-		});
-		instantiationService.stubInstance(SessionModelSelection, { dispose: () => { } });
-		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
-		const promptInput = document.createElement('textarea');
-		const inputToolbar = document.createElement('div');
-		instantiationService.stubInstance(ChatInputPart, {
-			render: (container, value) => { promptInput.value = value ?? ''; container.appendChild(promptInput); },
-			inputToolbarElement: inputToolbar,
-			setInputToolbarAriaLabel: label => inputToolbar.setAttribute('aria-label', label),
-			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
-				updateOptions: () => { },
-				onDidChangeModelContent: Event.None,
-				getValue: () => promptInput.value,
-			}),
-			layout: () => { },
-			dispose: () => { },
-		});
-
-		const form = DOM.append(document.body, DOM.$('.automation-form'));
-		disposables.add(toDisposable(() => form.remove()));
-		const formDisposables = disposables.add(new DisposableStore());
-		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
-		let refresh = () => { };
-		const handle = renderForm(
-			form, options.state, formDisposables, validation, () => refresh(), instantiationService, contextKeyService,
-			instantiationService.get(IContextViewService), configurationService, instantiationService.get(IWorkbenchLayoutService),
-			new NullLogService(), sessionsManagementService, instantiationService.get(IWorkspaceTrustRequestService),
-			'Prompt', undefined, undefined,
-			constObservable(options.allowedProviders ?? []),
-			options.disableConditions,
-		);
-		refresh = () => handle.refreshDisableConditionsWarning();
-		const endDateInput = form.querySelector<HTMLInputElement>('input[aria-label="Run until"]')!;
-		const enabledCheckbox = form.querySelector<HTMLElement>('[role="checkbox"][aria-label="Enabled"]')!;
-		return { form, state: options.state, handle, endDateInput, enabledCheckbox, validation };
-	}
-
-	test('sets, clears and preserves an end date without resending unchanged authority fields', () => {
-		const date = '2099-01-01T00:00:00Z';
-		const conditions = buildAutomationDisableConditions(date);
-		assert.deepStrictEqual({
-			create: conditions,
-			unlimited: buildAutomationDisableConditions(undefined),
-			unchanged: buildChangedAutomationFields(true, date, { enabled: true, disableConditions: conditions }),
-			set: buildChangedAutomationFields(true, date, { enabled: true }),
-			clear: buildChangedAutomationFields(false, undefined, { enabled: false, disableConditions: conditions }),
-			enable: buildChangedAutomationFields(true, date, { enabled: false, disableConditions: conditions }),
-		}, {
-			create: [{ kind: AutomationDisableConditionKind.AfterDate, date }],
-			unlimited: [],
-			unchanged: {},
-			set: { disableConditions: conditions },
-			clear: { disableConditions: [] },
-			enable: { enabled: true },
-		});
-	});
-
-	test('requires valid future dates but preserves an unchanged expired date', () => {
-		const past = '2000-01-01T00:00:00Z';
-		assert.deepStrictEqual([
-			getAutomationEndDateError(undefined, past),
-			getAutomationEndDateError('2099-01-01T00:00:00Z', undefined),
-			getAutomationEndDateError(past, past),
-			getAutomationEndDateError(past, undefined),
-			getAutomationEndDateError('', undefined),
-		], [undefined, undefined, undefined, 'The end date must be in the future.', 'Enter a valid end date and time.']);
-	});
-
-	test('edits local end date and clears it using a keyboard-reachable field', () => {
-		const { state, form, handle, endDateInput, enabledCheckbox } = renderEndDateForm({ state: createFormState() });
-		disposables.add(registerAutomationDialogKeyboardNavigation(DOM.getWindow(form), handle.getFocusableElements, () => false));
-		enabledCheckbox.focus();
-		dispatchKey(enabledCheckbox, 'keydown', 'Tab');
-		const tabFocusesEndDate = document.activeElement === endDateInput;
-		endDateInput.value = '2099-01-01T08:30:00';
-		endDateInput.dispatchEvent(new (DOM.getWindow(form).Event)('input', { bubbles: true }));
-		const savedDate = state.endDate;
-		endDateInput.value = '';
-		endDateInput.dispatchEvent(new (DOM.getWindow(form).Event)('input', { bubbles: true }));
-		assert.deepStrictEqual({
-			tabFocusesEndDate, savedDate, cleared: state.endDate, enabled: state.enabled,
-			runOnce: form.querySelector('[aria-label="Run once"]'),
-		}, {
-			tabFocusesEndDate: true, savedDate: new Date('2099-01-01T08:30:00').toISOString(),
-			cleared: undefined, enabled: true, runOnce: null,
-		});
-	});
-
-	test('rejects an expired creation default rather than treating it as a saved date', () => {
-		const { validation } = renderEndDateForm({
-			state: createFormState({ endDate: '2000-01-01T00:00:00Z' }),
-		});
-		assert.strictEqual(validation.endDateError, 'The end date must be in the future.');
-	});
-
-	test('warns accessibly when enabling an expired date set through MCP', () => {
-		const { form, handle, enabledCheckbox } = renderEndDateForm({
-			state: createFormState({ enabled: false, endDate: '2000-01-01T00:00:00Z' }),
-			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
-		});
-		const warning = form.querySelector<HTMLElement>('#automation-conditions-warning')!;
-		const disabledMessage = warning.textContent;
-		enabledCheckbox.click();
-		const enabledMessage = warning.textContent;
-		const describedBy = enabledCheckbox.getAttribute('aria-describedby');
-		const announcedContent = warning.firstChild;
-		handle.refreshDisableConditionsWarning();
-		const retainedAnnouncement = warning.firstChild === announcedContent;
-		enabledCheckbox.click();
-		assert.deepStrictEqual({
-			disabledMessage, enabledMessage, describedBy, retainedAnnouncement, cleared: warning.textContent, live: warning.getAttribute('aria-live'),
-		}, {
-			disabledMessage: '',
-			enabledMessage: 'The end date has passed. Scheduling will stop immediately. Change or clear Run until to resume scheduling.',
-			describedBy: warning.id, retainedAnnouncement: true, cleared: '', live: 'polite',
 		});
 	});
 

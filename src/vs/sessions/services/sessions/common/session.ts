@@ -150,14 +150,7 @@ export const enum ChatInteractivity {
 	Hidden = 'hidden',
 }
 
-/**
- * The effective interactivity of a chat given its session's archived state.
- *
- * An archived session is read-only: its interactive chats must hide their
- * composer. `Hidden` chats are internal workers filtered out of the UI, so they
- * stay hidden — archiving only downgrades `Full` chats to `ReadOnly`. When not
- * archived, the chat keeps its own interactivity.
- */
+/** Returns a chat's interactivity after applying chat or session archival. */
 export function effectiveChatInteractivity(isArchived: boolean, interactivity: ChatInteractivity): ChatInteractivity {
 	if (interactivity === ChatInteractivity.Hidden) {
 		return ChatInteractivity.Hidden;
@@ -502,7 +495,8 @@ export interface ISessionChangeset {
 	 */
 	readonly isDefault: IObservable<boolean>;
 	/**
-	 * Whether this changeset is currently loading its file changes.
+	 * Whether this changeset has not yet published a usable file list.
+	 * This is false while a cached file list is available during recomputation.
 	 */
 	readonly isLoadingChanges: IObservable<boolean>;
 	/** Observable for the file changes in this changeset. */
@@ -634,7 +628,7 @@ export interface IChatOrigin {
 }
 
 /**
- * Per-chat capabilities. Consumers gate chat-management UI (rename, delete) on
+ * Per-chat capabilities. Consumers gate chat-management UI (rename, archive, delete) on
  * these flags rather than on the chat's origin/provider, so the affordances are
  * offered exactly where the backing chat supports them. A worker (subagent)
  * chat, for example, is neither renameable nor deletable.
@@ -642,12 +636,38 @@ export interface IChatOrigin {
 export interface IChatCapabilities {
 	/** Whether this chat's title can be renamed. */
 	readonly canRename: boolean;
+	/** Whether this chat can be archived independently of its session. */
+	readonly canArchive: boolean;
 	/** Whether this chat can be permanently deleted. */
 	readonly canDelete: boolean;
 }
 
 /** Capabilities assumed for a chat that does not advertise its own. */
-export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canDelete: true };
+export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canArchive: false, canDelete: true };
+
+/** Availability of a live canvas source. */
+export const enum SessionCanvasAvailability {
+	Ready = 'ready',
+	Unavailable = 'unavailable',
+}
+
+/** A model-opened canvas owned by one chat. */
+export interface ISessionCanvas {
+	/** Stable canvas identity within its owning chat. */
+	readonly resource: URI;
+	/** Stable provider-supplied instance identifier. */
+	readonly instanceId: string;
+	/** Display title. */
+	readonly title: string;
+	/** Optional provider status text. */
+	readonly status?: string;
+	/** Monotonic instance revision. */
+	readonly revision: number;
+	/** Whether the current source can be resolved. */
+	readonly availability: SessionCanvasAvailability;
+	/** Resolve the current HTTP(S) source for this revision. */
+	resolveSource(): Promise<URI>;
+}
 
 /**
  * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
@@ -700,6 +720,8 @@ export interface IChat {
 	 * output stream. Providers that cannot determine this omit the observable.
 	 */
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
+	/** Live model-opened canvases owned by this chat. */
+	readonly canvases?: IObservable<readonly ISessionCanvas[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -736,8 +758,8 @@ export interface IChat {
 	/** How the chat came into existence, if provided by the backend. */
 	readonly origin?: IChatOrigin;
 	/**
-	 * Capabilities of this chat (rename/delete). Absent means the chat inherits
-	 * {@link DEFAULT_CHAT_CAPABILITIES} (fully capable); read via
+	 * Capabilities of this chat (rename/archive/delete). Absent means the chat inherits
+	 * {@link DEFAULT_CHAT_CAPABILITIES}; read via
 	 * {@link getChatCapabilities}.
 	 */
 	readonly capabilities?: IObservable<IChatCapabilities>;
@@ -754,13 +776,14 @@ export function isSideChatOf(chat: IChat, parentChat: URI): boolean {
  * Resolve a chat's effective capabilities. Combines the chat's own advertised
  * {@link IChat.capabilities} (falling back to {@link DEFAULT_CHAT_CAPABILITIES})
  * with the session-level invariant that a session's main chat can never be
- * deleted — it lives and dies with the session. Pass the owning session so the
- * main-chat rule applies; omit it to read only the chat's own capabilities.
+ * archived independently or deleted — it lives and dies with the session. Pass
+ * the owning session so the main-chat rule applies; omit it to read only the
+ * chat's own capabilities.
  */
 export function getChatCapabilities(chat: IChat, session: ISession | undefined, reader: IReader | undefined): IChatCapabilities {
 	const own = chat.capabilities?.read(reader) ?? DEFAULT_CHAT_CAPABILITIES;
 	if (session && isEqual(chat.resource, session.mainChat.read(reader).resource)) {
-		return own.canDelete ? { ...own, canDelete: false } : own;
+		return own.canArchive || own.canDelete ? { ...own, canArchive: false, canDelete: false } : own;
 	}
 	return own;
 }
@@ -892,6 +915,8 @@ export interface ISessionCapabilities {
 	readonly supportsImport?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */
 	readonly supportsRemoveArtifacts?: boolean;
+	/** Whether this session can expose model-opened canvases. */
+	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
 	/**

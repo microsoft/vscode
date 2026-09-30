@@ -6,6 +6,31 @@ This document covers only the local Copilot Chat pipeline configured by `github.
 
 Standard `gen_ai.*` signals follow the [OTel GenAI Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/). Extension-specific signals use the `github.copilot.*` and legacy `copilot_chat.*` namespaces. All signals can be exported to OTel-compatible backends such as Jaeger, Grafana, Azure Monitor, Datadog, Honeycomb, and more.
 
+## User-perceived first progress
+
+The shared VS Code UI timer also emits the content-free metadata span
+`vscode.chat.user_perceived_time_to_first_progress` through this extension's
+OTel pipeline. Its `vscode.chat.user_interaction.timeToFirstProgress` attribute
+is UI submission to meaningful visible text, reasoning, or tool progress plus
+two animation frames, in milliseconds. This is a rendering approximation,
+not model TTFT or exact screen paint. Read the attribute, not the export span's
+duration.
+
+OTel must be enabled, but content capture and VS Code product telemetry need not
+be enabled. The internal `github.copilot.chat.otel.recordUserInteraction` command
+validates and allowlists the shared renderer record. Normal OTel processors
+export it to the configured destination and SQLite store. The command waits for
+OTel initialization and exporter flush before acknowledging, so the shared
+`_chat.flushUserInteractionTelemetry` command also drains local timing exports.
+The UI never activates the extension solely to export a timing.
+
+Unsuccessful observations retain their outcome and time to termination, without
+inventing first-progress latency. Renderer identity and submission ordinal
+distinguish first submissions from followups without relying on export order.
+See the [shared wire contract](../../../../src/vs/platform/agentHost/OTEL.md#user-perceived-first-progress)
+for fields, visibility semantics, and export-readiness behavior. Agent Host uses
+its own exporter rather than this command.
+
 ## Quick Start
 
 The fastest way to see Copilot Chat traces locally — no cloud account required. This guide uses the [Aspire Dashboard](https://aspire.dev/dashboard/standalone/), a lightweight container image from Microsoft that provides a trace viewer with a built-in OTLP endpoint. It can be used standalone, without the rest of .NET Aspire.
@@ -184,9 +209,10 @@ a warning offers **Reload Window** instead. User changes and policy withdrawal r
 opt-in reloads, except that identity denial is enforced before subsequent exports.
 Existing exporter selection and legacy environment-variable precedence are unchanged.
 It uses changes to the application-scoped, policy-backed configuration defaults as a recovery
-signal, without a new API. Normal personal settings changes do not change those defaults.
+signal. Normal personal settings changes do not change those defaults.
 If a recognizable enterprise OTel block was already present at initialization, later changes
-only offer a reload, including enabling a previously disabled managed configuration.
+only offer a reload, including enabling a previously disabled managed configuration, except
+when initialization observed the account gate's disabled, restricted configuration.
 Automatic recovery additionally requires policy-enabled OTLP export targeting the collector in
 those defaults. Disabled and DB-only pipelines, unrelated partial policies, and configurations
 still redirected by environment variables to a different collector or file do not qualify.
@@ -197,9 +223,23 @@ the restart. The default-value signal cannot distinguish a policy consisting ent
 schema-default values from no policy.
 
 There is no periodic polling or restart loop. A startup check and configuration events trigger
-checks, coalesced by a 500 ms debounce. At most one automatic off-to-on recovery is attempted per
-workspace and editor session, identified by `vscode.env.sessionId`. The attempt remains recorded
-even after success or failure. Later policy updates only offer a reload, deduplicated while stale.
+checks, coalesced by a 500 ms debounce. Each check waits for account-policy settlement through
+the private `_workbench.whenAccountPolicySettled` command before reading the current configuration.
+The command waits for the gate's own post-account initialization update, including native
+managed-settings processing, even when that update does not change the gate state.
+Pending refreshes defer the check; settled blocked refreshes are authoritative restrictions,
+not placeholders. While the gate blocks AI, Local OTel does not offer a reload that would only
+repeat the required refresh. The wait resumes on gate changes even if the effective settings are
+unchanged. If policy recovery changes the running exporter, the normal reload flow then applies;
+if it restores the same exporter, no stale reload action remains.
+Automatic recovery is limited to one attempt per editor
+session. A reload guard is saved only when the user chooses **Reload Window**, not when a prompt
+is shown or dismissed. Its configuration fingerprint excludes `vscode.env.sessionId` and carries
+into the immediately following editor session. If that reload still fails to apply the same
+policy, a warning remains available without offering another reload. The guard is consumed by
+that successor and does not prevent recovery on a later launch. Successful recovery retains
+only the current session's automatic-restart budget. Later policy updates offer a reload,
+deduplicated while stale.
 If policy first arrives after a later sign-in, that single recovery can happen then rather than
 immediately at launch. A one-off 15-second grace period allows a requested restart to finish
 before a still-running host shows the reload fallback.

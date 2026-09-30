@@ -375,6 +375,24 @@
 	max-width: 180px;
 }
 
+.automations-cards-unavailable .automations-cards-state-description,
+.automations-cards-partial-state-message {
+	white-space: pre-line;
+}
+
+.automations-unavailable-reasons {
+	margin: 0 auto;
+	padding: 0 0 0 var(--vscode-spacing-size200);
+	width: fit-content;
+	max-width: 100%;
+	box-sizing: border-box;
+	text-align: left;
+}
+
+.automations-unavailable-reasons > li + li {
+	margin-top: var(--vscode-spacing-size40);
+}
+
 .automations-cards-partial-state {
 	display: flex;
 	align-items: center;

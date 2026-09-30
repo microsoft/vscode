@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { IListAccessibilityProvider } from '../../../../../../../base/browser/ui/list/listWidget.js';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -28,13 +28,12 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IView } from '../../../../../../../workbench/common/views.js';
-import { IsSessionsWindowContext } from '../../../../../../../workbench/common/contextkeys.js';
-import { ChatContextKeys } from '../../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
@@ -51,7 +50,6 @@ import { ISessionsProvider } from '../../../../../../services/sessions/common/se
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
-import { IsPhoneLayoutContext } from '../../../../../../common/contextkeys.js';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -212,12 +210,12 @@ class AlwaysRenderConfigPicker extends AgentHostSessionConfigPicker {
 }
 
 function isolationSlot(container: HTMLElement): HTMLElement | null {
-	return container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox');
+	return container.querySelector<HTMLElement>('.sessions-chat-isolation-picker, .sessions-chat-isolation-checkbox');
 }
 
 function branchSlot(container: HTMLElement): HTMLElement | undefined {
 	return Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-picker-slot'))
-		.find(slot => !slot.classList.contains('sessions-chat-config-checkbox'));
+		.find(slot => !slot.classList.contains('sessions-chat-config-checkbox') && !slot.classList.contains('sessions-chat-isolation-picker'));
 }
 
 function branchLabel(container: HTMLElement): string | undefined {
@@ -255,8 +253,14 @@ function setupServices(
 	const branchSelectionEvents: string[] = [];
 	const provider = new FakeProvider(emitter, value => branchSelectionEvents.push(`set:${String(value)}`));
 	const actionWidget = new CapturingActionWidgetHolder();
+	const notificationErrors: string[] = [];
 
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override error(error: string | Error): void {
+			notificationErrors.push(String(error));
+		}
+	}());
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,
 		hide: () => actionWidget.events.push('hide'),
@@ -297,7 +301,7 @@ function setupServices(
 		override readonly onDidChangeContext = Event.None;
 	})());
 	instantiationService.stub(IAgentWorkbenchLayoutService, new (class extends mock<IAgentWorkbenchLayoutService>() {
-		// No `phone-layout` class → `isPhoneLayout` is false → isolation renders as a checkbox.
+		// Desktop drafts use the isolation dropdown rather than the phone repository sheet.
 		override readonly mainContainer = document.createElement('div');
 		override readonly isSinglePaneLayoutEnabled = true;
 		override revealEditorPartExplicitly(): void {
@@ -358,7 +362,7 @@ function setupServices(
 		override readonly activeChat = constObservable(activeChat);
 	}();
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService };
+	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService, notificationErrors };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
@@ -381,6 +385,77 @@ function otherActiveSession(activeSession: IActiveSession): IActiveSession {
 suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('isolation dropdown preserves worktree and branch configuration values', async () => {
+		const services = setupServices(store);
+		const { container } = renderPicker(store, services);
+		const snapshots = [];
+		for (const value of ['folder', 'worktree']) {
+			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await new Promise(resolve => setTimeout(resolve));
+			snapshots.push(services.actionWidget.items.map(item => ({
+				label: item.label,
+				value: item.item?.value,
+				checked: item.item?.checked,
+				detail: item.detail,
+			})));
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === value)!.item!);
+			await new Promise(resolve => setTimeout(resolve));
+		}
+		assert.deepStrictEqual({
+			snapshots,
+			selections: services.provider.setSessionConfigValueArguments,
+			finalLabel: isolationSlot(container)?.textContent,
+			checkbox: container.querySelector('.monaco-checkbox'),
+		}, {
+			snapshots: [true, false].map(worktreeSelected => [
+				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session' },
+				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on your machine' },
+			]),
+			selections: ['folder', 'worktree'].map(value => ({ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value })),
+			finalLabel: 'New Worktree',
+			checkbox: null,
+		});
+	});
+
+	for (const enumDynamic of [false, true]) {
+		test(`isolation dropdown preserves provider-defined ${enumDynamic ? 'dynamic' : 'static'} options`, async () => {
+			const services = setupServices(store);
+			services.provider.completions = [
+				{ value: 'folder', label: 'Folder' },
+				{ value: 'worktree', label: 'Worktree' },
+				{ value: 'sandbox', label: 'Sandbox' },
+			];
+			services.provider.config = {
+				schema: {
+					type: 'object',
+					properties: {
+						[SessionConfigKey.Isolation]: {
+							type: 'string', title: 'Isolation', enumDynamic,
+							enum: enumDynamic ? ['folder', 'worktree'] : ['folder', 'worktree', 'sandbox'],
+							enumLabels: enumDynamic ? ['Folder', 'Worktree'] : ['Folder', 'Worktree', 'Sandbox'],
+						},
+					},
+				},
+				values: { [SessionConfigKey.Isolation]: 'folder' },
+			};
+			const { container } = renderPicker(store, services);
+			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			const items = services.actionWidget.items.map(item => ({ value: item.item?.value, label: item.label }));
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'sandbox')!.item!);
+			await timeout(0);
+			assert.deepStrictEqual({
+				items,
+				selections: services.provider.setSessionConfigValueArguments,
+				label: isolationSlot(container)?.textContent,
+			}, {
+				items: services.provider.completions,
+				selections: [{ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value: 'sandbox' }],
+				label: 'Sandbox',
+			});
+		});
+	}
 
 	test('marks the non-interactive toolbar host for focus-outline suppression', () => {
 		const services = setupServices(store);
@@ -558,43 +633,6 @@ suite('Agent Host Session Config Picker', () => {
 				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 10 },
 				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 11 },
 			],
-		});
-	});
-
-	test('moves running-session controls only in the desktop Agents Window experiment', () => {
-		const findModePicker = (menu: MenuId) => {
-			const item = MenuRegistry.getMenuItems(menu)
-				.find(item => isIMenuItem(item) && item.command.id === 'sessions.agentHost.runningSessionModePicker');
-			assert.ok(item && isIMenuItem(item));
-			return item;
-		};
-		const primary = findModePicker(MenuId.ChatInput);
-		const secondary = findModePicker(MenuId.ChatInputSecondary);
-		const visible = (item: typeof primary, values: Record<string, boolean>) => item.when?.evaluate({
-			getValue<T>(key: string): T | undefined {
-				return values[key] as T | undefined;
-			},
-		}) ?? true;
-		const agentHost = { [ChatContextKeys.chatIsAgentHostSession.key]: true };
-		const experiment = {
-			[`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`]: true,
-			[`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`]: true,
-		};
-		const evaluate = (values: Record<string, boolean>) => ({
-			primary: visible(primary, { ...agentHost, ...values }),
-			secondary: visible(secondary, { ...agentHost, ...values }),
-		});
-
-		assert.deepStrictEqual({
-			agentsWindow: evaluate({ ...experiment, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: false }),
-			experimentOff: evaluate({ ...experiment, [`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`]: false, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: false }),
-			editorWindow: evaluate({ ...experiment, [IsSessionsWindowContext.key]: false, [IsPhoneLayoutContext.key]: false }),
-			phone: evaluate({ ...experiment, [IsSessionsWindowContext.key]: true, [IsPhoneLayoutContext.key]: true }),
-		}, {
-			agentsWindow: { primary: true, secondary: false },
-			experimentOff: { primary: false, secondary: true },
-			editorWindow: { primary: false, secondary: true },
-			phone: { primary: false, secondary: true },
 		});
 	});
 
@@ -1301,6 +1339,7 @@ suite('Agent Host Session Config Picker', () => {
 			configUpdates: services.provider.setSessionConfigValueArguments,
 			checkoutInvocations: services.checkoutInvocations,
 			branchSelectionEvents: services.branchSelectionEvents,
+			errors: services.notificationErrors,
 		}, {
 			branch: 'main',
 			configUpdates: [],
@@ -1309,6 +1348,7 @@ suite('Agent Host Session Config Picker', () => {
 				_meta: { treeish: 'featureA' },
 			}],
 			branchSelectionEvents: ['checkout'],
+			errors: ['Error: Checkout failed'],
 		});
 	});
 
@@ -1635,7 +1675,7 @@ suite('Agent Host Session Config Picker', () => {
 		// Draft resolved → chips present and enabled.
 		provider.set(makeRepoConfig('main'), false);
 		const first = renderPicker(store, services);
-		assert.ok(isolationSlot(first.container), 'isolation checkbox renders for a resolved schema');
+		assert.ok(isolationSlot(first.container), 'isolation picker renders for a resolved schema');
 		assert.ok(branchSlot(first.container), 'branch chip renders for a resolved schema');
 		assert.strictEqual(isolationSlot(first.container)!.classList.contains('disabled'), false);
 
@@ -1653,7 +1693,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(isolationSlot(second.container)!.classList.contains('disabled'), false, 'isolation keeps its normal presentation while resolving');
 		assert.strictEqual(branchSlot(second.container)!.classList.contains('resolving'), true, 'branch blocks interaction without dimming while resolving');
 		assert.strictEqual(branchSlot(second.container)!.classList.contains('disabled'), false, 'branch keeps its normal presentation while resolving');
-		assert.strictEqual(isolationSlot(second.container)!.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'), 'true');
+		assert.strictEqual(isolationSlot(second.container)!.querySelector('.action-label')?.getAttribute('aria-disabled'), 'true');
 		assert.strictEqual(branchSlot(second.container)!.querySelector('a.action-label')?.getAttribute('aria-disabled'), 'true');
 
 		// Resolve lands → chips re-enable and reflect the resolved value.
@@ -1663,28 +1703,35 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(branchLabel(second.container), 'dev', 'branch label reflects the resolved value');
 	});
 
-	test('does not render a Dev Container checkbox and disables New Worktree while Dev Container is selected', () => {
+	test('does not render a Dev Container checkbox and disables New Worktree while Dev Container is selected', async () => {
 		const services = setupServices(store);
 		services.provider.config = makeRepoConfig('main', 'folder');
 		services.provider.devContainerEnabled = true;
 		const { container } = renderPicker(store, services);
 		const worktree = isolationSlot(container)!;
 		worktree.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		const worktreeItem = services.actionWidget.items.find(item => item.item?.value === 'worktree')!;
+		await services.actionWidget.delegate?.onSelect(worktreeItem.item!);
 
 		assert.deepStrictEqual({
 			devContainerCheckbox: container.querySelector('.sessions-chat-dev-container-checkbox'),
-			worktreeDisabled: worktree.classList.contains('disabled'),
-			worktreeAriaDisabled: worktree.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'),
+			worktreeDisabled: worktreeItem.disabled,
+			reason: worktreeItem.detail,
+			ariaLabel: services.actionWidget.accessibilityProvider?.getAriaLabel?.(worktreeItem),
+			branchEnabled: !services.actionWidget.items.find(item => item.item?.value === 'folder')?.disabled,
 			setSessionConfigValueCalls: services.provider.setSessionConfigValueCalls,
 		}, {
 			devContainerCheckbox: null,
 			worktreeDisabled: true,
-			worktreeAriaDisabled: 'true',
+			reason: 'New Worktree cannot be combined with Dev Container execution.',
+			ariaLabel: 'New Worktree, New Worktree cannot be combined with Dev Container execution.',
+			branchEnabled: true,
 			setSessionConfigValueCalls: 0,
 		});
 	});
 
-	test('keeps the isolation checkbox node and focus stable while config resolves', () => {
+	test('keeps isolation picker focus and blocks changes while config resolves', () => {
 		const services = setupServices(store);
 		const { provider } = services;
 		provider.set(makeRepoConfig('main'), false);
@@ -1692,16 +1739,15 @@ suite('Agent Host Session Config Picker', () => {
 		document.body.appendChild(container);
 		store.add({ dispose: () => container.remove() });
 
-		const checkbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const checkbox = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
 		checkbox.focus();
 		provider.set(makeRepoConfig('main', 'folder'), true);
-		const resolvingCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const resolvingCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
 		const resolvingActionLabel = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
 		resolvingActionLabel.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 		const resolvingState = {
-			sameNode: resolvingCheckbox === checkbox,
-			focused: document.activeElement === checkbox,
-			checked: resolvingCheckbox.getAttribute('aria-checked'),
+			focused: document.activeElement === resolvingCheckbox,
+			label: resolvingCheckbox.textContent,
 			disabled: resolvingCheckbox.getAttribute('aria-disabled'),
 			disabledPalette: resolvingCheckbox.classList.contains('disabled'),
 			resolving: isolationSlot(container)!.classList.contains('resolving'),
@@ -1711,34 +1757,31 @@ suite('Agent Host Session Config Picker', () => {
 		};
 
 		provider.set(makeRepoConfig('main', 'folder'), false);
-		const resolvedCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const resolvedCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
 		assert.deepStrictEqual({
 			resolving: resolvingState,
 			resolved: {
-				sameNode: resolvedCheckbox === checkbox,
-				focused: document.activeElement === checkbox,
-				checked: resolvedCheckbox.getAttribute('aria-checked'),
+				focused: document.activeElement === resolvedCheckbox,
+				label: resolvedCheckbox.textContent,
 				disabled: resolvedCheckbox.getAttribute('aria-disabled'),
 				resolving: isolationSlot(container)!.classList.contains('resolving'),
-				count: container.querySelectorAll('.sessions-chat-isolation-checkbox').length,
+				count: container.querySelectorAll('.sessions-chat-isolation-picker').length,
 			},
 		}, {
 			resolving: {
-				sameNode: true,
 				focused: true,
-				checked: 'false',
+				label: 'Branch',
 				disabled: 'true',
 				disabledPalette: false,
 				resolving: true,
 				dimmed: false,
-				pointerEvents: 'auto',
+				pointerEvents: 'none',
 				setSessionConfigValueCalls: 0,
 			},
 			resolved: {
-				sameNode: true,
 				focused: true,
-				checked: 'false',
-				disabled: 'false',
+				label: 'Branch',
+				disabled: null,
 				resolving: false,
 				count: 1,
 			},

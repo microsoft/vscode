@@ -38,7 +38,7 @@ import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractiv
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformRootSchema, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -52,10 +52,13 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
-import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
+import { AgentHostSessionTitleController, IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -167,6 +170,7 @@ function createTestSideEffects(
 	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & {
 		localTurns?: AgentHostLocalTurns;
 		gitStateService?: IAgentHostGitStateService;
+		initialTitleGenerationStrategy?: AutomaticTitleGenerationStrategy;
 	},
 	_gitService?: IAgentHostGitService,
 	telemetryService: ITelemetryService = NullTelemetryService,
@@ -193,6 +197,10 @@ function createTestSideEffects(
 		[IAgentHostWorktreeIsolation, worktreeIsolation],
 		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(options.sessionDataService, worktreeIsolation)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+		[IAgentHostPeerChatPersistenceService, {
+			_serviceBrand: undefined,
+			setArchived: async () => { },
+		}],
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
@@ -203,10 +211,12 @@ function createTestSideEffects(
 	});
 	const titleController = disposables.add(new AgentHostSessionTitleController(stateManager, {
 		sessionDataService: options.sessionDataService,
-		isActiveAgentTitleGenerationEnabled: () => configService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
+		getInitialTitleGenerationStrategy: () => options.initialTitleGenerationStrategy ?? 'deferred',
 	}, logService));
 	services.set(IAgentHostSessionTitleController, titleController);
-	services.set(IAgentHostProviderService, createTestAgentHostProviderService(session => options.getAgent(typeof session === 'string' ? session : session.toString())));
+	const providerService = createTestAgentHostProviderService(session => options.getAgent(typeof session === 'string' ? session : session.toString()));
+	services.set(IAgentHostProviderService, providerService);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
@@ -2316,12 +2326,15 @@ suite('AgentSideEffects', () => {
 
 			await waitForState(stateManager, () => envelopes.some(e => e.action.type === ActionType.ChatError) || undefined);
 
+			const chatError = envelopes.find(e => e.action.type === ActionType.ChatError)?.action;
 			assert.deepStrictEqual({
 				chatErrors: envelopes.filter(e => e.action.type === ActionType.ChatError).length,
+				errorMessage: chatError?.type === ActionType.ChatError ? chatError.part.error.message : undefined,
 				creationFailed: envelopes.some(e => e.action.type === ActionType.SessionCreationFailed),
 				lifecycle: stateManager.getSessionState(sessionUri.toString())?.lifecycle,
 			}, {
 				chatErrors: 1,
+				errorMessage: 'transient send failure',
 				creationFailed: false,
 				lifecycle: SessionLifecycle.Ready,
 			});
@@ -2372,11 +2385,12 @@ suite('AgentSideEffects', () => {
 		// `/rename` persists the new title, so these tests need a session data
 		// service whose `openDatabase` actually returns a database (the default
 		// null service throws).
-		function createRenameSideEffects(): AgentSideEffects {
+		function createRenameSideEffects(initialTitleGenerationStrategy: AutomaticTitleGenerationStrategy = 'deferred'): AgentSideEffects {
 			return createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
 				sessionDataService: createSessionDataService(),
+				initialTitleGenerationStrategy,
 			});
 		}
 
@@ -2448,11 +2462,7 @@ suite('AgentSideEffects', () => {
 
 		test('peer /rename synchronously suppresses the automatic rename reminder', async () => {
 			setupSession();
-			stateManager.dispatchServerAction(ROOT_STATE_URI, {
-				type: ActionType.RootConfigChanged,
-				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
-			});
-			const renameSideEffects = createRenameSideEffects();
+			const renameSideEffects = createRenameSideEffects('activeAgent');
 			const peerChat = buildChatUri(sessionUri.toString(), 'peer-rename');
 			stateManager.addChat(sessionUri.toString(), peerChat, { title: 'Automatic peer title' });
 			renameSideEffects.markTitleAuto(sessionUri.toString(), peerChat, 'Automatic peer title');
@@ -2484,11 +2494,7 @@ suite('AgentSideEffects', () => {
 
 		test('automatic rename guidance is transient context and never changes the user prompt', async () => {
 			setupSession();
-			stateManager.dispatchServerAction(ROOT_STATE_URI, {
-				type: ActionType.RootConfigChanged,
-				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
-			});
-			const renameSideEffects = createRenameSideEffects();
+			const renameSideEffects = createRenameSideEffects('activeAgent');
 			renameSideEffects.markTitleAuto(sessionUri.toString(), undefined, 'Automatic title');
 			const action: ChatAction = {
 				type: ActionType.ChatTurnStarted,
@@ -2616,7 +2622,7 @@ suite('AgentSideEffects', () => {
 
 			// The turn with no preceding real turn has no anchor.
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'turn-1'), undefined);
-			const persisted = await db.getLocalTurns();
+			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.strictEqual(persisted.length, 1);
 			const payload = JSON.parse(persisted[0].payload) as { responseParts: { kind: string; toolCall?: { content?: { type: string }[] } }[] };
 			const toolCallPart = payload.responseParts.find(p => p.kind === ResponsePartKind.ToolCall);
@@ -2718,7 +2724,7 @@ suite('AgentSideEffects', () => {
 			await runBang(se, terminalManager, 'local-1');
 
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'local-1'), 'real-1');
-			const persisted = await db.getLocalTurns();
+			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.deepStrictEqual(persisted.map(r => ({ turnId: r.turnId, chatUri: r.chatUri, anchorTurnId: r.anchorTurnId })), [
 				{ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1' },
 			]);
@@ -2760,7 +2766,7 @@ suite('AgentSideEffects', () => {
 			// The local turn is dropped from memory synchronously and from the DB async.
 			assert.strictEqual(localTurns.isLocal(defaultChatUri, 'local-1'), false);
 			await new Promise(r => setTimeout(r, 10));
-			assert.deepStrictEqual(await db.getLocalTurns(), []);
+			assert.deepStrictEqual(await db.getPersistedTurns(), []);
 		});
 	});
 
@@ -5352,6 +5358,9 @@ suite('AgentSideEffects', () => {
 
 		test('tool_ready for an additional chat is emitted on that chat channel', async () => {
 			setupSession();
+			const responses: Parameters<IAgent['respondToPermissionRequest']>[] = [];
+			const provider: IAgent = agent;
+			provider.respondToPermissionRequest = (...args) => { responses.push(args); };
 			const chatUri = buildChatUri(sessionUri.toString(), 'peer');
 			stateManager.addChat(sessionUri.toString(), chatUri);
 			stateManager.setSessionConfig(sessionUri.toString(), { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Permissions]: { allow: [], deny: [] } } });
@@ -5410,10 +5419,10 @@ suite('AgentSideEffects', () => {
 				approved: true,
 				confirmed: 'user-action' as const,
 				selectedOptionId: 'allow-session',
-			} as ChatAction);
+			} as ChatAction, 'test-client', undefined, undefined, false, 7);
 
-			assert.deepStrictEqual(agent.respondToPermissionCalls, [
-				{ requestId: 'tc-peer-perm', approved: true },
+			assert.deepStrictEqual(responses, [
+				['tc-peer-perm', true, { selectedOptionId: 'allow-session', origin: { clientId: 'test-client', clientSeq: 7 } }],
 			]);
 			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?.config?.values[SessionConfigKey.Permissions], { allow: ['write'], deny: [] });
 		});
@@ -6487,9 +6496,9 @@ suite('AgentSideEffects', () => {
 				message: { text: '!echo hi', origin: { kind: MessageKind.User } },
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'p1', content: 'ran' }],
 				usage: undefined,
-				state: 2, // TurnState.Complete
+				state: TurnState.Complete,
 			};
-			await sessionDb.insertLocalTurn({ turnId: 'local-1', chatUri: buildDefaultChatUri(sessionResource.toString()), anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
+			await sessionDb.insertPersistedTurn({ kind: 'local', turnId: 'local-1', chatUri: buildDefaultChatUri(sessionResource.toString()), anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
 
 			await localService.restoreSession(sessionResource);
 

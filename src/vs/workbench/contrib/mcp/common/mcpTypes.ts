@@ -23,7 +23,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { IMcpGalleryManifest, McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpDevModeConfig, IMcpSandboxConfiguration, IMcpServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { McpResourceFormat } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
@@ -214,6 +214,8 @@ export interface McpServerDefinition {
 	readonly devMode?: IMcpDevModeConfig;
 	/** Optional server version metadata from the source configuration. */
 	readonly version?: string;
+	/** Optional gallery metadata from the source configuration. */
+	readonly gallery?: boolean | string;
 	/** Static description of server tools/data, used to hydrate the cache. */
 	readonly staticMetadata?: McpServerStaticMetadata;
 	/** Indicates if the sandbox is enabled for this server. */
@@ -300,6 +302,7 @@ export namespace McpServerDefinition {
 		readonly staticMetadata?: McpServerStaticMetadata;
 		readonly sandboxEnabled?: boolean;
 		readonly version?: string;
+		readonly gallery?: boolean | string;
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
@@ -316,6 +319,7 @@ export namespace McpServerDefinition {
 			defaultCwd: def.defaultCwd ? URI.revive(def.defaultCwd) : undefined,
 			sandboxEnabled: def.sandboxEnabled,
 			version: def.version,
+			gallery: def.gallery,
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
 	}
@@ -331,6 +335,7 @@ export namespace McpServerDefinition {
 			&& objectsEqualWithUris(a.variableReplacement, b.variableReplacement)
 			&& objectsEqual(a.devMode, b.devMode)
 			&& a.version === b.version
+			&& a.gallery === b.gallery
 			&& a.sandboxEnabled === b.sandboxEnabled;
 
 	}
@@ -1034,8 +1039,8 @@ export interface IMcpWorkbenchService {
 	/** Returns enabled VS Code-format servers after name precedence; root files are discovered independently. */
 	getEnabledLocalMcpServers(): IWorkbenchLocalMcpServer[];
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
-	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IWorkbenchMcpServer>>;
-	getMcpServerFromGallery(name: string): Promise<IWorkbenchMcpServer | undefined>;
+	queryGallery(options?: IQueryOptions, token?: CancellationToken, manifest?: IMcpGalleryManifest): Promise<IIterativePager<IWorkbenchMcpServer>>;
+	getMcpServerFromGallery(name: string, manifest?: IMcpGalleryManifest): Promise<IWorkbenchMcpServer | undefined>;
 	getMcpServerFromAgentFinder(name: string, version: string, token?: CancellationToken): Promise<IWorkbenchMcpServer | undefined>;
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString;
 	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchMcpServer>;

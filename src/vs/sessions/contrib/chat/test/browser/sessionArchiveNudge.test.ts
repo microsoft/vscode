@@ -23,6 +23,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { Memento } from '../../../../../workbench/common/memento.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -111,9 +112,14 @@ suite('SessionArchiveNudge', () => {
 		const deleted = store.add(new Emitter<ISession>());
 		const changed = store.add(new Emitter<ISessionsChangeEvent>());
 		const events: { name: string; data: object | undefined }[] = [];
+		const triggerTelemetry = new TestExperimentTriggerTelemetryService();
 		const telemetry = new class extends mock<ITelemetryService>() {
 			override publicLog2(name: string, data?: object): void {
-				events.push({ name, data });
+				if (name === 'experimentTrigger') {
+					triggerTelemetry.publicLog2(name, data);
+				} else {
+					events.push({ name, data });
+				}
 			}
 		}();
 		let catalog: ISession[] = sessions;
@@ -239,6 +245,7 @@ suite('SessionArchiveNudge', () => {
 		}
 		return {
 			current, configuration, entitlement, storage, archived, unarchived, deleted, changed, events, requests, archiveTargets, commands,
+			triggers: triggerTelemetry.triggers,
 			get service() { return service; },
 			get counts() { return { references, polling, refreshes }; },
 			createNudge,
@@ -285,7 +292,7 @@ suite('SessionArchiveNudge', () => {
 		context.setPullRequest(1, GitHubPullRequestState.Merged);
 		const nudge = context.createNudge();
 		const states = [!!nudge.options.get()];
-		assert.deepStrictEqual(context.requests, []);
+		const requestsWhileDisabled = [...context.requests];
 		await context.setEnabled(true);
 		states.push(!!nudge.options.get());
 		context.entitlement.sentimentObs.set({ hidden: true }, undefined);
@@ -295,8 +302,38 @@ suite('SessionArchiveNudge', () => {
 		await context.setEnabled(false);
 		states.push(!!nudge.options.get());
 		nudge.markShown();
-		assert.deepStrictEqual({ states, live: context.counts.references, polling: context.counts.polling, events: context.events }, {
-			states: [false, true, false, true, false], live: 0, polling: 0, events: [],
+		// A disabled suggestion resolves its pull requests only until this window reports the experiment trigger.
+		assert.deepStrictEqual({ states, requestsWhileDisabled, live: context.counts.references, polling: context.counts.polling, events: context.events }, {
+			states: [false, true, false, true, false], requestsWhileDisabled: [getPullRequestKey('owner', 'repo', 1)], live: 0, polling: 0, events: [],
+		});
+	});
+
+	for (const enabled of [true, false]) {
+		test(`reports the experiment trigger once every PR is merged while ${enabled ? 'enabled' : 'disabled'}`, () => {
+			const context = setup(undefined, enabled);
+			context.setPullRequest(1, GitHubPullRequestState.Open);
+			const nudge = context.createNudge();
+			const beforeMerge = [...context.triggers];
+			context.setPullRequest(1, GitHubPullRequestState.Merged);
+
+			assert.deepStrictEqual({ beforeMerge, afterMerge: context.triggers, shown: !!nudge.options.get() }, {
+				beforeMerge: [],
+				afterMerge: [`config.${SESSION_ARCHIVE_NUDGE_SETTING}`],
+				shown: enabled,
+			});
+		});
+	}
+
+	test('reports the experiment trigger for a dismissed suggestion, then stops resolving it', () => {
+		const context = setup();
+		context.storage.store(`sessions.archiveNudge.dismissed.${context.current.get()!.sessionId}`, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+
+		assert.deepStrictEqual({ triggers: context.triggers, shown: !!nudge.options.get(), counts: context.counts }, {
+			triggers: [`config.${SESSION_ARCHIVE_NUDGE_SETTING}`],
+			shown: false,
+			counts: { references: 0, polling: 0, refreshes: 1 },
 		});
 	});
 

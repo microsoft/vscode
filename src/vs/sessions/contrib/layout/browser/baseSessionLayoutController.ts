@@ -407,7 +407,7 @@ export abstract class BaseLayoutController extends Disposable {
 		}));
 
 		// Side-pane toggle UI (menu item, keybinding, command-palette entry).
-		this._register(this._registerSidePaneToggleAction());
+		this._register(BaseLayoutController.registerSidePaneToggleAction());
 
 		// Platform-specific auxiliary bar / view-state management.
 		this._registerViewStateManagement();
@@ -438,7 +438,7 @@ export abstract class BaseLayoutController extends Disposable {
 	 * command-palette entry). The command calls the workbench layout service
 	 * directly; this controller observes the service's toggle lifecycle events.
 	 */
-	private _registerSidePaneToggleAction(): IDisposable {
+	static registerSidePaneToggleAction(): IDisposable {
 		return registerAction2(class extends Action2 {
 			constructor() {
 				super({

@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -58,6 +60,8 @@ suite('PluginInstallService', () => {
 		dialogConfirmResult: boolean;
 		fileExistsResult: boolean | ((uri: URI) => Promise<boolean>);
 		ensureRepositoryResult: URI;
+		onEnsureRepository?: (token: CancellationToken | undefined) => Promise<URI>;
+		onTrustConfirmation?: () => Promise<boolean>;
 		ensurePluginSourceResult: URI;
 		/** Plugin source install URI, per kind */
 		pluginSourceInstallUris: Map<string, URI>;
@@ -74,6 +78,9 @@ suite('PluginInstallService', () => {
 		/** Whether the strict-marketplace enterprise policy is active */
 		strictMarketplacePolicyActive?: boolean;
 		installedPlugins: IMarketplaceInstalledPlugin[];
+		durablePluginUris: URI[];
+		removedPluginUris: string[];
+		cleanupPluginSourceCalls: { plugin: IMarketplacePlugin; otherInstalledDescriptors: readonly IPluginSourceDescriptor[] }[];
 		recordInstalledPlugins: boolean;
 		ensurePluginSourceDescriptors: IPluginSourceDescriptor[];
 		singlePluginManifestDirectories: URI[];
@@ -125,6 +132,9 @@ suite('PluginInstallService', () => {
 			marketplaceTrusted: true,
 			strictMarketplacePolicyActive: false,
 			installedPlugins: [],
+			durablePluginUris: [],
+			removedPluginUris: [],
+			cleanupPluginSourceCalls: [],
 			recordInstalledPlugins: false,
 			ensurePluginSourceDescriptors: [],
 			singlePluginManifestDirectories: [],
@@ -150,6 +160,9 @@ suite('PluginInstallService', () => {
 
 	function createService(stateOverrides?: Partial<MockState>): { service: PluginInstallService; state: MockState } {
 		const state: MockState = { ...createDefaults(), ...stateOverrides };
+		if (stateOverrides?.durablePluginUris === undefined) {
+			state.durablePluginUris = state.installedPlugins.map(candidate => candidate.pluginUri);
+		}
 		const instantiationService = store.add(new TestInstantiationService());
 
 		// IFileService
@@ -174,7 +187,7 @@ suite('PluginInstallService', () => {
 
 		// IDialogService
 		instantiationService.stub(IDialogService, {
-			confirm: async () => ({ confirmed: state.dialogConfirmResult }),
+			confirm: async () => ({ confirmed: state.onTrustConfirmation ? await state.onTrustConfirmation() : state.dialogConfirmResult }),
 		} as unknown as IDialogService);
 
 		// ITerminalService — the mock coordinates runCommand and onCommandFinished
@@ -286,8 +299,8 @@ suite('PluginInstallService', () => {
 				return URI.joinPath(state.ensureRepositoryResult, plugin.source);
 			},
 			getRepositoryUri: () => state.ensureRepositoryResult,
-			ensureRepository: async (_marketplace: IMarketplaceReference, _options?: IEnsureRepositoryOptions) => {
-				return state.ensureRepositoryResult;
+			ensureRepository: async (_marketplace: IMarketplaceReference, options?: IEnsureRepositoryOptions) => {
+				return state.onEnsureRepository ? state.onEnsureRepository(options?.token) : state.ensureRepositoryResult;
 			},
 			pullRepository: async (marketplace: IMarketplaceReference, options?: IPullRepositoryOptions) => {
 				state.pullRepositoryCalls.push({ marketplace, options });
@@ -304,17 +317,32 @@ suite('PluginInstallService', () => {
 				state.updatePluginSourceCalls.push({ plugin, options });
 			},
 			getPluginSource: (kind: PluginSourceKind) => mockSourceRepos.get(kind)!,
-			cleanupPluginSource: async () => { },
+			cleanupPluginSource: async (plugin: IMarketplacePlugin, otherInstalledDescriptors?: readonly IPluginSourceDescriptor[]) => {
+				state.cleanupPluginSourceCalls.push({ plugin, otherInstalledDescriptors: otherInstalledDescriptors ?? [] });
+			},
 		} as unknown as IAgentPluginRepositoryService);
 
 		// IPluginMarketplaceService
+		const installedPlugins = observableValue('test.installedPlugins', state.installedPlugins);
 		instantiationService.stub(IPluginMarketplaceService, {
-			installedPlugins: observableValue('test.installedPlugins', state.installedPlugins),
+			installedPlugins,
 			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin) => {
 				state.addedPlugins.push({ uri: uri.toString(), plugin });
+				state.durablePluginUris = [...state.durablePluginUris, uri];
 				if (state.recordInstalledPlugins) {
-					state.installedPlugins.push({ pluginUri: uri, plugin });
+					state.installedPlugins = [...state.installedPlugins, { pluginUri: uri, plugin }];
+					installedPlugins.set(state.installedPlugins, undefined);
 				}
+			},
+			removeInstalledPlugin: (uri: URI) => {
+				if (!state.durablePluginUris.some(candidate => isEqual(candidate, uri))) {
+					return false;
+				}
+				state.removedPluginUris.push(uri.toString());
+				state.durablePluginUris = state.durablePluginUris.filter(candidate => !isEqual(candidate, uri));
+				state.installedPlugins = state.installedPlugins.filter(candidate => !isEqual(candidate.pluginUri, uri));
+				installedPlugins.set(state.installedPlugins, undefined);
+				return true;
 			},
 			isMarketplaceTrusted: () => state.marketplaceTrusted,
 			isStrictMarketplacePolicyActive: () => state.strictMarketplacePolicyActive ?? false,
@@ -435,6 +463,73 @@ suite('PluginInstallService', () => {
 			});
 			const uri = service.getPluginInstallUri(plugin);
 			assert.strictEqual(uri.path, ghUri.path);
+		});
+	});
+
+	suite('uninstallPlugin', () => {
+
+		test('removes the exact entry and cleans its source with the remaining descriptors', async () => {
+			const targetUri = URI.file('/cache/target');
+			const otherUri = URI.file('/cache/other');
+			const target = createPlugin({
+				name: 'target',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/shared', path: 'plugins/target' },
+			});
+			const other = createPlugin({
+				name: 'other',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/shared', path: 'plugins/other' },
+			});
+			const { service, state } = createService({
+				installedPlugins: [
+					{ pluginUri: targetUri, plugin: target },
+					{ pluginUri: otherUri, plugin: other },
+				],
+			});
+
+			const removed = await service.uninstallPlugin(targetUri);
+			const missing = await service.uninstallPlugin(targetUri);
+
+			assert.deepStrictEqual({
+				removed,
+				missing,
+				removedPluginUris: state.removedPluginUris,
+				remaining: state.installedPlugins.map(candidate => candidate.plugin.name),
+				cleanup: state.cleanupPluginSourceCalls.map(call => ({
+					plugin: call.plugin.name,
+					otherInstalledDescriptors: call.otherInstalledDescriptors,
+				})),
+			}, {
+				removed: true,
+				missing: false,
+				removedPluginUris: [targetUri.toString()],
+				remaining: ['other'],
+				cleanup: [{
+					plugin: 'target',
+					otherInstalledDescriptors: [other.sourceDescriptor],
+				}],
+			});
+		});
+
+		test('removes a durable entry when its marketplace metadata is unavailable', async () => {
+			const targetUri = URI.file('/cache/unhydrated');
+			const { service, state } = createService({
+				durablePluginUris: [targetUri],
+				installedPlugins: [],
+			});
+
+			const removed = await service.uninstallPlugin(targetUri);
+
+			assert.deepStrictEqual({
+				removed,
+				durablePluginUris: state.durablePluginUris,
+				removedPluginUris: state.removedPluginUris,
+				cleanup: state.cleanupPluginSourceCalls,
+			}, {
+				removed: true,
+				durablePluginUris: [],
+				removedPluginUris: [targetUri.toString()],
+				cleanup: [],
+			});
 		});
 	});
 
@@ -944,6 +1039,45 @@ suite('PluginInstallService', () => {
 
 	suite('installPlugin — marketplace trust', () => {
 
+		test('cancellation while confirming trust never trusts or installs the plugin', async () => {
+			const confirmation = new DeferredPromise<boolean>();
+			const cancellation = store.add(new CancellationTokenSource());
+			const { service, state } = createService({ marketplaceTrusted: false, onTrustConfirmation: () => confirmation.p });
+			const plugin = createPlugin({ source: 'plugins/myPlugin', sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' } });
+			const pending = service.installPlugin(plugin, cancellation.token);
+			cancellation.cancel();
+			await confirmation.complete(true);
+			await assert.rejects(pending, isCancellationError);
+			assert.deepStrictEqual({ trusted: state.trustedMarketplaces, installed: state.addedPlugins }, { trusted: [], installed: [] });
+		});
+
+		test('cancellation while checking a cloned plugin prevents registration', async () => {
+			const exists = new DeferredPromise<boolean>();
+			const checking = new DeferredPromise<void>();
+			const cancellation = store.add(new CancellationTokenSource());
+			let repositoryToken: CancellationToken | undefined;
+			const { service, state } = createService({
+				onEnsureRepository: async token => {
+					repositoryToken = token;
+					return URI.file('/cache/agentPlugins/github.com/microsoft/vscode');
+				},
+				fileExistsResult: async () => {
+					await checking.complete();
+					return exists.p;
+				},
+			});
+			const plugin = createPlugin({ source: 'plugins/myPlugin', sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' } });
+			const pending = service.installPlugin(plugin, cancellation.token);
+			await checking.p;
+			cancellation.cancel();
+			await exists.complete(true);
+			await assert.rejects(pending, isCancellationError);
+			assert.deepStrictEqual({
+				repositoryReceivedToken: repositoryToken === cancellation.token,
+				installed: state.addedPlugins,
+			}, { repositoryReceivedToken: true, installed: [] });
+		});
+
 		test('skips trust prompt when marketplace is already trusted', async () => {
 			const { service, state } = createService({ marketplaceTrusted: true });
 			const plugin = createPlugin({
@@ -1059,6 +1193,38 @@ suite('PluginInstallService', () => {
 					{ kind: PluginSourceKind.GitHub, repo: 'owner/collection', ref: 'release/v1', path: 'plugins/selected-plugin' },
 				],
 				registeredMarketplaces: undefined,
+			});
+		});
+
+		test('installs the exact marketplace-declared plugin subdirectory without registering the repository as a marketplace', async () => {
+			const marketplaceReference = makeMarketplaceRef('owner/collection#release/v1');
+			const plugin = createPlugin({
+				name: 'spark',
+				source: 'plugins/spark',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/spark' },
+				marketplace: marketplaceReference.displayLabel,
+				marketplaceReference,
+			});
+			const { service, state } = createService({
+				ensureRepositoryResult: URI.file('/cache/agentPlugins/owner/collection'),
+				readPluginsResult: [plugin],
+				recordInstalledPlugins: true,
+			});
+
+			const result = await service.installPluginFromSource('owner/collection#release/v1', { path: 'plugins/spark' });
+
+			assert.deepStrictEqual({
+				success: result.success,
+				name: result.matchedPlugin?.name,
+				source: result.matchedPlugin?.sourceDescriptor,
+				registeredMarketplaces: state.updatedMarketplaces,
+				installed: state.addedPlugins.map(entry => ({ uri: entry.uri, name: entry.plugin.name })),
+			}, {
+				success: true,
+				name: 'spark',
+				source: { kind: PluginSourceKind.RelativePath, path: 'plugins/spark' },
+				registeredMarketplaces: undefined,
+				installed: [{ uri: 'file:///cache/agentPlugins/owner/collection/plugins/spark', name: 'spark' }],
 			});
 		});
 

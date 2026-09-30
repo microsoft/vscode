@@ -13,12 +13,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
-import { ChangesViewService } from '../../browser/changesViewService.js';
+import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
 import { ChangesViewMode } from '../../common/changes.js';
 
 suite('ChangesViewService', () => {
@@ -143,16 +144,17 @@ suite('ChangesViewService', () => {
 				return constObservable({ kind: PRReviewStateKind.None } as const);
 			}
 		}();
+		const contextKeyService = disposables.add(new MockContextKeyService());
 		const service = disposables.add(new ChangesViewService(
 			agentFeedbackService,
 			codeReviewService,
-			disposables.add(new MockContextKeyService()),
+			contextKeyService,
 			sessionsService,
 			storageService,
 			sessionsManagementService,
 		));
 
-		return { activeSession, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
+		return { activeSession, contextKeyService, onDidDeleteChat, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
 	}
 
 	test('restores section collapse state independently per session', () => {
@@ -358,7 +360,22 @@ suite('ChangesViewService', () => {
 		});
 	});
 
-	test('surfaces cached changes while the changeset recomputes', () => {
+	test('publishes reviewed files by their file resource, including deleted files', () => {
+		const changes: readonly IChatSessionFileChange2[] = [
+			{ uri: URI.file('/repo/modified.ts'), modifiedUri: URI.file('/repo/modified.ts'), originalUri: URI.parse('git-blob:/repo/modified.ts'), insertions: 1, deletions: 1, reviewed: true },
+			{ uri: URI.file('/repo/deleted.ts'), modifiedUri: undefined, originalUri: URI.parse('git-blob:/repo/deleted.ts'), insertions: 0, deletions: 3, reviewed: true },
+			{ uri: URI.file('/repo/unreviewed.ts'), modifiedUri: URI.file('/repo/unreviewed.ts'), originalUri: undefined, insertions: 2, deletions: 0, reviewed: false },
+		];
+		const changeset = createChangeset([], { changes: constObservable(changes) });
+		const { contextKeyService } = createHarness(createSession('reviewed', { changesets: [changeset] }));
+
+		assert.deepStrictEqual(contextKeyService.getContextKeyValue(ChangesetReviewedFilesContext.key), [
+			'file:///repo/modified.ts',
+			'file:///repo/deleted.ts',
+		]);
+	});
+
+	test('tracks changeset snapshot availability independently of the file count', () => {
 		const cachedChange = upcastPartial<ISessionFileChange>({
 			modifiedUri: URI.file('/repo/cached.ts'),
 		});
@@ -367,36 +384,36 @@ suite('ChangesViewService', () => {
 		const changeset = createChangeset([], { isLoadingChanges, changes });
 		const { service } = createHarness(createSession('cached', { changesets: [changeset] }));
 
-		const withCachedChanges = {
-			changesetLoading: service.activeSessionChangesetLoadingObs.get(),
-			sessionLoading: service.activeSessionLoadingObs.get(),
-			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
-		};
-		changes.set([], undefined);
-		const withoutCachedChanges = {
+		const beforeSnapshot = {
 			changesetLoading: service.activeSessionChangesetLoadingObs.get(),
 			sessionLoading: service.activeSessionLoadingObs.get(),
 			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
 		};
 		isLoadingChanges.set(false, undefined);
-		const afterRecompute = {
+		const populatedSnapshot = {
+			changesetLoading: service.activeSessionChangesetLoadingObs.get(),
+			sessionLoading: service.activeSessionLoadingObs.get(),
+			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
+		};
+		changes.set([], undefined);
+		const emptySnapshot = {
 			changesetLoading: service.activeSessionChangesetLoadingObs.get(),
 			sessionLoading: service.activeSessionLoadingObs.get(),
 			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
 		};
 
-		assert.deepStrictEqual({ withCachedChanges, withoutCachedChanges, afterRecompute }, {
-			withCachedChanges: {
-				changesetLoading: true,
-				sessionLoading: false,
-				changes: ['file:///repo/cached.ts'],
-			},
-			withoutCachedChanges: {
+		assert.deepStrictEqual({ beforeSnapshot, populatedSnapshot, emptySnapshot }, {
+			beforeSnapshot: {
 				changesetLoading: true,
 				sessionLoading: true,
 				changes: [],
 			},
-			afterRecompute: {
+			populatedSnapshot: {
+				changesetLoading: false,
+				sessionLoading: false,
+				changes: ['file:///repo/cached.ts'],
+			},
+			emptySnapshot: {
 				changesetLoading: false,
 				sessionLoading: false,
 				changes: [],
@@ -831,6 +848,44 @@ suite('ChangesViewService', () => {
 		}, {
 			changesets: undefined,
 			loading: true,
+		});
+	});
+
+	test('keeps the changeset loading while the next session catalogue is unpublished', () => {
+		const cachedChange = upcastPartial<ISessionFileChange>({
+			modifiedUri: URI.file('/repo/cached.ts'),
+		});
+		const firstChangeset = createChangeset([], {
+			changes: constObservable([cachedChange]),
+		});
+		const pendingChangesets = observableValue<readonly ISessionChangeset[] | undefined>('test.pendingChangesets', undefined);
+		const nextChat = upcastPartial<IChat>({
+			resource: URI.parse('test-chat:/next'),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: pendingChangesets,
+		});
+		const nextSession = createSession('next', {
+			activeChat: constObservable(nextChat),
+			mainChat: constObservable(nextChat),
+			chats: constObservable([nextChat]),
+		});
+		const { activeSession, service } = createHarness(createSession('first', { changesets: [firstChangeset] }));
+		const snapshot = () => ({
+			loading: service.activeSessionChangesetLoadingObs.get(),
+			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
+		});
+
+		const beforeSwitch = snapshot();
+		activeSession.set(nextSession, undefined);
+		const unpublished = snapshot();
+		pendingChangesets.set([], undefined);
+		const authoritativeEmpty = snapshot();
+
+		assert.deepStrictEqual({ beforeSwitch, unpublished, authoritativeEmpty }, {
+			beforeSwitch: { loading: false, changes: ['file:///repo/cached.ts'] },
+			unpublished: { loading: true, changes: [] },
+			authoritativeEmpty: { loading: false, changes: [] },
 		});
 	});
 

@@ -166,11 +166,13 @@ suite('ExtHostTypeConverter', function () {
 		});
 	});
 
-	test('JS/TS Surround With Code Actions provide bad Workspace Edits when obtained by VSCode Command API #178654', function () {
+	test('WorkspaceEdit round-trip preserves insertAsSnippet and keepWhitespace (#178654, #325990)', function () {
 
 		const uri = URI.parse('file:///foo/bar');
 		const ws = new extHostTypes.WorkspaceEdit();
-		ws.set(uri, [extHostTypes.SnippetTextEdit.insert(new extHostTypes.Position(1, 1), new extHostTypes.SnippetString('foo$0bar'))]);
+		const snippet = extHostTypes.SnippetTextEdit.insert(new extHostTypes.Position(1, 1), new extHostTypes.SnippetString('foo$0bar'));
+		snippet.keepWhitespace = true;
+		ws.set(uri, [snippet]);
 
 		const dto = WorkspaceEdit.from(ws);
 		const first = <IWorkspaceTextEditDto>dto.edits[0];
@@ -180,6 +182,7 @@ suite('ExtHostTypeConverter', function () {
 		const dto2 = WorkspaceEdit.from(ws2);
 		const first2 = <IWorkspaceTextEditDto>dto2.edits[0];
 		assert.strictEqual(first2.textEdit.insertAsSnippet, true);
+		assert.strictEqual(first2.textEdit.keepWhitespace, true);
 	});
 });
 

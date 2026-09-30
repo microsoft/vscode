@@ -49,7 +49,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: -1,
-				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate()),
 			}, {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
@@ -61,7 +61,7 @@ registerAction2(class extends Action2 {
 				// built-in mode picker for Agent Host custom agents.
 				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 1,
+				order: 0,
 				// Hide the agent picker while a delegation (continue in) target is pending.
 				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, IsPhoneLayoutContext.negate(), ChatContextKeys.hasPendingDelegationTarget.negate()),
 			}],

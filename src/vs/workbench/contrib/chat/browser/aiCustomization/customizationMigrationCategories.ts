@@ -12,7 +12,7 @@ import type { IConfigurationService } from '../../../../../platform/configuratio
 import { ChatConfiguration } from '../../common/constants.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, getCustomizationMigrationEnablementSetting, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export const enum CustomizationMigrationCategoryId {
@@ -66,7 +66,7 @@ export interface ICustomizationMigrationCategory {
 	readonly migrationType: CustomizationMigrationType;
 	/** Prompt types scanned when collecting candidates for this category. */
 	readonly sourceTypes?: readonly PromptsType[];
-	/** Experimental setting gating this migration. Each category is enabled independently. */
+	/** Experimental setting gating this migration. */
 	readonly enablementSetting: ChatConfiguration;
 	/** Settings that must differ from their defaults for this migration to apply. */
 	readonly configurationSettingIds?: readonly string[];
@@ -117,7 +117,7 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.PromptFiles,
 	migrationType: CustomizationMigrationType.PromptFiles,
 	sourceTypes: [PromptsType.prompt],
-	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.PromptFiles),
+	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
 	shortcutLabel: localize('promptMigrationShortcutLabel', "Migrate Prompts"),
 	shortcutTooltip: localize('promptMigrationShortcutTooltip', "Convert deprecated prompt files to skills"),
 	cardLabel: localize('promptMigrationCardLabel', "Migrate Prompt Files"),
@@ -256,7 +256,7 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.UserData,
 	migrationType: CustomizationMigrationType.UserData,
 	sourceTypes: [PromptsType.agent, PromptsType.instructions],
-	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.UserData),
+	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
 	shortcutLabel: localize('userDataMigrationShortcutLabel', "Migrate User Data"),
 	shortcutTooltip: localize('userDataMigrationShortcutTooltip', "Move user data agents and instructions to the active harness"),
 	cardLabel: localize('userDataMigrationCardLabel', "Migrate User Data Customizations"),
@@ -432,7 +432,7 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.ConfiguredLocations,
 	migrationType: CustomizationMigrationType.ConfiguredLocations,
 	sourceTypes: [PromptsType.agent, PromptsType.instructions, PromptsType.skill],
-	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.ConfiguredLocations),
+	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
 	configurationSettingIds: CONFIGURED_LOCATION_SETTING_IDS,
 	shortcutLabel: localize('configuredLocationsMigrationShortcutLabel', "Migrate Location Settings"),
 	shortcutTooltip: localize('configuredLocationsMigrationShortcutTooltip', "Move customizations from locations unsupported by the active harness"),
@@ -546,17 +546,17 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.McpServers,
 	migrationType: CustomizationMigrationType.McpServers,
-	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.McpServers),
+	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
 	shortcutLabel: localize('mcpMigrationShortcutLabel', "Migrate MCP Servers"),
-	shortcutTooltip: localize('mcpMigrationShortcutTooltip', "Move eligible workspace MCP servers to root .mcp.json files"),
+	shortcutTooltip: localize('mcpMigrationShortcutTooltip', "Move eligible MCP servers to workspace root or Copilot home configuration files"),
 	cardLabel: localize('mcpMigrationCardLabel', "Migrate MCP Servers"),
 	cardActionLabel: localize('mcpMigrationCardAction', "Migrate..."),
-	cardActionAriaLabel: localize('mcpMigrationCardActionAriaLabel', "Migrate eligible workspace MCP servers"),
+	cardActionAriaLabel: localize('mcpMigrationCardActionAriaLabel', "Migrate eligible MCP servers"),
 	pageTitle: localize('mcpMigrationPageTitle', "Migrate MCP Servers"),
 	pageLinkLabel: localize('mcpMigrationLearnMore', "Learn more about MCP servers"),
 	pageLinkUrl: MCP_DOCUMENTATION_URL,
-	pageEmptyMessage: localize('mcpMigrationPageEmpty', "No workspace MCP servers are eligible to migrate."),
-	migrateButtonTooltip: localize('mcpMigrationPageButtonTooltip', "Move selected MCP servers to root .mcp.json files"),
+	pageEmptyMessage: localize('mcpMigrationPageEmpty', "No MCP servers are eligible to migrate."),
+	migrateButtonTooltip: localize('mcpMigrationPageButtonTooltip', "Move selected MCP servers to workspace root or Copilot home configuration files"),
 	backLabel: localize('backToMcpMigration', "Back to Migrate MCP Servers"),
 	noFilesMigratedMessage: localize('mcpMigrationNoneMigrated', "No MCP servers were migrated."),
 
@@ -573,11 +573,18 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	},
 
 	group(customizations) {
-		return [{
-			key: 'workspace',
-			label: localize('mcpMigrationWorkspaceGroup', "Workspace"),
-			customizations,
-		}];
+		return [
+			{
+				key: 'user',
+				label: localize('mcpMigrationUserGroup', "User"),
+				customizations: customizations.filter(customization => customization.storage === PromptsStorage.user),
+			},
+			{
+				key: 'workspace',
+				label: localize('mcpMigrationWorkspaceGroup', "Workspace"),
+				customizations: customizations.filter(customization => customization.storage === PromptsStorage.local),
+			},
+		].filter(group => group.customizations.length > 0);
 	},
 
 	getShortcutAriaLabel(count) {
@@ -587,6 +594,9 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	},
 
 	getCardDescription(customizations, harnessLabel) {
+		if (customizations.some(customization => customization.storage === PromptsStorage.user)) {
+			return localize('mcpMigrationCardDescriptionUser', "Found {0} eligible MCP servers. User servers move to mcp-config.json in Copilot home; workspace servers move to the root .mcp.json so {1} can discover them directly.", customizations.length, harnessLabel);
+		}
 		return customizations.length === 1
 			? localize('mcpMigrationCardDescriptionSingle', "Found 1 eligible server in .vscode/mcp.json that can move to the workspace root so {0} can discover it directly.", harnessLabel)
 			: localize('mcpMigrationCardDescriptionMultiple', "Found {0} eligible servers in .vscode/mcp.json that can move to workspace root files so {1} can discover them directly.", customizations.length, harnessLabel);
@@ -594,17 +604,36 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 
 	getPageDescription(customizations, harnessLabel) {
 		return customizations.length === 1
-			? localize('mcpMigrationPageDescriptionSingle', "Select the eligible MCP server to move so {0} can discover it directly. Servers that cannot be migrated and unselected servers stay in .vscode/mcp.json.", harnessLabel)
-			: localize('mcpMigrationPageDescriptionMultiple', "Select eligible MCP servers to move so {0} can discover them directly. Servers that cannot be migrated and unselected servers stay in .vscode/mcp.json.", harnessLabel);
+			? localize('mcpMigrationPageDescriptionSingle', "Select the eligible MCP server to move so {0} can discover it directly. Servers that cannot be migrated and unselected servers stay in their current files.", harnessLabel)
+			: localize('mcpMigrationPageDescriptionMultiple', "Select eligible MCP servers to move so {0} can discover them directly. Servers that cannot be migrated and unselected servers stay in their current files.", harnessLabel);
 	},
 
-	getBanner(_customizations, harnessLabel) {
+	getBanner(customizations, harnessLabel) {
+		if (customizations.some(customization => customization.storage === PromptsStorage.user)) {
+			return {
+				message: localize('mcpMigrationUserBannerMessage', "User servers move to mcp-config.json in Copilot home, making them available across profiles and workspaces. Disabled user servers may become enabled after migration. Workspace servers move to the root .mcp.json. Unselected servers and servers that cannot be migrated stay in their current files."),
+			};
+		}
 		return {
 			message: localize('mcpMigrationBannerMessage', "Eligible servers move from .vscode/mcp.json to .mcp.json at each workspace root so {0} can discover them directly. Servers that cannot be migrated and unselected servers stay in their current files.", harnessLabel),
 		};
 	},
 
 	getConfirmation(customizations) {
+		if (customizations.some(customization => customization.storage === PromptsStorage.user)) {
+			const hasWorkspaceServers = customizations.some(customization => customization.storage === PromptsStorage.local);
+			return {
+				message: customizations.length === 1
+					? localize('mcpMigrationUserConfirmMessageSingle', "Migrate 1 MCP server?")
+					: localize('mcpMigrationUserConfirmMessage', "Migrate {0} MCP servers?", customizations.length),
+				detail: hasWorkspaceServers
+					? localize('mcpMigrationMixedConfirmDetail', "Move user servers to Copilot home and workspace servers to .mcp.json. The original entries will be removed.\n\nDisabled user servers may become enabled.")
+					: customizations.length === 1
+						? localize('mcpMigrationUserConfirmDetailSingle', "Move to Copilot home for use across profiles and workspaces. The original entry will be removed.\n\nDisabled servers may become enabled.")
+						: localize('mcpMigrationUserConfirmDetail', "Move to Copilot home for use across profiles and workspaces. The original entries will be removed.\n\nDisabled servers may become enabled."),
+				primaryButton: localize('mcpMigrationConfirmButton', "Migrate"),
+			};
+		}
 		return {
 			message: customizations.length === 1
 				? localize('mcpMigrationConfirmMessageSingle', "Migrate 1 MCP server to .mcp.json?")
@@ -657,9 +686,9 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 			case McpServerCustomizationMigrationFailureReason.SourceChanged:
 				return localize('mcpMigrationSourceChanged', "Could not migrate '{0}' because its source configuration changed.", failure.name);
 			case McpServerCustomizationMigrationFailureReason.TargetConflict:
-				return localize('mcpMigrationTargetConflict', "Could not migrate '{0}' because .mcp.json already contains a different server with that name.", failure.name);
+				return localize('mcpMigrationTargetConflict', "Could not migrate '{0}' because the destination already contains a different server with that name.", failure.name);
 			case McpServerCustomizationMigrationFailureReason.InvalidTarget:
-				return localize('mcpMigrationInvalidTarget', "Could not migrate '{0}' because the destination .mcp.json is invalid.", failure.name);
+				return localize('mcpMigrationInvalidTarget', "Could not migrate '{0}' because the destination MCP configuration is invalid.", failure.name);
 			default:
 				return this.getFailedMessage([failure.name], 0);
 		}

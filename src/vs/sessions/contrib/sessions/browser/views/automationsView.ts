@@ -65,7 +65,7 @@ import { SessionsFlatList, SessionItemStatusContext } from './sessionsList.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatUnavailableAutomationsMessage } from './automationCataloguePresentation.js';
+import { getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
 const $ = DOM.$;
@@ -330,7 +330,7 @@ class AutomationCardsSection extends Disposable {
 		this.partialErrorIcon = DOM.append(this.partialStateContainer, $('span.automations-cards-partial-state-icon'));
 		this.partialErrorIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
 		this.partialErrorIcon.setAttribute('aria-hidden', 'true');
-		this.partialStateMessage = DOM.append(this.partialStateContainer, $('span.automations-cards-partial-state-message'));
+		this.partialStateMessage = DOM.append(this.partialStateContainer, $('div.automations-cards-partial-state-message'));
 		this.emptyContainer = DOM.append(parent, $('.automations-cards-empty'));
 		this.emptyContainer.style.display = 'none';
 		this.loadingContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-loading'));
@@ -493,9 +493,11 @@ class AutomationCardsSection extends Disposable {
 		const showTemplateSections = templates.length > 0;
 		this.templatesContainer.style.display = showTemplateSections ? '' : 'none';
 
-		this.unavailableDescription.textContent = unavailableProviders.length > 0
-			? formatUnavailableAutomationsMessage(unavailableProviders)
-			: localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
+		if (unavailableProviders.length > 0) {
+			this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
+		} else {
+			this.unavailableDescription.textContent = localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
+		}
 		const nextContainer = automations.length === 0 ? this.getEmptyStateContainer(catalogueState) : this.container;
 		const previousContainer = this.visibleContainer;
 		if (previousContainer !== nextContainer) {
@@ -918,7 +920,7 @@ class AutomationCardsSection extends Disposable {
 		icon.setAttribute('aria-hidden', 'true');
 		const title = DOM.append(this.unavailableContainer, $('h3.automations-cards-state-title'));
 		title.textContent = localize('automationsUnavailable', "Some automations are unavailable");
-		const description = DOM.append(this.unavailableContainer, $('p.automations-cards-state-description'));
+		const description = DOM.append(this.unavailableContainer, $('div.automations-cards-state-description'));
 		description.textContent = localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
 		return { createButton: this.renderStateCreateButton(this.unavailableContainer), description };
 	}
@@ -951,6 +953,7 @@ class AutomationCardsSection extends Disposable {
 			&& (unavailableProviders.length !== this.partialUnavailableProviders.length
 				|| unavailableProviders.some((provider, index) => provider.id !== this.partialUnavailableProviders[index].id
 					|| provider.label !== this.partialUnavailableProviders[index].label
+					|| provider.unavailableReasonCode !== this.partialUnavailableProviders[index].unavailableReasonCode
 					|| provider.unavailableReason !== this.partialUnavailableProviders[index].unavailableReason));
 		if (this.partialState === catalogueState && !unavailableProvidersChanged) {
 			return;
@@ -967,11 +970,24 @@ class AutomationCardsSection extends Disposable {
 		this.partialStateContainer.classList.toggle('automations-cards-partial-state-error', isError);
 		this.partialLoadingIcon.style.display = isLoading ? '' : 'none';
 		this.partialErrorIcon.style.display = isLoading ? 'none' : '';
-		this.partialStateMessage.textContent = isError
-			? localize('automationsPartialLoadError', "Some automations could not be loaded.")
-			: catalogueState === 'unavailable'
-				? formatUnavailableAutomationsMessage(unavailableProviders)
+		if (catalogueState === 'unavailable') {
+			this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+		} else {
+			this.partialStateMessage.textContent = isError
+				? localize('automationsPartialLoadError', "Some automations could not be loaded.")
 				: localize('automationsPartialLoading', "Loading additional automations...");
+		}
+	}
+
+	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {
+		const reasons = getUnavailableAutomationsReasons(unavailableProviders);
+		if (reasons.length === 1) {
+			container.textContent = reasons[0];
+		} else if (reasons.length > 1) {
+			DOM.reset(container, $('ul.automations-unavailable-reasons', undefined, ...reasons.map(reason => $('li', undefined, reason))));
+		} else {
+			container.textContent = localize('automationsPartialUnavailable', "Some automations are unavailable.");
+		}
 	}
 
 	private renderTemplateCard(container: HTMLElement, template: IAutomationTemplate): void {
@@ -1343,6 +1359,7 @@ class AutomationHistorySection extends Disposable {
 			alwaysConsumeMouseWheel: false,
 			useCompactQuickChatRows: false,
 			toolbarMenuId: Menus.AutomationsHistoryItem,
+			toolbarTelemetrySource: 'automationsView.historyRow',
 			contextMenuId: Menus.AutomationsHistoryItemContext,
 			markSessionReadOnOpen: false,
 			approvalModel: this.approvalModel,
@@ -2299,7 +2316,7 @@ registerAction2(class RemoveAutomationLimitsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.automations.removeLimits',
-			title: localize2('removeAutomationLimits', "Remove limits"),
+			title: localize2('removeAutomationEndDate', "Remove end date"),
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationCardCanUpdateContext, AutomationCardHasLimitsContext),
 			menu: [{
 				id: Menus.AutomationCardContext, group: 'navigation', order: 1.5,
@@ -2324,18 +2341,18 @@ registerAction2(class RemoveAutomationLimitsAction extends Action2 {
 		try {
 			const result = await automationService.updateAutomationIfUnchanged(automation.id, { disableConditions: [] }, automation, () => {
 				if (!automationsEnabled()) {
-					throw new Error(localize('automationsDisabledBeforeRemoveLimits', "Automations were disabled before the limits could be removed."));
+					throw new Error(localize('automationsDisabledBeforeRemoveEndDate', "Automations were disabled before the end date could be removed."));
 				}
 			});
 			if (result.kind === 'conflict') {
 				throw new Error(result.current
-					? localize('automationChangedBeforeRemoveLimits', "This automation changed before its limits could be removed. Try again.")
-					: localize('automationDeletedBeforeRemoveLimits', "This automation was deleted before its limits could be removed."));
+					? localize('automationChangedBeforeRemoveEndDate', "This automation changed before its end date could be removed. Try again.")
+					: localize('automationDeletedBeforeRemoveEndDate', "This automation was deleted before its end date could be removed."));
 			}
-			status(localize('automationLimitsRemoved', "Removed limits from automation {0}", automation.name));
+			status(localize('automationEndDateRemoved', "Removed end date from automation {0}", automation.name));
 		} catch (error) {
-			logService.error('[Automations] Failed to remove automation limits', error);
-			await dialogService.error(localize('automationRemoveLimitsFailed', "Failed to remove automation limits."), getErrorMessage(error));
+			logService.error('[Automations] Failed to remove automation end date', error);
+			await dialogService.error(localize('automationRemoveEndDateFailed', "Failed to remove automation end date."), getErrorMessage(error));
 		}
 	}
 });
@@ -2373,7 +2390,7 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 			const confirmation = await dialogService.confirm({
 				type: 'warning',
 				message: localize('automationExpiredFinalDate', "The final date for this automation has passed."),
-				detail: localize('automationExpiredFinalDateDetail', "The host will disable scheduling immediately. Use Remove limits in the More menu, or ask in chat to change the final date before re-enabling scheduled runs."),
+				detail: localize('automationExpiredFinalDateDetail', "The host will disable scheduling immediately. Use Remove end date in the More menu, or ask in chat to change the final date before re-enabling scheduled runs."),
 				primaryButton: localize('automationEnableAnyway', "Enable Anyway"),
 			});
 			if (!confirmation.confirmed) {

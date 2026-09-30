@@ -1540,7 +1540,7 @@ suite('AutomationsCardsWidget', () => {
 			templatesDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
 		}, {
 			loadingMessage: 'Loading additional automations...',
-			unavailableMessage: 'Automations from Remote build host are unavailable.',
+			unavailableMessage: 'Automations are unavailable on Remote build host.',
 			errorMessage: 'Some automations could not be loaded.',
 			savedCards: 1,
 			appearsAfterCards: true,
@@ -1557,6 +1557,55 @@ suite('AutomationsCardsWidget', () => {
 
 		assert.strictEqual(automationDialogService.showCalls, 1);
 	});
+
+	for (const hasSavedAutomations of [false, true]) {
+		test(`groups unavailable providers into visual and accessible bullet lists ${hasSavedAutomations ? 'with' : 'without'} saved automations`, () => {
+			const { automationService, widget } = setup();
+			const automations = hasSavedAutomations ? [automation()] : [];
+			automationService.setAutomations(automations);
+			const providers: IAutomationProviderDescriptor[] = [
+				{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' },
+				{ id: 'host2', label: 'Host 2', unavailableReasonCode: 'unsupported' },
+				{ id: 'host3', label: 'Host 3', unavailableReasonCode: 'disconnected' },
+			];
+			automationService.setUnavailableProviders(providers);
+			automationService.setCatalogueState('unavailable');
+			const selector = hasSavedAutomations ? '.automations-cards-partial-state-message' : '.automations-cards-unavailable .automations-cards-state-description';
+			const description = widget.element.querySelector<HTMLElement>(selector)!;
+			const reasons = [
+				'The agent host is disconnected on Host 1, Host 3.',
+				'Automations are not supported on Host 2.',
+			];
+			const readMessage = () => ({
+				hasSummary: !!description.querySelector(':scope > div'),
+				hasList: !!description.querySelector('ul'),
+				reasons: description.querySelector('ul')
+					? [...description.querySelectorAll('ul > li')].map(item => item.textContent)
+					: [description.textContent],
+			});
+			const initial = {
+				message: readMessage(),
+				whiteSpace: getWindow(description).getComputedStyle(description).whiteSpace,
+				textAlign: getWindow(description).getComputedStyle(description.querySelector('li')!).textAlign,
+				accessible: buildAutomationsAccessibleContent(automations, [], 'unavailable', [], providers).includes(reasons.map(reason => `- ${reason}`).join('\n')),
+			};
+			automationService.setUnavailableProviders(providers.map(provider => ({ ...provider, unavailableReasonCode: 'disabled' })));
+			const updated = readMessage();
+			automationService.setUnavailableProviders([providers[0]]);
+			const singleProvider = readMessage();
+			automationService.setUnavailableProviders(providers.map(provider => ({ id: provider.id, label: provider.label })));
+			const withoutReasons = readMessage();
+			automationService.setUnavailableProviders([]);
+
+			assert.deepStrictEqual({ initial, updated, singleProvider, withoutReasons, hasEmptyList: !!description.querySelector('ul') }, {
+				initial: { message: { hasSummary: false, hasList: true, reasons }, whiteSpace: 'pre-line', textAlign: 'left', accessible: true },
+				updated: { hasSummary: false, hasList: false, reasons: ['Automations are disabled on Host 1, Host 2, Host 3.'] },
+				singleProvider: { hasSummary: false, hasList: false, reasons: ['The agent host is disconnected on Host 1.'] },
+				withoutReasons: { hasSummary: false, hasList: false, reasons: ['Automations are unavailable on Host 1, Host 2, Host 3.'] },
+				hasEmptyList: false,
+			});
+		});
+	}
 
 	test('collapses built-in templates when saved automations become available', () => {
 		const { automationService, widget } = setup();
@@ -2236,7 +2285,7 @@ suite('AutomationsCardsWidget', () => {
 			updates: automationService.guardedUpdateCalls,
 		}, {
 			message: 'The final date for this automation has passed.',
-			detail: 'The host will disable scheduling immediately. Use Remove limits in the More menu, or ask in chat to change the final date before re-enabling scheduled runs.',
+			detail: 'The host will disable scheduling immediately. Use Remove end date in the More menu, or ask in chat to change the final date before re-enabling scheduled runs.',
 			updates: [],
 		});
 		dialogService.confirmResult = { confirmed: true };
@@ -2271,7 +2320,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	for (const enabled of [true, false]) {
-		test(`Remove Limits clears the end date without changing enabled=${enabled} or other fields`, async () => {
+		test(`Remove end date clears the end date without changing enabled=${enabled} or other fields`, async () => {
 			const { automationService, instantiationService, widget, contextMenuService, contextKeyService } = setup();
 			const source = automation({
 				enabled,
@@ -2292,10 +2341,12 @@ suite('AutomationsCardsWidget', () => {
 			await instantiationService.invokeFunction(accessor => command.handler(accessor, delegate.menuActionOptions?.arg));
 			const updated = automationService.getAutomation(source.id)!;
 			assert.deepStrictEqual({
+				label: action.label,
 				mutations: automationService.guardedUpdateCalls,
 				definition: { ...updated, updatedAt: source.updatedAt },
 				limitVisible: widget.element.querySelector<HTMLElement>('.automations-card-limit')?.style.display !== 'none',
 			}, {
+				label: 'Remove end date',
 				mutations: [{ id: source.id, patch: { disableConditions: [] }, expected: source }],
 				definition: { ...source, disableConditions: [] },
 				limitVisible: false,
@@ -3115,6 +3166,17 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('accessibility help explains prompt-only automation creation', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+		assert.ok(provider);
+		disposables.add(provider);
+		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
+	});
+
 	test('accessible view distinguishes loading, unavailable, and error from confirmed empty', () => {
 		assert.deepStrictEqual({
 			loading: buildAutomationsAccessibleContent([], [], 'loading').split('\n').slice(0, 2),
@@ -3122,7 +3184,7 @@ suite('AutomationsCardsWidget', () => {
 			error: buildAutomationsAccessibleContent([], [], 'error').split('\n').slice(0, 2),
 		}, {
 			loading: ['Automations', 'Loading automations.'],
-			unavailable: ['Automations', 'Automations from Remote build host are unavailable.'],
+			unavailable: ['Automations', 'Automations are unavailable on Remote build host.'],
 			error: ['Automations', 'Unable to load automations.'],
 		});
 	});
@@ -3132,7 +3194,7 @@ suite('AutomationsCardsWidget', () => {
 		const providers = [{ id: 'remote', label: 'Remote host', unavailableReason: reason }];
 		const content = buildAutomationsAccessibleContent([], [], 'unavailable', [], providers);
 		assert.deepStrictEqual(content.split('\n').slice(0, 2), [
-			'Automations', `Automations from Remote host are unavailable. ${reason}`,
+			'Automations', `Automations are unavailable on Remote host. ${reason}`,
 		]);
 	});
 
@@ -3162,8 +3224,8 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			loadingIncluded: loadingContent.includes('Additional automations are loading.'),
 			loadingAfterAutomation: loadingContent.indexOf('Daily review, enabled') < loadingContent.indexOf('Additional automations are loading.'),
-			unavailableIncluded: content.includes('Automations from Remote build host are unavailable.'),
-			unavailableAfterAutomation: content.indexOf('Daily review, enabled') < content.indexOf('Automations from Remote build host are unavailable.'),
+			unavailableIncluded: content.includes('Automations are unavailable on Remote build host.'),
+			unavailableAfterAutomation: content.indexOf('Daily review, enabled') < content.indexOf('Automations are unavailable on Remote build host.'),
 			errorIncluded: errorContent.includes('Some automations could not be loaded.'),
 			errorAfterAutomation: errorContent.indexOf('Daily review, enabled') < errorContent.indexOf('Some automations could not be loaded.'),
 		}, {

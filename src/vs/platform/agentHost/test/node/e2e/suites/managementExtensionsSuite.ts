@@ -74,6 +74,14 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 		});
 	}
 
+	async function collectPopulatedDebugLogs(kind: 'archive' | 'directory', session?: string): Promise<DebugLogsArtifactResult> {
+		return retry(async () => {
+			const artifact = await collectDebugLogs(kind, session);
+			assert.ok(artifact.entries.some(entry => isAgentHostProcessLog(entry.path)), 'the asynchronous process logger has not created its file yet');
+			return artifact;
+		}, 50, 100);
+	}
+
 	async function readDebugLogsChunk(resource: string, position: number): Promise<DebugLogsChunkResult> {
 		return context.client.call<DebugLogsChunkResult>(ReadAgentHostDebugLogsChunkExtensionMethod, {
 			resource,
@@ -136,7 +144,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 
 	conformanceTest(context, 'host-wide debug archive has a readable manifest and zip payload', async function () {
 		await initializeClient('debug-archive');
-		const artifact = await collectDebugLogs('archive');
+		const artifact = await collectPopulatedDebugLogs('archive');
 		const payload = await readDebugLogsArtifact(artifact.resource, artifact.size);
 
 		assertSafeManifest(artifact);
@@ -153,7 +161,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 
 	conformanceTest(context, 'host-wide debug directory streams every manifest entry', async function () {
 		await initializeClient('debug-directory');
-		const artifact = await collectDebugLogs('directory');
+		const artifact = await collectPopulatedDebugLogs('directory');
 		assertSafeManifest(artifact);
 
 		const sizes = await Promise.all(artifact.entries.map(async entry => {
@@ -247,7 +255,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 
 	conformanceTest(context, 'host-wide debug collection without a live provider contains only host logs', async function () {
 		await initializeClient('debug-host-only');
-		const artifact = await collectDebugLogs('archive');
+		const artifact = await collectPopulatedDebugLogs('archive');
 
 		assert.deepStrictEqual({
 			providerLogsIncluded: artifact.providerLogsIncluded,
@@ -264,7 +272,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-debug-unmaterialized-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `debug-unmaterialized-${config.provider}`, createdSessions, URI.file(workspace));
-		const artifact = await collectDebugLogs('directory', sessionUri);
+		const artifact = await collectPopulatedDebugLogs('directory', sessionUri);
 
 		assert.deepStrictEqual({
 			providerLogsIncluded: artifact.providerLogsIncluded,
@@ -424,7 +432,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 	});
 
 	if (config.provider === 'copilotcli') {
-		// The bundled 1.0.15-preview.2 runtime no longer exposes the account-scoped diagnostics API.
+		// Since 1.0.15-preview.2 (still true in preview.3), the bundled runtime no longer exposes the account-scoped diagnostics API.
 		providerHostOnlyTest(context, 'managed settings diagnostics expose the provider snapshot', async function () {
 			await initializeClient('managed-settings-snapshot');
 			const result = await context.client.call<readonly IAgentHostManagedSettingsDiagnostics[]>('getManagedSettingsDiagnostics');

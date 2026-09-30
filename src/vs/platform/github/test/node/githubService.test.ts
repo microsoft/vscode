@@ -5,8 +5,11 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { GitHubCredentialService } from '../../common/githubCredentialService.js';
 import { GitHubHostCapabilitiesService } from '../../common/githubHostCapabilitiesService.js';
 import { GitHubQueryService } from '../../common/githubQueryServiceImpl.js';
@@ -54,7 +57,7 @@ suite('GitHubService', () => {
 					getToken: () => undefined,
 				},
 			},
-			new NullLogService(),
+			new NullLogService(), NullTelemetryService,
 		));
 
 		assert.deepStrictEqual({
@@ -76,6 +79,66 @@ suite('GitHubService', () => {
 		});
 	});
 
+	test('uses the injected product telemetry service without request identities', async () => {
+		const events: { name: string; data: ITelemetryData | undefined }[] = [];
+		const telemetry = new class extends mock<ITelemetryService>() {
+			override readonly telemetryLevel = TelemetryLevel.USAGE;
+			override publicLog2(name: string, data?: ITelemetryData): void { events.push({ name, data }); }
+		}();
+		const service = disposables.add(new GitHubService({
+			endpoint: {
+				onDidChange: Event.None,
+				getApiBaseUri: () => 'https://private-host.example',
+				getGraphQlUri: () => 'https://private-host.example/graphql',
+			},
+			tokenProvider: { getToken: () => 'private-token' },
+			fetch: async () => new Response('{"id":101,"private":"private-response"}'),
+			telemetrySource: 'agentHost',
+		}, new NullLogService(), telemetry));
+		await service.credentials.getCredential(new AbortController().signal);
+		service.dispose();
+		const summary = events.find(event => event.name === 'githubRequestSummary')?.data;
+		assert.deepStrictEqual({
+			source: summary?.source,
+			requests: summary?.requests,
+			attempts: summary?.wireAttempts,
+			containsPrivateData: JSON.stringify(events).includes('private'),
+		}, { source: 'agentHost', requests: 1, attempts: 1, containsPrivateData: false });
+	});
+
+	test('preserves binding-supplied client identification during identity bootstrap', async () => {
+		const requests: Headers[] = [];
+		const service = disposables.add(new GitHubService({
+			endpoint: {
+				onDidChange: Event.None,
+				getApiBaseUri: () => 'https://api.github.com',
+				getGraphQlUri: () => 'https://api.github.com/graphql',
+			},
+			tokenProvider: { getToken: () => 'token' },
+			clientMetadata: {
+				application: 'vscode-insiders/1.141.0',
+				source: 'github.vscode-pull-request-github/0.123.0',
+				egress: 'node',
+			},
+			fetch: async (_url, init) => {
+				requests.push(new Headers(init?.headers));
+				return new Response('{"id":101}');
+			},
+		}, new NullLogService(), NullTelemetryService));
+		await service.credentials.getCredential(new AbortController().signal);
+		assert.deepStrictEqual(requests.map(headers => ({
+			application: headers.get('X-Client-Application'),
+			source: headers.get('X-Client-Source'),
+			feature: headers.get('X-Client-Feature'),
+			isRetry: headers.get('X-Is-Retry'),
+		})), [{
+			application: 'vscode-insiders/1.141.0',
+			source: 'github.vscode-pull-request-github/0.123.0',
+			feature: 'github.credentials',
+			isRetry: 'false',
+		}]);
+	});
+
 	test('logs service, credential, transport, and resource lifecycle without sensitive payloads', async () => {
 		await withServer(async server => {
 			server.enqueue(
@@ -87,7 +150,7 @@ suite('GitHubService', () => {
 				endpoint: server.createEndpointService(),
 				tokenProvider: { getToken: () => 'token-secret' },
 				fetch: nodeFetch,
-			}, logService);
+			}, logService, NullTelemetryService);
 			try {
 				const subscription = service.pullRequests.subscribePullRequest({
 					host: new URL(server.apiBaseUrl).host,
@@ -134,7 +197,7 @@ suite('GitHubService', () => {
 				endpoint: server.createEndpointService(),
 				tokenProvider: { getToken: () => token },
 				fetch: nodeFetch,
-			}, new NullLogService()));
+			}, new NullLogService(), NullTelemetryService));
 			const ref = {
 				host: new URL(server.apiBaseUrl).host,
 				accountId: '101',
@@ -172,7 +235,7 @@ suite('GitHubService', () => {
 			const service = disposables.add(new GitHubService({
 				endpoint: server.createEndpointService(),
 				tokenProvider: { getToken: () => 'token' },
-			}, new NullLogService()));
+			}, new NullLogService(), NullTelemetryService));
 
 			const credential = await service.credentials.getCredential(new AbortController().signal);
 
@@ -207,7 +270,7 @@ suite('GitHubService', () => {
 					},
 				},
 				fetch: nodeFetch,
-			}, new NullLogService()));
+			}, new NullLogService(), NullTelemetryService));
 			const subscription = disposables.add(service.pullRequests.subscribePullRequest({
 				host: new URL(server.apiBaseUrl).host,
 				accountId: '101',
@@ -253,7 +316,7 @@ suite('GitHubService', () => {
 					},
 				},
 				fetch: nodeFetch,
-			}, new NullLogService()));
+			}, new NullLogService(), NullTelemetryService));
 			const subscription = disposables.add(service.pullRequests.subscribePullRequest({
 				host: new URL(server.apiBaseUrl).host,
 				accountId: '101',

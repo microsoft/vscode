@@ -10,7 +10,6 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -32,15 +31,13 @@ import { ActionListItemKind, IActionListItem } from '../../../../platform/action
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { getAutomationAfterDate, isAutomationAfterDate, isAutomationAfterDateExpired } from '../../../../platform/agentHost/common/automationDisableConditions.js';
-import { AutomationDisableConditionKind, type AutomationAfterDateCondition } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch } from '../../chat/browser/branchPicker.js';
@@ -49,7 +46,7 @@ import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobileP
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationService, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -216,7 +213,6 @@ export interface IFormState {
 	isolationMode: string | undefined;
 	branch: string | undefined;
 	enabled: boolean;
-	endDate: string | undefined;
 }
 
 export interface IValidationState {
@@ -225,7 +221,6 @@ export interface IValidationState {
 	folderError: string | undefined;
 	sessionTypeError: string | undefined;
 	branchError: string | undefined;
-	endDateError?: string;
 }
 
 export function getAutomationDialogProviders(automationService: IAutomationService, existing: IAutomationDescriptor | undefined): IObservable<readonly string[]> {
@@ -243,38 +238,6 @@ export function getAutomationDialogProviders(automationService: IAutomationServi
 	});
 }
 
-/** Omits unchanged authority-sensitive fields so stale forms cannot re-enable expired automations. */
-export function buildChangedAutomationFields(
-	formEnabled: boolean,
-	formEndDate: string | undefined,
-	existing: Pick<IAutomationDescriptor, 'enabled' | 'disableConditions'>,
-): Pick<IUpdateAutomationOptions, 'enabled' | 'disableConditions'> {
-	const fields: { enabled?: boolean; disableConditions?: AutomationAfterDateCondition[] } = {};
-	if (formEnabled !== existing.enabled) {
-		fields.enabled = formEnabled;
-	}
-	if (formEndDate !== getAutomationAfterDate(existing.disableConditions)) {
-		fields.disableConditions = buildAutomationDisableConditions(formEndDate);
-	}
-	return fields;
-}
-
-export function buildAutomationDisableConditions(endDate: string | undefined): AutomationAfterDateCondition[] {
-	return endDate === undefined ? [] : [{ kind: AutomationDisableConditionKind.AfterDate, date: endDate }];
-}
-
-export function getAutomationEndDateError(endDate: string | undefined, initial: string | undefined): string | undefined {
-	if (endDate === undefined) {
-		return undefined;
-	}
-	if (!isAutomationAfterDate(endDate)) {
-		return localize('automation.form.invalidEndDate', "Enter a valid end date and time.");
-	}
-	return endDate !== initial && Date.parse(endDate) <= Date.now()
-		? localize('automation.form.futureEndDate', "The end date must be in the future.")
-		: undefined;
-}
-
 interface IRenderFormHandle {
 	readonly getPrompt: () => string;
 	readonly getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture>;
@@ -287,7 +250,6 @@ interface IRenderFormHandle {
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
 	readonly cancelPromptSuggestion: () => boolean;
-	readonly refreshDisableConditionsWarning: () => void;
 }
 
 export type AutomationSessionDraftTarget =
@@ -608,6 +570,8 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	private branches: readonly string[] = [];
 	private detachedCommit: string | undefined;
 	private worktreeCapabilityResolved = false;
+	private container: HTMLElement | undefined;
+	private visibleFromInput = true;
 
 	constructor(
 		action: IAction,
@@ -657,10 +621,12 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		this.cancelBranchRequest();
 		DOM.clearNode(container);
 		container.style.marginLeft = 'auto';
+		this.container = container;
 		const visible = this.visible;
 		if (visible) {
 			this.renderDisposables.add(autorun(reader => {
-				setAutomationControlVisible(container, visible.read(reader));
+				this.visibleFromInput = visible.read(reader);
+				this.updateVisibility();
 			}));
 		}
 
@@ -687,6 +653,13 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 
 	showPicker(anchor: HTMLElement): void {
 		this.branchPicker.showPicker(anchor);
+	}
+
+	/** Worktree and branch pickers only apply to Git repositories, so hide them once the folder is known not to be one. */
+	private updateVisibility(): void {
+		if (this.container) {
+			setAutomationControlVisible(this.container, this.visibleFromInput && this.branchLoadState !== 'noRepository');
+		}
 	}
 
 	private refreshTargetCapability(): void {
@@ -758,6 +731,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 				disabledReason: worktreeUnavailableReason,
 			},
 		});
+		this.updateVisibility();
 		this.revalidate();
 	}
 
@@ -915,6 +889,9 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		}
 		if (!repo) {
 			this.branchLoadState = 'noRepository';
+			if (this.isolationModel.isolationMode === 'worktree') {
+				this.isolationModel.selectIsolationMode('workspace');
+			}
 			this.renderBranchControl();
 			return;
 		}
@@ -1054,7 +1031,6 @@ export function renderForm(
 	initialTarget: AutomationTarget | undefined,
 	initialSessionConfiguration: IAutomationSessionConfiguration | undefined,
 	allowedProviders: IObservable<readonly string[]>,
-	initialDisableConditions: readonly AutomationAfterDateCondition[] | undefined,
 ): IRenderFormHandle {
 	const formContent = DOM.append(form, $('.automation-form-content'));
 	const nameRow = DOM.append(formContent, $('.automation-form-row'));
@@ -1071,6 +1047,7 @@ export function renderForm(
 		revalidate();
 	}));
 
+	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const scheduleRow = DOM.append(formContent, $('.automation-form-row.automation-form-schedule-row'));
 	const useCustomDrawn = !hasNativeContextMenu(configurationService);
 
@@ -1268,14 +1245,10 @@ export function renderForm(
 		revalidate();
 	}));
 
-	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const targetRow = DOM.append(sessionSection, $('.automation-form-row.automation-target-row'));
-	const targetLabel = DOM.append(targetRow, $('span.automation-form-label', {
-		id: 'automation-target-label',
-	}, localize('automation.form.target', "Target")));
 	const targetContainer = DOM.append(targetRow, $('.automation-target-toolbar', {
 		role: 'group',
-		'aria-labelledby': targetLabel.id,
+		'aria-label': localize('automation.form.target', "Target"),
 	}));
 	const targetError = DOM.append(targetRow, $('span.automation-target-error', {
 		id: 'automation-target-error',
@@ -1286,7 +1259,6 @@ export function renderForm(
 	DOM.hide(targetError);
 	const promptSection = DOM.append(sessionSection, $('.automation-prompt-section'));
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
-	DOM.append(promptRow, $('span.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const editorOverflowWidgetsDomNode = layoutService.getContainer(DOM.getWindow(promptHost)).appendChild($('.chat-editor-overflow.automation-dialog-editor-overflow.monaco-editor'));
 	disposables.add(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
@@ -1480,75 +1452,6 @@ export function renderForm(
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
 
-	const checkboxRow = DOM.append(formContent, $('.automation-form-row.automation-form-checkbox-row'));
-	const enabledRow = DOM.append(checkboxRow, $('.automation-form-checkbox'));
-	const enabledLabelText = localize('automation.form.enabled', "Enabled");
-	const enabledCheckbox = disposables.add(new Checkbox(enabledLabelText, state.enabled, defaultCheckboxStyles));
-	DOM.append(enabledRow, enabledCheckbox.domNode);
-	const enabledLabel = DOM.append(enabledRow, $('span.automation-form-checkbox-label', undefined, enabledLabelText));
-	const setEnabled = (value: boolean) => {
-		if (enabledCheckbox.checked !== value) {
-			enabledCheckbox.checked = value;
-		}
-		state.enabled = value;
-		refreshDisableConditionsWarning();
-	};
-	disposables.add(enabledCheckbox.onChange(() => {
-		setEnabled(enabledCheckbox.checked);
-	}));
-	disposables.add(DOM.addStandardDisposableListener(enabledLabel, 'click', () => {
-		setEnabled(!enabledCheckbox.checked);
-	}));
-
-	const endDateRow = DOM.append(formContent, $('.automation-form-row'));
-	const endDateLabel = localize('automation.form.endDate', "Run until");
-	DOM.append(endDateRow, $('label.automation-form-label', { for: 'automation-end-date' }, endDateLabel));
-	const endDateInput = disposables.add(new InputBox(endDateRow, contextViewService, {
-		type: 'datetime-local',
-		ariaLabel: endDateLabel,
-		inputBoxStyles: defaultInputBoxStyles,
-	}));
-	endDateInput.inputElement.id = 'automation-end-date';
-	endDateInput.inputElement.step = '1';
-	if (state.endDate !== undefined) {
-		const date = new Date(state.endDate);
-		endDateInput.value = new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
-	}
-	disposables.add(DOM.addDisposableListener(endDateInput.inputElement, DOM.EventType.INPUT, () => {
-		const value = endDateInput.value;
-		const date = new Date(value);
-		state.endDate = endDateInput.inputElement.validity.badInput ? ''
-			: value ? Number.isFinite(date.getTime()) ? date.toISOString() : value : undefined;
-		revalidate();
-	}));
-	const endDateError = DOM.append(endDateRow, $('span.automation-form-hint', {
-		id: 'automation-end-date-error', role: 'status', 'aria-live': 'polite',
-	}));
-	endDateInput.inputElement.setAttribute('aria-describedby', endDateError.id);
-
-	const conditionsWarning = DOM.append(formContent, $('span.automation-form-hint', {
-		id: 'automation-conditions-warning', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
-	}));
-	const refreshDisableConditionsWarning = () => {
-		validation.endDateError = getAutomationEndDateError(state.endDate, getAutomationAfterDate(initialDisableConditions));
-		endDateError.textContent = validation.endDateError ?? '';
-		endDateInput.inputElement.setAttribute('aria-invalid', String(!!validation.endDateError));
-		DOM.setVisibility(!!validation.endDateError, endDateError);
-		const expired = state.enabled && isAutomationAfterDateExpired(buildAutomationDisableConditions(state.endDate));
-		DOM.setVisibility(expired, conditionsWarning);
-		const message = expired
-			? localize('automation.form.expiredConditions', "The end date has passed. Scheduling will stop immediately. Change or clear Run until to resume scheduling.")
-			: '';
-		if (conditionsWarning.textContent !== message) {
-			conditionsWarning.textContent = message;
-		}
-		if (expired) {
-			enabledCheckbox.domNode.setAttribute('aria-describedby', conditionsWarning.id);
-		} else {
-			enabledCheckbox.domNode.removeAttribute('aria-describedby');
-		}
-	};
-	refreshDisableConditionsWarning();
 	const saveStatus = DOM.append(form, $('span.automation-form-save-status', {
 		role: 'status',
 		'aria-atomic': 'true',
@@ -1621,7 +1524,6 @@ export function renderForm(
 			suggestController.cancelSuggestWidget();
 			return true;
 		},
-		refreshDisableConditionsWarning,
 	};
 }
 
@@ -1666,8 +1568,9 @@ export function updateSaveButtonState(
 	sessionsManagementService: ISessionsManagementService,
 	providerAvailable = true,
 	originalProviderId?: string,
+	requireName = true,
 ): void {
-	validation.nameError = state.name.trim() === ''
+	validation.nameError = requireName && state.name.trim() === ''
 		? localize('automation.form.nameRequired', "Name is required.")
 		: undefined;
 	validation.promptError = getPrompt().trim() === ''
@@ -1697,7 +1600,7 @@ export function updateSaveButtonState(
 		? localize('automation.form.branchRequired', "A branch is required for Worktree isolation.")
 		: undefined;
 
-	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.endDateError;
+	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError;
 	if (saveButton) {
 		saveButton.enabled = valid;
 	}

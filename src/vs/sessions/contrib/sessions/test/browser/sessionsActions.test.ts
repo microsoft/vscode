@@ -31,7 +31,8 @@ import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { type IOpenNewSessionOptions, type IOpenNewSessionResult, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -46,7 +47,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -265,6 +266,85 @@ suite('Sessions - Actions', () => {
 			{ id: 'sessionsViewPane.openToTheSide', group: '0_pin', order: 1, when: 'isSessionsWindow' },
 			{ id: 'sessionsViewPane.markAllRead', group: '0_read', order: 1, when: 'sessionsViewPane.grouping == \'date\'' },
 		]);
+	});
+
+	test('the main session context menu opens its main chat to the side', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('Session');
+		const activeSession = upcastPartial<IActiveSession>({
+			...session,
+			activeChat: session.mainChat,
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
+		});
+		const opens: IOpenSessionOptions[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly visibleSessions = constObservable([activeSession]);
+			override async openSessionToSide(_session: ISession, options?: IOpenSessionOptions): Promise<void> {
+				if (options) {
+					opens.push(options);
+				}
+			}
+		});
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override focusSession(): void { }
+		});
+
+		const command = CommandsRegistry.getCommand('sessionsViewPane.openToTheSide');
+		assert.ok(command);
+		await command.handler(instantiationService, session);
+
+		assert.deepStrictEqual(opens, [{ source: 'sessionsList', forceMainChat: true }]);
+	});
+
+	test('the multi-session context menu batches side-opens and selects the last main chat', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const sessions = [createTestSession('First').session, createTestSession('Last').session];
+		const reference = upcastPartial<IActiveSession>({
+			...sessions[1],
+			activeChat: sessions[1].mainChat,
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
+		});
+		const opens: { sessions: readonly ISession[]; reference: string | undefined; direction: string; options: IOpenSessionsOptions | undefined }[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly visibleSessions = constObservable([reference]);
+			override async openSessionsAt(...[sessions, reference, direction, options]: Parameters<ISessionsService['openSessionsAt']>): Promise<void> {
+				opens.push({ sessions, reference, direction, options });
+			}
+		});
+
+		const command = CommandsRegistry.getCommand('sessionsViewPane.openToTheSide');
+		assert.ok(command);
+		await command.handler(instantiationService, sessions);
+
+		assert.deepStrictEqual(opens, [{
+			sessions, reference: reference.sessionId, direction: 'right',
+			options: { source: 'sessionsList', activate: 'last', forceMainChat: true },
+		}]);
+	});
+
+	test('disables single-session context menu actions for multiselection', () => {
+		const actionIds = new Set([
+			'sessions.chatCompositeBar.addChat',
+			RENAME_SESSION_COMMAND_ID,
+		]);
+		const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
+			.filter(isIMenuItem)
+			.filter(item => actionIds.has(item.command.id))
+			.map(item => ({
+				id: item.command.id,
+				precondition: item.command.precondition?.serialize(),
+			}))
+			.sort((a, b) => a.id.localeCompare(b.id));
+
+		assert.deepStrictEqual(actions, [{
+			id: 'sessions.chatCompositeBar.addChat',
+			precondition: '!sessionItem.isMultiSelection',
+		}, {
+			id: RENAME_SESSION_COMMAND_ID,
+			precondition: '!sessionItem.isMultiSelection',
+		}]);
 	});
 
 	test('groups session management actions before creation and close', () => {
@@ -1131,8 +1211,8 @@ suite('Sessions - Actions', () => {
 		}
 	}
 
-	test('New Session replaces a quick-chat draft only for a primary open when the unified workspace picker is disabled', async () => {
-		const run = async (unifiedWorkspacePicker: boolean, toSide?: boolean) => {
+	test('New Session leaves an uncreated quick chat and opens the workspace picker', async () => {
+		const run = async (unifiedWorkspacePicker: boolean, toSide: boolean | undefined, noWorkspaceChecked: boolean) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const composerService = disposables.add(new NewSessionComposerService());
 			instantiationService.stub(INewSessionComposerService, composerService);
@@ -1140,49 +1220,64 @@ suite('Sessions - Actions', () => {
 				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedWorkspacePicker,
 			}));
 			const { session } = createTestSession('quick-chat-draft');
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = observableValue<IActiveSession | undefined>('activeSession', upcastPartial<IActiveSession>({
 				...session,
 				isCreated: constObservable(false),
 				isQuickChat: constObservable(true),
-			});
-			let unsetNewSessionCalls = 0;
+			}));
+			const events: string[] = [];
 			const requests: (IOpenNewSessionOptions | undefined)[] = [];
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(activeSession);
+				override readonly activeSession = activeSession;
 				override unsetNewSession(): void {
-					unsetNewSessionCalls++;
+					events.push('unset');
+					activeSession.set(undefined, undefined);
 				}
 				override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
+					events.push('open');
 					requests.push(options);
 					return { session: undefined, trustDeclined: false };
 				}
 			});
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
+			instantiationService.stub(ISessionsRecentWorkspacesService, upcastPartial<ISessionsRecentWorkspacesService>({
+				isNoWorkspaceChecked: () => noWorkspaceChecked,
+				clearCheckedWorkspace: () => { events.push('clearNoWorkspace'); },
+			}));
+			instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+				getSessionView: sessionId => {
+					events.push(`view:${sessionId ?? 'empty'}`);
+					return upcastPartial<SessionView>({
+						focusWorkspacePicker: () => { events.push('focusPicker'); },
+					});
+				},
+			}));
 
 			const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
 			assert.ok(command);
 			await command.handler(instantiationService, toSide ? { toSide } : undefined);
-			return { navigationVersion: composerService.userNavigationVersion.get(), unsetNewSessionCalls, requests };
+			return { navigationVersion: composerService.userNavigationVersion.get(), events, requests };
 		};
 
+		const primary = {
+			checked: { navigationVersion: 1, events: ['clearNoWorkspace', 'unset', 'view:empty', 'focusPicker'], requests: [] },
+			unchecked: { navigationVersion: 1, events: ['unset', 'view:empty', 'focusPicker'], requests: [] },
+		};
+		const toSide = { navigationVersion: 1, events: ['open'], requests: [{ folderUri: undefined, toSide: true }] };
 		assert.deepStrictEqual({
 			disabled: {
-				primary: await run(false),
-				toSide: await run(false, true),
+				primaryChecked: await run(false, undefined, true),
+				primaryUnchecked: await run(false, undefined, false),
+				toSide: await run(false, true, true),
 			},
 			enabled: {
-				primary: await run(true),
-				toSide: await run(true, true),
+				primaryChecked: await run(true, undefined, true),
+				primaryUnchecked: await run(true, undefined, false),
+				toSide: await run(true, true, true),
 			},
 		}, {
-			disabled: {
-				primary: { navigationVersion: 1, unsetNewSessionCalls: 1, requests: [] },
-				toSide: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: true }] },
-			},
-			enabled: {
-				primary: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: undefined }] },
-				toSide: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: true }] },
-			},
+			disabled: { primaryChecked: primary.checked, primaryUnchecked: primary.unchecked, toSide },
+			enabled: { primaryChecked: primary.checked, primaryUnchecked: primary.unchecked, toSide },
 		});
 	});
 

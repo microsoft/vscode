@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -339,6 +339,47 @@ suite('SessionTypePicker', () => {
 		visibility.push(picker.isVisible.get());
 
 		assert.deepStrictEqual(visibility, [false, true, false, true, false]);
+	});
+
+	test('mouse and keyboard activation expose popup state and restore focus when closed', () => {
+		management.setSessionTypes([
+			sessionType('copilot', 'copilot-cli', 'Copilot'),
+			sessionType('claude', 'claude', 'Claude'),
+		]);
+		let onHide: (() => void) | undefined;
+		const actionWidget = new class extends mock<IActionWidgetService>() {
+			override readonly isVisible = false;
+			override show<T>(_user: string, _supportsPreview: boolean, _items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				onHide = () => delegate.onHide();
+			}
+		}();
+		const picker = createPicker(disposables, session, management, storage, undefined, actionWidget);
+		picker.setFolderSource(constObservable(folder));
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+		const states: { expanded: string | null; focused: boolean }[] = [];
+		for (const key of [undefined, 'Enter', ' ']) {
+			if (key) {
+				trigger.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+			} else {
+				trigger.click();
+			}
+			states.push({ expanded: trigger.getAttribute('aria-expanded'), focused: document.activeElement === trigger });
+			assert.ok(onHide);
+			onHide();
+			states.push({ expanded: trigger.getAttribute('aria-expanded'), focused: document.activeElement === trigger });
+			trigger.blur();
+		}
+		assert.deepStrictEqual({ popup: trigger.getAttribute('aria-haspopup'), states }, {
+			popup: 'listbox',
+			states: Array.from({ length: 3 }, () => [
+				{ expanded: 'true', focused: false },
+				{ expanded: 'false', focused: true },
+			]).flat(),
+		});
 	});
 
 	test('a creation destination keeps Copilot fixed without overwriting a saved Cloud preference', () => {

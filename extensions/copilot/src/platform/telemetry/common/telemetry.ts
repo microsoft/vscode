@@ -112,11 +112,8 @@ export type TelemetryDestination = {
 export interface ITelemetryService extends IExperimentationTelemetry, IDisposable {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Send a Microsoft internal telemetry event.
-	 *
-	 * @remark This is a no-op if the user is not part of an allowed organization.
-	 * @remark This event does not require GDPR comments due to being classified in a special manner for internal use only.
-
+	 * Legacy restricted Microsoft telemetry entry point. Sending is disabled;
+	 * retained so existing callers do not route restricted content through standard telemetry.
 	 */
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendMSFTTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
@@ -124,7 +121,15 @@ export interface ITelemetryService extends IExperimentationTelemetry, IDisposabl
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendGHTelemetryErrorEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendGHTelemetryException(maybeError: unknown, origin: string): void;
+	/**
+	 * Send restricted GitHub telemetry only for opted-in external users.
+	 * Microsoft and GitHub organization members are excluded.
+	 */
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
+	/**
+	 * Send restricted GitHub error telemetry only for opted-in external users.
+	 * Microsoft and GitHub organization members are excluded.
+	 */
 	sendEnhancedGHTelemetryErrorEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendTelemetryEvent(eventName: string, destination: TelemetryDestination, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 	sendTelemetryEvent<TTelemetryEvent extends ITelemetryEvent>(eventName: TTelemetryEvent['eventName'], destination: TelemetryDestination, properties?: TTelemetryEvent['properties'], measurements?: TTelemetryEvent['measurements']): void;
@@ -150,10 +155,7 @@ export interface ITelemetrySender extends IDisposable {
 export const ITelemetryService = createServiceIdentifier<ITelemetryService>('ITelemetryService');
 export interface IMSFTTelemetrySender extends ITelemetrySender {
 	/**
-	 * Send a Microsoft internal telemetry event.
-	 *
-	 * @remark This is a no-op if the user is not part of an allowed organization.
-	 * @remark This event does not require GDPR comments due to be classified in a special manner for internal use only.
+	 * Legacy restricted Microsoft telemetry entry point. Sending is disabled.
 	 */
 	sendInternalTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void;
 }
