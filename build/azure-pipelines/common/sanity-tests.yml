@@ -29,6 +29,7 @@ parameters:
 jobs:
   - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
+    condition: and(succeeded(), eq('${{ parameters.name }}', 'macos_arm64'))
     continueOnError: ${{ parameters.continueOnError }}
     pool:
       name: ${{ parameters.poolName }}
