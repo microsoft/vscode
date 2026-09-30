@@ -5,13 +5,14 @@
 
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -34,7 +35,7 @@ import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/
 import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
@@ -136,8 +137,15 @@ suite('AICustomizationDiscoveryPage', () => {
 		const repairs: string[] = [];
 		const cancellations: string[] = [];
 		let onRepair: ((resource: ICustomizationMarketplaceResource) => Promise<void>) | undefined;
+		const getInstallations = () => createCustomizationMarketplaceInstallationSnapshot([...recordedResources.values()].flatMap(resource => {
+			const state = installStates.get(getCustomizationMarketplaceResourceKey(resource));
+			return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error'
+				? [{ resource, state }]
+				: [];
+		}));
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChanges.event;
+			override readonly installations = observableFromEvent(installChanges.event, getInstallations);
 			override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 				if (installedIdentifiers.includes(resource.identifier)) {
 					return { kind: 'installed', target: { kind: 'skill', uri: URI.file(`/installed/${resource.identifier}`) } };
@@ -145,9 +153,6 @@ suite('AICustomizationDiscoveryPage', () => {
 				return setupUrl && resource.identifier === 'unity'
 					? { kind: 'unavailable', message: 'Manual setup required', setupUrl }
 					: installStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
-			}
-			override getRecordedResources(): readonly ICustomizationMarketplaceResource[] {
-				return [...recordedResources.values()];
 			}
 			override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
 				const key = getCustomizationMarketplaceResourceKey(resource);
@@ -322,6 +327,39 @@ suite('AICustomizationDiscoveryPage', () => {
 		]);
 	});
 
+	test('announces loading only after the scheduled catalog search starts', async () => {
+		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
+		store.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+
+		fixture.page.setSearchQuery('remote');
+		const pending = {
+			requests: fixture.requests.length,
+			busy: fixture.container.querySelector('.customization-discovery-results')?.getAttribute('aria-busy'),
+			announcements: [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+		};
+
+		await timeout(0);
+		const loading = {
+			requests: fixture.requests.length,
+			announcements: [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+		};
+
+		await fixture.requests[1].result.complete({ items: [resource('remote')] });
+		await timeout(0);
+		const complete = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
+
+		assert.deepStrictEqual({ pending, loading, complete }, {
+			pending: { requests: 1, busy: 'true', announcements: [] },
+			loading: { requests: 2, announcements: ['Loading customizations...'] },
+			complete: ['1 customizations found.'],
+		});
+	});
+
 	test('browse features first-party resources ahead of the source order', async () => {
 		const fixture = createPage(['agentFinder']);
 		fixture.page.setVisible(true);
@@ -370,6 +408,156 @@ suite('AICustomizationDiscoveryPage', () => {
 	async function waitForRequestCount(requests: readonly object[], count: number): Promise<void> {
 		await retry(async () => assert.ok(requests.length >= count), 10, 20);
 	}
+
+	function loadingState(container: HTMLElement) {
+		return {
+			progress: container.querySelector('.monaco-progress-container')?.classList.contains('active'),
+			placeholder: container.querySelector('.customization-discovery-result-content.loading') !== null,
+			status: [...container.querySelectorAll('.customization-discovery-state')].map(element => element.textContent),
+		};
+	}
+
+	for (const query of ['', 'mail', '@type:plugin mail']) {
+		test(`initial loading reserves progress space without loading text or placeholders (${query || 'browse'})`, async () => {
+			const fixture = createPage();
+			fixture.page.setSearchQuery(query);
+			fixture.page.setVisible(true);
+			const search = fixture.container.querySelector<HTMLElement>('.customization-discovery-search-row')!;
+			const progress = fixture.container.querySelector<HTMLElement>('.customization-discovery-progress')!;
+			const pendingPosition = { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight };
+			assert.ok(progress.offsetHeight > 0);
+			assert.deepStrictEqual(loadingState(fixture.container), {
+				progress: true, placeholder: false, status: ['', ''],
+			});
+			assert.strictEqual(progress.querySelector('[role="progressbar"]')?.getAttribute('aria-label'), 'Loading customizations');
+			assert.ok(fixture.page.getAccessibilityContent().includes('Loading customizations...'));
+
+			await fixture.requests[0].result.complete({
+				items: [resource('mail-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+			});
+			await timeout(0);
+			assert.deepStrictEqual({
+				state: loadingState(fixture.container),
+				position: { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight },
+			}, {
+				state: { progress: false, placeholder: false, status: ['', ''] },
+				position: pendingPosition,
+			});
+		});
+	}
+
+	test('pending query and source changes preserve the progress animation across the full row', async () => {
+		const fixture = createPage();
+		// Keep the 2% progress bit an integral width: WebKit rounds percentage transform reference boxes.
+		fixture.container.querySelector<HTMLElement>('.customization-discovery-header')!.style.width = '800px';
+		fixture.page.setSearchQuery('@type:plugin mail');
+		fixture.page.setVisible(true);
+		const track = fixture.container.querySelector<HTMLElement>('.customization-discovery-progress .monaco-progress-container')!;
+		const bit = track.querySelector<HTMLElement>('.progress-bit')!;
+		const search = fixture.container.querySelector<HTMLElement>('.customization-discovery-search-row')!;
+		assert.deepStrictEqual({ trackWidth: track.getBoundingClientRect().width, searchWidth: search.getBoundingClientRect().width }, { trackWidth: 800, searchWidth: 800 });
+		const animation = bit.getAnimations()[0];
+		assert.ok(animation);
+		animation.pause();
+		animation.currentTime = 1200;
+		const before = bit.getBoundingClientRect().left;
+
+		fixture.page.setSearchQuery('@type:plugin fresh');
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.selectSource('other');
+		assert.deepStrictEqual({
+			sameAnimation: bit.getAnimations()[0] === animation,
+			time: animation.currentTime,
+			left: bit.getBoundingClientRect().left,
+		}, { sameAnimation: true, time: 1200, left: before });
+
+		animation.currentTime = 3999;
+		const bitBounds = bit.getBoundingClientRect();
+		const trackBounds = track.getBoundingClientRect();
+		assert.ok(Math.abs(bitBounds.right - trackBounds.right) <= 1, `The moving bar must reach the right edge before looping: bit=${bitBounds.right}, track=${trackBounds.right}.`);
+		await fixture.requests[2].result.complete({ items: [] });
+		await timeout(0);
+		assert.deepStrictEqual(loadingState(fixture.container).progress, false);
+	});
+
+	test('continuation preserves loaded rows, focus, scroll position and viewport geometry', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@type:plugin mail');
+		fixture.page.setVisible(true);
+		const cursor = { token: 'next-page' };
+		await fixture.requests[0].result.complete({
+			items: Array.from({ length: 24 }, (_, index) => resource(`mail-${index}`, { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })),
+			nextCursor: cursor,
+		});
+		await timeout(0);
+		const listElement = fixture.container.querySelector<HTMLElement>('.customization-discovery-results .monaco-list')!;
+		listElement.focus();
+		listElement.dispatchEvent(new FocusEvent('focus'));
+		const list = fixture.listService.lastFocusedList;
+		assert.ok(list instanceof WorkbenchList);
+		list.scrollTop = list.scrollHeight;
+		list.setFocus([23]);
+		list.setSelection([23]);
+		const search = fixture.container.querySelector<HTMLElement>('.customization-discovery-search-row')!;
+		const lastRow = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-content')]
+			.find(row => row.querySelector('.customization-discovery-result-name')?.textContent === 'mail-23')!;
+		assert.ok(lastRow.offsetHeight > 0);
+		const position = () => ({
+			searchTop: search.getBoundingClientRect().top,
+			rowTop: lastRow.getBoundingClientRect().top,
+			scrollTop: list.scrollTop,
+			viewportHeight: list.renderHeight,
+			focus: list.getFocus(),
+			selection: list.getSelection(),
+		});
+		const before = position();
+		await waitForRequestCount(fixture.requests, 2);
+		assert.deepStrictEqual({
+			position: position(),
+			rowRetained: lastRow.isConnected,
+			length: list.length,
+			progress: loadingState(fixture.container).progress,
+			status: loadingState(fixture.container).status,
+		}, {
+			position: before, rowRetained: true, length: 25, progress: false, status: ['', ''],
+		});
+		list.reveal(24);
+		const placeholder = fixture.container.querySelector<HTMLElement>('.customization-discovery-result-content.loading')!;
+		assert.ok(placeholder.inert);
+		placeholder.querySelector<HTMLButtonElement>('button')!.click();
+		assert.deepStrictEqual(fixture.openedDetails, []);
+		const pending = position();
+		await fixture.requests[1].result.complete({
+			items: [resource('mail-24', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+		});
+		await timeout(0);
+		assert.deepStrictEqual({
+			position: position(),
+			rowRetained: lastRow.isConnected,
+			length: list.length,
+			state: loadingState(fixture.container),
+			busy: fixture.container.querySelector('.customization-discovery-results')?.getAttribute('aria-busy'),
+		}, {
+			position: pending, rowRetained: true, length: 25,
+			state: { progress: false, placeholder: false, status: ['', ''] },
+			busy: 'false',
+		});
+	});
+
+	test('hiding an initial request stops the progress bar and ignores its result', async () => {
+		const fixture = createPage();
+		fixture.page.setVisible(true);
+		const request = fixture.requests[0];
+		fixture.page.setVisible(false);
+		await request.result.complete({ items: [resource('stale')] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			cancelled: request.token.isCancellationRequested,
+			progress: loadingState(fixture.container).progress,
+			placeholder: loadingState(fixture.container).placeholder,
+			stale: fixture.page.getAccessibilityContent().includes('stale'),
+		}, { cancelled: true, progress: false, placeholder: false, stale: false });
+	});
 
 	test('one global continuation preserves ranked multi-type results and source selection', async () => {
 		const fixture = createPage();
@@ -463,6 +651,11 @@ suite('AICustomizationDiscoveryPage', () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('@type:plugin mail');
 		fixture.page.setVisible(true);
+		const bit = fixture.container.querySelector<HTMLElement>('.customization-discovery-progress .progress-bit')!;
+		const animation = bit.getAnimations()[0];
+		assert.ok(animation);
+		animation.pause();
+		animation.currentTime = 1200;
 		for (let index = 0; index < 8; index++) {
 			await fixture.requests[index].result.complete({
 				items: [resource(`mail-skill-${index}`, { mediaType: CustomizationMarketplaceMediaType.Skill })],
@@ -471,6 +664,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			await timeout(0);
 		}
 		await waitForRequestCount(fixture.requests, 9);
+		assert.deepStrictEqual({
+			sameAnimation: bit.getAnimations()[0] === animation,
+			time: animation.currentTime,
+		}, { sameAnimation: true, time: 1200 });
 		assert.deepStrictEqual({
 			requests: fixture.requests.length,
 			loadMore: fixture.container.querySelector('.customization-discovery-results .customization-discovery-state .monaco-button')?.textContent,
@@ -503,12 +700,12 @@ suite('AICustomizationDiscoveryPage', () => {
 			requests: fixture.requests.length,
 			cursor: fixture.requests[1]?.options.cursor,
 			busy: fixture.container.querySelector('.customization-discovery-results')?.getAttribute('aria-busy'),
-			loading: fixture.container.querySelector('.customization-discovery-results .customization-discovery-state')?.textContent,
+			loading: loadingState(fixture.container),
 		}, {
 			requests: 2,
 			cursor,
 			busy: 'true',
-			loading: 'Loading more customizations...',
+			loading: { progress: false, placeholder: true, status: ['', ''] },
 		});
 		await fixture.requests[1].result.complete({
 			items: [resource('mail-plugin-2', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
@@ -537,6 +734,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		await timeout(0);
 		const retry = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .customization-discovery-state .monaco-button');
 		assert.ok(retry);
+		assert.deepStrictEqual({
+			progress: loadingState(fixture.container).progress,
+			placeholder: loadingState(fixture.container).placeholder,
+		}, { progress: false, placeholder: false });
 		await timeout(0);
 		assert.strictEqual(fixture.requests.length, 2);
 		retry.click();
@@ -565,6 +766,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		await waitForRequestCount(fixture.requests, 2);
 		const cancelledRequest = fixture.requests[1];
 		fixture.page.setVisible(false);
+		assert.deepStrictEqual(loadingState(fixture.container), { progress: false, placeholder: false, status: ['', ''] });
 		fixture.page.setVisible(true);
 		await waitForRequestCount(fixture.requests, 3);
 		await cancelledRequest.result.complete({ items: [resource('stale-mail')] });
@@ -725,10 +927,13 @@ suite('AICustomizationDiscoveryPage', () => {
 	});
 
 	test('catalog-backed installed skills open their installed detail page', async () => {
-		const fixture = createPage(['agentFinder'], undefined, undefined, undefined, ['installed-skill']);
+		const candidate = resource('installed-skill', { displayName: 'Local mail skill', mediaType: CustomizationMarketplaceMediaType.Skill });
+		const fixture = createPage(['agentFinder']);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/mail/SKILL.md') } });
+		fixture.notifyInstallChange();
 		fixture.page.setSearchQuery('mail');
 		fixture.page.setVisible(true);
-		await fixture.requests[0].result.complete({ items: [resource('installed-skill', { displayName: 'Local mail skill', mediaType: CustomizationMarketplaceMediaType.Skill })] });
+		await fixture.requests[0].result.complete({ items: [candidate] });
 		await timeout(0);
 		const primaryAction = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-primary')]
 			.find(element => element.getAttribute('aria-label') === 'Open installed customization Local mail skill');
@@ -736,6 +941,8 @@ suite('AICustomizationDiscoveryPage', () => {
 		primaryAction.click();
 		await timeout(0);
 		assert.deepStrictEqual({
+			rows: [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent),
+			accessibleNames: fixture.page.getAccessibilityContent().split('\n').filter(line => line === 'Local mail skill'),
 			marketplace: fixture.openedDetails,
 			installed: fixture.openedInstalled.map(target => ({
 				section: target.section,
@@ -743,6 +950,8 @@ suite('AICustomizationDiscoveryPage', () => {
 				uri: target.promptDetail?.uri.toString(),
 			})),
 		}, {
+			rows: ['Local mail skill'],
+			accessibleNames: ['Local mail skill'],
 			marketplace: [],
 			installed: [{
 				section: AICustomizationManagementSection.Skills,

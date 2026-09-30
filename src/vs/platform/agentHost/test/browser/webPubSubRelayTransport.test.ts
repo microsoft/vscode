@@ -165,6 +165,27 @@ suite('WebPubSubRelayTransport', () => {
 		);
 	});
 
+	test('reports host chunks of an unfinished message, but not relay service frames', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		await connectHandshake(transport, fake);
+		const events: string[] = [];
+		store.add(transport.onMessage(() => events.push('message')));
+		store.add(transport.onDidReceiveData(() => events.push('data')));
+		const message = { jsonrpc: '2.0', id: 1, result: 'x'.repeat(2048) };
+		const chunks = chunk(message, { maxChunkBytes: 512, newGroupId: () => 'large-message' });
+
+		fake.emit({ type: 'system', event: 'connected' });
+		fake.emit({ type: 'ack', ackId: 99, success: true });
+		fake.emitGroupMessage(1, chunks[0]);
+		fake.emitGroupMessage(1, chunks[0]);
+		for (let i = 1; i < chunks.length; i++) {
+			fake.emitGroupMessage(i + 1, chunks[i]);
+		}
+
+		assert.deepStrictEqual(events, [...chunks.slice(1).map(() => 'data'), 'message']);
+	});
+
 	test('acknowledges receipt before delivery and filters redeliveries across groups', async () => {
 		const fake = new FakeWebSocket();
 		const transport = createTransport(fake);

@@ -1196,6 +1196,38 @@ suite('PluginInstallService', () => {
 			});
 		});
 
+		test('installs the exact marketplace-declared plugin subdirectory without registering the repository as a marketplace', async () => {
+			const marketplaceReference = makeMarketplaceRef('owner/collection#release/v1');
+			const plugin = createPlugin({
+				name: 'spark',
+				source: 'plugins/spark',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/spark' },
+				marketplace: marketplaceReference.displayLabel,
+				marketplaceReference,
+			});
+			const { service, state } = createService({
+				ensureRepositoryResult: URI.file('/cache/agentPlugins/owner/collection'),
+				readPluginsResult: [plugin],
+				recordInstalledPlugins: true,
+			});
+
+			const result = await service.installPluginFromSource('owner/collection#release/v1', { path: 'plugins/spark' });
+
+			assert.deepStrictEqual({
+				success: result.success,
+				name: result.matchedPlugin?.name,
+				source: result.matchedPlugin?.sourceDescriptor,
+				registeredMarketplaces: state.updatedMarketplaces,
+				installed: state.addedPlugins.map(entry => ({ uri: entry.uri, name: entry.plugin.name })),
+			}, {
+				success: true,
+				name: 'spark',
+				source: { kind: PluginSourceKind.RelativePath, path: 'plugins/spark' },
+				registeredMarketplaces: undefined,
+				installed: [{ uri: 'file:///cache/agentPlugins/owner/collection/plugins/spark', name: 'spark' }],
+			});
+		});
+
 		test('rejects unsafe or oversized plugin subdirectories before cloning', async () => {
 			const { service, state } = createService();
 			const results = [];

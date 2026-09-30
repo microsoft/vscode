@@ -652,6 +652,47 @@ suite('SessionDatabase', () => {
 			]), [new Uint8Array([1]), undefined]);
 		});
 
+		test('remapTurnIds keeps persisted failed turns internally consistent', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.insertPersistedTurn({
+				kind: 'failed',
+				turnId: 'old-2',
+				chatUri: 'chat',
+				anchorTurnId: 'old-1',
+				payload: '{"id":"old-2"}',
+			});
+			await db.createTurn('old-1');
+
+			await db.remapTurnIds(new Map([
+				['old-1', 'new-1'],
+				['old-2', 'new-2'],
+			]));
+
+			assert.deepStrictEqual((await db.getPersistedTurns()).filter(record => record.kind === 'failed'), [{
+				kind: 'failed',
+				turnId: 'new-2',
+				chatUri: 'chat',
+				anchorTurnId: 'new-1',
+				seq: 1,
+				payload: '{"id":"new-2"}',
+			}]);
+		});
+
+		test('remapTurnIds rejects corrupt persisted turn payloads without discarding history', async () => {
+			const database = disposables.add(await SessionDatabase.open(':memory:'));
+			db = database;
+			await db.insertPersistedTurn({
+				kind: 'failed',
+				turnId: 'old-1',
+				chatUri: 'chat',
+				anchorTurnId: undefined,
+				payload: '{"id":"different"}',
+			});
+
+			await assert.rejects(() => database.remapTurnIds(new Map([['old-1', 'new-1']])), /payload id does not match record id/);
+			assert.deepStrictEqual((await db.getPersistedTurns()).filter(record => record.kind === 'failed').map(record => record.turnId), ['old-1']);
+		});
+
 		test('output survives closing and reopening a disk database', async () => {
 			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-terminal-output-' + generateUuid()));
 			const databasePath = join(tempRoot, 'session.db');
@@ -787,7 +828,7 @@ suite('SessionDatabase', () => {
 			const afterTurn = await db.hasConversationTurns();
 			await db.deleteAllTurns();
 			const afterDeleteAll = await db.hasConversationTurns();
-			await db.insertLocalTurn({ turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 0, payload: '{}' });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 0, payload: '{}' });
 			const afterLocalTurn = await db.hasConversationTurns();
 
 			assert.deepStrictEqual({ empty, afterTurn, afterDeleteAll, afterLocalTurn }, {
@@ -796,6 +837,51 @@ suite('SessionDatabase', () => {
 				afterDeleteAll: false,
 				afterLocalTurn: true,
 			});
+		});
+
+		test('persists failed provider turns and treats them as conversation history', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			const empty = await db.hasConversationTurns();
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-1', chatUri: 'chat', anchorTurnId: undefined, payload: '{"id":"failed-1"}' });
+			const afterFailedTurn = await db.hasConversationTurns();
+			const failedTurns = (await db.getPersistedTurns()).filter(record => record.kind === 'failed');
+			await db.deleteAllTurns();
+			const afterDeleteAll = await db.hasConversationTurns();
+
+			assert.deepStrictEqual({ empty, afterFailedTurn, failedTurns, afterDeleteAll }, {
+				empty: false,
+				afterFailedTurn: true,
+				failedTurns: [{ kind: 'failed', turnId: 'failed-1', chatUri: 'chat', anchorTurnId: undefined, seq: 1, payload: '{"id":"failed-1"}' }],
+				afterDeleteAll: false,
+			});
+		});
+
+		test('preserves existing local turns when adding persisted turn kinds', async () => {
+			const legacy = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, 14));
+			await legacy.runRaw(`INSERT INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload)
+				VALUES ('local-1', 'chat', NULL, 1, '{"id":"local-1"}')`);
+			const rawDatabase = await legacy.ejectDb();
+
+			db = disposables.add(await TestableSessionDatabase.fromDb(rawDatabase));
+
+			assert.deepStrictEqual({
+				tables: await db.getAllTables(),
+				records: await db.getPersistedTurns(),
+			}, {
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				records: [{ kind: 'local', turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 1, payload: '{"id":"local-1"}' }],
+			});
+		});
+
+		test('prunes failed records with their persisted turn boundaries', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-1', chatUri: 'chat', anchorTurnId: undefined, payload: '{"id":"failed-1"}' });
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-2', chatUri: 'chat', anchorTurnId: 'failed-1', payload: '{"id":"failed-2"}' });
+
+			await db.deleteTurnsAfter('failed-1');
+
+			assert.deepStrictEqual((await db.getPersistedTurns()).map(record => record.turnId), ['failed-1']);
 		});
 	});
 

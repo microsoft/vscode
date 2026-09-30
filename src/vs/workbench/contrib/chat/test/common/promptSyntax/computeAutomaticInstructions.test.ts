@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
@@ -2188,9 +2189,9 @@ suite('ComputeAutomaticInstructions', () => {
 				onCancellationRequested: Event.None
 			};
 
-			// Should handle cancellation gracefully
-			await contextComputer.collect(variables, cancelledToken);
-			assert.ok(true, 'Should handle cancellation without errors');
+			// Cancellation surfaces as an error rather than an empty result, so it
+			// can never be mistaken for "no instructions" and cached.
+			await assert.rejects(contextComputer.collect(variables, cancelledToken), CancellationError);
 		});
 	});
 

@@ -40,7 +40,7 @@ export interface IUpdateAllPluginsResult {
 }
 
 export interface IInstallPluginFromSourceOptions {
-	/** Install the single plugin at this repository-relative directory instead of scanning the marketplace. */
+	/** Install the exact standalone or marketplace-declared plugin at this repository-relative directory. */
 	readonly path?: string;
 	/**
 	 * When set, targets a specific plugin by name within the marketplace
@@ -80,7 +80,7 @@ export interface IPluginInstallService {
 	 * discover plugins, and registers the selected plugin. For local folders,
 	 * detects whether the folder is a marketplace or a standalone plugin and
 	 * registers it under the appropriate configuration.
-	 * An explicit `path` installs only the manifest-backed plugin in that repository subdirectory.
+	 * An explicit `path` installs only the standalone or marketplace-declared plugin in that repository subdirectory.
 	 *
 	 * Returns a result with an optional error message (e.g. invalid source or
 	 * no plugins found); callers are responsible for surfacing it. When
