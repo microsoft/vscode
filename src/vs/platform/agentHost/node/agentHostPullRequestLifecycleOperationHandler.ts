@@ -10,6 +10,7 @@ import { localize } from '../../../nls.js';
 import type { PullRequestRef } from '../../github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../github/common/githubService.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
+import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostPullRequestOperationId, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, resolveMergeMethod } from '../common/agentMerge.js';
@@ -17,7 +18,6 @@ import { parseChangesetUri } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { parsePullRequestUrl } from './agentMergeController.js';
 import { IAgentHostPullRequestStatusService, type IAgentHostPullRequestStatus } from './agentHostPullRequestStatusService.js';
 
 /**

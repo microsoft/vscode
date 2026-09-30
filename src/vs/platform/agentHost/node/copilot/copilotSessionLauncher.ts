@@ -115,7 +115,7 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 }
 
 const ContextTiers = ['default', 'long_context'] as const;
-const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
+export const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];

@@ -11,13 +11,13 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import type { PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../github/common/githubPullRequestService.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
+import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildDefaultChatUri, getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isSessionStatusArchived, parseChatUri, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { parsePullRequestUrl } from './agentMergeController.js';
 import { isAgentMergePullRequestReadyForReview, readAgentMergeFolderState } from '../common/agentMerge.js';
 import { resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 

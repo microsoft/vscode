@@ -29,6 +29,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { GitHubIssue, GitHubIssueRef } from '../../../../../../platform/github/common/githubQueryService.js';
 import { PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { parseGitHubCommitTarget } from '../../../../../../platform/github/common/githubUrls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -51,7 +52,7 @@ import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPil
 import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { GitHubCommitResolver, parseGitHubCommitTarget } from '../../../../github/browser/githubCommitResolver.js';
+import { GitHubCommitResolver } from '../../../../github/browser/githubCommitResolver.js';
 import { createCommitResourceHover, createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
 
 const offeredPillKinds: readonly SessionChatPillKind[] = [

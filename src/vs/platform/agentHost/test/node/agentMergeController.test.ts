@@ -29,7 +29,7 @@ import { PullRequestSnapshot, PullRequestSubscription } from '../../../github/co
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
-import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError, parsePullRequestUrl } from '../../node/agentMergeController.js';
+import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError } from '../../node/agentMergeController.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -1738,28 +1738,6 @@ suite('AgentMergeController', () => {
 			kind: AgentSystemNotificationKind.AgentMergeEnabled,
 			content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration),
 		}]);
-	});
-
-	test('resolves the API host a credential must match for every GitHub deployment', () => {
-		assert.deepStrictEqual({
-			dotCom: parsePullRequestUrl('https://github.com/octo/repo/pull/1')?.apiHost,
-			www: parsePullRequestUrl('https://www.github.com/octo/repo/pull/1')?.apiHost,
-			// GitHub Enterprise Cloud serves its API from an `api.` subdomain, which is
-			// the host the credential reports; comparing the web host rejects every PR.
-			enterpriseCloud: parsePullRequestUrl('https://tenant.ghe.com/octo/repo/pull/1')?.apiHost,
-			enterpriseServer: parsePullRequestUrl('https://ghe.corp.example/octo/repo/pull/1')?.apiHost,
-			parsed: parsePullRequestUrl('https://tenant.ghe.com/octo/repo/pull/42'),
-			notAPullRequest: parsePullRequestUrl('https://github.com/octo/repo/issues/1'),
-			notAUrl: parsePullRequestUrl('octo/repo#1'),
-		}, {
-			dotCom: 'api.github.com',
-			www: 'api.github.com',
-			enterpriseCloud: 'api.tenant.ghe.com',
-			enterpriseServer: 'ghe.corp.example',
-			parsed: { owner: 'octo', repo: 'repo', number: 42, apiHost: 'api.tenant.ghe.com' },
-			notAPullRequest: undefined,
-			notAUrl: undefined,
-		});
 	});
 
 	test('detects a refused gate fragment so a credential can be requested from the snapshot', () => {

@@ -5,34 +5,16 @@
 
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
+import { IGitHubCommitTarget } from '../../../../platform/github/common/githubUrls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-
-export interface IGitHubCommitTarget {
-	readonly owner: string;
-	readonly repo: string;
-	readonly sha: string;
-	readonly resource: URI;
-}
 
 interface IGitHubCommitEntry {
 	readonly target: IGitHubCommitTarget;
 	readonly value: ReturnType<typeof observableValue<GitHubCommit | undefined>>;
 	readonly subscription: MutableDisposable<DisposableStore>;
 	generation: number;
-}
-
-export function parseGitHubCommitTarget(resource: URI): IGitHubCommitTarget | undefined {
-	if (resource.authority.toLowerCase() !== 'github.com') {
-		return undefined;
-	}
-	const match = /^\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/commit\/(?<sha>[^/]+)(?:\/|$)/.exec(resource.path);
-	const owner = match?.groups?.owner;
-	const repo = match?.groups?.repo;
-	const sha = match?.groups?.sha;
-	return owner && repo && sha ? { owner, repo, sha, resource } : undefined;
 }
 
 export class GitHubCommitResolver extends Disposable {
