@@ -262,6 +262,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 
 	private async _fetchCore(ref: PullRequestRef, credential: GitHubCredential, signal: AbortSignal, priority: import('./githubTypes.js').GitHubRequestPriority): Promise<PullRequestCore> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+			caller: 'github.pullRequestQuery',
 			method: 'GET',
 			url: this._restUrl(ref, `pulls/${ref.number}`),
 			etag: true,
@@ -281,6 +282,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		let url: string | undefined = this._restUrl(ref, route);
 		for (let page = 0; url && page < maximumPaginationPages; page++) {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.pullRequestQuery',
 				method: 'GET',
 				url,
 				etag: true,
@@ -317,6 +319,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ owner: ref.owner, repo: ref.repo, number: ref.number, after },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
 			throwGraphQLErrors(response.errors);
 			const pullRequest = objectAt(response.data, 'repository', 'pullRequest');
@@ -360,6 +363,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ threadId: id, after: requiredCursor(after) },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
 			throwGraphQLErrors(response.errors);
 			const nextConnection = objectAt(response.data, 'node', 'comments');
@@ -472,6 +476,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ owner: ref.owner, repo: ref.repo, number: ref.number, after },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
 			throwGraphQLErrors(response.errors);
 			const pullRequest = objectAt(response.data, 'repository', 'pullRequest');
@@ -515,6 +520,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ owner: ref.owner, repo: ref.repo, headSha, after },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
 			throwGraphQLErrors(response.errors);
 			const commit = objectAt(response.data, 'repository', 'object');
@@ -543,6 +549,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		let url: string | undefined = this._restUrl(ref, `commits/${encodeURIComponent(core.headSha)}/check-runs?per_page=100`);
 		for (let page = 0; url && page < maximumPaginationPages; page++) {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.pullRequestQuery',
 				method: 'GET',
 				url,
 				etag: true,
@@ -556,6 +563,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			throw new GitHubRequestError('GitHub check-run pagination exceeded its page limit', 'malformedResponse');
 		}
 		const statuses = await this._transport.rest<unknown>(credential.account, credential.token, {
+			caller: 'github.pullRequestQuery',
 			method: 'GET',
 			url: this._restUrl(ref, `commits/${encodeURIComponent(core.headSha)}/status?per_page=100`),
 			etag: true,
@@ -590,6 +598,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				: { owner: ref.owner, repo: ref.repo, number: ref.number },
 			signal,
 			priority,
+			{ caller: 'github.pullRequestQuery' },
 		);
 		throwGraphQLErrors(response.errors);
 		const repository = objectProperty(asObject(response.data, 'GitHub mergeability response was malformed'), 'repository');
@@ -631,6 +640,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		priority: import('./githubTypes.js').GitHubRequestPriority,
 	): Promise<PullRequestMergeability> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+			caller: 'github.pullRequestQuery',
 			method: 'GET',
 			url: this._restUrl(ref, `pulls/${ref.number}`),
 			unconditional: true,

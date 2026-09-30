@@ -502,6 +502,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			let totalCommits = 0;
 			for (let page = 1; page <= maximumPaginationPages; page++) {
 				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+					caller: 'github.query',
 					method: 'GET',
 					url: `${this._restUrl(normalized, `compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`)}?per_page=100&page=${page}`,
 					etag: true,
@@ -572,6 +573,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			const root = `pulls/${ref.number}`;
 			const [coreResponse, files, issueComments, reviewComments] = await Promise.all([
 				this._transport.rest<unknown>(credential.account, credential.token, {
+					caller: 'github.query',
 					method: 'GET',
 					url: this._restUrl(repositoryRef, root),
 					etag: true,
@@ -617,6 +619,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		const owner = headOwner ?? normalized.owner;
 		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
 				method: 'GET',
 				url: `${this._restUrl(normalized, 'pulls')}?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`,
 				etag: true,
@@ -633,6 +636,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			let values: readonly unknown[];
 			try {
 				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+					caller: 'github.query',
 					method: 'GET',
 					url: `${this._restUrl(normalized, `commits/${encodeURIComponent(sha)}/pulls`)}?per_page=${maximumCommitPullRequests}`,
 					etag: true,
@@ -849,6 +853,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 					? `issues/${(entry.ref as GitHubIssueRef).number}`
 					: `commits/${encodeURIComponent((entry.ref as GitHubCommitRef).sha)}`;
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
 				method: 'GET',
 				url: this._restUrl(entry.ref, route),
 				etag: true,
@@ -939,6 +944,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 					variables,
 					combinedSignal,
 					'interactive',
+					{ caller: 'github.query' },
 				);
 				throwGraphQLErrors(response.errors);
 				return response.data;
@@ -971,6 +977,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		let url: string | undefined = `${this._restUrl(ref, route)}?per_page=100&page=1`;
 		for (let page = 0; url && page < maximumPaginationPages; page++) {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
 				method: 'GET',
 				url,
 				etag: true,
