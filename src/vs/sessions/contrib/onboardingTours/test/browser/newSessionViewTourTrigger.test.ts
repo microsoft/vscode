@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -17,7 +18,8 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { findOnboardingTarget, markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ChatEntitlement, ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility } from '../../../../test/browser/sessionViewTestUtils.js';
+import { createTestActiveSession, getSessionPickerVisibility } from '../../../../test/browser/sessionViewTestUtils.js';
+import { createSessionWindowsTestHarness } from '../../../../test/browser/sessionWindowsTestUtils.js';
 import { NewSessionViewTourTrigger } from '../../browser/newSessionViewTourTrigger.js';
 import { createNewSessionViewTour } from '../../browser/tours/newSessionViewTour.js';
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
@@ -28,8 +30,8 @@ suite('NewSessionViewTourTrigger', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createHarness(options: { restored?: boolean; entitlement?: ChatEntitlement; requestsSent?: number; shown?: boolean } = {}) {
-		const fixture = createSessionsPartTestHarness(disposables);
-		const { configurationService, contextKeyService, part } = fixture;
+		const fixture = createSessionWindowsTestHarness(disposables.add(new DisposableStore()));
+		const { configurationService, contextKeyService, main: part, parts } = fixture;
 		const initialRestoreComplete = observableValue('initialRestoreComplete', options.restored ?? true);
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const sessionsService = new class extends mock<ISessionsService>() {
@@ -58,9 +60,9 @@ suite('NewSessionViewTourTrigger', () => {
 		)));
 		const open = (visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined) => {
 			activeSession.set(active, undefined);
-			part.updateVisibleSessions(visible, active);
+			parts.updateVisibleSessions(visible, active);
 		};
-		return { ...fixture, initialRestoreComplete, entitlement, triggers, open, signals: () => triggers.map(trigger => trigger.signal.get()) };
+		return { ...fixture, part, initialRestoreComplete, entitlement, triggers, open, signals: () => triggers.map(trigger => trigger.signal.get()) };
 	}
 
 	test('waits for the actual visible-session restore before triggering', () => {
@@ -72,6 +74,22 @@ suite('NewSessionViewTourTrigger', () => {
 		initialRestoreComplete.set(true, undefined);
 
 		assert.deepStrictEqual({ beforeRestore, afterRestore: signals() }, { beforeRestore: [false, false], afterRestore: [true, true] });
+	});
+
+	test('a background main-window composer cannot trigger until its window is activated', async () => {
+		const { open, parts, chatViews, windows, hostService, initialRestoreComplete, signals } = createHarness({ restored: false });
+		open([undefined], undefined);
+		chatViews[0].inputPickerVisibility.setVisible('workspace', true);
+		const auxiliary = await parts.createAuxiliaryPart();
+		const existing = createTestActiveSession('auxiliary-session');
+		parts.updateVisibleSessions([existing], existing, undefined, undefined, auxiliary.partId);
+		hostService.setActiveWindow(windows[0].window.vscodeWindowId);
+		initialRestoreComplete.set(true, undefined);
+
+		const auxiliaryActive = signals();
+		hostService.setActiveWindow(mainWindow.vscodeWindowId);
+
+		assert.deepStrictEqual({ auxiliaryActive, mainActive: signals() }, { auxiliaryActive: [false, false], mainActive: [true, true] });
 	});
 
 	test('V2 and V3 use the active empty composer for trigger readiness and workspace-step eligibility', () => {
