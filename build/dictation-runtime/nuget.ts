@@ -33,6 +33,9 @@ import { SDK_PACKAGE_NAME } from './common.ts';
 const SCRIPT = 'nuget.ts';
 const VSCODE_FEED_PREFIX = 'https://pkgs.dev.azure.com/monacotools/';
 const VSS_NUGET_ACCESSTOKEN = 'VSS_NUGET_ACCESSTOKEN';
+const MAX_DOWNLOAD_ATTEMPTS = 5;
+const INITIAL_RETRY_DELAY_MS = 1_000;
+const MAX_RETRY_DELAY_MS = 30_000;
 export const VSCODE_NUGET_FEED = 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json';
 
 /**
@@ -274,10 +277,32 @@ function downloadToFile(url: string, dest: string): Promise<void> {
 	}));
 }
 
-/** Issue a GET, following up to 5 redirects, then hand the 200 response to `onOk`. */
+function isRetryableStatus(status: number): boolean {
+	return status === 408 || status === 429 || status >= 500;
+}
+
+function getRetryDelay(response: import('http').IncomingMessage, attempt: number): number {
+	const retryAfterHeader = response.headers['retry-after'];
+	const retryAfter = Array.isArray(retryAfterHeader) ? retryAfterHeader[0] : retryAfterHeader;
+	if (retryAfter) {
+		const seconds = Number(retryAfter);
+		if (Number.isFinite(seconds)) {
+			return Math.min(Math.max(seconds * 1_000, 0), MAX_RETRY_DELAY_MS);
+		}
+
+		const date = Date.parse(retryAfter);
+		if (!Number.isNaN(date)) {
+			return Math.min(Math.max(date - Date.now(), 0), MAX_RETRY_DELAY_MS);
+		}
+	}
+
+	return Math.min(INITIAL_RETRY_DELAY_MS * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS);
+}
+
+/** Issue a GET with bounded retries, following up to 5 redirects, then hand the 200 response to `onOk`. */
 function followRedirects<T>(url: string, onOk: (res: import('http').IncomingMessage) => Promise<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
-		const request = (currentUrl: string, redirectsLeft: number): void => {
+		const request = (currentUrl: string, redirectsLeft: number, attempt: number): void => {
 			https.get(currentUrl, getRequestOptions(currentUrl), res => {
 				const status = res.statusCode ?? 0;
 				if (status >= 300 && status < 400 && res.headers.location) {
@@ -286,17 +311,23 @@ function followRedirects<T>(url: string, onOk: (res: import('http').IncomingMess
 						reject(new Error(`Too many redirects downloading ${url}.`));
 						return;
 					}
-					request(new URL(res.headers.location, currentUrl).toString(), redirectsLeft - 1);
+					request(new URL(res.headers.location, currentUrl).toString(), redirectsLeft - 1, attempt);
 					return;
 				}
 				if (status !== 200) {
 					res.resume();
+					if (isRetryableStatus(status) && attempt < MAX_DOWNLOAD_ATTEMPTS) {
+						const delay = getRetryDelay(res, attempt);
+						console.warn(`[${SCRIPT}] Download failed with status ${status}; retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_DOWNLOAD_ATTEMPTS})...`);
+						setTimeout(() => request(currentUrl, redirectsLeft, attempt + 1), delay);
+						return;
+					}
 					reject(new Error(`Download failed with status ${status}: ${currentUrl}`));
 					return;
 				}
 				onOk(res).then(resolve, reject);
 			}).on('error', reject);
 		};
-		request(url, 5);
+		request(url, 5, 1);
 	});
 }

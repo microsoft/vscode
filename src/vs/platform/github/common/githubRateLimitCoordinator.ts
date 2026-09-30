@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { GitHubAccountHandle } from './githubTypes.js';
 import { GitHubRequestQueue } from './githubRequestQueue.js';
 import { IGitHubScheduler, schedulerDelay } from './githubScheduler.js';
@@ -16,10 +16,15 @@ export interface GitHubRateLimitState {
 	readonly blockedUntil?: number;
 }
 
+/** GitHub's documented floor for retrying a rate limit it gave no reset hint for. */
+const unhintedRateLimitCooldown = 60_000;
+
 export class GitHubRateLimitCoordinator extends Disposable {
 
 	private readonly _states = new Map<string, GitHubRateLimitState>();
 	private readonly _accountBlockedUntil = new Map<string, number>();
+	private readonly _inactiveAccounts = new Map<string, number>();
+	private readonly _cleanup = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _scheduler: IGitHubScheduler,
@@ -49,33 +54,49 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		}
 	}
 
-	updateFromResponse(account: GitHubAccountHandle, response: Response, responseBody?: string): void {
-		const resource = response.headers.get('x-ratelimit-resource') ?? 'core';
+	updateFromResponse(account: GitHubAccountHandle, response: Response, responseBody?: string, fallbackResource = 'core'): void {
+		const resource = response.headers.get('x-ratelimit-resource') ?? fallbackResource;
 		const key = this._key(account, resource);
 		const previous = this._states.get(key);
-		const retryAfter = parseSeconds(response.headers.get('retry-after'), this._scheduler.now());
+		const now = this._scheduler.now();
+		const retryAfter = parseSeconds(response.headers.get('retry-after'), now);
 		const resetSeconds = parseNumber(response.headers.get('x-ratelimit-reset'));
-		const secondaryLimited = isSecondaryRateLimit(response.status, responseBody);
-		const blockedUntil = !secondaryLimited && retryAfter !== undefined
-			? this._scheduler.now() + retryAfter * 1000
-			: !secondaryLimited && response.status === 429
-				? resetSeconds !== undefined ? resetSeconds * 1000 : previous?.blockedUntil
-				: undefined;
+		const remaining = parseNumber(response.headers.get('x-ratelimit-remaining'));
+		const rateLimited = isRateLimited(response.status, responseBody);
+		const secondaryLimited = rateLimited && isSecondaryRateLimit(responseBody);
+		// GitHub's documented order: honour `retry-after`; otherwise wait for the
+		// reset only once the quota is actually spent. A secondary limit reports
+		// the primary window, so obeying its reset would park the account for up
+		// to an hour over a refusal that needs a minute.
+		const hinted = retryAfter !== undefined
+			? now + retryAfter * 1000
+			: remaining === 0 && resetSeconds !== undefined ? resetSeconds * 1000 : undefined;
+		// A refusal must always park the caller, including when the only hint
+		// GitHub gave has already elapsed and would otherwise retry at once.
+		const refusedUntil = hinted !== undefined && hinted > now ? hinted : now + unhintedRateLimitCooldown;
+		// Every rate-limited refusal parks its resource, notably the primary form
+		// GitHub reports as 403 with spent quota headers rather than as 429. Only
+		// the body separates that from an authorization failure, which must stay
+		// unparked so a credential problem still surfaces immediately.
+		const blockedUntil = secondaryLimited
+			? undefined
+			: rateLimited
+				? refusedUntil
+				: retryAfter !== undefined ? now + retryAfter * 1000 : undefined;
 		if (secondaryLimited) {
 			const accountKey = GitHubRequestQueue.accountKey(account);
-			const accountBlockedUntil = retryAfter !== undefined
-				? this._scheduler.now() + retryAfter * 1000
-				: resetSeconds !== undefined ? resetSeconds * 1000 : this._accountBlockedUntil.get(accountKey);
-			if (accountBlockedUntil !== undefined) {
-				this._accountBlockedUntil.set(accountKey, accountBlockedUntil);
-			}
+			// GitHub asks clients that hit a secondary limit to wait at least a
+			// minute when it gives no usable hint, and the refusal parks the
+			// whole account rather than only the resource that observed it.
+			this._accountBlockedUntil.set(accountKey, Math.max(refusedUntil, this._accountBlockedUntil.get(accountKey) ?? 0));
 		}
 		this._states.set(key, {
 			limit: parseNumber(response.headers.get('x-ratelimit-limit')) ?? previous?.limit,
-			remaining: parseNumber(response.headers.get('x-ratelimit-remaining')) ?? previous?.remaining,
+			remaining: remaining ?? previous?.remaining,
 			used: parseNumber(response.headers.get('x-ratelimit-used')) ?? previous?.used,
 			resetAt: resetSeconds !== undefined ? resetSeconds * 1000 : previous?.resetAt,
-			blockedUntil,
+			blockedUntil: previous?.blockedUntil !== undefined && previous.blockedUntil > now
+				? Math.max(previous.blockedUntil, blockedUntil ?? 0) : blockedUntil,
 		});
 	}
 
@@ -84,26 +105,66 @@ export class GitHubRateLimitCoordinator extends Disposable {
 			return;
 		}
 		const resetAt = typeof rateLimit.resetAt === 'string' ? Date.parse(rateLimit.resetAt) : undefined;
-		this._states.set(this._key(account, 'graphql'), {
+		const key = this._key(account, 'graphql');
+		const previous = this._states.get(key);
+		this._states.set(key, {
 			limit: rateLimit.limit,
 			remaining: rateLimit.remaining,
 			used: rateLimit.used,
 			resetAt: resetAt !== undefined && Number.isFinite(resetAt) ? resetAt : undefined,
+			...(previous?.blockedUntil !== undefined && previous.blockedUntil > this._scheduler.now()
+				? { blockedUntil: previous.blockedUntil } : {}),
 		});
 	}
 
 	markGraphQLRateLimited(account: GitHubAccountHandle): void {
 		const key = this._key(account, 'graphql');
 		const previous = this._states.get(key);
+		const now = this._scheduler.now();
 		this._states.set(key, {
 			...previous,
 			remaining: 0,
-			blockedUntil: previous?.resetAt ?? this._scheduler.now() + 60_000,
+			// The retained reset can belong to a window that has already closed,
+			// and a refusal must park the caller rather than retry at once.
+			blockedUntil: Math.max(previous?.blockedUntil ?? 0, previous?.resetAt !== undefined && previous.resetAt > now
+				? previous.resetAt
+				: now + unhintedRateLimitCooldown),
 		});
 	}
 
 	clearAccount(account: GitHubAccountHandle): void {
+		this._clearAccount(GitHubRequestQueue.accountKey(account));
+		this._scheduleCleanup();
+	}
+
+	retainAccount(account: GitHubAccountHandle): void {
+		if (this._inactiveAccounts.delete(GitHubRequestQueue.accountKey(account))) {
+			this._scheduleCleanup();
+		}
+	}
+
+	/** Drops unused quota data once all server-required cooldowns for the account have elapsed. */
+	releaseAccount(account: GitHubAccountHandle): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		const accountKey = GitHubRequestQueue.accountKey(account);
+		const prefix = `${accountKey}\x00`;
+		let expiresAt = this._accountBlockedUntil.get(accountKey) ?? 0;
+		for (const [key, state] of this._states) {
+			if (key.startsWith(prefix)) {
+				expiresAt = Math.max(expiresAt, state.blockedUntil ?? (state.remaining === 0 ? state.resetAt ?? 0 : 0));
+			}
+		}
+		if (expiresAt > this._scheduler.now()) {
+			this._inactiveAccounts.set(accountKey, expiresAt);
+		} else {
+			this._clearAccount(accountKey);
+		}
+		this._scheduleCleanup();
+	}
+
+	private _clearAccount(accountKey: string): void {
 		const prefix = `${accountKey}\x00`;
 		for (const key of this._states.keys()) {
 			if (key.startsWith(prefix)) {
@@ -111,11 +172,32 @@ export class GitHubRateLimitCoordinator extends Disposable {
 			}
 		}
 		this._accountBlockedUntil.delete(accountKey);
+		this._inactiveAccounts.delete(accountKey);
+	}
+
+	private _scheduleCleanup(): void {
+		this._cleanup.clear();
+		if (this._inactiveAccounts.size === 0 || this._store.isDisposed) {
+			return;
+		}
+		let next = Infinity;
+		for (const expiresAt of this._inactiveAccounts.values()) {
+			next = Math.min(next, expiresAt);
+		}
+		this._cleanup.value = this._scheduler.schedule(() => {
+			for (const [accountKey, expiresAt] of this._inactiveAccounts) {
+				if (expiresAt <= this._scheduler.now()) {
+					this._clearAccount(accountKey);
+				}
+			}
+			this._scheduleCleanup();
+		}, Math.max(0, next - this._scheduler.now()));
 	}
 
 	override dispose(): void {
 		this._states.clear();
 		this._accountBlockedUntil.clear();
+		this._inactiveAccounts.clear();
 		super.dispose();
 	}
 
@@ -144,9 +226,18 @@ function parseSeconds(value: string | null, now: number): number | undefined {
 	return Number.isFinite(date) ? Math.max(0, Math.ceil((date - now) / 1000)) : undefined;
 }
 
-function isSecondaryRateLimit(status: number, body: string | undefined): boolean {
-	if (status !== 403 && status !== 429) {
-		return false;
+/**
+ * Whether GitHub refused the request for rate limiting. Primary exhaustion is
+ * reported as 403 with the quota headers rather than as 429, and only the body
+ * tells it apart from an authorization failure.
+ */
+function isRateLimited(status: number, body: string | undefined): boolean {
+	if (status === 429) {
+		return true;
 	}
+	return status === 403 && (body?.toLowerCase().includes('rate limit') ?? false);
+}
+
+function isSecondaryRateLimit(body: string | undefined): boolean {
 	return body?.toLowerCase().includes('secondary rate limit') ?? false;
 }

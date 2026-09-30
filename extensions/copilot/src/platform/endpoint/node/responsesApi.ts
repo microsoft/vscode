@@ -32,7 +32,7 @@ import { getVerbosityForModelSync, modelSupportCacheBreakPoints } from '../commo
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex, MISSING_STATEFUL_TOOL_RESULT } from '../common/statefulMarkerContainer';
-import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
+import { rawPartAsThinkingEnvelope } from '../common/thinkingDataContainer';
 import { createResponsesStreamDumper } from './responsesApiDebugDump';
 
 export function getResponsesApiCompactionThreshold(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): number | undefined {
@@ -128,7 +128,11 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
 		: undefined;
 	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
-	const promptCacheBreakpointsEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
+	// Opt-in endpoints (client-side BYOK) ignore the setting's default and experiment treatments:
+	// `isConfigured` is only true when the user has set the value in their settings.
+	const promptCacheBreakpointsEnabled = endpoint.promptCacheBreakpointsRequireOptIn
+		? configService.isConfigured(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled) && configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService)
+		: configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
 	const modelSupportsCacheBreakpoints = modelSupportCacheBreakPoints(endpoint);
 	const supportsCacheBreakpoints = promptCacheBreakpointsEnabled && modelSupportsCacheBreakpoints;
 	const body: IEndpointBody = {
@@ -606,7 +610,7 @@ function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): Resp
 		case Raw.ChatCompletionContentPartKind.Opaque: {
 			const maybeCast = part.value as ResponsesConvertibleContent;
 			if (maybeCast.type === 'input_text' || maybeCast.type === 'input_image' || maybeCast.type === 'input_file') {
-				return maybeCast;
+				return { ...maybeCast };
 			}
 		}
 	}
@@ -653,32 +657,20 @@ function rawContentToResponsesContentList(parts: readonly Raw.ChatCompletionCont
 	return content;
 }
 
-/**
- * The Responses API rejects the entire request with
- * `400 invalid_request_body: Invalid 'input[N].id': '...'. Expected an ID that begins with 'rs'.`
- * when a reasoning item is round-tripped with an id it did not issue. Reasoning items
- * produced by the Responses API always carry an id beginning with `rs`. Thinking blocks
- * that originated from a different API (e.g. the Anthropic Messages API, whose accumulator
- * generates `thinking_<index>` ids) can leak into a Responses request — most notably via the
- * `vscode.lm` access path, which has no model gate — and their `encrypted_content` is not a
- * valid Responses reasoning blob anyway. Such foreign reasoning items must be dropped, not sent.
- */
-function isResponsesReasoningId(id: string | undefined): boolean {
-	return typeof id === 'string' && id.startsWith('rs');
-}
-
 function extractThinkingData(content: Raw.ChatCompletionContentPart[]): OpenAI.Responses.ResponseReasoningItem[] {
 	return coalesce(content.map(part => {
 		if (part.type === Raw.ChatCompletionContentPartKind.Opaque) {
-			const thinkingData = rawPartAsThinkingData(part);
-			// Only round-trip genuine Responses API reasoning items. A foreign id (or a thinking
-			// block with no encrypted payload) would otherwise 400 the whole request.
-			if (thinkingData && thinkingData.encrypted && isResponsesReasoningId(thinkingData.id)) {
+			const envelope = rawPartAsThinkingEnvelope(part);
+			// Preserve legacy replay behavior for history and extensions that do not supply an API type.
+			const isResponsesReasoning = envelope?.originApi === undefined
+				? typeof envelope?.thinking.id === 'string' && envelope.thinking.id.startsWith('rs')
+				: envelope.originApi === 'responses';
+			if (isResponsesReasoning && envelope?.thinking.encrypted) {
 				return {
 					type: 'reasoning',
-					id: thinkingData.id,
+					id: envelope.thinking.id,
 					summary: [],
-					encrypted_content: thinkingData.encrypted,
+					encrypted_content: envelope.thinking.encrypted,
 				} satisfies OpenAI.Responses.ResponseReasoningItem;
 			}
 		}
@@ -963,8 +955,8 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const { serverExperiments } = getRequestId(response.headers);
-		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, serverExperiments, compactionThreshold);
+		const { serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
+		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, copilotServiceRequestId, serverExperiments, compactionThreshold);
 		const dumper = createResponsesStreamDumper(requestId, logService);
 		const parser = new SSEParser((ev) => {
 			try {
@@ -1184,6 +1176,7 @@ export class OpenAIResponsesProcessor {
 		private readonly telemetryService: ITelemetryService,
 		private readonly requestId: string,
 		private readonly ghRequestId: string,
+		private readonly copilotServiceRequestId: string,
 		private readonly serverExperiments: string,
 		private readonly compactionThreshold: number | undefined,
 		@ILogService private readonly logService: ILogService,
@@ -1432,7 +1425,7 @@ export class OpenAIResponsesProcessor {
 					model: chunk.response.model,
 					tokens: [],
 					telemetryData: this.telemetryData,
-					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: this.serverExperiments },
+					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, copilotServiceRequestId: this.copilotServiceRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: this.serverExperiments },
 					usage: {
 						prompt_tokens: chunk.response.usage?.input_tokens ?? 0,
 						completion_tokens: chunk.response.usage?.output_tokens ?? 0,
@@ -1510,6 +1503,7 @@ export class OpenAIResponsesProcessor {
 			requestId: {
 				headerRequestId: this.requestId,
 				gitHubRequestId: this.ghRequestId,
+				copilotServiceRequestId: this.copilotServiceRequestId,
 				completionId: response.id,
 				created: response.created_at,
 				deploymentId: '',

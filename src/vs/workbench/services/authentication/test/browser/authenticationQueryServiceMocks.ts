@@ -287,7 +287,7 @@ export class TestExtensionsService extends TestPreferencesService implements IAu
 	selectSession(): Promise<any> { return Promise.resolve(createSession()); }
 	requestSessionAccess(): void { }
 	requestNewSession(): Promise<void> { return Promise.resolve(); }
-	updateNewSessionRequests(): void { }
+	async updateNewSessionRequests(): Promise<void> { }
 }
 
 export class TestMcpService extends TestPreferencesService implements IAuthenticationMcpService {

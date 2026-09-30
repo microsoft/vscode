@@ -19,12 +19,13 @@ import type { FetchAutomationRunsParams, ListAutomationTriggerDefinitionsParams,
 /**
  * Operations the host currently permits for an automation.
  *
- * The list on {@link AutomationState.operations} is authoritative and may
+ * The list on {@link AutomationEntry.operations} is authoritative and may
  * change over time. Clients MUST NOT infer permission from capabilities alone:
  * capabilities describe what the host implementation can support, while
  * operations describe what is allowed for this particular automation now.
  *
  * @category Automation State
+ * @nonexhaustive
  */
 export const enum AutomationOperation {
 	/** Replace editable fields using {@link AutomationUpdateRequestedAction | `automation/updateRequested`}. */
@@ -80,6 +81,7 @@ export interface AutomationSchedule {
  * unavailable.
  *
  * @category Automation State
+ * @nonexhaustive
  */
 export const enum AutomationMisfirePolicy {
 	/** Discard missed occurrences and wait for the next future occurrence. */
@@ -95,6 +97,7 @@ export const enum AutomationMisfirePolicy {
  * Discriminant for automatic trigger definitions.
  *
  * @category Automation State
+ * @exhaustive
  */
 export const enum AutomationTriggerKind {
 	/** A portable recurring {@link AutomationSchedule}. */
@@ -252,7 +255,7 @@ export interface AutomationSessionTemplate {
  * A definition combines the initial automation message, the session template
  * used for each run, and zero or more automatic triggers. Run history,
  * timestamps, and currently allowed operations live on
- * {@link AutomationState} rather than in the definition.
+ * {@link AutomationEntry} rather than in the definition.
  *
  * @category Automation State
  */
@@ -281,8 +284,7 @@ export interface AutomationDefinition {
 }
 
 /**
- * Authoritative state of one automation in the
- * {@link AutomationCatalogState.automations} catalogue.
+ * Authoritative state of one automation in {@link AutomationState.entries}.
  *
  * The host owns trigger evaluation, run claims, run retention, and operation
  * availability. Clients render this state and submit actions or commands; they
@@ -290,7 +292,7 @@ export interface AutomationDefinition {
  *
  * @category Automation State
  */
-export interface AutomationState {
+export interface AutomationEntry {
 	/** Stable `ahp-automation:/<id>` resource identifier. */
 	resource: URI;
 	/** Current durable definition. */
@@ -300,7 +302,7 @@ export interface AutomationState {
 	/**
 	 * Newest-first retained run summaries. This is a bounded window; use
 	 * {@link FetchAutomationRunsParams | fetchAutomationRuns} when
-	 * {@link AutomationState.runsNextCursor} is present.
+	 * {@link AutomationEntry.runsNextCursor} is present.
 	 */
 	runs: AutomationRunSummary[];
 	/** Opaque cursor passed as {@link FetchAutomationRunsParams.cursor} for the next older run-history page. */
@@ -326,9 +328,9 @@ export interface AutomationState {
  *
  * @category Automation State
  */
-export interface AutomationCatalogState {
-	/** Full automation states keyed by {@link AutomationState.resource}. */
-	automations: AutomationState[];
+export interface AutomationState {
+	/** Full automation entries keyed by {@link AutomationEntry.resource}. */
+	entries: AutomationEntry[];
 	/** Opaque host-defined catalogue metadata. */
 	_meta?: Record<string, unknown>;
 }

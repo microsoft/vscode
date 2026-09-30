@@ -16,6 +16,7 @@ import type { Customization } from '../channels-session/state.js';
  * Policy configuration state for a model.
  *
  * @category Root State
+ * @exhaustive
  */
 export const enum PolicyState {
 	Enabled = 'enabled',
