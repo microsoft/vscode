@@ -31,25 +31,6 @@ import { extUri, extUriIgnorePathCase } from '../../../../../base/common/resourc
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { isObject } from '../../../../../base/common/types.js';
 
-export async function runRecentSelection(instance: ITerminalInstance, type: 'command' | 'cwd', rawLabel: string, shouldExecute: boolean): Promise<boolean> {
-	let text: string;
-	if (type === 'cwd') {
-		try {
-			text = `cd ${await instance.preparePathForShell(rawLabel)}`;
-		} catch {
-			instance.focus();
-			return false;
-		}
-	} else { // command
-		text = rawLabel;
-	}
-	instance.runCommand(text, shouldExecute);
-	if (!shouldExecute) {
-		instance.focus();
-	}
-	return true;
-}
-
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
 	instance: ITerminalInstance,
@@ -369,12 +350,20 @@ export async function showRunRecentQuickPick(
 	}));
 	disposables.add(quickPick.onDidAccept(async () => {
 		const result = quickPick.activeItems[0];
-		const shouldExecute = !quickPick.keyMods.alt;
+		let text: string;
+		if (type === 'cwd') {
+			text = `cd ${await instance.preparePathForShell(result.rawLabel)}`;
+		} else { // command
+			text = result.rawLabel;
+		}
 		quickPick.hide();
 		terminalScrollStateSaved = false;
 		instance.xterm?.markTracker.clear();
 		instance.scrollToBottom();
-		await runRecentSelection(instance, type, result.rawLabel, shouldExecute);
+		instance.runCommand(text, !quickPick.keyMods.alt);
+		if (quickPick.keyMods.alt) {
+			instance.focus();
+		}
 	}));
 	disposables.add(quickPick.onDidHide(() => restoreScrollState()));
 	if (value) {
