@@ -12,7 +12,7 @@ import { autorun } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { deriveGitHubEndpoints } from '../../github/common/githubEndpoints.js';
+import { IParsedPullRequestUrl, parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { GitHubWorkflowRerunOptions } from '../../github/common/githubPullRequestMutationService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
@@ -1588,37 +1588,6 @@ export class AgentMergeController extends Disposable {
 				break;
 		}
 	}
-}
-
-interface IParsedPullRequestUrl {
-	readonly owner: string;
-	readonly repo: string;
-	readonly number: number;
-	/** REST API host the credential account must match (`api.github.com` for github.com). */
-	readonly apiHost: string;
-}
-
-export function parsePullRequestUrl(value: string): IParsedPullRequestUrl | undefined {
-	let url: URL;
-	try {
-		url = new URL(value);
-	} catch {
-		return undefined;
-	}
-	const match = /^\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url.pathname);
-	const number = Number(match?.groups?.number);
-	if (!match?.groups || !Number.isSafeInteger(number) || number <= 0) {
-		return undefined;
-	}
-	const host = url.host.toLowerCase();
-	return {
-		owner: match.groups.owner,
-		repo: match.groups.repo,
-		number,
-		// Derived rather than hard-coded so GitHub Enterprise Cloud web hosts
-		// (`tenant.ghe.com`) canonicalize to the `api.` host the credential reports.
-		apiHost: new URL(deriveGitHubEndpoints(`${url.protocol}//${host}`).apiBaseUri).host.toLowerCase(),
-	};
 }
 
 function sameRef(left: PullRequestRef, right: PullRequestRef): boolean {
