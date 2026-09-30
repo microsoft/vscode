@@ -237,7 +237,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			notifyInstallChange: () => installChanges.fire(),
 			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryActions.set('other', action); },
-			selectImport: async (id: string) => {
+			selectAddCustomization: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 				assert.ok(button);
 				button.click();
@@ -293,36 +293,49 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	}
 
+	test('Add Customization action describes the menu trigger', () => {
+		const fixture = createPage();
+		const button = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
+		assert.ok(button);
+		assert.deepStrictEqual({
+			ariaLabel: button.getAttribute('aria-label'),
+			expanded: button.getAttribute('aria-expanded'),
+		}, {
+			ariaLabel: 'Add a customization',
+			expanded: 'false',
+		});
+	}
+
 	for (const [action, type] of [
 		['newAgent', PromptsType.agent],
 		['newSkill', PromptsType.skill],
 		['newInstructions', PromptsType.instructions],
 		['newPrompt', PromptsType.prompt],
 	] as const) {
-		test(`Import > ${action} closes Discover before starting creation`, async () => {
+		test(`Add Customization > ${action} closes Discover before starting creation`, async () => {
 			const fixture = createPage(['agentFinder'], [
 				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Skills,
 				AICustomizationManagementSection.Instructions,
 				AICustomizationManagementSection.Prompts,
 			]);
-			await fixture.selectImport(action);
+			await fixture.selectAddCustomization(action);
 			assert.deepStrictEqual(fixture.creationEvents, ['close', type]);
 		});
 	}
 
 	test('menu buttons use the shared small button style and show chevrons', () => {
 		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Agents]);
-		const importButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
+		const addCustomizationButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 		const sourceButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-source .monaco-button');
 
-		assert.deepStrictEqual([importButton, sourceButton].map(button => ({
+		assert.deepStrictEqual([addCustomizationButton, sourceButton].map(button => ({
 			label: button?.textContent,
 			small: button?.classList.contains('small'),
 			hasChevron: button?.querySelector('.codicon-chevron-down') !== null,
 			hasPopup: button?.getAttribute('aria-haspopup'),
 		})), [
-			{ label: 'Import', small: true, hasChevron: true, hasPopup: 'menu' },
+			{ label: 'Add Customization', small: true, hasChevron: true, hasPopup: 'menu' },
 			{ label: 'All sources', small: true, hasChevron: true, hasPopup: 'menu' },
 		]);
 	});

@@ -867,8 +867,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private createAddButton(parent: HTMLElement): void {
 		const addButton = this._register(new Button(parent, { ...defaultButtonStyles, secondary: true, small: true, supportIcons: true }));
 		addButton.element.setAttribute('aria-haspopup', 'menu');
-		addButton.label = `${localize('customizationDiscovery.import', "Import")} $(chevron-down)`;
-		addButton.setAriaLabel(localize('customizationDiscovery.importLabel', "Import a customization"));
+		addButton.label = localize('customizationDiscovery.addCustomization', "Add Customization {0}", `$(${Codicon.chevronDown.id})`);
+		addButton.setAriaLabel(localize('customizationDiscovery.addCustomizationLabel', "Add a customization"));
+		addButton.element.setAttribute('aria-expanded', 'false');
 		this._register(addButton.onDidClick(() => {
 			const disposables = new DisposableStore();
 			const actions: IAction[] = [];
@@ -893,8 +894,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => addButton.element,
 				getActions: () => actions,
-				onHide: () => disposables.dispose(),
+				onHide: () => {
+					addButton.element.setAttribute('aria-expanded', 'false');
+					disposables.dispose();
+				},
 			});
+			addButton.element.setAttribute('aria-expanded', 'true');
 		}));
 	}
 
