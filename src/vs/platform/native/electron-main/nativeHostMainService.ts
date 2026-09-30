@@ -27,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, IWindowResizeAnchor, IWindowResizeDelta, getResizedWindowBounds, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
@@ -401,6 +401,23 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 			window.win.setBounds(position);
 		}
+	}
+
+	async resizeWindow(windowId: number | undefined, delta: IWindowResizeDelta, anchor: IWindowResizeAnchor, options?: INativeHostOptions): Promise<IRectangle | undefined> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		if (!window?.win || window.win.isFullScreen() || window.win.isMaximized()) {
+			return;
+		}
+
+		const currentBounds = window.win.getBounds();
+		const currentContentBounds = window.win.getContentBounds();
+		const [minWidth, minHeight] = window.win.getMinimumSize();
+
+		const desiredBounds = getResizedWindowBounds(currentBounds, delta, anchor, { width: minWidth, height: minHeight });
+
+		window.win.setBounds(desiredBounds);
+		const contentBounds = window.win.getContentBounds();
+		return contentBounds.width !== currentContentBounds.width || contentBounds.height !== currentContentBounds.height ? contentBounds : undefined;
 	}
 
 	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {

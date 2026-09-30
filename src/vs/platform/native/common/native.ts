@@ -160,6 +160,46 @@ export interface INativeHostOptions {
 	readonly targetWindowId?: number;
 }
 
+/**
+ * The amount to grow or shrink a window by in pixels.
+ */
+export interface IWindowResizeDelta {
+	readonly width: number;
+	readonly height: number;
+}
+
+/**
+ * The edges to keep fixed in place while resizing a window. When `right` is
+ * `true`, the window grows/shrinks to the left, otherwise the left edge stays
+ * fixed. When `bottom` is `true`, the window grows/shrinks upwards, otherwise
+ * the top edge stays fixed.
+ */
+export interface IWindowResizeAnchor {
+	readonly right: boolean;
+	readonly bottom: boolean;
+}
+
+/**
+ * Computes new window bounds, clamping to the minimum size before applying the anchor.
+ */
+export function getResizedWindowBounds(bounds: IRectangle, delta: IWindowResizeDelta, anchor: IWindowResizeAnchor, minimumSize = { width: 1, height: 1 }): IRectangle {
+	const width = Math.max(1, minimumSize.width, bounds.width + delta.width);
+	const height = Math.max(1, minimumSize.height, bounds.height + delta.height);
+	const x = anchor.right ? bounds.x + bounds.width - width : bounds.x;
+	const y = anchor.bottom ? bounds.y + bounds.height - height : bounds.y;
+
+	return { x, y, width, height };
+}
+
+/**
+ * Converts a CSS-pixel resize delta to native window units. Rounding the magnitude
+ * preserves opposite deltas at fractional zoom levels.
+ */
+export function getZoomedWindowResizeDelta(delta: IWindowResizeDelta, zoomFactor: number): IWindowResizeDelta {
+	const scale = (value: number) => Math.sign(value) * Math.round(Math.abs(value) * zoomFactor);
+	return { width: scale(delta.width), height: scale(delta.height) };
+}
+
 export interface IStartTracingOptions {
 
 	/**
@@ -296,6 +336,18 @@ export interface ICommonNativeHostService {
 	minimizeWindow(options?: INativeHostOptions): Promise<void>;
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
+
+	/**
+	 * Resizes the window by the delta, keeping the edges as indicated by
+	 * the anchor fixed in place. Has no effect when the window is maximized or in
+	 * full screen. Returns the resulting content bounds in native window units,
+	 * or `undefined` when the content size did not change.
+	 *
+	 * @param delta The amount to grow or shrink the window in pixels.
+	 * @param anchor The edges to keep fixed while resizing.
+	 * @param options Options to target a specific window.
+	 */
+	resizeWindow(delta: IWindowResizeDelta, anchor: IWindowResizeAnchor, options?: INativeHostOptions): Promise<IRectangle | undefined>;
 
 	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
