@@ -1680,21 +1680,13 @@ export function parseUntrackedPaths(output: string | undefined): string[] {
 }
 
 /**
- * Parses NUL-separated `git status --porcelain=v1 -z --untracked-files=all`
- * output and returns all changed repo-relative paths. Rename/copy entries
- * include both the destination and source paths so scoped `git add -A`
- * stages both sides of the change. Paths added to the index and then deleted
- * from the worktree are omitted because they do not exist in either HEAD or
- * the worktree.
- *
- * Exported for tests.
- */
-/**
  * Whether every entry of NUL-separated `git status --porcelain=v1 -z` output
  * can be restaged onto a copy of the repository index to capture the working
  * tree. Staged deletions, renames, copies, conflicts, and staged additions
  * later deleted from the working tree leave paths that `git add` cannot
  * match, so callers seed from HEAD for those instead.
+ *
+ * Exported for tests.
  */
 export function canRestageOntoIndexCopy(output: string): boolean {
 	for (const segment of output.split('\x00')) {
@@ -1713,6 +1705,16 @@ export function canRestageOntoIndexCopy(output: string): boolean {
 	return true;
 }
 
+/**
+ * Parses NUL-separated `git status --porcelain=v1 -z --untracked-files=all`
+ * output and returns all changed repo-relative paths. Rename/copy entries
+ * include both the destination and source paths so scoped `git add -A`
+ * stages both sides of the change. Paths added to the index and then deleted
+ * from the worktree are omitted because they do not exist in either HEAD or
+ * the worktree.
+ *
+ * Exported for tests.
+ */
 export function parseChangedPaths(output: string | undefined, includeStatus: (status: string) => boolean = () => true): string[] {
 	if (!output) {
 		return [];

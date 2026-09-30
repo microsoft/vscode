@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
@@ -224,6 +224,66 @@ suite('WorktreeIsolation', () => {
 			namedNoPrefix: 'plain-branch',
 			namedWithBranchPrefix: 'add-config',
 		});
+	});
+
+	test('concurrent config resolutions share Git reads but later calls see changed branches', async () => {
+		let rootReads = 0;
+		let currentBranch = 'first';
+		const isolation = createIsolation(disposables, {
+			gitService: {
+				...createGitService(),
+				getRepositoryRoot: async () => { rootReads++; return repoRoot; },
+				getCurrentBranch: async () => currentBranch,
+			}
+		});
+		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
+		const first = await Promise.all([isolation.resolveIsolationConfig(request), isolation.resolveIsolationConfig(request)]);
+		assert.deepStrictEqual(first.map(result => result.branchValue), ['first', 'first']);
+		assert.strictEqual(rootReads, 1);
+		currentBranch = 'second';
+		assert.strictEqual((await isolation.resolveIsolationConfig(request)).branchValue, 'second');
+		assert.strictEqual(rootReads, 2);
+	});
+
+	test('failed shared Git reads do not poison subsequent config resolutions', async () => {
+		let rootReads = 0;
+		const failure = new Error('Git unavailable');
+		const isolation = createIsolation(disposables, {
+			gitService: {
+				...createGitService(),
+				getRepositoryRoot: async () => { if (++rootReads === 1) { throw failure; } return repoRoot; },
+			}
+		});
+		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
+		const results = await Promise.allSettled([isolation.resolveIsolationConfig(request), isolation.resolveIsolationConfig(request)]);
+		assert.ok(results.every(result => result.status === 'rejected' && result.reason === failure));
+		assert.strictEqual(rootReads, 1);
+		assert.strictEqual((await isolation.resolveIsolationConfig(request)).branchValue, 'feature');
+		assert.strictEqual(rootReads, 2);
+	});
+
+	test('a branch switch during an in-flight read is visible on the next fresh config read', async () => {
+		const branchRead = new DeferredPromise<void>();
+		const finishRead = new DeferredPromise<void>();
+		let currentBranch = 'before-switch';
+		const isolation = createIsolation(disposables, {
+			gitService: {
+				...createGitService(),
+				getCurrentBranch: async () => { branchRead.complete(); return currentBranch; },
+				getDefaultBranch: async () => { await finishRead.p; return { name: 'main', startPoint: 'main' }; },
+			}
+		});
+		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
+		const first = isolation.resolveIsolationConfig(request);
+		await branchRead.p;
+		currentBranch = 'after-switch';
+		const overlapping = isolation.resolveIsolationConfig(request);
+		finishRead.complete();
+		const results = await Promise.all([first, overlapping]);
+		assert.deepStrictEqual({
+			overlappingBranches: results.map(result => result.branchValue),
+			freshBranch: (await isolation.resolveIsolationConfig(request)).branchValue,
+		}, { overlappingBranches: ['before-switch', 'before-switch'], freshBranch: 'after-switch' });
 	});
 
 	test('resolveIsolationConfig advertises folder/worktree + branch based on git state', async () => {

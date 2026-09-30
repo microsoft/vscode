@@ -2747,8 +2747,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- session management -------------------------------------------------
 
-	// ---- session management -------------------------------------------------
-
 	private _createThinkingLevelConfigSchemaProperty(reasoningEfforts: readonly string[] | undefined, defaultReasoningEffort: string | undefined, modelId: string | undefined): ConfigPropertySchema | undefined {
 		// Only advertise efforts the Copilot launcher actually accepts, otherwise the picker would
 		// surface a level that is silently dropped when the session is launched.

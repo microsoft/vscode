@@ -347,6 +347,11 @@ export interface IResolveIsolationConfigRequest {
 	readonly config: Record<string, unknown> | undefined;
 }
 
+interface IIsolationGitInfo {
+	readonly currentBranch: string;
+	readonly defaultBranch: IDefaultBranch;
+}
+
 /**
  * The isolation + branch schema contribution for an agent's
  * `resolveSessionConfig`. Callers merge {@link isolationProperty} (and
@@ -422,6 +427,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	/** Worktrees materialized during this host process, keyed by sessionId. */
 	private readonly _materializedWorktrees = new Map<string, ISessionWorktree & { readonly branchName: string }>();
 	private readonly _worktreeDeletionRetries = new Map<string, ISessionWorktree>();
+	private readonly _pendingGitInfo = new Map<string, Promise<IIsolationGitInfo | undefined>>();
 
 	/**
 	 * Per-session announcement (markdown) emitted as a synthetic streaming
@@ -1496,7 +1502,20 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		} : undefined;
 	}
 
-	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: IDefaultBranch } | undefined> {
+	private _getGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
+		const key = workingDirectory.toString();
+		const pending = this._pendingGitInfo.get(key);
+		if (pending) {
+			return pending;
+		}
+		// Overlapping callers share one best-effort read, including changes made
+		// while it is in flight. Once settled, the next caller reads Git afresh.
+		const request = this._readGitInfo(workingDirectory).finally(() => this._pendingGitInfo.delete(key));
+		this._pendingGitInfo.set(key, request);
+		return request;
+	}
+
+	private async _readGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
 		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return undefined;
