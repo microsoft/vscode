@@ -1255,15 +1255,6 @@
 
 /* Session groups render like sections, with an inline name editor. */
 .session-group {
-	.session-group-labels {
-		flex: 1 1 auto;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		line-height: normal;
-	}
-
 	.session-group-description {
 		display: none;
 		min-width: 0;
@@ -1303,8 +1294,12 @@
 	padding-bottom: var(--vscode-spacing-size40);
 	color: var(--vscode-foreground);
 
+	/* Stack the title above the summary; ordinary groups keep the section label layout. */
 	.session-group-labels {
+		flex-direction: column;
+		justify-content: center;
 		align-items: flex-start;
+		line-height: normal;
 	}
 
 	.session-section-label {
