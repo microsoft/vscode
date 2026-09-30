@@ -245,7 +245,7 @@ stages:
                 VSCODE_ARCH: x64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - template: linux/product-build-linux-jobs.yml@self
+            - template: linux/product-build-linux.yml@self
               parameters:
                 NPM_ARCH: x64
                 VSCODE_ARCH: x64
@@ -307,7 +307,7 @@ stages:
                 VSCODE_ARCH: arm64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - template: linux/product-build-linux-jobs.yml@self
+            - template: linux/product-build-linux.yml@self
               parameters:
                 NPM_ARCH: arm64
                 VSCODE_ARCH: arm64
@@ -326,7 +326,7 @@ stages:
                 VSCODE_ARCH: armhf
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - template: linux/product-build-linux-jobs.yml@self
+            - template: linux/product-build-linux.yml@self
               parameters:
                 NPM_ARCH: arm
                 VSCODE_ARCH: armhf

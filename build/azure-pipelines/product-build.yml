@@ -489,7 +489,7 @@ extends:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
 
-            - template: build/azure-pipelines/linux/product-build-linux-jobs.yml@self
+            - template: build/azure-pipelines/linux/product-build-linux.yml@self
               parameters:
                 NPM_ARCH: x64
                 VSCODE_ARCH: x64
@@ -552,7 +552,7 @@ extends:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
 
-            - template: build/azure-pipelines/linux/product-build-linux-jobs.yml@self
+            - template: build/azure-pipelines/linux/product-build-linux.yml@self
               parameters:
                 NPM_ARCH: arm64
                 VSCODE_ARCH: arm64
@@ -572,7 +572,7 @@ extends:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
 
-            - template: build/azure-pipelines/linux/product-build-linux-jobs.yml@self
+            - template: build/azure-pipelines/linux/product-build-linux.yml@self
               parameters:
                 NPM_ARCH: arm
                 VSCODE_ARCH: armhf

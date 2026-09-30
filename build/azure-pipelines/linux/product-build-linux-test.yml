@@ -11,7 +11,7 @@ parameters:
     type: object
 
 # Each product test job tests the builds of the compilation artifact published
-# by the compile job (see product-build-linux-jobs.yml, which must set
+# by the compile job (see product-build-linux.yml, which must set
 # VSCODE_RUN_TESTS) with the selected test IDs. Retrying a test job skips the
 # test tasks that already passed in an earlier attempt.
 jobs:

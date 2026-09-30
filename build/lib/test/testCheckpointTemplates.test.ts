@@ -389,13 +389,12 @@ suite('Product test checkpoint templates', () => {
 			{ platform: 'darwin', testFile: darwinTestFile, jobPrefix: 'macOS' },
 		] as const).map(({ platform, testFile, jobPrefix }) => {
 			const steps = readTemplate(testFile).steps;
-			const productJobsTemplate = platform === 'linux' ? 'product-build-linux-jobs.yml' : 'product-build-darwin.yml';
 			const productTestTemplate = readTemplate(`${platform}/product-build-${platform}-test.yml`);
 			const productTestJob = records(productTestTemplate).find(record => typeof record.job === 'string');
 			const productJobsByPipeline = ['product-build.yml', 'product-build-template.yml'].map(file => {
 				const pipeline = readTemplate(file);
 				return {
-					runTests: records(pipeline).filter(record => typeof record.template === 'string' && record.template.endsWith(`${platform}/${productJobsTemplate}@self`))
+					runTests: records(pipeline).filter(record => typeof record.template === 'string' && record.template.endsWith(`${platform}/product-build-${platform}.yml@self`))
 						.map(record => (record.parameters as Record<string, unknown>).VSCODE_RUN_TESTS),
 					jobs: records(pipeline).filter(record => typeof record.template === 'string' && record.template.endsWith(`${platform}/product-build-${platform}-test.yml@self`))
 						.map(record => {
