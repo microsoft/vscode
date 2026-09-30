@@ -1813,12 +1813,14 @@ suite('CopilotSessionLauncher resume config', () => {
 				// supported future Claude and GPT-6 families enable tool search directly
 				await toolSearchOf({ toolSearchEnabled: true }, { id: 'claude-opus-5.5' }),
 				await toolSearchOf({ toolSearchEnabled: true }, { id: 'gpt-6-luna' }),
+				await toolSearchOf({ toolSearchEnabled: true }, { id: 'hydrafusion' }),
 				// a family alias makes an unsupported preview model tool-search-capable
 				await toolSearchOf({ toolSearchEnabled: true, modelCapabilityOverrides: { 'preview-model-x': { family: 'claude-opus-4.8' } } }, { id: 'preview-model-x' }),
 			],
 			[
 				{ enabled: false },
 				{ enabled: false },
+				{ enabled: true, deferThreshold: 1 },
 				{ enabled: true, deferThreshold: 1 },
 				{ enabled: true, deferThreshold: 1 },
 				{ enabled: true, deferThreshold: 1 },
