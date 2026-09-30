@@ -50,7 +50,7 @@ export function setup(options?: { skipSuite: boolean }) {
 						await terminal.waitForTerminalText(buffer => readSequence(buffer).includes(count - 1));
 
 						if (reconnect === 'window reload') {
-							await app.code.reloadWindow(() => app.workbench.quickaccess.runCommand('workbench.action.reloadWindow'));
+							await app.code.reloadWindow(() => app.workbench.quickaccess.runCommand('Developer: Reload Window', { match: 'exactLabel', keepOpen: true }));
 						} else {
 							const name = (await terminal.getTerminalGroups())[0][0].name;
 							ok(name);
@@ -59,8 +59,8 @@ export function setup(options?: { skipSuite: boolean }) {
 							await terminal.runCommandWithValue(TerminalCommandIdWithValue.AttachToSession, name);
 						}
 
-						await terminal.waitForTerminalText(buffer => readSequence(buffer).includes(count - 1));
 						await app.workbench.quickaccess.runCommand('workbench.action.terminal.focus');
+						await terminal.waitForTerminalText(buffer => readSequence(buffer).includes(count - 1));
 						await terminal.runCommandInTerminal('continue');
 						let received: number[] = [];
 						await terminal.waitForTerminalText(buffer => {

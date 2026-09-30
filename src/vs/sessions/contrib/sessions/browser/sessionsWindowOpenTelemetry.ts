@@ -5,9 +5,11 @@
 
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { ILifecycleService, ShutdownReason } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { EditorChatUsage } from '../../../../workbench/contrib/chat/common/editorChatUsage.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceArgumentKind } from '../../../common/workspaceSelection.js';
 
 export const FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS = 3 * 60 * 1000;
@@ -65,6 +67,11 @@ interface ISessionsWindowOpenSnapshot extends ISessionsWindowOpenViewState {
 }
 
 type FirstTimeWindowOpenEvent = {
+	editorSessionsByProvider: string;
+	editorMessages: number;
+	editorMessagesWithOtherSessionInProgress: number;
+	editorMessagesWithOtherSessionInProgressAcrossWindows: number;
+	editorLastMessageSecondsAgo: number | undefined;
 	source: string;
 	signInDialogShown: boolean;
 	workspacePreselected: boolean | undefined;
@@ -93,6 +100,11 @@ type FirstTimeWindowOpenEvent = {
 };
 
 type FirstTimeWindowOpenClassification = {
+	editorSessionsByProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON map of cumulative editor chat starts by bounded provider category. No remote addresses or extension identifiers.' };
+	editorMessages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative user messages accepted in editor windows, including queued and steering submissions, excluding retries and Agents window messages.' };
+	editorMessagesWithOtherSessionInProgress: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Editor submissions with a different session known to the submitting window in progress, counted once per message.' };
+	editorMessagesWithOtherSessionInProgressAcrossWindows: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Editor submissions with a different session in progress in the submitting window or reported by another live editor window within a 200ms probe, counted once per message.' };
+	editorLastMessageSecondsAgo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Seconds since the last editor message at event emission; absent if no editor message has been recorded. Never an absolute timestamp.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor entry point used to open the Agents window.' };
 	signInDialogShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the initial Agents setup flow showed a sign-in dialog.' };
 	workspacePreselected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the initial new-session view had a workspace selected. Undefined when a created session was visible.' };
@@ -138,6 +150,7 @@ export class SessionsWindowOpenTelemetry extends Disposable {
 		private readonly _getNonArchivedSessionListCount: () => number,
 		private readonly _telemetryService: ITelemetryService,
 		lifecycleService: ILifecycleService,
+		private readonly _storageService: IStorageService,
 	) {
 		super();
 		this._workspaceHandoffState = _context.hasSessionArgument ? 'notApplicable'
@@ -214,6 +227,7 @@ export class SessionsWindowOpenTelemetry extends Disposable {
 		const selection = initialState.workspaceSelection;
 
 		this._telemetryService.publicLog2<FirstTimeWindowOpenEvent, FirstTimeWindowOpenClassification>('agents/firstTimeWindowOpen', {
+			...new EditorChatUsage(this._storageService).getTelemetry(),
 			source: this._source,
 			signInDialogShown: this._getSignInDialogShown(),
 			workspacePreselected: initialState.workspacePreselected,

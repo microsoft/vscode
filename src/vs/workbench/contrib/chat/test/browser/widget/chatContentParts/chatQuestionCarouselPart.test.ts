@@ -15,6 +15,8 @@ import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../../com
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import '../../../../../../browser/media/style.css';
 
 function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
@@ -36,9 +38,17 @@ suite('ChatQuestionCarouselPart', () => {
 	let widget: ChatQuestionCarouselPart;
 	let submittedAnswers: Map<string, IChatQuestionAnswerValue> | undefined | null = null;
 
-	function createWidget(carousel: IChatQuestionCarousel, onSubmit?: () => void, container: HTMLElement = mainWindow.document.body): ChatQuestionCarouselPart {
+	function createWidget(
+		carousel: IChatQuestionCarousel,
+		onSubmit?: () => void,
+		container: HTMLElement = mainWindow.document.body,
+		configureServices?: (instantiationService: ReturnType<typeof workbenchInstantiationService>) => void,
+		optionsOverrides: Partial<IChatQuestionCarouselOptions> = {},
+	): ChatQuestionCarouselPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		configureServices?.(instantiationService);
 		const options: IChatQuestionCarouselOptions = {
+			...optionsOverrides,
 			onSubmit: (answers) => {
 				submittedAnswers = answers;
 				onSubmit?.();
@@ -106,6 +116,40 @@ suite('ChatQuestionCarouselPart', () => {
 			const title = widget.domNode.querySelector('.chat-question-title');
 			assert.ok(title, 'title element should exist');
 			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
+		});
+
+		test('uses workbench hovers for markdown links', () => {
+			const carousel = createMockCarousel([{
+				id: 'q1',
+				type: 'text',
+				title: 'Question',
+				message: new MarkdownString('[Question docs](https://example.com/question)'),
+				detailedMessage: new MarkdownString('[Detailed docs](https://example.com/detailed)')
+			}]);
+			carousel.message = new MarkdownString('[Carousel docs](https://example.com/carousel)');
+			const hoverContents: Parameters<IHoverService['setupManagedHover']>[2][] = [];
+
+			createWidget(carousel, undefined, mainWindow.document.body, instantiationService => {
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupManagedHover: (...args: Parameters<IHoverService['setupManagedHover']>) => {
+						hoverContents.push(args[2]);
+						return NullHoverService.setupManagedHover(...args);
+					}
+				});
+			});
+
+			assert.deepStrictEqual({
+				nativeTitles: Array.from(widget.domNode.querySelectorAll<HTMLAnchorElement>('.rendered-markdown a'), link => link.title),
+				hoverContents,
+			}, {
+				nativeTitles: ['', '', ''],
+				hoverContents: [
+					'https://example.com/carousel',
+					'https://example.com/question',
+					'https://example.com/detailed',
+				],
+			});
 		});
 
 		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
@@ -278,6 +322,16 @@ suite('ChatQuestionCarouselPart', () => {
 
 			const directChildCloseContainer = widget.domNode.querySelector(':scope > .chat-question-close-container');
 			assert.strictEqual(directChildCloseContainer, null, 'close button container should not be positioned as a direct child of the carousel container');
+		});
+
+		test('uses a caller-provided dismiss label', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			createWidget(carousel, undefined, mainWindow.document.body, undefined, { dismissLabel: 'Dismiss Survey' });
+
+			assert.strictEqual(widget.domNode.querySelector('.chat-question-close')?.getAttribute('aria-label'), 'Dismiss Survey');
 		});
 
 		test('renders collapse button in title row even when skip is disabled', () => {
@@ -717,6 +771,29 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(submittedAnswers, null, 'onSubmit should not have been called');
 		});
 
+		test('ignore exposes draft answers to the caller', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], true);
+			let dismissedAnswers: ReadonlyMap<string, IChatQuestionAnswerValue> | undefined;
+			createWidget(carousel, undefined, mainWindow.document.body, undefined, {
+				onDidDismiss: answers => dismissedAnswers = answers,
+			});
+			const input = widget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement;
+			input.value = 'draft answer';
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+
+			widget.ignore();
+
+			assert.deepStrictEqual({
+				submittedAnswers,
+				dismissedAnswers: dismissedAnswers ? [...dismissedAnswers] : undefined,
+			}, {
+				submittedAnswers: undefined,
+				dismissedAnswers: [['q1', 'draft answer']],
+			});
+		});
+
 		test('ignore can only be called once', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1' }
@@ -1129,6 +1206,37 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(summaryItem, 'Should have summary item for the question');
 			const summaryValue = summaryItem?.querySelector('.chat-question-summary-answer-title');
 			assert.ok(summaryValue?.textContent?.includes('default answer'), 'Summary should show the default answer');
+		});
+
+		test('shows a dismissible acknowledgement instead of the answer summary when configured', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Any feedback?' }
+			], true);
+			let acknowledgementDismissed = 0;
+			createWidget(carousel, undefined, mainWindow.document.body, undefined, {
+				submissionAcknowledgement: {
+					message: 'Thanks, your feedback has been recorded.',
+					dismissLabel: 'Dismiss Feedback Acknowledgement',
+					onDidDismiss: () => acknowledgementDismissed++,
+				},
+			});
+
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLElement;
+			submitButton.click();
+			const closeButton = widget.domNode.querySelector('.chat-question-close') as HTMLElement;
+			closeButton.click();
+
+			assert.deepStrictEqual({
+				text: widget.domNode.textContent,
+				hasSummary: !!widget.domNode.querySelector('.chat-question-carousel-summary'),
+				closeLabel: closeButton.getAttribute('aria-label'),
+				acknowledgementDismissed,
+			}, {
+				text: 'Thanks, your feedback has been recorded.',
+				hasSummary: false,
+				closeLabel: 'Dismiss Feedback Acknowledgement',
+				acknowledgementDismissed: 1,
+			});
 		});
 
 		test('shows skipped message after ignore()', () => {

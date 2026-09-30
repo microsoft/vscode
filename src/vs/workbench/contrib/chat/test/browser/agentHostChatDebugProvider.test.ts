@@ -221,6 +221,48 @@ suite('AgentHostChatDebugProvider - convertAgentHostEventsToDebugEvents', () => 
 		);
 	});
 
+	test('versioned diagnostics join reordered calls by exact API ID, never token count', () => {
+		const records = [
+			{ type: 'session.start', id: 's', parentId: null, timestamp: '2026-06-17T00:00:00.000Z', data: {} },
+			{ type: 'assistant.message', id: 'a', parentId: 's', timestamp: '2026-06-17T00:00:01.000Z', data: { apiCallId: 'call-a', outputTokens: 5 } },
+			{ type: 'assistant.message', id: 'b', parentId: 'a', timestamp: '2026-06-17T00:00:02.000Z', data: { apiCallId: 'call-b', outputTokens: 5 } },
+			{ type: 'assistant.message', id: 'c', parentId: 'b', timestamp: '2026-06-17T00:00:03.000Z', data: { outputTokens: 5 } },
+		];
+		const usage = [
+			{ schemaVersion: 2 as const, apiCallId: 'call-b', turnId: 'turn', inputTokens: 200, outputTokens: 5, ts: '', totalNanoAiu: 20 },
+			{ schemaVersion: 2 as const, apiCallId: 'missing', inputTokens: 999, outputTokens: 5, ts: '' },
+			{ schemaVersion: 2 as const, apiCallId: 'call-a', turnId: 'turn', inputTokens: 100, outputTokens: 5, ts: '', totalNanoAiu: 10 },
+		];
+		const { events } = convertAgentHostEventsToDebugEvents(records, sessionResource, undefined, usage);
+		assert.deepStrictEqual(events.filter((event): event is IChatDebugModelTurnEvent => event.kind === 'modelTurn')
+			.map(event => ({ id: event.id, input: event.inputTokens, cost: event.copilotUsageNanoAiu })), [
+			{ id: 'a', input: 100, cost: undefined }, { id: 'b', input: 200, cost: 20 }, { id: 'c', input: undefined, cost: undefined },
+		]);
+	});
+
+	for (const counters of [
+		{ inputTokens: 100, outputTokens: undefined, expected: 105 },
+		{ inputTokens: 100, outputTokens: 0, expected: 100 },
+		{ inputTokens: 100, outputTokens: 7, expected: 107 },
+		{ inputTokens: undefined, outputTokens: undefined, expected: undefined },
+	]) {
+		test(`versioned diagnostics preserve known output tokens (input: ${counters.inputTokens}, output: ${counters.outputTokens})`, () => {
+			const records = [
+				{ type: 'session.start', id: 's', parentId: null, timestamp: '2026-06-17T00:00:00.000Z', data: {} },
+				{ type: 'assistant.message', id: 'a', parentId: 's', timestamp: '2026-06-17T00:00:01.000Z', data: { apiCallId: 'call-a', outputTokens: 5 } },
+			];
+			const { events, resolved } = convertAgentHostEventsToDebugEvents(records, sessionResource, undefined, [
+				{ schemaVersion: 2, apiCallId: 'call-a', inputTokens: counters.inputTokens, outputTokens: counters.outputTokens, ts: '' },
+			]);
+			const turn = events.find((event): event is IChatDebugModelTurnEvent => event.kind === 'modelTurn');
+			const detail = resolved.get('a');
+			assert.deepStrictEqual({
+				total: turn?.totalTokens,
+				detailTotal: detail?.kind === 'modelTurn' ? detail.totalTokens : undefined,
+			}, { total: counters.expected, detailTotal: counters.expected });
+		});
+	}
+
 	test('a zero-usage session.shutdown takes precedence over the live fallback', () => {
 		// A finished session whose shutdown summary reports zero usage must NOT
 		// fall back to live AIU: zero is then a known total, not "unknown".

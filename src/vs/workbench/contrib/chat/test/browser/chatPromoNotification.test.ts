@@ -151,6 +151,24 @@ suite('ChatPromoNotificationContribution', () => {
 		assertPromoAction(notification, 'copilot:gpt-5.5', 'Try GPT-5.5');
 	});
 
+	test('records a seen banner without dismissing it', () => {
+		const notifications = createMockNotificationService(disposables);
+		const { service } = createMockLanguageModelsService([{
+			identifier: 'copilot:model',
+			metadata: { name: 'Model', promo: { id: 'sale', discountPercent: 20, message: 'Sale' } },
+		}], disposables);
+		const storage = disposables.add(new InMemoryStorageService());
+		disposables.add(new ChatPromoNotificationContribution(service, notifications.service, storage));
+		const notification = notifications.getNotification();
+		notification?.onDidShow?.();
+		notification?.onDidShow?.();
+		assert.deepStrictEqual({
+			seen: storage.get('chat.seenPromoIds', StorageScope.APPLICATION),
+			dismissed: storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION),
+			banner: notifications.getNotification()?.message,
+		}, { seen: '["sale"]', dismissed: undefined, banner: 'Sale' });
+	});
+
 	test('scopes promos to unstarted persistent chats', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{

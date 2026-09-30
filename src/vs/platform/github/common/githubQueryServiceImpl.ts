@@ -11,6 +11,10 @@ import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	GitHubChangedFile,
+	GitHubCommit,
+	GitHubCommitRef,
+	GitHubCommitResource,
+	GitHubCommitSubscription,
 	GitHubComparison,
 	GitHubComparisonCommit,
 	GitHubHydratableResourceRef,
@@ -153,9 +157,9 @@ const reviewThreadSummaryQuery = `query AgentHostPullRequestReviewThreadSummary(
 	rateLimit { limit remaining used resetAt }
 }`;
 
-type EntityKind = 'repository' | 'issue';
-type EntityRef = GitHubRepositoryRef | GitHubIssueRef;
-type EntityValue = GitHubRepository | GitHubIssue;
+type EntityKind = 'repository' | 'issue' | 'commit';
+type EntityRef = GitHubRepositoryRef | GitHubIssueRef | GitHubCommitRef;
+type EntityValue = GitHubRepository | GitHubIssue | GitHubCommit;
 
 interface IEntityOperation {
 	readonly controller: AbortController;
@@ -165,7 +169,7 @@ interface IEntityOperation {
 class EntityEntry<TRef extends EntityRef, TValue extends EntityValue> {
 
 	readonly state: ISettableObservable<FragmentState<TValue>>;
-	readonly resource: GitHubRepositoryResource | GitHubIssueResource;
+	readonly resource: GitHubRepositoryResource | GitHubIssueResource | GitHubCommitResource;
 	readonly subscriptions = new Set<EntitySubscription<TRef, TValue>>();
 	readonly keys = new Set<string>();
 	operation: IEntityOperation | undefined;
@@ -184,7 +188,9 @@ class EntityEntry<TRef extends EntityRef, TValue extends EntityValue> {
 		this.state = observableValue(this, { status: 'missing', complete: false });
 		this.resource = kind === 'repository'
 			? new RepositoryResourceImpl(this as EntityEntry<GitHubRepositoryRef, GitHubRepository>)
-			: new IssueResourceImpl(this as EntityEntry<GitHubIssueRef, GitHubIssue>);
+			: kind === 'issue'
+				? new IssueResourceImpl(this as EntityEntry<GitHubIssueRef, GitHubIssue>)
+				: new CommitResourceImpl(this as EntityEntry<GitHubCommitRef, GitHubCommit>);
 	}
 
 	setLoading(attemptedAt: string): void {
@@ -235,12 +241,25 @@ class IssueResourceImpl implements GitHubIssueResource {
 	}
 }
 
+class CommitResourceImpl implements GitHubCommitResource {
+
+	constructor(private readonly _entry: EntityEntry<GitHubCommitRef, GitHubCommit>) { }
+
+	get ref(): GitHubCommitRef {
+		return this._entry.ref;
+	}
+
+	get state(): ISettableObservable<FragmentState<GitHubCommit>> {
+		return this._entry.state;
+	}
+}
+
 class EntitySubscription<TRef extends EntityRef, TValue extends EntityValue> {
 
 	private _disposed = false;
 
 	constructor(
-		readonly resource: TRef extends GitHubIssueRef ? GitHubIssueResource : GitHubRepositoryResource,
+		readonly resource: TRef extends GitHubIssueRef ? GitHubIssueResource : TRef extends GitHubCommitRef ? GitHubCommitResource : GitHubRepositoryResource,
 		readonly entry: EntityEntry<TRef, TValue>,
 		private readonly _service: GitHubQueryService,
 		options: GitHubResourceSubscriptionOptions,
@@ -456,6 +475,16 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		const subscription = new EntitySubscription(entry.resource as GitHubIssueResource, entry, this, options);
 		entry.subscriptions.add(subscription);
 		this._logService.trace(`[GitHubQueryService] Added issue subscription for ${formatEntityRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
+		this._activateEntity(entry);
+		return subscription;
+	}
+
+	subscribeCommit(ref: GitHubCommitRef, options: GitHubResourceSubscriptionOptions): GitHubCommitSubscription {
+		const normalized = normalizeCommitRef(ref);
+		const entry = this._getOrCreateEntity<GitHubCommitRef, GitHubCommit>('commit', normalized);
+		const subscription = new EntitySubscription(entry.resource as GitHubCommitResource, entry, this, options);
+		entry.subscriptions.add(subscription);
+		this._logService.trace(`[GitHubQueryService] Added commit subscription for ${formatEntityRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
 		this._activateEntity(entry);
 		return subscription;
 	}
@@ -814,11 +843,14 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			if (!sameAccount(entry.ref, credential)) {
 				throw new GitHubRequestError('GitHub resource account does not match the current credential', 'authentication');
 			}
+			const route = entry.kind === 'repository'
+				? ''
+				: entry.kind === 'issue'
+					? `issues/${(entry.ref as GitHubIssueRef).number}`
+					: `commits/${encodeURIComponent((entry.ref as GitHubCommitRef).sha)}`;
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 				method: 'GET',
-				url: entry.kind === 'repository'
-					? this._restUrl(entry.ref, '')
-					: this._restUrl(entry.ref, `issues/${(entry.ref as GitHubIssueRef).number}`),
+				url: this._restUrl(entry.ref, route),
 				etag: true,
 				priority: toRequestPriority(this._effectivePriority(entry)),
 			}, AbortSignal.any([controller.signal, credential.signal]));
@@ -827,7 +859,9 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			}
 			const value = entry.kind === 'repository'
 				? toRepository(response.data)
-				: toIssue(response.data);
+				: entry.kind === 'issue'
+					? toIssue(response.data)
+					: toCommit(response.data);
 			entry.state.set({
 				value,
 				status: 'ready',
@@ -1083,6 +1117,9 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		if (entry.kind === 'repository') {
 			return true;
 		}
+		if (entry.kind === 'commit') {
+			return entry.state.get().status !== 'ready';
+		}
 		const state = entry.state.get();
 		return state.status !== 'ready' || (state.value as GitHubIssue | undefined)?.state === 'open';
 	}
@@ -1120,6 +1157,15 @@ function normalizeIssueRef(ref: GitHubIssueRef): GitHubIssueRef {
 	return { ...repository, number: ref.number };
 }
 
+function normalizeCommitRef(ref: GitHubCommitRef): GitHubCommitRef {
+	const repository = normalizeRepositoryRef(ref);
+	const sha = ref.sha.trim();
+	if (!sha) {
+		throw new Error('GitHub commit reference requires a SHA');
+	}
+	return { ...repository, sha };
+}
+
 function entityKey(kind: EntityKind, ref: EntityRef): string {
 	return [
 		kind,
@@ -1128,6 +1174,7 @@ function entityKey(kind: EntityKind, ref: EntityRef): string {
 		ref.owner.toLowerCase(),
 		ref.repo.toLowerCase(),
 		hasKey(ref, { number: true }) ? ref.number : '',
+		hasKey(ref, { sha: true }) ? ref.sha.toLowerCase() : '',
 	].join('\x00');
 }
 
@@ -1237,6 +1284,20 @@ function toIssue(value: unknown): GitHubIssue {
 		createdAt: requiredString(item, 'created_at'),
 		updatedAt: requiredString(item, 'updated_at'),
 		closedAt: nullableStringProperty(item, 'closed_at'),
+	};
+}
+
+function toCommit(value: unknown): GitHubCommit {
+	const item = asObject(value, 'GitHub commit response was malformed');
+	const commit = objectProperty(item, 'commit');
+	const author = optionalObjectProperty(item, 'author');
+	const commitAuthor = objectProperty(commit, 'author');
+	return {
+		sha: requiredString(item, 'sha'),
+		message: requiredString(commit, 'message'),
+		url: requiredString(item, 'html_url'),
+		author: author ? requiredActor(author) : { login: requiredString(commitAuthor, 'name') },
+		committedAt: requiredString(commitAuthor, 'date'),
 	};
 }
 
@@ -1499,7 +1560,7 @@ function toFragmentError(error: unknown): { readonly message: string; readonly k
 }
 
 function formatEntityRef(ref: EntityRef): string {
-	return `${ref.host}/${ref.owner}/${ref.repo}${hasKey(ref, { number: true }) ? `#${ref.number}` : ''}`;
+	return `${ref.host}/${ref.owner}/${ref.repo}${hasKey(ref, { number: true }) ? `#${ref.number}` : ''}${hasKey(ref, { sha: true }) ? `@${ref.sha}` : ''}`;
 }
 
 function queryErrorKind(error: unknown): string {

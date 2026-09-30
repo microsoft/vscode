@@ -4,6 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Shared workbench chat-pill presentation. */
+.chat-pill-location-hover-panel .action-list-submenu-hover-header {
+	width: min(420px, 70vw);
+	max-width: 100%;
+}
+
+.chat-pill-location-hover {
+	box-sizing: border-box;
+	max-width: 100%;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
 .chat-pills,
 .chat-pills .monaco-toolbar,
 .chat-pills .monaco-action-bar,
@@ -82,14 +94,6 @@
 	margin: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
-}
-
-.chat-pill-added {
-	color: var(--vscode-chat-linesAddedForeground);
-}
-
-.chat-pill-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 /* Section-backed pills (artifacts, customizations, browsers, subagents) can
@@ -187,6 +191,22 @@
 	line-height: inherit;
 }
 
+.chat-pill-image-preview {
+	display: flex;
+	flex-direction: column;
+	width: min(320px, calc(100vw - var(--vscode-spacing-size240)));
+	color: var(--vscode-foreground);
+}
+
+.chat-pill-image-preview-unavailable {
+	padding: var(--vscode-spacing-size80);
+	overflow-wrap: anywhere;
+}
+
+.chat-pill-image-preview-unavailable {
+	color: var(--vscode-descriptionForeground);
+}
+
 /* Horizontally scrollable status pills above a chat input. */
 .chat-pills-row {
 	width: 100%;
@@ -231,6 +251,7 @@
 	pill renderers keep their identifying icon while labels, counters and dropdown
 	chevrons remain available through the button's tooltip and accessible name. */
 .chat-pills-row.compact .chat-pill-label,
+.chat-pills-row.compact .changes-stats-files,
 .chat-pills-row.compact .monaco-animated-counter,
 .chat-pills-row.compact .chat-pill-chevron,
 .chat-pills-row.compact .chat-resource-pill-button .monaco-icon-label {
