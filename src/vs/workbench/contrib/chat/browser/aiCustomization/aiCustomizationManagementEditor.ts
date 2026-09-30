@@ -16,7 +16,7 @@ import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Delayer, RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
-import { cancelOnDispose, CancellationToken } from '../../../../../base/common/cancellation.js';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -691,6 +691,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private readonly editorDisposables = this._register(new DisposableStore());
 	private readonly pendingMigrationLayout = this._register(new MutableDisposable());
+	private readonly managementSessionPreparation = this._register(new MutableDisposable());
 	private _editorContentChanged = false;
 	private _previousActiveHarnessId: string | undefined;
 
@@ -1410,6 +1411,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.refreshCustomizationMigrationInfoFromMcpChange();
 		}));
 		this.registerCustomizationMigrationSessionRefresh();
+		this.editorDisposables.add(autorun(reader => {
+			this.harnessService.availableHarnesses.read(reader);
+			this.harnessService.activeHarness.read(reader);
+			this.harnessService.activeSessionResource.read(reader);
+			this.updateManagementSessionPreparation();
+		}));
 
 		// Container for prompts-based content (Agents, Skills, Instructions, Prompts)
 		this.promptsContentContainer = DOM.append(contentInner, $('.prompts-content-container'));
@@ -1580,6 +1587,25 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		void this.refreshCustomizationMigrationInfo();
+	}
+
+	/**
+	 * Lets the active harness prepare the shown session for management controls.
+	 * Runs only while this editor is visible with an input, and cancels any
+	 * previous preparation when the editor hides or the session changes.
+	 */
+	private updateManagementSessionPreparation(): void {
+		this.managementSessionPreparation.clear();
+		if (!this.input || !this.isVisible()) {
+			return;
+		}
+		const provider = this.harnessService.getActiveDescriptor().managementSessionProvider;
+		if (!provider) {
+			return;
+		}
+		const cts = new CancellationTokenSource();
+		this.managementSessionPreparation.value = toDisposable(() => cts.dispose(true));
+		provider.prepare(this.harnessService.activeSessionResource.get(), cts.token).catch(onUnexpectedError);
 	}
 
 	private registerCustomizationMigrationSessionRefresh(): void {
@@ -3931,6 +3957,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			void this.refreshCustomizationMigrationInfo();
 		}
+		this.updateManagementSessionPreparation();
 
 		if (this.dimension) {
 			this.layout(this.dimension);
@@ -3969,6 +3996,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Clear transient folder override on close
 		this.workspaceService.clearOverrideProjectRoot();
 		this.cancelCustomizationMigrationRefresh();
+		this.managementSessionPreparation.clear();
 		this.disposeBuiltinEditingSessions();
 		this.welcomePage?.setVisible(false);
 		for (const widget of this.contributedSectionWidgets.values()) {
@@ -3979,6 +4007,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
+		this.updateManagementSessionPreparation();
 		this.welcomePage?.setVisible(visible && this.viewMode === 'list' && this.selectedSection === undefined);
 		for (const [section, widget] of this.contributedSectionWidgets) {
 			widget.setVisible?.(visible && this.viewMode === 'list' && this.selectedSection === section && this.isContributedSectionEnabled(section));

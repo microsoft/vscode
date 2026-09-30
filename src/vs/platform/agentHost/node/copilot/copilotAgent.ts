@@ -3576,6 +3576,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Chat-addressed surface for the chats within a session.
 	 */
 	readonly chats: IAgentChats = {
+		materializeDraft: async (chat, workingDirectories, operationContext) => {
+			const context = this._resolveChatContext(chat, operationContext);
+			await this._queueChat(context.configurationId, context.sequencerKey, 'materializeDraft', async () => {
+				const provisional = this._provisionalSessions.get(context.configurationId);
+				if (!provisional || provisional.sdkSessionId !== context.sdkSessionId) {
+					return;
+				}
+				await this._materializeProvisional(context.configurationId, workingDirectories);
+			});
+		},
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			this._noteHostCustomizations(context);
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);

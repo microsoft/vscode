@@ -35,6 +35,7 @@ import { IAgentHostActiveClientService } from '../../../browser/agentSessions/ag
 import { IAgentHostCustomizationService, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostMcpServerMigrationProvider } from '../../../browser/agentSessions/agentHost/agentHostMcpServerMigrationProvider.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -1463,6 +1464,7 @@ suite('CustomizationMigrationService', () => {
 				{ onDidDisposeSession: Event.None } as Partial<IChatService> as IChatService,
 				activeClientService,
 				{} as IMcpService,
+				new class extends mock<IAgentHostNewSessionFolderService>() { }(),
 			));
 			const migrationService = store.add(new CustomizationMigrationService(
 				store.add(new TestPromptsService([])),

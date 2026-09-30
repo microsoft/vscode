@@ -13,7 +13,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
@@ -992,6 +992,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 		onDidChange: Event.None,
 		get: () => undefined,
+		getPromotableBackendSession: () => undefined,
 		getInitialSessionConfig: () => undefined,
 		getInitialSessionMetadata: sessionResource => sessionResource ? sessionCreationMetadata.get(sessionResource.toString()) : undefined,
 		setSessionCreationMetadata: (sessionResource, metadata) => sessionCreationMetadata.set(sessionResource.toString(), metadata),
@@ -4699,6 +4700,7 @@ suite('AgentHostChatContribution', () => {
 			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 				onDidChange: Event.None,
 				get: () => undefined,
+				getPromotableBackendSession: () => undefined,
 				waitForPending: async () => undefined,
 				getOrCreate: async () => undefined,
 				tryRebind: async (oldResource: URI, newResource: URI, provider: string) => {
@@ -4746,6 +4748,36 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(rebindCalls, 0);
 		}));
 
+		test('newChatSessionItem reuses the backend ID only for a promotable draft', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const deferredBackend = AgentSession.uri('copilot', 'deferred-backend');
+			const promotableBackend = AgentSession.uri('copilot', 'promotable-backend');
+			const deferredUntitled = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-deferred' });
+			const promotableUntitled = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-promotable' });
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				onDidChange: Event.None,
+				get: resource => isEqual(resource, deferredUntitled) ? deferredBackend : promotableBackend,
+				getPromotableBackendSession: resource => isEqual(resource, promotableUntitled) ? promotableBackend : undefined,
+				waitForPending: async () => undefined,
+				getOrCreate: async () => undefined,
+				tryRebind: async (_oldResource: URI, newResource: URI) => newResource,
+				disposeSession: async () => { },
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			const deferredItem = await listController.newChatSessionItem({ prompt: 'Hello', untitledResource: deferredUntitled }, CancellationToken.None);
+			const promotableItem = await listController.newChatSessionItem({ prompt: 'Hello', untitledResource: promotableUntitled }, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				deferredReusesBackend: deferredItem?.resource.path === deferredBackend.path,
+				promotableReusesBackend: promotableItem?.resource.path === promotableBackend.path,
+			}, {
+				deferredReusesBackend: false,
+				promotableReusesBackend: true,
+			});
+		}));
+
 		test('newChatSessionItem routes the store-selected folder as the working directory in multi-root windows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService, newSessionFolderService } = createTestServices(disposables);
 
@@ -4767,6 +4799,7 @@ suite('AgentHostChatContribution', () => {
 			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 				onDidChange: Event.None,
 				get: () => undefined,
+				getPromotableBackendSession: () => undefined,
 				waitForPending: async () => undefined,
 				getOrCreate: async () => undefined,
 				tryRebind: async (oldResource: URI, newResource: URI) => {

@@ -33,6 +33,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.createSession(config));
 	}
 
+	promoteSession(session: URI): Promise<void> {
+		if (!this._agentService.promoteSession) {
+			throw new Error('Agent Host session promotion is unavailable');
+		}
+		return this._runMutation(() => this._agentService.promoteSession!(session));
+	}
+
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
 	}

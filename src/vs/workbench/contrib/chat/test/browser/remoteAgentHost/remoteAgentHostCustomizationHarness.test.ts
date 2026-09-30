@@ -184,6 +184,7 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		},
 		getFolderPickerDecision: () => undefined,
 		whenCustomizationsReady: () => Promise.resolve(),
+		prepareSessionForManagement: () => Promise.resolve(),
 		getWorkingDirectory(sessionResource: URI): string | undefined {
 			return undefined;
 		},

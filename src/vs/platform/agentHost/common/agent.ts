@@ -414,6 +414,8 @@ export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
 	readonly model?: ModelSelection;
 	readonly _meta?: Record<string, unknown>;
+	/** Prototype-only: create the provider runtime before the first user turn when the provider supports it. */
+	readonly eagerlyMaterialize?: boolean;
 	/**
 	 * Initial custom agent selection for the new session. Omit to start with
 	 * no custom agent selected (provider default behavior).
@@ -789,6 +791,9 @@ export interface IAgentPrepareChatResult {
  * the provider needs the owning session or storage scope.
  */
 export interface IAgentChats {
+	/** Materialize a draft's provider runtime without sending a turn. */
+	materializeDraft?(chat: URI, workingDirectories: readonly URI[] | undefined, context: AgentChatOperationContext): Promise<void>;
+
 	/** Prepare an existing chat for input without sending a turn. May acquire its native writer lock. */
 	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
 

@@ -40,7 +40,7 @@ import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigC
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
-import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
+import { readEphemeralSessionMeta, withEphemeralSessionMeta, withoutEphemeralSessionMeta, withPromotableDraftSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { IAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../common/meta/agentMessageDelegationMeta.js';
 import { toAgentMergeMessageMeta } from '../common/meta/agentMergeMessageMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
@@ -4387,7 +4387,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// materializing in the picked folder before the host creates the worktree.
 		const initializeSideEffects = this._sideEffects.initialize();
 		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
-		const deferWorktreeCreation = sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' && !config?.importConversation;
+		// A promotable draft previews customizations in the picked folder and is never
+		// promoted with worktree isolation, so it must not reserve a pending worktree.
+		const isPromotableDraft = isEphemeral && config?.eagerlyMaterialize === true;
+		const deferWorktreeCreation = sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' && !config?.importConversation && !isPromotableDraft;
 
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
 		const [, created] = await Promise.all([
@@ -4580,6 +4583,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// created with Agent Merge already enabled.
 		this._syncAgentMergeIndex(session, undefined, sessionConfig);
 		this._serverToolHost.advertise(session.toString());
+		if (config?.eagerlyMaterialize && created.provisional && provider.chats.materializeDraft) {
+			await provider.chats.materializeDraft(defaultChat, workingDirectories, this._chatContext(session, defaultChat));
+		}
 		// Persist resolved config values for restore. Mid-session updates are
 		// persisted by `AgentSideEffects` on `SessionConfigChanged`.
 		if (sessionConfig?.values && Object.keys(sessionConfig.values).length > 0 && !created.provisional) {
@@ -4616,6 +4622,46 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sessionResidency.touch(session);
 		await this._sessionResidency.reconcile();
 		return session;
+	}
+
+	async promoteSession(session: URI): Promise<void> {
+		const sessionKey = session.toString();
+		const state = this._stateManager.getSessionState(sessionKey);
+		const summary = this._stateManager.getSessionSummary(sessionKey);
+		if (!state || !summary) {
+			throw new Error(`Cannot promote unknown session: ${sessionKey}`);
+		}
+		if (!this._stateManager.isEphemeralSession(sessionKey)) {
+			return;
+		}
+		if (!readEphemeralSessionMeta(state).isPromotableDraft) {
+			throw new Error(`Cannot promote an ephemeral session that is not a promotable draft: ${sessionKey}`);
+		}
+		// The draft's runtime already runs in the picked folder; only a fresh session can create the worktree on first send.
+		if (state.config?.values[SessionConfigKey.Isolation] === 'worktree') {
+			throw new Error(`Cannot promote a draft that selects worktree isolation: ${sessionKey}`);
+		}
+		const provider = this._providerService.getProviderForSession(session);
+		if (!provider) {
+			throw new Error(`Cannot promote session without a provider: ${sessionKey}`);
+		}
+
+		const promotedMeta = withoutEphemeralSessionMeta(state._meta);
+		const promotedSummary = { ...summary, _meta: promotedMeta };
+		const promotedAt = Date.now();
+		await this._retryRegistryMutation(
+			() => this._sessionRegistry.register(session, {
+				provider: provider.id,
+				startTime: Date.parse(summary.createdAt) || promotedAt,
+				modifiedTime: promotedAt,
+				source: 'explicit',
+			}, { checkTombstone: false, provisional: false }),
+			`promotion registration for ${sessionKey}`,
+		);
+		this._stateManager.setSessionMeta(sessionKey, promotedMeta);
+		this._stateManager.markSessionPersisted(sessionKey, promotedSummary, true);
+		this._invalidateSessionList();
+		await this._persistOrderedListVisibleSessionState(session, this._creationMetadataOverrides(promotedMeta));
 	}
 
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
@@ -5404,7 +5450,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _toCreateChatOptions(config: IAgentCreateSessionConfig): IAgentCreateChatOptions {
 		return {
-			...(config.session && this._stateManager.isEphemeralSession(config.session.toString()) ? { isEphemeral: true } : {}),
+			...(config.session && this._stateManager.hasRestrictedEphemeralCapabilities(config.session.toString()) ? { isEphemeral: true } : {}),
 			...(readChatSurfaceMeta(config)?.surface === 'editorInline' ? { hasScopedEditSurface: true } : {}),
 			...(config.model ? { model: config.model } : {}),
 			...(config.agent ? { agent: config.agent } : {}),
@@ -5471,7 +5517,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const explicitMultiRoot = readSessionMultiRootMetadata(config?._meta);
 		let _meta = withSessionGitHubState(undefined, workingDirectories?.[0], explicitGitHubState);
 		_meta = withSessionMultiRootMetadata(_meta, explicitMultiRoot);
-		_meta = withEphemeralSessionMeta(_meta, config ? readEphemeralSessionMeta(config).isEphemeral : undefined);
+		const isEphemeral = config ? readEphemeralSessionMeta(config).isEphemeral : undefined;
+		_meta = withEphemeralSessionMeta(_meta, isEphemeral);
+		// Only the host marks drafts, so a request cannot opt a throwaway surface out of its restrictions.
+		_meta = isEphemeral && config?.eagerlyMaterialize ? withPromotableDraftSessionMeta(_meta) : _meta;
 		_meta = withChatSurfaceMeta(_meta, readChatSurfaceMeta(config ?? {}));
 		_meta = withSessionExternal(_meta, false);
 		const creationReference = readSessionCreationReference(config?._meta);

@@ -438,6 +438,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().createSession(config);
 	}
 
+	promoteSession(session: URI): Promise<void> {
+		return this._getManagementService().promoteSession(session);
+	}
+
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		return this._getManagementService().createDetachedWorktree(session, prompt);
 	}
@@ -629,7 +633,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 }
 
 function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
-	return config.model !== undefined || config.agent !== undefined || config.importConversation !== undefined;
+	return config.model !== undefined || config.agent !== undefined || config.importConversation !== undefined || config.eagerlyMaterialize === true;
 }
 
 function hasChatExtensions(options: IAgentCreateChatRequestOptions): boolean {

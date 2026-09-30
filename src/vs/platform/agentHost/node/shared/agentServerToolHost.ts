@@ -191,7 +191,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 
 	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[] {
 		const materializedDefinitions = this._stateManager.getSessionState(sessionUri)?.serverTools;
-		const isEphemeral = this._stateManager.isEphemeralSession(sessionUri);
+		const isEphemeral = this._stateManager.hasRestrictedEphemeralCapabilities(sessionUri);
 		return this._groups.flatMap(group => {
 			const currentDefinitions = group.getDefinitions?.() ?? group.definitions;
 			if (materializedDefinitions && group.materializeDefinitions) {

@@ -97,7 +97,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
-		const rawId = generateUuid();
+		// Only a promotable draft keeps its identity; any other provisional is replaced by
+		// tryRebind, which must not create and then dispose the same backend URI.
+		const promotableBackend = request.untitledResource ? this._provisional.getPromotableBackendSession(request.untitledResource) : undefined;
+		const rawId = promotableBackend ? AgentSession.id(promotableBackend) : generateUuid();
 		this._sessionListStore.addPendingNewSession(this._provider, rawId);
 		const now = Date.now();
 		const item = this._makeItem(rawId, {

@@ -97,6 +97,19 @@ export interface ICustomizationMcpServerMigrationProvider {
 }
 
 /**
+ * Prepares the session shown in the Customizations editor so its management
+ * controls act on a live runtime.
+ */
+export interface ICustomizationManagementSessionProvider {
+	/**
+	 * Called only while the Customizations editor is visible for
+	 * `sessionResource`. Item and slash-command queries never call it. The token
+	 * is cancelled when the editor hides or shows a different session.
+	 */
+	prepare(sessionResource: URI, token: CancellationToken): Promise<void>;
+}
+
+/**
  * Describes a single harness option for the UI toggle.
  */
 export interface IHarnessDescriptor {
@@ -173,6 +186,11 @@ export interface IHarnessDescriptor {
 	 * Supplies harness-specific MCP server migration behavior.
 	 */
 	readonly mcpServerMigrationProvider?: ICustomizationMcpServerMigrationProvider;
+	/**
+	 * Prepares the active session for management controls while the
+	 * Customizations editor is visible.
+	 */
+	readonly managementSessionProvider?: ICustomizationManagementSessionProvider;
 }
 
 /**

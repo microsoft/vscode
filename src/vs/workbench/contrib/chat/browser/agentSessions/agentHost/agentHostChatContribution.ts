@@ -351,6 +351,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			mcpServerMigrationProvider: agent.provider === 'copilotcli'
 				? store.add(this._instantiationService.createInstance(AgentHostMcpServerMigrationProvider))
 				: undefined,
+			// Only Copilot CLI can materialize a draft runtime; other providers would just recreate a hidden deferred draft.
+			managementSessionProvider: agent.provider === 'copilotcli' ? {
+				prepare: (sessionResource, token) => this._agentHostCustomizationService.prepareSessionForManagement(sessionResource, token),
+			} : undefined,
 		}));
 
 		// Session handler
