@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, rejects, strictEqual } from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -421,6 +421,14 @@ suite('Workbench - TerminalInstance', () => {
 			await instance.sendPath('/test/file', false);
 
 			strictEqual(didSendText, false);
+		});
+
+		test('sendPath propagates terminal write failures', async () => {
+			const instance = await createTerminalInstance();
+			instance.preparePathForShell = async () => '\'file\'';
+			instance.sendText = async () => { throw new Error('write failed'); };
+
+			await rejects(instance.sendPath('/test/file', false), /write failed/);
 		});
 
 		test('should fire onWillDispose before xterm disposal and onDisposed after xterm disposal', async () => {
