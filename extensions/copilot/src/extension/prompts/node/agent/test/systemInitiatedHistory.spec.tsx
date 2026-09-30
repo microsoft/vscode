@@ -5,20 +5,31 @@
 
 import { Raw } from '@vscode/prompt-tsx';
 import { afterAll, beforeAll, expect, suite, test } from 'vitest';
-import type { ChatRequest } from 'vscode';
+import type { ChatRequest, LanguageModelChat, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelChatRequestOptions, LanguageModelResponsePart2 } from 'vscode';
+import { BlockedExtensionService, IBlockedExtensionService } from '../../../../../platform/chat/common/blockedExtensionService';
+import { IChatMLFetcher, IFetchMLOptions } from '../../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
+import { MockChatMLFetcher } from '../../../../../platform/chat/test/common/mockChatMLFetcher';
 import { rawPartAsThinkingData } from '../../../../../platform/endpoint/common/thinkingDataContainer';
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
+import { ExtensionContributedChatEndpoint } from '../../../../../platform/endpoint/vscode-node/extChatEndpoint';
+import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
+import { EncryptedThinkingDelta, ThinkingDelta } from '../../../../../platform/thinking/common/thinking';
 import { ChatRequestTurn, ChatResponseTurn } from '../../../../../util/common/test/shims/chatTypes';
+import { AsyncIterableObject } from '../../../../../util/vs/base/common/async';
+import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
+import { Event } from '../../../../../util/vs/base/common/event';
 import { SyncDescriptor } from '../../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
-import { LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
+import { LanguageModelChatToolMode, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
+import { IBYOKStorageService } from '../../../../byok/vscode-node/byokStorageService';
+import { CustomEndpointBYOKModelProvider } from '../../../../byok/vscode-node/customEndpointProvider';
 import { ConversationStore, IConversationStore } from '../../../../conversationStore/node/conversationStore';
 import { IIntentService, IntentService } from '../../../../intents/node/intentService';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
 import { Conversation, Turn, TurnStatus } from '../../../../prompt/common/conversation';
-import { ToolCallRound } from '../../../../prompt/common/toolCallRound';
+import { ThinkingDataItem, ToolCallRound } from '../../../../prompt/common/toolCallRound';
 import { addHistoryToConversation } from '../../../../prompt/node/chatParticipantRequestHandler';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { TestChatRequest } from '../../../../test/node/testHelpers';
@@ -33,14 +44,37 @@ class ChatCompletionsEndpoint extends MockEndpoint {
 	override supportsToolCalls = true;
 }
 
+class CapturingFetcher implements IChatMLFetcher {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidMakeChatMLRequest = Event.None;
+	readonly requests: IFetchMLOptions[] = [];
+	private readonly delegate = new MockChatMLFetcher();
+	thinking: ThinkingDelta | EncryptedThinkingDelta = { id: 'budget-thinking', text: 'Waiting for the terminal', encrypted: 'signed-budget-state' };
+
+	async fetchOne(options: IFetchMLOptions) {
+		this.requests.push(options);
+		await options.finishedCb?.('answer', 0, { text: '', thinking: this.thinking });
+		await options.finishedCb?.('answer', 0, { text: 'answer' });
+		return this.delegate.fetchOne();
+	}
+
+	fetchMany() {
+		return this.delegate.fetchMany();
+	}
+}
+
 suite('System-initiated task continuation', () => {
 	let accessor: ITestingServicesAccessor;
 	let endpoint: ChatCompletionsEndpoint;
+	let fetcher: CapturingFetcher;
 
 	beforeAll(async () => {
 		const services = createExtensionUnitTestingServices();
 		services.define(IConversationStore, new SyncDescriptor(ConversationStore));
 		services.define(IIntentService, new SyncDescriptor(IntentService));
+		services.define(IBlockedExtensionService, new SyncDescriptor(BlockedExtensionService));
+		fetcher = new CapturingFetcher();
+		services.define(IChatMLFetcher, fetcher);
 		accessor = services.createTestingAccessor();
 		endpoint = accessor.get(IInstantiationService).createInstance(ChatCompletionsEndpoint, 'terminal-test-model');
 		await endpoint.acquireTokenizer().tokenLength('warmup');
@@ -48,7 +82,7 @@ suite('System-initiated task continuation', () => {
 
 	afterAll(() => accessor.dispose());
 
-	async function renderHistory(history: Turn[], request: ChatRequest, enableSummarization: boolean, selectedEndpoint = endpoint) {
+	async function renderHistory(history: Turn[], request: ChatRequest, enableSummarization: boolean, selectedEndpoint: IChatEndpoint = endpoint) {
 		const instantiationService = accessor.get(IInstantiationService);
 		const renderer = PromptRenderer.create(instantiationService, selectedEndpoint, AgentPrompt, {
 			priority: 1,
@@ -69,13 +103,90 @@ suite('System-initiated task continuation', () => {
 		});
 		const result = await renderer.render();
 		return {
+			messages: result.messages,
 			parts: result.messages.flatMap(message => message.content),
 			toolCallIds: result.messages.flatMap(message => message.role === Raw.ChatRole.Assistant ? message.toolCalls?.map(call => call.id) ?? [] : []),
 		};
 	}
 
 	for (const enableSummarization of [false, true]) {
-		test.each(['chatCompletions', undefined])(`terminal completion preserves only the current task's reasoning (summarization: ${enableSummarization}, API: %s)`, async apiType => {
+		test.each([
+			{ apiType: 'messages', modelId: 'opaque-budget-model', preservesThinking: false },
+			{ apiType: 'messages', modelId: 'kimi-k3', preservesThinking: false },
+			{ apiType: 'chat-completions', modelId: 'opaque-chat-completions-model', preservesThinking: true },
+		] as const)(`custom provider continuation respects the actual transport (summarization: ${enableSummarization}, API: $apiType, model: $modelId)`, async ({ apiType, modelId, preservesThinking }) => {
+			const instantiationService = accessor.get(IInstantiationService);
+			const storage: IBYOKStorageService = {
+				getAPIKey: async () => undefined,
+				storeAPIKey: async () => undefined,
+				deleteAPIKey: async () => undefined,
+				getStoredModelConfigs: async () => ({}),
+				saveModelConfig: async () => undefined,
+				removeModelConfig: async () => undefined,
+			};
+			const provider = instantiationService.createInstance(CustomEndpointBYOKModelProvider, storage);
+			const [model] = await provider.provideLanguageModelChatInformation({ silent: true, configuration: { models: [{
+				id: modelId, name: 'Model behind a custom endpoint', url: 'https://example.invalid', apiType,
+				maxInputTokens: 32000, maxOutputTokens: 8192, toolCalling: true, vision: false, thinking: true, adaptiveThinking: false,
+				minThinkingBudget: 1024, maxThinkingBudget: 4096,
+			}] } }, CancellationToken.None);
+			const languageModel: LanguageModelChat = {
+				id: model.id, name: model.name, vendor: 'customendpoint', family: model.family, version: model.version,
+				maxInputTokens: model.maxInputTokens,
+				capabilities: { supportsToolCalling: true, supportsImageToText: false },
+				countTokens: (text, token) => provider.provideTokenCount(model, text, token ?? CancellationToken.None),
+				sendRequest: async (messages: readonly (LanguageModelChatMessage | LanguageModelChatMessage2)[], options?: LanguageModelChatRequestOptions, token?: CancellationToken) => {
+					const parts: LanguageModelResponsePart2[] = [];
+					await provider.provideLanguageModelChatResponse(model, [...messages], {
+						requestInitiator: 'core', tools: options?.tools ?? [], toolMode: LanguageModelChatToolMode.Auto,
+						modelOptions: options?.modelOptions, includeEncryptedThinking: true,
+					}, { report: part => parts.push(part) }, token ?? CancellationToken.None);
+					return { stream: AsyncIterableObject.fromArray(parts), text: AsyncIterableObject.fromArray(['answer']) };
+				},
+			};
+			const customEndpoint = instantiationService.createInstance(ExtensionContributedChatEndpoint, languageModel);
+			fetcher.thinking = apiType === 'messages'
+				? { id: 'budget-thinking', text: 'Waiting for the terminal', encrypted: 'signed-budget-state' }
+				: { id: 'chat-thinking', text: 'Retain this task reasoning byte-for-byte' };
+			let thinking: ThinkingDataItem | undefined;
+			await customEndpoint.makeChatRequest2({
+				debugName: 'source task', location: ChatLocation.Agent,
+				messages: [{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Wait for a command' }] }],
+				finishedCb: async (_text, _index, delta) => {
+					if (delta.thinking) {
+						thinking = ThinkingDataItem.createOrUpdate(thinking, delta.thinking);
+					}
+				},
+			}, CancellationToken.None);
+			expect(thinking?.metadata?.vscode_thinking_origin_api).toBe(apiType === 'messages' ? 'messages' : 'chatCompletions');
+			const task = Turn.fromRequest('task', new TestChatRequest('Wait for a command'));
+			task.setResponse(TurnStatus.Success, undefined, undefined, { metadata: {
+				toolCallRounds: [ToolCallRound.create({ response: 'Waiting', toolCalls: [], toolInputRetry: 0, modelId: customEndpoint.model, thinking })],
+			} });
+			const request = { ...new TestChatRequest('[Terminal notification: command completed.] NOTIFY-DONE'), isSystemInitiated: true };
+			const rendered = await renderHistory([task], request, enableSummarization, customEndpoint);
+			await customEndpoint.makeChatRequest2({ debugName: 'notification', location: ChatLocation.Agent, messages: rendered.messages, finishedCb: undefined }, CancellationToken.None);
+			const sent = fetcher.requests.at(-1)!;
+			const body = sent.endpoint.createRequestBody({ ...sent, requestId: 'notification', postOptions: sent.requestOptions });
+			const responseMessages: { role: string; reasoning_content?: string; cot_id?: string }[] = body.messages ?? [];
+			expect({
+				actualApiType: sent.endpoint.apiType,
+				hasBudgetSignature: JSON.stringify(body.messages).includes('signed-budget-state'),
+				chatCompletionsReasoning: responseMessages.filter(message => message.role === 'assistant' && message.reasoning_content).map(message => ({ id: message.cot_id, text: message.reasoning_content })),
+				notifications: JSON.stringify(body.messages).match(/NOTIFY-DONE/g)?.length,
+			}).toEqual({
+				actualApiType: apiType === 'messages' ? 'messages' : 'chatCompletions',
+				hasBudgetSignature: false,
+				chatCompletionsReasoning: preservesThinking ? [{ id: 'chat-thinking', text: 'Retain this task reasoning byte-for-byte' }] : [],
+				notifications: 1,
+			});
+		});
+
+		test.each([
+			{ apiType: 'chatCompletions', originApi: undefined, preservesThinking: true },
+			{ apiType: undefined, originApi: 'chatCompletions', preservesThinking: true },
+			{ apiType: undefined, originApi: undefined, preservesThinking: false },
+		] as const)(`terminal completion preserves only known current-task reasoning (summarization: ${enableSummarization}, API: $apiType, origin: $originApi)`, async ({ apiType, originApi, preservesThinking }) => {
 			const earlierTask = Turn.fromRequest('earlier', new TestChatRequest('An earlier user task'));
 			earlierTask.setResponse(TurnStatus.Success, undefined, undefined, {
 				metadata: {
@@ -92,11 +203,13 @@ suite('System-initiated task continuation', () => {
 					toolCallRounds: [
 						ToolCallRound.create({
 							response: 'Running the command', toolInputRetry: 0, modelId: endpoint.model,
+							originApi,
 							toolCalls: [{ id: 'terminal-call', name: ToolName.CoreRunInTerminal, arguments: '{"command":"sleep 320 && echo NOTIFY-DONE"}' }],
 							thinking: { id: 'command-thinking', text: 'Keep the task plan while the command runs', encrypted: 'command-opaque' },
 						}),
 						ToolCallRound.create({
 							response: 'Waiting for completion', toolCalls: [], toolInputRetry: 0, modelId: endpoint.model,
+							originApi,
 							thinking: { id: 'waiting-thinking', text: 'Use the result to finish the task', encrypted: 'waiting-opaque' },
 						}),
 						ToolCallRound.create({
@@ -124,10 +237,10 @@ suite('System-initiated task continuation', () => {
 				toolCallIds,
 				notifications: parts.filter(part => part.type === Raw.ChatCompletionContentPartKind.Text && part.text.includes('NOTIFY-DONE')),
 			}).toEqual({
-				thinking: [
+				thinking: preservesThinking ? [
 					{ id: 'command-thinking', text: 'Keep the task plan while the command runs', encrypted: 'command-opaque' },
 					{ id: 'waiting-thinking', text: 'Use the result to finish the task', encrypted: 'waiting-opaque' },
-				],
+				] : [],
 				thinkingAfterModelSwitch: [],
 				toolCallIds: ['terminal-call'],
 				notifications: [{ type: Raw.ChatCompletionContentPartKind.Text, text: notification }],

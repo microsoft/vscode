@@ -25,6 +25,7 @@ import { IChatEndpoint } from '../../../../platform/networking/common/networking
 import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { thinkingOriginFromMetadata } from '../../../../platform/thinking/common/thinking';
 import { toErrorMessage } from '../../../../util/common/errorMessage';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../../util/vs/base/common/errors';
@@ -142,8 +143,8 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		const modelSupportsHistoricalThinking = !!this.promptEndpoint.supportsAdaptiveThinking;
 		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
 			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking);
-		const continuesCurrentTask = this.props.isCurrentTask
-			&& (this.promptEndpoint.apiType === 'chatCompletions' || this.promptEndpoint.apiType === undefined);
+		const thinkingApi = this.promptEndpoint.apiType ?? round.originApi ?? thinkingOriginFromMetadata(round.thinking?.metadata);
+		const continuesCurrentTask = this.props.isCurrentTask && thinkingApi === 'chatCompletions';
 		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || continuesCurrentTask || apiSupportsHistoricalThinking);
 		// Record which API produced this round so the request builders can tell replayable
 		// reasoning from foreign state without guessing from the payload's id.
