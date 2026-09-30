@@ -191,7 +191,7 @@ export function isVSCModelB(model: LanguageModelChat | IChatEndpoint) {
 export function isVSCModelReplaceStringSet(model: LanguageModelChat | IChatEndpoint) {
 	const ID_hash = getCachedSha256Hash(getModelId(model));
 	const family_hash = getCachedSha256Hash(model.family);
-	return VSC_MODEL_HASHES_EDIT_TOOL_SET.includes(ID_hash) || VSC_MODEL_HASHES_EDIT_TOOL_SET.includes(family_hash);
+	return VSC_MODEL_HASHES_EDIT_TOOL_SET.includes(ID_hash) || VSC_MODEL_HASHES_EDIT_TOOL_SET.includes(family_hash) || isVSCModelF(model);
 }
 
 export function isVSCModelC(model: LanguageModelChat | IChatEndpoint) {
