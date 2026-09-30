@@ -11,6 +11,12 @@ import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContex
 import { noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility } from './sessionViewTestUtils.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
+import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
+import { ColorScheme } from '../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
+import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { agentsCardBorder, agentsPanelBorder } from '../../common/theme.js';
 
 interface ICodiconActivationTestHarness {
 	readonly accessibilityService: {
@@ -27,6 +33,48 @@ suite('Sessions - Sessions Part', () => {
 	const pickerKeys = new Set([SessionWorkspacePickerVisibleContext.key, SessionHarnessPickerVisibleContext.key, SessionIsolationPickerVisibleContext.key]);
 
 	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
+
+	test('session separators stay subtle at rest and preserve contrast borders across theme changes', () => {
+		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00' };
+		const themes = [
+			new TestColorTheme(colors, ColorScheme.DARK),
+			new TestColorTheme({ ...colors, [contrastBorder]: '#ffffff' }, ColorScheme.HIGH_CONTRAST_DARK),
+			new TestColorTheme({ ...colors, [contrastBorder]: '#000000' }, ColorScheme.HIGH_CONTRAST_LIGHT),
+			new TestColorTheme(colors, ColorScheme.LIGHT),
+			new TestColorTheme({ ...colors, [contrastBorder]: '#0000ff' }, ColorScheme.DARK),
+			new TestColorTheme({ ...colors, [agentsPanelBorder]: '#ff000080' }, ColorScheme.LIGHT),
+			new TestColorTheme({ [agentsCardBorder]: '#00ff00' }, ColorScheme.DARK),
+		];
+		const themeService = new TestThemeService(themes[0]);
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IThemeService, themeService);
+		const { part, container } = createSessionsPartTestHarness(store, false, { instantiationService });
+		const first = createTestActiveSession('first');
+		const second = createTestActiveSession('second');
+		part.updateVisibleSessions([first, second], first);
+		part.layout(1202, 802, 0, 0);
+		const splitView = container.querySelector<HTMLElement>('.session-grid .monaco-split-view2');
+		assert.ok(splitView);
+		const getStyles = () => ({
+			separator: splitView.classList.contains('separator-border'),
+			separatorColor: splitView.style.getPropertyValue('--separator-border'),
+			cardBorder: container.style.getPropertyValue('--part-border-color'),
+		});
+		const styles = [getStyles()];
+		for (const theme of themes.slice(1)) {
+			themeService.setTheme(theme);
+			styles.push(getStyles());
+		}
+		assert.deepStrictEqual(styles, [
+			{ separator: true, separatorColor: 'rgba(255, 0, 0, 0.5)', cardBorder: '#00ff00' },
+			{ separator: true, separatorColor: '#ffffff', cardBorder: '#00ff00' },
+			{ separator: true, separatorColor: '#000000', cardBorder: '#00ff00' },
+			{ separator: true, separatorColor: 'rgba(255, 0, 0, 0.5)', cardBorder: '#00ff00' },
+			{ separator: true, separatorColor: '#0000ff', cardBorder: '#00ff00' },
+			{ separator: true, separatorColor: 'rgba(255, 0, 0, 0.25)', cardBorder: '#00ff00' },
+			{ separator: false, separatorColor: '', cardBorder: '#00ff00' },
+		]);
+	});
 
 	function assertActivation(eventFactory: () => Event): void {
 		const { part } = createSessionsPartTestHarness(store);
