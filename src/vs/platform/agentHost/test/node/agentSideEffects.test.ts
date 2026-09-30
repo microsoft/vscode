@@ -1187,7 +1187,7 @@ suite('AgentSideEffects', () => {
 			return server?.type === CustomizationType.McpServer ? server.state : undefined;
 		}
 
-		test('forwards background requests without changing provider-owned state', async () => {
+		test('forwards background requests and optimistically clears blocking state', async () => {
 			const calls: Array<{ session: URI; id: string }> = [];
 			Object.assign(agent, {
 				backgroundMcpServerStartup: async (session: URI, id: string) => {
@@ -1203,7 +1203,7 @@ suite('AgentSideEffects', () => {
 				state: serverState(),
 			}, {
 				calls: [{ session: sessionUri.toString(), id: 'server' }],
-				state: { kind: McpServerStatus.Starting, blocking: true },
+				state: { kind: McpServerStatus.Starting, blocking: false },
 			});
 		});
 
@@ -1232,7 +1232,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(ids, ['missing']);
 		});
 
-		test('retains blocking state when the provider rejects', async () => {
+		test('retains optimistic non-blocking state when the provider rejects', async () => {
 			Object.assign(agent, {
 				backgroundMcpServerStartup: async () => { throw new Error('SDK rejected'); },
 			});
@@ -1240,7 +1240,7 @@ suite('AgentSideEffects', () => {
 			requestBackground();
 			await timeout(0);
 
-			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: true });
+			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: false });
 		});
 	});
 
@@ -2715,7 +2715,7 @@ suite('AgentSideEffects', () => {
 
 			// The turn with no preceding real turn has no anchor.
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'turn-1'), undefined);
-			const persisted = await db.getLocalTurns();
+			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.strictEqual(persisted.length, 1);
 			const payload = JSON.parse(persisted[0].payload) as { responseParts: { kind: string; toolCall?: { content?: { type: string }[] } }[] };
 			const toolCallPart = payload.responseParts.find(p => p.kind === ResponsePartKind.ToolCall);
@@ -2817,7 +2817,7 @@ suite('AgentSideEffects', () => {
 			await runBang(se, terminalManager, 'local-1');
 
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'local-1'), 'real-1');
-			const persisted = await db.getLocalTurns();
+			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.deepStrictEqual(persisted.map(r => ({ turnId: r.turnId, chatUri: r.chatUri, anchorTurnId: r.anchorTurnId })), [
 				{ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1' },
 			]);
@@ -2859,7 +2859,7 @@ suite('AgentSideEffects', () => {
 			// The local turn is dropped from memory synchronously and from the DB async.
 			assert.strictEqual(localTurns.isLocal(defaultChatUri, 'local-1'), false);
 			await new Promise(r => setTimeout(r, 10));
-			assert.deepStrictEqual(await db.getLocalTurns(), []);
+			assert.deepStrictEqual(await db.getPersistedTurns(), []);
 		});
 	});
 
@@ -4847,6 +4847,46 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.activeClientCalls, []);
 		});
 
+		test('prepares drafts through contributions after active-client and new-chat fan-out', () => {
+			const preparingAgent = disposables.add(new MockAgent('copilotcli'));
+			const preparingState = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const preparingEffects = createTestSideEffects(disposables, preparingState, {
+				getAgent: () => preparingAgent,
+				agents: observableValue<readonly IAgent[]>('preparingAgents', [preparingAgent]),
+				sessionDataService: createNullSessionDataService(),
+			});
+			preparingState.createSession({
+				resource: sessionUri.toString(), provider: 'copilotcli', title: 'Draft', status: SessionStatus.Idle,
+				createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-01-01T00:00:00.000Z',
+			});
+			preparingState.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatDraftChanged,
+				draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'selected-model' } },
+			});
+			type Selection = Parameters<NonNullable<IAgent['chats']['prepareDraft']>>[2];
+			const preparations: { chat: string; toolPublications: number; selection: Selection }[] = [];
+			preparingAgent.chats.prepareDraft = async (chat, _context, selection) => {
+				preparations.push({ chat: chat.toString(), toolPublications: preparingAgent.setClientToolsCalls.length, selection });
+			};
+			const action: SessionAction = {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'test-client', tools: [] },
+			};
+			preparingState.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test-client', clientSeq: 1 });
+			assert.deepStrictEqual(preparations, [], 'Dispatch alone must not prepare before client tools are published');
+			preparingEffects.handleAction(sessionUri.toString(), action);
+			const peerChat = buildChatUri(sessionUri, 'prepared-peer');
+			preparingState.addChat(sessionUri.toString(), peerChat);
+			preparingState.dispatchServerAction(defaultChatUri, { type: ActionType.ChatDraftChanged, draft: undefined });
+
+			assert.deepStrictEqual(preparations, [
+				{ chat: defaultChatUri, toolPublications: 1, selection: { model: { id: 'selected-model' }, agent: undefined } },
+				{ chat: defaultChatUri, toolPublications: 3, selection: { model: { id: 'selected-model' }, agent: undefined } },
+				{ chat: peerChat, toolPublications: 3, selection: {} },
+				{ chat: defaultChatUri, toolPublications: 3, selection: {} },
+			]);
+		});
+
 		test('re-fans-out every active client when a chat joins the catalog', () => {
 			setupSession();
 			const activeClientAction: SessionAction = {
@@ -6589,9 +6629,9 @@ suite('AgentSideEffects', () => {
 				message: { text: '!echo hi', origin: { kind: MessageKind.User } },
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'p1', content: 'ran' }],
 				usage: undefined,
-				state: 2, // TurnState.Complete
+				state: TurnState.Complete,
 			};
-			await sessionDb.insertLocalTurn({ turnId: 'local-1', chatUri: buildDefaultChatUri(sessionResource.toString()), anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
+			await sessionDb.insertPersistedTurn({ kind: 'local', turnId: 'local-1', chatUri: buildDefaultChatUri(sessionResource.toString()), anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
 
 			await localService.restoreSession(sessionResource);
 

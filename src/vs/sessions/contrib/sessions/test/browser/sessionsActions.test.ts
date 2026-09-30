@@ -32,7 +32,7 @@ import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessi
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -295,6 +295,33 @@ suite('Sessions - Actions', () => {
 		await command.handler(instantiationService, session);
 
 		assert.deepStrictEqual(opens, [{ source: 'sessionsList', forceMainChat: true }]);
+	});
+
+	test('the multi-session context menu batches side-opens and selects the last main chat', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const sessions = [createTestSession('First').session, createTestSession('Last').session];
+		const reference = upcastPartial<IActiveSession>({
+			...sessions[1],
+			activeChat: sessions[1].mainChat,
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
+		});
+		const opens: { sessions: readonly ISession[]; reference: string | undefined; direction: string; options: IOpenSessionsOptions | undefined }[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly visibleSessions = constObservable([reference]);
+			override async openSessionsAt(...[sessions, reference, direction, options]: Parameters<ISessionsService['openSessionsAt']>): Promise<void> {
+				opens.push({ sessions, reference, direction, options });
+			}
+		});
+
+		const command = CommandsRegistry.getCommand('sessionsViewPane.openToTheSide');
+		assert.ok(command);
+		await command.handler(instantiationService, sessions);
+
+		assert.deepStrictEqual(opens, [{
+			sessions, reference: reference.sessionId, direction: 'right',
+			options: { source: 'sessionsList', activate: 'last', forceMainChat: true },
+		}]);
 	});
 
 	test('disables single-session context menu actions for multiselection', () => {

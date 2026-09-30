@@ -904,7 +904,12 @@ export class AgentHostE2EServerLease {
 			claudeSdkRoot: startOptions.claudeSdkRoot,
 			codexSdkRoot: startOptions.codexSdkRoot,
 			...this._createDataDirectories(),
-			env: { [AgentHostSessionResidencyLimitEnvVar]: '0' },
+			env: {
+				[AgentHostSessionResidencyLimitEnvVar]: '0',
+				// Keep replay deterministic when tests run inside a Copilot app process
+				// that has local experimental CLI tools enabled.
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: '',
+			},
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.

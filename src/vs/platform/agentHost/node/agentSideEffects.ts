@@ -466,19 +466,7 @@ export class AgentSideEffects extends Disposable {
 			}, hostCustomizations);
 			handle.tools = activeClient.tools;
 			handle.customizations = activeClient.customizations ?? [];
-			this._prepareDraftChat(session, chat);
 		}
-	}
-
-	private _prepareDraftChat(session: ProtocolURI, chat: URI): void {
-		const agent = this._options.getAgent(session);
-		if (agent?.id !== 'copilotcli' || !agent.chats.prepareDraft) {
-			return;
-		}
-		const draft = this._stateManager.getChatState(chat.toString())?.draft;
-		void agent.chats.prepareDraft?.(chat, this._chatContext(session, chat.toString()), draft ? { model: draft.model, agent: draft.agent } : undefined).catch(error => {
-			this._logService.warn('[AgentSideEffects] Experimental draft preparation failed', error);
-		});
 	}
 
 	private _removeActiveClient(session: ProtocolURI, clientId: string): void {
@@ -1785,12 +1773,6 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionActiveClientSet: {
 				this._fanOutActiveClient(channel, action.activeClient);
-				break;
-			}
-			case ActionType.ChatDraftChanged: {
-				if (chatChannel) {
-					this._prepareDraftChat(sessionChannel, URI.parse(chatChannel));
-				}
 				break;
 			}
 			case ActionType.SessionActiveClientRemoved: {

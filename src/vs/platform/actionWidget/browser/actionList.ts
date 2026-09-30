@@ -8,7 +8,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
+import { getAnchorRect, IAnchor, IContextViewCloseAnimation } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IHoverAction } from '../../../base/browser/ui/hover/hover.js';
 import { HoverAction } from '../../../base/browser/ui/hover/hoverWidget.js';
@@ -41,6 +41,7 @@ import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IHoverService } from '../../hover/browser/hover.js';
+import { ACTION_WIDGET_ANIMATED_CLASS, finishActionWidgetOpeningAnimation } from './actionWidgetMotion.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -140,6 +141,8 @@ export interface IActionListItem<T> {
 	 * Optional detail text displayed as a second line below the label.
 	 */
 	readonly detail?: string;
+	/** Optional link shown at the end of {@link detail}, reached with Tab from the focused item. */
+	readonly detailLink?: IActionListHeaderLink;
 	/**
 	 * Optional inline toggle switch rendered on its own row inside the item.
 	 */
@@ -351,6 +354,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _stopToolbarPointerPropagation: boolean,
 		private readonly _registerStandaloneToggle: (item: IActionListItem<T>, toggle: Switch) => IDisposable,
 		private readonly _registerToolbar: (item: IActionListItem<T>, toolbar: ActionBar) => IDisposable,
+		private readonly _registerDetailLinks: (item: IActionListItem<T>, links: readonly HTMLElement[]) => IDisposable,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -500,11 +504,24 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		if (element.detail) {
 			data.detail.textContent = stripNewlines(element.detail);
 			data.detail.style.display = '';
+			if (element.detailLink) {
+				const { label, uri } = element.detailLink;
+				const linkHandler = this._linkHandler;
+				data.elementDisposables.add(new Link(data.detail, { label, href: uri.toString(true) }, { opener: linkHandler && (() => linkHandler(uri, element)) }, this._hoverService, this._openerService));
+				const link = data.detail.lastElementChild;
+				if (dom.isHTMLElement(link)) {
+					// Placed before the text so it floats to the end of the last visible line.
+					data.detail.prepend(link);
+					link.tabIndex = -1;
+					data.elementDisposables.add(this._registerDetailLinks(element, [link]));
+				}
+			}
 		} else {
 			data.detail.textContent = '';
 			data.detail.style.display = 'none';
 		}
 		data.container.classList.toggle('has-detail', !!element.detail);
+		data.detail.classList.toggle('has-link', !!element.detail && !!element.detailLink);
 
 		// Render optional inline toggle (shown as its own row below the detail)
 		dom.clearNode(data.inlineToggleContainer);
@@ -657,11 +674,7 @@ export interface IActionListHeaderLink {
 	readonly uri: URI;
 }
 
-export interface IActionListCloseAnimation {
-	readonly className: string;
-	readonly duration: number;
-	readonly requiredAncestorClasses?: readonly string[];
-}
+export type IActionListCloseAnimation = IContextViewCloseAnimation;
 
 /**
  * Options for configuring the action list.
@@ -891,6 +904,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _groupTitleByIndex = new Map<number, string>();
 	private readonly _standaloneToggles = new Map<IActionListItem<T>, Switch>();
 	private readonly _itemToolbars = new Map<IActionListItem<T>, ActionBar>();
+	private readonly _itemDetailLinks = new Map<IActionListItem<T>, readonly HTMLElement[]>();
 	private _visibleMenuItems: readonly IActionListItem<T>[];
 
 	private readonly _onDidRequestLayout = this._register(new Emitter<void>());
@@ -1031,6 +1045,13 @@ export class ActionListWidget<T> extends Disposable {
 				return toDisposable(() => {
 					if (this._itemToolbars.get(item) === toolbar) {
 						this._itemToolbars.delete(item);
+					}
+				});
+			}, (item, links) => {
+				this._itemDetailLinks.set(item, links);
+				return toDisposable(() => {
+					if (this._itemDetailLinks.get(item) === links) {
+						this._itemDetailLinks.delete(item);
 					}
 				});
 			}, this._keybindingService, this._openerService, this._hoverService),
@@ -2412,6 +2433,7 @@ export class ActionListWidget<T> extends Disposable {
 		return {
 			toolbar: this._itemToolbars.get(element),
 			panelControls: [
+				...this._itemDetailLinks.get(element) ?? [],
 				...element.hover?.getTabbableElements?.() ?? [],
 				...this._submenuHoverActionElements,
 			],
@@ -2437,7 +2459,8 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		const index = focused[0];
 		const element = this._list.element(index);
-		if (!element.hover?.tabThroughPanel && !this._options?.tabThroughItemActions) {
+		const detailLinks = this._itemDetailLinks.get(element) ?? [];
+		if (!element.hover?.tabThroughPanel && !this._options?.tabThroughItemActions && !detailLinks.length) {
 			return;
 		}
 		const row = this._getRowElement(index);
@@ -2446,7 +2469,7 @@ export class ActionListWidget<T> extends Disposable {
 			return;
 		}
 		const inToolbar = this._itemToolbars.get(element)?.isFocused() ?? false;
-		const inPanel = this._submenuContainer.contains(activeElement);
+		const inPanel = this._submenuContainer.contains(activeElement) || detailLinks.includes(activeElement);
 
 		if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && (inToolbar || inPanel)) {
 			dom.EventHelper.stop(event, true);
@@ -2554,6 +2577,10 @@ export class ActionListWidget<T> extends Disposable {
 			return;
 		}
 
+		const parentWidget = this.domNode.closest<HTMLElement>('.action-widget');
+		if (parentWidget) {
+			finishActionWidgetOpeningAnimation(parentWidget);
+		}
 		this._currentSubmenuElement = element;
 		this._clearSubmenuContainer();
 
@@ -2761,6 +2788,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (!currentElement || this._layoutSubmenu !== layout) {
 				return;
 			}
+			finishActionWidgetOpeningAnimation(this._submenuContainer);
 			// Width measurement and virtualization can replace or recycle the original row.
 			const index = this._list.indexOf(currentElement);
 			const row = index >= 0 ? this._getRowElement(index) : null;
@@ -2841,6 +2869,8 @@ export class ActionListWidget<T> extends Disposable {
 			const panelHeight = viewport && scrollbar && !preserveVerticalPosition
 				? content.getBoundingClientRect().height + panelRect.height - scrollbar.getDomNode().getBoundingClientRect().height
 				: panelRect.height;
+			this._submenuContainer.style.left = `${left / zoom}px`;
+			this._submenuContainer.style.transformOrigin = showRight ? 'top left' : 'top right';
 			if (preserveVerticalPosition) {
 				openingPanelHeight ??= panelHeight / zoom;
 			}
@@ -2890,6 +2920,7 @@ export class ActionListWidget<T> extends Disposable {
 		};
 		this._layoutSubmenu = layout;
 		layout();
+		this._submenuContainer.classList.toggle(ACTION_WIDGET_ANIMATED_CLASS, hasSubmenuActions);
 		// tabThroughPanel content (e.g. a GitHub reference hover) can grow when
 		// focus reveals bounded text, in which case the panel must reposition
 		// itself, not just the row that measured it before the content changed.
@@ -2999,6 +3030,7 @@ export class ActionListWidget<T> extends Disposable {
 		this._cancelSubmenuHide();
 		this._cancelSubmenuShow();
 		this._layoutSubmenu = undefined;
+		this._submenuContainer.classList.remove(ACTION_WIDGET_ANIMATED_CLASS);
 		this._resetSubmenuPointer();
 		if (this._submenuContainer.contains(dom.getActiveElement())) {
 			this._list.domFocus();
