@@ -177,7 +177,9 @@ function resolveRiskPromptKind(tool: IToolData, kind: ToolRiskPromptKind | undef
 }
 
 /**
- * Compute the tool parameters used for both the assessment prompt and cache key.
+ * Compute the subset of tool parameters that are relevant to the risk
+ * assessment, used as the prompt input and cache key so re-invocations of the same tool call
+ * hit the cache even when model-generated descriptive fields differ.
  */
 function normalizeRiskParameters(parameters: unknown, kind: ToolRiskPromptKind): unknown {
 	if (kind === 'terminal' && parameters && typeof parameters === 'object') {

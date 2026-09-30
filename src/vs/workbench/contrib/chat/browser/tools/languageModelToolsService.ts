@@ -627,8 +627,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					?? (preToolUseHookResult?.permissionDecision === 'ask' ? undefined : dto.preApproved);
 
 				// In Autopilot, run the risk classifier on an auto-approved call that would
-				// otherwise show a confirmation. A "red" rating skips the call; terminal
-				// assessment failures also skip because the command cannot be classified safely.
+				// otherwise show a confirmation. A "red" rating skips the call; anything else
+				// (including a classifier failure) keeps the original auto-confirmation, except
+				// terminal calls that cannot be assessed, which are also skipped.
 				const { autoConfirmed, skipCause: riskSkipCause } = await this._maybeApplyAutopilotRiskGate(tool, dto, preparedInvocation, preResolvedAutoConfirmed, token);
 
 				// Important: a tool invocation that will be autoconfirmed should never
@@ -949,7 +950,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	/**
 	 * In Autopilot, runs the risk classifier on an auto-approved call and skips it when the rating
-	 * is {@link ToolRiskLevel.Red}. Terminal calls also skip when they cannot be assessed.
+	 * is {@link ToolRiskLevel.Red}. Any other result returns the original auto-confirmation
+	 * unchanged, except that terminal calls that cannot be assessed are also skipped.
 	 *
 	 * To keep the classifier off the hot path, it only runs when all of these hold:
 	 * - the call was auto-approved by the session approving everything, or is a `run_in_terminal` /
@@ -962,7 +964,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 * confirmation risk badge. CLI and agent-host sessions handle their own confirmations and are
 	 * excluded.
 	 *
-	 * Unavailable or failed non-terminal assessments keep the original auto-confirmation.
+	 * Fails open: a cancelled, unavailable, or failed assessment keeps the original
+	 * auto-confirmation so Autopilot keeps moving. Terminal calls are the exception: an
+	 * unavailable or failed assessment skips them.
 	 */
 	private async _maybeApplyAutopilotRiskGate(
 		tool: IToolEntry,
@@ -1052,7 +1056,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			this._logService.warn(`[LanguageModelToolsService#invokeTool] Autopilot risk assessment failed for tool ${tool.data.id}, allowing: ${toErrorMessage(err)}`);
 		}
 
-		// Green/orange, or an unavailable non-terminal assessment: keep the original auto-confirmation.
+		// Green/orange, no assessment, or a failure: keep the original auto-confirmation (fail open).
 		return { autoConfirmed };
 	}
 
