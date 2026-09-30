@@ -35,8 +35,8 @@ import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
 import { isVoiceSessionActiveForInput, VoiceNewSessionPreparationResult, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
-import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { ChatSendResult, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IVoiceToolDispatchDelegate, IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
+import { ChatSendResult, ConfirmedReason, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoicePttStartOptions, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
@@ -854,6 +854,10 @@ suite('VoiceSessionController', () => {
 			override notifyPlaybackEnd(): void { }
 		}(),
 		chatWidgetService: IChatWidgetService = new TestChatWidgetService(),
+		toolDispatchService: IVoiceToolDispatchService = new class extends mock<IVoiceToolDispatchService>() {
+			override setDelegate(): void { }
+			override async respondToSession(): Promise<IVoiceDispatchResult> { return { ok: true }; }
+		}(),
 	): VoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
@@ -864,10 +868,7 @@ suite('VoiceSessionController', () => {
 			voiceClientService,
 			micCaptureService,
 			ttsPlaybackService,
-			new class extends mock<IVoiceToolDispatchService>() {
-				override setDelegate(): void { }
-				override async respondToSession(): Promise<IVoiceDispatchResult> { return { ok: true }; }
-			}(),
+			toolDispatchService,
 			voicePlaybackService,
 			agentSessionsService,
 			chatService,
@@ -2688,7 +2689,7 @@ suite('VoiceSessionController', () => {
 
 	test('auto-approve ignores questionnaire backing tools', () => {
 		const controller = createController(new TestVoiceClientService());
-		const confirmed: ToolConfirmKind[] = [];
+		const confirmed: ConfirmedReason[] = [];
 		const toolInvocation = new class extends mock<IChatToolInvocation>() {
 			override readonly kind = 'toolInvocation' as const;
 			override readonly state = observableValue<IChatToolInvocation.State>('toolState', {
@@ -2698,7 +2699,7 @@ suite('VoiceSessionController', () => {
 					title: 'Submit questionnaire?',
 					message: 'Submits the questionnaire answers.',
 				},
-				confirm: reason => confirmed.push(reason.type),
+				confirm: reason => confirmed.push(reason),
 			});
 			override readonly invocationMessage = 'Submit questionnaire';
 		}();
@@ -2730,7 +2731,50 @@ suite('VoiceSessionController', () => {
 		autoApprovePendingTools.call(controller, modelWithQuestionnaire);
 		autoApprovePendingTools.call(controller, modelWithTool);
 
-		assert.deepStrictEqual(confirmed, [ToolConfirmKind.UserAction]);
+		assert.deepStrictEqual(confirmed, [{ type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' }]);
+	});
+
+	test('distinguishes manual and approve-all voice decisions from subsequent automatic approvals', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const session = agentSessionEntry('agent-host-copilot:/voice-auto-approval', 'Voice session', AgentSessionStatus.InProgress);
+		const confirmed: { toolCallId: string; reason: ConfirmedReason }[] = [];
+		const setPendingTool = (toolCallId: string) => {
+			const tool = waitingTerminalTool(toolCallId);
+			const state = tool.state.get();
+			assert.ok(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+			tool.state.set({ ...state, confirm: reason => confirmed.push({ toolCallId, reason }) }, undefined);
+			chatService.setModels([pendingResponsePartModel(session.resource, tool)]);
+		};
+		const captured: { delegate?: IVoiceToolDispatchDelegate } = {};
+		const toolDispatchService = new class extends mock<IVoiceToolDispatchService>() {
+			override setDelegate(value: IVoiceToolDispatchDelegate): void { captured.delegate = value; }
+		}();
+		const controller = createController(
+			voiceClientService, undefined, undefined, undefined, undefined, undefined,
+			chatService, undefined, new TestAgentSessionsService([session]),
+			undefined, undefined, undefined, undefined, toolDispatchService,
+		);
+		assert.ok(captured.delegate);
+
+		setPendingTool('manual');
+		controller.pendingToolConfirmations.get()[0].approve();
+		setPendingTool('approve-all');
+		captured.delegate.addAllAutoApprovedSessions();
+		setPendingTool('automatic-sweep');
+		captured.delegate.triggerAutoApproveCheck();
+		setPendingTool('automatic-observer');
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+
+		assert.deepStrictEqual(confirmed, [
+			{ toolCallId: 'manual', reason: { type: ToolConfirmKind.UserAction } },
+			{ toolCallId: 'approve-all', reason: { type: ToolConfirmKind.UserAction } },
+			{ toolCallId: 'automatic-sweep', reason: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' } },
+			{ toolCallId: 'automatic-observer', reason: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' } },
+		]);
 	});
 
 	test('handles freeform and defers empty questionnaire data', () => {

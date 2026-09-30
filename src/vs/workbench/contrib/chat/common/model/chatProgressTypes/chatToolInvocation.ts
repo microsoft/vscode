@@ -151,6 +151,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Cancelled,
 				reason: reason.type,
+				...(reason.isUserAction !== undefined ? { isUserAction: reason.isUserAction } : {}),
 				parameters: this.parameters,
 				confirmationMessages: this.confirmationMessages,
 			}, undefined);
@@ -340,6 +341,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Cancelled,
 				reason: postConfirmed.type,
+				...(postConfirmed.isUserAction !== undefined ? { isUserAction: postConfirmed.isUserAction } : {}),
 				parameters: this.parameters,
 				confirmationMessages: this.confirmationMessages,
 			}, undefined);

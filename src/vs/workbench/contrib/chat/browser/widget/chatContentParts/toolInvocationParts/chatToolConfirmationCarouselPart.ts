@@ -566,7 +566,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 	private skipAll(): void {
 		for (const item of [...this.items]) {
-			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped });
+			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped, isUserAction: true });
 		}
 	}
 

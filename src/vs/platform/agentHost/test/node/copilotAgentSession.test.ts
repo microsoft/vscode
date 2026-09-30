@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
@@ -628,8 +628,9 @@ class MockCopilotSession {
 			},
 		},
 		sandbox: {
-			disableForSession: async (params: { requestId: string }) => {
+			disableForSession: async (params: Parameters<CopilotSession['rpc']['sandbox']['disableForSession']>[0]) => {
 				this.sandboxDisableRequests.push(params.requestId);
+				this.sandboxDisableDecisionContexts.push(params.decisionContext);
 				if (this.sandboxDisableError) {
 					throw this.sandboxDisableError;
 				}
@@ -664,6 +665,7 @@ class MockCopilotSession {
 
 	readonly sandboxConfigUpdates: unknown[] = [];
 	readonly sandboxDisableRequests: string[] = [];
+	readonly sandboxDisableDecisionContexts: Parameters<CopilotSession['rpc']['sandbox']['disableForSession']>[0]['decisionContext'][] = [];
 	sandboxDisableResult = { success: true, enabled: false };
 	sandboxDisableError: Error | undefined;
 	sandboxConfigUpdateGate: Promise<void> | undefined;
@@ -936,7 +938,8 @@ function createPluginSnapshot(...pluginDirectories: URI[]): IActiveClientSnapsho
 }
 
 type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionRequest' | 'createClientSdkTools'> & {
-	handlePermissionRequest(request: TestPermissionRequest): ReturnType<ICopilotSessionRuntime['handlePermissionRequest']>;
+	handlePermissionRequest(request: TestPermissionRequest): Promise<PermissionRequestResult>;
+	handleAttributedPermissionRequest(request: TestPermissionRequest): ReturnType<ICopilotSessionRuntime['handlePermissionRequest']>;
 	createClientSdkTools(toolSearchActive?: boolean): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
 };
 
@@ -1315,7 +1318,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const sdkRuntime = launchedRuntime;
 	const runtime: TestCopilotSessionRuntime = {
 		...sdkRuntime,
-		handlePermissionRequest: request => sdkRuntime.handlePermissionRequest(toPermissionRequest(request)),
+		handlePermissionRequest: async request => {
+			const result = await sdkRuntime.handlePermissionRequest(toPermissionRequest(request));
+			return result.kind === 'attributed' ? result.result : result;
+		},
+		handleAttributedPermissionRequest: request => sdkRuntime.handlePermissionRequest(toPermissionRequest(request)),
 		createClientSdkTools: toolSearchActive => sdkRuntime.createClientSdkTools(toolSearchActive ?? false),
 	};
 
@@ -6950,6 +6957,48 @@ suite('CopilotAgentSession', () => {
 
 	suite('permission handling', () => {
 
+		test('attributes manual approval, rejection and host-policy responses without changing their results', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			const results = [];
+			for (const source of ['human_response', 'host_policy', undefined] as const) {
+				for (const approved of [true, false]) {
+					const toolCallId = `${source}-${approved}`;
+					const pending = runtime.handleAttributedPermissionRequest({
+						kind: 'write', fileName: '/workspace/file.ts', toolCallId,
+					});
+					await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === toolCallId);
+					session.respondToPermissionRequest(toolCallId, approved, { decisionSource: source });
+					results.push(await pending);
+				}
+			}
+			assert.deepStrictEqual(results, [
+				{ kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'human_response', surface: 'sdk', outcome: 'prompted_user', responseCapability: 'interactive' } },
+				{ kind: 'attributed', result: { kind: 'reject', feedback: 'The user denied permission.' }, decisionContext: { source: 'human_response', surface: 'sdk', outcome: 'prompted_user', responseCapability: 'interactive' } },
+				{ kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'auto_approved' } },
+				{ kind: 'attributed', result: { kind: 'reject', feedback: 'The user denied permission.' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'autopilot_denied' } },
+				{ kind: 'approve-once' },
+				{ kind: 'reject', feedback: 'The user denied permission.' },
+			]);
+		});
+
+		test('attributes built-in automatic approval and cancellation separately from human decisions', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			const automatic = await runtime.handleAttributedPermissionRequest({
+				kind: 'read',
+				path: join('/mock-tmp', 'copilot-tool-output-1730000000000-abc123.txt'),
+				toolCallId: 'auto-output',
+			});
+			const missingTool = await runtime.handleAttributedPermissionRequest({ kind: 'write' });
+			const pending = runtime.handleAttributedPermissionRequest({ kind: 'write', fileName: '/workspace/file.ts', toolCallId: 'cancelled' });
+			await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === 'cancelled');
+			await session.abort();
+			assert.deepStrictEqual([automatic, missingTool, await pending], [
+				{ kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'auto_approved' } },
+				{ kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'autopilot_denied' } },
+				{ kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
+			]);
+		});
+
 		function createShellPermissionRequest(toolCallId = 'tc-duplicate-shell') {
 			return {
 				kind: 'shell',
@@ -7787,14 +7836,16 @@ suite('CopilotAgentSession', () => {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 			});
 
-			const result = await runtime.handlePermissionRequest({
+			const result = await runtime.handleAttributedPermissionRequest({
 				kind: 'shell',
 				toolCallId: 'tc-sandboxed',
 				fullCommandText: 'cat ~/something.txt',
 			});
 
-			assert.strictEqual(result.kind, 'approve-once');
-			assert.strictEqual(signals.length, 0);
+			assert.deepStrictEqual({ result, signalCount: signals.length }, {
+				result: { kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'auto_approved' } },
+				signalCount: 0,
+			});
 		});
 
 		test('does not auto-approve a sandboxed shell command for a file-scoped surface', async () => {
@@ -8139,7 +8190,7 @@ suite('CopilotAgentSession', () => {
 			});
 			await session.syncPermissionMode('turn-start');
 
-			const resultPromise = runtime.handlePermissionRequest({
+			const resultPromise = runtime.handleAttributedPermissionRequest({
 				kind: 'write',
 				fileName: '/workspace/package.json',
 				intention: 'Edit file',
@@ -8171,7 +8222,7 @@ suite('CopilotAgentSession', () => {
 				result: await resultPromise,
 				signals,
 			}, {
-				result: { kind: 'approve-once' },
+				result: { kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'assisted_approval', surface: 'sdk', outcome: 'auto_approved' } },
 				signals: [],
 			});
 		});
@@ -8336,11 +8387,15 @@ suite('CopilotAgentSession', () => {
 				session.respondToPermissionRequest('bypass-tool', true, {
 					selectedOptionId: 'allow-session',
 					origin: { clientId: 'client', clientSeq: 7 },
+					decisionSource: 'human_response',
 				});
 				const result = await pending;
 				const applied = [...sandboxResults];
 				const changes = sessionConfigUpdates.map(update => update.patch);
 				if (outcome === 'success') {
+					assert.deepStrictEqual(mockSession.sandboxDisableDecisionContexts, [{
+						source: 'human_response', surface: 'sdk', outcome: 'prompted_user', responseCapability: 'interactive',
+					}]);
 					setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
 					fireSessionConfigChange({ sandboxEnabled: 'off' });
 					await timeout(0);
@@ -13734,7 +13789,7 @@ Use the attached image as context.
 			} as SessionEventPayload<'permission.requested'>['data']);
 			assert.strictEqual(telemetryService.events.length, 0);
 			mockSession.fire('permission.completed', {
-				requestId: 'permission-approved', toolCallId: 'tc-approved', result: { kind: 'approved' },
+				requestId: 'permission-approved', toolCallId: 'tc-approved', result: { kind: 'approved' }, decisionSource: 'human_response',
 			} as SessionEventPayload<'permission.completed'>['data']);
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-approved', success: true, result: { content: 'done' },
@@ -13748,7 +13803,7 @@ Use the attached image as context.
 				permissionRequest: { kind: 'custom-tool', toolCallId: 'tc-denied', toolName: 'edit' },
 			} as SessionEventPayload<'permission.requested'>['data']);
 			mockSession.fire('permission.completed', {
-				requestId: 'permission-denied', toolCallId: 'tc-denied', result: { kind: 'denied-interactively-by-user' },
+				requestId: 'permission-denied', toolCallId: 'tc-denied', result: { kind: 'denied-interactively-by-user' }, decisionSource: 'human_response',
 			} as SessionEventPayload<'permission.completed'>['data']);
 
 			mockSession.fire('tool.execution_start', {
@@ -13775,6 +13830,56 @@ Use the attached image as context.
 			}, {
 				provider: 'copilotcli', toolId: 'grep', confirmKind: 'confirmationNotNeeded', confirmationNotNeededReason: undefined, copilotSku: 'sku-a',
 			}]);
+		});
+
+		test('tool approval telemetry preserves decision source and raw denial categories across SDK event ordering', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('attributed-turn');
+			const cases: {
+				source: SessionEventPayload<'permission.completed'>['data']['decisionSource'];
+				result: SessionEventPayload<'permission.completed'>['data']['result'];
+				expected: string;
+			}[] = [
+					{ source: 'human_response', result: { kind: 'approved' }, expected: 'userAction' },
+					{ source: 'host_policy', result: { kind: 'approved' }, expected: 'confirmationNotNeeded' },
+					{ source: 'assisted_approval', result: { kind: 'approved' }, expected: 'confirmationNotNeeded' },
+					{ source: undefined, result: { kind: 'approved' }, expected: 'unknown' },
+					{ source: 'human_response', result: { kind: 'denied-interactively-by-user' }, expected: 'denied' },
+					{ source: 'host_policy', result: { kind: 'denied-interactively-by-user' }, expected: 'denied' },
+					{ source: 'unattended_fallback', result: { kind: 'cancelled' }, expected: 'denied' },
+					{ source: undefined, result: { kind: 'denied-by-rules', rules: [] }, expected: 'denied' },
+				];
+			for (const completionFirst of [false, true]) {
+				for (const [index, entry] of cases.entries()) {
+					const toolCallId = `${completionFirst}-${index}`;
+					const start = () => mockSession.fire('tool.execution_start', {
+						toolCallId, toolName: 'edit', arguments: {},
+					});
+					if (!completionFirst) {
+						start();
+					}
+					mockSession.fire('permission.requested', {
+						requestId: toolCallId,
+						permissionRequest: { kind: 'custom-tool', toolCallId, toolName: 'edit', toolDescription: 'Edit' },
+					});
+					mockSession.fire('permission.completed', {
+						requestId: toolCallId, toolCallId, result: { ...entry.result }, decisionSource: entry.source,
+					});
+					if (completionFirst) {
+						// A denied tool never starts; only approved outcomes await tool identity.
+						if (entry.result.kind === 'approved') {
+							start();
+						}
+					}
+				}
+			}
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'chat.toolApproval').map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { kind: data.confirmKind, source: data.decisionSource, result: data.permissionResult, version: data.approvalTelemetryVersion };
+			}), [false, true].flatMap(() => cases.map(entry => ({
+				kind: entry.expected, source: entry.source, result: entry.result.kind, version: 2,
+			}))));
 		});
 
 		test('tool-search approval telemetry classifies the override as a client tool', async () => {

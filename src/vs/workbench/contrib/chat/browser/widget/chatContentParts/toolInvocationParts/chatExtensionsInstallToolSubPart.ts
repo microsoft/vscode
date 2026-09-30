@@ -73,7 +73,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				},
 				{
 					label: cancelLabel,
-					data: { type: ToolConfirmKind.Denied },
+					data: { type: ToolConfirmKind.Denied, isUserAction: true },
 					isSecondary: true,
 					tooltip: cancelTooltip
 				}
