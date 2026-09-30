@@ -329,6 +329,31 @@ suite('AgentPlugin enablement', () => {
 			});
 		});
 
+		test('workspace configuration applies only to the repository marketplace source', () => {
+			const currentReference = { ...parseMarketplaceReference('owner/current')!, displayLabel: 'shared-marketplace' };
+			const otherReference = { ...parseMarketplaceReference('owner/other')!, displayLabel: 'shared-marketplace' };
+			const currentPlugin = makePlugin(
+				URI.file('/plugins/current/model-council'),
+				'model-council',
+				{ ...makeMarketplacePlugin(), marketplace: 'shared-marketplace', marketplaceReference: currentReference },
+			);
+			const otherPlugin = makePlugin(
+				URI.file('/plugins/other/model-council'),
+				'model-council',
+				{ ...makeMarketplacePlugin(), marketplace: 'shared-marketplace', marketplaceReference: otherReference },
+			);
+			const workspaceEnabled = new Map([['model-council@shared-marketplace', true]]);
+			const workspaceMarketplaces = [{ name: 'shared-marketplace', reference: currentReference }];
+
+			assert.deepStrictEqual({
+				current: getAgentPluginConfiguredEnablement(currentPlugin, undefined, workspaceEnabled, workspaceMarketplaces),
+				other: getAgentPluginConfiguredEnablement(otherPlugin, undefined, workspaceEnabled, workspaceMarketplaces),
+			}, {
+				current: ContributionEnablementState.EnabledWorkspace,
+				other: undefined,
+			});
+		});
+
 		test('no policy set: nothing is blocked', () => {
 			const plugin = makeMarketplacePluginForPolicy();
 			assert.strictEqual(isAgentPluginBlockedByPolicy(plugin, undefined), false);

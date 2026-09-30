@@ -11,6 +11,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { WorkspaceAgentPluginActivation } from '../../../browser/workspaceAgentPluginActivation.js';
@@ -54,7 +55,7 @@ suite('WorkspaceAgentPluginActivation', () => {
 		};
 	}
 
-	function createContribution(options?: { readonly installed?: boolean; readonly hidden?: boolean; readonly installSucceeds?: boolean }) {
+	function createContribution(options?: { readonly installed?: boolean; readonly hidden?: boolean; readonly installSucceeds?: boolean; readonly discoveredPlugin?: IAgentPlugin }) {
 		const plugin = createPlugin();
 		const pluginId = `${plugin.name}@${plugin.marketplace}`;
 		const installedPlugins = observableValue<readonly IMarketplaceInstalledPlugin[]>('installedPlugins', options?.installed ? [{ pluginUri: installUri, plugin }] : []);
@@ -97,7 +98,7 @@ suite('WorkspaceAgentPluginActivation', () => {
 			}
 		}();
 		const agentPluginService = new class extends mock<IAgentPluginService>() {
-			override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', options?.discoveredPlugin ? [options.discoveredPlugin] : []);
 			override readonly enablementModel = model;
 		}();
 		const entitlementService = new class extends mock<IChatEntitlementService>() {
@@ -163,6 +164,41 @@ suite('WorkspaceAgentPluginActivation', () => {
 		await timeout(0);
 
 		harness.installedPlugins.set([], undefined);
+		await harness.baselineSet.p;
+
+		assert.deepStrictEqual({
+			installCount: harness.installCount,
+			profileState: harness.states.get(installUri.toString()),
+		}, {
+			installCount: 1,
+			profileState: ContributionEnablementState.DisabledProfile,
+		});
+	});
+
+	test('installs the configured source when a same-named plugin from another source is discovered', async () => {
+		const otherMarketplace = createPlugin();
+		const otherReference = parseMarketplaceReference('owner/other-marketplace');
+		assert.ok(otherReference);
+		const harness = createContribution({
+			discoveredPlugin: {
+				uri: URI.file('/agent-plugins/owner/other-marketplace/example-plugin'),
+				format: PluginFormat.Copilot,
+				label: otherMarketplace.name,
+				enablement: observableValue('otherPluginEnablement', ContributionEnablementState.EnabledProfile),
+				hooks: observableValue('otherPluginHooks', []),
+				commands: observableValue('otherPluginCommands', []),
+				skills: observableValue('otherPluginSkills', []),
+				agents: observableValue('otherPluginAgents', []),
+				instructions: observableValue('otherPluginInstructions', []),
+				mcpServerDefinitions: observableValue('otherPluginMcpServers', []),
+				automations: observableValue('otherPluginAutomations', []),
+				fromMarketplace: {
+					...otherMarketplace,
+					marketplaceReference: { ...otherReference, displayLabel: otherMarketplace.marketplace },
+				},
+			},
+		});
+
 		await harness.baselineSet.p;
 
 		assert.deepStrictEqual({

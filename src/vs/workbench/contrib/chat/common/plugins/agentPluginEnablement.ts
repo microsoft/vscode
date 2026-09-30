@@ -7,6 +7,7 @@ import { IObservable, IReader, ITransaction } from '../../../../../base/common/o
 import { AgentPluginDiscoveryPriority, IAgentPlugin } from './agentPluginService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, PluginSourceKind } from './pluginMarketplaceService.js';
 import { type IMarketplaceReference } from './marketplaceReference.js';
+import { type IWorkspaceMarketplaceEntry } from './workspacePluginSettingsService.js';
 import { CollisionEnablementModel, ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../enablement.js';
 
 export interface IDiscoveredAgentPlugins {
@@ -159,14 +160,23 @@ export function getAgentPluginConfiguredEnablement(
 	plugin: IAgentPlugin,
 	enabledPluginsPolicy: Record<string, boolean> | undefined,
 	workspaceEnabledPlugins: ReadonlyMap<string, boolean> | undefined,
+	workspaceMarketplaces?: readonly IWorkspaceMarketplaceEntry[],
 ): ContributionEnablementState | undefined {
 	const policyEnablement = getAgentPluginPolicyEnablement(plugin, enabledPluginsPolicy);
 	if (policyEnablement !== undefined) {
 		return policyEnablement ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile;
 	}
 
-	const pluginId = getAgentPluginPolicyId(plugin);
-	const workspaceEnablement = pluginId === undefined ? undefined : workspaceEnabledPlugins?.get(pluginId);
+	const identity = getPolicyIdentity(plugin);
+	const pluginId = identity ? `${identity.name}@${identity.marketplace}` : undefined;
+	const workspaceMarketplace = identity
+		? workspaceMarketplaces?.find(entry => entry.name === identity.marketplace)
+		: undefined;
+	const matchesWorkspaceMarketplace = workspaceMarketplace === undefined
+		|| identity?.marketplaceReference?.canonicalId === workspaceMarketplace.reference.canonicalId;
+	const workspaceEnablement = pluginId === undefined || !matchesWorkspaceMarketplace
+		? undefined
+		: workspaceEnabledPlugins?.get(pluginId);
 	if (workspaceEnablement !== undefined) {
 		return workspaceEnablement ? ContributionEnablementState.EnabledWorkspace : ContributionEnablementState.DisabledWorkspace;
 	}

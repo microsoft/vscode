@@ -163,7 +163,7 @@ class WorkspaceSettingsReader extends Disposable {
 
 	private async _readSettings(dirs: readonly URI[], logPrefix: string, fileService: IFileService): Promise<void> {
 		const readVersion = ++this._readVersion;
-		const allMarketplaces: IWorkspaceMarketplaceEntry[] = [];
+		const mergedMarketplaces = new Map<string, IWorkspaceMarketplaceEntry>();
 		const mergedEnabled = new Map<string, boolean>();
 
 		for (const dir of dirs) {
@@ -183,9 +183,7 @@ class WorkspaceSettingsReader extends Disposable {
 
 					const marketplaces = parseExtraMarketplaces(root.extraKnownMarketplaces, logPrefix, this._logService);
 					for (const entry of marketplaces) {
-						if (!allMarketplaces.some(e => e.reference.canonicalId === entry.reference.canonicalId)) {
-							allMarketplaces.push(entry);
-						}
+						mergedMarketplaces.set(entry.name, entry);
 					}
 
 					const enabled = parseEnabledPlugins(root.enabledPlugins);
@@ -199,7 +197,7 @@ class WorkspaceSettingsReader extends Disposable {
 		}
 
 		if (readVersion === this._readVersion) {
-			this._data.set({ marketplaces: allMarketplaces, enabledPlugins: mergedEnabled }, undefined);
+			this._data.set({ marketplaces: [...mergedMarketplaces.values()], enabledPlugins: mergedEnabled }, undefined);
 		}
 	}
 }
@@ -232,24 +230,27 @@ export class WorkspacePluginSettingsService extends Disposable implements IWorks
 
 		const workspaceTrusted = observableFromEvent(this, workspaceTrustService.onDidChangeTrust, () => workspaceTrustService.isWorkspaceTrusted());
 
-		// Merge marketplaces from all readers, deduplicating by canonical ID.
+		// Copilot settings override Claude settings; each reader already applies local over shared.
 		this.extraMarketplaces = derived(reader => {
 			if (!workspaceTrusted.read(reader)) {
 				return [];
 			}
 			const claude = claudeReader.data.read(reader).marketplaces;
 			const copilot = copilotReader.data.read(reader).marketplaces;
-			const byCanonicalId = new Map<string, IWorkspaceMarketplaceEntry>();
-			for (const entry of [...claude, ...copilot]) {
-				if (!byCanonicalId.has(entry.reference.canonicalId)) {
-					byCanonicalId.set(entry.reference.canonicalId, entry);
+			const result: IWorkspaceMarketplaceEntry[] = [];
+			const seenNames = new Set<string>();
+			const seenCanonicalIds = new Set<string>();
+			for (const entry of [...copilot, ...claude]) {
+				if (!seenNames.has(entry.name) && !seenCanonicalIds.has(entry.reference.canonicalId)) {
+					result.push(entry);
+					seenNames.add(entry.name);
+					seenCanonicalIds.add(entry.reference.canonicalId);
 				}
 			}
-			return [...byCanonicalId.values()];
+			return result;
 		});
 
-		// Merge enabledPlugins from all readers. Claude entries take
-		// precedence for keys that exist in both (first-writer wins).
+		// Copilot entries take precedence over Claude entries for the same key.
 		this.enabledPlugins = derived(reader => {
 			if (!workspaceTrusted.read(reader)) {
 				return new Map<string, boolean>();
@@ -257,10 +258,10 @@ export class WorkspacePluginSettingsService extends Disposable implements IWorks
 			const claude = claudeReader.data.read(reader).enabledPlugins;
 			const copilot = copilotReader.data.read(reader).enabledPlugins;
 			const merged = new Map<string, boolean>();
-			for (const [key, value] of claude) {
+			for (const [key, value] of copilot) {
 				merged.set(key, value);
 			}
-			for (const [key, value] of copilot) {
+			for (const [key, value] of claude) {
 				if (!merged.has(key)) {
 					merged.set(key, value);
 				}

@@ -127,11 +127,12 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, reader);
 			const policy = enabledPluginsPolicy.read(reader);
 			const workspaceEnabledPlugins = this._workspacePluginSettingsService.enabledPlugins.read(reader);
+			const workspaceMarketplaces = this._workspacePluginSettingsService.extraMarketplaces.read(reader);
 			const result = new Map<string, ContributionEnablementState>();
 			if (discoveredPlugins) {
 				for (const { plugins } of discoveredPlugins) {
 					for (const plugin of plugins) {
-						const configuredState = getAgentPluginConfiguredEnablement(plugin, policy, workspaceEnabledPlugins);
+						const configuredState = getAgentPluginConfiguredEnablement(plugin, policy, workspaceEnabledPlugins, workspaceMarketplaces);
 						if (configuredState !== undefined) {
 							result.set(plugin.uri.toString(), configuredState);
 						}
@@ -199,6 +200,7 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			plugin,
 			this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
 			this._workspacePluginSettingsService.enabledPlugins.get(),
+			this._workspacePluginSettingsService.extraMarketplaces.get(),
 		);
 		return configuredState === ContributionEnablementState.EnabledWorkspace
 			? true

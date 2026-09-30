@@ -11,7 +11,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ContributionEnablementState } from '../common/enablement.js';
-import { getAgentPluginPolicyId } from '../common/plugins/agentPluginEnablement.js';
 import { IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
@@ -101,19 +100,11 @@ export class WorkspaceAgentPluginActivation extends Disposable implements IWorkb
 			}
 		}
 
-		const discoveredPluginIds = new Set<string>();
-		for (const plugin of this._agentPluginService.plugins.get()) {
-			const pluginId = getAgentPluginPolicyId(plugin);
-			if (pluginId !== undefined) {
-				discoveredPluginIds.add(pluginId);
-			}
-		}
-
 		for (const pluginId of configuredPluginIds) {
 			if (this._cancellation.token.isCancellationRequested || this._chatEntitlementService.sentiment.hidden) {
 				return;
 			}
-			if (!this._pluginMarketplaceService.recommendedPlugins.get().has(pluginId) || discoveredPluginIds.has(pluginId)) {
+			if (!this._pluginMarketplaceService.recommendedPlugins.get().has(pluginId)) {
 				continue;
 			}
 

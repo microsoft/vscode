@@ -64,6 +64,11 @@ suite('WorkspacePluginSettingsService', () => {
 		await fileService.writeFile(uri, VSBuffer.fromString(content));
 	}
 
+	async function writeCopilotLocalSettings(content: string): Promise<void> {
+		const uri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/copilot/settings.local.json' });
+		await fileService.writeFile(uri, VSBuffer.fromString(content));
+	}
+
 	// --- enabledPlugins parsing ---
 
 	test('ignores workspace plugin settings until the workspace is trusted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -151,7 +156,7 @@ suite('WorkspacePluginSettingsService', () => {
 		assert.strictEqual(enabled.get('from-copilot@mp'), true);
 	}));
 
-	test('Claude enabledPlugins take precedence over Copilot for same key', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('Copilot enabledPlugins take precedence over Claude for same key', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			enabledPlugins: { 'shared-plugin@mp': false }
 		}));
@@ -163,7 +168,19 @@ suite('WorkspacePluginSettingsService', () => {
 		await waitForState(service.enabledPlugins, v => v.size > 0);
 
 		const enabled = service.enabledPlugins.get();
-		assert.strictEqual(enabled.get('shared-plugin@mp'), false, 'Claude should win');
+		assert.strictEqual(enabled.get('shared-plugin@mp'), true, 'Copilot should win');
+	}));
+
+	test('Copilot local enabledPlugins take precedence over all other repository layers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await writeClaudeSettings(JSON.stringify({ enabledPlugins: { 'shared-plugin@mp': false } }));
+		await writeClaudeLocalSettings(JSON.stringify({ enabledPlugins: { 'shared-plugin@mp': false } }));
+		await writeCopilotSettings(JSON.stringify({ enabledPlugins: { 'shared-plugin@mp': false } }));
+		await writeCopilotLocalSettings(JSON.stringify({ enabledPlugins: { 'shared-plugin@mp': true } }));
+
+		const service = createService();
+		await waitForState(service.enabledPlugins, v => v.size > 0);
+
+		assert.strictEqual(service.enabledPlugins.get().get('shared-plugin@mp'), true);
 	}));
 
 	// --- extraKnownMarketplaces parsing ---
@@ -230,6 +247,30 @@ suite('WorkspacePluginSettingsService', () => {
 		assert.strictEqual(marketplaces[0].reference.autoUpdate, true);
 	}));
 
+	test('settings.local.json overrides settings.json for a same-named marketplace', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await writeClaudeSettings(JSON.stringify({
+			extraKnownMarketplaces: {
+				'shared-name': { source: 'github', repo: 'owner/shared' }
+			}
+		}));
+		await writeClaudeLocalSettings(JSON.stringify({
+			extraKnownMarketplaces: {
+				'shared-name': { source: 'github', repo: 'owner/local' }
+			}
+		}));
+
+		const service = createService();
+		await waitForState(service.extraMarketplaces, v => v.length > 0);
+
+		assert.deepStrictEqual(service.extraMarketplaces.get().map(entry => ({
+			name: entry.name,
+			repo: entry.reference.githubRepo,
+		})), [{
+			name: 'shared-name',
+			repo: 'owner/local',
+		}]);
+	}));
+
 	test('deduplicates marketplaces across Claude and Copilot by canonical ID', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			extraKnownMarketplaces: {
@@ -247,7 +288,31 @@ suite('WorkspacePluginSettingsService', () => {
 
 		const marketplaces = service.extraMarketplaces.get();
 		assert.strictEqual(marketplaces.length, 1, 'should deduplicate by canonical ID');
-		assert.strictEqual(marketplaces[0].name, 'claude-name', 'Claude entry should win');
+		assert.strictEqual(marketplaces[0].name, 'copilot-name', 'Copilot entry should win');
+	}));
+
+	test('Copilot marketplace takes precedence over a same-named Claude marketplace', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await writeClaudeSettings(JSON.stringify({
+			extraKnownMarketplaces: {
+				'shared-name': { source: 'github', repo: 'owner/claude' }
+			}
+		}));
+		await writeCopilotSettings(JSON.stringify({
+			extraKnownMarketplaces: {
+				'shared-name': { source: 'github', repo: 'owner/copilot' }
+			}
+		}));
+
+		const service = createService();
+		await waitForState(service.extraMarketplaces, v => v.length > 0);
+
+		assert.deepStrictEqual(service.extraMarketplaces.get().map(entry => ({
+			name: entry.name,
+			repo: entry.reference.githubRepo,
+		})), [{
+			name: 'shared-name',
+			repo: 'owner/copilot',
+		}]);
 	}));
 
 	// --- Invalid input handling ---
