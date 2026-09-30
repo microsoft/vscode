@@ -428,8 +428,8 @@ registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 			f1: true,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
-				id: Menus.SidebarSessionsHeader,
-				group: 'manage',
+				id: Menus.SessionsViewFilter,
+				group: '5_manage',
 				order: 0,
 				when: ChatContextKeys.enabled,
 			}, {

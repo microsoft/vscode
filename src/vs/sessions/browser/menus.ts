@@ -35,6 +35,7 @@ export const Menus = {
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
+	SessionsViewFilter: new MenuId('SessionsViewPaneFilterSubMenu'),
 	SessionSectionNewSession: new MenuId('SessionsSessionSectionNewSession'),
 	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),

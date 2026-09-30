@@ -74,7 +74,7 @@ export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: b
 	return treatment ? 'treatment' : 'control';
 }
 
-export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
+export const SessionsViewFilterSubMenu = Menus.SessionsViewFilter;
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
 export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Workspace);
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);

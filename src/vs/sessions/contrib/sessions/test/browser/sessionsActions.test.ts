@@ -59,6 +59,31 @@ suite('Sessions - Actions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('contributes worktree cleanup to the sessions settings menu', () => {
+		const findAction = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'sessions.chat.manageAgentSessionWorktrees');
+		const settingsAction = findAction(Menus.SessionsViewFilter);
+
+		assert.deepStrictEqual({
+			headerAction: findAction(Menus.SidebarSessionsHeader),
+			settingsAction: settingsAction && {
+				title: typeof settingsAction.command.title === 'string' ? settingsAction.command.title : settingsAction.command.title.value,
+				group: settingsAction.group,
+				order: settingsAction.order,
+				when: settingsAction.when?.serialize(),
+			},
+		}, {
+			headerAction: undefined,
+			settingsAction: {
+				title: 'Open Worktree Cleanup',
+				group: '5_manage',
+				order: 0,
+				when: 'chatIsEnabled',
+			},
+		});
+	});
+
 	test('contributes New Chat to the session header overflow', () => {
 		const action = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
