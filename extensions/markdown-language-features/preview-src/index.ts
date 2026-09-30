@@ -109,7 +109,7 @@ onceDocumentLoaded(() => {
 	addCodeBlockCopyButtons();
 	addCodeBlockLanguageLabels();
 	buildTableOfContents();
-		if (state.tocVisible === false) {
+		if (state.TocVisible === false) {
 			toggleTableOfContents();
 		}
 		applyLineChanges(lineChanges);
