@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isLinux } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -143,7 +143,12 @@ suite('AgentHostSessionChangesets', () => {
 				changeKind,
 				uriTemplate: `changeset/${changeKind}`,
 				changes,
-				streamingChanges,
+				streamingChanges: streamingChanges
+					? derived(reader => {
+						const value = streamingChanges.read(reader);
+						return value === undefined ? undefined : { id: 'turn', changes: value };
+					})
+					: undefined,
 			}])[0];
 			disposables.add(autorun(reader => changeset.changes.read(reader)));
 
@@ -226,7 +231,7 @@ suite('AgentHostSessionChangesets', () => {
 		});
 
 		test('uses active turn edits while Branch Changes computes, then switches to the authoritative snapshot', () => {
-			const streamingChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('streamingChanges', undefined);
+			const streamingChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('streamingChanges', []);
 			const harness = createHarness(ChangesetKind.Branch, streamingChanges);
 			harness.isActiveSession.set(true, undefined);
 			harness.subscription.set({ status: ChangesetStatus.Computing, files: [] });
@@ -240,14 +245,17 @@ suite('AgentHostSessionChangesets', () => {
 				isOutsideWorkspace: false,
 			}], undefined);
 			const streaming = harness.snapshot();
+			streamingChanges.set([], undefined);
+			const cleared = harness.snapshot();
 			streamingChanges.set(undefined, undefined);
 			const retained = harness.snapshot();
 			harness.subscription.set({ status: ChangesetStatus.Ready, files: cachedFiles });
 
-			assert.deepStrictEqual({ computing, streaming, retained, ready: harness.snapshot() }, {
+			assert.deepStrictEqual({ computing, streaming, cleared, retained, ready: harness.snapshot() }, {
 				computing: { changes: [], loading: true, acquired: 1, released: 0 },
 				streaming: { changes: [{ insertions: 2, deletions: 1 }], loading: false, acquired: 1, released: 0 },
-				retained: { changes: [{ insertions: 2, deletions: 1 }], loading: false, acquired: 1, released: 0 },
+				cleared: { changes: [], loading: false, acquired: 1, released: 0 },
+				retained: { changes: [], loading: false, acquired: 1, released: 0 },
 				ready: { changes: [{ insertions: 57, deletions: 45 }], loading: false, acquired: 1, released: 0 },
 			});
 		});
@@ -754,14 +762,17 @@ suite('AgentHostSessionChangesets', () => {
 		}();
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
-		const currentTurnChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('currentTurnChanges', [{
-			uri: URI.file('/repo/live.ts'),
-			originalUri: URI.parse('readonly-content:/before/live.ts'),
-			modifiedUri: URI.parse('readonly-content:/after/live.ts'),
-			insertions: 2,
-			deletions: 1,
-			isOutsideWorkspace: false,
-		} satisfies ISessionTurnFileChange]);
+		const currentTurnChanges = observableValue('currentTurnChanges', {
+			id: 'turn',
+			changes: [{
+				uri: URI.file('/repo/live.ts'),
+				originalUri: URI.parse('readonly-content:/before/live.ts'),
+				modifiedUri: URI.parse('readonly-content:/after/live.ts'),
+				insertions: 2,
+				deletions: 1,
+				isOutsideWorkspace: false,
+			} satisfies ISessionTurnFileChange],
+		});
 		const projected = createChatChangesets(sessionUri, constObservable(chatUri), {
 			icon: Codicon.copilot,
 			loading: constObservable(false),
@@ -820,6 +831,17 @@ suite('AgentHostSessionChangesets', () => {
 					modified: 'readonly-content:/after/live.ts',
 				}],
 			},
+		});
+
+		currentTurnChanges.set({ id: 'next-turn', changes: [] }, undefined);
+
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(changes ?? {}).map(([id, value]) => [
+			id,
+			{ loading: value.loading, files: value.files },
+		])), {
+			branch: { loading: true, files: [] },
+			uncommitted: { loading: true, files: [] },
+			session: { loading: true, files: [] },
 		});
 	});
 
@@ -949,7 +971,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable([]));
+		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
 		let enabled: boolean | undefined;
 		disposables.add(autorun(reader => {
 			const changeset = projected.read(reader)?.[0];
