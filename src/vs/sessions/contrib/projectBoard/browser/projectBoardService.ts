@@ -13,6 +13,7 @@ import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scro
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { fromNow } from '../../../../base/common/date.js';
 import { IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -140,6 +141,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly approvalModel = this._register(new MutableDisposable<AgentSessionApprovalModel>());
 	private readonly controlElements = new Map<string, HTMLElement>();
 	private readonly durationElements = new Map<string, HTMLElement>();
+	private readonly recencyElements = new Map<HTMLElement, number>();
 	private readonly stateDurations = new ProjectBoardStateDurations();
 	private readonly creditValues = new Map<string, number | undefined>();
 	private readonly notifiedCreditErrors = new Map<string, string>();
@@ -965,6 +967,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.markDoneButton = undefined;
 		this.clearSelectionButton = undefined;
 		this.durationElements.clear();
+		this.recencyElements.clear();
 		// Keep the scroll viewport and context-view hosts intact while rebuilding card content.
 		this.boardElement.replaceChildren();
 
@@ -1116,13 +1119,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				store.add(this.scrollObserver.observe(child, { box: 'border-box' }));
 			}
 		}
-		if (this.durationElements.size) {
-			store.add(disposableWindowInterval(getWindow(this.container), () => {
-				for (const [id, element] of this.durationElements) {
-					element.textContent = this.stateDurations.getLabel(id, Date.now(), true);
-					element.parentElement?.setAttribute('aria-label', this.stateDurations.getLabel(id));
-				}
-			}, 1000));
+		this.updateCardTimes();
+		if (this.durationElements.size || this.recencyElements.size) {
+			store.add(disposableWindowInterval(getWindow(this.container), () => this.updateCardTimes(), 1000));
 		}
 		this.rendering = false;
 		if (ownerDocument.hasFocus()) {
@@ -1445,7 +1444,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			const missing = this.boardState.configuration.get().placements.filter(placement => (kind === 'row' ? placement.rowId : placement.columnId) === axis.id && !this.model.hasChat(placement.cardId)).length;
 			const summary = mainWindow.document.createElement('span');
 			summary.className = 'project-board-collapsed-summary';
-			summary.textContent = this.groupSummary(cards, missing);
+			summary.textContent = this.sessionCountLabel(cards.length + missing);
+			this.appendStateCounts(summary, cards, missing);
 			container.appendChild(summary);
 		}
 		button.element.setAttribute('aria-label', localize('projectBoard.editAxis', "Edit {0}: {1}", kind === 'row' ? localize('projectBoard.row', "row") : localize('projectBoard.column', "column"), axis.label));
@@ -1486,26 +1486,39 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	}
 
 	private groupSummary(cards: readonly IProjectBoardCard[], unavailable = 0, drafts: readonly IProjectBoardDraft[] = []): string {
-		return [this.sessionCountLabel(cards.length + unavailable + drafts.length), ...this.stateCounts(cards, unavailable, drafts)].join(' · ');
+		return [this.sessionCountLabel(cards.length + unavailable + drafts.length), ...this.stateCounts(cards, unavailable, drafts).map(state => state.label)].join(' · ');
 	}
 
-	private stateCounts(cards: readonly IProjectBoardCard[], unavailable = 0, drafts: readonly IProjectBoardDraft[] = []): string[] {
+	private appendStateCounts(summary: HTMLElement, cards: readonly IProjectBoardCard[], unavailable = 0, drafts: readonly IProjectBoardDraft[] = []): void {
+		for (const { label, glyph } of this.stateCounts(cards, unavailable, drafts)) {
+			const state = summary.ownerDocument.createElement('span');
+			state.className = 'project-board-state-count';
+			const icon = summary.ownerDocument.createElement('span');
+			icon.className = 'project-board-state-count-icon';
+			icon.setAttribute('aria-hidden', 'true');
+			icon.textContent = glyph;
+			state.append(icon, ` ${label}`);
+			summary.append(' · ', state);
+		}
+	}
+
+	private stateCounts(cards: readonly IProjectBoardCard[], unavailable = 0, drafts: readonly IProjectBoardDraft[] = []): { label: string; glyph: string }[] {
 		const counts = new Map<SessionStatus, number>();
 		for (const card of cards) {
 			const state = this.getPresentationStatus(card);
 			counts.set(state, (counts.get(state) ?? 0) + 1);
 		}
 		const startingDrafts = drafts.filter(draft => draft.submitted).length;
-		const states: readonly [number, string][] = [
-			[counts.get(SessionStatus.InProgress) ?? 0, localize('projectBoard.busy', "Busy")],
-			[counts.get(SessionStatus.NeedsInput) ?? 0, localize('projectBoard.needsInput', "Needs Input")],
-			[counts.get(SessionStatus.Error) ?? 0, localize('projectBoard.error', "Error")],
-			[counts.get(SessionStatus.Completed) ?? 0, localize('projectBoard.idle', "Idle")],
-			[(counts.get(SessionStatus.Untitled) ?? 0) + startingDrafts, localize('projectBoard.startingState', "Starting")],
-			[drafts.length - startingDrafts, localize('projectBoard.draftState', "Draft")],
-			[unavailable, localize('projectBoard.unavailableState', "Unavailable")],
+		const states: readonly [number, string, string][] = [
+			[counts.get(SessionStatus.InProgress) ?? 0, localize('projectBoard.busy', "Busy"), this.getStatusGlyph(SessionStatus.InProgress)],
+			[counts.get(SessionStatus.NeedsInput) ?? 0, localize('projectBoard.needsInput', "Needs Input"), this.getStatusGlyph(SessionStatus.NeedsInput)],
+			[counts.get(SessionStatus.Error) ?? 0, localize('projectBoard.error', "Error"), this.getStatusGlyph(SessionStatus.Error)],
+			[counts.get(SessionStatus.Completed) ?? 0, localize('projectBoard.idle', "Idle"), this.getStatusGlyph(SessionStatus.Completed)],
+			[(counts.get(SessionStatus.Untitled) ?? 0) + startingDrafts, localize('projectBoard.startingState', "Starting"), '\u23F3'],
+			[drafts.length - startingDrafts, localize('projectBoard.draftState', "Draft"), '\u270F\uFE0F'],
+			[unavailable, localize('projectBoard.unavailableState', "Unavailable"), '\u{1F6AB}'],
 		];
-		return states.filter(([count]) => count > 0).map(([count, label]) => localize('projectBoard.stateCount', "{0} {1}", count, label));
+		return states.filter(([count]) => count > 0).map(([count, label, glyph]) => ({ label: localize('projectBoard.stateCount', "{0} {1}", count, label), glyph }));
 	}
 
 	private isCollapsed(placement: IProjectBoardPlacement | undefined): boolean {
@@ -1664,7 +1677,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (collapsed) {
 			const summary = document.createElement('span');
 			summary.className = 'project-board-collapsed-summary';
-			summary.textContent = this.groupSummary(allCards, missing.length, placement || !autoIncludeSessions ? [] : this.drafts);
+			const drafts = placement || !autoIncludeSessions ? [] : this.drafts;
+			summary.textContent = this.sessionCountLabel(allCards.length + missing.length + drafts.length);
+			this.appendStateCounts(summary, allCards, missing.length, drafts);
 			group.appendChild(summary);
 		}
 		if (!placement && autoIncludeSessions) {
@@ -1775,11 +1790,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		};
 	}
 
-	private childChatSummary(children: readonly IProjectBoardCard[]): string {
-		const summary = children.length === 1
+	private childChatCountLabel(count: number): string {
+		return count === 1
 			? localize('projectBoard.oneChildChat', "1 child chat")
-			: localize('projectBoard.childChats', "{0} child chats", children.length);
-		return [summary, ...this.stateCounts(children)].join(' · ');
+			: localize('projectBoard.childChats', "{0} child chats", count);
+	}
+
+	private childChatSummary(children: readonly IProjectBoardCard[]): string {
+		return [this.childChatCountLabel(children.length), ...this.stateCounts(children).map(state => state.label)].join(' · ');
 	}
 
 	private createCardFamily(document: Document, card: IProjectBoardCard, store: DisposableStore): HTMLElement {
@@ -1801,7 +1819,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		heading.className = 'project-board-child-heading';
 		const summary = document.createElement('span');
 		summary.className = 'project-board-child-summary';
-		summary.textContent = this.childChatSummary(children);
+		summary.textContent = this.childChatCountLabel(children.length);
+		this.appendStateCounts(summary, children);
 		const monitoredChild = document.createElement('span');
 		monitoredChild.className = 'project-board-monitored-child-label';
 		monitoredChild.id = `project-board-monitored-child-${generateUuid()}`;
@@ -2098,7 +2117,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			element.appendChild(lifecycle);
 		}
 
-		element.appendChild(this.createStatus(document, this.getStatusLabel(card), this.getStatusGlyph(card), card.status === SessionStatus.InProgress));
+		element.appendChild(this.createStatus(document, this.getStatusLabel(card), this.getStatusGlyph(card.status, card.isRead), card.status === SessionStatus.InProgress));
 		const display = this.boardState.configuration.get().display;
 		const metrics = document.createElement('div');
 		metrics.className = 'project-board-card-metrics';
@@ -2106,15 +2125,13 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			const duration = document.createElement('div');
 			duration.className = 'project-board-card-duration';
 			duration.setAttribute('role', 'img');
-			duration.setAttribute('aria-label', this.stateDurations.getLabel(card.id));
 			const icon = renderIcon(Codicon.clock);
 			icon.setAttribute('aria-hidden', 'true');
 			const value = document.createElement('span');
-			value.textContent = this.stateDurations.getLabel(card.id, Date.now(), true);
 			duration.append(icon, value);
 			describe(duration);
 			store.add(this.hoverService.setupDelayedHover(duration, () => ({
-				content: localize('projectBoard.stateDurationHelp', "{0}\n\nTime in this chat's current state, measured while the board is open. \"At least\" (>=) means its initial state start is unknown. Output, reading and moving the card do not reset the timer.", this.stateDurations.getLabel(card.id)),
+				content: localize('projectBoard.stateDurationHelp', "{0}\n\nTime in this chat's current state, measured while the board is open. \"At least\" (>=) means its initial state start is unknown. Output, reading and moving the card do not reset the timer. Busy timers turn orange after 30 minutes and red after 2 hours.", this.stateDurations.getLabel(card.id)),
 			})));
 			this.durationElements.set(card.id, value);
 			metrics.appendChild(duration);
@@ -2198,11 +2215,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const recency = document.createElement('div');
 		recency.className = 'project-board-card-recency';
 		describe(recency);
-		recency.textContent = time === undefined
-			? localize('projectBoard.recencyUnavailable', "Recency unavailable")
-			: localize('projectBoard.lastPrompt', "Last prompt: {0}", new Date(time).toLocaleString());
-		if (time !== undefined) {
+		if (time === undefined) {
+			recency.textContent = localize('projectBoard.recencyUnavailable', "Recency unavailable");
+		} else {
 			recency.dataset.submittedAt = String(time);
+			const fullTimestamp = localize('projectBoard.lastPrompt', "Last prompt: {0}", new Date(time).toLocaleString());
+			recency.setAttribute('aria-label', fullTimestamp);
+			store.add(this.hoverService.setupDelayedHover(recency, { content: fullTimestamp }));
+			this.recencyElements.set(recency, time);
 		}
 		if (metadata && metadata.kind !== 'loading' && metadata.message) {
 			const capability = document.createElement('div');
@@ -2677,8 +2697,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return status;
 	}
 
-	private getStatusGlyph(card: IProjectBoardCard): string {
-		switch (card.status) {
+	private getStatusGlyph(status: SessionStatus, isRead = true): string {
+		switch (status) {
 			case SessionStatus.InProgress:
 				return '\u{1F3C3}';
 			case SessionStatus.NeedsInput:
@@ -2686,7 +2706,28 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			case SessionStatus.Error:
 				return '\u26A0\uFE0F';
 			default:
-				return card.isRead ? '\u{1F634}' : '\u{1F440}';
+				return isRead ? '\u{1F634}' : '\u{1F440}';
+		}
+	}
+
+	private updateCardTimes(): void {
+		const now = Date.now();
+		for (const [id, value] of this.durationElements) {
+			const label = this.stateDurations.getLabel(id, now, true);
+			if (value.textContent !== label) {
+				value.textContent = label;
+			}
+			const duration = value.parentElement!;
+			duration.setAttribute('aria-label', this.stateDurations.getLabel(id, now));
+			const severity = this.stateDurations.getSeverity(id, now);
+			duration.classList.toggle('project-board-card-duration-warning', severity === 'warning');
+			duration.classList.toggle('project-board-card-duration-error', severity === 'error');
+		}
+		for (const [element, time] of this.recencyElements) {
+			const label = fromNow(time, true, true);
+			if (element.textContent !== label) {
+				element.textContent = label;
+			}
 		}
 	}
 
