@@ -1537,8 +1537,8 @@ suite('AgentService (node dispatcher)', () => {
 				const session = await svc.createSession({ provider: 'copilot' });
 				const addDefinition = agent.serverToolHost!.getDefinitionsForSession(session.toString()).find(tool => tool.name === ArtifactServerToolName.AddArtifactOrReference);
 				const items = [
-					{ type: 'website', label: 'Result', link: 'https://example.com/result', isArtifact: true },
-					{ type: 'website', label: 'Reference', link: 'https://example.com/reference', isArtifact: false },
+					{ chat: buildDefaultChatUri(session), type: 'website', label: 'Result', link: 'https://example.com/result', isArtifact: true },
+					{ chat: buildDefaultChatUri(session), type: 'website', label: 'Reference', link: 'https://example.com/reference', isArtifact: false },
 				];
 
 				await agent.serverToolHost!.executeTool(buildDefaultChatUri(session), ArtifactServerToolName.AddArtifactOrReference, { items });
@@ -10896,7 +10896,7 @@ suite('AgentService (node dispatcher)', () => {
 					github: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] },
 					git: { hasGitHubRemote: true, branchName: 'feature/catalog', incomingChanges: 2 },
 					'vscode.sourceControl': { merge: { commit: '0123456789abcdef' }, latestOutcome: 'merge' },
-					'agentHost/sessionArtifacts': [{ id: 'artifact-1', type: 'pullRequest', label: 'Catalog payload', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' }],
+					'agentHost/sessionArtifacts': [{ id: 'artifact-1', chat: buildDefaultChatUri(session), type: 'pullRequest', label: 'Catalog payload', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' }],
 					'agentHost/createdBySession': { session: 'agent-session://copilot/parent', chat: 'agent-chat://copilot/parent/default', turnId: 'turn-1' },
 					workspaceless: true,
 					ehcliAdoptable: true,
@@ -16990,6 +16990,7 @@ suite('AgentService (node dispatcher)', () => {
 			const state = getStateManager(localService).getSessionState(sessionString);
 			getStateManager(localService).setSessionMeta(sessionString, withSessionArtifacts(state?._meta, [{
 				id: 'artifact',
+				chat: buildDefaultChatUri(session),
 				type: SessionArtifactType.Website,
 				label: 'Artifact',
 				link: 'https://example.com',
@@ -17000,6 +17001,7 @@ suite('AgentService (node dispatcher)', () => {
 				[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
 				[SESSION_ARTIFACTS_KEY]: JSON.stringify([{
 					id: 'artifact',
+					chat: buildDefaultChatUri(session),
 					type: SessionArtifactType.Website,
 					label: 'Artifact',
 					link: 'https://example.com',
@@ -17038,6 +17040,7 @@ suite('AgentService (node dispatcher)', () => {
 				isArchived: true,
 				artifacts: [{
 					id: 'artifact',
+					chat: buildDefaultChatUri(session),
 					type: SessionArtifactType.Website,
 					label: 'Artifact',
 					isArtifact: true,
@@ -17045,6 +17048,7 @@ suite('AgentService (node dispatcher)', () => {
 				}],
 				persistedArtifacts: [{
 					id: 'artifact',
+					chat: buildDefaultChatUri(session),
 					type: SessionArtifactType.Website,
 					label: 'Artifact',
 					isArtifact: true,
