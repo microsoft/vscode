@@ -628,6 +628,35 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
+	test('persists automatic selection without marking it as chosen', () => {
+		const testSession = createSession('provider', SessionStatus.Completed, first.identifier);
+		const sources: ChatModelSource[] = [];
+		const provider = disposables.add(createProvider('provider', (_modelIdentifier, source) => sources.push(source)));
+		const storage = disposables.add(new InMemoryStorageService());
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			{},
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(),
+			disposables.add(new NullLogService()),
+		));
+
+		const selected = selection.selectModel(second.identifier, false);
+
+		assert.deepStrictEqual({
+			selected,
+			current: selection.state.get().currentModel?.identifier,
+			stored: storage.get(selectedModelStorageKey, StorageScope.PROFILE),
+			sources,
+		}, {
+			selected: true,
+			current: second.identifier,
+			stored: second.identifier,
+			sources: [ChatModelSource.CarriedOver],
+		});
+	});
+
 	test('does not remember a selection rejected by the provider', () => {
 		const testSession = createSession('provider', SessionStatus.Completed, first.identifier);
 		const storage = disposables.add(new InMemoryStorageService());

@@ -1483,6 +1483,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 				this.renderAttachedContext();
 			},
+			setModelProgrammatically: (model: ILanguageModelChatMetadataAndIdentifier) => {
+				this.setCurrentLanguageModel(model, false, !this.options.suppressModelPersistence);
+				this.renderAttachedContext();
+			},
 			getModels: () => this.getModels(),
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
@@ -1943,7 +1947,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier, isUserAction = false, storeSelection: boolean = isUserAction) {
-		const persistSelection = isUserAction && storeSelection;
+		const persistSelection = storeSelection;
 		this._modelSelectionDiagnostics.report('set-model', {
 			model: model.identifier,
 			isUserAction,

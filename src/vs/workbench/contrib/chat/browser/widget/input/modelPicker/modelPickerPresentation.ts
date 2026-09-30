@@ -37,14 +37,14 @@ export function filterModelPickerControlModelsForEntitlement(
 	}
 	const hydraFusion = controlModels[COPILOT_HYDRA_FUSION_MODEL_ID];
 	const liveHydraFusion = models.find(model => isHydraFusionModel(model) && !isUserProvidedModel(model, languageModelsService));
-	if (!hydraFusion && !liveHydraFusion) {
+	if (!liveHydraFusion) {
 		return controlModels;
 	}
 	return {
 		...controlModels,
 		[COPILOT_HYDRA_FUSION_MODEL_ID]: {
 			...hydraFusion,
-			label: hydraFusion?.label ?? liveHydraFusion!.metadata.name,
+			label: hydraFusion?.label ?? liveHydraFusion.metadata.name,
 			featured: true,
 			exists: false,
 			minVSCodeVersion: undefined,

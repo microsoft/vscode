@@ -92,6 +92,7 @@ suite('ModelPickerTelemetry', () => {
 		const configurations = new Map<string, IStringDictionary<unknown>>();
 		const pinnedModelIds: string[] = [];
 		const delegateSelections: string[] = [];
+		const programmaticDelegateSelections: string[] = [];
 		let tabbedShows = 0;
 		const configurationAccess: IModelConfigurationAccess = {
 			getModelConfiguration: id => configurations.get(id),
@@ -300,6 +301,7 @@ suite('ModelPickerTelemetry', () => {
 		const picker = store.add(instantiationService.createInstance(ModelPickerWidget, {
 			currentModel: constObservable(selectedModel),
 			setModel: model => delegateSelections.push(model.identifier),
+			setModelProgrammatically: model => programmaticDelegateSelections.push(model.identifier),
 			getModels: () => models,
 			getChatSessionId: () => 'session-1',
 			getPresentationOptions: () => ({
@@ -312,7 +314,7 @@ suite('ModelPickerTelemetry', () => {
 		picker.show(container);
 
 		return {
-			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds, delegateSelections,
+			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections,
 			get visible() { return visible; },
 			get flatPickerHideCount() { return flatPickerHideCount; },
 			get tabbedShows() { return tabbedShows; },
@@ -353,9 +355,11 @@ suite('ModelPickerTelemetry', () => {
 		assert.deepStrictEqual({
 			selected: result.picker.selectedModel?.identifier,
 			delegateSelections: result.delegateSelections,
+			programmaticDelegateSelections: result.programmaticDelegateSelections,
 		}, {
 			selected: autoModel.identifier,
-			delegateSelections: [autoModel.identifier],
+			delegateSelections: [],
+			programmaticDelegateSelections: [autoModel.identifier],
 		});
 	});
 

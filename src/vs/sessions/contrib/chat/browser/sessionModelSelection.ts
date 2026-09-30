@@ -67,7 +67,7 @@ export interface ISessionModelSelection {
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<ISessionModelSelectionState>;
 	readonly modelConfiguration?: IModelConfigurationAccess;
-	selectModel(modelIdentifier: string): boolean;
+	selectModel(modelIdentifier: string, isUserAction?: boolean): boolean;
 }
 
 /**
@@ -167,7 +167,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		}));
 	}
 
-	selectModel(modelIdentifier: string): boolean {
+	selectModel(modelIdentifier: string, isUserAction = true): boolean {
 		const session = this._session.get();
 		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
 		if (!session || !provider) {
@@ -198,9 +198,9 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const conversation = this._conversation();
 		try {
 			this._controller.applySelection(model, () => {
-				provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.Chosen);
+				provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, isUserAction ? ChatModelSource.Chosen : ChatModelSource.CarriedOver);
 				storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
-			}, true, true);
+			}, isUserAction, true);
 		} catch (error) {
 			this._diagnostics.report('provider-selection-failed', {
 				requestedModel: modelIdentifier,
