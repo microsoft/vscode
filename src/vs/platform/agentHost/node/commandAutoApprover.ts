@@ -108,9 +108,12 @@ function maskPwshFlagEquals(commandLine: string): string {
 	return commandLine.replace(pwshFlagEqualsRegex, (_, pre, flag) => `${pre}${flag} `);
 }
 
-function getPwshGenericTokenRedirects(token: string): string[] {
-	return /^(?:[1-6*])?>>?/.test(token) ? [token] : [];
-}
+/**
+ * Matches PowerShell redirects glued to their target (`2>$null`, `>out.txt`,
+ * `*>>log.txt`). The grammar parses these as `generic_token` command arguments
+ * rather than `redirection` nodes, which only cover the spaced form.
+ */
+const pwshNoSpaceRedirectRegex = /^[1-6*]?>>?/;
 
 /**
  * Result of a command auto-approval check.
@@ -395,19 +398,16 @@ export class CommandAutoApprover extends Disposable {
 				let unanalyzableType: string | undefined;
 				for (const capture of captures) {
 					const text = masked === commandLine ? capture.node.text : commandLine.substring(capture.node.startIndex, capture.node.endIndex);
-					const genericTokenRedirects = capture.name === 'generic_token' ? getPwshGenericTokenRedirects(text) : [];
 					if (capture.name === 'command') {
 						subCommands.push(text);
 					} else if (capture.name === 'unanalyzable' && (capture.node.type !== 'variable_assignment' || capture.node.parent?.type !== 'command')) {
 						unanalyzableType ??= capture.node.type;
-					} else if (capture.name === 'file_redirect' || capture.name === 'redirection' || genericTokenRedirects.length > 0) {
+					} else if (capture.name === 'file_redirect' || capture.name === 'redirection' || (capture.name === 'generic_token' && pwshNoSpaceRedirectRegex.test(text))) {
 						// Writes to known-safe sinks (e.g. `> /dev/null`, `2>$null`)
 						// and file-descriptor duplications (e.g. `2>&1`) are allowed.
-						for (const redirect of genericTokenRedirects.length > 0 ? genericTokenRedirects : [text]) {
-							const cls = classifyFileRedirect(redirect, isPowerShell);
-							if (cls.kind === 'unsafeWrite') {
-								unsafeWriteDests.push(cls.dest);
-							}
+						const cls = classifyFileRedirect(text, isPowerShell);
+						if (cls.kind === 'unsafeWrite') {
+							unsafeWriteDests.push(cls.dest);
 						}
 					} else if (capture.name === 'heredoc_redirect' || capture.name === 'herestring_redirect') {
 						// Heredoc/herestring feed data into stdin; they do not write
