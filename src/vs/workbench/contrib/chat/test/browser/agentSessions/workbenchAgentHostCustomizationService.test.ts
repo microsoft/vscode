@@ -24,6 +24,7 @@ import { IAgentHostActiveClientService } from '../../../browser/agentSessions/ag
 import { WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 
@@ -90,6 +91,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				new NullLogService() as ILogService,
 				chatService,
 				activeClientService,
+				new class extends mock<IMcpService>() { }(),
 			));
 			let customizationChangeCount = 0;
 			store.add(service.onDidChangeCustomizations(() => customizationChangeCount++));

@@ -18,7 +18,8 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { AgentCanvasAvailability, AgentSession } from '../../common/agent.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
@@ -34,7 +35,7 @@ import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
@@ -427,6 +428,20 @@ suite('AgentHostProtocolClient', () => {
 			supported.push(client.devContainerService !== undefined);
 		}
 		assert.deepStrictEqual(supported, [false, false, false, true]);
+	});
+
+	test('canvas facade requires the versioned capability and a local host identity', async () => {
+		const supported: boolean[] = [];
+		for (const meta of [undefined, { 'vscode.canvases.v1': 1 }, { 'vscode.canvases.v1': false }, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true)]) {
+			const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+			await connectClient(client, transport, meta);
+			supported.push(client.canvases !== undefined);
+		}
+		const remote = createClientForIdentity('remote.example:1234');
+		await connectClient(remote.client, remote.transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
+		supported.push(remote.client.canvases !== undefined);
+
+		assert.deepStrictEqual(supported, [false, false, false, true, false]);
 	});
 
 	test('Dev Container facade uses the parent transport and validates notifications', async () => {
@@ -1075,6 +1090,68 @@ suite('AgentHostProtocolClient', () => {
 			await resultPromise;
 		});
 	});
+
+	test('applies full canvas snapshots, suppresses duplicates, clears, and resolves an exact revision', async () => {
+		const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
+		transport.sentMessages.length = 0;
+		const canvases = client.canvases;
+		assert.ok(canvases);
+		const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilotcli', 'test')));
+		const snapshots: unknown[] = [];
+		disposables.add(canvases.onDidChange(snapshot => snapshots.push({
+			chat: snapshot.chat.toString(),
+			canvases: snapshot.canvases,
+		})));
+		const params = {
+			chat: chat.toString(),
+			canvases: [{
+				instanceId: 'preview-1',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				revision: 3,
+				availability: AgentCanvasAvailability.Ready,
+			}],
+		};
+		transport.fireMessage({ jsonrpc: '2.0', method: AgentHostCanvasesChangedNotification, params } as unknown as ProtocolMessage);
+		transport.fireMessage({ jsonrpc: '2.0', method: AgentHostCanvasesChangedNotification, params } as unknown as ProtocolMessage);
+
+		const resultPromise = canvases.resolveSource(chat, 'preview-1', 3);
+		const sourceRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+
+		assert.deepStrictEqual(sourceRequest, {
+			jsonrpc: '2.0',
+			id: sourceRequest.id,
+			method: ResolveAgentHostCanvasSourceExtensionMethod,
+			params: {
+				chat: chat.toString(),
+				instanceId: 'preview-1',
+				revision: 3,
+			},
+		});
+
+		transport.fireMessage({ jsonrpc: '2.0', id: sourceRequest.id, result: { url: 'https://example.test/preview' } });
+		const source = await resultPromise;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			method: AgentHostCanvasesChangedNotification,
+			params: { chat: chat.toString(), canvases: [] },
+		} as unknown as ProtocolMessage);
+
+		assert.deepStrictEqual({
+			source,
+			snapshots,
+			current: canvases.getSnapshots(),
+		}, {
+			source: 'https://example.test/preview',
+			snapshots: [
+				params,
+				{ chat: chat.toString(), canvases: [] },
+			],
+			current: [],
+		});
+	});
+
 	test('preserves JSON-RPC error code and data', async () => {
 		const { client, transport } = createClient();
 		const resultPromise = client.resourceRead(URI.file('/missing'));

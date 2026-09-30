@@ -6,7 +6,7 @@
 import { Event, Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { GitHubAccountHandle, IGitHubEndpointProvider, IGitHubTokenProvider } from './githubTypes.js';
+import { GitHubAccountHandle, GitHubRequestTimeoutError, IGitHubEndpointProvider, IGitHubTokenProvider } from './githubTypes.js';
 import { GitHubBackoffGate, GitHubBackoffPolicy } from './githubBackoff.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubRequestError, IGitHubTransport } from './githubTransport.js';
@@ -44,6 +44,8 @@ const defaultBackoffPolicy: GitHubBackoffPolicy = {
 	jitter: 2_000,
 };
 
+const credentialResolutionTimeout = 5 * 60_000;
+
 interface ICredentialGeneration {
 	readonly token: string;
 	readonly generation: number;
@@ -65,9 +67,10 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 	private _current: ICredentialGeneration | undefined;
 	private _lastCredential: GitHubCredential | undefined;
 	private _generation = 0;
+	private readonly _lifetime = new AbortController();
 
 	constructor(
-		scheduler: IGitHubScheduler | undefined,
+		private readonly _scheduler: IGitHubScheduler = systemGitHubScheduler,
 		policy: GitHubBackoffPolicy = defaultBackoffPolicy,
 		private readonly _transport: IGitHubTransport,
 		private readonly _tokenProvider: IGitHubTokenProvider,
@@ -75,29 +78,35 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		private readonly _logService?: ILogService,
 	) {
 		super();
-		this._backoff = this._register(new GitHubBackoffGate('GitHub identity resolution', policy, scheduler ?? systemGitHubScheduler, _logService));
+		this._backoff = this._register(new GitHubBackoffGate('GitHub identity resolution', policy, this._scheduler, _logService));
 		if (this._tokenProvider.onDidChangeToken) {
 			this._register(this._tokenProvider.onDidChangeToken(() => this._invalidateCurrent('replacement')));
 		}
 		this._register(this._endpointProvider.onDidChange(() => this._invalidateCurrent('endpoint')));
 	}
 
-	async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
-		const token = await this._tokenProvider.getToken(signal);
-		if (!token) {
-			this._logService?.debug('[GitHubCredentialService] Token provider returned no credential');
-			throw new GitHubRequestError('GitHub authentication is required', 'authentication');
-		}
-		return this._resolve(token, signal);
+	getCredential(signal: AbortSignal): Promise<GitHubCredential> {
+		return this._withDeadline(signal, async (signal, deadline) => {
+			const token = await this._tokenProvider.getToken(signal);
+			this._throwIfExpired(signal, deadline);
+			if (!token) {
+				this._logService?.debug('[GitHubCredentialService] Token provider returned no credential');
+				throw new GitHubRequestError('GitHub authentication is required', 'authentication');
+			}
+			return this._resolve(token, signal, deadline);
+		});
 	}
 
-	async resolveCredential(token: string, signal: AbortSignal): Promise<GitHubCredential> {
-		const current = await this._tokenProvider.getToken(signal);
-		if (current !== token) {
-			this._logService?.debug('[GitHubCredentialService] Rejected credential resolution for a non-current token');
-			throw new GitHubRequestError('GitHub authentication is required', 'authentication');
-		}
-		return this._resolve(token, signal);
+	resolveCredential(token: string, signal: AbortSignal): Promise<GitHubCredential> {
+		return this._withDeadline(signal, async (signal, deadline) => {
+			const current = await this._tokenProvider.getToken(signal);
+			this._throwIfExpired(signal, deadline);
+			if (current !== token) {
+				this._logService?.debug('[GitHubCredentialService] Rejected credential resolution for a non-current token');
+				throw new GitHubRequestError('GitHub authentication is required', 'authentication');
+			}
+			return this._resolve(token, signal, deadline);
+		});
 	}
 
 	handleRequestError(credential: GitHubCredential, error: unknown): void {
@@ -116,26 +125,50 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 	}
 
 	override dispose(): void {
+		this._lifetime.abort(new GitHubRequestError('GitHub credential service was disposed', 'unknown'));
 		this._invalidateCurrent('shutdown');
 		super.dispose();
 	}
 
-	private async _resolve(token: string, signal: AbortSignal): Promise<GitHubCredential> {
-		if (signal.aborted) {
-			throw signal.reason;
+	private async _withDeadline(signal: AbortSignal, task: (signal: AbortSignal, deadline: number) => Promise<GitHubCredential>): Promise<GitHubCredential> {
+		const controller = new AbortController();
+		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal, controller.signal]);
+		combinedSignal.throwIfAborted();
+		const deadline = this._scheduler.now() + credentialResolutionTimeout;
+		const timer = this._scheduler.schedule(() => controller.abort(new GitHubRequestTimeoutError()), credentialResolutionTimeout);
+		try {
+			const credential = await waitForCredential(task(combinedSignal, deadline), combinedSignal);
+			this._throwIfExpired(combinedSignal, deadline);
+			return credential;
+		} catch (error) {
+			this._throwIfExpired(combinedSignal, deadline);
+			throw error;
+		} finally {
+			timer.dispose();
 		}
+	}
+
+	private _throwIfExpired(signal: AbortSignal, deadline: number): void {
+		signal.throwIfAborted();
+		if (deadline <= this._scheduler.now()) {
+			throw new GitHubRequestTimeoutError();
+		}
+	}
+
+	private async _resolve(token: string, signal: AbortSignal, deadline: number): Promise<GitHubCredential> {
+		this._throwIfExpired(signal, deadline);
 		if (await this._backoff.wait(this._backoffKey(token, this._currentHost()), signal)) {
 			// The wait is long enough for the credential to have been replaced,
 			// and resolving the superseded one would abort the request the
 			// replacement is already making.
-			if (await this._tokenProvider.getToken(signal) !== token) {
+			const currentToken = await this._tokenProvider.getToken(signal);
+			this._throwIfExpired(signal, deadline);
+			if (currentToken !== token) {
 				this._logService?.debug('[GitHubCredentialService] Abandoning a credential that was replaced while backing off');
 				throw new GitHubRequestError('GitHub authentication is required', 'authentication');
 			}
 		}
-		if (signal.aborted) {
-			throw signal.reason;
-		}
+		this._throwIfExpired(signal, deadline);
 		if (!this._current || this._current.token !== token) {
 			const previousCredential = this._lastCredential;
 			this._invalidateCurrent('replacement');
@@ -143,13 +176,14 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 			const controller = new AbortController();
 			const apiBaseUri = this._endpointProvider.getApiBaseUri();
 			const host = new URL(apiBaseUri).host.toLowerCase();
+			const bootstrapAccount: GitHubAccountHandle = { host, accountId: `bootstrap:${generation}` };
 			this._logService?.debug(`[GitHubCredentialService] Resolving account identity for ${host} (generation ${generation})`);
 			const current: ICredentialGeneration = {
 				token,
 				generation,
 				host,
 				controller,
-				promise: this._resolveIdentity(token, generation, host, apiBaseUri, controller.signal)
+				promise: this._resolveIdentity(token, generation, bootstrapAccount, apiBaseUri, controller.signal)
 					.then(credential => {
 						current.credential = credential;
 						// Deliberately does not clear the failure record: a working
@@ -173,10 +207,15 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 						// An invalidated generation was not refused by GitHub, so
 						// it must not count towards the delay the next one serves.
 						if (!controller.signal.aborted) {
-							this._backoff.fail(this._backoffKey(token, host));
+							this._backoff.fail(this._backoffKey(token, host), this._transport.rateLimits.getDelay(bootstrapAccount, 'core'));
 						}
 						this._logService?.debug(`[GitHubCredentialService] Account identity resolution failed for ${host} (generation ${generation}, ${credentialErrorKind(error)})`);
 						throw error;
+					})
+					.finally(() => {
+						// Retain server delays in the credential gate before discarding the transient bootstrap identity.
+						this._transport.invalidateAccount(bootstrapAccount);
+						this._transport.rateLimits.clearAccount(bootstrapAccount);
 					}),
 			};
 			this._current = current;
@@ -196,11 +235,11 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		return new URL(this._endpointProvider.getApiBaseUri()).host.toLowerCase();
 	}
 
-	private async _resolveIdentity(token: string, generation: number, host: string, apiBaseUri: string, signal: AbortSignal): Promise<GitHubCredential> {
-		const bootstrapAccount: GitHubAccountHandle = { host, accountId: `bootstrap:${generation}` };
+	private async _resolveIdentity(token: string, generation: number, bootstrapAccount: GitHubAccountHandle, apiBaseUri: string, signal: AbortSignal): Promise<GitHubCredential> {
 		let response;
 		try {
 			response = await this._transport.rest<IGitHubUserResponse>(bootstrapAccount, token, {
+				caller: 'github.credentials',
 				method: 'GET',
 				url: `${apiBaseUri}/user`,
 				etag: false,
@@ -212,8 +251,6 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 				this._tokenProvider.invalidateToken?.(token);
 			}
 			throw error;
-		} finally {
-			this._transport.invalidateAccount(bootstrapAccount);
 		}
 		const id = response.data?.id;
 		if ((typeof id !== 'string' && typeof id !== 'number') || String(id).length === 0) {
@@ -221,7 +258,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		}
 
 		return {
-			account: { host, accountId: String(id) },
+			account: { host: bootstrapAccount.host, accountId: String(id) },
 			token,
 			generation,
 			signal,
@@ -279,7 +316,11 @@ function sameAccount(left: GitHubAccountHandle, right: GitHubAccountHandle): boo
 function waitForCredential(promise: Promise<GitHubCredential>, signal: AbortSignal): Promise<GitHubCredential> {
 	return new Promise((resolve, reject) => {
 		const onAbort = () => reject(signal.reason);
-		signal.addEventListener('abort', onAbort, { once: true });
+		if (signal.aborted) {
+			onAbort();
+		} else {
+			signal.addEventListener('abort', onAbort, { once: true });
+		}
 		void promise.then(
 			credential => {
 				signal.removeEventListener('abort', onAbort);

@@ -134,17 +134,7 @@
 	min-width: 0;
 }
 
-/*
- * Titlebar background matches the dialog body so the header reads as
- * part of the modal, with no contrasting stripe. Both are anchored to
- * `editorWidget.background`, the dialog widget's own native background
- * (see defaultDialogStyles), so the header and body are always the same
- * color in every theme. Set explicitly (not transparent) because the
- * titlebar is sticky. A transparent background would let scrolled form
- * content show through. No `border-bottom`. Sticky so the title stays
- * in view as the form scrolls (the dialog's message-container is the
- * scroll host).
- */
+/* Keep the sticky titlebar solid so scrolled form content cannot show through. */
 .automation-titlebar {
 	position: sticky;
 	top: 0;
@@ -155,7 +145,7 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: var(--vscode-fontSize-heading2);
 	color: var(--vscode-editorWidget-foreground);
-	background-color: var(--vscode-editorWidget-background);
+	background-color: var(--modern-ui-solid-dialog-background, var(--vscode-editorWidget-background));
 }
 
 .automation-description {
@@ -496,19 +486,6 @@
 	gap: 4px;
 }
 
-.automation-form-row.automation-form-checkbox-row {
-	flex-direction: row;
-	align-items: center;
-	gap: 8px;
-	margin-top: 2px;
-	padding-top: 10px;
-	border-top: 1px solid var(--vscode-widget-border, transparent);
-}
-
-.automation-form-row.automation-form-checkbox-row > .monaco-checkbox {
-	margin-right: 0;
-}
-
 /*
  * Lay the Schedule / Time / Day controls along a single horizontal axis.
  * Each control lives in its own `.automation-form-schedule-group`
@@ -521,6 +498,9 @@
 	align-items: flex-end;
 	flex-wrap: wrap;
 	gap: 12px;
+	margin-top: var(--vscode-spacing-size20);
+	padding-top: var(--vscode-spacing-size100);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
 }
 
 .automation-form-schedule-group {
@@ -588,12 +568,6 @@
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
 	min-height: 1em;
-}
-
-.automation-form-checkbox-label {
-	font-size: var(--vscode-fontSize-body1, 13px);
-	color: var(--vscode-foreground);
-	cursor: pointer;
 }
 
 /*
