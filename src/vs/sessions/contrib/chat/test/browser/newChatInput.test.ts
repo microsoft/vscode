@@ -350,7 +350,7 @@ suite('NewChatInputWidget', () => {
 		assert.strictEqual(cancelCount, 1);
 	});
 
-	test('opens the anchored context picker above the attach button', () => {
+	test('opens the anchored context picker below the attach button', () => {
 		const attachButton = document.createElement('div');
 		const onDidHideEmitter = disposables.add(new Emitter<void>());
 		const picker = {
@@ -384,7 +384,7 @@ suite('NewChatInputWidget', () => {
 			anchorPosition: picker.anchorPosition,
 		}, {
 			anchor: 'attachButton',
-			anchorPosition: 'above',
+			anchorPosition: 'below',
 		});
 		onDidHideEmitter.fire();
 	});
