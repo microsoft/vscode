@@ -1839,7 +1839,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.microsoftAuthentication.enabled.always', "Always offer \"Continue with Microsoft\", without checking for a linked account."),
 				nls.localize('chat.microsoftAuthentication.enabled.never', "Never offer \"Continue with Microsoft\", and never check for a linked account."),
 			],
-			markdownDescription: nls.localize('chat.microsoftAuthentication.enabled', "Controls when sign-in dialogs offer \"Continue with Microsoft\". Signing in with Microsoft exchanges your Microsoft account for the GitHub access your organization has linked to it. The resulting GitHub sign-in lasts for the current window session only and is not saved."),
+			markdownDescription: nls.localize('chat.microsoftAuthentication.enabled', "Controls when sign-in surfaces, such as the sign-in dialog and the welcome screen, offer \"Continue with Microsoft\". Signing in with Microsoft exchanges your Microsoft account for the GitHub access your organization has linked to it. The resulting GitHub sign-in lasts for the current window session only and is not saved."),
 			default: ChatMicrosoftAuthenticationMode.Never,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

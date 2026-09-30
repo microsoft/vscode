@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ThrottlerByKey } from '../../../../../base/common/async.js';
-import { CancellationToken, cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, IReader, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, toChatMicrosoftAuthenticationMode } from '../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -42,8 +41,10 @@ const INCLUDE_UNAPPROVED_ACCOUNTS_OPTION = `${WORKBENCH_ONLY_SESSION_OPTION_PREF
 
 /**
  * Asks the GitHub provider whether GitHub links the Entra identity behind any of the given tokens
- * to a GitHub account. Handled in `extensions/github-authentication`, which revokes every token it
- * mints to find out.
+ * to a GitHub account. Handled in `extensions/github-authentication`, which revokes the token it
+ * mints to find out when the GitHub host and the build allow it. Where they do not, such as in
+ * Code - OSS (no client secret) or on a host without the revocation endpoint, the token is left
+ * to expire on its own.
  */
 const ENTRA_EXCHANGE_PROBE_OPTION = `${WORKBENCH_ONLY_SESSION_OPTION_PREFIX}EntraExchangeProbe`;
 
@@ -65,8 +66,9 @@ export interface IMicrosoftSignInProbeResult {
  * device is linked by GitHub to a GitHub account (for example, an Enterprise Managed User).
  *
  * Every step is silent. The Microsoft tokens are never handed to extensions other than the two
- * authentication providers, and the GitHub provider revokes the tokens it mints to answer. Both
- * options are reserved for the workbench, so extensions cannot run this check.
+ * authentication providers. The GitHub provider revokes the token it mints to answer where the host
+ * and build allow it, and otherwise leaves it to expire (see {@link ENTRA_EXCHANGE_PROBE_OPTION}).
+ * Both options are reserved for the workbench, so extensions cannot run this check.
  *
  * @param gitHubProviderId The GitHub authentication provider that sign-in would use.
  * @throws {@link CancellationError} when `token` is cancelled; any provider failure is rethrown.
@@ -87,6 +89,11 @@ export async function probeMicrosoftSignIn(authenticationService: IAuthenticatio
 		silent: true,
 		[ENTRA_EXCHANGE_PROBE_OPTION]: { subjectTokens: microsoftSessions.map(session => session.accessToken) }
 	}, true);
+	// Checked again because the request cannot be cancelled once the provider has it: an answer for
+	// accounts that have changed since must not be reported.
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
+	}
 	return {
 		outcome: linked.length ? MicrosoftSignInProbeOutcome.Linked : MicrosoftSignInProbeOutcome.NotLinked,
 		microsoftAccounts: microsoftSessions.length
@@ -157,6 +164,11 @@ export class ChatMicrosoftSignInProbeService extends Disposable implements IChat
 	private readonly probes = this._register(new ThrottlerByKey<string>());
 	/** Stops a running probe from asking GitHub, and so from minting a token, once this service is gone. */
 	private readonly disposed = cancelOnDispose(this._store);
+	/**
+	 * Cancelled, and replaced, whenever a Microsoft account is added or removed: a probe still running
+	 * then answers for accounts that may be gone, so its answer is discarded.
+	 */
+	private accountsCancellation = new CancellationTokenSource(this.disposed);
 
 	constructor(
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
@@ -181,11 +193,25 @@ export class ChatMicrosoftSignInProbeService extends Disposable implements IChat
 		});
 		this.offerMicrosoftSignIn = derived(this, reader => this.isProbeRelevant(reader) && this.offered.read(reader));
 
-		// A Microsoft sign-in or sign-out can change the answer, so it probes again. Signed-in users are
-		// probed too, so that a forced sign-in dialog already knows the answer when it opens.
-		const microsoftSessionsChanged = observableSignalFromEvent(this, Event.filter(authenticationService.onDidChangeSessions, e => e.providerId === MICROSOFT_PROVIDER_ID));
+		// Adding or removing a Microsoft account can change the answer either way, so whatever was found
+		// is forgotten and the accounts are probed again. Token refreshes only fire `changed` and are
+		// ignored, because probing mints a GitHub token.
+		const microsoftAccountsChanged = observableSignal(this);
+		this._register(toDisposable(() => this.accountsCancellation.dispose(true)));
+		this._register(authenticationService.onDidChangeSessions(({ providerId, event }) => {
+			if (providerId !== MICROSOFT_PROVIDER_ID || !(event.added?.length || event.removed?.length)) {
+				return;
+			}
+			this.accountsCancellation.dispose(true);
+			this.accountsCancellation = new CancellationTokenSource(this.disposed);
+			transaction(tx => {
+				this.linkedGitHubProviderId.set(undefined, tx);
+				microsoftAccountsChanged.trigger(tx);
+			});
+		}));
+		// Signed-in users are probed too, so that a forced sign-in dialog already knows the answer when it opens.
 		this._register(autorun(reader => {
-			microsoftSessionsChanged.read(reader);
+			microsoftAccountsChanged.read(reader);
 			const mode = this.mode.read(reader);
 			if (!this.isProbeRelevant(reader)) {
 				return;
@@ -236,7 +262,7 @@ export class ChatMicrosoftSignInProbeService extends Disposable implements IChat
 		}
 		const watch = StopWatch.create();
 		try {
-			const result = await probeMicrosoftSignIn(this.authenticationService, gitHubProviderId, this.disposed);
+			const result = await probeMicrosoftSignIn(this.authenticationService, gitHubProviderId, this.accountsCancellation.token);
 			this.report(gitHubProviderId, result, watch.elapsed());
 			if (result.outcome === MicrosoftSignInProbeOutcome.Linked) {
 				this.linkedGitHubProviderId.set(gitHubProviderId, undefined);

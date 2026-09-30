@@ -438,9 +438,9 @@ suite('Chat Microsoft sign-in probe service', () => {
 				return ++microsoftCalls === 1 ? pending.p : [probeSession('first', 'entra-first')];
 			}
 		});
-		// A dialog and a Microsoft sign-in change, both while the first probe runs, add up to one more probe after it.
+		// A dialog and a token refresh, both while the first probe runs, add up to one more probe after it.
 		showSignIn(service);
-		sessionsChanged.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
+		sessionsChanged.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [probeSession('first', 'entra-first')] } });
 		const probesWhileRunning = calls.length;
 		await pending.complete([probeSession('first', 'entra-first')]);
 		await timeout(0);
@@ -477,6 +477,53 @@ suite('Chat Microsoft sign-in probe service', () => {
 			reported: [{ outcome: MicrosoftSignInProbeOutcome.Linked, microsoftAccounts: 1 }],
 			microsoftCalls: 1,
 			offered: true,
+		});
+	});
+
+	test('forgets a found link when a Microsoft account is added or removed, and discards an answer for the accounts before', async () => {
+		const sessionsChanged = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+		let linked = true;
+		let heldGitHubAnswer: DeferredPromise<readonly AuthenticationSession[]> | undefined;
+		const { service, reported, reportedOnce } = createService({
+			onDidChangeSessions: sessionsChanged.event,
+			respond: async call => {
+				if (call.providerId === 'microsoft') {
+					return [probeSession('first', 'entra-first')];
+				}
+				if (heldGitHubAnswer) {
+					return heldGitHubAnswer.p;
+				}
+				return linked ? [probeSession('mona_contoso', '')] : [];
+			}
+		});
+		const removed = { providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [probeSession('first', 'entra-first')], changed: [] } };
+		await reportedOnce;
+		const offeredOnceLinked = service.offerMicrosoftSignIn.get();
+
+		// Removing the account forgets the link straight away and probes again. That probe is held at GitHub.
+		heldGitHubAnswer = new DeferredPromise();
+		sessionsChanged.fire(removed);
+		const offeredRightAfterRemoval = service.offerMicrosoftSignIn.get();
+		await timeout(0);
+
+		// The accounts change again while it is held, so whatever it answers is for accounts that are gone.
+		linked = false;
+		sessionsChanged.fire(removed);
+		const staleAnswer = heldGitHubAnswer;
+		heldGitHubAnswer = undefined;
+		await staleAnswer.complete([probeSession('mona_contoso', '')]);
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({ offeredOnceLinked, offeredRightAfterRemoval, offeredAtEnd: service.offerMicrosoftSignIn.get(), reported }, {
+			offeredOnceLinked: true,
+			offeredRightAfterRemoval: false,
+			offeredAtEnd: false,
+			// The held probe's stale "linked" is never reported; only the probe after it is.
+			reported: [
+				{ outcome: MicrosoftSignInProbeOutcome.Linked, microsoftAccounts: 1 },
+				{ outcome: MicrosoftSignInProbeOutcome.NotLinked, microsoftAccounts: 1 },
+			],
 		});
 	});
 });
