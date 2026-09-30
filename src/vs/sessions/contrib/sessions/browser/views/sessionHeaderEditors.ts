@@ -6,10 +6,12 @@
 import '../media/sessionHeaderEditors.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { AnchorAlignment, AnchorPosition } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { Radio } from '../../../../../base/browser/ui/radio/radio.js';
 import { Color } from '../../../../../base/common/color.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -101,11 +103,16 @@ export class SessionHeaderEditors extends Disposable {
 		this.open.value = session;
 		this.setOpened(true);
 
+		const dismissal = this.createOutsideClickDismissal(session);
 		const view = this.contextViewService.showContextView({
 			getAnchor: () => options.anchor,
 			anchorAlignment: AnchorAlignment.LEFT,
 			anchorPosition: AnchorPosition.BELOW,
-			render: container => renderSessionHeaderEditor(container, { ...options, close: () => this.close() }, this.instantiationService),
+			render: container => {
+				dismissal.track(container);
+				return renderSessionHeaderEditor(container, { ...options, close: () => this.close() }, this.instantiationService);
+			},
+			onDOMEvent: e => dismissal.onDOMEvent(e),
 			onHide: () => {
 				options.anchor.focus();
 				if (this.open.value === session) {
@@ -133,11 +140,16 @@ export class SessionHeaderEditors extends Disposable {
 				options.anchor.focus();
 			}
 		};
+		const dismissal = this.createOutsideClickDismissal(session);
 		const view = this.contextViewService.showContextView({
 			getAnchor: () => options.anchor,
 			anchorAlignment: AnchorAlignment.LEFT,
 			anchorPosition: AnchorPosition.BELOW,
-			render: container => this.instantiationService.createInstance(SessionCollectionEditorBody, container, { ...options, collectionId: collection.id, close: () => this.close(), isNew: !options.collectionId }),
+			render: container => {
+				dismissal.track(container);
+				return this.instantiationService.createInstance(SessionCollectionEditorBody, container, { ...options, collectionId: collection.id, close: () => this.close(), isNew: !options.collectionId });
+			},
+			onDOMEvent: e => dismissal.onDOMEvent(e),
 			onHide: () => {
 				restoreFocus();
 				if (this.open.value === session) {
@@ -151,6 +163,36 @@ export class SessionHeaderEditors extends Disposable {
 
 	close(): void {
 		this.open.clear();
+	}
+
+	/**
+	 * Closes the popover on a click outside it. The click that opened the
+	 * popover, and a click whose pointer went down inside the popover (e.g.
+	 * dragging the color picker out of it), do not count.
+	 */
+	private createOutsideClickDismissal(store: DisposableStore): { track(container: HTMLElement): void; onDOMEvent(e: globalThis.Event | StandardMouseEvent): void } {
+		let popover: HTMLElement | undefined;
+		let pointerDownInside = false;
+		let armed = false;
+		store.add(disposableTimeout(() => armed = true));
+		return {
+			track: container => {
+				popover = container;
+				store.add(DOM.addDisposableListener(container, DOM.EventType.POINTER_DOWN, () => pointerDownInside = true, true));
+			},
+			onDOMEvent: e => {
+				const event = e instanceof StandardMouseEvent ? e.browserEvent : e;
+				if (event.type !== DOM.EventType.CLICK) {
+					return;
+				}
+				const startedInside = pointerDownInside;
+				pointerDownInside = false;
+				if (!armed || startedInside || (popover && event.composedPath().includes(popover))) {
+					return;
+				}
+				this.close();
+			},
+		};
 	}
 
 	private setOpened(value: boolean): void {
