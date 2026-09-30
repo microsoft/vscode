@@ -972,7 +972,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 		if (!backendToken) {
 			this._sessionErrorCode = this._sessionErrorCode || 'connect.noauth';
-			const useGptLiveAuth = this._configurationService.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) && transcriptionUrl.includes('gpt-live-caas.mai.microsoft.com');
+			const configuredVoiceOverride = this._configurationService.getValue<string>(AgentsVoiceSettingId.BackendUrl);
+			const useGptLiveAuth = this._configurationService.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) && !(typeof configuredVoiceOverride === 'string' ? configuredVoiceOverride.trim() : '');
 			throw new Error(useGptLiveAuth
 				? localize('chatStt.gptLiveApiKeyRequired', "Set agents.voice.gptLive.apiKey to use cloud dictation with GPT Live.")
 				: localize('chatStt.maiSignIn', "Sign in to GitHub to use cloud dictation."));
