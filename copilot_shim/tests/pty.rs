@@ -50,6 +50,7 @@ impl PtyProcess {
 			.args(arguments)
 			.current_dir(current_directory)
 			.env("PATH", path)
+			.env("PREFIX", current_directory.join("copilot-install"))
 			.stdin(Stdio::from(stdin))
 			.stdout(Stdio::from(stdout))
 			.stderr(Stdio::from(stderr));
@@ -307,6 +308,151 @@ fn unix_pty_preserves_prompt_and_cli_interaction() {
 }
 
 #[test]
+fn unix_pty_install_offers_profile_update_and_launches_without_refreshing_path() {
+	for accept_profile in [false, true] {
+		let root = tempfile::tempdir().expect("profile test directory");
+		let home = root.path().join("home");
+		let working = root.path().join("working");
+		let state = root.path().join("state");
+		let tools = root.path().join("tools");
+		let shim = root.path().join("copilotCli");
+		let legacy = root.path().join("legacy");
+		let prefix = root.path().join("install prefix");
+		for directory in [
+			&home,
+			&working,
+			&state,
+			&tools,
+			&shim,
+			&legacy,
+			&prefix.join("bin"),
+		] {
+			fs::create_dir_all(directory).expect("fixture directory");
+		}
+		fs::copy(env!("CARGO_BIN_EXE_copilot"), shim.join("copilot")).expect("copied Rust shim");
+		write_executable(
+			&legacy.join("copilot"),
+			include_bytes!("fixtures/legacy/posix-launcher.sh"),
+		);
+		std::os::unix::fs::symlink("/bin/bash", tools.join("bash")).expect("Bash");
+		write_executable(
+			&tools.join("curl"),
+			br#"#!/bin/sh
+printf 'download\n' >> "$COPILOT_SHIM_TEST_STATE/downloads"
+printf '%s' "$PATH" > "$COPILOT_SHIM_TEST_STATE/downloader-path"
+/bin/cp "$COPILOT_SHIM_TEST_INSTALLER" "$4"
+"#,
+		);
+		let cli = root.path().join("cli");
+		write_executable(
+			&cli,
+			br#"#!/bin/sh
+printf '%s' "$PATH" > "$COPILOT_SHIM_TEST_STATE/cli-path"
+printf '%s' "$PWD" > "$COPILOT_SHIM_TEST_STATE/cwd"
+printf '%s' "$COPILOT_SHIM_TEST_ENV" > "$COPILOT_SHIM_TEST_STATE/environment"
+printf '%s\0' "$@" > "$COPILOT_SHIM_TEST_STATE/arguments"
+printf 'CLI_READY\n'
+IFS= read -r input
+printf '%s' "$input" > "$COPILOT_SHIM_TEST_STATE/stdin"
+exit 47
+"#,
+		);
+		let installer = root.path().join("installer.sh");
+		fs::write(
+			&installer,
+			r#"#!/bin/bash
+set -e
+/bin/cp "$COPILOT_SHIM_TEST_CLI" "$PREFIX/bin/copilot"
+printf '%s' "$PATH" > "$COPILOT_SHIM_TEST_STATE/installer-path"
+if command -v copilot >/dev/null 2>&1; then
+    printf 'Unexpected shim visible to installer\n' >&2
+    exit 91
+fi
+printf 'Would you like to add it to %s/.profile? [y/N] ' "$HOME"
+read -r answer </dev/tty
+if [[ "$answer" == y ]]; then
+    printf 'export PATH="%s/bin:$PATH"\n' "$PREFIX" >> "$HOME/.profile"
+fi
+printf '\nInstallation complete\n'
+"#,
+		)
+		.expect("fake installer");
+		let path = std::env::join_paths([&shim, &legacy, &tools]).expect("PATH");
+		let environment = [
+			("HOME", home.as_os_str()),
+			("PREFIX", prefix.as_os_str()),
+			("SHELL", OsStr::new("/bin/bash")),
+			("COPILOT_SHIM_TEST_STATE", state.as_os_str()),
+			("COPILOT_SHIM_TEST_ENV", OsStr::new("inherited")),
+			("COPILOT_SHIM_TEST_INSTALLER", installer.as_os_str()),
+			("COPILOT_SHIM_TEST_CLI", cli.as_os_str()),
+		];
+		let arguments: Vec<OsString> = ["--resume", "session with spaces", "", "quote'\""]
+			.into_iter()
+			.map(OsString::from)
+			.collect();
+		let mut first = PtyProcess::spawn(&arguments, &path, &working, &environment);
+		first.wait_for(INSTALL_PROMPT);
+		first.write(b"y\n");
+		first.wait_for(b".profile? [y/N] ");
+		first.write(if accept_profile { b"y\n" } else { b"n\n" });
+		first.wait_for(b"CLI_READY\n");
+		first.write(b"first-input\n");
+		let first_status = first.wait_for_exit();
+
+		let mut second = PtyProcess::spawn(&arguments, &path, &working, &environment);
+		second.wait_for(b"CLI_READY\n");
+		second.write(b"second-input\n");
+		let second_status = second.wait_for_exit();
+		let mut expected_arguments = Vec::new();
+		for argument in &arguments {
+			expected_arguments.extend_from_slice(argument.as_bytes());
+			expected_arguments.push(0);
+		}
+		assert_eq!(
+			(
+				first_status.code(),
+				second_status.code(),
+				home.join(".profile").exists(),
+				read(&state.join("downloads")),
+				read(&state.join("installer-path")),
+				read(&state.join("downloader-path")),
+				read(&state.join("cli-path")),
+				read(&state.join("arguments")),
+				read(&state.join("environment")),
+				read(&state.join("stdin")),
+				read(&state.join("cwd")),
+				count_bytes(second.transcript(), INSTALL_PROMPT),
+			),
+			(
+				Some(47),
+				Some(47),
+				accept_profile,
+				b"download\n".to_vec(),
+				tools.as_os_str().as_bytes().to_vec(),
+				path.as_bytes().to_vec(),
+				path.as_bytes().to_vec(),
+				expected_arguments,
+				b"inherited".to_vec(),
+				b"second-input".to_vec(),
+				fs::canonicalize(&working)
+					.expect("cwd")
+					.as_os_str()
+					.as_bytes()
+					.to_vec(),
+				0,
+			)
+		);
+		if accept_profile {
+			assert_eq!(
+				fs::read_to_string(home.join(".profile")).expect("profile"),
+				format!("export PATH=\"{}/bin:$PATH\"\n", prefix.display())
+			);
+		}
+	}
+}
+
+#[test]
 fn unix_pty_ctrl_c_cancels_without_fallback() {
 	let root = tempfile::tempdir().expect("create cancellation test directory");
 	let tools = root.path().join("tools");
@@ -429,6 +575,7 @@ fn run_redirected(
 		.args(arguments)
 		.current_dir(current_directory)
 		.env("PATH", path)
+		.env("PREFIX", current_directory.join("copilot-install"))
 		.stdin(Stdio::null())
 		.stdout(Stdio::from(stdout))
 		.stderr(Stdio::from(stderr))

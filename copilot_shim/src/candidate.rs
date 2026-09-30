@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 use std::collections::HashSet;
+#[cfg(unix)]
+use std::ffi::OsString;
 use std::io::{self, Cursor, Read};
 use std::path::{Path, PathBuf};
 
@@ -79,6 +81,29 @@ pub(crate) fn discover<R>(
 where
 	R: EnvironmentEffects + FileSystemEffects,
 {
+	discover_directories(runtime, shim_marker, path_directories(runtime))
+}
+
+#[cfg(unix)]
+pub(crate) fn discover_directory<R>(
+	runtime: &R,
+	shim_marker: &[u8],
+	directory: &Path,
+) -> Result<DiscoveryResult, DiscoveryError>
+where
+	R: EnvironmentEffects + FileSystemEffects,
+{
+	discover_directories(runtime, shim_marker, [directory.to_path_buf()])
+}
+
+fn discover_directories<R>(
+	runtime: &R,
+	shim_marker: &[u8],
+	directories: impl IntoIterator<Item = PathBuf>,
+) -> Result<DiscoveryResult, DiscoveryError>
+where
+	R: EnvironmentEffects + FileSystemEffects,
+{
 	let current_path = runtime
 		.current_executable()
 		.map_err(|error| DiscoveryError {
@@ -106,7 +131,7 @@ where
 
 	let mut result = DiscoveryResult::default();
 	let mut visited_directories = HashSet::new();
-	for directory in path_directories(runtime) {
+	for directory in directories {
 		if !visited_directories.insert(directory.clone()) {
 			continue;
 		}
@@ -122,6 +147,60 @@ where
 		}
 	}
 	Ok(result)
+}
+
+/// The official installer must not mistake a shim for the CLI it just installed. Only its child PATH is filtered.
+#[cfg(unix)]
+pub(crate) fn installer_path<R>(runtime: &R) -> io::Result<OsString>
+where
+	R: EnvironmentEffects + FileSystemEffects,
+{
+	let discovery = discover(runtime, crate::SHIM_MARKER).map_err(|error| {
+		io::Error::other(format!(
+			"could not identify the running shim at {:?}: {:?}",
+			error.path, error.error
+		))
+	})?;
+	let shim_directories: HashSet<PathBuf> = discovery
+		.diagnostics
+		.into_iter()
+		.filter_map(|diagnostic| match diagnostic.kind {
+			DiscoveryDiagnosticKind::Excluded(
+				DiscoveryExclusion::CurrentExecutable
+				| DiscoveryExclusion::RustShimMarker
+				| DiscoveryExclusion::LegacyShim,
+			) => diagnostic.path.parent().map(Path::to_path_buf),
+			_ => None,
+		})
+		.collect();
+	let path = runtime
+		.path()
+		.filter(|path| !path.is_empty())
+		.ok_or_else(|| io::Error::other("the installer requires a nonempty PATH"))?;
+	let mut retained = Vec::new();
+	let mut current_directory = None;
+	for entry in std::env::split_paths(&path) {
+		let directory = if entry.is_absolute() {
+			entry.clone()
+		} else {
+			if current_directory.is_none() {
+				current_directory = Some(runtime.current_directory()?);
+			}
+			current_directory
+				.as_ref()
+				.expect("current directory was resolved")
+				.join(&entry)
+		};
+		if !shim_directories.contains(&directory) {
+			retained.push(entry);
+		}
+	}
+	if retained.is_empty() {
+		return Err(io::Error::other(
+			"no PATH entries remain after excluding Copilot shims; add the installer tools to PATH",
+		));
+	}
+	std::env::join_paths(retained).map_err(io::Error::other)
 }
 
 /// The directories in PATH, in order. An empty or relative entry is resolved against the current directory, which is
@@ -383,6 +462,89 @@ mod tests {
 
 	fn joined_path(paths: impl IntoIterator<Item = PathBuf>) -> OsString {
 		std::env::join_paths(paths).expect("join PATH entries")
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn installer_path_excludes_every_shim_alias_and_preserves_other_entries() {
+		use std::os::unix::ffi::OsStringExt;
+		use std::os::unix::fs::symlink;
+
+		let root = TestDirectory::new("installer-path");
+		let current = create_current_executable(&root, crate::SHIM_MARKER);
+		let copied = root.directory("copy");
+		write_executable(&copied.join("copilot"), crate::SHIM_MARKER);
+		let linked = root.directory("hardlink");
+		fs::hard_link(&current, linked.join("copilot")).expect("hardlink");
+		let symlinked = root.directory("symlink");
+		symlink(&current, symlinked.join("copilot")).expect("symlink");
+		let directory_alias = root.child("directory-alias");
+		symlink(current.parent().expect("parent"), &directory_alias).expect("directory alias");
+		let legacy = root.directory("legacy");
+		write_executable(
+			&legacy.join("copilot"),
+			include_bytes!("../tests/fixtures/legacy/posix-launcher.sh"),
+		);
+		fs::copy(&current, root.child("copilot")).expect("shim in current directory");
+		let native = root.directory(PathBuf::from(OsString::from_vec(b"native-\xff".to_vec())));
+		let tools = root.directory("tools");
+		let real = root.directory("npm");
+		write_executable(
+			&real.join("copilot"),
+			include_bytes!("../tests/fixtures/legacy/npm-wrapper.cmd"),
+		);
+		let retained = vec![
+			tools.clone(),
+			PathBuf::from("tools"),
+			native.clone(),
+			real.clone(),
+			tools.clone(),
+		];
+		let runtime = TestRuntime::new(
+			Some(joined_path([
+				current.parent().expect("parent").to_path_buf(),
+				tools.clone(),
+				copied,
+				PathBuf::from("current/"),
+				linked,
+				symlinked,
+				directory_alias,
+				PathBuf::new(),
+				PathBuf::from("tools"),
+				legacy,
+				native,
+				real,
+				tools,
+			])),
+			current,
+			root.path.clone(),
+		);
+		let before = runtime.path();
+
+		assert_eq!(
+			(
+				candidate::installer_path(&runtime).expect("installer PATH"),
+				runtime.path()
+			),
+			(joined_path(retained), before)
+		);
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn installer_path_does_not_replace_excluded_entries_with_current_directory() {
+		let root = TestDirectory::new("empty-installer-path");
+		let current = create_current_executable(&root, crate::SHIM_MARKER);
+		let parent = current.parent().expect("parent").to_path_buf();
+		let runtime = TestRuntime::new(
+			Some(joined_path([parent.clone(), PathBuf::new()])),
+			current,
+			parent,
+		);
+		assert!(candidate::installer_path(&runtime)
+			.expect_err("all entries excluded")
+			.to_string()
+			.contains("no PATH entries remain"));
 	}
 
 	fn candidate_paths(result: &candidate::DiscoveryResult) -> Vec<PathBuf> {

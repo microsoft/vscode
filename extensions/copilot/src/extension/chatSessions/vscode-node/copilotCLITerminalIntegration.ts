@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises as fs } from 'fs';
 import { Terminal, TerminalLocation, TerminalOptions, TerminalProfile, ThemeIcon, Uri, ViewColumn, window, workspace } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -21,35 +20,16 @@ import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecy
 import * as path from '../../../util/vs/base/common/path';
 import { windowsToGitBashPath } from '../../../util/vs/workbench/contrib/terminalContrib/suggest/browser/terminalGitBashHelpers';
 import { PythonTerminalService } from './copilotCLIPythonTerminalService';
+import { prepareCopilotCLINativeShim } from './copilotCLINativeShim';
 import { CopilotCLITerminalLinkProvider, SessionDirResolver } from './copilotCLITerminalLinkProvider';
 
 const COPILOT_CLI_COMMAND = 'copilot';
-const COPILOT_SHIM_DIRECTORY = 'copilot-shim';
 const COPILOT_ICON = new ThemeIcon('copilot');
 
 /**
  * Core setting, controlled by the `CopilotCliCommand` policy, that turns off the native shim in terminals.
  */
 const COPILOT_CLI_COMMAND_ENABLED_SETTING = 'chat.copilotCliCommand.enabled';
-
-/**
- * Directory in global storage where earlier versions wrote script shims. It is removed on startup.
- */
-const LEGACY_SHIM_DIRECTORY = 'copilotCli';
-
-/**
- * Returns where the native `copilot` shim ships: a `copilot-shim` folder in the `bin` folder that contains the `code`
- * command. On macOS the `bin` folder is under the app root; elsewhere it is next to the application executable.
- */
-export function getNativeCopilotShimPath(platform: NodeJS.Platform, execPath: string, appRoot: string): string {
-	if (platform === 'win32') {
-		return path.win32.join(path.win32.dirname(execPath), 'bin', COPILOT_SHIM_DIRECTORY, `${COPILOT_CLI_COMMAND}.exe`);
-	}
-	if (platform === 'darwin') {
-		return path.posix.join(appRoot, 'bin', COPILOT_SHIM_DIRECTORY, COPILOT_CLI_COMMAND);
-	}
-	return path.posix.join(path.posix.dirname(execPath), 'bin', COPILOT_SHIM_DIRECTORY, COPILOT_CLI_COMMAND);
-}
 
 export type TerminalOpenLocation = 'panel' | 'editor' | 'editorBeside';
 
@@ -85,11 +65,11 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 	declare _serviceBrand: undefined;
 	private readonly initialization: Promise<void>;
 	/**
-	 * The native shim when it ships with this build and is enabled; otherwise `copilot`, resolved from PATH.
+	 * The stored native shim when available and enabled; otherwise `copilot`, resolved from PATH.
 	 */
 	private copilotCommand: string = COPILOT_CLI_COMMAND;
 	/**
-	 * The native shim, when it ships with this build.
+	 * The native shim published in extension global storage.
 	 */
 	private nativeShimPath: string | undefined;
 	private readonly pythonTerminalService: PythonTerminalService;
@@ -115,13 +95,10 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 	}
 
 	private async initialize(): Promise<void> {
-		await this.removeLegacyShims();
-
-		const shimPath = getNativeCopilotShimPath(process.platform, process.execPath, this.envService.appRoot);
-		if (await isFile(shimPath)) {
-			this.nativeShimPath = shimPath;
+		if (this.context.globalStorageUri) {
+			this.nativeShimPath = await prepareCopilotCLINativeShim(this.context.globalStorageUri.fsPath, this.logService);
 		} else {
-			this.logService.info(`[CopilotCLITerminalIntegration] The native copilot shim was not found at ${shimPath}; terminals run copilot from PATH.`);
+			this.logService.info('[CopilotCLITerminalIntegration] Global storage is unavailable; terminals run copilot from PATH.');
 		}
 		this.updateCopilotCommand();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -162,29 +139,15 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 		const enabled = this.configurationService.getNonExtensionConfig<boolean>(COPILOT_CLI_COMMAND_ENABLED_SETTING) !== false;
 		if (enabled && this.nativeShimPath) {
 			this.copilotCommand = this.nativeShimPath;
-			this.terminalService.contributePath('copilot-cli', path.dirname(this.nativeShimPath), { command: COPILOT_CLI_COMMAND });
+			this.terminalService.contributePath('copilot-cli', path.dirname(this.nativeShimPath), { command: COPILOT_CLI_COMMAND }, true);
 			return;
 		}
 
 		this.copilotCommand = COPILOT_CLI_COMMAND;
-		// Also drops a PATH contribution persisted by earlier versions that pointed at the legacy script shims.
+		// Also drops a persisted contribution when no usable native shim is available.
 		this.terminalService.removePathContribution('copilot-cli');
 		if (!enabled && this.nativeShimPath) {
 			this.logService.info(`[CopilotCLITerminalIntegration] ${COPILOT_CLI_COMMAND_ENABLED_SETTING} is off; terminals run copilot from PATH.`);
-		}
-	}
-
-	private async removeLegacyShims(): Promise<void> {
-		const globalStorageUri = this.context.globalStorageUri;
-		if (!globalStorageUri) {
-			// globalStorageUri is not available in extension tests
-			return;
-		}
-
-		try {
-			await fs.rm(path.join(globalStorageUri.fsPath, LEGACY_SHIM_DIRECTORY), { recursive: true, force: true });
-		} catch (error) {
-			this.logService.warn(`[CopilotCLITerminalIntegration] Failed to remove the legacy copilot shims: ${error}`);
 		}
 	}
 
@@ -439,14 +402,6 @@ function quoteArgsForShell(shellScript: string, args: string[]): string {
 function quoteArgsForPowerShell(command: string, args: string[]): string {
 	const quote = (value: string) => `'${value.replace(/'/g, `''`)}'`;
 	return ['&', quote(command), ...args.map(quote)].join(' ');
-}
-
-async function isFile(filePath: string): Promise<boolean> {
-	try {
-		return (await fs.stat(filePath)).isFile();
-	} catch {
-		return false;
-	}
 }
 
 async function getCommonTerminalOptions(name: string, authenticationService: IAuthenticationService, otelService: IOTelService, location: TerminalOpenLocation = 'editor'): Promise<TerminalOptions> {

@@ -69,11 +69,41 @@ the reverse.
 
 - The Windows installer ([`copilot.iss`](../build/win32/copilot.iss)) adds the
   folder to `PATH`, and can install Copilot CLI with the setup commands.
-- The Copilot extension computes the same path, adds the folder to the `PATH`
-  of integrated terminals unless `chat.copilotCliCommand.enabled` is off, and
-  falls back to `copilot` from `PATH` when the shim is missing or turned off.
-  It removes the script shims that earlier versions wrote to its global
-  storage.
+- The development Copilot extension integration uses the global-storage
+  deployment described below. Product artifact placement and Windows setup
+  remain unchanged.
+
+### Development integrated-terminal deployment
+
+The extension copies a local Rust build to
+`<globalStorageUri>/copilotCli/copilot` (`copilot.exe` on Windows). Fill in the
+absolute, extension-host-local build path in `LOCAL_SHIM_SOURCE_PATHS` in
+[`copilotCLINativeShim.ts`](../extensions/copilot/src/extension/chatSessions/vscode-node/copilotCLINativeShim.ts).
+The entries are intentionally unset. WSL/SSH requires a build on the remote
+host matching its OS, architecture, and libc. This development integration
+does not discover or download production artifacts.
+
+The extension prepends that storage directory using the original
+`copilot-cli` terminal PATH contributor. Copilot-created terminals invoke the
+stored binary directly; ordinary terminals can resolve it by typing `copilot`.
+The `chat.copilotCliCommand.enabled` setting and policy still control the
+contribution and invocation. Without a configured/usable shim, or when
+disabled, terminals use the ordinary `copilot` PATH fallback.
+
+Deployment replaces the old Unix launcher and removes only the obsolete
+owned script files, not the storage directory or unrelated files. It compares
+contents so rebuilding without changing the package version refreshes the
+copy. Publication uses a same-directory staging file, executable permissions
+on Unix, and rename/rollback on Windows to preserve running sessions.
+An exclusive `.publish.lock` serializes extension hosts. A bounded wait
+reports a stale lock rather than deleting a lock another host could own; after
+verifying its recorded process has exited, the user can remove it and retry.
+Locked retired Windows copies are retained for later cleanup.
+
+Failures are logged explicitly. A previously published native copy may remain
+usable after a failed refresh, but the extension does not advertise a folder
+with surviving legacy wrappers that could shadow the native executable.
+The terminal link provider and Copilot session data are unchanged.
 
 ### Ownership
 
@@ -161,10 +191,13 @@ One invocation follows this sequence:
 5. Select the first eligible candidate whose interpreter is available, using
    the deterministic platform rules in this document. Selection MUST NOT run
    any candidate.
-6. If no usable candidate exists, offer installation on a supported installer
-   target; otherwise report the manual-install or upstream-support limitation.
+6. On supported Unix official-script targets, if PATH has no usable candidate,
+   inspect the known installation location below. If no usable candidate
+   exists, offer installation on a supported installer target; otherwise
+   report the manual-install or upstream-support limitation.
 7. After a successful install, discard all prior discovery results and restart
-   discovery from the current process environment.
+   discovery from the current process environment, followed by the verified
+   official-script location when that script was the successful installer.
 8. Launch the selected candidate, forwarding the original arguments and
    terminal I/O.
 9. Propagate the real CLI's exit result.
@@ -283,6 +316,23 @@ copilot
 An eligible candidate MUST resolve to a regular file and have an executable
 permission bit. A symlink is eligible only when its final target meets those
 requirements.
+
+On macOS x64/arm64 and GNU Linux x64/arm64, when PATH discovery finds no
+usable CLI, also inspect the official script's installation location:
+
+1. A nonempty `PREFIX` selects `$PREFIX/bin/copilot`.
+2. Otherwise effective UID zero selects `/usr/local/bin/copilot`.
+3. Otherwise a nonempty `HOME` selects `$HOME/.local/bin/copilot`.
+
+Resolve relative prefixes against the installer's working directory. Report
+missing HOME/PREFIX or an unresolvable relative location explicitly rather
+than guessing a home directory. Apply the same regular-file, executable,
+identity, Rust-marker, and legacy-signature checks to this candidate.
+This is a discovery fallback, not an environment change or a version probe.
+An eligible CLI on the original PATH always wins, and subsequent invocations
+with stale PATH use this fallback before offering installation again.
+Homebrew installation remains unchanged; do not infer a Homebrew prefix from
+these official-script defaults. ARMhf and musl support is unchanged.
 
 ### Windows
 
@@ -672,7 +722,8 @@ For curl or wget:
 2. Download the installer into that file.
 3. Preserve downloader diagnostics in the current terminal.
 4. Verify that `bash` is available.
-5. Run `bash <temporary-file>` with inherited stdin, stdout, and stderr.
+5. Run `bash <temporary-file>` with inherited stdin, stdout, and stderr and
+   the installer-only PATH described below.
 6. After the installer process exits and is reaped, remove the temporary file
    on success, failure, and handled cancellation.
 
@@ -686,6 +737,32 @@ wget -O <temporary-file> https://gh.io/copilot-install
 If `bash` is unavailable on an automatic script-install target, report that
 prerequisite and do not start another downloader route; it would require the
 same missing interpreter.
+
+### Official installer PATH and shell-profile consent
+
+The official script tests `command -v copilot` after installation. A shim
+visible to that command would suppress the missing-PATH notice and profile
+prompt even when the newly installed CLI is not on PATH.
+
+Only the Bash command executing that script MUST receive a PATH with every
+positively identified current, copied, aliased, and legacy shim directory
+excluded. Preserve unrelated entries, order, and native strings; handle
+relative/empty entries and aliases without substring matching. Reject an
+entirely excluded PATH rather than accidentally searching the current
+directory. Leave the parent environment, downloader commands, Homebrew,
+Windows MSI, host probes, and final CLI environment unchanged.
+
+Do not add the predicted installation directory to this child PATH. The
+official script must decide whether the real CLI is accessible and, when
+needed, offer its own profile update. It selects the profile from SHELL and
+existing configuration (for example `.profile`, `.bash_profile`, `.zprofile`,
+or fish configuration); neither Rust nor VS Code duplicates this prompt or
+edits/sources profiles itself. The directory persisted on consent is the real
+CLI's installation directory, not extension global storage.
+
+Profile updates affect future shells that read that profile. They do not
+change the running terminal's or shim's PATH. Declining the profile edit does
+not cancel an accepted CLI installation.
 
 ### Cancellation and temporary-file lifetime
 
@@ -708,14 +785,20 @@ ready.
 
 After a successful install, the shim MUST restart `PATH` discovery from the
 beginning, reapply all self and legacy exclusions, and launch only a candidate
-found by that second discovery. It MUST NOT launch a path remembered from
-before the install.
+found by that second discovery. After an official-script install, the known
+Unix location is inspected again after PATH, allowing immediate launch even
+when PATH is unchanged and regardless of the user's profile-edit answer.
+It MUST NOT launch a candidate accepted before the install without inspecting
+it again. Windows retains its existing MSI-directory fallback.
 
 The flow MUST be bounded to one accepted install per shim invocation. If
-installation returns success but no candidate is visible in the current `PATH`,
-explain that the install completed but the current terminal cannot resolve
-`copilot`, instruct the user to restart the terminal or update `PATH`, and exit
-nonzero, without prompting again.
+installation returns success but neither PATH nor the applicable known
+location contains an eligible CLI, explain this in normal terminal output,
+instruct the user to source their profile, restart the terminal, or update
+PATH, and exit nonzero without prompting again. A valid known-location
+fallback also prevents reinstalling on later invocations with stale PATH.
+If upstream changes its installation rules, failed verification must not be
+reported as a successful launch.
 
 ## Final launch
 
@@ -742,7 +825,8 @@ directly; a tool that ends `copilot` by its process ID ends the CLI.
 | Real CLI or required interpreter cannot start | Exit `1`; with verbose mode, print the failing path and OS error. |
 | Current executable cannot be identified | Exit `1`; with verbose mode, print a diagnostic. |
 | All candidates are unusable and installation is unavailable or fails | Exit `1`; with verbose mode, print an actionable diagnostic. |
-| Installer returns zero but re-discovery fails | Exit `1`; with verbose mode, print the PATH/restart guidance. |
+| Installer returns zero but re-discovery fails | Exit `1` and print actionable PATH/installation guidance, including without verbose mode. |
+| The Unix installation location or installer-only PATH cannot be prepared | Exit `1` and print an actionable explanation. |
 | Automatic installation is unsupported for the target | Exit `1` without an installer attempt; with verbose mode, print manual-install or upstream-support guidance. |
 | Bootstrap or installer operation is canceled | Wait for the installer to stop, without fallback, and clean up owned temporary files; exit `130`. |
 | User declines installation | Exit `0` without launching. |
@@ -752,8 +836,9 @@ directly; a tool that ends `copilot` by its process ID ends the CLI.
 | Installation is needed, but the `CopilotCliCommand` policy is disabled | Exit `10` without launching; with verbose mode, print the policy diagnostic. |
 
 When verbose mode is enabled, shim-owned diagnostics go to stderr. Without
-verbose mode, they are suppressed. Prompts and normal installer/CLI output
-remain visible in the terminal in both modes.
+verbose mode, they are suppressed. Prompts, the user-facing preparation and
+post-install failure messages above, and normal installer/CLI output remain
+visible in the terminal in both modes.
 
 ## Enterprise policy
 
@@ -1036,6 +1121,14 @@ fixtures.
   a CLI that was just installed is found even though the terminal's `PATH`
   predates it.
 - Successful install not visible in current PATH.
+- Official-script default/root/custom/relative PREFIX resolution, invalid
+  fallback files, and original-PATH precedence.
+- Installer-only exclusion of all shim entries without affecting downloader,
+  Homebrew, MSI, ordinary discovery, or final CLI environments.
+- Isolated Unix PTY installation with both profile-consent answers, actual
+  `command -v` checking, immediate verified launch, and no reinstall on a
+  second invocation with unchanged PATH. Use temporary HOME/PREFIX and fake
+  installers; never modify the developer's real profile.
 - No repeated install prompt in one invocation.
 - Ctrl+C/handled termination during installation cancels without fallback,
   another prompt, or final CLI launch; the shim waits for the installer to stop.
@@ -1129,6 +1222,13 @@ The work is complete only when:
     cleans temporary files after child reaping.
 15. Initial and post-install discovery both respect first-usable-candidate PATH
     precedence.
+16. With a configured local build, integrated terminals use a safely published
+    global-storage native shim without deleting that directory or unrelated
+    content. Unconfigured paths and unavailable platforms are not reported
+    as validated live deployment.
+17. Shim entries do not suppress the official installer's profile prompt, and
+    a verified official-script installation launches immediately and on later
+    stale-PATH invocations without another installation.
 
 ## Source references
 

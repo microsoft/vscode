@@ -60,6 +60,9 @@ pub(crate) fn is_process_cancellation_requested() -> bool {
 
 fn native_command(command: &CommandSpec) -> Command {
 	let mut process = Command::new(command.program());
+	if let Some(path) = command.path() {
+		process.env("PATH", path);
+	}
 	match command.arguments() {
 		CommandArguments::Native(arguments) => {
 			process.args(arguments);
@@ -241,6 +244,27 @@ pub(crate) fn decode_windows_command_tail(
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn path_override_is_per_command_and_preserves_inheritance() {
+		let original = std::env::var_os("PATH");
+		let command =
+			CommandSpec::new(OsString::from("bash"), CommandArguments::Native(Vec::new()));
+		let inherited = native_command(&command);
+		let overridden = native_command(&command.with_path(Some(OsString::from("filtered-path"))));
+		assert_eq!(
+			(
+				inherited.get_envs().count(),
+				overridden.get_envs().collect::<Vec<_>>(),
+				std::env::var_os("PATH"),
+			),
+			(
+				0,
+				vec![(OsStr::new("PATH"), Some(OsStr::new("filtered-path")))],
+				original
+			)
+		);
+	}
 
 	#[test]
 	fn windows_command_tail_decoder_round_trips_encoder_output() {

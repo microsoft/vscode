@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 use std::ffi::OsString;
+use std::path::Path;
 #[cfg(any(windows, test))]
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[cfg(any(windows, test))]
 use crate::candidate::path_directories;
@@ -13,7 +14,7 @@ use crate::candidate::{discover, DiscoveryDiagnosticKind, DiscoveryError};
 use crate::command::{resolve_candidate, InterpreterInventory};
 use crate::install::{
 	discover_tools, installer_plan, run_installer, HostTarget, InstallerAttempt,
-	InstallerAttemptResult, InstallerPlanError, InstallerResult, UnsupportedTarget,
+	InstallerAttemptResult, InstallerPlanError, InstallerResult, InstallerRoute, UnsupportedTarget,
 };
 use crate::invocation::{self, Invocation};
 use crate::model::{
@@ -33,7 +34,7 @@ use crate::version::{first_version, PowerShellVersion};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DiscoveryCycle {
 	Initial,
-	AfterInstall,
+	AfterInstall(InstallerRoute),
 }
 
 /// Exit code when Copilot CLI is missing and there is no terminal to offer an install: the code a shell uses for a
@@ -227,8 +228,14 @@ fn is_windows_power_shell_5_1(version: PowerShellVersion) -> bool {
 fn select_candidate<R: Runtime>(
 	runtime: &R,
 	interpreters: &mut Interpreters,
+	directory: Option<&Path>,
 ) -> Result<Option<Candidate>, ApplicationExit> {
-	let discovery = discover(runtime, crate::SHIM_MARKER).map_err(|error| {
+	let discovery = match directory {
+		#[cfg(unix)]
+		Some(directory) => crate::candidate::discover_directory(runtime, crate::SHIM_MARKER, directory),
+		_ => discover(runtime, crate::SHIM_MARKER),
+	}
+	.map_err(|error| {
 		report_discovery_error(runtime, &error);
 		ApplicationExit::InternalFailure
 	})?;
@@ -280,19 +287,39 @@ fn prepare_workflow<R: Runtime>(
 ) -> Result<WorkflowAction, ApplicationExit> {
 	let mut cycle = DiscoveryCycle::Initial;
 	loop {
-		match (cycle, select_candidate(runtime, interpreters)?) {
-			(_, Some(candidate)) => return Ok(WorkflowAction::Launch(candidate)),
-			(DiscoveryCycle::Initial, None) => {
-				match request_install(runtime, target)? {
-					PromptResponse::Declined => return Ok(WorkflowAction::Exit(0)),
-					// Discovery searches the MSI install folder after PATH, so it finds a Copilot CLI that was just
-					// installed even though this terminal's PATH doesn't include it yet.
-					PromptResponse::Accepted => cycle = DiscoveryCycle::AfterInstall,
+		if let Some(candidate) = select_candidate(runtime, interpreters, None)? {
+			return Ok(WorkflowAction::Launch(candidate));
+		}
+		#[cfg(unix)]
+		if matches!(
+			cycle,
+			DiscoveryCycle::Initial
+				| DiscoveryCycle::AfterInstall(InstallerRoute::Curl | InstallerRoute::Wget)
+		) {
+			let directory =
+				crate::install::official_install_directory(runtime, target).map_err(|error| {
+					runtime.write_message(&format!("Could not locate GitHub Copilot CLI: {error}"));
+					ApplicationExit::InternalFailure
+				})?;
+			if let Some(directory) = directory {
+				if let Some(candidate) = select_candidate(runtime, interpreters, Some(&directory))?
+				{
+					return Ok(WorkflowAction::Launch(candidate));
 				}
 			}
-			(DiscoveryCycle::AfterInstall, None) => {
-				runtime.write_diagnostic(
-					"the installation completed, but GitHub Copilot CLI is not visible in the current PATH; restart the terminal or update PATH and retry",
+		}
+		match cycle {
+			DiscoveryCycle::Initial => {
+				match request_install(runtime, target)? {
+					None => return Ok(WorkflowAction::Exit(0)),
+					// Discovery searches the MSI install folder after PATH, so it finds a Copilot CLI that was just
+					// installed even though this terminal's PATH doesn't include it yet.
+					Some(route) => cycle = DiscoveryCycle::AfterInstall(route),
+				}
+			}
+			DiscoveryCycle::AfterInstall(_) => {
+				runtime.write_message(
+					"The installation completed, but no usable GitHub Copilot CLI was found on PATH or in the expected installation location. Source your shell profile, restart the terminal, or update PATH and retry.",
 				);
 				return Err(ApplicationExit::InternalFailure);
 			}
@@ -375,7 +402,7 @@ fn launch_candidate<R: Runtime>(
 fn request_install<R: Runtime>(
 	runtime: &R,
 	target: Option<HostTarget>,
-) -> Result<PromptResponse, ApplicationExit> {
+) -> Result<Option<InstallerRoute>, ApplicationExit> {
 	if runtime.copilot_cli_command_disabled() {
 		runtime.write_diagnostic(&format!(
 			"GitHub Copilot CLI was not found. Installing it from VS Code is turned off by the {} policy; contact your administrator.",
@@ -405,7 +432,7 @@ fn request_install<R: Runtime>(
 		ApplicationExit::InternalFailure
 	})?;
 	if response == PromptResponse::Declined {
-		return Ok(response);
+		return Ok(None);
 	}
 
 	let tools = discover_tools(runtime, target);
@@ -414,9 +441,9 @@ fn request_install<R: Runtime>(
 		ApplicationExit::InternalFailure
 	})?;
 	match run_installer(runtime, &routes, &tools, runtime.diagnostics_enabled()) {
-		InstallerResult::Succeeded { attempts } => {
+		InstallerResult::Succeeded { attempts, route } => {
 			report_failed_installer_attempts(runtime, &attempts);
-			Ok(PromptResponse::Accepted)
+			Ok(Some(route))
 		}
 		InstallerResult::Cancelled { attempts } => {
 			report_installer_attempts(runtime, &attempts);
@@ -424,6 +451,11 @@ fn request_install<R: Runtime>(
 		}
 		InstallerResult::Failed { failure, attempts } => {
 			report_installer_attempts(runtime, &attempts);
+			if let crate::install::InstallerFailure::Environment(message) = &failure {
+				runtime.write_message(&format!(
+					"Could not prepare the Copilot CLI installer: {message}"
+				));
+			}
 			runtime.write_diagnostic(&format!(
 				"the installation failed at installer level {failure:?}; install GitHub Copilot CLI manually"
 			));
@@ -548,6 +580,7 @@ mod tests {
 	struct ProcessStep {
 		result: Result<ProcessOutcome, ProcessError>,
 		replacement_path: Option<OsString>,
+		installed_program: Option<PathBuf>,
 	}
 
 	struct FakeRuntime {
@@ -562,6 +595,7 @@ mod tests {
 		prompts: RefCell<Vec<String>>,
 		clears: Cell<usize>,
 		diagnostics: RefCell<Vec<String>>,
+		messages: RefCell<Vec<String>>,
 		diagnostics_enabled: Cell<bool>,
 		policy_disabled: Cell<bool>,
 		no_terminal: Cell<bool>,
@@ -582,7 +616,10 @@ mod tests {
 			);
 			Self {
 				path: RefCell::new(None),
-				environment: RefCell::new(HashMap::new()),
+				environment: RefCell::new(HashMap::from([(
+					String::from("HOME"),
+					OsString::from("/home/test"),
+				)])),
 				inspections: RefCell::new(inspections),
 				inspection_errors: RefCell::new(HashMap::new()),
 				files: RefCell::new(HashMap::new()),
@@ -592,6 +629,7 @@ mod tests {
 				prompts: RefCell::new(Vec::new()),
 				clears: Cell::new(0),
 				diagnostics: RefCell::new(Vec::new()),
+				messages: RefCell::new(Vec::new()),
 				diagnostics_enabled: Cell::new(true),
 				policy_disabled: Cell::new(false),
 				no_terminal: Cell::new(false),
@@ -625,6 +663,7 @@ mod tests {
 			self.process_steps.borrow_mut().push_back(ProcessStep {
 				result,
 				replacement_path: None,
+				installed_program: None,
 			});
 		}
 
@@ -639,6 +678,7 @@ mod tests {
 				replacement_path: Some(
 					std::env::join_paths(paths).expect("join replacement PATH entries"),
 				),
+				installed_program: None,
 			});
 		}
 
@@ -716,6 +756,10 @@ mod tests {
 				self.diagnostics.borrow_mut().push(message.to_owned());
 			}
 		}
+
+		fn write_message(&self, message: &str) {
+			self.messages.borrow_mut().push(message.to_owned());
+		}
 	}
 
 	impl ProcessEffects for FakeRuntime {
@@ -732,6 +776,9 @@ mod tests {
 				.expect("unexpected fake process invocation");
 			if let Some(path) = step.replacement_path {
 				*self.path.borrow_mut() = Some(path);
+			}
+			if let Some(path) = step.installed_program {
+				self.add_program(&path);
 			}
 			step.result
 		}
@@ -1086,7 +1133,7 @@ mod tests {
 				result,
 				invisible.prompts.borrow().clone(),
 				invisible
-					.diagnostics
+					.messages
 					.borrow()
 					.iter()
 					.any(|message| message.contains("restart the terminal")),
@@ -1096,6 +1143,107 @@ mod tests {
 				vec![String::from("install")],
 				true,
 			)
+		);
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn installed_cli_launches_immediately_and_on_later_stale_path_invocations() {
+		let runtime = FakeRuntime::default();
+		configure_script_installer(&runtime);
+		runtime.set_path(&[Path::new("/tools")]);
+		runtime.push_prompt_response(PromptResponse::Accepted);
+		runtime.push_process_result(Ok(interactive_exit(0)));
+		runtime.process_steps.borrow_mut().push_back(ProcessStep {
+			result: Ok(interactive_exit(0)),
+			replacement_path: None,
+			installed_program: Some(PathBuf::from("/home/test/.local/bin/copilot")),
+		});
+		runtime.push_process_result(Ok(interactive_exit(41)));
+		runtime.push_process_result(Ok(interactive_exit(42)));
+		let arguments = vec![
+			OsString::from("--resume"),
+			OsString::from("session with spaces"),
+		];
+		let first = run(&runtime, arguments.clone(), Some(HostTarget::LinuxGnuX64));
+		let second = run(&runtime, arguments.clone(), Some(HostTarget::LinuxGnuX64));
+		let commands = runtime.commands.borrow();
+
+		assert_eq!(
+			(
+				first,
+				second,
+				runtime.prompts.borrow().clone(),
+				programs(&runtime),
+				commands
+					.iter()
+					.map(|(command, _)| command.path().map(OsString::from))
+					.collect::<Vec<_>>(),
+				commands
+					.last()
+					.map(|(command, _)| command.arguments().clone()),
+				runtime.path(),
+			),
+			(
+				41,
+				42,
+				vec![String::from("install")],
+				vec![
+					PathBuf::from("/tools/curl"),
+					PathBuf::from("/tools/bash"),
+					PathBuf::from("/home/test/.local/bin/copilot"),
+					PathBuf::from("/home/test/.local/bin/copilot")
+				],
+				vec![None, Some(OsString::from("/tools")), None, None],
+				Some(CommandArguments::Native(arguments)),
+				Some(OsString::from("/tools")),
+			)
+		);
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn original_path_wins_and_invalid_fallbacks_are_not_launched() {
+		let mut observations = Vec::new();
+		for (on_path, fallback_contents, executable) in [
+			(true, b"real cli".as_slice(), true),
+			(false, crate::SHIM_MARKER, true),
+			(false, b"real cli".as_slice(), false),
+		] {
+			let runtime = FakeRuntime::default();
+			runtime.set_path(&[Path::new("/tools")]);
+			let fallback = PathBuf::from("/home/test/.local/bin/copilot");
+			runtime.add_program(&fallback);
+			runtime
+				.files
+				.borrow_mut()
+				.insert(fallback.clone(), fallback_contents.to_vec());
+			runtime
+				.inspections
+				.borrow_mut()
+				.get_mut(&fallback)
+				.expect("fallback")
+				.executable = executable;
+			if on_path {
+				runtime.add_program(Path::new("/tools/copilot"));
+			}
+			observations.push((
+				prepare_workflow(
+					&runtime,
+					Some(HostTarget::LinuxGnuX64),
+					&mut Interpreters::default(),
+				)
+				.map(action_path),
+				runtime.prompts.borrow().len(),
+			));
+		}
+		assert_eq!(
+			observations,
+			vec![
+				(Ok(Some(PathBuf::from("/tools/copilot"))), 0),
+				(Ok(None), 1),
+				(Ok(None), 1),
+			]
 		);
 	}
 
