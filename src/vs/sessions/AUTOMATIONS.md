@@ -64,7 +64,7 @@ Compatibility decoding for configuration values in existing AHP definitions is s
 
 `IAutomationBlueprint` is a versioned portable name, prompt, schedule, and optional `disableConditions`. It excludes runtime identity, target provider, workspace, session configuration, enabled state, timestamps, and history.
 
-Version 2 adds `disableConditions`. Version 1 remains readable with its original strict schema; exports without conditions retain version 1 compatibility, while exports containing conditions use version 2.
+Version 2 adds `disableConditions`. Version 1 remains readable with its original strict schema; exports without conditions omit the field and use version 1, while exports containing conditions use version 2.
 
 Standalone `.automation.md` files and plugins use the same blueprint format. Plugin discovery exposes inert templates and follows effective plugin enablement; discovery, installation, and updates never mutate saved Automations.
 
@@ -122,7 +122,9 @@ Disabling scheduled execution on a definition preserves manual Run Now. Disablin
 
 ### Automatic disable conditions
 
-`disableConditions` is an optional array with at most one `afterDate` condition (`date`, an ISO 8601 timestamp). The existing update action replaces the entire array; omission preserves it, and `[]` clears it without re-enabling scheduling. No separate capability, clear flag, or disable-reason state is used. Run-count conditions are not supported.
+The local host accepts `disableConditions` as an optional array with at most one `afterDate` condition (`date`, an ISO 8601 timestamp). The existing AHP update action replaces the entire array; omission preserves it, and `[]` clears it without re-enabling scheduling. No separate capability, clear flag, or disable-reason state is used. The local host does not implement run-count scheduling.
+
+Remote host definitions may contain standard AHP run-count conditions. The client preserves these in its catalogue and keeps supported operations available, but does not author or change them. Client end-date edits retain other host conditions when constructing the full AHP replacement array; exports reject conditions the portable end-date schema cannot represent instead of silently dropping them.
 
 The host evaluates the final date against admission time, including catch-up runs, and wakes at the cutoff independently of provider readiness or an active run. At or after the cutoff it disables scheduling without cancelling an admitted run. Conditions stay in the definition; clients warn before enabling an expired date.
 

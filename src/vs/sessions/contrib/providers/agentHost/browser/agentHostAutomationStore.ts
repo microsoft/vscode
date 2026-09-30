@@ -16,11 +16,11 @@ import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
-import { getAutomationDisableConditionsError, isAutomationDisableConditions, isAutomationAfterDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { getAutomationDisableConditionsError, isAutomationAfterDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationDisableConditionKind, AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -296,10 +296,6 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
 		const disableConditions = state.definition.disableConditions;
-		if (disableConditions !== undefined && !isAutomationDisableConditions(disableConditions)) {
-			this._logService.warn(`[AgentHostAutomationStore] Cannot project Automation with unsupported disable conditions: resource=${state.resource}.`);
-			return undefined;
-		}
 		return {
 			id: this._resourceId(state.resource),
 			name: state.definition.title,
@@ -445,7 +441,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				if (!projected) {
 					return false;
 				}
-				const disabledByCondition = !projected.enabled && isAutomationAfterDateExpired(projected.disableConditions);
+				const disabledByCondition = !projected.enabled && (isAutomationAfterDateExpired(projected.disableConditions)
+					|| state?.definition.disableConditions?.some(condition => condition.kind === AutomationDisableConditionKind.AfterRuns && (state.runCount ?? 0) >= condition.max));
 				return serializeAutomationEditableState(projected) === serializeAutomationEditableState({
 					...expected,
 					enabled: enabledChanged && !disabledByCondition ? expected.enabled : projected.enabled,
@@ -464,10 +461,19 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		if (descriptor.target.providerId !== this._providerId) {
 			throw new AutomationUnavailableError(localize('agentHostAutomation.wrongHost', "The automation target must belong to this Agent Host."));
 		}
-		const conditionsError = getAutomationDisableConditionsError(descriptor.disableConditions);
+		const preservedConditions = existing?.disableConditions?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterDate) ?? [];
+		const requestedPreservedConditions = descriptor.disableConditions?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterDate) ?? [];
+		if (requestedPreservedConditions.length && !equals(requestedPreservedConditions, preservedConditions)) {
+			throw new Error(localize('agentHostAutomation.readOnlyConditions', "Only end-date conditions can be configured. Other host conditions must remain unchanged."));
+		}
+		const endDateConditions = descriptor.disableConditions?.filter(condition => condition.kind === AutomationDisableConditionKind.AfterDate);
+		const conditionsError = getAutomationDisableConditionsError(endDateConditions);
 		if (conditionsError) {
 			throw new Error(conditionsError);
 		}
+		const disableConditions = equals(descriptor.disableConditions, existing?.disableConditions)
+			? existing?.disableConditions
+			: [...preservedConditions, ...endDateConditions ?? []];
 		const sessionTemplate = descriptor.sessionTemplate;
 		assertAutomationSessionTemplate(sessionTemplate);
 		const modelId = sessionTemplate ? sessionTemplate.modelId : descriptor.modelId;
@@ -514,7 +520,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				config: Object.keys(config).length > 0 ? config : undefined,
 			},
 			enabled: descriptor.enabled,
-			...(descriptor.disableConditions !== undefined ? { disableConditions: [...descriptor.disableConditions] } : {}),
+			...(disableConditions !== undefined ? { disableConditions: [...disableConditions] } : {}),
 			triggers: scheduleTrigger(descriptor.schedule),
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,
 		};

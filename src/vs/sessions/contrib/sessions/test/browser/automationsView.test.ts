@@ -2317,7 +2317,7 @@ suite('AutomationsCardsWidget', () => {
 
 	test('Remove Limits visibility follows saved conditions, feature enablement and update capability', () => {
 		const { automationService, contextKeyService, contextMenuService, instantiationService, widget } = setup();
-		const cap = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' };
+		const cap = { kind: AutomationDisableConditionKind.AfterRuns as const, max: 5 };
 		const date = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2000-01-01T00:00:00Z' };
 		const states = [
 			{ conditions: undefined, enabled: true, canUpdate: true, aiEnabled: true },
@@ -2325,7 +2325,7 @@ suite('AutomationsCardsWidget', () => {
 			{ conditions: [cap], enabled: true, canUpdate: true, aiEnabled: true },
 			{ conditions: [date], enabled: false, canUpdate: true, aiEnabled: true },
 			{ conditions: [cap, date], enabled: false, canUpdate: false, aiEnabled: true },
-			{ conditions: [cap], enabled: true, canUpdate: true, aiEnabled: false },
+			{ conditions: [date], enabled: true, canUpdate: true, aiEnabled: false },
 		];
 		const actions = states.map(state => {
 			automationService.canUpdate = state.canUpdate;
@@ -2338,7 +2338,7 @@ suite('AutomationsCardsWidget', () => {
 			delegate.onHide?.(false);
 			return action ? { enabled: action.enabled } : undefined;
 		});
-		assert.deepStrictEqual(actions, [undefined, undefined, { enabled: true }, { enabled: true }, { enabled: false }, undefined]);
+		assert.deepStrictEqual(actions, [undefined, undefined, undefined, { enabled: true }, { enabled: false }, undefined]);
 	});
 
 	for (const enabled of [true, false]) {
@@ -2350,6 +2350,7 @@ suite('AutomationsCardsWidget', () => {
 				mode: 'agent',
 				permissionLevel: 'default',
 				disableConditions: [
+					{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 },
 					{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' },
 				],
 			});
@@ -2369,8 +2370,8 @@ suite('AutomationsCardsWidget', () => {
 				limitVisible: widget.element.querySelector<HTMLElement>('.automations-card-limit')?.style.display !== 'none',
 			}, {
 				label: 'Remove end date',
-				mutations: [{ id: source.id, patch: { disableConditions: [] }, expected: source }],
-				definition: { ...source, disableConditions: [] },
+				mutations: [{ id: source.id, patch: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }] }, expected: source }],
+				definition: { ...source, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }] },
 				limitVisible: false,
 			});
 		});

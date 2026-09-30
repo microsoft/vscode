@@ -87,21 +87,22 @@ export function parseAutomationBlueprint(content: string): IAutomationBlueprint 
 }
 
 export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): string {
+	const disableConditions = blueprint.disableConditions;
+	if (disableConditions !== undefined && !isAutomationDisableConditions(disableConditions)) {
+		throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
+	}
 	const lines = [
 		'---',
-		`version: ${blueprint.disableConditions !== undefined ? AUTOMATION_BLUEPRINT_VERSION : blueprint.version}`,
+		`version: ${disableConditions?.length ? AUTOMATION_BLUEPRINT_VERSION : 1}`,
 		`id: ${quoteYamlString(blueprint.id)}`,
 		`name: ${quoteYamlString(blueprint.name)}`,
 	];
 	if (blueprint.description) {
 		lines.push(`description: ${quoteYamlString(blueprint.description)}`);
 	}
-	if (blueprint.disableConditions !== undefined) {
-		if (!isAutomationDisableConditions(blueprint.disableConditions)) {
-			throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
-		}
-		lines.push(blueprint.disableConditions.length ? 'disableConditions:' : 'disableConditions: []');
-		for (const condition of blueprint.disableConditions) {
+	if (disableConditions?.length) {
+		lines.push('disableConditions:');
+		for (const condition of disableConditions) {
 			lines.push(`  - kind: ${condition.kind}`);
 			lines.push(`    date: ${quoteYamlString(condition.date)}`);
 		}
@@ -128,13 +129,17 @@ export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): s
 }
 
 export function automationToBlueprint(automation: IAutomationDescriptor): IAutomationBlueprint {
+	const disableConditions = automation.disableConditions;
+	if (disableConditions !== undefined && !isAutomationDisableConditions(disableConditions)) {
+		throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
+	}
 	return {
-		version: automation.disableConditions !== undefined ? AUTOMATION_BLUEPRINT_VERSION : 1,
+		version: disableConditions?.length ? AUTOMATION_BLUEPRINT_VERSION : 1,
 		id: createAutomationBlueprintId(automation.name),
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: normalizeSchedule(automation.schedule),
-		...(automation.disableConditions !== undefined ? { disableConditions: automation.disableConditions } : {}),
+		...(disableConditions?.length ? { disableConditions } : {}),
 	};
 }
 

@@ -150,9 +150,16 @@ suite('Automation blueprints', () => {
 		}
 	});
 
-	test('rejects duplicate and malformed conditions and round trips an empty array', () => {
+	test('rejects duplicate and malformed conditions and omits empty conditions on export', () => {
 		const blueprint = parseAutomationBlueprint('---\nversion: 2\nid: review\nname: Review\ndisableConditions: []\nschedule:\n  kind: manual\n---\nReview.');
-		assert.deepStrictEqual(parseAutomationBlueprint(serializeAutomationBlueprint(blueprint)), blueprint);
+		const serialized = serializeAutomationBlueprint(blueprint);
+		assert.deepStrictEqual({
+			hasConditionsField: serialized.includes('disableConditions'),
+			parsed: parseAutomationBlueprint(serialized),
+		}, {
+			hasConditionsField: false,
+			parsed: { version: 1, id: 'review', name: 'Review', prompt: 'Review.', schedule: blueprint.schedule },
+		});
 		for (const conditions of [
 			'null',
 			'\n  - kind: afterRuns\n    max: 1\n  - kind: afterRuns\n    max: 1',
@@ -170,9 +177,32 @@ suite('Automation blueprints', () => {
 		const blueprint = parseAutomationBlueprint(legacy);
 		assert.deepStrictEqual({
 			legacy: parseAutomationBlueprint(serializeAutomationBlueprint(blueprint)).version,
-			upgraded: parseAutomationBlueprint(serializeAutomationBlueprint({ ...blueprint, disableConditions: [] })).version,
+			upgraded: parseAutomationBlueprint(serializeAutomationBlueprint({ ...blueprint, disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' }] })).version,
 			current: parseAutomationBlueprint(legacy.replace('version: 1', 'version: 2')).version,
 		}, { legacy: 1, upgraded: 2, current: 2 });
+	});
+
+	test('clearing an end date restores a condition-free version 1 export', () => {
+		const automation: IAutomationDescriptor = {
+			id: 'review', name: 'Review', prompt: 'Review.',
+			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'mock' },
+			enabled: true, createdAt: '', updatedAt: '',
+		};
+		const neverLimited = automationToBlueprint(automation);
+		const cleared = automationToBlueprint({ ...automation, disableConditions: [] });
+		assert.deepStrictEqual({
+			blueprint: cleared,
+			serialized: serializeAutomationBlueprint(cleared),
+			hasConditionsField: Object.hasOwn(cleared, 'disableConditions'),
+		}, {
+			blueprint: neverLimited,
+			serialized: serializeAutomationBlueprint(neverLimited),
+			hasConditionsField: false,
+		});
+		assert.throws(() => automationToBlueprint({
+			...automation, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }],
+		}), { code: 'invalidField', property: 'disableConditions' });
 	});
 
 	test('exports only portable automation state', () => {

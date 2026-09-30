@@ -427,6 +427,74 @@ suite('AgentHostAutomationStore', () => {
 		assert.deepStrictEqual([updated.enabled, updated.disableConditions], [false, created.disableConditions]);
 	});
 
+	for (const withEndDate of [false, true]) {
+		test(`preserves remote run-count automations with end date=${withEndDate} across edits and manual runs`, async () => {
+			const { store } = reconnectable();
+			const connection = disposables.add(new TestAutomationConnection());
+			store.setConnection(connection);
+			const created = await store.createAutomation(createOptions());
+			const create = connection.dispatched[0].action;
+			assert.ok(create.type === ActionType.AutomationCreateRequested);
+			const cap = { kind: AutomationDisableConditionKind.AfterRuns, max: 5 } as const;
+			const date = { kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' } as const;
+			const conditions = withEndDate ? [date, cap] : [cap];
+			connection.setAutomation({
+				resource: create.resource, definition: { ...create.definition, disableConditions: conditions },
+				runCount: 2, runs: [], operations: [AutomationOperation.Update, AutomationOperation.Run],
+				createdAt: created.createdAt, modifiedAt: created.updatedAt,
+			});
+			const projected = store.getAutomation(created.id)!;
+			const listed = store.automations.get().map(automation => automation.id);
+			const updated = await store.updateAutomationIfUnchanged(created.id, { name: 'Renamed' }, projected);
+			const unrelatedUpdate = connection.dispatched[1].action;
+			assert.ok(unrelatedUpdate.type === ActionType.AutomationUpdateRequested);
+			const updatedDate = { ...date, date: '2099-02-01T00:00:00Z' };
+			const replaced = await store.updateAutomation(created.id, { disableConditions: [updatedDate] });
+			const cleared = await store.updateAutomation(created.id, { disableConditions: [] });
+			const run = await store.runAutomation(created.id);
+			assert.deepStrictEqual({
+				listed,
+				projected: projected.disableConditions,
+				updated: updated.kind,
+				unrelatedConditions: unrelatedUpdate.changes.disableConditions,
+				replaced: replaced.disableConditions,
+				cleared: cleared.disableConditions,
+				run: run.kind,
+				requests: connection.runRequests,
+			}, {
+				listed: [created.id], projected: conditions, updated: 'updated', unrelatedConditions: undefined,
+				replaced: [cap, updatedDate],
+				cleared: [cap], run: 'dispatched', requests: [create.resource],
+			});
+			await assert.rejects(store.updateAutomation(created.id, { disableConditions: [{ ...cap, max: 10 }] }), /must remain unchanged/);
+			await assert.rejects(store.createAutomation({ ...createOptions(), disableConditions: [cap] }), /must remain unchanged/);
+		});
+	}
+
+	test('accepts host-normalized disabled state for an exhausted remote run cap', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const created = await store.createAutomation({ ...createOptions(), enabled: false });
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		const entry: AutomationEntry = {
+			resource: create.resource,
+			definition: { ...create.definition, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] },
+			runCount: 1, runs: [], operations: [AutomationOperation.Update, AutomationOperation.Run],
+			createdAt: created.createdAt, modifiedAt: created.updatedAt,
+		};
+		connection.setAutomation(entry);
+		connection.suppressUpdatePublication = true;
+		const pending = store.updateAutomation(created.id, { enabled: true });
+		await timeout(0);
+		connection.setAutomation({ ...entry, modifiedAt: new Date().toISOString() });
+		const updated = await pending;
+		assert.deepStrictEqual({ enabled: updated.enabled, conditions: updated.disableConditions }, {
+			enabled: false, conditions: entry.definition.disableConditions,
+		});
+	});
+
 	test('unrelated catalogue changes cannot hide rejection of an expired-date re-enable', async () => {
 		const { store } = reconnectable();
 		const connection = disposables.add(new TestAutomationConnection());

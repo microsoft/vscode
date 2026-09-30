@@ -66,7 +66,7 @@ interface IAutomationToolOutput {
 	readonly mode?: string | null;
 	readonly permissionLevel?: string | null;
 	readonly sessionTemplate?: IAutomationSessionTemplate;
-	readonly disableConditions: readonly AutomationAfterDateCondition[];
+	readonly disableConditions: NonNullable<IAutomationDescriptor['disableConditions']>;
 	readonly enabled: boolean;
 	readonly createdAt: string;
 	readonly updatedAt: string;
@@ -422,7 +422,7 @@ Omit "automationId" to create an automation; "name", "prompt", and "schedule.int
 
 Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals, and other configuration returned by listAutomations. Omit it on unrelated partial updates, or set it to null to reset provider configuration. Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases.
 
-Use "disableConditions" to stop scheduling at an end date. Only one afterDate condition is supported. Updates replace the whole array: [] clears the end date; omission preserves it. Clearing the end date does not re-enable an automation. Manual runs remain available after the end date. Warn before re-enabling an automation whose end date has passed.
+Use "disableConditions" to stop scheduling at an end date. Only one afterDate condition can be configured. Updates replace the end date: [] clears it; omission preserves it. Other host-owned conditions returned by listAutomations are read-only and remain unchanged. Clearing the end date does not re-enable an automation. Manual runs remain available after the end date. Warn before re-enabling an automation whose end date has passed.
 
 For "daily at 9am until the end of the week", use schedule={interval:"daily",scheduleHour:9,scheduleMinute:0} and an afterDate condition with its date set to an explicit ISO 8601 timestamp. Resolve relative dates using the intended time zone. Newly set dates must be strictly in the future, including when approval completes; an unchanged saved date may be preserved even after it expires.
 
@@ -1310,7 +1310,7 @@ function readOptionalInteger(value: Record<string, unknown>, property: string, m
 	return candidate;
 }
 
-function readDisableConditions(value: Record<string, unknown>, existing?: readonly AutomationAfterDateCondition[]): AutomationAfterDateCondition[] | undefined {
+function readDisableConditions(value: Record<string, unknown>, existing?: IAutomationDescriptor['disableConditions']): AutomationAfterDateCondition[] | undefined {
 	const candidate = value.disableConditions;
 	if (candidate === undefined) {
 		return undefined;

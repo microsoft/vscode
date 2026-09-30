@@ -19,6 +19,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { getAutomationAfterDate, isAutomationAfterDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -671,7 +672,7 @@ class AutomationCardsSection extends Disposable {
 		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));
 		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
 		card.enabledContext.set(automation.enabled);
-		card.hasLimitsContext.set(!!automation.disableConditions?.length);
+		card.hasLimitsContext.set(getAutomationAfterDate(automation.disableConditions) !== undefined);
 		const schedule = formatSchedule(automation.schedule);
 		const scheduleChanged = !previous || formatSchedule(previous.schedule) !== schedule;
 		const nameChanged = !previous || previous.name !== automation.name;
@@ -2327,7 +2328,7 @@ registerAction2(class RemoveAutomationLimitsAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
 		const automationService = accessor.get(IAutomationService);
-		if (!automation.disableConditions?.length || !automationService.canUpdateAutomation(automation.id)) {
+		if (getAutomationAfterDate(automation.disableConditions) === undefined || !automationService.canUpdateAutomation(automation.id)) {
 			return;
 		}
 		const configurationService = accessor.get(IConfigurationService);
@@ -2339,7 +2340,8 @@ registerAction2(class RemoveAutomationLimitsAction extends Action2 {
 			return;
 		}
 		try {
-			const result = await automationService.updateAutomationIfUnchanged(automation.id, { disableConditions: [] }, automation, () => {
+			const disableConditions = automation.disableConditions?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterDate) ?? [];
+			const result = await automationService.updateAutomationIfUnchanged(automation.id, { disableConditions }, automation, () => {
 				if (!automationsEnabled()) {
 					throw new Error(localize('automationsDisabledBeforeRemoveEndDate', "Automations were disabled before the end date could be removed."));
 				}

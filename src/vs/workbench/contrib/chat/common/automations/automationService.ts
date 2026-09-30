@@ -99,7 +99,7 @@ export interface IUpdateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
-	/** Full replacement; an empty array clears conditions, omission preserves them. */
+	/** Replaces end-date conditions while retaining other host-owned conditions; omission preserves all conditions. */
 	readonly disableConditions?: IAutomationDescriptor['disableConditions'];
 }
 

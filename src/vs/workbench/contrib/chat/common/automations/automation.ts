@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import type { AutomationAfterDateCondition, JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { AutomationDisableCondition, JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
@@ -113,8 +113,8 @@ export interface IAutomationDescriptor {
 	readonly permissionLevel?: string;
 
 	readonly enabled: boolean;
-	/** Automatic scheduling stops at the end date. */
-	readonly disableConditions?: readonly AutomationAfterDateCondition[];
+	/** Host-owned conditions; only end dates can be authored by this client. */
+	readonly disableConditions?: readonly AutomationDisableCondition[];
 
 	/** ISO-8601 UTC timestamp. */
 	readonly createdAt: string;

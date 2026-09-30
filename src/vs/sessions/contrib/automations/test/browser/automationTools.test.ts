@@ -418,12 +418,14 @@ suite('AutomationTools', () => {
 			excludesMonitoringRequests: modelDescription.includes('Do not infer that intent from requests merely to monitor, watch, follow, or keep something'),
 			usesProviderTemplate: modelDescription.includes('Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals'),
 			rejectsMixedAliases: modelDescription.includes('Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases'),
+			preservesHostConditions: modelDescription.includes('Other host-owned conditions returned by listAutomations are read-only and remain unchanged.'),
 		}, {
 			requiresExplicitAutomationIntent: true,
 			allowsRecurringScheduleIntent: true,
 			excludesMonitoringRequests: true,
 			usesProviderTemplate: true,
 			rejectsMixedAliases: true,
+			preservesHostConditions: true,
 		});
 	});
 
@@ -437,7 +439,11 @@ suite('AutomationTools', () => {
 				providerOption: { enabled: true },
 			},
 		};
-		const automation = createAutomation({ sessionTemplate, disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }] });
+		const disableConditions = [
+			{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 },
+			{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' },
+		] as const;
+		const automation = createAutomation({ sessionTemplate, disableConditions });
 		const automationService = new FakeAutomationService([automation]);
 		const tool = createListAutomationsTool(automationService, createConfigurationService());
 
@@ -461,7 +467,7 @@ suite('AutomationTools', () => {
 					isolation: { kind: 'default' },
 				},
 				sessionTemplate,
-				disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }],
+				disableConditions,
 				enabled: true,
 				createdAt: NOW,
 				updatedAt: NOW,
