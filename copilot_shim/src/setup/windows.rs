@@ -14,7 +14,9 @@ use std::path::{Path, PathBuf};
 use std::ptr::{null, null_mut};
 use std::time::Duration;
 
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+use windows_sys::Win32::Foundation::{
+	CloseHandle, FreeLibrary, ERROR_NO_MORE_ITEMS, ERROR_SUCCESS, HANDLE,
+};
 use windows_sys::Win32::Networking::WinHttp::{
 	WinHttpCloseHandle, WinHttpConnect, WinHttpCrackUrl, WinHttpOpen, WinHttpOpenRequest,
 	WinHttpQueryDataAvailable, WinHttpQueryHeaders, WinHttpReadData, WinHttpReceiveResponse,
@@ -35,6 +37,9 @@ use windows_sys::Win32::Security::WinTrust::{
 	WTD_CHOICE_FILE, WTD_REVOKE_NONE, WTD_STATEACTION_CLOSE, WTD_STATEACTION_VERIFY, WTD_UI_NONE,
 };
 use windows_sys::Win32::System::Environment::ExpandEnvironmentStringsW;
+use windows_sys::Win32::System::LibraryLoader::{
+	GetProcAddress, LoadLibraryExW, LOAD_LIBRARY_SEARCH_SYSTEM32,
+};
 use windows_sys::Win32::System::Registry::{
 	RegGetValueW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_NOEXPAND, RRF_RT_REG_DWORD,
 	RRF_RT_REG_EXPAND_SZ, RRF_RT_REG_SZ,
@@ -45,8 +50,7 @@ const MACHINE_ENVIRONMENT_KEY: &str =
 	r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment";
 const USER_ENVIRONMENT_KEY: &str = "Environment";
 
-/// Folder that GitHub's per-user Copilot CLI MSI installs into.
-const CLI_INSTALL_FOLDER: &str = "GitHubCopilotCLI";
+use super::CLI_INSTALL_FOLDER;
 
 /// The policy registry key names (`win32RegValueName`) of the VS Code qualities.
 const PRODUCT_POLICY_KEYS: [&str; 4] = ["VSCode", "VSCodeInsiders", "VSCodeExploration", "CodeOSS"];
@@ -167,6 +171,41 @@ pub(crate) fn cli_install_directory() -> Option<PathBuf> {
 	std::env::var_os("LOCALAPPDATA")
 		.filter(|value| !value.is_empty())
 		.map(|local_app_data| PathBuf::from(local_app_data).join(CLI_INSTALL_FOLDER))
+}
+
+/// The UpgradeCode of GitHub's Copilot CLI MSI (`assets/Package.wxs` in github/copilot-agent-runtime).
+const CLI_MSI_UPGRADE_CODE: &str = "{E2C3A7F6-1D3A-4E8F-9E5F-8E9D4F9C1234}";
+
+type MsiEnumRelatedProducts = unsafe extern "system" fn(*const u16, u32, u32, *mut u16) -> u32;
+
+/// Whether Windows Installer has a Copilot CLI MSI registered for this user or the machine. `msi.dll` is loaded only
+/// here, so launching the CLI doesn't pay for it.
+pub(crate) fn cli_msi_registered() -> io::Result<bool> {
+	let library = unsafe {
+		LoadLibraryExW(
+			wide_str("msi.dll").as_ptr(),
+			null_mut(),
+			LOAD_LIBRARY_SEARCH_SYSTEM32,
+		)
+	};
+	if library.is_null() {
+		return Err(io::Error::last_os_error());
+	}
+	let result = (|| {
+		let procedure =
+			unsafe { GetProcAddress(library, c"MsiEnumRelatedProductsW".as_ptr().cast()) }
+				.ok_or_else(io::Error::last_os_error)?;
+		let enumerate: MsiEnumRelatedProducts = unsafe { std::mem::transmute(procedure) };
+		let upgrade_code = wide_str(CLI_MSI_UPGRADE_CODE);
+		let mut product_code = [0_u16; 39];
+		match unsafe { enumerate(upgrade_code.as_ptr(), 0, 0, product_code.as_mut_ptr()) } {
+			ERROR_SUCCESS => Ok(true),
+			ERROR_NO_MORE_ITEMS => Ok(false),
+			status => Err(io::Error::from_raw_os_error(status as i32)),
+		}
+	})();
+	unsafe { FreeLibrary(library) };
+	result
 }
 
 /// The directories to search for the Copilot CLI at run time: the process PATH, then the MSI install folder. A
@@ -701,5 +740,10 @@ mod tests {
 			],
 			[Some(10), None, None]
 		);
+	}
+
+	#[test]
+	fn the_msi_registration_can_be_queried() {
+		assert!(cli_msi_registered().is_ok());
 	}
 }
