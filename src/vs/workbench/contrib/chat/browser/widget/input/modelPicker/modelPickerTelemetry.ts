@@ -8,6 +8,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { getTelemetryModelIdentifier, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { getAgentHostProviderForTelemetry } from '../../../../common/chatSessionsService.js';
 
 /** How the user opened a model picker surface. */
 export type ModelPickerEntryPoint =
@@ -30,6 +31,7 @@ export interface IModelPickerOpenTrigger {
 }
 
 type ChatModelPickerOpenedClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider at picker open, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
 	owner: 'lramos15';
 	comment: 'Reporting when a model picker surface is opened, to measure picker interactions from open to close';
 	pickerSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random id for this picker open, used to correlate the open, change, and close events of one interaction' };
@@ -40,6 +42,7 @@ type ChatModelPickerOpenedClassification = {
 };
 
 type ChatModelPickerOpenedEvent = {
+	provider: string | undefined;
 	pickerSessionId: string;
 	entryPoint: ModelPickerEntryPoint;
 	inputMethod: ModelPickerOpenInputMethod;
@@ -48,6 +51,7 @@ type ChatModelPickerOpenedEvent = {
 };
 
 type ChatModelPickerClosedClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider at picker open, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
 	owner: 'lramos15';
 	comment: 'Reporting when a model picker surface is closed, to measure how long picker interactions take. Changes made while it was open are reported by their own events with the same pickerSessionId.';
 	pickerSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the picker open this close belongs to' };
@@ -56,12 +60,14 @@ type ChatModelPickerClosedClassification = {
 };
 
 type ChatModelPickerClosedEvent = {
+	provider: string | undefined;
 	pickerSessionId: string;
 	durationMs: number;
 	searched: boolean;
 };
 
 type ChatModelChangeClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider at picker open, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
 	owner: 'lramos15';
 	comment: 'Reporting when the model picker is switched';
 	fromModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat model' };
@@ -74,6 +80,7 @@ type ChatModelChangeClassification = {
 };
 
 type ChatModelChangeEvent = {
+	provider: string | undefined;
 	fromModel: string | TelemetryTrustedValue<string> | undefined;
 	toModel: string | TelemetryTrustedValue<string>;
 	chatSessionId?: string;
@@ -84,6 +91,7 @@ type ChatModelChangeEvent = {
 };
 
 type ChatThinkingEffortChangeClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider at picker open, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
 	owner: 'lramos15';
 	comment: 'Reporting when a model configuration value (e.g. thinking effort, or the Auto routing tier) is changed';
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the configuration was changed for' };
@@ -95,6 +103,7 @@ type ChatThinkingEffortChangeClassification = {
 };
 
 type ChatThinkingEffortChangeEvent = {
+	provider: string | undefined;
 	model: string | TelemetryTrustedValue<string>;
 	property: string;
 	fromValue: string;
@@ -104,6 +113,7 @@ type ChatThinkingEffortChangeEvent = {
 };
 
 type ChatContextSizeChangeClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider at picker open, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
 	owner: 'lramos15';
 	comment: 'Reporting when the context window size is changed';
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the context size was changed for' };
@@ -114,6 +124,7 @@ type ChatContextSizeChangeClassification = {
 };
 
 type ChatContextSizeChangeEvent = {
+	provider: string | undefined;
 	model: string | TelemetryTrustedValue<string>;
 	fromValue: string;
 	toValue: string;
@@ -134,6 +145,7 @@ export class ModelPickerTelemetrySession {
 	private _searched = false;
 	private _otherModelsExpanded = false;
 	private _closed = false;
+	private readonly _provider: string | undefined;
 
 	constructor(
 		private readonly _telemetryService: ITelemetryService,
@@ -141,10 +153,13 @@ export class ModelPickerTelemetrySession {
 		trigger: IModelPickerOpenTrigger,
 		model: ILanguageModelChatMetadataAndIdentifier | undefined,
 		chatSessionId: string | undefined,
+		sessionType: string | undefined,
 		private readonly _now: () => number = () => Date.now(),
 	) {
 		this._openedAt = this._now();
+		this._provider = getAgentHostProviderForTelemetry(sessionType);
 		this._telemetryService.publicLog2<ChatModelPickerOpenedEvent, ChatModelPickerOpenedClassification>('chat.modelPickerOpened', {
+			provider: this._provider,
 			pickerSessionId: this.id,
 			entryPoint: trigger.entryPoint,
 			inputMethod: trigger.inputMethod,
@@ -173,6 +188,7 @@ export class ModelPickerTelemetrySession {
 		chatSessionId: string | undefined,
 	): void {
 		this._telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
+			provider: this._provider,
 			fromModel: getTelemetryModelIdentifier(fromModel, this._languageModelsService),
 			toModel: getTelemetryModelIdentifier(toModel, this._languageModelsService),
 			chatSessionId,
@@ -198,6 +214,7 @@ export class ModelPickerTelemetrySession {
 		const isFirstParty = !isUserProvidedModel(model, this._languageModelsService);
 		if (group === MODEL_CONFIG_GROUP_CONTEXT) {
 			this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
+				provider: this._provider,
 				model: getTelemetryModelIdentifier(model, this._languageModelsService),
 				fromValue: String(fromValue ?? ''),
 				toValue: String(toValue),
@@ -208,6 +225,7 @@ export class ModelPickerTelemetrySession {
 		}
 		if (group === MODEL_CONFIG_GROUP_EFFORT) {
 			this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
+				provider: this._provider,
 				model: getTelemetryModelIdentifier(model, this._languageModelsService),
 				// Models the user brought choose their own property keys.
 				property: isFirstParty ? key : 'unknown',
@@ -231,6 +249,7 @@ export class ModelPickerTelemetrySession {
 		this._closed = true;
 		const durationMs = this._elapsed();
 		const report = () => this._telemetryService.publicLog2<ChatModelPickerClosedEvent, ChatModelPickerClosedClassification>('chat.modelPickerClosed', {
+			provider: this._provider,
 			pickerSessionId: this.id,
 			durationMs,
 			searched: this._searched,

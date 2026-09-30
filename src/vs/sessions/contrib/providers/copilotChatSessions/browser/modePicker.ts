@@ -313,7 +313,7 @@ export class ModePicker extends Disposable {
 						isPII: true,
 					});
 					const requestCount = activeChat ? this.chatService.getSession(activeChat.resource)?.getRequests().length ?? 0 : 0;
-					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount);
+					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount, this.session.get()?.sessionType);
 					this._selectMode(item.mode);
 				} else {
 					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);

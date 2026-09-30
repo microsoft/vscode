@@ -214,6 +214,7 @@ suite('ModePicker', () => {
 		}();
 		const scopedSession = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
 			override readonly activeChat = observableValue<IChat>('activeChat', activeChat);
+			override readonly sessionType = 'agent-host-claude';
 		}());
 
 		let selectCustomAgent: (() => void) | undefined;
@@ -288,6 +289,7 @@ suite('ModePicker', () => {
 			events: [{
 				name: 'chat.modeChange',
 				data: {
+					provider: 'claude',
 					fromMode: 'agent',
 					mode: String(hash(customAgent.name.get())),
 					requestCount: 3,

@@ -12,6 +12,7 @@ import { ChatMode, CustomChatMode } from '../../common/chatModes.js';
 import { reportChatModeChange } from '../../common/chatModeTelemetry.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { getAgentHostProviderForTelemetry } from '../../common/chatSessionsService.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: unknown }[] = [];
@@ -40,11 +41,12 @@ suite('ChatModeTelemetry', () => {
 			tools: ['read', 'search'],
 		});
 
-		reportChatModeChange(telemetryService, ChatMode.Agent, targetMode, 4);
+		reportChatModeChange(telemetryService, ChatMode.Agent, targetMode, 4, 'agent-host-claude');
 
 		assert.deepStrictEqual(telemetryService.events, [{
 			name: 'chat.modeChange',
 			data: {
+				provider: 'claude',
 				fromMode: 'agent',
 				mode: String(hash('Reviewer')),
 				requestCount: 4,
@@ -60,8 +62,27 @@ suite('ChatModeTelemetry', () => {
 	test('does not report selecting the current mode', () => {
 		const telemetryService = new TestTelemetryService();
 
-		reportChatModeChange(telemetryService, ChatMode.Agent, ChatMode.Agent, 0);
+		reportChatModeChange(telemetryService, ChatMode.Agent, ChatMode.Agent, 0, undefined);
 
 		assert.deepStrictEqual(telemetryService.events, []);
+	});
+
+	test('provider attribution distinguishes missing context from non-Agent Host sessions', () => {
+		assert.deepStrictEqual([
+			'agent-host-copilotcli',
+			'agent-host-claude',
+			'agent-host-codex',
+			'remote-private-machine-name-copilotcli',
+			'remote-private-machine-name-claude',
+			'agent-host-',
+			'remote-private-machine-name-',
+			'local',
+			'copilotcli',
+			'copilot-cloud-agent',
+			undefined,
+		].map(getAgentHostProviderForTelemetry), [
+			'copilotcli', 'claude', 'codex', 'copilotcli', 'claude',
+			'unknown', 'unknown', undefined, undefined, undefined, 'unknown',
+		]);
 	});
 });

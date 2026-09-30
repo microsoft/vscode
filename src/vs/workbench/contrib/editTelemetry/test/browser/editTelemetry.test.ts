@@ -60,18 +60,21 @@ suite('Edit Telemetry', () => {
 		};
 
 		aiEditTelemetryService.createSuggestionId({ ...baseData, isAgentHostSession: true });
-		aiEditTelemetryService.handleCodeAccepted({ ...baseData, acceptanceMethod: 'copyButton', presentation: 'codeBlock', feature: 'sideBarChat', isAgentHostSession: true, sourceRequestId: 'request-origin', chatSessionId: 'agent-host-copilotcli:/session#chat' });
+		aiEditTelemetryService.handleCodeAccepted({ ...baseData, acceptanceMethod: 'copyButton', presentation: 'codeBlock', feature: 'sideBarChat', isAgentHostSession: true, provider: 'copilotcli', sourceRequestId: 'request-origin', chatSessionId: 'agent-host-copilotcli:/session#chat' });
 		aiEditTelemetryService.handleCodeRejected({ ...baseData, rejectionMethod: 'reject', isAgentHostSession: false });
+		aiEditTelemetryService.handleCodeRejected({ ...baseData, rejectionMethod: 'reject', isAgentHostSession: true, provider: 'claude' });
 
 		assert.deepStrictEqual(sentTelemetry.map(event => ({
 			eventName: event.eventName,
 			isAgentHostSession: event.data?.isAgentHostSession,
 			sourceRequestId: event.data?.sourceRequestId,
 			chatSessionId: event.data?.chatSessionId,
+			provider: event.data?.provider,
 		})), [
-			{ eventName: 'editTelemetry.codeSuggested', isAgentHostSession: true, sourceRequestId: undefined, chatSessionId: undefined },
-			{ eventName: 'editTelemetry.codeAccepted', isAgentHostSession: true, sourceRequestId: 'request-origin', chatSessionId: 'agent-host-copilotcli:/session#chat' },
-			{ eventName: 'editTelemetry.codeRejected', isAgentHostSession: false, sourceRequestId: undefined, chatSessionId: undefined },
+			{ eventName: 'editTelemetry.codeSuggested', isAgentHostSession: true, sourceRequestId: undefined, chatSessionId: undefined, provider: 'unknown' },
+			{ eventName: 'editTelemetry.codeAccepted', isAgentHostSession: true, sourceRequestId: 'request-origin', chatSessionId: 'agent-host-copilotcli:/session#chat', provider: 'copilotcli' },
+			{ eventName: 'editTelemetry.codeRejected', isAgentHostSession: false, sourceRequestId: undefined, chatSessionId: undefined, provider: undefined },
+			{ eventName: 'editTelemetry.codeRejected', isAgentHostSession: true, sourceRequestId: undefined, chatSessionId: undefined, provider: 'claude' },
 		]);
 	});
 

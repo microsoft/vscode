@@ -124,12 +124,12 @@ suite('Chat code-block action telemetry', () => {
 		await command.handler(instantiationService, context);
 	}
 
-	for (const [name, resource, sessionId, isAgentHostSession] of [
-		['local', LocalChatSessionUri.forSession('local-session'), 'local-session', false],
-		['Copilot', URI.parse('agent-host-copilotcli:/session#chat'), 'agent-host-copilotcli:/session#chat', true],
-		['Claude', URI.parse('agent-host-claude:/session#chat'), 'agent-host-claude:/session#chat', true],
-		['Codex', URI.parse('agent-host-codex:/session#chat'), 'agent-host-codex:/session#chat', true],
-		['remote', URI.parse('remote-test-copilotcli:/session#chat'), 'remote-test-copilotcli:/session#chat', true],
+	for (const [name, resource, sessionId, isAgentHostSession, provider] of [
+		['local', LocalChatSessionUri.forSession('local-session'), 'local-session', false, undefined],
+		['Copilot', URI.parse('agent-host-copilotcli:/session#chat'), 'agent-host-copilotcli:/session#chat', true, 'copilotcli'],
+		['Claude', URI.parse('agent-host-claude:/session#chat'), 'agent-host-claude:/session#chat', true, 'claude'],
+		['Codex', URI.parse('agent-host-codex:/session#chat'), 'agent-host-codex:/session#chat', true, 'codex'],
+		['remote', URI.parse('remote-test-copilotcli:/session#chat'), 'remote-test-copilotcli:/session#chat', true, 'copilotcli'],
 	] as const) {
 		test(`correlates all four code-block actions for ${name}`, async () => {
 			context = createContext(resource);
@@ -144,6 +144,7 @@ suite('Chat code-block action telemetry', () => {
 				requestId: data.sourceRequestId,
 				sessionId: data.chatSessionId,
 				isAgentHostSession: data.isAgentHostSession,
+				provider: data.provider,
 				feature: data.feature,
 				presentation: data.presentation,
 			})), ['copyButton', 'copyManual', 'insertInNewFile', 'insertAtCursor'].map(method => ({
@@ -151,6 +152,7 @@ suite('Chat code-block action telemetry', () => {
 				requestId: 'request-origin',
 				sessionId,
 				isAgentHostSession,
+				provider,
 				feature: 'sideBarChat',
 				presentation: 'codeBlock',
 			})));

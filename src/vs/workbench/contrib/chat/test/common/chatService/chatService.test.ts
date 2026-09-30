@@ -3123,6 +3123,7 @@ suite('ChatService', () => {
 
 		assert.deepStrictEqual(providerInvokedEvents.map(event => ({
 			sessionType: event.sessionType,
+			provider: event.provider,
 			isAgentHostSession: event.isAgentHostSession,
 			requestIndex: event.requestIndex,
 			sessionTypeSelectionReason: event.sessionTypeSelectionReason,
@@ -3132,7 +3133,7 @@ suite('ChatService', () => {
 			settingLocalAgentEnabled: event.settingLocalAgentEnabled,
 			settingCopilotHarnessIntroductionMode: event.settingCopilotHarnessIntroductionMode,
 			hasRequestId: typeof event.requestId === 'string',
-		})), [{ sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 0, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }, { sessionType: 'remote-agent-host', isAgentHostSession: true, requestIndex: 1, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }]);
+		})), [{ sessionType: 'remote-agent-host', provider: 'copilot', isAgentHostSession: true, requestIndex: 0, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }, { sessionType: 'remote-agent-host', provider: 'copilot', isAgentHostSession: true, requestIndex: 1, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }]);
 	});
 
 	test('user action telemetry distinguishes agent host sessions from local sessions', () => {

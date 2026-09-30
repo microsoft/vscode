@@ -14,7 +14,7 @@ import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
 import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
-import { isAgentHostSessionResource } from '../chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, isAgentHostSessionResource } from '../chatSessionsService.js';
 import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 type ChatSessionModeEvent = {
@@ -22,7 +22,7 @@ type ChatSessionModeEvent = {
 };
 
 type ChatSessionModeClassification = {
-	isAgentHostSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the action was performed in an Agent Host-backed chat session.' };
+	isAgentHostSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the action was performed in an Agent Host-backed chat session.' };
 };
 
 type ChatVoteEvent = ChatSessionModeEvent & {
@@ -168,6 +168,7 @@ type ChatEditHunkClassification = ChatSessionModeClassification & {
 };
 
 export type ChatProviderInvokedEvent = ChatSessionModeEvent & {
+	provider: string | undefined;
 	requestIndex: number;
 	timeToFirstProgress: number | undefined;
 	totalTime: number | undefined;
@@ -198,9 +199,10 @@ export type ChatProviderInvokedEvent = ChatSessionModeEvent & {
 };
 
 export type ChatProviderInvokedClassification = ChatSessionModeClassification & {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
 	requestIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based index of the request within the chat session.' };
-	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time in milliseconds from invoking the provider to getting the first data.' };
-	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The total time it took to run the provider\'s `provideResponseWithProgress`.' };
+	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time in milliseconds from invoking the provider to getting the first data.' };
+	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total time it took to run the provider\'s `provideResponseWithProgress`.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the ChatProvider resulted in an error.' };
 	requestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of request that the user made.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
@@ -209,10 +211,10 @@ export type ChatProviderInvokedClassification = ChatSessionModeClassification & 
 	agentExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the agent.' };
 	slashCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
 	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location at which chat request was made.' };
-	citations: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of public code citations that were returned with the response.' };
-	numCodeBlocks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code blocks in the response.' };
-	isParticipantDetected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the participant was automatically detected.' };
-	enableCommandDetection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether participation detection was disabled for this invocation.' };
+	citations: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of public code citations that were returned with the response.' };
+	numCodeBlocks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of code blocks in the response.' };
+	isParticipantDetected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the participant was automatically detected.' };
+	enableCommandDetection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether participation detection was disabled for this invocation.' };
 	attachmentKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The types of variables/attachments that the user included with their query.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model used to generate the response.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval permission level selected in the permission picker (default, assisted, autoApprove, or autopilot). Undefined when the picker is not applicable (e.g. ask mode or API-driven requests).' };
@@ -220,10 +222,10 @@ export type ChatProviderInvokedClassification = ChatSessionModeClassification & 
 	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type scheme (e.g. vscodeLocalChatSession for local, or remote session scheme).' };
 	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For remote agent host sessions, the underlying harness/provider (e.g. copilotcli, claude, codex) so remote activity can be split by harness. Undefined for non-remote sessions.' };
 	sessionTypeSelectionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the session type was selected when the session was created. Undefined for restored or reused sessions.' };
-	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the chat request was made in a virtual workspace.' };
-	settingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.defaultToCopilotHarness setting when the request started.' };
-	settingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.preferCopilotHarness setting when the request started.' };
-	settingLocalAgentEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.localAgent.enabled setting when the request started.' };
+	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the chat request was made in a virtual workspace.' };
+	settingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The effective value of the chat.defaultToCopilotHarness setting when the request started.' };
+	settingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The effective value of the chat.editor.preferCopilotHarness setting when the request started.' };
+	settingLocalAgentEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The effective value of the chat.editor.localAgent.enabled setting when the request started.' };
 	settingCopilotHarnessIntroductionMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective Copilot harness introduction experiment mode when the request started.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
@@ -374,6 +376,7 @@ export class ChatRequestTelemetry {
 
 		this.isComplete = true;
 		this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+			provider: getAgentHostProviderForTelemetry(getChatSessionType(this.opts.sessionResource)),
 			requestIndex: this.opts.requestIndex,
 			sessionTypeSelectionReason: this.opts.sessionTypeSelectionReason,
 			timeToFirstProgress,

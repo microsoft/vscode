@@ -982,6 +982,7 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.ok(telemetryEvent, 'Should emit telemetry event');
 			const data = telemetryEvent.data as InstructionsCollectionEvent;
 			assert.deepStrictEqual(data, {
+				provider: undefined,
 				applyingInstructionsCount: 1,
 				referencedInstructionsCount: 0,
 				agentInstructionsCount: 2,
