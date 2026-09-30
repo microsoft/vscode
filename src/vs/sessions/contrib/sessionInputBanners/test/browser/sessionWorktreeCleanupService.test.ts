@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -318,12 +320,128 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
+	test('coalesces concurrent measurements into one cancellable progress operation', async () => {
+		const diskUsage = new DeferredPromise<number | undefined>();
+		const progressService = new TestProgressService();
+		let scanCount = 0;
+		const service = disposables.add(createService(
+			[createSession('eligible', oldDate())],
+			true,
+			() => {
+				scanCount++;
+				return diskUsage.p;
+			},
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			Event.None,
+			{ progressService },
+		));
+
+		const fourteenDays = service.getWorktrees(14);
+		const sevenDays = service.getWorktrees(7);
+		diskUsage.complete(ByteSize.GB);
+
+		assert.deepStrictEqual({
+			scanCount,
+			progress: progressService.options.map(options => ({
+				title: options.title,
+				cancellable: options.cancellable,
+			})),
+			states: [(await fourteenDays)[0].cleanupState, (await sevenDays)[0].cleanupState],
+		}, {
+			scanCount: 1,
+			progress: [{
+				title: 'Measuring agent session worktrees...',
+				cancellable: true,
+			}],
+			states: ['eligible', 'eligible'],
+		});
+	});
+
+	test('reports cleanup progress after each archived session', async () => {
+		const archived: string[] = [];
+		const progressService = new TestProgressService();
+		const first = createSession('first', oldDate(), SessionStatus.Completed, false, true, 2);
+		const second = createSession('second', oldDate());
+		const service = disposables.add(createService(
+			[first, second],
+			true,
+			() => ByteSize.GB,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			Event.None,
+			{
+				progressService,
+				dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+				onArchive: async session => { archived.push(session.sessionId); },
+			},
+		));
+
+		const cleaned = await service.cleanupWorktrees([
+			{ session: first, sizeBytes: ByteSize.GB, worktreeCount: 2 },
+			{ session: second, sizeBytes: ByteSize.GB, worktreeCount: 1 },
+		]);
+
+		assert.deepStrictEqual({
+			cleaned,
+			archived,
+			progress: progressService.options.map(options => ({
+				title: options.title,
+				total: options.total,
+			})),
+			reports: progressService.reports,
+		}, {
+			cleaned: true,
+			archived: ['first', 'second'],
+			progress: [{
+				title: 'Cleaning up 3 agent session worktrees...',
+				total: 3,
+			}],
+			reports: [
+				{ increment: 2, total: 3, message: '2 of 3 worktrees' },
+				{ increment: 1, total: 3, message: '3 of 3 worktrees' },
+			],
+		});
+	});
+
+	test('cancels an active measurement from the progress notification', async () => {
+		const diskUsage = new DeferredPromise<number | undefined>();
+		const progressService = new TestProgressService();
+		const service = disposables.add(createService(
+			[createSession('eligible', oldDate())],
+			true,
+			() => diskUsage.p,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			Event.None,
+			{ progressService },
+		));
+
+		const measurement = service.getWorktrees(14);
+		progressService.cancel();
+		diskUsage.complete(ByteSize.GB);
+
+		await assert.rejects(measurement, error => isCancellationError(error));
+	});
+
 });
 
 function createService(
 	sessions: ISession[],
 	enabled: boolean,
-	sizeForSession: (session: ISession) => number | undefined,
+	sizeForSession: (session: ISession) => number | undefined | Promise<number | undefined>,
 	_quickInputService: IQuickInputService = upcastPartial<IQuickInputService>({}),
 	onProgress?: (title: string | undefined) => void,
 	activeSession?: IActiveSession,
@@ -331,21 +449,26 @@ function createService(
 	pinnedSession?: ISession,
 	configurationService = new TestConfigurationService({ [AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING]: enabled }),
 	onDidChangeSessions: Event<ISessionsChangeEvent> = Event.None,
+	overrides: {
+		readonly progressService?: IProgressService;
+		readonly dialogService?: IDialogService;
+		readonly onArchive?: (session: ISession) => Promise<void>;
+	} = {},
 ): SessionWorktreeCleanupService {
 	return new SessionWorktreeCleanupService(
 		upcastPartial<ISessionsManagementService>({
 			getSessions: () => sessions,
 			getSessionWorktreeDiskUsage: async session => sizeForSession(session),
-			archiveSession: async () => { },
+			archiveSession: async session => overrides.onArchive?.(session),
 			onDidArchiveSession: Event.None,
 			onDidChangeSessions,
 		}),
 		upcastPartial<ISessionsService>({ activeSession: constObservable(activeSession) }),
 		upcastPartial<ISessionsListModelService>({ isSessionPinned: session => session === pinnedSession }),
-		upcastPartial<IDialogService>({}),
+		overrides.dialogService ?? upcastPartial<IDialogService>({}),
 		upcastPartial<ILogService>({ warn: () => { }, error: () => { } }),
 		configurationService,
-		new TestProgressService(onProgress),
+		overrides.progressService ?? new TestProgressService(onProgress),
 		upcastPartial<ICommandService>({
 			executeCommand: async (id, ...args) => {
 				onCommand?.(id, args);
@@ -355,13 +478,23 @@ function createService(
 }
 
 class TestProgressService extends mock<IProgressService>() {
+	readonly options: IProgressOptions[] = [];
+	readonly reports: IProgressStep[] = [];
+	private onDidCancel: (() => void) | undefined;
+
 	constructor(private readonly onProgress?: (title: string | undefined) => void) {
 		super();
 	}
 
-	override async withProgress<R>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
+	override async withProgress<R>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: () => void): Promise<R> {
+		this.options.push(options);
+		this.onDidCancel = onDidCancel;
 		this.onProgress?.(typeof options.title === 'string' ? options.title : undefined);
-		return task({ report() { } });
+		return task({ report: step => this.reports.push(step) });
+	}
+
+	cancel(): void {
+		this.onDidCancel?.();
 	}
 }
 

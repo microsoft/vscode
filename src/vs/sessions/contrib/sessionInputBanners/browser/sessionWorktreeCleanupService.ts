@@ -5,6 +5,8 @@
 
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Limiter, RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -52,6 +54,8 @@ export interface ISessionWorktree {
 	readonly cleanupState: SessionWorktreeCleanupState;
 }
 
+type IMeasuredSessionWorktree = Omit<ISessionWorktree, 'cleanupState'>;
+
 export const ISessionWorktreeCleanupService = createDecorator<ISessionWorktreeCleanupService>('sessionWorktreeCleanupService');
 
 export interface ISessionWorktreeCleanupService {
@@ -69,8 +73,9 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 
 	private _lastScanAt = 0;
 	private _lastMeasurementAt = 0;
-	private _lastMeasuredWorktrees: readonly ISessionWorktree[] | undefined;
+	private _lastMeasuredWorktrees: readonly IMeasuredSessionWorktree[] | undefined;
 	private _lastMeasuredSessionSignature = '';
+	private _measurement: { readonly sessionSignature: string; readonly promise: Promise<readonly IMeasuredSessionWorktree[]> } | undefined;
 	private _refreshPromise: Promise<void> | undefined;
 	private _activated = false;
 	private _dismissed = false;
@@ -165,9 +170,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}
 	}
 
-	private async _measureWorktrees(minimumAgeDays: number): Promise<readonly ISessionWorktree[]> {
-		const activeSessionId = this.sessionsService.activeSession.get()?.sessionId;
-		const cutoff = Date.now() - minimumAgeDays * DAY_MS;
+	private async _measureWorktrees(token: CancellationToken): Promise<readonly IMeasuredSessionWorktree[]> {
 		const worktreeSessions = this.sessionsManagementService.getSessions().filter(session =>
 			session.workspace.get()?.folders.some(folder => folder.gitRepository?.workTreeUri) === true
 		);
@@ -177,22 +180,27 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return [];
 		}
 		if (!getDiskUsage) {
-			return worktreeSessions.map(session => ({ session, sizeBytes: undefined, worktreeCount: this._countWorktrees(session), cleanupState: 'unavailable' }));
+			return worktreeSessions.map(session => ({ session, sizeBytes: undefined, worktreeCount: this._countWorktrees(session) }));
 		}
 
-		const limiter = new Limiter<ISessionWorktree>(2);
+		const limiter = new Limiter<IMeasuredSessionWorktree>(2);
 		return Promise.all(worktreeSessions.map(session => limiter.queue(async () => {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			let sizeBytes: number | undefined;
 			try {
 				sizeBytes = await getDiskUsage.call(this.sessionsManagementService, session);
 			} catch (error) {
 				this.logService.warn(`[SessionWorktreeCleanupService] Failed to measure worktree for session ${session.sessionId}`, error);
 			}
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			return {
 				session,
 				sizeBytes,
 				worktreeCount: this._countWorktrees(session),
-				cleanupState: this._getCleanupState(session, sizeBytes, activeSessionId, cutoff),
 			};
 		})));
 	}
@@ -209,22 +217,43 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		return worktreeUris.size;
 	}
 
-	private async _getMeasuredWorktrees(minimumAgeDays: number): Promise<readonly ISessionWorktree[]> {
+	private async _getMeasuredWorktrees(minimumAgeDays: number, token = CancellationToken.None): Promise<readonly ISessionWorktree[]> {
 		const measuredSessionSignature = this._getWorktreeSessionSignature();
 		if (this._lastMeasuredWorktrees && this._lastMeasuredSessionSignature === measuredSessionSignature && Date.now() - this._lastMeasurementAt < SCAN_CACHE_DURATION_MS) {
-			const activeSessionId = this.sessionsService.activeSession.get()?.sessionId;
-			const cutoff = Date.now() - minimumAgeDays * DAY_MS;
-			return this._lastMeasuredWorktrees.map(worktree => ({
-				...worktree,
-				cleanupState: this._getCleanupState(worktree.session, worktree.sizeBytes, activeSessionId, cutoff),
-			}));
+			return this._withCleanupState(this._lastMeasuredWorktrees, minimumAgeDays);
 		}
 
-		const worktrees = await this._measureWorktrees(minimumAgeDays);
-		this._lastMeasuredWorktrees = worktrees;
-		this._lastMeasuredSessionSignature = measuredSessionSignature;
-		this._lastMeasurementAt = Date.now();
-		return worktrees;
+		let measurement = this._measurement;
+		if (!measurement || measurement.sessionSignature !== measuredSessionSignature) {
+			measurement = {
+				sessionSignature: measuredSessionSignature,
+				promise: this._measureWorktrees(token),
+			};
+			this._measurement = measurement;
+		}
+
+		try {
+			const worktrees = await measurement.promise;
+			if (this._measurement === measurement) {
+				this._lastMeasuredWorktrees = worktrees;
+				this._lastMeasuredSessionSignature = measuredSessionSignature;
+				this._lastMeasurementAt = Date.now();
+			}
+			return this._withCleanupState(worktrees, minimumAgeDays);
+		} finally {
+			if (this._measurement === measurement) {
+				this._measurement = undefined;
+			}
+		}
+	}
+
+	private _withCleanupState(worktrees: readonly IMeasuredSessionWorktree[], minimumAgeDays: number): readonly ISessionWorktree[] {
+		const activeSessionId = this.sessionsService.activeSession.get()?.sessionId;
+		const cutoff = Date.now() - minimumAgeDays * DAY_MS;
+		return worktrees.map(worktree => ({
+			...worktree,
+			cleanupState: this._getCleanupState(worktree.session, worktree.sizeBytes, activeSessionId, cutoff),
+		}));
 	}
 
 	private _getWorktreeSessionSignature(): string {
@@ -298,15 +327,30 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		this._suggestion.set(undefined, undefined);
 	}
 
-	getWorktrees(minimumAgeDays: number): Promise<readonly ISessionWorktree[]> {
-		if (this._lastMeasuredWorktrees && Date.now() - this._lastMeasurementAt < SCAN_CACHE_DURATION_MS) {
+	async getWorktrees(minimumAgeDays: number): Promise<readonly ISessionWorktree[]> {
+		const measuredSessionSignature = this._getWorktreeSessionSignature();
+		if (this._lastMeasuredWorktrees
+			&& this._lastMeasuredSessionSignature === measuredSessionSignature
+			&& Date.now() - this._lastMeasurementAt < SCAN_CACHE_DURATION_MS
+		) {
 			return this._getWorktrees(minimumAgeDays);
 		}
-		return this.progressService.withProgress({
-			location: ProgressLocation.Notification,
-			title: localize('worktreeCleanup.measuringProgress', "Measuring agent session worktrees..."),
-			delay: 300,
-		}, () => this._getWorktrees(minimumAgeDays));
+		if (this._measurement?.sessionSignature === measuredSessionSignature) {
+			return this._getWorktrees(minimumAgeDays);
+		}
+
+		const cancellation = new CancellationTokenSource();
+		const measurement = this._getWorktrees(minimumAgeDays, cancellation.token);
+		try {
+			return await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('worktreeCleanup.measuringProgress', "Measuring agent session worktrees..."),
+				delay: 300,
+				cancellable: true,
+			}, () => measurement, () => cancellation.cancel());
+		} finally {
+			cancellation.dispose();
+		}
 	}
 
 	/**
@@ -314,8 +358,8 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	 * done reclaims no storage, so it does not belong in a storage manager; the Sessions list owns
 	 * that decluttering.
 	 */
-	private async _getWorktrees(minimumAgeDays: number): Promise<readonly ISessionWorktree[]> {
-		return (await this._getMeasuredWorktrees(minimumAgeDays))
+	private async _getWorktrees(minimumAgeDays: number, token = CancellationToken.None): Promise<readonly ISessionWorktree[]> {
+		return (await this._getMeasuredWorktrees(minimumAgeDays, token))
 			.filter(worktree => worktree.sizeBytes !== undefined && worktree.cleanupState !== 'archived');
 	}
 
@@ -337,14 +381,30 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return false;
 		}
 
-		for (const candidate of selected) {
-			await this.sessionsManagementService.archiveSession(candidate.session);
-		}
+		await this.progressService.withProgress({
+			location: ProgressLocation.Notification,
+			title: worktreeCount === 1
+				? localize('worktreeCleanup.cleaning.one', "Cleaning up 1 agent session worktree...")
+				: localize('worktreeCleanup.cleaning.many', "Cleaning up {0} agent session worktrees...", worktreeCount),
+			total: worktreeCount,
+		}, async progress => {
+			let completedWorktrees = 0;
+			for (const candidate of selected) {
+				await this.sessionsManagementService.archiveSession(candidate.session);
+				completedWorktrees += candidate.worktreeCount;
+				progress.report({
+					increment: candidate.worktreeCount,
+					total: worktreeCount,
+					message: localize('worktreeCleanup.cleaningProgress', "{0} of {1} worktrees", completedWorktrees, worktreeCount),
+				});
+			}
+		});
 		const message = worktreeCount === 1
-			? localize('worktreeCleanup.archived.one', "Cleaning up 1 worktree in the background.")
-			: localize('worktreeCleanup.archived.many', "Cleaning up {0} worktrees in the background.", worktreeCount);
+			? localize('worktreeCleanup.archived.one', "Started cleanup for 1 worktree.")
+			: localize('worktreeCleanup.archived.many', "Started cleanup for {0} worktrees.", worktreeCount);
 		status(message);
 		this._lastScanAt = 0;
+		this._lastMeasurementAt = 0;
 		return true;
 	}
 
