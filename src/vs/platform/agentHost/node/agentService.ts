@@ -20,7 +20,7 @@ import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasSnapshot, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -65,7 +65,7 @@ import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/a
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
-import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
+import { AgentHostLocalTurns, parsePersistedTurn } from './agentHostLocalTurns.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { IAgentHostSessionOpenTelemetry, type IAgentHostSessionOpenTelemetryScope } from './agentHostSessionOpenTelemetry.js';
@@ -609,6 +609,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Protocol: fires for MCP server-originated notifications routed over `mcp://` channels. */
 	readonly onMcpNotification: IAgentService['onMcpNotification'];
+	private readonly _onDidChangeCanvases = this._register(new Emitter<IAgentCanvasSnapshot>());
+	readonly onDidChangeCanvases = this._onDidChangeCanvases.event;
 
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: AgentHostStateManager;
@@ -1390,6 +1392,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}));
 			this._setupChatDiscoveryForProvider(provider);
 			subscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
+			if (provider.onDidChangeCanvases) {
+				subscriptions.add(provider.onDidChangeCanvases(snapshot => this._onDidChangeCanvases.fire(snapshot)));
+			}
 			if (provider.onDidChangeChatHistory) {
 				subscriptions.add(provider.onDidChangeChatHistory(event => {
 					void this._chatHistoryRefreshes.queue(event.chat.toString(), () => this._refreshChatHistory(provider, event.chat, event.turns)).catch(error => {
@@ -1468,6 +1473,19 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		return this._changesetOperationService.invokeChangesetOperation(params);
+	}
+
+	async resolveCanvasSource(chat: URI, instanceId: string, revision: number): Promise<string> {
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			throw new Error(`Cannot resolve a canvas source for invalid chat URI '${chat.toString()}'`);
+		}
+		const session = URI.parse(parsed.session);
+		const provider = this._providerService.getProviderForSession(session);
+		if (!provider?.chats.resolveCanvasSource) {
+			throw new Error(`Agent provider does not support canvas source resolution for '${chat.toString()}'`);
+		}
+		return provider.chats.resolveCanvasSource(chat, instanceId, revision, this._chatContext(session, chat));
 	}
 
 	// ---- MCP `mcp://` channel routing --------------------------------------
@@ -5311,10 +5329,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const byAnchor = new Map<string, Turn[]>();
 		const head: Turn[] = [];
 		for (const record of records) {
-			let turn: Turn;
-			try {
-				turn = JSON.parse(record.payload) as Turn;
-			} catch {
+			const turn = parsePersistedTurn(record, this._logService, AgentHostLocalTurns.name);
+			if (!turn) {
 				continue;
 			}
 			if (record.anchorTurnId === undefined) {
@@ -6139,8 +6155,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- Protocol methods ---------------------------------------------------
 
-	async createTerminal(params: CreateTerminalParams): Promise<void> {
-		await this._terminalManager.createTerminal(params);
+	async createTerminal(params: CreateTerminalParams, clientType = AgentHostClientType.Unknown): Promise<void> {
+		await this._terminalManager.createTerminal(params, {
+			vscodeTerminalIdentity: clientType !== AgentHostClientType.Unknown,
+		});
 	}
 
 	async disposeTerminal(terminal: URI): Promise<void> {

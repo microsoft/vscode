@@ -58,7 +58,6 @@ export const TABBED_MODEL_PICKER_SETTING_ID = 'chat.experimentalModelPicker';
 const MODEL_PICKER_MINIMUM_LABEL_WIDTH = 60;
 const MODEL_PICKER_NAME_CHROME_WIDTH = 30;
 const MODEL_PICKER_MINIMUM_NAME_WIDTH = MODEL_PICKER_MINIMUM_LABEL_WIDTH + MODEL_PICKER_NAME_CHROME_WIDTH;
-const MODEL_PICKER_AUTO_NAME_WIDTH = 50;
 const MODEL_PICKER_COMPACT_NAME_WIDTH = 22;
 type ChatModelPickerInteraction = 'disabledModelContactAdminClicked' | 'premiumModelUpgradePlanClicked' | 'otherModelsExpanded' | 'otherModelsCollapsed';
 
@@ -107,6 +106,7 @@ export class ModelPickerWidget extends Disposable {
 	private _badge: ModelPickerBadge | undefined;
 	private _compact: IObservable<boolean> | undefined;
 	private _minimal: IObservable<boolean> | undefined;
+	private _contextViewLayer: number | undefined;
 	private _workspaceTrustInitialized = false;
 	private _activatingAfterTrust = false;
 	private readonly _activatingTimer = this._register(new MutableDisposable());
@@ -171,6 +171,7 @@ export class ModelPickerWidget extends Disposable {
 			shouldShowCacheBreakHint: () => this.shouldShowCacheBreakHint(/* excludeAutoModel */ false),
 			getCacheBreakLearnMoreLink: () => this.getCacheBreakLearnMoreLink(),
 			dismissCacheBreakHint: () => this.dismissCacheBreakHint(),
+			getContextViewLayer: () => this._contextViewLayer,
 		});
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			if (this._activatingAfterTrust && this._delegate.getModels().length > 0) {
@@ -240,10 +241,7 @@ export class ModelPickerWidget extends Disposable {
 	setCompact(compact: IObservable<boolean>): void {
 		this._compact = compact;
 		this._register(autorun(reader => {
-			const isCompact = compact.read(reader);
-			if (this._domNode) {
-				this._domNode.classList.toggle('compact', isCompact);
-			}
+			compact.read(reader);
 			this._renderLabel();
 		}));
 	}
@@ -255,6 +253,10 @@ export class ModelPickerWidget extends Disposable {
 			this._domNode?.classList.toggle('minimal', isMinimal);
 			this._renderLabel();
 		}));
+	}
+
+	setContextViewLayer(contextViewLayer: number | undefined): void {
+		this._contextViewLayer = contextViewLayer;
 	}
 
 	setSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
@@ -346,10 +348,7 @@ export class ModelPickerWidget extends Disposable {
 		// tab stops, not the container itself.
 		this._domNode.tabIndex = -1;
 
-		// Apply initial collapsed state now that _domNode exists
-		if (this._compact?.get()) {
-			this._domNode.classList.toggle('compact', true);
-		}
+		// Apply initial minimal state now that _domNode exists
 		if (this._minimal?.get()) {
 			this._domNode.classList.toggle('minimal', true);
 		}
@@ -503,7 +502,7 @@ export class ModelPickerWidget extends Disposable {
 			this._configButton?.setAttribute('aria-expanded', 'true');
 		}
 		this._domNode?.classList.toggle('model-picker-name-active', !detailsModelId);
-		picker.show(anchor, context, detailsModelId, focusConfiguration);
+		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer);
 	}
 
 	show(anchor?: HTMLElement, showDetails = false, focusConfiguration = false, trigger: IModelPickerOpenTrigger = { entryPoint: 'command', inputMethod: 'unknown' }): void {
@@ -735,7 +734,8 @@ export class ModelPickerWidget extends Disposable {
 			undefined,
 			[],
 			getModelPickerAccessibilityProvider(!unavailable),
-			listOptions
+			listOptions,
+			this._contextViewLayer,
 		);
 	}
 
@@ -791,16 +791,7 @@ export class ModelPickerWidget extends Disposable {
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
 		const showModelLabel = !compact || !modelIcon || noModelsAvailable;
-		// Fixed rather than measured: this runs from a resize-driven autorun, so reading
-		// the rendered width here would dirty layout from inside the ResizeObserver
-		// callback and never settle.
 		const showingAuto = !unavailable && !activating && !genericNoModels && (!this._selectedModel || isAutoModel(this._selectedModel));
-		const nameMinimumWidth = compact && !showModelLabel
-			? MODEL_PICKER_COMPACT_NAME_WIDTH
-			: showingAuto
-				? MODEL_PICKER_AUTO_NAME_WIDTH
-				: MODEL_PICKER_MINIMUM_NAME_WIDTH;
-		this._nameButton.style.minWidth = `${nameMinimumWidth}px`;
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		}
@@ -819,6 +810,9 @@ export class ModelPickerWidget extends Disposable {
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('tabbed', this.isTabbedPickerEnabled());
 		this._domNode.classList.toggle('has-config', configVisible);
+		// Only a name that collapses to its icon becomes the compact square; without an
+		// icon to collapse to, the name keeps its label and stays a regular chip.
+		this._domNode.classList.toggle('compact', compact && !showModelLabel);
 		this._domNode.classList.toggle('icon-only', !showModelLabel && !configVisible);
 
 		// Aria — name the control "Models" to match the visible label; the comma
@@ -830,7 +824,39 @@ export class ModelPickerWidget extends Disposable {
 				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
 		this._domNode.ariaLabel = ariaLabel;
 		this._nameButton.ariaLabel = ariaLabel;
+
+		const nameMinimumWidth = showModelLabel ? this._getNameMinimumWidth(this._nameButton) : MODEL_PICKER_COMPACT_NAME_WIDTH;
+		// A name narrower than the minimum is held at exactly its own width; a pixel value
+		// rounded from its measurement could cut into the label and ellipsize it.
+		this._nameButton.style.minWidth = showModelLabel && nameMinimumWidth < MODEL_PICKER_MINIMUM_NAME_WIDTH ? 'max-content' : `${nameMinimumWidth}px`;
 		this._updateMinimumWidth(nameMinimumWidth);
+	}
+
+	/**
+	 * How narrow the name may get before the picker compacts. A long name shrinks to
+	 * the minimum label width and ellipsizes; a shorter one keeps its own width, as
+	 * raising it to that minimum would pad it with empty space before the
+	 * configuration readout.
+	 *
+	 * The name is measured unconstrained, so the result depends only on its content
+	 * and styles, not on the width it currently has. Rendering again from the
+	 * resize-driven compact autorun therefore settles.
+	 */
+	private _getNameMinimumWidth(nameButton: HTMLElement): number {
+		const { flex, width, minWidth } = nameButton.style;
+		nameButton.style.flex = 'none';
+		nameButton.style.width = 'max-content';
+		nameButton.style.minWidth = '0';
+		const contentWidth = nameButton.getBoundingClientRect().width;
+		nameButton.style.flex = flex;
+		nameButton.style.width = width;
+		nameButton.style.minWidth = minWidth;
+		// Nothing to measure until the picker is laid out (e.g. while detached); keep
+		// the full minimum until a later render can measure it.
+		if (contentWidth === 0) {
+			return MODEL_PICKER_MINIMUM_NAME_WIDTH;
+		}
+		return Math.min(contentWidth, MODEL_PICKER_MINIMUM_NAME_WIDTH);
 	}
 
 }

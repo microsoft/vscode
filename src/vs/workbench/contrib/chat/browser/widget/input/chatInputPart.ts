@@ -25,7 +25,7 @@ import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -409,6 +409,10 @@ const emptyInputAttachments = observableMemento<readonly IChatRequestVariableEnt
 	fromStorage: deserializeUntitledInputAttachments,
 });
 
+interface IChatToolConfirmationCarouselEntry extends IDisposable {
+	readonly part: ChatToolConfirmationCarouselPart;
+}
+
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	private static _counter = 0;
 
@@ -422,7 +426,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _chatPlanReviewWidgets = this._register(new DisposableMap<string, ChatPlanReviewPart>());
 	private readonly _planReviewResponseIds = new Map<string, string>();
 	private readonly _planReviewSessionResources = new Map<string, URI>();
-	private readonly _chatToolConfirmationCarousels = this._register(new DisposableMap<string, ChatToolConfirmationCarouselPart>());
+	private readonly _chatToolConfirmationCarousels = this._register(new DisposableMap<string, IChatToolConfirmationCarouselEntry>());
 	private readonly _onDidChangeActiveConfirmationSubagent = this._register(new Emitter<string | undefined>());
 	readonly onDidChangeActiveConfirmationSubagent = this._onDidChangeActiveConfirmationSubagent.event;
 	private readonly _chatEditingTodosDisposables = this._register(new DisposableStore());
@@ -541,10 +545,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private contextUsageWidget?: ChatContextUsageWidget;
 	private contextUsageWidgetContainer!: HTMLElement;
+	private contextUsageWidgetHome!: HTMLElement;
+	private inputEditorTrailingSpace = 0;
 	private readonly _contextUsageDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
+	}
+
+	placeContextUsageWidget(container?: HTMLElement): void {
+		(container ?? this.contextUsageWidgetHome).append(this.contextUsageWidgetContainer);
+	}
+
+	/** Reserves horizontal space at the trailing edge of the input editor. */
+	setInputEditorTrailingSpace(width: number): void {
+		const trailingSpace = Math.max(0, width);
+		if (this.inputEditorTrailingSpace === trailingSpace) {
+			return;
+		}
+
+		this.inputEditorTrailingSpace = trailingSpace;
+		this.layoutForToolbarChange();
 	}
 
 	get customizationMigrationNoticeContainerElement(): HTMLElement {
@@ -3370,9 +3391,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 		this.statusToolbarContainer = elements.statusToolbarContainer;
+		this.contextUsageWidgetHome = this.options.renderStyle === 'compact' ? toolbarsContainer : this.secondaryToolbarContainer;
 
 		if (this.options.renderStyle === 'compact') {
-			toolbarsContainer.prepend(this.contextUsageWidgetContainer);
+			this.contextUsageWidgetHome.prepend(this.contextUsageWidgetContainer);
 		}
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
@@ -4627,7 +4649,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private get _currentToolConfirmationCarousel(): ChatToolConfirmationCarouselPart | undefined {
 		const key = this._currentSessionKey;
-		return key ? this._chatToolConfirmationCarousels.get(key) : undefined;
+		return key ? this._chatToolConfirmationCarousels.get(key)?.part : undefined;
 	}
 
 	renderToolConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): ChatToolConfirmationCarouselPart {
@@ -4645,28 +4667,28 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const part = new ChatToolConfirmationCarouselPart(factory, [], revealSubagent, revealSubagentLabel, subAgentInvocationId, subagentTitle);
 		part.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart, factory);
-		this._chatToolConfirmationCarousels.set(key, part);
 		const capturedKey = key;
-		part.addDisposable(part.onDidChangeActiveSubagent(id => {
+		const activeSubagentListener = part.onDidChangeActiveSubagent(id => {
 			if (this._currentSessionKey === capturedKey) {
 				this._onDidChangeActiveConfirmationSubagent.fire(id);
 			}
-		}));
-		if (this._currentSessionKey === capturedKey) {
-			this._onDidChangeActiveConfirmationSubagent.fire(part.activeSubAgentInvocationId);
-		}
-		dom.append(this.chatToolConfirmationCarouselContainer, part.domNode);
-		dom.show(this.chatToolConfirmationCarouselContainer);
-		this.updateToolConfirmationCarouselMaxHeight();
-
-		part.addDisposable(Event.once(part.onDidEmpty)(() => {
+		});
+		const emptyListener = Event.once(part.onDidEmpty)(() => {
 			this._chatToolConfirmationCarousels.deleteAndDispose(capturedKey);
 			if (this._currentSessionKey === capturedKey) {
 				this._onDidChangeActiveConfirmationSubagent.fire(undefined);
 				dom.clearNode(this.chatToolConfirmationCarouselContainer);
 				dom.hide(this.chatToolConfirmationCarouselContainer);
 			}
-		}));
+		});
+		const disposable = combinedDisposable(part, activeSubagentListener, emptyListener);
+		this._chatToolConfirmationCarousels.set(key, { part, dispose: () => disposable.dispose() });
+		if (this._currentSessionKey === capturedKey) {
+			this._onDidChangeActiveConfirmationSubagent.fire(part.activeSubAgentInvocationId);
+		}
+		dom.append(this.chatToolConfirmationCarouselContainer, part.domNode);
+		dom.show(this.chatToolConfirmationCarouselContainer);
+		this.updateToolConfirmationCarouselMaxHeight();
 
 		return part;
 	}
@@ -4682,7 +4704,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	removeToolFromConfirmationCarousel(tool: IChatToolInvocation, sessionResource: URI): void {
-		this._chatToolConfirmationCarousels.get(sessionResource.toString())?.removeToolInvocation(tool);
+		this._chatToolConfirmationCarousels.get(sessionResource.toString())?.part.removeToolInvocation(tool);
 	}
 
 	get activeConfirmationSubagentId(): string | undefined {
@@ -5215,7 +5237,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newEditorWidth = Math.max(0, width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth);
+		const newEditorWidth = Math.max(0, width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth - this.inputEditorTrailingSpace);
 		const effectiveMaxHeight = this._effectiveInputEditorMaxHeight;
 		const contentHeight = preserveInputEditorHeight && this.previousInputEditorDimension
 			? this.previousInputEditorDimension.height

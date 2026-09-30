@@ -1300,6 +1300,61 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('preserves status bar item margin exceptions across layout densities', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
+		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px;';
+		store.add(toDisposable(() => root.remove()));
+		const statusbar = appendElement(root, 'part statusbar');
+		const items = appendElement(statusbar, 'left-items items-container');
+
+		const measure = (compact: boolean, itemClasses: string) => {
+			root.classList.toggle('modern-ui-compact', compact);
+			const item = appendElement(items, `statusbar-item ${itemClasses}`);
+			const label = appendElement(item, 'statusbar-item-label');
+			const style = getWindow(label).getComputedStyle(label);
+			const margins = [style.marginLeft, style.marginRight];
+			item.remove();
+			return margins;
+		};
+
+		const scenarios = {
+			simple: '',
+			splitLeft: 'compact-left',
+			splitMiddle: 'compact-left compact-right',
+			splitRight: 'compact-right',
+			colored: 'has-background-color',
+			coloredSplitLeft: 'has-background-color compact-left',
+			coloredSplitRight: 'has-background-color compact-right',
+		};
+		const measureDensity = (compact: boolean) => Object.fromEntries(
+			Object.entries(scenarios).map(([name, classes]) => [name, measure(compact, classes)])
+		);
+
+		assert.deepStrictEqual({
+			defaultDensity: measureDensity(false),
+			compactDensity: measureDensity(true),
+		}, {
+			defaultDensity: {
+				simple: ['3px', '3px'],
+				splitLeft: ['0px', '5px'],
+				splitMiddle: ['0px', '0px'],
+				splitRight: ['5px', '0px'],
+				colored: ['0px', '0px'],
+				coloredSplitLeft: ['0px', '0px'],
+				coloredSplitRight: ['0px', '0px'],
+			},
+			compactDensity: {
+				simple: ['2px', '2px'],
+				splitLeft: ['0px', '5px'],
+				splitMiddle: ['0px', '0px'],
+				splitRight: ['5px', '0px'],
+				colored: ['0px', '0px'],
+				coloredSplitLeft: ['0px', '0px'],
+				coloredSplitRight: ['0px', '0px'],
+			},
+		});
+	});
+
 	test('compact status bar keeps its horizontal padding independently of the panel perimeter', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-compact floating-panels');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
@@ -3465,11 +3520,13 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual({
 			overlaid: getFadeContent('title', 'tab'),
 			reserved: getFadeContent('title tab-actions-reserve-space', 'tab'),
+			connected: getFadeContent('title connected-tabs-labels', 'tab'),
 			dirty: getFadeContent('title', 'tab dirty'),
 			sticky: getFadeContent('title', 'tab sticky'),
 		}, {
 			overlaid: '""',
 			reserved: 'none',
+			connected: 'none',
 			dirty: 'none',
 			sticky: 'none',
 		});

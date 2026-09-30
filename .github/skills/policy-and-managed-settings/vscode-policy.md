@@ -12,7 +12,7 @@ VS Code configuration policy can arrive from:
 
 `MultiplexPolicyService` combines the applicable policy services. Managed-settings keys must be declared before they can project into VS Code configuration.
 
-The managed-settings freshness gate temporarily applies restricted policy values while settings are fetched. UI consumers must preserve user selections during this gate and revalidate them after it resolves, without bypassing enforcement while it is active. Submissions must recheck the gate after asynchronous preparation and before dispatch, since hiding the UI does not cancel an in-flight submission.
+When `forceRemoteSettingsRefresh` is effective, startup and scope changes require a successful fetch before AI use. The pending or failed freshness gate applies restricted policy values, but the Chat composer preserves its selected mode rather than persisting a temporary Ask/Edit fallback. It revalidates when the gate resolves, including when the accepted policy still disables Agent. Submission remains blocked and must recheck the gate after asynchronous preparation and before dispatch; hiding the UI alone does not cancel an in-flight submission. Same-scope background refreshes retain the accepted policy as described in [GitHub managed settings](github-managed-settings.md).
 
 ## Declaration
 

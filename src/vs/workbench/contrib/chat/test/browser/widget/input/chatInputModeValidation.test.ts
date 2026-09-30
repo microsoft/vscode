@@ -23,7 +23,7 @@ import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../..
 import { ConfigurationService } from '../../../../../../../platform/configuration/common/configurationService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountRefreshOptions, IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -31,7 +31,7 @@ import { SyncDescriptor } from '../../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService, NullFileManagedSettingsService, NullNativeManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService, NullFileManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ManagedSettingsFreshnessState } from '../../../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IPolicyService } from '../../../../../../../platform/policy/common/policy.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
@@ -233,7 +233,7 @@ suite('ChatInputPart mode validation', () => {
 		});
 	});
 
-	async function createAccountRefresh() {
+	async function createAccountStartup(disableAgent: boolean) {
 		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		const configurationNode: IConfigurationNode = {
 			id: 'chatInputModeValidation',
@@ -258,11 +258,9 @@ suite('ChatInputPart mode validation', () => {
 
 		const instantiationService = store.add(new TestInstantiationService());
 		const logService = new NullLogService();
-		const started = new DeferredPromise<void>();
-		const delayedResponse = new DeferredPromise<IRequestContext>();
+		let started = new DeferredPromise<void>();
+		let delayedResponse = new DeferredPromise<IRequestContext>();
 		const settings = { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true };
-		let delaySettings = false;
-		let disableAgent = false;
 		let settingsRequests = 0;
 		const jsonResponse = (body: object): IRequestContext => ({
 			res: { statusCode: 200, headers: {} },
@@ -277,17 +275,16 @@ suite('ChatInputPart mode validation', () => {
 						return jsonResponse({ token: `agent_mode=${disableAgent ? '0' : '1'};sn=test:signature` });
 					case 'defaultAccount.managedSettings':
 						settingsRequests++;
-						if (delaySettings) {
-							started.complete();
-							return delayedResponse.p;
-						}
-						return jsonResponse(settings);
+						started.complete();
+						return delayedResponse.p;
 					default:
 						throw new Error(`Unexpected request: ${options.callSite}`);
 				}
 			},
 		});
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		const accountConfigurationService = new TestConfigurationService();
+		store.add(accountConfigurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, accountConfigurationService);
 		instantiationService.stub(IAuthenticationService, {
 			declaredProviders: [],
 			isAuthenticationProviderRegistered: () => true,
@@ -308,7 +305,13 @@ suite('ChatInputPart mode validation', () => {
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 		instantiationService.stub(IHostService, { hasFocus: true, onDidChangeFocus: Event.None });
 		instantiationService.stub(ICommandService, {});
-		instantiationService.stub(INativeManagedSettingsService, new NullNativeManagedSettingsService());
+		instantiationService.stub(INativeManagedSettingsService, {
+			_serviceBrand: undefined,
+			managedSettings: settings,
+			onDidChangeManagedSettings: Event.None,
+			initialize: async () => settings,
+			updatePolicyDefinitions: async () => settings,
+		});
 		instantiationService.stub(IFileManagedSettingsService, new NullFileManagedSettingsService());
 		const provider = store.add(instantiationService.createInstance(DefaultAccountProvider, {
 			preferredExtensions: [],
@@ -323,7 +326,6 @@ suite('ChatInputPart mode validation', () => {
 			mcpRegistryDataUrl: '',
 			managedSettingsUrl: 'https://api.example.test/copilot_internal/managed_settings',
 		}));
-		await provider.refresh();
 		const accountService = store.add(instantiationService.createInstance(DefaultAccountService));
 		accountService.setDefaultAccountProvider(provider);
 		instantiationService.stub(IDefaultAccountService, accountService);
@@ -334,57 +336,36 @@ suite('ChatInputPart mode validation', () => {
 		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
 		const configurationService = store.add(instantiationService.createInstance(TestPolicyConfigurationService, URI.file('/test/settings.json')));
 		await configurationService.initialize();
+		await started.p;
 
 		return {
 			provider,
 			configurationService,
 			gateService,
 			get settingsRequests() { return settingsRequests; },
-			beginRefresh: (withAgentDisabled = false, hourly = false) => {
-				delaySettings = true;
+			beginRefresh: (options: IDefaultAccountRefreshOptions, withAgentDisabled = disableAgent) => {
+				started = new DeferredPromise<void>();
+				delayedResponse = new DeferredPromise<IRequestContext>();
 				disableAgent = withAgentDisabled;
-				if (hourly) {
-					const clock = useFakeTimers({ now: Date.now(), toFake: ['Date'] });
-					store.add(toDisposable(() => clock.restore()));
-					clock.setSystemTime(Date.now() + 60 * 60 * 1000 + 1);
-					return provider.refresh();
-				}
-				return provider.refresh({ forceRefresh: true });
+				const completed = accountService.refresh(options);
+				return { requested: started.p, completed };
 			},
-			whenSettingsRequested: started.p,
 			finishRefresh: () => delayedResponse.complete(jsonResponse(settings)),
+			failRefresh: () => delayedResponse.error(new Error('Request timed out')),
 		};
 	}
 
-	for (const { name, disableAgent, hourly } of [
-		{ name: 'forced refresh', disableAgent: false, hourly: false },
-		{ name: 'hourly cache expiry', disableAgent: false, hourly: true },
-		{ name: 'resolved Agent-disabled policy', disableAgent: true, hourly: false },
-	]) {
-		test(`forceRemoteSettingsRefresh preserves selection until the response resolves (${name})`, async () => {
-			const refresh = await createAccountRefresh();
+	for (const disableAgent of [false, true]) {
+		test(`preserves startup selection until policy resolves with Agent ${disableAgent ? 'disabled' : 'enabled'}`, async () => {
+			const refresh = await createAccountStartup(disableAgent);
 			const harness = createInput(ChatMode.Agent, inactiveGate, true, refresh);
-			const initial = harness.snapshot();
-			const restricted = Event.toPromise(Event.filter(refresh.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.AgentEnabled)));
-			const pending = refresh.beginRefresh(disableAgent, hourly);
-			await refresh.whenSettingsRequested;
-			await restricted;
 			harness.input.validateAgentMode();
 			harness.input.flushInputStateToModel();
 			const blocked = { ...harness.snapshot(), freshness: refresh.provider.managedSettingsFreshness.state, gate: refresh.gateService.gateInfo.state };
-			const settled = Event.toPromise(Event.filter(refresh.gateService.onDidChangeGateInfo, info => info.state === AccountPolicyGateState.Inactive));
-			const disabled = disableAgent ? Event.toPromise(Event.filter(refresh.configurationService.onDidChangeConfiguration, e =>
-				e.affectsConfiguration(ChatConfiguration.AgentEnabled)
-				&& refresh.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false
-				&& refresh.gateService.gateInfo.state === AccountPolicyGateState.Inactive
-			)) : undefined;
 			refresh.finishRefresh();
-			await pending;
-			await settled;
-			await disabled;
+			await refresh.gateService.whenInitialized();
 
 			assert.deepStrictEqual({
-				initial,
 				blocked,
 				recovered: harness.snapshot(),
 				freshness: refresh.provider.managedSettingsFreshness.state,
@@ -392,13 +373,88 @@ suite('ChatInputPart mode validation', () => {
 				settingsRequests: refresh.settingsRequests,
 				writes: harness.persistedModes,
 			}, {
-				initial: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: true },
 				blocked: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: false, freshness: ManagedSettingsFreshnessState.Pending, gate: AccountPolicyGateState.Restricted },
 				recovered: { currentMode: disableAgent ? 'ask' : 'agent', persistedMode: disableAgent ? 'ask' : 'agent', agentEnabled: !disableAgent },
 				freshness: ManagedSettingsFreshnessState.Satisfied,
 				forceRemoteSettingsRefresh: true,
+				settingsRequests: 1,
+				writes: disableAgent ? ['agent', 'ask'] : ['agent'],
+			});
+		});
+	}
+
+	for (const { name, hourly, disableAgent } of [
+		{ name: 'forced refresh', hourly: false, disableAgent: false },
+		{ name: 'hourly cache expiry', hourly: true, disableAgent: false },
+		{ name: 'resolved Agent-disabled policy', hourly: false, disableAgent: true },
+	]) {
+		test(`preserves selection during background fetch and enforces the result (${name})`, async () => {
+			const refresh = await createAccountStartup(false);
+			const harness = createInput(ChatMode.Agent, inactiveGate, true, refresh);
+			refresh.finishRefresh();
+			await refresh.gateService.whenInitialized();
+			if (hourly) {
+				const clock = useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+				store.add(toDisposable(() => clock.restore()));
+				clock.setSystemTime(Date.now() + 60 * 60 * 1000 + 1);
+			}
+
+			const pending = refresh.beginRefresh({ forceRefresh: !hourly }, disableAgent);
+			await pending.requested;
+			harness.input.validateAgentMode();
+			harness.input.flushInputStateToModel();
+			const duringRefresh = harness.snapshot();
+			refresh.finishRefresh();
+			await pending.completed;
+
+			assert.deepStrictEqual({
+				currentModeDuringRefresh: duringRefresh.currentMode,
+				persistedModeDuringRefresh: duringRefresh.persistedMode,
+				recovered: harness.snapshot(),
+				settingsRequests: refresh.settingsRequests,
+				writes: harness.persistedModes,
+			}, {
+				currentModeDuringRefresh: 'agent',
+				persistedModeDuringRefresh: 'agent',
+				recovered: { currentMode: disableAgent ? 'ask' : 'agent', persistedMode: disableAgent ? 'ask' : 'agent', agentEnabled: !disableAgent },
 				settingsRequests: 2,
 				writes: disableAgent ? ['agent', 'ask'] : ['agent'],
+			});
+		});
+	}
+
+	for (const background of [false, true]) {
+		test(`preserves ${background ? 'background' : 'startup'} selection through a failed fetch and successful explicit retry`, async () => {
+			const refresh = await createAccountStartup(false);
+			const harness = createInput(ChatMode.Agent, inactiveGate, true, refresh);
+			let pending = refresh.gateService.whenInitialized();
+			if (background) {
+				refresh.finishRefresh();
+				await pending;
+				const next = refresh.beginRefresh({ forceRefresh: true });
+				pending = next.completed.then(() => undefined);
+				await next.requested;
+			}
+			refresh.failRefresh();
+			await pending;
+			harness.input.flushInputStateToModel();
+			const failed = { ...harness.snapshot(), blocked: harness.input.isManagedSettingsRefreshBlocked, freshness: refresh.provider.managedSettingsFreshness.state };
+
+			const retry = refresh.beginRefresh({ forceRefresh: true, retryManagedSettings: true });
+			await retry.requested;
+			harness.input.validateAgentMode();
+			harness.input.flushInputStateToModel();
+			const retrying = { ...harness.snapshot(), blocked: harness.input.isManagedSettingsRefreshBlocked, freshness: refresh.provider.managedSettingsFreshness.state };
+			const settled = Event.toPromise(Event.filter(refresh.gateService.onDidChangeGateInfo, info => info.state === AccountPolicyGateState.Inactive));
+			refresh.finishRefresh();
+			await retry.completed;
+			await settled;
+
+			assert.deepStrictEqual({ failed, retrying, recovered: harness.snapshot(), writes: harness.persistedModes }, {
+				failed: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: false, blocked: true, freshness: ManagedSettingsFreshnessState.Blocked },
+				retrying: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: false, blocked: true, freshness: ManagedSettingsFreshnessState.Pending },
+				recovered: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: true },
+				writes: ['agent', 'agent'],
 			});
 		});
 	}

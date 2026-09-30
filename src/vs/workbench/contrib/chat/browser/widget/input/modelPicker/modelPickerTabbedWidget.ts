@@ -107,6 +107,7 @@ export class TabbedModelPicker extends Disposable {
 
 	private _context: ITabbedModelPickerContext | undefined;
 	private _anchor: HTMLElement | undefined;
+	private _contextViewLayer: number | undefined;
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
 	private readonly _speedVariants = new Map<string, IModelSpeedVariants>();
@@ -162,7 +163,7 @@ export class TabbedModelPicker extends Disposable {
 		super.dispose();
 	}
 
-	show(anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string, focusConfiguration = false): void {
+	show(anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string, focusConfiguration = false, contextViewLayer?: number): void {
 		if (!this._widget.isVisible) {
 			this._activeDestination = undefined;
 		}
@@ -170,6 +171,7 @@ export class TabbedModelPicker extends Disposable {
 		this._selectionVersion++;
 		this._context = context;
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
+		this._contextViewLayer = contextViewLayer;
 		this._rememberSelection(context.selectedModelId);
 		this._showCurrent();
 		const detailsModel = context.models.find(model => model.identifier === detailsModelId);
@@ -259,6 +261,7 @@ export class TabbedModelPicker extends Disposable {
 			initialTab: this._activeDestination,
 			// The built-in provider fixes the popup's height.
 			sizingTab: MODEL_PICKER_BUILT_IN_DESTINATION,
+			contextViewLayer: this._contextViewLayer,
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
 			widgetClassNames: () => [

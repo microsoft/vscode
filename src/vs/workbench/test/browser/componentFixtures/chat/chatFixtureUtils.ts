@@ -312,6 +312,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	}());
 	reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 		override getAllChatSessionContributions() { return []; }
+		override getChatSessionContribution() { return undefined; }
 		override readonly onDidChangeSessionOptions = Event.None;
 		override readonly onDidChangeOptionGroups = Event.None;
 		override readonly onDidChangeAvailability = Event.None;
@@ -375,7 +376,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() { override register() { return { dispose() { } }; } }());
 	reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 		override readonly onDidChange = Event.None;
-		override getActiveNotification() { return options.notification; }
+		override getActiveNotification(filter?: (notification: IChatInputNotification) => boolean) {
+			const notification = options.notification;
+			return notification && (!filter || filter(notification)) ? notification : undefined;
+		}
 		override announceRendered() { }
 	}());
 	reg.defineInstance(IAgentSdkSetupService, new class extends mock<IAgentSdkSetupService>() {

@@ -1029,6 +1029,8 @@ export interface ComponentFixtureContext {
 	readonly input: unknown;
 	/** Whether deterministic fixture focus overrides natural browser focus. */
 	readonly overrideFocus: boolean;
+	/** Fires after the shared Enable Animations control changes the fixture container state. */
+	readonly onDidChangeEnableAnimations: Event<boolean>;
 	/** Applies initial focus only while deterministic fixture focus is enabled. */
 	focus(target: { focus(): void }): void;
 }
@@ -1193,6 +1195,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				await registerFixtureSyntaxHighlighting(disposableStore, fixtureHost, darkTheme, theme);
 
 				const stylesheetOrderOverride = disposableStore.add(new MutableDisposable<IDisposable>());
+				const onDidChangeEnableAnimations = disposableStore.add(new Emitter<boolean>());
 				const updateStylesheetOrder = (input: unknown) => {
 					const option = getReverseStylesheetsOption(input);
 					stylesheetOrderOverride.clear();
@@ -1203,7 +1206,9 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				context.watchInput('reverseStylesheets', (_value, input) => updateStylesheetOrder(input));
 				context.watchInput('reverseStylesheetsRange', (_value, input) => updateStylesheetOrder(input));
 				context.watchInput('enableAnimations', value => {
-					container.classList.toggle('disable-animations', !value);
+					const enabled = value === true;
+					container.classList.toggle('disable-animations', !enabled);
+					onDidChangeEnableAnimations.fire(enabled);
 				});
 
 				let renderTimeApi: IDisposable | undefined;
@@ -1241,6 +1246,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 						fileIconTheme,
 						input: context.input,
 						overrideFocus: input.overrideFocus,
+						onDidChangeEnableAnimations: onDidChangeEnableAnimations.event,
 						focus: target => applyFixtureFocus(input.overrideFocus, target),
 					});
 

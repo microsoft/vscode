@@ -452,12 +452,12 @@ suite('Release notes Try This', () => {
 		assert.deepStrictEqual({ runs, messages, notifications, focusCount }, { runs: [], messages: [], notifications: [], focusCount: 0 });
 	});
 
-	test('rejects malformed direct command links without falling through to arbitrary dispatch', async () => {
+	test('silently ignores malformed or unknown direct command links without falling through to arbitrary dispatch', async () => {
 		await render();
 		attach();
 		await tryouts.openLink(createCommandUri(RUN_ONBOARDING_TRYOUT_COMMAND_ID, 'sample', 'injected'));
-		await tryouts.openLink(createOnboardingTryoutUri('other'));
-		assert.deepStrictEqual({ runs, commands: executeCommand.callCount, errors: notifications.length }, { runs: [], commands: 0, errors: 2 });
+		await tryouts.openLink(createOnboardingTryoutUri('missing'));
+		assert.deepStrictEqual({ runs, commands: executeCommand.callCount, notifications: notifications.length }, { runs: [], commands: 0, notifications: 0 });
 	});
 
 	for (const kind of ['cancelled', 'unavailable', 'failure'] as const) {

@@ -154,7 +154,7 @@
 }
 
 /* Transparent ghost style for secondary action buttons (e.g. "View Usage") */
-.chat-input-notification-widget .chat-input-notification-action-button.secondary {
+.chat-input-notification-widget .chat-input-notification-action-button.secondary:not(.filled) {
 	border: none;
 	background: transparent;
 	color: var(--vscode-foreground);
@@ -184,7 +184,7 @@
 	margin: 0;
 }
 
-.chat-input-notification-widget .chat-input-notification-action-button.secondary:hover {
+.chat-input-notification-widget .chat-input-notification-action-button.secondary:not(.filled):hover {
 	background: var(--vscode-toolbar-hoverBackground);
 	opacity: 1;
 }

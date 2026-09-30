@@ -10,7 +10,7 @@ import { AccountLinks } from '../common/accountLinks';
 import { isSupportedClient, isSupportedTarget } from '../common/env';
 import { Log } from '../common/logger';
 import { ExtensionHost, getFlows, GitHubTarget } from '../flows';
-import { AuthProviderType, GitHubAuthenticationProvider, UriEventHandler } from '../github';
+import { AuthProviderType, GitHubSessionEngine, UriEventHandler } from '../github';
 import { GitHubServer, IGitHubToken } from '../githubServer';
 import { TestMemento } from './testMemento';
 
@@ -46,7 +46,7 @@ suite('GitHub session provenance', () => {
 		const changes: vscode.AuthenticationProviderAuthenticationSessionsChangeEvent[] = [];
 		const revocations: string[] = [];
 		let fallbackCalls = 0;
-		const provider = Object.assign(Object.create(GitHubAuthenticationProvider.prototype), {
+		const provider = Object.assign(Object.create(GitHubSessionEngine.prototype), {
 			_logger: logger,
 			_keychain: {
 				getToken: async () => stored,

@@ -590,7 +590,7 @@ suite('AgentSessionRegistry', () => {
 			await database.close();
 			await Promises.rm(directory);
 		}
-	});
+	}).timeout(60_000); // Real disk I/O can stall on loaded Windows CI agents.
 
 	test('external session adoption does not revive a session deleted during registration', async () => {
 		class DeletingDatabase extends AgentHostDatabase {

@@ -20,6 +20,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
+import { getChangesEditorFileResource } from './changesEditorLabels.js';
 import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
@@ -742,8 +743,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 			return changes
 				.filter(change => change.reviewed)
-				.map(change => change.modifiedUri?.toString() ?? change.originalUri?.toString())
-				.filter((uri: string | undefined) => uri !== undefined);
+				.map(change => getChangesEditorFileResource(change).toString());
 		}));
 
 		const changesetOperationCountObs = derivedObservableWithCache<number>(this, (reader, lastValue) => {
