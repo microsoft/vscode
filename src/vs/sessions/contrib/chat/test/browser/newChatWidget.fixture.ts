@@ -583,9 +583,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		assert(!!(optionsTray.compareDocumentPosition(promptBox) & Node.DOCUMENT_POSITION_FOLLOWING),
 			'The tray must precede the prompt in reading and keyboard order.');
 		if (!phoneLayout) {
-			const trayGap = parseFloat(getComputedStyle(optionsTray).marginBottom);
-			assert(trayGap > 0 && Math.abs(promptBounds.top - collapsedTrayBounds.bottom - trayGap) < 1,
-				'The collapsed tray must float above the prompt.');
+			assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
+				'The collapsed tray must sit flush with the prompt.');
 		}
 		assert(collapsedTrayBounds.width < promptBounds.width, 'The collapsed tray must fit its controls, not the prompt width.');
 		if (collapsedSessionOptionsShowIcons) {
@@ -611,9 +610,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				'Expanding the tray must compact pickers rather than increase its height.');
 		}
 		if (!phoneLayout) {
-			const trayGap = parseFloat(getComputedStyle(optionsTray).marginBottom);
-			assert(trayGap > 0 && Math.abs(promptBox.getBoundingClientRect().top - trayBounds.bottom - trayGap) < 1,
-				'The tray must remain floating above the prompt after expansion.');
+			assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
+				'The tray must remain flush with the prompt after expansion.');
 		}
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
 		assert(parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0
@@ -838,7 +836,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer renders the workspace, worktree and branch group, and harness controls on opaque bordered surfaces above the chat input. None of the stripes show through the controls.'],
+		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer keeps the options tray transparent while its individual workspace, worktree, branch, and harness controls remain opaque above the chat input.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, chatBackground: 'loud', experimentalComposerLayout: true }),
 	}),
 	NewSessionOptionsExpanded: defineComponentFixture({

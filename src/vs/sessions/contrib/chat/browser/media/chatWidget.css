@@ -90,25 +90,23 @@
 
 .experimental-new-session-composer .new-session-quick-chat-header {
 	justify-content: flex-end;
-	margin-bottom: var(--vscode-spacing-size40);
+	margin-bottom: 0;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-quick-chat-header {
 	width: 100%;
-	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size120) 0 0;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80) var(--vscode-spacing-size60);
-	background-color: var(--vscode-editorWidget-background, var(--session-view-background));
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
 .new-session-workspace-picker-container .sessions-workspace-category-picker.new-chat-session-options {
 	width: fit-content;
 	max-width: 100%;
-	margin: 0 0 var(--vscode-spacing-size40);
+	margin: 0;
 	flex-wrap: nowrap;
 	gap: 0;
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
-	background-color: var(--vscode-editorWidget-background, var(--session-view-background));
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
 }
