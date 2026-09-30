@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+use std::cell::Cell;
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::{self, Read};
@@ -56,6 +57,11 @@ pub(crate) trait FileSystemEffects {
 }
 
 pub(crate) trait UserInteractionEffects {
+	fn set_diagnostics_enabled(&self, _enabled: bool) {}
+	fn diagnostics_enabled(&self) -> bool {
+		false
+	}
+
 	fn clear_terminal(&self) -> io::Result<()>;
 	/// Whether a user can answer a prompt: stdin and stderr, which shows the prompt, are both terminals.
 	fn can_prompt(&self) -> bool;
@@ -93,7 +99,10 @@ impl<T> Runtime for T where
 {
 }
 
-pub(crate) struct NativeRuntime;
+#[derive(Default)]
+pub(crate) struct NativeRuntime {
+	diagnostics_enabled: Cell<bool>,
+}
 
 impl PolicyEffects for NativeRuntime {
 	fn copilot_cli_command_disabled(&self) -> bool {
@@ -241,6 +250,14 @@ fn file_identity(_path: &Path, _metadata: &std::fs::Metadata) -> io::Result<File
 }
 
 impl UserInteractionEffects for NativeRuntime {
+	fn set_diagnostics_enabled(&self, enabled: bool) {
+		self.diagnostics_enabled.set(enabled);
+	}
+
+	fn diagnostics_enabled(&self) -> bool {
+		self.diagnostics_enabled.get()
+	}
+
 	fn clear_terminal(&self) -> io::Result<()> {
 		prompt::native_clear_terminal()
 	}
@@ -254,7 +271,9 @@ impl UserInteractionEffects for NativeRuntime {
 	}
 
 	fn write_diagnostic(&self, message: &str) {
-		eprintln!("{message}");
+		if self.diagnostics_enabled.get() {
+			eprintln!("{message}");
+		}
 	}
 }
 
@@ -390,7 +409,7 @@ mod tests {
 
 	#[test]
 	fn native_and_test_adapters_share_the_composed_interface() {
-		accepts_runtime(&NativeRuntime);
+		accepts_runtime(&NativeRuntime::default());
 		let test_runtime = TestRuntime::default();
 		accepts_runtime(&test_runtime);
 		assert_eq!(

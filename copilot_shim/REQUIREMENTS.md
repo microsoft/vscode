@@ -154,7 +154,7 @@ The implementation does not:
 One invocation follows this sequence:
 
 1. Parse the leading `--vscode-shim` options. A setup command runs and exits
-   without the rest of this flow; a `clear` modifier is consumed.
+   without the rest of this flow; `clear` and `verbose` modifiers are consumed.
 2. Resolve and identify the running shim executable.
 3. Discover eligible Copilot CLI candidates from the current `PATH`.
 4. Reject the running shim, other Rust-shim copies, and legacy VS Code shims.
@@ -184,7 +184,7 @@ consumes an argument meant for the Copilot CLI:
 
 ```text
 copilot [--vscode-shim <modifier>]... [--] [copilot arguments...]
-copilot --vscode-shim <info|probe|install> [command options...]
+copilot [--vscode-shim verbose]... --vscode-shim <info|probe|install> [command options...]
 ```
 
 - Only leading `--vscode-shim <name>` pairs are options. Parsing stops at the
@@ -192,16 +192,22 @@ copilot --vscode-shim <info|probe|install> [command options...]
 - Modifiers are removed and the remaining arguments are forwarded. A `--`
   directly after one or more modifiers ends the prefix and is removed; a `--`
   that is the first argument belongs to the Copilot CLI.
-- Commands must be the only option. They never launch the Copilot CLI (see
-  [Setup commands](#setup-commands)).
-- A missing or unknown option name, a command after a modifier, or malformed
-  command options print a diagnostic and exit with code `2` without launching
-  the Copilot CLI.
+- Commands may be preceded only by `verbose`. They never launch the Copilot CLI
+  (see [Setup commands](#setup-commands)).
+- A missing or unknown option name, a command combined with `clear`, or
+  malformed command options exit with code `2` without launching the Copilot
+  CLI. They print a diagnostic only when `verbose` preceded the error.
 
-The only modifier is `clear`. It clears the current terminal before producing
-discovery, installation, update, or CLI output. When stdout is not attached to a
-terminal, clearing MUST be a no-op; the shim MUST NOT emit raw terminal-clear
-escape sequences into redirected output.
+The modifiers are:
+
+- `clear`: clears the current terminal before producing discovery,
+  installation, update, or CLI output. When stdout is not attached to a
+  terminal, clearing MUST be a no-op; the shim MUST NOT emit raw terminal-clear
+  escape sequences into redirected output.
+- `verbose`: enables shim-owned diagnostics for this invocation. Without it,
+  `runtime.write_diagnostic` output MUST be suppressed. It does not suppress,
+  capture, or alter prompts, installer status, installer subprocess output, or
+  the real Copilot CLI's stdout and stderr.
 
 `--clear` has no meaning to the shim and is forwarded like any other argument.
 
@@ -233,8 +239,8 @@ Installer processes that may prompt the user MUST also inherit stdin, stdout,
 and stderr. Output MUST remain visible in the current terminal.
 
 PowerShell host version probes are the exception: they capture stdout for
-parsing and stderr for diagnostics, within the limits specified below. Their
-stdin MUST be disconnected from interactive input.
+parsing and stderr for verbose diagnostics, within the limits specified below.
+Their stdin MUST be disconnected from interactive input.
 
 ## PATH handling
 
@@ -344,7 +350,8 @@ required under both host modes.
 ### Current executable
 
 Resolving the current executable is mandatory. If the current executable cannot
-be identified, the shim MUST stop with a diagnostic and a nonzero exit status.
+be identified, the shim MUST stop with a nonzero exit status and emit a
+diagnostic only when verbose mode is enabled.
 
 The implementation MUST obtain:
 
@@ -511,9 +518,10 @@ https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/instal
 
 Prompts are written to stderr, so they stay visible, and out of the output, when
 stdout is redirected. The shim prompts only when stdin and stderr are both
-terminals. Otherwise, as in scripts and CI, a missing CLI prints a one-line
-message with the documentation URL to stderr and exits with `127`, the code a
-shell uses for a command it can't find, on every target.
+terminals. Otherwise, as in scripts and CI, a missing CLI exits with `127`, the
+code a shell uses for a command it can't find, on every target. With
+`--vscode-shim verbose`, it first prints a one-line diagnostic with the
+documentation URL to stderr.
 
 A disabled `CopilotCliCommand` policy takes precedence (exit `10`).
 
@@ -708,20 +716,21 @@ outcome table.
 |---|---|
 | Real CLI exits with a numeric code | Exit with the same code. |
 | Real CLI terminates from a Unix signal | Exit with `128 + signal`. |
-| Real CLI or required interpreter cannot start | Print the failing path and OS error; exit `1`. |
-| Current executable cannot be identified | Print a diagnostic; exit `1`. |
-| All candidates are unusable and installation is unavailable or fails | Print an actionable diagnostic; exit `1`. |
-| Installer returns zero but re-discovery fails | Print the PATH/restart guidance; exit `1`. |
-| Automatic installation is unsupported for the target | Print manual-install or upstream-support guidance; exit `1` without an installer attempt. |
+| Real CLI or required interpreter cannot start | Exit `1`; with verbose mode, print the failing path and OS error. |
+| Current executable cannot be identified | Exit `1`; with verbose mode, print a diagnostic. |
+| All candidates are unusable and installation is unavailable or fails | Exit `1`; with verbose mode, print an actionable diagnostic. |
+| Installer returns zero but re-discovery fails | Exit `1`; with verbose mode, print the PATH/restart guidance. |
+| Automatic installation is unsupported for the target | Exit `1` without an installer attempt; with verbose mode, print manual-install or upstream-support guidance. |
 | Bootstrap or installer operation is canceled | Stop without fallback, reap the child and clean up owned temporary files; return a nonzero cancellation result (`128 + signal` on Unix). |
 | User declines installation | Exit `0` without launching. |
 | Prompt receives EOF | Treat as No and exit `0`. |
-| No terminal (stdin or stderr isn't a terminal) and no usable CLI | Print a message to stderr; exit `127` without prompting. |
-| A `--vscode-shim` option is unknown or malformed | Print a diagnostic; exit `2` without launching. |
-| Installation is needed, but the `CopilotCliCommand` policy is disabled | Print the policy diagnostic; exit `10` without launching. |
+| No terminal (stdin or stderr isn't a terminal) and no usable CLI | Exit `127` without prompting; with verbose mode, print a diagnostic to stderr. |
+| A `--vscode-shim` option is unknown or malformed | Exit `2` without launching; print a diagnostic only if verbose mode preceded the error. |
+| Installation is needed, but the `CopilotCliCommand` policy is disabled | Exit `10` without launching; with verbose mode, print the policy diagnostic. |
 
-Shim-owned diagnostics go to stderr. Prompts and normal installer/CLI output
-remain visible in the terminal.
+When verbose mode is enabled, shim-owned diagnostics go to stderr. Without
+verbose mode, they are suppressed. Prompts and normal installer/CLI output
+remain visible in the terminal in both modes.
 
 ## Enterprise policy
 
@@ -729,8 +738,8 @@ The VS Code policy `CopilotCliCommand` controls the core setting
 `chat.copilotCliCommand.enabled`. When it is disabled:
 
 - the shim still launches a Copilot CLI that is already installed, but never
-  installs one. It prints a diagnostic that names the policy and exits with
-  `10`;
+  installs one. It exits with `10` and, in verbose mode, prints a diagnostic
+  that names the policy;
 - `probe` reports `policy=disabled` and skips its network check, and `install`
   reports the `policy` status;
 - VS Code setup on Windows doesn't show its Copilot CLI page, doesn't publish
@@ -1013,11 +1022,15 @@ fixtures.
 
 ### Options and setup commands
 
-- Leading `--vscode-shim clear` modifiers are removed, an optional `--` after
-  them ends the prefix, and everything else, including a later `--vscode-shim`
-  or a bare `--clear`, is forwarded.
+- Leading `--vscode-shim clear` and `--vscode-shim verbose` modifiers are
+  removed, an optional `--` after them ends the prefix, and everything else,
+  including a later `--vscode-shim` or a bare `--clear`, is forwarded.
+- Diagnostics are absent by default and present when `--vscode-shim verbose`
+  precedes the operation. Verbose mode is propagated to a nested shim that runs
+  the interactive MSI installation.
 - Commands parse their options, never launch the CLI, and reject unknown
-  options, missing values, and commands after modifiers with exit code `2`.
+  options, missing values, and commands combined with `clear` with exit code
+  `2`. A command may be preceded by `verbose`.
 - Release tags are taken only from `/releases/tag/<tag>` redirects.
 - Checksums match the exact asset name, and MSI assets follow the architecture.
 - Result files are UTF-16LE single-line INI files replaced atomically.
@@ -1025,8 +1038,8 @@ fixtures.
 - Unsigned files have no Authenticode signer.
 - The MSI registration can be queried.
 - With the `CopilotCliCommand` policy disabled, a missing CLI produces the
-  policy diagnostic and exit code `10` without a prompt, and an installed CLI
-  still launches.
+  policy diagnostic only in verbose mode and exits with code `10` without a
+  prompt; an installed CLI still launches.
 - Policy registry values are read only from `REG_DWORD` values.
 
 ### Launch behavior
@@ -1037,7 +1050,8 @@ fixtures.
   fallback otherwise.
 - Explicit legacy-host fixtures document the accepted empty-argument and
   embedded-quote differences instead of claiming lossless forwarding.
-- One leading `--vscode-shim clear` consumed and a later one forwarded.
+- Leading `--vscode-shim clear` and `--vscode-shim verbose` modifiers consumed
+  and later occurrences after the prefix forwarded.
 - No terminal-clear bytes in redirected output.
 - Inherited stdin, stdout, stderr, environment, and working directory,
   parameterized across the Unix launch path and Windows `.exe`, `.cmd`, `.bat`,
@@ -1045,7 +1059,8 @@ fixtures.
 - Numeric nonzero child exit propagation, parameterized across the Unix launch
   path and every Windows adapter.
 - Unix signal mapping.
-- Spawn and interpreter failure diagnostics.
+- Spawn and interpreter failure diagnostics are suppressed by default and
+  emitted in verbose mode.
 - Final CLI/installers receive no shim-owned recursion-guard variable, so
   legitimate descendant invocations of the shim are not blocked.
 

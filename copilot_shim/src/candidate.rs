@@ -480,7 +480,7 @@ mod tests {
 				unsupported_identity: false,
 				metadata_errors: HashSet::new(),
 				read_errors: HashSet::new(),
-				native: NativeRuntime,
+				native: NativeRuntime::default(),
 			}
 		}
 	}
