@@ -345,7 +345,7 @@ export class SessionCollectionTitleButton extends Disposable {
 		DOM.append(button, DOM.$('span.session-collections-title-label', undefined, collection.name));
 		DOM.append(button, DOM.$(`span.session-collections-title-chevron${ThemeIcon.asCSSSelector(Codicon.chevronDown)}`));
 		this.renderStore.add(this.delegate.registerCollectionAnchor(collection.id, button));
-		this.renderStore.add(this.hoverService.setupDelayedHover(button, { content: collection.name, appearance: { compact: true } }));
+		this.renderStore.add(this.hoverService.setupDelayedHover(button, { content: localize('switchCollectionHover', "Switch Collection"), appearance: { compact: true } }));
 		this.renderStore.add(DOM.addDisposableListener(button, DOM.EventType.CLICK, () => this.delegate.showCollectionMenu(button)));
 	}
 }

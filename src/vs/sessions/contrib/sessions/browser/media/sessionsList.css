@@ -1325,6 +1325,54 @@
 	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
+/*
+ * Rail and Dot: rows beside a rail start one gutter further right, so hover and
+ * selection highlight the row but not the rail, which is drawn in the gutter.
+ * Content shifts back by the same amount to stay aligned with other rows.
+ */
+.sessions-list-control:is([data-group-style="rail"], [data-group-style="dot"]).session-list-row-spacing {
+	.monaco-list-row:has(> .monaco-tl-row .session-in-colored-group) {
+		left: var(--vscode-spacing-size120);
+		overflow: visible;
+
+		> .monaco-tl-row > .monaco-tl-contents {
+			overflow: visible;
+			min-width: 0;
+		}
+	}
+
+	.session-group-rail {
+		left: calc(-1 * var(--vscode-spacing-size60));
+	}
+
+	.session-item.session-in-colored-group,
+	&.compact .session-item.session-in-colored-group:not(.quick-chat),
+	.session-placeholder.session-in-colored-group {
+		padding-left: var(--vscode-spacing-size80);
+	}
+
+	.monaco-list-row:has(.session-item.session-in-colored-group) .session-chat-twistie {
+		left: var(--vscode-spacing-size80);
+	}
+
+	.session-chat-item.session-in-colored-group {
+		padding-left: var(--vscode-spacing-size280);
+
+		&::before,
+		&::after {
+			left: var(--vscode-spacing-size120);
+		}
+	}
+
+	.session-show-more.session-in-colored-group {
+		padding-left: var(--vscode-spacing-size120);
+	}
+}
+
+.sessions-list-control[data-group-style="dot"].session-list-row-spacing .session-group-rail {
+	left: calc(1px - var(--vscode-spacing-size60));
+}
+
 /* Dot: a quiet header with a colored dot, and a thinner rail. */
 .sessions-list-control[data-group-style="dot"] {
 	.session-section.session-header-colored .session-header-pill {

@@ -171,6 +171,8 @@
 	margin-left: calc(-1 * var(--vscode-spacing-size60));
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
 	font: inherit;
+	/* Inside the sessions tree the row's line-height is the full row height. */
+	line-height: normal;
 	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
