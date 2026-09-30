@@ -184,22 +184,33 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
-	test('collects only at startup and retains removed copies for live sessions', async () => {
+	test('collects unreferenced copies after mutations but retains copies used by runs', async () => {
 		const orphan = URI.joinPath(pluginManager.hostPluginsPath, 'automations', '.staging-orphan');
 		await fileService.createFolder(orphan);
-		const service = createService();
+		const created = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => {
+				created.complete();
+				return AgentSession.uri('mock', 'run');
+			},
+			startSession: async () => { },
+		});
 		const action = createAction();
 		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
 		action.definition.session.customizations = [ref];
 		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
 		await service.handleCreate(action, 'author');
-		const copy = stateManager.getAutomationCatalogState()!.entries[0].customizations![0];
+		const usedByRun = stateManager.getAutomationCatalogState()!.entries[0].customizations![0];
+		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'run' });
+		await created.p;
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { session: { provider: 'mock', customizations: [{ ...ref, nonce: 'two' }] } } }, 'author');
+		const unused = stateManager.getAutomationCatalogState()!.entries[0].customizations![0];
 		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { session: { provider: 'mock' } } });
 		assert.deepStrictEqual({
-			orphanExists: await fileService.exists(orphan),
-			capturedCopyExists: await fileService.exists(URI.parse(copy.uri)),
-			customizations: stateManager.getAutomationCatalogState()!.entries[0].customizations,
-		}, { orphanExists: false, capturedCopyExists: true, customizations: undefined });
+			orphan: await fileService.exists(orphan),
+			usedByRun: await fileService.exists(URI.parse(usedByRun.uri)),
+			unused: await fileService.exists(URI.parse(unused.uri)),
+		}, { orphan: false, usedByRun: true, unused: false });
 	});
 
 	function terminalRun(resource: string): Promise<void> {

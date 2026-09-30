@@ -125,6 +125,19 @@ suite('AgentHostAutomationCustomizations', () => {
 		assert.deepStrictEqual((await fileService.resolve(root)).children?.map(child => child.resource.toString()), [copies[0].uri]);
 	});
 
+	test('GC keeps copies used by runs in this process after automations stop referencing them', async () => {
+		await seed();
+		const used = (await customizations.capture('author', [ref], undefined))!;
+		customizations.toRunActiveClient(entry([ref], used));
+		await seed('Updated');
+		const unused = (await customizations.capture('author', [{ ...ref, nonce: 'two' }], undefined))!;
+		await customizations.collectGarbage([]);
+		assert.deepStrictEqual({
+			used: await fileService.exists(URI.parse(used[0].uri)),
+			unused: await fileService.exists(URI.parse(unused[0].uri)),
+		}, { used: true, unused: false });
+	});
+
 	test('run active client preserves the template verbatim except uri and clientId', async () => {
 		await seed();
 		const copies = (await customizations.capture('author', [ref], undefined))!;

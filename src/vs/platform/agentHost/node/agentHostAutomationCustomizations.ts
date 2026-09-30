@@ -22,6 +22,8 @@ export const AUTOMATION_ACTIVE_CLIENT_ID = 'vscode.automation';
 /** Owns immutable automation plugin copies, independently of connected clients and the plugin cache. */
 export class AgentHostAutomationCustomizations {
 	private readonly _path: URI;
+	/** Copies handed to run sessions in this process; those sessions keep using them in place for follow-up turns. */
+	private readonly _usedByRuns = new Set<string>();
 
 	constructor(
 		hostPluginsPath: URI,
@@ -89,6 +91,7 @@ export class AgentHostAutomationCustomizations {
 			if (!copy) {
 				throw new Error(`Missing captured automation customization: ${ref.id}`);
 			}
+			this._usedByRuns.add(copy.uri);
 			return { ...ref, uri: copy.uri, clientId: AUTOMATION_ACTIVE_CLIENT_ID };
 		});
 		return customizations?.length ? {
@@ -120,13 +123,16 @@ export class AgentHostAutomationCustomizations {
 		return template.agent;
 	}
 
-	/** Reclaims unreferenced copies at startup, before any run can use them in place. */
+	/** Reclaims copies that no automation references and no run session in this process has used. */
 	async collectGarbage(entries: readonly AutomationEntry[]): Promise<void> {
 		try {
 			if (!await this._fileService.exists(this._path)) {
 				return;
 			}
-			const referenced = entries.flatMap(entry => entry.customizations?.map(copy => URI.parse(copy.uri)) ?? []);
+			const referenced = [
+				...entries.flatMap(entry => entry.customizations?.map(copy => URI.parse(copy.uri)) ?? []),
+				...[...this._usedByRuns].map(uri => URI.parse(uri)),
+			];
 			const directory = await this._fileService.resolve(this._path);
 			for (const child of directory.children ?? []) {
 				if (!referenced.some(uri => extUriBiasedIgnorePathCase.isEqualOrParent(uri, child.resource))) {

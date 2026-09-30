@@ -205,7 +205,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	async handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void> {
-		return this._enqueueMutation(() => this._handleCreate(action, clientId));
+		return this._enqueueMutation(() => this._collectingCustomizations(() => this._handleCreate(action, clientId)));
 	}
 
 	private async _handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void> {
@@ -246,7 +246,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	async handleUpdate(action: AutomationUpdateRequestedAction, clientId?: string): Promise<void> {
-		return this._enqueueMutation(() => this._handleUpdate(action, clientId));
+		return this._enqueueMutation(() => this._collectingCustomizations(() => this._handleUpdate(action, clientId)));
 	}
 
 	private async _handleUpdate(action: AutomationUpdateRequestedAction, clientId?: string): Promise<void> {
@@ -295,8 +295,19 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._scheduleNext();
 	}
 
+	/** Runs a catalogue mutation, then reclaims copies it left unreferenced, including those of a rejected capture. */
+	private async _collectingCustomizations(mutation: () => Promise<void>): Promise<void> {
+		try {
+			await mutation();
+		} finally {
+			if (this._catalog) {
+				await this._customizations.collectGarbage(this._catalog.entries);
+			}
+		}
+	}
+
 	async handleRemove(action: AutomationRemovedAction): Promise<void> {
-		return this._enqueueMutation(() => this._handleRemove(action));
+		return this._enqueueMutation(() => this._collectingCustomizations(() => this._handleRemove(action)));
 	}
 
 	private async _handleRemove(action: AutomationRemovedAction): Promise<void> {

@@ -30,6 +30,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper } from '../../browser/agentHostAutomationStore.js';
 import { type IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import type { ISyncedCustomizationOrigin } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ReconnectableAgentHostAutomationStore } from '../../browser/reconnectableAgentHostAutomationStore.js';
 import { AutomationUnavailableError, type AutomationCatalogueState } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -281,6 +282,15 @@ class TestActiveClientService extends mock<IAgentHostActiveClientService>() {
 	readonly scopes: { sessionType: string; roots: string[]; disposed: boolean }[] = [];
 	resolution: Promise<void> = Promise.resolve();
 
+	override getOrigin(syncedUri: URI) {
+		for (const [source, synced] of this.syncedUris) {
+			if (synced.toString() === syncedUri.toString()) {
+				return upcastPartial<ISyncedCustomizationOrigin>({ uri: source });
+			}
+		}
+		return undefined;
+	}
+
 	override acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
 		const scope = { sessionType, roots: roots.map(root => root.toString()), disposed: false };
 		this.scopes.push(scope);
@@ -527,6 +537,31 @@ suite('AgentHostAutomationStore', () => {
 			await assert.rejects(store.createAutomation(createOptions(), () => { throw new Error('Guard failed'); }), /failed/);
 			assert.deepStrictEqual({ disposed: activeClient.scopes[0].disposed, dispatched: connection.dispatched }, { disposed: true, dispatched: [] });
 		}
+	});
+
+	test('retargeting keeps a bundled agent by mapping it into the new target bundle', async () => {
+		const activeClient = new TestActiveClientService();
+		const source = URI.file('/user/prompts/review.agent.md');
+		const first = plugin('vscode-synced-customization:/scope-one');
+		const second = plugin('vscode-synced-customization:/scope-two');
+		activeClient.customizations.set([first], undefined);
+		activeClient.syncedUris.set(source, URI.joinPath(URI.parse(first.uri), 'agents', 'review.agent.md'));
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		const automation = await store.createAutomation({ ...createOptions(), sessionTemplate: { agent: { uri: source.toString() } } });
+		// The new scope bundles the same source; the store only knows the previous bundle's URI.
+		activeClient.customizations.set([second], undefined);
+		activeClient.syncedUris.set(source, URI.joinPath(URI.parse(second.uri), 'agents', 'review.agent.md'));
+		await store.updateAutomation(automation.id, {
+			target: { kind: 'workspace', providerId: 'host', sessionTypeId: 'copilotcli', folderUri: URI.file('/workspace'), isolation: { kind: 'default' } },
+		});
+		const update = connection.dispatched[1].action;
+		assert.ok(update.type === ActionType.AutomationUpdateRequested);
+		assert.deepStrictEqual({ agent: update.changes.session?.agent, customizations: update.changes.session?.customizations }, {
+			agent: { uri: 'vscode-synced-customization:/scope-two/agents/review.agent.md' },
+			customizations: [second],
+		});
 	});
 
 	test('rewrites a selected source agent to its bundled URI when capturing', async () => {

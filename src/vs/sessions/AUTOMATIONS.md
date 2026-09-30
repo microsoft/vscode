@@ -68,7 +68,7 @@ The host copies each new or changed entry from the dispatching client into an im
 
 A run session receives the copies as a static, host-owned active client created with the session, so providers load them through the same path as any other client plugin, without contacting the originating client. That client contributes no tools and is not re-attached when a session is restored. A selected custom agent inside a captured plugin is remapped to the copy.
 
-Unreferenced copies are deleted only when the host starts, before any run can use them, so edits never remove a directory that a live run session is using.
+After each create, update, or removal, the host deletes copies that no automation references, including those of a rejected capture. Copies used by a run session stay until the host restarts, because that session keeps using them in place for follow-up turns.
 
 ### Blueprints and templates
 
