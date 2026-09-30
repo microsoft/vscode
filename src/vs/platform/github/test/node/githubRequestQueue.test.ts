@@ -65,6 +65,31 @@ suite('GitHubRequestQueue', () => {
 		});
 	});
 
+	test('wakes parked work when its cooldown expires between drain scans', async () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		let samples = 0;
+		const queue = store.add(new GitHubRequestQueue(scheduler, () => {
+			const remaining = Math.max(0, 1 - scheduler.now());
+			if (samples++ === 0) {
+				scheduler.advanceWallClockBy(1);
+			}
+			return remaining;
+		}));
+		let dispatched = false;
+		const result = queue.enqueue(context({ deadline: 100 }), async () => {
+			dispatched = true;
+			return 'completed';
+		}).catch(error => error instanceof GitHubRequestError ? error.kind : 'unexpected');
+		const wakeDelay = scheduler.nextDueTime! - scheduler.now();
+		scheduler.advanceBy(1);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const dispatchedBeforeDeadline = dispatched;
+		scheduler.advanceBy(100);
+		assert.deepStrictEqual({ wakeDelay, dispatchedBeforeDeadline, result: await result, timers: scheduler.pendingCount }, {
+			wakeDelay: 1, dispatchedBeforeDeadline: true, result: 'completed', timers: 0,
+		});
+	});
+
 	test('bounds retained requests independently by account and caller', async () => {
 		const scheduler = store.add(new FakeGitHubScheduler());
 		const queue = store.add(new GitHubRequestQueue(scheduler, () => 1_000, {

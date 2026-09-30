@@ -210,8 +210,19 @@ export class GitHubRequestQueue extends Disposable {
 					request.cancel(new GitHubRequestTimeoutError());
 				}
 			}
+			// Selection and wake-up scheduling must use the same cooldown sample.
+			const cooldowns = new Map<IQueuedRequest, number>();
+			const getDelay = (request: IQueuedRequest): number => {
+				let delay = cooldowns.get(request);
+				if (delay === undefined) {
+					delay = this._getDelay(request.context);
+					cooldowns.set(request, delay);
+					request.timing?.updateCooldown(delay);
+				}
+				return delay;
+			};
 			while (this._active.size < this._options.maximumConcurrency) {
-				const index = this._nextIndex();
+				const index = this._nextIndex(getDelay);
 				if (index < 0) {
 					break;
 				}
@@ -224,8 +235,7 @@ export class GitHubRequestQueue extends Disposable {
 			this._telemetry?.recordQueueSize(this._active.size, this._pending.length);
 			let delay = Infinity;
 			for (const request of this._pending) {
-				const remaining = this._getDelay(request.context);
-				request.timing?.updateCooldown(remaining);
+				const remaining = getDelay(request);
 				if (remaining > 0) {
 					delay = Math.min(delay, remaining);
 				}
@@ -238,7 +248,7 @@ export class GitHubRequestQueue extends Disposable {
 		}
 	}
 
-	private _nextIndex(): number {
+	private _nextIndex(getDelay: (request: IQueuedRequest) => number): number {
 		let selected = -1;
 		for (let index = 0; index < this._pending.length; index++) {
 			const candidate = this._pending[index];
@@ -248,8 +258,7 @@ export class GitHubRequestQueue extends Disposable {
 				continue;
 			}
 			const active = [...this._active];
-			const delay = this._getDelay(candidate.context);
-			candidate.timing?.updateCooldown(delay);
+			const delay = getDelay(candidate);
 			if (delay > 0
 				|| active.some(request => request.accountKey === candidate.accountKey)
 				|| active.filter(request => request.host === candidate.host).length >= this._options.maximumHostConcurrency

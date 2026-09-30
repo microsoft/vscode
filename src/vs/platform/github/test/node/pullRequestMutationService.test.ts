@@ -370,9 +370,11 @@ suite('PullRequestMutationService', () => {
 					return new Response('{}');
 				}, scheduler, false, undefined, { requestTimeout: 10 }));
 				for (const resource of ['core', 'graphql']) {
-					transport.rateLimits.updateFromResponse(account, new Response(null, { status: 429, headers: {
-						'retry-after': '1', 'x-ratelimit-resource': resource,
-					} }));
+					transport.rateLimits.updateFromResponse(account, new Response(null, {
+						status: 429, headers: {
+							'retry-after': '1', 'x-ratelimit-resource': resource,
+						}
+					}));
 				}
 				const resources = new TestResourceService(ref, completeSnapshot(server));
 				resources.refreshHandler = () => {
