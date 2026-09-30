@@ -2233,7 +2233,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.validateCurrentChatMode();
 	}
 
-	private get isManagedSettingsRefreshBlocked(): boolean {
+	get isManagedSettingsRefreshBlocked(): boolean {
 		const gateInfo = this.accountPolicyGateService.gateInfo;
 		return gateInfo.state === AccountPolicyGateState.Restricted
 			&& gateInfo.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh;

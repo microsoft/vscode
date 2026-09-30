@@ -37,7 +37,6 @@ import { IWorkbenchAssignmentService } from '../../../../services/assignment/com
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../services/policies/common/accountPolicyService.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ISCMService } from '../../../../contrib/scm/common/scm.js';
@@ -178,13 +177,6 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IListService, ListService);
 	reg.defineInstance(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 	reg.defineInstance(IChatHarnessSwitchFeedbackSurveyService, { _serviceBrand: undefined, prompt: () => { } });
-	const accountPolicyGateService = {
-		_serviceBrand: undefined,
-		gateInfo: { state: AccountPolicyGateState.Inactive },
-		onDidChangeGateInfo: Event.None,
-		async whenInitialized(): Promise<void> { },
-	};
-	reg.defineInstance(IAccountPolicyGateService, accountPolicyGateService);
 	reg.defineInstance(ILinkPresentationService, new class extends mock<ILinkPresentationService>() {
 		override getLinkPresentationRule() { return undefined; }
 		override createLinkPresentationWatcher() { return undefined; }

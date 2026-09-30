@@ -12,7 +12,7 @@ VS Code configuration policy can arrive from:
 
 `MultiplexPolicyService` combines the applicable policy services. Managed-settings keys must be declared before they can project into VS Code configuration.
 
-The managed-settings freshness gate temporarily applies restricted policy values while settings are fetched. UI consumers must preserve user selections during this gate and revalidate them after it resolves, without bypassing enforcement while it is active.
+The managed-settings freshness gate temporarily applies restricted policy values while settings are fetched. UI consumers must preserve user selections during this gate and revalidate them after it resolves, without bypassing enforcement while it is active. Submissions must recheck the gate after asynchronous preparation and before dispatch, since hiding the UI does not cancel an in-flight submission.
 
 ## Declaration
 
