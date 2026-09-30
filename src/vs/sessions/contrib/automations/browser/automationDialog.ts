@@ -135,6 +135,9 @@ export function registerAutomationDialogKeyboardNavigation(
 			if (current.hidden || current.hasAttribute('inert') || current.getAttribute('aria-hidden') === 'true') {
 				return false;
 			}
+			if (current.parentElement instanceof targetWindow.HTMLDetailsElement && !current.parentElement.open && current.tagName !== 'SUMMARY') {
+				return false;
+			}
 			const style = targetWindow.getComputedStyle(current);
 			if (style.display === 'none' || style.visibility === 'hidden') {
 				return false;
@@ -1500,7 +1503,13 @@ export function renderForm(
 		setEnabled(!enabledCheckbox.checked);
 	}));
 
-	const endDateRow = DOM.append(formContent, $('.automation-form-row'));
+	const advancedSettings = DOM.append(formContent, $('details.automation-advanced-settings'));
+	const advancedSettingsSummary = DOM.append(advancedSettings, $('summary.automation-advanced-settings-summary'));
+	const advancedSettingsChevron = DOM.append(advancedSettingsSummary, renderIcon(Codicon.chevronRight));
+	advancedSettingsChevron.setAttribute('aria-hidden', 'true');
+	DOM.append(advancedSettingsSummary, $('span', undefined, localize('automation.form.advancedSettings', "Advanced Settings")));
+
+	const endDateRow = DOM.append(advancedSettings, $('.automation-form-row.automation-form-end-date-row'));
 	const endDateLabel = localize('automation.form.endDate', "Run until");
 	DOM.append(endDateRow, $('label.automation-form-label', { for: 'automation-end-date' }, endDateLabel));
 	const endDateInput = disposables.add(new InputBox(endDateRow, contextViewService, {
@@ -1521,10 +1530,11 @@ export function renderForm(
 			: value ? Number.isFinite(date.getTime()) ? date.toISOString() : value : undefined;
 		revalidate();
 	}));
-	const endDateError = DOM.append(endDateRow, $('span.automation-form-hint', {
+	const endDateError = DOM.append(formContent, $('span.automation-form-hint', {
 		id: 'automation-end-date-error', role: 'status', 'aria-live': 'polite',
 	}));
 	endDateInput.inputElement.setAttribute('aria-describedby', endDateError.id);
+	advancedSettingsSummary.setAttribute('aria-describedby', endDateError.id);
 
 	const conditionsWarning = DOM.append(formContent, $('span.automation-form-hint', {
 		id: 'automation-conditions-warning', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
@@ -1603,7 +1613,7 @@ export function renderForm(
 		focusSessionConfigurationError: () => sessionConfigurationError.focus(),
 		getFocusableElements: () => {
 			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
-			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));
+			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, summary, a[href], [tabindex]'));
 		},
 		acceptPromptSuggestion: () => {
 			const suggestController = SuggestController.get(chatInput.inputEditor);

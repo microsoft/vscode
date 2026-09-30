@@ -2295,11 +2295,11 @@ registerAction2(class DisableAutomationAction extends Action2 {
 	}
 });
 
-registerAction2(class RemoveAutomationLimitsAction extends Action2 {
+registerAction2(class RemoveAutomationEndDateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.automations.removeLimits',
-			title: localize2('removeAutomationLimits', "Remove limits"),
+			title: localize2('removeAutomationEndDate', "Remove end date"),
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationCardCanUpdateContext, AutomationCardHasLimitsContext),
 			menu: [{
 				id: Menus.AutomationCardContext, group: 'navigation', order: 1.5,
@@ -2324,18 +2324,18 @@ registerAction2(class RemoveAutomationLimitsAction extends Action2 {
 		try {
 			const result = await automationService.updateAutomationIfUnchanged(automation.id, { disableConditions: [] }, automation, () => {
 				if (!automationsEnabled()) {
-					throw new Error(localize('automationsDisabledBeforeRemoveLimits', "Automations were disabled before the limits could be removed."));
+					throw new Error(localize('automationsDisabledBeforeRemoveEndDate', "Automations were disabled before the end date could be removed."));
 				}
 			});
 			if (result.kind === 'conflict') {
 				throw new Error(result.current
-					? localize('automationChangedBeforeRemoveLimits', "This automation changed before its limits could be removed. Try again.")
-					: localize('automationDeletedBeforeRemoveLimits', "This automation was deleted before its limits could be removed."));
+					? localize('automationChangedBeforeRemoveEndDate', "This automation changed before its end date could be removed. Try again.")
+					: localize('automationDeletedBeforeRemoveEndDate', "This automation was deleted before its end date could be removed."));
 			}
-			status(localize('automationLimitsRemoved', "Removed limits from automation {0}", automation.name));
+			status(localize('automationEndDateRemoved', "Removed end date from automation {0}", automation.name));
 		} catch (error) {
-			logService.error('[Automations] Failed to remove automation limits', error);
-			await dialogService.error(localize('automationRemoveLimitsFailed', "Failed to remove automation limits."), getErrorMessage(error));
+			logService.error('[Automations] Failed to remove automation end date', error);
+			await dialogService.error(localize('automationRemoveEndDateFailed', "Failed to remove automation end date."), getErrorMessage(error));
 		}
 	}
 });
@@ -2373,7 +2373,7 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 			const confirmation = await dialogService.confirm({
 				type: 'warning',
 				message: localize('automationExpiredFinalDate', "The final date for this automation has passed."),
-				detail: localize('automationExpiredFinalDateDetail', "The host will disable scheduling immediately. Use Remove limits in the More menu, or ask in chat to change the final date before re-enabling scheduled runs."),
+				detail: localize('automationExpiredFinalDateDetail', "The host will disable scheduling immediately. Use Remove end date in the More menu, or ask in chat to change the final date before re-enabling scheduled runs."),
 				primaryButton: localize('automationEnableAnyway', "Enable Anyway"),
 			});
 			if (!confirmation.confirmed) {

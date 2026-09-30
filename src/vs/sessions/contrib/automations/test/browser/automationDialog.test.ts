@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import '../../browser/media/automationDialog.css';
 import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
@@ -1626,8 +1627,132 @@ suite('Automation dialog end date', () => {
 		refresh = () => handle.refreshDisableConditionsWarning();
 		const endDateInput = form.querySelector<HTMLInputElement>('input[aria-label="Run until"]')!;
 		const enabledCheckbox = form.querySelector<HTMLElement>('[role="checkbox"][aria-label="Enabled"]')!;
-		return { form, state: options.state, handle, endDateInput, enabledCheckbox, validation };
+		const advancedSettings = form.querySelector<HTMLDetailsElement>('details.automation-advanced-settings')!;
+		const summary = advancedSettings.querySelector('summary')!;
+		return { form, state: options.state, handle, endDateInput, enabledCheckbox, advancedSettings, summary, validation, sessionsManagementService };
 	}
+
+	for (const endDate of [undefined, '2099-01-01T00:00:00Z', '2000-01-01T00:00:00Z']) {
+		test(`advanced settings starts collapsed and preserves the saved end date ${endDate}`, () => {
+			const disableConditions = buildAutomationDisableConditions(endDate);
+			const { advancedSettings, summary, state } = renderEndDateForm({
+				state: createFormState({ endDate }), disableConditions,
+			});
+			const initiallyOpen = advancedSettings.open;
+			summary.click();
+			const expandedAfterClick = advancedSettings.open;
+			summary.click();
+			assert.deepStrictEqual({
+				initiallyOpen, expandedAfterClick, collapsedAfterClick: !advancedSettings.open,
+				nativeSummary: advancedSettings.firstElementChild === summary,
+				label: summary.textContent,
+				tabIndex: summary.tabIndex,
+				decorativeChevron: summary.querySelector('.codicon')?.getAttribute('aria-hidden'),
+				unchangedFields: buildChangedAutomationFields(state.enabled, state.endDate, { enabled: true, disableConditions }),
+			}, {
+				initiallyOpen: false, expandedAfterClick: true, collapsedAfterClick: true,
+				nativeSummary: true, label: 'Advanced Settings', tabIndex: 0, decorativeChevron: 'true',
+				unchangedFields: {},
+			});
+		});
+	}
+
+	test('tabs through the disclosure and skips the end date while collapsed in both directions', () => {
+		const { form, handle, enabledCheckbox, endDateInput, summary } = renderEndDateForm({ state: createFormState() });
+		const footerButton = DOM.append(form, DOM.$('button', { type: 'button' }, 'Save'));
+		disposables.add(registerAutomationDialogKeyboardNavigation(DOM.getWindow(form), handle.getFocusableElements, () => false));
+		enabledCheckbox.focus();
+		dispatchKey(enabledCheckbox, 'keydown', 'Tab');
+		const tabToSummary = document.activeElement === summary;
+		const enterHandled = dispatchKey(summary, 'keydown', 'Enter').defaultPrevented;
+		const spaceHandled = dispatchKey(summary, 'keydown', ' ').defaultPrevented;
+		dispatchKey(summary, 'keydown', 'Tab');
+		const tabSkipsCollapsedField = document.activeElement === footerButton;
+		dispatchKey(footerButton, 'keydown', 'Tab', true);
+		const shiftTabSkipsCollapsedField = document.activeElement === summary;
+		summary.click();
+		dispatchKey(summary, 'keydown', 'Tab');
+		const tabToExpandedField = document.activeElement === endDateInput;
+		dispatchKey(endDateInput, 'keydown', 'Tab', true);
+		const shiftTabToSummary = document.activeElement === summary;
+		summary.click();
+		dispatchKey(summary, 'keydown', 'Tab');
+		assert.deepStrictEqual({
+			tabToSummary, enterHandled, spaceHandled, tabSkipsCollapsedField, shiftTabSkipsCollapsedField,
+			tabToExpandedField, shiftTabToSummary, tabSkipsRecollapsedField: document.activeElement === footerButton,
+		}, {
+			tabToSummary: true, enterHandled: false, spaceHandled: false,
+			tabSkipsCollapsedField: true, shiftTabSkipsCollapsedField: true,
+			tabToExpandedField: true, shiftTabToSummary: true, tabSkipsRecollapsedField: true,
+		});
+	});
+
+	test('lays out Run until with its labelled input to the right on the same row', () => {
+		const { form, summary, endDateInput } = renderEndDateForm({ state: createFormState() });
+		summary.click();
+		const label = form.querySelector<HTMLLabelElement>('label[for="automation-end-date"]')!;
+		const layouts = [520, 320].map(width => {
+			form.style.width = `${width}px`;
+			const labelBounds = label.getBoundingClientRect();
+			const inputBounds = endDateInput.getBoundingClientRect();
+			return {
+				inputToRight: inputBounds.left >= labelBounds.right,
+				sameRow: labelBounds.top < inputBounds.bottom && inputBounds.top < labelBounds.bottom,
+				withinForm: inputBounds.right <= form.getBoundingClientRect().right,
+				hasSize: inputBounds.width > 0 && inputBounds.height > 0,
+			};
+		});
+		assert.deepStrictEqual({
+			label: label.textContent, associatedInput: label.control === endDateInput,
+			type: endDateInput.type, layouts,
+		}, {
+			label: 'Run until', associatedInput: true, type: 'datetime-local',
+			layouts: [
+				{ inputToRight: true, sameRow: true, withinForm: true, hasSize: true },
+				{ inputToRight: true, sameRow: true, withinForm: true, hasSize: true },
+			],
+		});
+	});
+
+	test('keeps validation visible and saving disabled after collapsing an invalid end date', () => {
+		const { state, form, summary, advancedSettings, endDateInput, validation, handle, sessionsManagementService } = renderEndDateForm({
+			state: createFormState({ isQuickChat: true }),
+			selectedPick: { providerId: 'default-copilot', sessionTypeId: 'copilotcli' },
+		});
+		const saveButton = disposables.add(new Button(form, defaultButtonStyles));
+		const setEndDate = (value: string) => {
+			endDateInput.value = value;
+			endDateInput.dispatchEvent(new (DOM.getWindow(form).Event)('input', { bubbles: true }));
+			updateSaveButtonState(saveButton, state, validation, form, handle.getPrompt, handle.getBranch, sessionsManagementService);
+		};
+		summary.click();
+		setEndDate('2000-01-01T08:30:00');
+		summary.click();
+		const error = form.querySelector<HTMLElement>('#automation-end-date-error')!;
+		const invalidState = {
+			collapsed: !advancedSettings.open, saveEnabled: saveButton.enabled,
+			message: error.textContent, invalid: endDateInput.getAttribute('aria-invalid'),
+			visibleError: error.getBoundingClientRect().height > 0,
+			summaryDescription: summary.getAttribute('aria-describedby'),
+			inputDescription: endDateInput.getAttribute('aria-describedby'),
+		};
+		summary.click();
+		setEndDate('2099-01-01T08:30:00');
+		const futureSaveEnabled = saveButton.enabled;
+		setEndDate('');
+		assert.deepStrictEqual({
+			invalidState, futureSaveEnabled, clearedSaveEnabled: saveButton.enabled,
+			cleared: state.endDate, clearedError: error.textContent,
+			clearedInvalid: endDateInput.getAttribute('aria-invalid'),
+		}, {
+			invalidState: {
+				collapsed: true, saveEnabled: false, message: 'The end date must be in the future.',
+				invalid: 'true', visibleError: true,
+				summaryDescription: 'automation-end-date-error', inputDescription: 'automation-end-date-error',
+			},
+			futureSaveEnabled: true, clearedSaveEnabled: true, cleared: undefined, clearedError: '', clearedInvalid: 'false',
+		});
+	});
 
 	test('sets, clears and preserves an end date without resending unchanged authority fields', () => {
 		const date = '2099-01-01T00:00:00Z';
@@ -1661,10 +1786,12 @@ suite('Automation dialog end date', () => {
 	});
 
 	test('edits local end date and clears it using a keyboard-reachable field', () => {
-		const { state, form, handle, endDateInput, enabledCheckbox } = renderEndDateForm({ state: createFormState() });
+		const { state, form, handle, endDateInput, enabledCheckbox, summary } = renderEndDateForm({ state: createFormState() });
 		disposables.add(registerAutomationDialogKeyboardNavigation(DOM.getWindow(form), handle.getFocusableElements, () => false));
 		enabledCheckbox.focus();
 		dispatchKey(enabledCheckbox, 'keydown', 'Tab');
+		summary.click();
+		dispatchKey(summary, 'keydown', 'Tab');
 		const tabFocusesEndDate = document.activeElement === endDateInput;
 		endDateInput.value = '2099-01-01T08:30:00';
 		endDateInput.dispatchEvent(new (DOM.getWindow(form).Event)('input', { bubbles: true }));

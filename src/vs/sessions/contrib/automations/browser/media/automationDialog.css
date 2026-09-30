@@ -525,6 +525,51 @@
 	margin-right: 0;
 }
 
+.automation-advanced-settings-summary {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	width: fit-content;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	list-style: none;
+}
+
+.automation-advanced-settings-summary::-webkit-details-marker {
+	display: none;
+}
+
+.automation-advanced-settings-summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.automation-advanced-settings-summary > .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.automation-advanced-settings[open] > .automation-advanced-settings-summary > .codicon {
+	transform: rotate(90deg);
+}
+
+.automation-form-row.automation-form-end-date-row {
+	flex-direction: row;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.automation-form-end-date-row > .automation-form-label {
+	margin-bottom: 0;
+}
+
+.automation-form-end-date-row > .monaco-inputbox {
+	flex: 1;
+	min-width: 0;
+}
+
 /*
  * Lay the Schedule / Time / Day controls along a single horizontal axis.
  * Each control lives in its own `.automation-form-schedule-group`

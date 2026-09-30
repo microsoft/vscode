@@ -2236,7 +2236,7 @@ suite('AutomationsCardsWidget', () => {
 			updates: automationService.guardedUpdateCalls,
 		}, {
 			message: 'The final date for this automation has passed.',
-			detail: 'The host will disable scheduling immediately. Use Remove limits in the More menu, or ask in chat to change the final date before re-enabling scheduled runs.',
+			detail: 'The host will disable scheduling immediately. Use Remove end date in the More menu, or ask in chat to change the final date before re-enabling scheduled runs.',
 			updates: [],
 		});
 		dialogService.confirmResult = { confirmed: true };
@@ -2244,7 +2244,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual(automationService.guardedUpdateCalls, [{ id: source.id, patch: { enabled: true }, expected: source }]);
 	});
 
-	test('Remove Limits visibility follows saved conditions, feature enablement and update capability', () => {
+	test('Remove end date visibility follows saved conditions, feature enablement and update capability', () => {
 		const { automationService, contextKeyService, contextMenuService, instantiationService, widget } = setup();
 		const cap = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' };
 		const date = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2000-01-01T00:00:00Z' };
@@ -2265,13 +2265,13 @@ suite('AutomationsCardsWidget', () => {
 				Menus.AutomationCardContext, delegate.contextKeyService ?? contextKeyService, delegate.menuActionOptions,
 			).flatMap(([, items]) => items).find(item => item.id === 'sessions.automations.removeLimits');
 			delegate.onHide?.(false);
-			return action ? { enabled: action.enabled } : undefined;
+			return action ? { label: action.label, enabled: action.enabled } : undefined;
 		});
-		assert.deepStrictEqual(actions, [undefined, undefined, { enabled: true }, { enabled: true }, { enabled: false }, undefined]);
+		assert.deepStrictEqual(actions, [undefined, undefined, { label: 'Remove end date', enabled: true }, { label: 'Remove end date', enabled: true }, { label: 'Remove end date', enabled: false }, undefined]);
 	});
 
 	for (const enabled of [true, false]) {
-		test(`Remove Limits clears the end date without changing enabled=${enabled} or other fields`, async () => {
+		test(`Remove end date clears the end date without changing enabled=${enabled} or other fields`, async () => {
 			const { automationService, instantiationService, widget, contextMenuService, contextKeyService } = setup();
 			const source = automation({
 				enabled,
@@ -2303,7 +2303,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
-	test('Remove Limits reports stale state and unavailable features without clearing conditions', async () => {
+	test('Remove end date reports stale state and unavailable features without clearing conditions', async () => {
 		const { automationService, configurationService, instantiationService, dialogService, logService } = setup();
 		const source = automation({ disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }] });
 		automationService.setAutomations([source]);
