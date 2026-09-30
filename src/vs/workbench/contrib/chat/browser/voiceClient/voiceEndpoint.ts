@@ -9,7 +9,7 @@ import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js
 
 const VOICE_PATH = '/realtime/voice';
 const TRANSCRIPTION_PATH = '/realtime/transcription';
-const GPT_LIVE_VOICE_WS_URL = 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice';
+const GPT_LIVE_VOICE_WS_URL = 'wss://api.openai.com/v1/live/sessions';
 
 function isGptLiveEnabled(configurationService: IConfigurationService | undefined): boolean {
 	return configurationService?.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) === true;
@@ -28,7 +28,7 @@ function getHostedVoiceWebSocketUrl(configurationService: IConfigurationService,
 	if (isGptLiveEnabled(configurationService)) {
 		const configured = configurationService.getValue<string>(AgentsVoiceSettingId.GptLiveBackendUrl);
 		const configuredUrl = typeof configured === 'string' ? configured.trim() : '';
-		return configuredUrl || productService.voiceWsUrl || GPT_LIVE_VOICE_WS_URL;
+		return configuredUrl || GPT_LIVE_VOICE_WS_URL;
 	}
 	return productService.voiceWsUrl || '';
 }
@@ -42,24 +42,18 @@ export function getVoiceWebSocketUrl(configurationService: IConfigurationService
 export function getTranscriptionWebSocketUrl(configurationService: IConfigurationService, productService: IProductService): string {
 	const configured = configurationService.getValue<string>('agents.voice.backendUrl');
 	const configuredUrl = typeof configured === 'string' ? configured.trim() : '';
+	const hostedVoiceUrl = getHostedVoiceWebSocketUrl(configurationService, productService);
 	const voiceUrl = configuredUrl && isLoopbackWebSocketUrl(configuredUrl)
 		? configuredUrl
-		: getHostedVoiceWebSocketUrl(configurationService, productService);
-	if (!voiceUrl) {
-		return '';
+		: hostedVoiceUrl;
+	const transcriptionUrl = deriveTranscriptionFromVoiceUrl(voiceUrl);
+	if (transcriptionUrl) {
+		return transcriptionUrl;
 	}
-
-	try {
-		const url = new URL(voiceUrl);
-		const path = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname;
-		if (!path.endsWith(VOICE_PATH)) {
-			return '';
-		}
-		url.pathname = `${path.slice(0, -VOICE_PATH.length)}${TRANSCRIPTION_PATH}`;
-		return url.toString();
-	} catch {
-		return '';
+	if (isGptLiveEnabled(configurationService) && hostedVoiceUrl === GPT_LIVE_VOICE_WS_URL) {
+		return deriveTranscriptionFromVoiceUrl(productService.voiceWsUrl || '') || '';
 	}
+	return '';
 }
 
 export function addWebSocketAuthToken(url: string, token: string): string {
@@ -95,4 +89,21 @@ function isLoopbackWebSocketUrl(value: string): boolean {
 
 function isLoopbackHost(hostname: string): boolean {
 	return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+}
+
+function deriveTranscriptionFromVoiceUrl(voiceUrl: string): string | undefined {
+	if (!voiceUrl) {
+		return undefined;
+	}
+	try {
+		const url = new URL(voiceUrl);
+		const path = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname;
+		if (!path.endsWith(VOICE_PATH)) {
+			return undefined;
+		}
+		url.pathname = `${path.slice(0, -VOICE_PATH.length)}${TRANSCRIPTION_PATH}`;
+		return url.toString();
+	} catch {
+		return undefined;
+	}
 }

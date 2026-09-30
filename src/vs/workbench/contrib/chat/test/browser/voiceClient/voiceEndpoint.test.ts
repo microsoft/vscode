@@ -100,7 +100,7 @@ suite('Voice endpoint', () => {
 			voice: getVoiceWebSocketUrl(configurationService, productService),
 			transcription: getTranscriptionWebSocketUrl(configurationService, productService),
 		}, {
-			voice: 'wss://voice.test/voice-code/api/v1/realtime/voice?product=stable',
+			voice: 'wss://api.openai.com/v1/live/sessions',
 			transcription: 'wss://voice.test/voice-code/api/v1/realtime/transcription?product=stable',
 		});
 	});
