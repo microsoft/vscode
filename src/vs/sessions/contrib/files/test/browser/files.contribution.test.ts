@@ -77,96 +77,96 @@ suite('Sessions Files view availability', () => {
 });
 
 suite('Sessions Download Remote File action', () => {
-			const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-			test('shows Download in its own header group only for remote filesystem resources', () => {
-				const context = store.add(new MockContextKeyService());
-				const sessions = IsSessionsWindowContext.bindTo(context);
-				const scheme = ResourceContextKey.Scheme.bindTo(context);
-				const fileSystem = ResourceContextKey.IsFileSystemResource.bindTo(context);
-				const singlePane = SinglePaneLayoutEnabledContext.bindTo(context);
-				const menuItems = [Menus.SessionsEditorHeaderPrimary, MenuId.EditorTitle].flatMap(menuId =>
-					MenuRegistry.getMenuItems(menuId).filter(isIMenuItem).filter(item => item.command.id === DownloadRemoteFileAction.ID)
-				);
-				const cases = [
-					{ scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: true },
-					{ scheme: Schemas.vscodeRemote, sessions: true, fileSystem: true, singlePane: true },
-					{ scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: false },
-					{ scheme: Schemas.file, sessions: true, fileSystem: true, singlePane: true },
-					{ scheme: Schemas.untitled, sessions: true, fileSystem: false, singlePane: true },
-					{ scheme: AGENT_HOST_SCHEME, sessions: false, fileSystem: true, singlePane: true },
-					{ scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: false, singlePane: true },
-				];
-				assert.deepStrictEqual(cases.map(testCase => {
-					sessions.set(testCase.sessions);
-					scheme.set(testCase.scheme);
-					fileSystem.set(testCase.fileSystem);
-					singlePane.set(testCase.singlePane);
-					return menuItems.filter(item => item.when?.evaluate({
-						getValue: key => context.getContextKeyValue(key),
-					})).map(item => item.group);
-				}), [['2_download'], ['2_download'], ['navigation'], [], [], [], []]);
+	test('shows Download in its own header group only for remote filesystem resources', () => {
+		const context = store.add(new MockContextKeyService());
+		const sessions = IsSessionsWindowContext.bindTo(context);
+		const scheme = ResourceContextKey.Scheme.bindTo(context);
+		const fileSystem = ResourceContextKey.IsFileSystemResource.bindTo(context);
+		const singlePane = SinglePaneLayoutEnabledContext.bindTo(context);
+		const menuItems = [Menus.SessionsEditorHeaderPrimary, MenuId.EditorTitle].flatMap(menuId =>
+			MenuRegistry.getMenuItems(menuId).filter(isIMenuItem).filter(item => item.command.id === DownloadRemoteFileAction.ID)
+		);
+		const cases = [
+			{ scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: true },
+			{ scheme: Schemas.vscodeRemote, sessions: true, fileSystem: true, singlePane: true },
+			{ scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: false },
+			{ scheme: Schemas.file, sessions: true, fileSystem: true, singlePane: true },
+			{ scheme: Schemas.untitled, sessions: true, fileSystem: false, singlePane: true },
+			{ scheme: AGENT_HOST_SCHEME, sessions: false, fileSystem: true, singlePane: true },
+			{ scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: false, singlePane: true },
+		];
+		assert.deepStrictEqual(cases.map(testCase => {
+			sessions.set(testCase.sessions);
+			scheme.set(testCase.scheme);
+			fileSystem.set(testCase.fileSystem);
+			singlePane.set(testCase.singlePane);
+			return menuItems.filter(item => item.when?.evaluate({
+				getValue: key => context.getContextKeyValue(key),
+			})).map(item => item.group);
+		}), [['2_download'], ['2_download'], ['navigation'], [], [], [], []]);
+	});
+
+	function createServices(editors: EditorInput[], activeEditor: EditorInput) {
+		const instantiationService = store.add(new TestInstantiationService());
+		const group = new class extends mock<IEditorGroup>() {
+			override id = 1;
+			override activeEditor = activeEditor;
+			override selectedEditors = editors;
+			override getEditorByIndex(index: number) { return editors[index]; }
+			override getIndexOfEditor(editor: EditorInput) { return editors.indexOf(editor); }
+			override isSelected(editor: EditorInput) { return editors.includes(editor); }
+		}();
+		instantiationService.stub(IEditorService, {});
+		instantiationService.stub(IEditorGroupsService, { activeGroup: group, getGroup: () => group });
+		instantiationService.stub(IListService, {});
+		instantiationService.stub(IInstantiationService, instantiationService);
+		return instantiationService;
+	}
+
+	test('downloads the invoked editors rather than another active editor or the Explorer selection', async () => {
+		const remote = store.add(new TestFileEditorInput(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host', path: '/index.html' }), 'test'));
+		const remoteWorkspace = store.add(new TestFileEditorInput(URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: '/style.css' }), 'test'));
+		const local = store.add(new TestFileEditorInput(URI.file('/local.html'), 'test'));
+		const instantiationService = createServices([remote, remoteWorkspace, local], local);
+		instantiationService.stub(IEditorService, { findEditors: () => [{ editor: remote, groupId: 1 }] });
+		const downloaded: URI[] = [];
+		instantiationService.stub(IFileService, {
+			resolve: async resource => ({
+				resource, name: resource.path, isFile: true, isDirectory: false, isSymbolicLink: false, children: undefined
+			}),
+		});
+		instantiationService.stub(INotificationService, {});
+		instantiationService.stubInstance(FileDownload, {
+			download: async sources => { downloaded.push(...sources.map(source => source.resource)); }
+		});
+
+		await new DownloadRemoteFileAction().run(instantiationService, { groupId: 1, editorIndex: 0 });
+		await new DownloadRemoteFileAction().run(instantiationService, remote.resource);
+
+		assert.deepStrictEqual(downloaded, [remote.resource, remoteWorkspace.resource, remote.resource, remoteWorkspace.resource]);
+	});
+
+	for (const failure of ['resolve', 'download']) {
+		test(`notifies and propagates ${failure} failures`, async () => {
+			const remote = store.add(new TestFileEditorInput(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host', path: '/index.html' }), 'test'));
+			const instantiationService = createServices([remote], remote);
+			const error = new Error('Download failed');
+			const notifications: Parameters<INotificationService['error']>[0][] = [];
+			instantiationService.stub(IFileService, {
+				resolve: async resource => {
+					if (failure === 'resolve') {
+						throw error;
+					}
+					return { resource, name: 'index.html', isFile: true, isDirectory: false, isSymbolicLink: false, children: undefined } satisfies IFileStat;
+				},
 			});
+			instantiationService.stub(INotificationService, { error: error => { notifications.push(error); } });
+			instantiationService.stubInstance(FileDownload, { download: async () => { throw error; } });
 
-			function createServices(editors: EditorInput[], activeEditor: EditorInput) {
-				const instantiationService = store.add(new TestInstantiationService());
-				const group = new class extends mock<IEditorGroup>() {
-					override id = 1;
-					override activeEditor = activeEditor;
-					override selectedEditors = editors;
-					override getEditorByIndex(index: number) { return editors[index]; }
-					override getIndexOfEditor(editor: EditorInput) { return editors.indexOf(editor); }
-					override isSelected(editor: EditorInput) { return editors.includes(editor); }
-				}();
-				instantiationService.stub(IEditorService, {});
-				instantiationService.stub(IEditorGroupsService, { activeGroup: group, getGroup: () => group });
-				instantiationService.stub(IListService, {});
-				instantiationService.stub(IInstantiationService, instantiationService);
-				return instantiationService;
-			}
-
-			test('downloads the invoked editors rather than another active editor or the Explorer selection', async () => {
-				const remote = store.add(new TestFileEditorInput(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host', path: '/index.html' }), 'test'));
-				const remoteWorkspace = store.add(new TestFileEditorInput(URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: '/style.css' }), 'test'));
-				const local = store.add(new TestFileEditorInput(URI.file('/local.html'), 'test'));
-				const instantiationService = createServices([remote, remoteWorkspace, local], local);
-				instantiationService.stub(IEditorService, { findEditors: () => [{ editor: remote, groupId: 1 }] });
-				const downloaded: URI[] = [];
-				instantiationService.stub(IFileService, {
-					resolve: async resource => ({
-						resource, name: resource.path, isFile: true, isDirectory: false, isSymbolicLink: false, children: undefined
-					}),
-				});
-				instantiationService.stub(INotificationService, {});
-				instantiationService.stubInstance(FileDownload, {
-					download: async sources => { downloaded.push(...sources.map(source => source.resource)); }
-				});
-
-				await new DownloadRemoteFileAction().run(instantiationService, { groupId: 1, editorIndex: 0 });
-				await new DownloadRemoteFileAction().run(instantiationService, remote.resource);
-
-				assert.deepStrictEqual(downloaded, [remote.resource, remoteWorkspace.resource, remote.resource, remoteWorkspace.resource]);
-			});
-
-			for (const failure of ['resolve', 'download']) {
-				test(`notifies and propagates ${failure} failures`, async () => {
-					const remote = store.add(new TestFileEditorInput(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host', path: '/index.html' }), 'test'));
-					const instantiationService = createServices([remote], remote);
-					const error = new Error('Download failed');
-					const notifications: Parameters<INotificationService['error']>[0][] = [];
-					instantiationService.stub(IFileService, {
-						resolve: async resource => {
-							if (failure === 'resolve') {
-								throw error;
-							}
-							return { resource, name: 'index.html', isFile: true, isDirectory: false, isSymbolicLink: false, children: undefined } satisfies IFileStat;
-						},
-					});
-					instantiationService.stub(INotificationService, { error: error => { notifications.push(error); } });
-					instantiationService.stubInstance(FileDownload, { download: async () => { throw error; } });
-
-					await assert.rejects(new DownloadRemoteFileAction().run(instantiationService, { groupId: 1, editorIndex: 0 }), error);
-					assert.deepStrictEqual(notifications, [error]);
-				});
-			}
+			await assert.rejects(new DownloadRemoteFileAction().run(instantiationService, { groupId: 1, editorIndex: 0 }), error);
+			assert.deepStrictEqual(notifications, [error]);
+		});
+	}
 });
