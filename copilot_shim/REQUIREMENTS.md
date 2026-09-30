@@ -75,6 +75,44 @@ the reverse.
   It removes the script shims that earlier versions wrote to its global
   storage.
 
+### Ownership
+
+VS Code owns only the shim, the launcher that gets Copilot CLI onto the device.
+Everything else belongs to Copilot CLI and the method that installed it: the
+CLI's files, its `PATH` entry, its updates, its uninstallation, and its data.
+The shim installs Copilot CLI only when there is none, never updates it, and
+uninstalling VS Code never removes it or its data (`~/.copilot`).
+
+### Publishing the shim on Windows
+
+Setup publishes the shim itself, because `inno_updater` handles only the files
+directly in `bin` and never enters its subfolders. It follows `inno_updater`'s
+`perform_three_way_rename`, `find_available_old_path`, `util::retry`, and
+cleanup (microsoft/inno-updater `src/main.rs`), so a Copilot session running
+the shim never makes an install or update fail:
+
+1. Delete `old_*` copies from earlier updates and any leftover
+   `new_copilot.exe`. A copy that a session still runs is locked and is skipped
+   until a later install or update.
+2. Keep the published shim when its file version equals the new shim's. Signing
+   changes a build's bytes, so the embedded version (see
+   [Cargo package requirements](#cargo-package-requirements)), not a hash,
+   decides whether the shim changed.
+3. Copy the new shim to `new_copilot.exe`.
+4. Rename `copilot.exe` to `old_copilot.exe`, or to `old_1_copilot.exe`,
+   `old_2_copilot.exe`, and so on when an older session still holds that name.
+   A running shim can be renamed, and its session keeps running.
+5. Rename `new_copilot.exe` to `copilot.exe`. If that fails, rename the old copy
+   back, so a failed update keeps the previous shim.
+6. Delete the old copy unless a session still runs it.
+
+Each copy and rename is retried up to 11 times, waiting `attempt² × 50` ms after
+each failure, to ride out transient locks such as antivirus scans.
+
+Uninstalling VS Code deletes `bin`, including the shim folder. A shim that a
+Copilot session is still running, and any `old_*` copies it holds, stay behind
+until they're deleted manually.
+
 ## Out of scope
 
 The implementation does not:
@@ -483,29 +521,53 @@ those limitations. Musl users may obtain the appropriate executable from
 
 ### Windows
 
+The shim installs GitHub's per-user MSI (`assets/Package.wxs` in
+github/copilot-agent-runtime, published with `SHA256SUMS.txt` to the
+github/copilot-cli releases). It installs without elevation to
+`%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` and appends that folder to the
+user `PATH`.
+
+The MSI has a fixed UpgradeCode, `{E2C3A7F6-1D3A-4E8F-9E5F-8E9D4F9C1234}`, and
+no `MajorUpgrade`, so running it over an existing installation could register a
+second copy. The shim therefore only installs where there is no Copilot CLI and
+never runs the MSI to update one; Copilot CLI updates itself (`copilot update`
+and automatic updates), so the version in Installed apps can lag behind the
+running version.
+
 The shim runs `<shim> --vscode-shim install --interactive` as a child attached
 to the current terminal. That command, which also backs the installer's
 install option, MUST:
 
-1. Resolve the latest release: request
+1. Report that Copilot CLI is already installed, without downloading anything,
+   when `%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` exists. When Windows
+   Installer has a product with the UpgradeCode registered but that file is
+   missing, report an error that points to Installed apps instead of
+   installing. `msi.dll` is loaded only for this check.
+2. Resolve the latest release: request
    `https://github.com/github/copilot-cli/releases/latest` without following
    redirects and take the tag from the `/releases/tag/<tag>` redirect location.
-2. Download `SHA256SUMS.txt` (at most 64 KiB) and `copilot-x64.msi` or
+3. Download `SHA256SUMS.txt` (at most 64 KiB) and `copilot-x64.msi` or
    `copilot-arm64.msi` for that tag, through WinHTTP with the system proxy
    configuration.
-3. Compare the MSI's SHA-256 with its entry in `SHA256SUMS.txt`.
-4. Verify the MSI's Authenticode signature with `WinVerifyTrust` and require
+4. Compare the MSI's SHA-256 with its entry in `SHA256SUMS.txt`.
+5. Verify the MSI's Authenticode signature with `WinVerifyTrust` and require
    the signer name `GitHub, Inc.`.
-5. Run `%SystemRoot%\System32\msiexec.exe /i <msi> /qn /norestart /l*v
+6. Run `%SystemRoot%\System32\msiexec.exe /i <msi> /qn /norestart /l*v
    %TEMP%\vscode-copilot-cli-install.log` without elevation. Exit codes `0` and
    `3010` mean success, and `1602` means the install was canceled.
-6. Confirm that `%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` exists.
+7. Confirm that `%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` exists.
 
-Progress goes to stderr. The MSI adds its folder to the user `PATH`, and
-Windows discovery searches that folder even when the terminal's `PATH` predates
-the installation. `VSCODE_COPILOT_SHIM_RELEASES_URL` replaces the releases URL
-for tests; the signer requirement still applies.
-Installation does not use PowerShell or winget.
+Progress goes to stderr. The MSI's `PATH` change isn't visible to processes
+that are already running, so after a successful install the shim launches
+`%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` by its full path, and Windows
+discovery searches that folder after the `PATH` entries.
+`VSCODE_COPILOT_SHIM_RELEASES_URL` replaces the releases URL for tests; the
+signer requirement still applies. Installation does not use PowerShell or
+winget.
+
+Copilot CLI supports Windows PowerShell 5.1 as well as PowerShell 7, so a
+missing PowerShell 7 never blocks installation. Setup's page shows at most a
+soft recommendation to install it.
 
 ### macOS
 
@@ -663,6 +725,14 @@ On macOS and Linux the shim doesn't read the policy. It is reachable only from
 integrated terminals there, and the Copilot extension applies the policy
 through the setting.
 
+`CopilotCliCommand` is the only local control over the shim and installation.
+Copilot's device-managed settings (`HKLM\SOFTWARE\Policies\GitHubCopilot` and
+`%ProgramFiles%\GitHubCopilot\managed-settings.json`) have no key that turns
+Copilot CLI off or blocks installing it; turning Copilot CLI on or off is a
+server-side organization or enterprise policy, which the CLI applies after
+sign-in. The CLI's automatic updates can be turned off only per user
+(`COPILOT_AUTO_UPDATE=false`, `--no-auto-update`, or the user configuration).
+
 ## Setup commands
 
 The Windows installer runs these commands; they never launch the Copilot CLI.
@@ -744,6 +814,13 @@ collected on its page or command line. In that mode the command:
 - Microsoft copyright headers in Rust source files.
 
 CI builds MUST use `--locked`.
+
+On Windows, `build.rs` embeds a version resource whose file and product
+versions are the package version. VS Code setup replaces a published shim only
+when this version differs, so the package version MUST be bumped whenever the
+shim changes. `build.rs` writes the resource in the `.res` format, which the
+MSVC linker accepts directly, so the build needs no resource compiler or extra
+dependencies.
 
 Dependencies must be minimal and justified. The Windows MSI installation uses
 WinHTTP, CNG, and WinTrust through `windows-sys` rather than an HTTP or
@@ -899,6 +976,9 @@ fixtures.
   command, brew, curl/bash, and wget/bash.
 - Successful install followed by re-discovery from the first `PATH` entry and
   launch of the newly found candidate.
+- A successful Windows MSI install launches
+  `%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` by its full path, even though
+  the terminal's `PATH` predates it.
 - Successful install not visible in current PATH.
 - No repeated install prompt in one invocation.
 - Ctrl+C/handled termination during installation cancels without fallback,
@@ -918,6 +998,7 @@ fixtures.
 - Result files are UTF-16LE single-line INI files replaced atomically.
 - Install statuses map to the documented exit codes.
 - Unsigned files have no Authenticode signer.
+- The MSI registration can be queried.
 - With the `CopilotCliCommand` policy disabled, a missing CLI produces the
   policy diagnostic and exit code `10` without a prompt, and an installed CLI
   still launches.
@@ -949,6 +1030,7 @@ fixtures.
 - Host tests, clippy, and formatting pass.
 - No Linux GNU referenced GLIBC symbol version exceeds 2.28.
 - Windows control-flow/static-CRT settings are present.
+- The Windows binary's file version is the package version.
 - Each archive has the expected name and one root executable.
 - Unix executable mode is set.
 - Shim artifact names do not reuse CLI artifact names and do not begin with
