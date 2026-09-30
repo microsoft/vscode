@@ -803,7 +803,7 @@ export interface IAgentHostManagementService {
 	claimDetachedWorktree(handle: string): Promise<void>;
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
-	/** Local-only bridge for refreshing live Copilot sessions after Connector membership changes. */
+	/** Local-only bridge for refreshing live Copilot sessions after Connector membership or authorization changes. */
 	refreshCopilotConnectorSessions(): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
@@ -1306,7 +1306,7 @@ export interface IAgentHostService extends IAgentConnection {
 	/** Update {@link authenticationPending}. Internal — only the auth driver should call this. */
 	setAuthenticationPending(pending: boolean): void;
 
-	/** Refresh live local Copilot sessions after Connector membership changes. */
+	/** Refresh live local Copilot sessions after Connector membership or authorization changes. */
 	refreshCopilotConnectorSessions?(): Promise<void>;
 
 	/** Start connecting to the agent host if it has not already started. */
