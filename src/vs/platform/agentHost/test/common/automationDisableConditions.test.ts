@@ -31,7 +31,7 @@ suite('Automation disable conditions', () => {
 			[{ ...max, max: 1.5 }],
 			[{ ...date, date: '2026-02-30T00:00:00Z' }],
 		].map(value => getAutomationDisableConditionsError(value) === undefined),
-			[true, true, true, true, true, false, false, false, false, false, false, false, false, false, false]);
+			[true, true, false, true, false, false, false, false, false, false, false, false, false, false, false]);
 	});
 
 	test('final date compares instants and includes the exact cutoff', () => {

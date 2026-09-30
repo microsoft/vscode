@@ -67,6 +67,15 @@
 	outline: none;
 }
 
+.automation-dialog input[type="datetime-local"] {
+	color-scheme: light;
+}
+
+.vs-dark .automation-dialog input[type="datetime-local"],
+.hc-black .automation-dialog input[type="datetime-local"] {
+	color-scheme: dark;
+}
+
 /*
  * Float the close-X over the titlebar so the title text sits flush
  * with the top edge of the modal (QuickInput-style). Without this,

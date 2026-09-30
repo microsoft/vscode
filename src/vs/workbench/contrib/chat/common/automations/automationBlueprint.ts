@@ -5,7 +5,7 @@
 
 import { parseFrontMatter, YamlMapNode, YamlNode, YamlParseError } from '../../../../../base/common/yaml.js';
 import { isAutomationDisableConditions } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
-import { AutomationDisableConditionKind, type AutomationDisableCondition } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { AutomationDisableConditionKind, type AutomationAfterDateCondition } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IAutomationDescriptor, IAutomationSchedule } from './automation.js';
 
 export const AUTOMATION_BLUEPRINT_FILE_SUFFIX = '.automation.md';
@@ -44,7 +44,7 @@ export interface IAutomationBlueprint {
 	readonly description?: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
-	readonly disableConditions?: readonly AutomationDisableCondition[];
+	readonly disableConditions?: readonly AutomationAfterDateCondition[];
 }
 
 export function parseAutomationBlueprint(content: string): IAutomationBlueprint {
@@ -102,9 +102,7 @@ export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): s
 		lines.push(blueprint.disableConditions.length ? 'disableConditions:' : 'disableConditions: []');
 		for (const condition of blueprint.disableConditions) {
 			lines.push(`  - kind: ${condition.kind}`);
-			lines.push(condition.kind === AutomationDisableConditionKind.AfterRuns
-				? `    max: ${condition.max}`
-				: `    date: ${quoteYamlString(condition.date)}`);
+			lines.push(`    date: ${quoteYamlString(condition.date)}`);
 		}
 	}
 	lines.push('schedule:');
@@ -169,7 +167,7 @@ function normalizeSchedule(schedule: IAutomationSchedule): IAutomationSchedule {
 	}
 }
 
-function readDisableConditions(root: YamlMapNode): AutomationDisableCondition[] | undefined {
+function readDisableConditions(root: YamlMapNode): AutomationAfterDateCondition[] | undefined {
 	const node = getProperty(root, 'disableConditions');
 	if (node === undefined) {
 		return undefined;
@@ -182,10 +180,6 @@ function readDisableConditions(root: YamlMapNode): AutomationDisableCondition[] 
 			throw new AutomationBlueprintParseError('invalidField', 'disableConditions');
 		}
 		const kind = readRequiredString(item, 'kind');
-		if (kind === AutomationDisableConditionKind.AfterRuns) {
-			assertKnownProperties(item, new Set(['kind', 'max']), 'disableConditions.');
-			return { kind, max: readRequiredInteger(item, 'max') };
-		}
 		if (kind === AutomationDisableConditionKind.AfterDate) {
 			assertKnownProperties(item, new Set(['kind', 'date']), 'disableConditions.');
 			return { kind, date: readRequiredString(item, 'date') };

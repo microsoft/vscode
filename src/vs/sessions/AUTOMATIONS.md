@@ -62,7 +62,7 @@ Compatibility decoding for configuration values in existing AHP definitions is s
 
 ### Blueprints and templates
 
-`IAutomationBlueprint` is a versioned portable name, prompt, schedule, and optional `disableConditions`. It excludes runtime identity, target provider, workspace, session configuration, enabled state, allowance usage, timestamps, and history.
+`IAutomationBlueprint` is a versioned portable name, prompt, schedule, and optional `disableConditions`. It excludes runtime identity, target provider, workspace, session configuration, enabled state, timestamps, and history.
 
 Standalone `.automation.md` files and plugins use the same blueprint format. Plugin discovery exposes inert templates and follows effective plugin enablement; discovery, installation, and updates never mutate saved Automations.
 
@@ -120,17 +120,15 @@ Disabling scheduled execution on a definition preserves manual Run Now. Disablin
 
 ### Automatic disable conditions
 
-`disableConditions` is an optional array with at most one `afterRuns` condition (`max`, a positive integer) and one `afterDate` condition (`date`, an ISO 8601 timestamp). Conditions combine with logical OR. The existing update action replaces the entire array; omission preserves it, and `[]` clears it without re-enabling scheduling. No separate capability, clear flag, or disable-reason state is used.
-
-The host-owned `runCount` tracks the current `afterRuns` allowance independently of retained history. Scheduled and catch-up admission persist the run and consumed slot atomically. Later failure or cancellation does not refund a slot; skipped occurrences and manual runs do not consume slots. The final admitted run still executes while exhaustion disables future scheduling and clears its cursors.
-
-A disabled-to-enabled transition grants a fresh allowance. Editing an existing maximum, editing only the final date, and reordering conditions preserve usage. Adding `afterRuns` when absent starts at zero; removing it removes usage. Duplication and blueprints carry conditions, never usage.
+`disableConditions` is an optional array with at most one `afterDate` condition (`date`, an ISO 8601 timestamp). The existing update action replaces the entire array; omission preserves it, and `[]` clears it without re-enabling scheduling. No separate capability, clear flag, or disable-reason state is used. Run-count conditions are not supported.
 
 The host evaluates the final date against admission time, including catch-up runs, and wakes at the cutoff independently of provider readiness or an active run. At or after the cutoff it disables scheduling without cancelling an admitted run. Conditions stay in the definition; clients warn before enabling an expired date.
 
 ## Persistence and retained history
 
 Canonical definitions, schedule cursors, manual request IDs, and run state live in Agent Host storage.
+
+Restoration removes obsolete run-count conditions and their usage counters, retaining end dates and history. Previously capped automations are disabled rather than silently becoming unlimited; users must explicitly re-enable them.
 
 Already-migrated historical runs may also exist in a provider-scoped `agentHostAutomation.legacyRunArchive.*` value. The projection reads these archives solely for history, merging them with authoritative host runs. It does not add to or rewrite them. Historical rows never claim an active-run slot or dispatch execution; malformed non-terminal archive rows are represented as interrupted history, not active host runs.
 

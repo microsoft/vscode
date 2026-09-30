@@ -16,7 +16,7 @@ import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
-import { getAutomationDisableConditionsError, getAutomationMaxRuns, isAutomationAfterDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { getAutomationDisableConditionsError, isAutomationDisableConditions, isAutomationAfterDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -295,6 +295,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
+		const disableConditions = state.definition.disableConditions;
+		if (disableConditions !== undefined && !isAutomationDisableConditions(disableConditions)) {
+			this._logService.warn(`[AgentHostAutomationStore] Cannot project Automation with unsupported disable conditions: resource=${state.resource}.`);
+			return undefined;
+		}
 		return {
 			id: this._resourceId(state.resource),
 			name: state.definition.title,
@@ -303,8 +308,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			target,
 			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
 			enabled: state.definition.enabled,
-			...(state.definition.disableConditions !== undefined ? { disableConditions: state.definition.disableConditions } : {}),
-			...(state.runCount !== undefined ? { runCount: state.runCount } : {}),
+			...(disableConditions !== undefined ? { disableConditions } : {}),
 			createdAt: state.createdAt,
 			updatedAt: state.modifiedAt,
 			lastRunAt: newestRun?.lifecycle.createdAt,
@@ -441,9 +445,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				if (!projected) {
 					return false;
 				}
-				const max = getAutomationMaxRuns(projected.disableConditions);
-				const disabledByCondition = !projected.enabled && (isAutomationAfterDateExpired(projected.disableConditions)
-					|| (max !== undefined && projected.runCount !== undefined && projected.runCount >= max));
+				const disabledByCondition = !projected.enabled && isAutomationAfterDateExpired(projected.disableConditions);
 				return serializeAutomationEditableState(projected) === serializeAutomationEditableState({
 					...expected,
 					enabled: enabledChanged && !disabledByCondition ? expected.enabled : projected.enabled,

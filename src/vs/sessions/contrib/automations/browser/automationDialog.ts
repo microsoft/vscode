@@ -32,8 +32,8 @@ import { ActionListItemKind, IActionListItem } from '../../../../platform/action
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { getAutomationMaxRuns, isAutomationAfterDateExpired } from '../../../../platform/agentHost/common/automationDisableConditions.js';
-import { AutomationDisableConditionKind, type AutomationDisableCondition } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { getAutomationAfterDate, isAutomationAfterDate, isAutomationAfterDateExpired } from '../../../../platform/agentHost/common/automationDisableConditions.js';
+import { AutomationDisableConditionKind, type AutomationAfterDateCondition } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -216,7 +216,7 @@ export interface IFormState {
 	isolationMode: string | undefined;
 	branch: string | undefined;
 	enabled: boolean;
-	runOnce: boolean;
+	endDate: string | undefined;
 }
 
 export interface IValidationState {
@@ -225,6 +225,7 @@ export interface IValidationState {
 	folderError: string | undefined;
 	sessionTypeError: string | undefined;
 	branchError: string | undefined;
+	endDateError?: string;
 }
 
 export function getAutomationDialogProviders(automationService: IAutomationService, existing: IAutomationDescriptor | undefined): IObservable<readonly string[]> {
@@ -242,32 +243,36 @@ export function getAutomationDialogProviders(automationService: IAutomationServi
 	});
 }
 
-/** Omits unchanged authority-sensitive fields so stale forms cannot reset an exhausted allowance. */
+/** Omits unchanged authority-sensitive fields so stale forms cannot re-enable expired automations. */
 export function buildChangedAutomationFields(
 	formEnabled: boolean,
-	formRunOnce: boolean,
+	formEndDate: string | undefined,
 	existing: Pick<IAutomationDescriptor, 'enabled' | 'disableConditions'>,
 ): Pick<IUpdateAutomationOptions, 'enabled' | 'disableConditions'> {
-	const fields: { enabled?: boolean; disableConditions?: AutomationDisableCondition[] } = {};
+	const fields: { enabled?: boolean; disableConditions?: AutomationAfterDateCondition[] } = {};
 	if (formEnabled !== existing.enabled) {
 		fields.enabled = formEnabled;
 	}
-	if (formRunOnce !== (getAutomationMaxRuns(existing.disableConditions) === 1)) {
-		fields.disableConditions = buildAutomationDisableConditions(formRunOnce, existing.disableConditions);
+	if (formEndDate !== getAutomationAfterDate(existing.disableConditions)) {
+		fields.disableConditions = buildAutomationDisableConditions(formEndDate);
 	}
 	return fields;
 }
 
-/** Changes the Run once preset without clearing conditions that the dialog does not expose. */
-export function buildAutomationDisableConditions(runOnce: boolean, initial: readonly AutomationDisableCondition[] | undefined): AutomationDisableCondition[] {
-	if (runOnce === (getAutomationMaxRuns(initial) === 1)) {
-		return [...(initial ?? [])];
+export function buildAutomationDisableConditions(endDate: string | undefined): AutomationAfterDateCondition[] {
+	return endDate === undefined ? [] : [{ kind: AutomationDisableConditionKind.AfterDate, date: endDate }];
+}
+
+export function getAutomationEndDateError(endDate: string | undefined, initial: string | undefined): string | undefined {
+	if (endDate === undefined) {
+		return undefined;
 	}
-	const conditions: AutomationDisableCondition[] = initial?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterRuns) ?? [];
-	if (runOnce) {
-		conditions.push({ kind: AutomationDisableConditionKind.AfterRuns, max: 1 });
+	if (!isAutomationAfterDate(endDate)) {
+		return localize('automation.form.invalidEndDate', "Enter a valid end date and time.");
 	}
-	return conditions;
+	return endDate !== initial && Date.parse(endDate) <= Date.now()
+		? localize('automation.form.futureEndDate', "The end date must be in the future.")
+		: undefined;
 }
 
 interface IRenderFormHandle {
@@ -1049,7 +1054,7 @@ export function renderForm(
 	initialTarget: AutomationTarget | undefined,
 	initialSessionConfiguration: IAutomationSessionConfiguration | undefined,
 	allowedProviders: IObservable<readonly string[]>,
-	initialDisableConditions: readonly AutomationDisableCondition[] | undefined,
+	initialDisableConditions: readonly AutomationAfterDateCondition[] | undefined,
 ): IRenderFormHandle {
 	const formContent = DOM.append(form, $('.automation-form-content'));
 	const nameRow = DOM.append(formContent, $('.automation-form-row'));
@@ -1495,28 +1500,44 @@ export function renderForm(
 		setEnabled(!enabledCheckbox.checked);
 	}));
 
-	const runOnceRow = DOM.append(checkboxRow, $('.automation-form-checkbox'));
-	const runOnceLabelText = localize('automation.form.runOnce', "Run once");
-	const runOnceCheckbox = disposables.add(new Checkbox(runOnceLabelText, state.runOnce, defaultCheckboxStyles));
-	runOnceCheckbox.domNode.setAttribute('aria-description', localize('automation.form.runOnceDescription', "Set the scheduled run limit to one. Runs already used in the current allowance count toward this limit. Manual runs do not count."));
-	DOM.append(runOnceRow, runOnceCheckbox.domNode);
-	const runOnceLabel = DOM.append(runOnceRow, $('span.automation-form-checkbox-label', undefined, runOnceLabelText));
-	disposables.add(runOnceCheckbox.onChange(() => {
-		state.runOnce = runOnceCheckbox.checked;
+	const endDateRow = DOM.append(formContent, $('.automation-form-row'));
+	const endDateLabel = localize('automation.form.endDate', "Run until");
+	DOM.append(endDateRow, $('label.automation-form-label', { for: 'automation-end-date' }, endDateLabel));
+	const endDateInput = disposables.add(new InputBox(endDateRow, contextViewService, {
+		type: 'datetime-local',
+		ariaLabel: endDateLabel,
+		inputBoxStyles: defaultInputBoxStyles,
 	}));
-	disposables.add(DOM.addStandardDisposableListener(runOnceLabel, 'click', () => {
-		runOnceCheckbox.checked = !runOnceCheckbox.checked;
-		state.runOnce = runOnceCheckbox.checked;
+	endDateInput.inputElement.id = 'automation-end-date';
+	endDateInput.inputElement.step = '1';
+	if (state.endDate !== undefined) {
+		const date = new Date(state.endDate);
+		endDateInput.value = new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
+	}
+	disposables.add(DOM.addDisposableListener(endDateInput.inputElement, DOM.EventType.INPUT, () => {
+		const value = endDateInput.value;
+		const date = new Date(value);
+		state.endDate = endDateInput.inputElement.validity.badInput ? ''
+			: value ? Number.isFinite(date.getTime()) ? date.toISOString() : value : undefined;
+		revalidate();
 	}));
+	const endDateError = DOM.append(endDateRow, $('span.automation-form-hint', {
+		id: 'automation-end-date-error', role: 'status', 'aria-live': 'polite',
+	}));
+	endDateInput.inputElement.setAttribute('aria-describedby', endDateError.id);
 
 	const conditionsWarning = DOM.append(formContent, $('span.automation-form-hint', {
 		id: 'automation-conditions-warning', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
 	}));
 	const refreshDisableConditionsWarning = () => {
-		const expired = state.enabled && isAutomationAfterDateExpired(initialDisableConditions);
+		validation.endDateError = getAutomationEndDateError(state.endDate, getAutomationAfterDate(initialDisableConditions));
+		endDateError.textContent = validation.endDateError ?? '';
+		endDateInput.inputElement.setAttribute('aria-invalid', String(!!validation.endDateError));
+		DOM.setVisibility(!!validation.endDateError, endDateError);
+		const expired = state.enabled && isAutomationAfterDateExpired(buildAutomationDisableConditions(state.endDate));
 		DOM.setVisibility(expired, conditionsWarning);
 		const message = expired
-			? localize('automation.form.expiredConditions', "The final date has passed. Scheduling will stop immediately. Use Remove limits in the card's More menu, or ask in chat to change the final date.")
+			? localize('automation.form.expiredConditions', "The end date has passed. Scheduling will stop immediately. Change or clear Run until to resume scheduling.")
 			: '';
 		if (conditionsWarning.textContent !== message) {
 			conditionsWarning.textContent = message;
@@ -1676,7 +1697,7 @@ export function updateSaveButtonState(
 		? localize('automation.form.branchRequired', "A branch is required for Worktree isolation.")
 		: undefined;
 
-	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError;
+	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.endDateError;
 	if (saveButton) {
 		saveButton.enabled = valid;
 	}

@@ -21,7 +21,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { getAutomationMaxRuns } from '../../../../platform/agentHost/common/automationDisableConditions.js';
+import { getAutomationAfterDate } from '../../../../platform/agentHost/common/automationDisableConditions.js';
 import { defaultButtonStyles, defaultDialogStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
 import { AutomationTarget, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -117,7 +117,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				: initialWorkspaceTarget?.isolation.kind === 'worktree' ? 'worktree' : 'workspace',
 			branch: initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined,
 			enabled: initial?.enabled ?? true,
-			runOnce: getAutomationMaxRuns(initial?.disableConditions) === 1,
+			endDate: getAutomationAfterDate(initial?.disableConditions),
 		};
 
 		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
@@ -171,11 +171,11 @@ export class AutomationDialogService implements IAutomationDialogService {
 					...(sessionConfigurationCapture.kind === 'captured' ? {
 						sessionTemplate: sessionTemplate ?? null,
 					} : {}),
-					...buildChangedAutomationFields(state.enabled, state.runOnce, existing),
+					...buildChangedAutomationFields(state.enabled, state.endDate, existing),
 				};
 				return { kind: 'update', id: existing.id, value: patch };
 			}
-			const disableConditions = buildAutomationDisableConditions(state.runOnce, initial?.disableConditions);
+			const disableConditions = buildAutomationDisableConditions(state.endDate);
 			const create: ICreateAutomationOptions = {
 				name: state.name,
 				prompt,
@@ -210,7 +210,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			}
 			revalidate();
 			refreshDisableConditionsWarning();
-			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError) {
+			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError || validation.endDateError) {
 				dialogTelemetry.validationFailed();
 				return;
 			}
@@ -242,7 +242,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				}
 				revalidate();
 				refreshDisableConditionsWarning();
-				if (validation.sessionTypeError) {
+				if (validation.sessionTypeError || validation.endDateError) {
 					return;
 				}
 				const result = buildResult(sessionConfigurationCapture);
@@ -323,7 +323,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, initial?.disableConditions);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, existing?.disableConditions);
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
@@ -346,6 +346,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					));
 					focusFirst = keyboardNavigation.focusFirst;
 					revalidate = () => {
+						handle.refreshDisableConditionsWarning();
 						const providerAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
 						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId);
 						handle.showTargetValidationError(validation.sessionTypeError);

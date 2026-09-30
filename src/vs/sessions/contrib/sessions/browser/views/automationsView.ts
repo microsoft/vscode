@@ -18,7 +18,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { getAutomationAfterDate, getAutomationMaxRuns, isAutomationAfterDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { getAutomationAfterDate, isAutomationAfterDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -696,7 +696,7 @@ class AutomationCardsSection extends Disposable {
 			card.folderHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel);
 		}
 
-		if (!previous || previous.enabled !== automation.enabled || previous.runCount !== automation.runCount || !equals(previous.disableConditions, automation.disableConditions)) {
+		if (!previous || previous.enabled !== automation.enabled || !equals(previous.disableConditions, automation.disableConditions)) {
 			const limit = automation.enabled ? formatAutomationLimit(automation) : undefined;
 			card.main.classList.toggle('automations-card-has-limit', !!limit);
 			card.limitEl.textContent = limit?.label ?? '';
@@ -1587,25 +1587,12 @@ function getAutomationTargetLabel(target: AutomationTarget): string {
 }
 
 function formatAutomationLimit(automation: IAutomationDescriptor): { label: string; description: string } | undefined {
-	const max = getAutomationMaxRuns(automation.disableConditions);
 	const date = getAutomationAfterDate(automation.disableConditions);
 	const formattedDate = date === undefined ? undefined : new Date(date).toLocaleString(undefined, {
 		year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
 	});
-	if (max !== undefined) {
-		const runs = automation.runCount === undefined
-			? localize('automationCardRunLimit', "Ends after {0} runs", max)
-			: localize('automationCardRunUsage', "Ends after {0}/{1} runs", automation.runCount, max);
-		const stopDescription = formattedDate === undefined
-			? localize('automationCardRunLimitDescription', "Scheduled run limit: {0}. Manual runs do not count.", max)
-			: localize('automationCardCombinedLimitDescription', "Stops when the scheduled run limit of {0} is reached or at {1}, whichever comes first. Manual runs do not count.", max, formattedDate);
-		return {
-			label: formattedDate === undefined ? runs : localize('automationCardCombinedLimit', "{0} or {1}", runs, formattedDate),
-			description: automation.runCount === undefined ? stopDescription : localize('automationCardRunUsageDescription', "Scheduled runs used: {0}. {1}", automation.runCount, stopDescription),
-		};
-	}
 	return formattedDate === undefined ? undefined : {
-		label: localize('automationCardEndDate', "Ends after {0}", formattedDate),
+		label: localize('automationCardEndDate', "Runs until {0}", formattedDate),
 		description: localize('automationCardEndDateDescription', "Stops scheduling at {0}. Manual runs remain available.", formattedDate),
 	};
 }

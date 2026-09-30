@@ -128,16 +128,14 @@ suite('Automation blueprints', () => {
 		]);
 	});
 
-	test('round trips a scheduled maximum without transferring allowance usage', () => {
+	test('round trips an end date', () => {
 		const automation: IAutomationDescriptor = {
 			id: 'review', name: 'Review', prompt: 'Review.',
 			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'mock' },
 			enabled: false, disableConditions: [
-				{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 },
 				{ kind: AutomationDisableConditionKind.AfterDate, date: '2026-10-01T00:00:00Z' },
-			], runCount: 3,
-			createdAt: '', updatedAt: '',
+			], createdAt: '', updatedAt: '',
 		};
 		assert.deepStrictEqual(parseAutomationBlueprint(serializeAutomationBlueprint(automationToBlueprint(automation))), {
 			version: 1, id: 'review', name: 'Review', prompt: 'Review.',

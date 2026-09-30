@@ -19,7 +19,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { getAutomationMaxRuns, isAutomationAfterDateExpired } from '../../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { isAutomationAfterDateExpired } from '../../../../../../platform/agentHost/common/automationDisableConditions.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -162,17 +162,13 @@ class TestAutomationConnection {
 				throw new Error(`Missing Automation: ${action.resource}`);
 			}
 			const definition = { ...current.definition, ...action.changes };
-			const max = getAutomationMaxRuns(definition.disableConditions);
-			const runCount = max === undefined ? undefined
-				: (!current.definition.enabled && definition.enabled) || getAutomationMaxRuns(current.definition.disableConditions) === undefined ? 0 : current.runCount ?? 0;
-			if ((max !== undefined && runCount! >= max) || isAutomationAfterDateExpired(definition.disableConditions)) {
+			if (isAutomationAfterDateExpired(definition.disableConditions)) {
 				definition.enabled = false;
 			}
 			const operations = [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run];
 			const automation = {
 				...current,
 				definition,
-				runCount,
 				operations,
 				modifiedAt: new Date().toISOString(),
 			};
@@ -396,69 +392,6 @@ suite('AgentHostAutomationStore', () => {
 
 	});
 
-	test('disable conditions require a ready host but no separate capability', async () => {
-		const { store } = reconnectable();
-		const connection = disposables.add(new TestAutomationConnection());
-		store.setConnection(connection);
-		await store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }] });
-		for (const value of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity]) {
-			await assert.rejects(store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: value }] }), /positive safe integer/);
-		}
-		store.clearConnection();
-		await assert.rejects(async () => store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }] }), AutomationUnavailableError);
-		assert.strictEqual(connection.dispatched.length, 1);
-	});
-
-	test('projects authoritative usage, accepts host exhaustion and encodes explicit clearing', async () => {
-		const { store } = reconnectable();
-		const connection = disposables.add(new TestAutomationConnection());
-		store.setConnection(connection);
-		const created = await store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 }] });
-		const create = connection.dispatched[0].action;
-		assert.ok(create.type === ActionType.AutomationCreateRequested);
-		connection.setAutomation({
-			resource: create.resource, definition: create.definition, runCount: 2, runs: [],
-			operations: [AutomationOperation.Update, AutomationOperation.Run],
-			createdAt: created.createdAt, modifiedAt: created.updatedAt,
-		});
-		const result = await store.updateAutomationIfUnchanged(created.id, { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 2 }] }, created);
-		assert.ok(result.kind === 'updated');
-		const lowered = result.automation;
-		const cleared = await store.updateAutomation(created.id, { disableConditions: [] });
-		const update = connection.dispatched.at(-1)!.action;
-		assert.ok(update.type === ActionType.AutomationUpdateRequested);
-		assert.deepStrictEqual({
-			lowered: [lowered?.enabled, getAutomationMaxRuns(lowered.disableConditions), lowered?.runCount],
-			cleared: [cleared?.enabled, cleared?.disableConditions, cleared?.runCount],
-			patch: { disableConditions: update.changes.disableConditions, enabled: update.changes.enabled },
-			canRun: store.canRunAutomation(created.id),
-		}, { lowered: [false, 2, 2], cleared: [false, [], undefined], patch: { disableConditions: [], enabled: undefined }, canRun: true });
-	});
-
-	test('an unrelated edit racing exhaustion never resends enabled or the maximum', async () => {
-		const { store } = reconnectable();
-		const connection = disposables.add(new TestAutomationConnection());
-		store.setConnection(connection);
-		const created = await store.createAutomation({ ...createOptions(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] });
-		const create = connection.dispatched[0].action;
-		assert.ok(create.type === ActionType.AutomationCreateRequested);
-		connection.beforeUpdate = () => connection.setAutomation({
-			resource: create.resource, definition: { ...create.definition, enabled: false }, runCount: 1, runs: [],
-			operations: [AutomationOperation.Update, AutomationOperation.Run],
-			createdAt: created.createdAt, modifiedAt: created.updatedAt,
-		});
-		const edited = await store.updateAutomation(created.id, { name: 'Renamed' });
-		connection.beforeUpdate = undefined;
-		const update = connection.dispatched.at(-1)!.action;
-		assert.ok(update.type === ActionType.AutomationUpdateRequested);
-		const reenabled = await store.updateAutomation(created.id, { enabled: true });
-		assert.deepStrictEqual({
-			edited: [edited?.name, edited?.enabled, edited?.runCount],
-			patch: [update.changes.enabled, update.changes.disableConditions],
-			reenabled: [reenabled?.enabled, reenabled?.runCount],
-		}, { edited: ['Renamed', false, 1], patch: [undefined, undefined], reenabled: [true, 0] });
-	});
-
 	test('re-enabling an expired final date waits for the host-normalized response', async () => {
 		const { store } = reconnectable();
 		const connection = disposables.add(new TestAutomationConnection());
@@ -466,7 +399,6 @@ suite('AgentHostAutomationStore', () => {
 		const created = await store.createAutomation({
 			...createOptions(), enabled: false,
 			disableConditions: [
-				{ kind: AutomationDisableConditionKind.AfterRuns, max: 3 },
 				{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' },
 			],
 		});
@@ -478,19 +410,19 @@ suite('AgentHostAutomationStore', () => {
 		const create = connection.dispatched[0].action;
 		assert.ok(create.type === ActionType.AutomationCreateRequested);
 		connection.setAutomation({
-			resource: 'ahp-automation:/unrelated', definition: create.definition, runCount: 0, runs: [],
+			resource: 'ahp-automation:/unrelated', definition: create.definition, runs: [],
 			operations: [AutomationOperation.Update, AutomationOperation.Run],
 			createdAt: created.createdAt, modifiedAt: created.updatedAt,
 		});
 		await timeout(0);
 		assert.strictEqual(settled, false);
 		connection.setAutomation({
-			resource: create.resource, definition: create.definition, runCount: 0, runs: [],
+			resource: create.resource, definition: create.definition, runs: [],
 			operations: [AutomationOperation.Update, AutomationOperation.Run],
 			createdAt: created.createdAt, modifiedAt: new Date().toISOString(),
 		});
 		const updated = await pending;
-		assert.deepStrictEqual([updated.enabled, updated.runCount, updated.disableConditions], [false, 0, created.disableConditions]);
+		assert.deepStrictEqual([updated.enabled, updated.disableConditions], [false, created.disableConditions]);
 	});
 
 	test('unrelated catalogue changes cannot hide rejection of an expired-date re-enable', async () => {
