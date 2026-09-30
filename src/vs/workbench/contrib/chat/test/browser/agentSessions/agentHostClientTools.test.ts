@@ -64,11 +64,12 @@ import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/
 import { IAgentHostShellInitSynchronizer } from '../../../browser/agentSessions/agentHost/agentHostShellInitSynchronizer.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, IToolSet, ToolAndToolSetEnablementMap, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentPluginActivationService } from '../../../common/plugins/agentPluginActivationService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -98,6 +99,7 @@ suite('AgentHostClientTools', () => {
 		tools: IObservable<readonly IToolData[]> = constObservable([]),
 		toolSets: IObservable<Iterable<IToolSet>> = constObservable([]),
 		mcpOptions?: { remoteAuthority?: string; servers: readonly IMcpServer[] },
+		reconcile: () => Promise<void> = async () => { },
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		let semanticSearchEnabled = false;
@@ -132,6 +134,9 @@ suite('AgentHostClientTools', () => {
 		}());
 		instantiationService.stub(IAgentPluginService, {
 			plugins: observableValue('plugins', []),
+		});
+		instantiationService.stub(IAgentPluginActivationService, {
+			reconcile,
 		});
 		instantiationService.stub(IMcpService, {
 			servers: observableValue('mcpServers', mcpOptions?.servers ?? []),
@@ -169,6 +174,26 @@ suite('AgentHostClientTools', () => {
 			},
 		};
 	}
+
+	test('waits for plugin reconciliation before resolving a customization scope', async () => {
+		const reconciliation = new DeferredPromise<void>();
+		let reconciliationCount = 0;
+		const { service } = createActiveClientService(undefined, undefined, undefined, () => {
+			reconciliationCount++;
+			return reconciliation.p;
+		});
+		const scope = disposables.add(service.acquireScope(SessionType.CopilotCLI, []));
+		let resolved = false;
+		void scope.whenResolved().then(() => resolved = true);
+
+		await timeout(0);
+		assert.strictEqual(resolved, false);
+
+		reconciliation.complete();
+		await scope.whenResolved();
+		await scope.refresh?.();
+		assert.deepStrictEqual({ resolved, reconciliationCount }, { resolved: true, reconciliationCount: 2 });
+	});
 
 	test('lazily creates scopes and shares them for equivalent root sets', async () => {
 		const { service } = createActiveClientService();
@@ -903,6 +928,9 @@ suite('AgentHostClientTools', () => {
 			});
 			instantiationService.stub(IAgentPluginService, {
 				plugins: observableValue('plugins', []),
+			});
+			instantiationService.stub(IAgentPluginActivationService, {
+				reconcile: async () => { },
 			});
 			// Acquiring a customization scope is now infallible, so the handler
 			// constructs a real one — which reads these on its first autorun.

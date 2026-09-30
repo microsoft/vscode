@@ -1011,7 +1011,7 @@ class ActiveClientEntry extends Disposable {
 
 	/** Binds the backend session and reconciles this client's latest snapshot before returning. */
 	async claim(backendSession: URI, cancellationToken: CancellationToken): Promise<void> {
-		await raceCancellation(this._scope.whenResolved(), cancellationToken);
+		await raceCancellation(this._scope.refresh?.() ?? this._scope.whenResolved(), cancellationToken);
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}

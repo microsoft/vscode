@@ -26,6 +26,7 @@ import { observableConfigValue } from '../../../../../../platform/observable/com
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
+import { IAgentPluginActivationService } from '../../../common/plugins/agentPluginActivationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
@@ -58,6 +59,8 @@ export interface IAgentCustomizationScope extends IDisposable {
 	readonly isResolved: IObservable<boolean>;
 	/** Resolves once the scope's initial customization resolution has completed. */
 	whenResolved(): Promise<void>;
+	/** Reconciles configured plugins and refreshes the customization snapshot. */
+	refresh?(): Promise<void>;
 }
 
 export interface IAgentHostActiveClientService {
@@ -90,6 +93,7 @@ class AgentCustomizationScope extends Disposable {
 	private _refCount = 0;
 	private _updateSeq = 0;
 	private _isDisposed = false;
+	private readonly _refreshCustomizations: () => Promise<void>;
 
 	get customizations(): IObservable<readonly ClientPluginCustomization[]> {
 		return this._customizations;
@@ -119,6 +123,7 @@ class AgentCustomizationScope extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
+		@IAgentPluginActivationService private readonly _agentPluginActivationService: IAgentPluginActivationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
@@ -172,8 +177,12 @@ class AgentCustomizationScope extends Disposable {
 				}
 			}
 		};
+		this._refreshCustomizations = async () => {
+			await this._agentPluginActivationService.reconcile();
+			await updateCustomizations();
+		};
 		const scheduleUpdate = () => {
-			this._updateDelayer.trigger(() => updateCustomizations()).catch(() => { /* delayer disposed */ });
+			this._updateDelayer.trigger(() => this._refreshCustomizations()).catch(() => { /* delayer disposed */ });
 		};
 
 		this._register(this._syncProvider.onDidChange(() => scheduleUpdate()));
@@ -213,6 +222,7 @@ class AgentCustomizationScope extends Disposable {
 			tools: this.tools,
 			isResolved: this.isResolved,
 			whenResolved: () => this._initialResolution.p,
+			refresh: () => this._refreshCustomizations(),
 			activeClient: clientId => this.activeClient(clientId),
 			dispose: () => {
 				if (!released) {

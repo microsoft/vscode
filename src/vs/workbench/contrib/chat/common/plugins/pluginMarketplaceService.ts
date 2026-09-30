@@ -211,6 +211,8 @@ export interface IPluginMarketplaceService {
 	removeInstalledPlugin(pluginUri: URI): void;
 	/** Returns whether the given marketplace is trusted — either explicitly trusted by the user, or allowed by the enterprise allowlist when strict mode is active. */
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean;
+	/** Returns whether enterprise policy establishes trust in the marketplace source. */
+	isMarketplaceTrustedByPolicy(ref: IMarketplaceReference): boolean;
 	/**
 	 * Returns whether the strict-marketplace enterprise policy
 	 * (`chat.plugins.strictMarketplaces`) is active — i.e. an allowlist is
@@ -822,16 +824,23 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean {
-		// In strict mode (`chat.plugins.strictMarketplaces`, typically delivered via the
-		// `ChatStrictMarketplaces` enterprise policy), trust is governed entirely by the
-		// allowlist: a marketplace is trusted only if it matches one of the configured
-		// source entries. The user-trusted store is bypassed — that's the whole point of
-		// "strict": the enterprise fully controls the allowed marketplaces.
 		const allowlist = getStrictKnownMarketplaces(this._configurationService.getValue(ChatConfiguration.StrictMarketplaces));
 		if (allowlist !== undefined) {
 			return isMarketplaceReferenceAllowed(allowlist, ref);
 		}
+		if (this.isMarketplaceTrustedByPolicy(ref)) {
+			return true;
+		}
 		return this._trustedMarketplacesStore.get().includes(ref.canonicalId);
+	}
+
+	isMarketplaceTrustedByPolicy(ref: IMarketplaceReference): boolean {
+		const allowlist = getStrictKnownMarketplaces(this._configurationService.getValue(ChatConfiguration.StrictMarketplaces));
+		if (allowlist !== undefined && isMarketplaceReferenceAllowed(allowlist, ref)) {
+			return true;
+		}
+		const { extraValues } = readConfiguredMarketplaces(this._configurationService);
+		return parseMarketplaceReferences(extraValues).some(managed => managed.canonicalId === ref.canonicalId);
 	}
 
 	isStrictMarketplacePolicyActive(): boolean {
