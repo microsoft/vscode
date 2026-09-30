@@ -11,6 +11,17 @@ import { GitHubRequestError } from '../../common/githubTransport.js';
 suite('GitHub response helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	function assertMalformedResponse(read: () => void, message: string): void {
+		// The browser assertion shim requires predicates with a prototype.
+		function isExpectedError(error: unknown): boolean {
+			return error instanceof GitHubRequestError
+				&& error.name === 'GitHubRequestError'
+				&& error.message === message
+				&& error.kind === 'malformedResponse';
+		}
+		assert.throws(read, isExpectedError);
+	}
+
 	test('nextLink returns the first next relation without changing its URL', () => {
 		assert.deepStrictEqual({
 			single: nextLink('<https://api.github.com/repos/o/r/issues?page=2&per_page=100>; rel="next"'),
@@ -98,8 +109,8 @@ suite('GitHub response helpers', () => {
 		['string', 'value'],
 	] as const) {
 		test(`object and array readers reject ${name} with the caller's error message`, () => {
-			assert.throws(() => asObject(value, 'Expected an object'), new GitHubRequestError('Expected an object', 'malformedResponse'));
-			assert.throws(() => asArray(value, 'Expected an array'), new GitHubRequestError('Expected an array', 'malformedResponse'));
+			assertMalformedResponse(() => asObject(value, 'Expected an object'), 'Expected an object');
+			assertMalformedResponse(() => asArray(value, 'Expected an array'), 'Expected an array');
 		});
 	}
 
@@ -124,7 +135,7 @@ suite('GitHub response helpers', () => {
 		{ name: 'missing or empty IDs', read: () => requiredId({ databaseId: '', id: null }, 'databaseId', 'id'), message: 'GitHub response did not contain databaseId or id' },
 	]) {
 		test(`reports malformedResponse for ${name}`, () => {
-			assert.throws(read, new GitHubRequestError(message, 'malformedResponse'));
+			assertMalformedResponse(read, message);
 		});
 	}
 
