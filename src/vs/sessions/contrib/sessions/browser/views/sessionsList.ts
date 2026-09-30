@@ -3743,6 +3743,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					}
 				},
 				horizontalScrolling: false,
+				// Avoid stale composited row textures over the transparent shell gradient while scrolling.
+				transformOptimization: false,
 				multipleSelectionSupport: true,
 				allowNonCollapsibleParents: true,
 				enableStickyScroll: true,
