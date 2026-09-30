@@ -73,8 +73,7 @@ export class TreeSitterCommandParser extends Disposable {
 	}
 
 	async getCommandForRiskAssessment(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string | undefined> {
-		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshFlagEquals(commandLine) : commandLine;
-		const { captures, hasError } = await this._queryTreeWithParseStatus(languageId, masked, '(comment) @comment');
+		const { captures, hasError } = await this._queryTreeWithParseStatus(languageId, commandLine, '(comment) @comment');
 		if (hasError) {
 			return undefined;
 		}

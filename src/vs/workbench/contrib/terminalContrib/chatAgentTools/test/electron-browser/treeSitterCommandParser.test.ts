@@ -60,6 +60,12 @@ suite('TreeSitterCommandParser', () => {
 			);
 		});
 
+		test('does not manufacture PowerShell comments from flag values', async () => {
+			const commandLine = 'git log --format=#safe; Remove-Item -Recurse src';
+			const result = await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.PowerShell, commandLine);
+			ok(result === undefined || result.includes('Remove-Item -Recurse src'));
+		});
+
 		test('returns undefined for malformed syntax', async () => {
 			deepStrictEqual(
 				await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, 'echo "unterminated'),
