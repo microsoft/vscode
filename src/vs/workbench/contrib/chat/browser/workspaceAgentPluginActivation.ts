@@ -129,7 +129,7 @@ export class WorkspaceAgentPluginActivation extends Disposable implements IWorkb
 			}
 
 			try {
-				await this._pluginInstallService.installPlugin(plugin, this._cancellation.token);
+				await this._pluginInstallService.installPlugin(plugin, this._cancellation.token, { skipTrust: true });
 			} catch (error) {
 				if (!isCancellationError(error)) {
 					this._logService.error(`[WorkspaceAgentPluginActivation] Failed to install workspace plugin '${pluginId}'`, error);

@@ -16,7 +16,7 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { WorkspaceAgentPluginActivation } from '../../../browser/workspaceAgentPluginActivation.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
+import { IInstallMarketplacePluginOptions, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
 import { IMarketplaceInstalledPlugin, IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('WorkspaceAgentPluginActivation', () => {
@@ -63,6 +63,7 @@ suite('WorkspaceAgentPluginActivation', () => {
 		const baselineSet = new DeferredPromise<void>();
 		let installCount = 0;
 		let fetchCount = 0;
+		let installOptions: IInstallMarketplacePluginOptions | undefined;
 		const { model, states } = createEnablementModel(state => {
 			if (state === ContributionEnablementState.DisabledProfile) {
 				baselineSet.complete();
@@ -83,8 +84,9 @@ suite('WorkspaceAgentPluginActivation', () => {
 			}
 		}();
 		const installService = new class extends mock<IPluginInstallService>() {
-			override async installPlugin(_plugin: IMarketplacePlugin, _token?: CancellationToken): Promise<void> {
+			override async installPlugin(_plugin: IMarketplacePlugin, _token?: CancellationToken, installOptionsArgument?: IInstallMarketplacePluginOptions): Promise<void> {
 				installCount++;
+				installOptions = installOptionsArgument;
 				if (options?.installSucceeds !== false) {
 					installedPlugins.set([{ pluginUri: installUri, plugin }], undefined);
 				}
@@ -116,6 +118,7 @@ suite('WorkspaceAgentPluginActivation', () => {
 			installCalled,
 			installedPlugins,
 			states,
+			get installOptions() { return installOptions; },
 			get fetchCount() { return fetchCount; },
 			get installCount() { return installCount; },
 		};
@@ -129,10 +132,12 @@ suite('WorkspaceAgentPluginActivation', () => {
 		assert.deepStrictEqual({
 			fetchCount: harness.fetchCount,
 			installCount: harness.installCount,
+			skipTrust: harness.installOptions?.skipTrust,
 			profileState: harness.states.get(installUri.toString()),
 		}, {
 			fetchCount: 1,
 			installCount: 1,
+			skipTrust: true,
 			profileState: ContributionEnablementState.DisabledProfile,
 		});
 	});

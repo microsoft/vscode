@@ -999,6 +999,24 @@ suite('PluginInstallService', () => {
 			assert.strictEqual(state.trustedMarketplaces.length, 0, 'should not re-trust');
 		});
 
+		test('skips trust prompt when a trusted repository established the marketplace source', async () => {
+			const { service, state } = createService({ marketplaceTrusted: false, dialogConfirmResult: false });
+			const plugin = createPlugin({
+				source: 'plugins/myPlugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' },
+			});
+
+			await service.installPlugin(plugin, CancellationToken.None, { skipTrust: true });
+
+			assert.deepStrictEqual({
+				installed: state.addedPlugins.length,
+				trusted: state.trustedMarketplaces.length,
+			}, {
+				installed: 1,
+				trusted: 0,
+			});
+		});
+
 		test('shows trust prompt and installs when user confirms', async () => {
 			const { service, state } = createService({ marketplaceTrusted: false, dialogConfirmResult: true });
 			const plugin = createPlugin({

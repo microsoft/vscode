@@ -211,6 +211,7 @@ suite('WorkspacePluginSettingsService', () => {
 		await writeClaudeSettings(JSON.stringify({
 			extraKnownMarketplaces: {
 				'nested-mp': {
+					autoUpdate: true,
 					source: {
 						source: 'github',
 						repo: 'nested-owner/nested-repo',
@@ -226,6 +227,7 @@ suite('WorkspacePluginSettingsService', () => {
 		assert.strictEqual(marketplaces.length, 1);
 		assert.strictEqual(marketplaces[0].reference.githubRepo, 'nested-owner/nested-repo');
 		assert.strictEqual(marketplaces[0].reference.displayLabel, 'nested-mp');
+		assert.strictEqual(marketplaces[0].reference.autoUpdate, true);
 	}));
 
 	test('deduplicates marketplaces across Claude and Copilot by canonical ID', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

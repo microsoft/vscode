@@ -828,7 +828,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	isMarketplaceAutoUpdateEnabled(ref: IMarketplaceReference): boolean {
 		const { extraValues } = readConfiguredMarketplaces(this._configurationService);
 		const managedRef = parseMarketplaceReferences(extraValues).find(candidate => candidate.canonicalId === ref.canonicalId);
-		return managedRef?.autoUpdate ?? this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off';
+		return managedRef?.autoUpdate ?? ref.autoUpdate ?? this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off';
 	}
 
 	private _isMarketplaceAllowedByStrictPolicy(ref: IMarketplaceReference): boolean {

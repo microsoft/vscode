@@ -724,6 +724,13 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 			unmanaged: false,
 		});
 	});
+
+	test('repository marketplace autoUpdate overrides the global setting', () => {
+		const service = createService('off');
+		const repositoryMarketplace = { ...parseMarketplaceReference('microsoft/repository-plugins')!, autoUpdate: true };
+
+		assert.strictEqual(service.isMarketplaceAutoUpdateEnabled(repositoryMarketplace), true);
+	});
 });
 
 suite('PluginMarketplaceService - installed plugins lifecycle', () => {
