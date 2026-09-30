@@ -35,6 +35,7 @@ import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESO
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { readSessionIsPromoted, SESSION_IS_PROMOTED_METADATA_KEY } from '../../common/meta/agentSessionPromotionMeta.js';
 import { PendingMessageKind } from '../../common/state/protocol/channels-chat/state.js';
+import { AutomationRunOriginKind, AutomationRunStatus } from '../../common/state/protocol/channels-automation-run/state.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -1427,11 +1428,21 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
+		function markAutomationSession(stateManager: AgentHostStateManager, session: URI): void {
+			stateManager.setAutomationRunState({
+				resource: 'ahp-automation-run:/promotion', automation: 'ahp-automation:/promotion',
+				origin: { kind: AutomationRunOriginKind.Manual },
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: '2026-09-29T00:00:00Z', startedAt: '2026-09-29T00:00:00Z', completedAt: '2026-09-29T00:00:01Z' },
+				sessions: [session.toString()], primarySession: session.toString(),
+			});
+		}
+
 		for (const kind of [PendingMessageKind.Queued, PendingMessageKind.Steering]) {
 			test(`replayed ${kind} messages do not promote, but a user edit does`, async () => {
 				registerTestAgentProvider(service, copilotAgent);
 				const session = await service.createSession({ provider: 'copilot' });
 				const stateManager = getStateManager(service);
+				markAutomationSession(stateManager, session);
 				const chat = buildDefaultChatUri(session.toString());
 				stateManager.dispatchServerAction(chat, {
 					type: ActionType.ChatTurnStarted, turnId: 'seed', startedAt: '2026-09-29T00:00:00Z',
@@ -1468,6 +1479,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await svc.createSession({ provider: 'copilot' });
 			const chat = buildDefaultChatUri(session.toString());
 			const stateManager = getStateManager(svc);
+			markAutomationSession(stateManager, session);
 			const promoted = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope,
 				envelope => envelope.channel === session.toString() && envelope.action.type === ActionType.SessionMetaChanged && readSessionIsPromoted(envelope.action)));
 			svc.dispatchAction(chat, {
@@ -1493,6 +1505,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const stateManager = getStateManager(service);
+			markAutomationSession(stateManager, session);
 			const chat = buildDefaultChatUri(session.toString());
 			stateManager.dispatchServerAction(chat, {
 				type: ActionType.ChatTurnStarted, turnId: 'rejected-human', startedAt: '2026-09-29T00:00:00Z',

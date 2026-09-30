@@ -272,6 +272,7 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _annotations = new Map<string, AnnotationsState>();
 	private _automationCatalog: AutomationState | undefined;
 	private readonly _automationRuns = new Map<string, AutomationRunState>();
+	private readonly _automationSessionResources = new Set<string>();
 
 	/**
 	 * Active turns per session, keyed by session URI string with the value
@@ -833,7 +834,20 @@ export class AgentHostStateManager extends Disposable {
 
 	/** Installs one durable automation run before accepting subscriptions. */
 	setAutomationRunState(state: AutomationRunState): void {
+		const previous = this._automationRuns.get(state.resource);
+		if (previous?.sessions !== state.sessions) {
+			for (const session of previous?.sessions ?? []) {
+				this._automationSessionResources.delete(session);
+			}
+			for (const session of state.sessions) {
+				this._automationSessionResources.add(session);
+			}
+		}
 		this._automationRuns.set(state.resource, state);
+	}
+
+	isAutomationSession(session: string): boolean {
+		return this._automationSessionResources.has(session);
 	}
 
 	getAutomationRunState(resource: string): AutomationRunState | undefined {
@@ -1981,7 +1995,7 @@ export class AgentHostStateManager extends Disposable {
 			}
 			const newState = automationRunReducer(state, action, this._log);
 			if (newState !== state) {
-				this._automationRuns.set(channel, newState);
+				this.setAutomationRunState(newState);
 			}
 			resultingState = newState;
 		}

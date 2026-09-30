@@ -15,6 +15,7 @@ import type { IAgentHostChatContributions } from '../../common/agentHostChatCont
 import { readSessionIsPromoted, SESSION_IS_PROMOTED_METADATA_KEY, withSessionIsPromoted } from '../../common/meta/agentSessionPromotionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { withMessageRetryOf } from '../../common/meta/agentMessageRetryMeta.js';
+import { AutomationRunOriginKind, AutomationRunStatus } from '../../common/state/protocol/state.js';
 import { IAgentHostSessionMetadataPersistence } from '../../node/shared/persistSessionMetadata.js';
 import { ActionType, type ClientChatAction } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, SessionStatus } from '../../common/state/sessionState.js';
@@ -26,7 +27,7 @@ import { createSessionDataService, TestSessionDatabase } from '../common/session
 suite('Session promotion', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(database = new TestSessionDatabase(), logService = new NullLogService()) {
+	function setup(database = new TestSessionDatabase(), logService = new NullLogService(), automation = true) {
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const session = 'copilot:/automation-run';
 		const chat = buildDefaultChatUri(session);
@@ -35,6 +36,14 @@ suite('Session promotion', () => {
 			createdAt: '2026-09-29T00:00:00Z', modifiedAt: '2026-09-29T00:00:00Z',
 			_meta: { retained: 'original' },
 		});
+		if (automation) {
+			stateManager.setAutomationRunState({
+				resource: 'ahp-automation-run:/test', automation: 'ahp-automation:/test',
+				origin: { kind: AutomationRunOriginKind.Manual },
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: '2026-09-29T00:00:00Z', startedAt: '2026-09-29T00:00:00Z', completedAt: '2026-09-29T00:00:01Z' },
+				sessions: [session], primarySession: session,
+			});
+		}
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
@@ -69,6 +78,18 @@ suite('Session promotion', () => {
 			readSessionIsPromoted({ _meta: { [SESSION_IS_PROMOTED_METADATA_KEY]: 'true' } }),
 			readSessionIsPromoted({ _meta: withSessionIsPromoted({ retained: 1 }) }),
 		], [false, false, false, true]);
+	});
+
+	test('ordinary sessions do not persist promotion on user messages', async () => {
+		const h = setup(new TestSessionDatabase(), new NullLogService(), false);
+		h.dispatch({
+			type: ActionType.ChatTurnStarted, turnId: 'ordinary', startedAt: '2026-09-29T00:00:00Z',
+			message: { text: 'Hello', origin: { kind: MessageKind.User } },
+		});
+		assert.deepStrictEqual({
+			promoted: readSessionIsPromoted(h.stateManager.getSessionSummary(h.session)),
+			writes: h.database.setMetadataCalls,
+		}, { promoted: false, writes: [] });
 	});
 
 	for (const kind of ['direct', PendingMessageKind.Queued, PendingMessageKind.Steering] as const) {

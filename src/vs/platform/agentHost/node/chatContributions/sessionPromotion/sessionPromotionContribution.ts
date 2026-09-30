@@ -44,6 +44,9 @@ export class SessionPromotionContribution extends Disposable implements IAgentHo
 		if (action.message.origin.kind !== MessageKind.User || readMessageRetryOf(action.message)) {
 			return;
 		}
+		if (!this._stateManager.isAutomationSession(session)) {
+			return;
+		}
 		const chat = this._stateManager.getChatState(channel);
 		if (action.type === ActionType.ChatTurnStarted) {
 			const lastTurn = chat?.turns.at(-1);
