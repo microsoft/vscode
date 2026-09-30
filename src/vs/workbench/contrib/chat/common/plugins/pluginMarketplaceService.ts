@@ -462,10 +462,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				this._marketplacesWithUpdates.set(new Set(), undefined);
 				this._scheduleUpdateCheck(0);
 			}));
-			this._register(onDidChangeWorkspaceMarketplaces(() => {
-				this._marketplacesWithUpdates.set(new Set(), undefined);
-				this._scheduleUpdateCheck(0);
-			}));
 			this._register(this._meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
 				if (isMetered) {
 					this._updateCheckDelayer.cancel();
@@ -833,9 +829,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	isMarketplaceAutoUpdateEnabled(ref: IMarketplaceReference): boolean {
 		const { extraValues } = readConfiguredMarketplaces(this._configurationService);
 		const managedRef = parseMarketplaceReferences(extraValues).find(candidate => candidate.canonicalId === ref.canonicalId);
-		const workspaceRef = this._workspacePluginSettingsService.extraMarketplaces.get()
-			.find(entry => entry.reference.canonicalId === ref.canonicalId)?.reference;
-		return managedRef?.autoUpdate ?? workspaceRef?.autoUpdate ?? this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off';
+		return managedRef?.autoUpdate ?? this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off';
 	}
 
 	private _isMarketplaceAllowedByStrictPolicy(ref: IMarketplaceReference): boolean {
@@ -963,11 +957,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return true;
 		}
 		const { extraValues } = readConfiguredMarketplaces(this._configurationService);
-		if (parseMarketplaceReferences(extraValues).some(ref => ref.autoUpdate === true)) {
-			return true;
-		}
-		return this._workspacePluginSettingsService.extraMarketplaces.get()
-			.some(entry => this.isMarketplaceAutoUpdateEnabled(entry.reference));
+		return parseMarketplaceReferences(extraValues).some(ref => ref.autoUpdate === true);
 	}
 
 	/**
