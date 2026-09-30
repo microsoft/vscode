@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { IChatModelInformation } from '../../../../platform/endpoint/common/endpointProvider';
 import { TokenizerType } from '../../../../util/common/tokenizer';
-import { applyOpenAIProviderConfig } from '../openAIProvider';
+import { applyOpenAIProviderConfig, GPT_LIVE_MODEL_ID, withOpenAIVoiceModels } from '../openAIProvider';
 
 function createModelInfo(zeroDataRetentionEnabled: boolean | undefined): IChatModelInformation {
 	return {
@@ -53,5 +53,18 @@ describe('applyOpenAIProviderConfig', () => {
 		});
 
 		expect(merged.zeroDataRetentionEnabled).toBe(true);
+	});
+});
+
+describe('withOpenAIVoiceModels', () => {
+	it('adds GPT Live as a voice-only known model', () => {
+		expect(withOpenAIVoiceModels(undefined)[GPT_LIVE_MODEL_ID]).toEqual({
+			name: 'GPT Live 1',
+			contextWindow: 128000,
+			maxOutputTokens: 8192,
+			toolCalling: false,
+			vision: false,
+			voice: true,
+		});
 	});
 });

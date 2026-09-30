@@ -44,6 +44,20 @@ describe('byokKnownModelToAPIInfo', () => {
 		expect(info.capabilities.editTools).toBeUndefined();
 	});
 
+	it('keeps voice models out of chat model pickers', () => {
+		const info = byokKnownModelToAPIInfo('OpenAI', 'gpt-live-1', {
+			...baseCapabilities,
+			name: 'GPT Live 1',
+			voice: true,
+		});
+
+		expect(info).toMatchObject({
+			id: 'gpt-live-1',
+			name: 'GPT Live 1',
+			isUserSelectable: false,
+		});
+	});
+
 	it('derives maxInputTokens from contextWindow when maxInputTokens is omitted', () => {
 		// The value surfaced here becomes `model.maxInputTokens`, which the custom
 		// endpoint/OAI/azure providers read when building the endpoint.
