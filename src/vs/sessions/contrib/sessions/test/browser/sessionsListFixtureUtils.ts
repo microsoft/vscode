@@ -342,7 +342,11 @@ class SessionsListFixtureMenuService extends MenuService {
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
 		if (id === Menus.SidebarSessionsHeader) {
 			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
-			return { onDidChange: Event.None, getActions: () => [['navigation', [newSession]]], dispose: () => { } };
+			return {
+				onDidChange: Event.None,
+				getActions: () => SessionsListRearrangeContext.getValue(contextKeyService) ? [] : [['navigation', [newSession]]],
+				dispose: () => { },
+			};
 		}
 		const menu = super.createMenu(id, contextKeyService, options);
 		return {
@@ -574,7 +578,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}());
 	const automationRuns = observableValue<readonly IAutomationRun[]>('fixtureAutomationRuns', []);
 	const newSessionButtonStyle = header?.newSessionButtonStyle ?? header?.newSessionButtonTreatment;
-	const newSessionKeybinding = newSessionButtonStyle ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
+	const newSessionKeybinding = newSessionButtonStyle || header?.navigationShortcuts ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -854,7 +858,11 @@ async function renderHeaderState(list: SessionsList, container: HTMLElement, ins
 			affectsConfiguration: configuration => configuration === NEW_SESSION_BUTTON_STYLE_SETTING,
 		});
 	}
-	if (!container.querySelector('.agent-sessions-compact-new-button')) {
+	const newSessionButton = container.querySelector('.agent-sessions-compact-new-button');
+	if (header.navigationShortcuts && newSessionButton) {
+		throw new Error('Expected the experimental navigation to replace the Sessions header New Session action.');
+	}
+	if (!header.navigationShortcuts && !newSessionButton) {
 		throw new Error('Expected the production New Session action in the Sessions header.');
 	}
 	const style = header.newSessionButtonStyle ?? header.newSessionButtonTreatment;

@@ -2826,8 +2826,10 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly automationNewBadgeVisible?: IObservable<boolean>;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
+	readonly newSessionKeybindingAriaLabel?: IObservable<string | undefined>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
 	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
+	readonly getAriaLevel?: (element: SessionListItem) => number | undefined;
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
 	readonly deriveStatusFromMainChat?: boolean;
 	readonly collapsedSessionIds?: IObservable<ReadonlySet<string>>;
@@ -2835,10 +2837,14 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 }
 
 class SessionsAccessibilityProvider {
+	readonly getAriaLevel: ((element: SessionListItem) => number | undefined) | undefined;
+
 	constructor(
 		private readonly automationStatus?: IObservable<SessionStatus | undefined>,
 		private readonly options?: ISessionsAccessibilityProviderOptions,
-	) { }
+	) {
+		this.getAriaLevel = options?.getAriaLevel;
+	}
 
 	getWidgetAriaLabel(): string {
 		return localize('sessionsList', "Sessions");
@@ -2873,7 +2879,12 @@ class SessionsAccessibilityProvider {
 				return element.label;
 			}
 			if (element.id === NEW_SESSION_SECTION_ID) {
-				return localize('newSessionAria', "New Session");
+				return derived(this, reader => {
+					const keybindingAriaLabel = this.options?.newSessionKeybindingAriaLabel?.read(reader);
+					return keybindingAriaLabel
+						? localize('newSessionAria', "New Session ({0})", keybindingAriaLabel)
+						: localize('newSessionAriaWithoutKeybinding', "New Session");
+				});
 			}
 			if (element.id === AUTOMATIONS_SECTION_ID) {
 				return derived(this, reader => {
@@ -3618,6 +3629,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private suspendCollapseStatePersistence = false;
 	private sessionsHeaderHeight = SESSIONS_HEADER_DEFAULT_HEIGHT + SESSIONS_HEADER_VERTICAL_SPACING;
 	private readonly sessionsHeaders = new Set<HTMLElement>();
+	private readonly accessibilityLevels = new WeakMap<SessionListItem, number>();
 	private readonly findOpen = observableValue(this, false);
 
 	/** The group whose header is currently showing its inline name editor. */
@@ -3840,6 +3852,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.map(blocked => blocked.session.sessionId)
 		));
 		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
+		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID)?.getAriaLabel() ?? undefined);
 		const newSessionActive = derived(this, reader => this._sessionsService.activeSession.read(reader)?.isCreated.read(reader) === false);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
@@ -3932,8 +3945,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
 					customizationsCount,
 					customizationMigrationsAvailable,
+					newSessionKeybindingAriaLabel,
 					showUnreadInCollapsedSections,
 					sessionsWithFailingCI,
+					getAriaLevel: element => this.accessibilityLevels.get(element),
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),
@@ -4762,7 +4777,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		if (showNavigationShortcuts && this.options.createSessionsHeader) {
-			this.tree.setChildren(null, [
+			this.setTreeChildren([
 				{
 					element: { id: NEW_SESSION_SECTION_ID, label: localize('new', "New"), sessions: [] },
 					collapsible: false,
@@ -4779,12 +4794,26 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 			]);
 		} else {
-			this.tree.setChildren(null, [...navigationChildren, ...children]);
+			this.setTreeChildren([...navigationChildren, ...children]);
 		}
 		this.nestedSessionResources = nextNestedSessionResources;
 		this.syncCollapsedSessionIds();
 		this.reconcileChatRowHeights();
 		this._onDidUpdate.fire();
+	}
+
+	private setTreeChildren(children: IObjectTreeElement<SessionListItem>[]): void {
+		const updateAccessibilityLevels = (elements: Iterable<IObjectTreeElement<SessionListItem>>, level: number): void => {
+			for (const element of elements) {
+				this.accessibilityLevels.set(element.element, level);
+				if (element.children) {
+					const childLevel = isSessionSection(element.element) && element.element.id === NEW_SESSION_SECTION_ID ? level : level + 1;
+					updateAccessibilityLevels(element.children, childLevel);
+				}
+			}
+		};
+		updateAccessibilityLevels(children, 1);
+		this.tree.setChildren(null, children);
 	}
 
 	private syncCollapsedSessionIds(): void {
