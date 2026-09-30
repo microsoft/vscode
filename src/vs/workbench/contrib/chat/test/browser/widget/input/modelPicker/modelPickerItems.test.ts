@@ -881,6 +881,24 @@ suite('buildModelPickerItems', () => {
 		]);
 	});
 
+	test('Free plans retain a user-provided model with the HydraFusion model ID', () => {
+		const auto = createAutoModel();
+		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+		const userHydraFusion = createModel('hydrafusion', 'My HydraFusion', 'ollama');
+		const actions = getActionItems(callBuild([auto, hydraFusion, userHydraFusion], {
+			entitlement: ChatEntitlement.Free,
+			controlModels: { 'hydrafusion': { label: 'HydraFusion', featured: true, exists: false } },
+		}));
+		assert.deepStrictEqual(actions.filter(action => action.label?.includes('HydraFusion')).map(action => [
+			action.label,
+			action.disabled ?? false,
+			action.description instanceof MarkdownString ? action.description.value : action.description,
+		]), [
+			['HydraFusion', true, '[Upgrade](command:workbench.action.chat.upgradePlan " ")'],
+			['My HydraFusion', false, undefined],
+		]);
+	});
+
 	test('HydraFusion too new for this build loses its row under Auto and shows the update it needs', () => {
 		const auto = createAutoModel();
 		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });

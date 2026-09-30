@@ -118,6 +118,7 @@ suite('ModelPickerTelemetry', () => {
 		let searchModels: () => void = () => assert.fail('Tabbed picker has not opened');
 		let toggleAuto: () => void = () => assert.fail('Tabbed picker has not opened');
 		let hideFlatPicker = () => { };
+		let flatPickerHideCount = 0;
 		const hideTabbedPicker = () => {
 			visible = false;
 			detailsOptions = undefined;
@@ -178,7 +179,10 @@ suite('ModelPickerTelemetry', () => {
 				setItems(items, item => delegate.onSelect(item));
 				listOptions = options;
 				contextViewLayer = layer;
-				hideFlatPicker = () => delegate.onHide();
+				hideFlatPicker = () => {
+					flatPickerHideCount++;
+					delegate.onHide();
+				};
 			},
 			hide: () => hideFlatPicker(),
 			focusItemById: () => { },
@@ -278,7 +282,10 @@ suite('ModelPickerTelemetry', () => {
 			}
 		}());
 		instantiationService.stub(IProductService, { version: '1.100.0' });
-		const entitlementService = new TestChatEntitlementService();
+		const entitlementChanged = store.add(new Emitter<void>());
+		const entitlementService = new class extends TestChatEntitlementService {
+			override readonly onDidChangeEntitlement = entitlementChanged.event;
+		}();
 		entitlementService.entitlement = ChatEntitlement.Pro;
 		instantiationService.stub(IChatEntitlementService, entitlementService);
 		instantiationService.stub(IUpdateService, { state: { type: StateType.Uninitialized } });
@@ -306,8 +313,13 @@ suite('ModelPickerTelemetry', () => {
 		return {
 			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds,
 			get visible() { return visible; },
+			get flatPickerHideCount() { return flatPickerHideCount; },
 			get tabbedShows() { return tabbedShows; },
 			get contextViewLayer() { return contextViewLayer; },
+			setEntitlement: (entitlement: ChatEntitlement) => {
+				entitlementService.entitlement = entitlement;
+				entitlementChanged.fire();
+			},
 			selectItem: (label: string) => selectItem(label),
 			selectTab: (label: string) => selectTab(label),
 			pinItem: (label: string) => pinItem(label),
@@ -333,6 +345,23 @@ suite('ModelPickerTelemetry', () => {
 			},
 		};
 	}
+
+	test('legacy picker closes and replaces selected HydraFusion when entitlement resolves to Free', () => {
+		const hydraFusion = createModel('hydrafusion');
+		const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model]);
+		result.picker.render(result.container);
+		result.hide();
+		const hideCount = result.flatPickerHideCount;
+		result.picker.show(result.container);
+		result.setEntitlement(ChatEntitlement.Free);
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			closed: result.flatPickerHideCount - hideCount,
+		}, {
+			selected: autoModel.identifier,
+			closed: 1,
+		});
+	});
 
 	for (const tabbed of [false, true]) {
 		test(`forwards the requested context view layer to the ${tabbed ? 'tabbed' : 'flat'} picker`, () => {

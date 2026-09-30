@@ -29,7 +29,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../..
 import { StateType } from '../../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
@@ -92,6 +92,7 @@ suite('TabbedModelPicker', () => {
 		selectedModelId?: string;
 		pinnedModelIds?: string[];
 		controlModels?: IStringDictionary<IModelControlEntry>;
+		controlManifest?: IModelsControlManifest;
 		entitlement?: ChatEntitlement;
 		showUnavailable?: boolean;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
@@ -155,6 +156,7 @@ suite('TabbedModelPicker', () => {
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'ollama', displayName: 'Ollama' }),
 			],
 			getLanguageModelGroups: () => [],
+			getModelsControlManifest: () => options.controlManifest ?? { free: {}, paid: {} },
 		}));
 		const changed = disposables.add(new Emitter<string>());
 		const values = new Map<string, IStringDictionary<unknown>>();
@@ -676,7 +678,11 @@ suite('TabbedModelPicker', () => {
 			entitlement: ChatEntitlement.Unknown,
 			showUnavailable: true,
 			controlModels: {
-				hydrafusion: { label: 'HydraFusion', exists: false, featured: true },
+				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
+			},
+			controlManifest: {
+				free: { hydrafusion: { label: 'HydraFusion', exists: false, featured: true } },
+				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
 			},
 		});
 		const before = Array.from(result.popup.querySelectorAll('.chat-model-picker-routing-model .title'), element => element.textContent);
@@ -694,6 +700,34 @@ suite('TabbedModelPicker', () => {
 			upgrade: true,
 			selected: ['Balance'],
 			selections: [],
+		});
+	});
+
+	test('resolving an open picker to Free replaces a selected HydraFusion with Auto', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: hydra.identifier,
+			entitlement: ChatEntitlement.Unknown,
+			showUnavailable: true,
+			controlModels: {
+				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
+			},
+			controlManifest: {
+				free: { hydrafusion: { label: 'HydraFusion', exists: false, featured: true } },
+				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+			},
+		});
+		result.setEntitlement(ChatEntitlement.Free);
+		assert.deepStrictEqual({
+			upgrade: element(result.popup, '.chat-model-picker-unavailable').textContent?.includes('Upgrade'),
+			selected: selectedModels(result.popup),
+			selections: result.selections,
+		}, {
+			upgrade: true,
+			selected: ['Balance'],
+			selections: [auto.identifier],
 		});
 	});
 

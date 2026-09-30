@@ -12,7 +12,7 @@ import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
-import { IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, createModelAction, createModelItem, createPinAction, createUnavailableModelItem, getProviderGroupForModel, getProviderGroupKey, getUnavailableReason, isVersionAtLeast, ProviderGroupKey, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
 import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
@@ -134,7 +134,10 @@ export function buildFlatModelItems(options: IBuildModelPickerItemsOptions): IAc
 	if (options.models.length === 0 && options.presentation.showAutoModel) {
 		items.push(createSyntheticAutoItem());
 	}
-	const leadingModels = [options.models.find(isAutoModel), options.models.find(isHydraFusionModel)].filter(isDefined);
+	const leadingModels = [
+		options.models.find(isAutoModel),
+		options.models.find(model => isHydraFusionModel(model) && !isUserProvidedModel(model, options.languageModelsService)),
+	].filter(isDefined);
 	for (const model of leadingModels) {
 		const { action, ariaDescription } = createModelAction(model, options.selectedModelId, options.actions.onSelect);
 		items.push(createModelItem(action, model, options.openerService, undefined, options.presentation.isUBB, ariaDescription));
@@ -163,7 +166,9 @@ interface IGroupedContext {
 function createGroupedContext(options: IBuildModelPickerItemsOptions): IGroupedContext {
 	const modelToGroup = buildModelToProviderGroupMap(options.languageModelsService);
 	const allModels = new Map(options.models.map(model => [model.identifier, model]));
-	const modelsByMetadataId = new Map(options.models.map(model => [model.metadata.id, model]));
+	const modelsByMetadataId = new Map(options.models
+		.filter(model => !isUserProvidedModel(model, options.languageModelsService))
+		.map(model => [model.metadata.id, model]));
 	const placed = new Set<string>();
 	return {
 		options,
@@ -194,7 +199,10 @@ function appendLeadingModels(context: IGroupedContext): ILanguageModelChatMetada
 		items.push(createModelItem(action, autoModel, options.openerService, undefined, options.presentation.isUBB, ariaDescription));
 	}
 	// A build too old for HydraFusion leaves it to the sections below, which show the update it needs.
-	const hydraFusionModel = options.models.find(model => isHydraFusionModel(model) && !requiresNewerVSCode(model, options.controlModels, options.currentVSCodeVersion));
+	const hydraFusionModel = options.models.find(model =>
+		isHydraFusionModel(model) &&
+		!isUserProvidedModel(model, options.languageModelsService) &&
+		!requiresNewerVSCode(model, options.controlModels, options.currentVSCodeVersion));
 	if (hydraFusionModel) {
 		context.markPlaced(hydraFusionModel.identifier);
 		const { action, ariaDescription } = createModelAction(hydraFusionModel, options.selectedModelId, options.actions.onSelect);

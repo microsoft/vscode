@@ -32,7 +32,7 @@ import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerC
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, organizationDefaultLabel } from './modelPickerBadges.js';
 import { createModelAction, createModelItem, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
-import { getModelPickerAccessibilityProvider } from './modelPickerItems.js';
+import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
 import { filterModelPickerModelsForEntitlement, isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
@@ -140,7 +140,24 @@ export class TabbedModelPicker extends Disposable {
 				this.refresh();
 			}
 		}));
-		this._register(this._entitlementService.onDidChangeEntitlement(() => this.refresh(this._models)));
+		this._register(this._entitlementService.onDidChangeEntitlement(() => {
+			if (!this.isVisible || !this._context) {
+				return;
+			}
+			const controlModels = getModelPickerControlModels(
+				this._languageModelsService.getModelsControlManifest(),
+				this._entitlementService.entitlement,
+				this._models,
+			);
+			this._context = this._filterModelsForEntitlement({ ...this._context, models: this._models, controlModels });
+			if (this._context.selectedModelId && !this._context.models.some(model => model.identifier === this._context?.selectedModelId)) {
+				const fallback = this._autoModel(this._context) ?? this._fallbackModel(this._context);
+				if (fallback) {
+					this._applyModelSelection(fallback, this._context);
+				}
+			}
+			this.refresh();
+		}));
 		this._register(this._widget.onDidHide(() => {
 			// Search is a transient view. Left on, it would also size the next popup from
 			// its flattened cross-provider list.
@@ -224,7 +241,7 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _filterModelsForEntitlement(context: ITabbedModelPickerContext): ITabbedModelPickerContext {
-		return { ...context, models: filterModelPickerModelsForEntitlement(context.models, this._entitlementService.entitlement) };
+		return { ...context, models: filterModelPickerModelsForEntitlement(context.models, this._entitlementService.entitlement, this._languageModelsService) };
 	}
 
 	private _showCurrent(initialFilterValue?: string): void {

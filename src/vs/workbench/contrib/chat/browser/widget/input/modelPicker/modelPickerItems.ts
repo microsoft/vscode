@@ -82,7 +82,7 @@ export function createManageModelsAction(commandService: ICommandService): IActi
 export function buildModelPickerItems(options: IBuildModelPickerItemsOptions): IActionListItem<IActionWidgetDropdownAction>[] {
 	const pickerOptions = {
 		...options,
-		models: filterModelPickerModelsForEntitlement(options.models, options.chatEntitlementService.entitlement),
+		models: filterModelPickerModelsForEntitlement(options.models, options.chatEntitlementService.entitlement, options.languageModelsService),
 	};
 	const unavailableItems = buildUnavailableStateItems(pickerOptions);
 	if (unavailableItems) {
