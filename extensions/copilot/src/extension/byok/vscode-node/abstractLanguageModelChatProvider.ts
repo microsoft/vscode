@@ -148,6 +148,9 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 			}
 
 			for (const model of models) {
+				if (typeof model !== 'object' || model === null || typeof model.id !== 'string' || !model.id) {
+					continue;
+				}
 				let modelCapabilities = this._knownModels?.[model.id];
 				if (!modelCapabilities) {
 					modelCapabilities = this.resolveModelCapabilities(model);
