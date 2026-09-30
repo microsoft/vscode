@@ -104,10 +104,11 @@
 .new-session-workspace-picker-container .sessions-workspace-category-picker.new-chat-session-options {
 	width: fit-content;
 	max-width: 100%;
-	margin: 0;
+	margin: 0 0 calc(-1 * var(--vscode-cornerRadius-large));
 	flex-wrap: nowrap;
 	gap: 0;
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80) calc(var(--vscode-spacing-size60) + var(--vscode-cornerRadius-large));
+	background-color: var(--vscode-editorWidget-background);
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
 	border-bottom: 0;
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
