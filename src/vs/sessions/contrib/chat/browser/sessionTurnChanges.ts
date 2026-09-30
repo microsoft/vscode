@@ -150,7 +150,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 
 	private _isMostRecentChat(session: ISession, chat: IChat, reader?: IReader): boolean {
 		const mostRecentChat = session.chats.read(reader).reduce<IChat | undefined>(
-			(latest, candidate) => !latest || candidate.updatedAt.read(reader).getTime() > latest.updatedAt.read(reader).getTime() ? candidate : latest,
+			(latest, candidate) => !latest || (candidate.updatedAt.read(reader)?.getTime() ?? -Infinity) > (latest.updatedAt.read(reader)?.getTime() ?? -Infinity) ? candidate : latest,
 			undefined,
 		);
 		return isEqual(mostRecentChat?.resource ?? session.mainChat.read(reader).resource, chat.resource);

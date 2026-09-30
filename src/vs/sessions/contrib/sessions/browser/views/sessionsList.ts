@@ -237,6 +237,11 @@ function getChatTitle(chat: IChat, reader?: IReader): string {
 	return chat.title.read(reader).trim() || localize('untitledChat', "Untitled Chat");
 }
 
+function formatSessionListTime(date: Date): string {
+	const seconds = Math.round((Date.now() - date.getTime()) / 1000);
+	return seconds < 60 ? localize('secondsDuration', "now") : fromNow(date, true);
+}
+
 function getSessionListChats(session: ISession, reader?: IReader, showArchived = false): readonly IChat[] {
 	const mainChat = session.mainChat.read(reader);
 	return session.chats.read(reader).filter(chat =>
@@ -399,7 +404,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	getHeight(element: SessionListItem): number {
 		if (isSessionChatItem(element)) {
 			let chatHeight = this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
-			if (!this._isCompact() && getChatWorkspaceBadgeLabel(element.session.workspace.get(), element.chat.workspace.get())) {
+			if (!this._isCompact() && (getChatWorkspaceBadgeLabel(element.session.workspace.get(), element.chat.workspace.get()) || element.chat.updatedAt.get())) {
 				chatHeight += SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT;
 			}
 			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, chatHeight));
@@ -453,9 +458,10 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	}
 
 	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
+		const detailsHeight = !this._isCompact() && element.chat.updatedAt.get() ? SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT : 0;
 		return this.withInsetRowSpacing(this.withChatApprovalHeight(
 			element,
-			this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT,
+			(this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT) + detailsHeight,
 		));
 	}
 
@@ -702,7 +708,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
 		const chats = getSessionListChats(element.session, undefined, this.showArchivedChats());
 		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
-		let hadFolderRow: boolean | undefined;
+		let hadDetailsRow: boolean | undefined;
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
@@ -731,6 +737,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			const sessionWorkspace = element.session.workspace.read(reader);
 			const chatWorkspace = element.chat.workspace.read(reader);
 			const folderLabel = getChatWorkspaceBadgeLabel(sessionWorkspace, chatWorkspace);
+			const updatedAt = element.chat.updatedAt.read(reader);
 			template.container.classList.toggle('has-folder-label', !!folderLabel);
 			DOM.clearNode(template.compactHoverDescription);
 			if (folderLabel) {
@@ -738,10 +745,10 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				reader.store.add(this.hoverService.setupDelayedHover(badge, { content: folderLabel }, { groupId: 'sessions-list' }));
 			}
 
-			const showFolderRow = !this.compact() && !!folderLabel;
-			template.folderRow.hidden = !showFolderRow;
+			const showDetailsRow = !this.compact() && (!!folderLabel || !!updatedAt);
+			template.folderRow.hidden = !showDetailsRow;
 			DOM.clearNode(template.folderRow);
-			if (showFolderRow && folderLabel && chatWorkspace) {
+			if (showDetailsRow && folderLabel && chatWorkspace) {
 				const kind = getSessionWorkspaceKind(chatWorkspace, false);
 				const icon = kind === SessionWorkspaceKind.Worktree ? Codicon.worktreeCompact : Codicon.folderCompact;
 				const iconContainer = DOM.append(template.folderRow, $('span.session-chat-folder-icon'));
@@ -749,15 +756,25 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				const label = DOM.append(template.folderRow, $('span.session-chat-folder-label', undefined, folderLabel));
 				reader.store.add(this.hoverService.setupDelayedHover(label, { content: folderLabel }, { groupId: 'sessions-list' }));
 			}
-			if (hadFolderRow === undefined) {
-				hadFolderRow = showFolderRow;
+			if (showDetailsRow && updatedAt) {
+				if (folderLabel) {
+					DOM.append(template.folderRow, $('span.session-chat-separator', undefined, '\u00B7'));
+				}
+				const time = DOM.append(template.folderRow, $('span.session-chat-time'));
+				time.textContent = formatSessionListTime(updatedAt);
+				const targetWindow = DOM.getWindow(time);
+				const interval = targetWindow.setInterval(() => time.textContent = formatSessionListTime(updatedAt), 60_000);
+				reader.store.add(toDisposable(() => targetWindow.clearInterval(interval)));
+			}
+			if (hadDetailsRow === undefined) {
+				hadDetailsRow = showDetailsRow;
 				// A row sized while offscreen reserved no folder row, since its
 				// workspace was not read then; correct it once it is rendered.
-				if (showFolderRow) {
+				if (showDetailsRow) {
 					template.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(template.container), () => this._onDidChangeItemHeight.fire(element)));
 				}
-			} else if (hadFolderRow !== showFolderRow) {
-				hadFolderRow = showFolderRow;
+			} else if (hadDetailsRow !== showDetailsRow) {
+				hadDetailsRow = showDetailsRow;
 				this._onDidChangeItemHeight.fire(element);
 			}
 		}));
@@ -1601,14 +1618,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const diffStats = this.options.deriveStatusFromMainChat && (workspace?.folders.length ?? 0) > 1
 				? getSessionListChatDiffStats(element, element.mainChat.read(reader), this.options.activeSession, reader)
 				: getSessionDiffStats(element, reader);
-			let timeDate: Date | undefined;
-
-			// When the session is InProgress or NeedsInput, hide workspace/diff/time details in this row
+			// When the session is InProgress or NeedsInput, hide workspace/diff details in this row
 			const hideDetails = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
-
-			if (!hideDetails) {
-				timeDate = element.updatedAt.read(reader);
-			}
+			const mainChat = element.mainChat.read(reader);
+			const timeDate = mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
 
 			const parts: HTMLElement[] = [];
 
@@ -1664,17 +1677,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				descriptionDisposable.clear();
 			}
 
-			// Timestamp — visible when not hiding details
-			if (!hideDetails && timeDate) {
+			if (timeDate) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
 				const definiteTimeDate = timeDate;
-				const formatTime = () => {
-					const seconds = Math.round((Date.now() - definiteTimeDate.getTime()) / 1000);
-					return seconds < 60 ? localize('secondsDuration', "now") : fromNow(definiteTimeDate, true);
-				};
+				const formatTime = () => formatSessionListTime(definiteTimeDate);
 				timeEl.textContent = formatTime();
 				const targetWindow = DOM.getWindow(timeEl);
 				const interval = targetWindow.setInterval(() => {
@@ -2598,12 +2607,16 @@ class SessionsAccessibilityProvider {
 		if (isSessionChatItem(element)) {
 			return derived(this, reader => {
 				const title = getChatTitle(element.chat, reader);
-				const updated = fromNow(element.chat.updatedAt.read(reader), true);
+				const updatedAt = element.chat.updatedAt.read(reader);
 				const status = getSessionConversationStatusAriaLabel(element.chat.status.read(reader));
 				const folderLabel = getChatWorkspaceBadgeLabel(element.session.workspace.read(reader), element.chat.workspace.read(reader));
-				const label = folderLabel
-					? localize('sessionChatItemFolderAria', "{0}, chat in folder {1}, updated {2}, {3}", title, folderLabel, updated, status)
-					: localize('sessionChatItemAria', "{0}, chat, updated {1}, {2}", title, updated, status);
+				const label = updatedAt
+					? folderLabel
+						? localize('sessionChatItemFolderAria', "{0}, chat in folder {1}, updated {2}, {3}", title, folderLabel, fromNow(updatedAt, true), status)
+						: localize('sessionChatItemAria', "{0}, chat, updated {1}, {2}", title, fromNow(updatedAt, true), status)
+					: folderLabel
+						? localize('sessionChatItemFolderWithoutTimeAria', "{0}, chat in folder {1}, {2}", title, folderLabel, status)
+						: localize('sessionChatItemWithoutTimeAria', "{0}, chat, {1}", title, status);
 				return element.chat.isArchived.read(reader)
 					? localize('sessionChatItemArchivedAria', "{0}, archived", label)
 					: label;
@@ -2670,14 +2683,15 @@ class SessionsAccessibilityProvider {
 		}
 		return derived(this, reader => {
 			const title = element.title.read(reader);
-			const updated = fromNow(element.updatedAt.read(reader), true);
+			const mainChat = element.mainChat.read(reader);
+			const updatedAt = mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
 			let label: string;
 			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
-				label = localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, updated);
+				label = updatedAt ? localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, fromNow(updatedAt, true)) : localize('sessionItemQuickChatWithoutTimeAria', "{0}, chat", title);
 			} else if (element.worktreePending?.read(reader)) {
-				label = localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated);
+				label = updatedAt ? localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, fromNow(updatedAt, true)) : localize('sessionItemWorktreePendingWithoutTimeAria', "{0}, creating worktree", title);
 			} else {
-				label = localize('sessionItemAria', "{0}, updated {1}", title, updated);
+				label = updatedAt ? localize('sessionItemAria', "{0}, updated {1}", title, fromNow(updatedAt, true)) : title;
 			}
 			const status = getSessionRowStatus(
 				element,
@@ -4500,8 +4514,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (this.tree.hasElement(chatItem) && this.tree.getRelativeTop(chatItem) !== null) {
 					chatItem.session.workspace.read(reader);
 					chatItem.chat.workspace.read(reader);
+					chatItem.chat.updatedAt.read(reader);
 					this.tree.updateElementHeight(chatItem, this._delegate.getHeight(chatItem));
 				} else if (this.tree.hasElement(chatItem)) {
+					chatItem.chat.updatedAt.read(reader);
 					this.tree.updateElementHeight(chatItem, this._delegate.getHeightWithoutChatWorkspace(chatItem));
 				}
 			}

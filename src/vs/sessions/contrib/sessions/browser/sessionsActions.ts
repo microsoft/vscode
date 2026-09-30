@@ -1103,12 +1103,15 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 		readonly chat: IChat;
 	}
 
-	const toItem = (chat: IChat): IChatPickItem => ({
-		label: chat.title.get()?.trim() || localize('untitledChat', "Untitled Chat"),
-		description: fromNow(chat.updatedAt.get(), true, true),
-		iconClass: ThemeIcon.asClassName(Codicon.commentDiscussion),
-		chat,
-	});
+	const toItem = (chat: IChat): IChatPickItem => {
+		const updatedAt = chat.updatedAt.get();
+		return {
+			label: chat.title.get()?.trim() || localize('untitledChat', "Untitled Chat"),
+			...(updatedAt ? { description: fromNow(updatedAt, true, true) } : {}),
+			iconClass: ThemeIcon.asClassName(Codicon.commentDiscussion),
+			chat,
+		};
+	};
 
 	// MRU mode cycles every open tab (including in-composer drafts) so the set of
 	// switchable chats matches the SessionHasMultipleOpenChatsContext gate. The
