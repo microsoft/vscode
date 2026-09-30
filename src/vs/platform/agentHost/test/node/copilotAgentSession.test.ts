@@ -3209,6 +3209,24 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('skips the check when the account does not use content exclusion', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				githubToken: 'github-token',
+				restrictedTelemetryContext: { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined, copilotIgnoreEnabled: false },
+			});
+			// Checking would make the policy unavailable and drop the snapshot.
+			mockSession.contentExcludedPaths = undefined;
+			const deliveries: IWorkspaceSnapshotDelivery[] = [];
+
+			await session.send('hello', undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, snapshot(deliveries));
+			const all = { roots: [repo, secretProject] };
+
+			assert.deepStrictEqual({ additionalContext: session.handleUserPromptSubmitted(), deliveries }, {
+				additionalContext: { additionalContext: renderWorkspaceSnapshot(all) },
+				deliveries: [{ contentExclusion: 'notEnabled', excludedPathCount: 0, includedRootCount: 2, snapshotLength: renderWorkspaceSnapshotStructure(all).length }],
+			});
+		});
+
 		test('does not send or report delivery when the turn is cancelled during the content exclusion check', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			const gate = new DeferredPromise<void>();

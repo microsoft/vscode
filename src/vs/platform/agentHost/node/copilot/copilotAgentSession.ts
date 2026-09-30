@@ -454,7 +454,7 @@ const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
-/** Longest a first turn waits for the content exclusion check of its workspace snapshot before omitting the snapshot. */
+/** Longest a first turn waits to learn whether content exclusion applies to its workspace snapshot, and to check it, before omitting the snapshot. */
 const CONTENT_EXCLUSION_CHECK_TIMEOUT_MS = 1000;
 
 function hasParentPathSegment(filePath: string): boolean {
@@ -3103,14 +3103,24 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Drops the workspace snapshot's paths that the session's content exclusion
-	 * policy excludes, and renders the rest. Fails closed: sends no snapshot
-	 * when the policy cannot be evaluated in time.
+	 * policy excludes, and renders the rest. Like Copilot Chat, skips the check
+	 * when the Copilot token says content exclusion is not enabled for the
+	 * account, since the runtime may still be fetching rules on a new session.
+	 * Otherwise fails closed: sends no snapshot when the policy cannot be
+	 * evaluated in time.
 	 */
 	private async _applyContentExclusion(snapshot: IWorkspaceSnapshot): Promise<{ readonly instruction?: string; readonly delivery: IWorkspaceSnapshotDelivery }> {
+		const deadline = Date.now() + CONTENT_EXCLUSION_CHECK_TIMEOUT_MS;
+		if (await this._isContentExclusionEnabled(CONTENT_EXCLUSION_CHECK_TIMEOUT_MS) === false) {
+			return {
+				instruction: renderWorkspaceSnapshot(snapshot),
+				delivery: { contentExclusion: 'notEnabled', excludedPathCount: 0, includedRootCount: snapshot.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(snapshot).length },
+			};
+		}
 		const paths = getWorkspaceSnapshotPaths(snapshot);
 		let excluded: Set<string> | undefined;
 		try {
-			const result = await raceTimeout(this._wrapper.session.rpc.contentExclusion.checkPaths({ paths }), CONTENT_EXCLUSION_CHECK_TIMEOUT_MS);
+			const result = await raceTimeout(this._wrapper.session.rpc.contentExclusion.checkPaths({ paths }), Math.max(0, deadline - Date.now()));
 			if (result?.available === true && result.checks.length === paths.length && result.checks.every((check, index) => check.path === paths[index] && typeof check.excluded === 'boolean')) {
 				excluded = new Set(result.checks.filter(check => check.excluded).map(check => check.path));
 			}
@@ -3130,6 +3140,23 @@ export class CopilotAgentSession extends Disposable {
 			instruction: renderWorkspaceSnapshot(filtered),
 			delivery: { contentExclusion: 'evaluated', excludedPathCount: excluded.size, includedRootCount: filtered.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(filtered).length },
 		};
+	}
+
+	/**
+	 * Whether the Copilot token enables content exclusion for the account, from
+	 * the account discovery the session already relies on. `undefined` when it
+	 * cannot be determined within `timeoutMs`.
+	 */
+	private async _isContentExclusionEnabled(timeoutMs: number): Promise<boolean | undefined> {
+		const githubToken = this._currentGitHubToken;
+		if (!githubToken) {
+			return undefined;
+		}
+		try {
+			return (await raceTimeout(this._copilotApiService.resolveRestrictedTelemetryContext(githubToken), timeoutMs))?.copilotIgnoreEnabled;
+		} catch {
+			return undefined;
+		}
 	}
 
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined {

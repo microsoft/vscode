@@ -28,8 +28,12 @@ export interface IWorkspaceSnapshotRoot {
 
 /** What reached the model when a turn carrying a {@link IWorkspaceSnapshot} was submitted. */
 export interface IWorkspaceSnapshotDelivery {
-	/** `unavailable` when content exclusion could not be evaluated, in which case no snapshot was sent. */
-	readonly contentExclusion: 'evaluated' | 'unavailable';
+	/**
+	 * `notEnabled` when the account does not use content exclusion, so nothing
+	 * was checked; `unavailable` when it could not be evaluated, in which case
+	 * no snapshot was sent.
+	 */
+	readonly contentExclusion: 'evaluated' | 'notEnabled' | 'unavailable';
 	/** Listed paths, roots included, that content exclusion excludes. */
 	readonly excludedPathCount: number;
 	/** Roots that remained after content exclusion. */

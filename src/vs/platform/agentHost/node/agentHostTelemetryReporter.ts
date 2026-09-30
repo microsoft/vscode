@@ -102,8 +102,8 @@ export type IAgentHostExecutionModeChangedClassification = IAgentHostEventClassi
 /** How a first-turn workspace snapshot was prepared relative to the send. */
 export type AgentHostWorkspaceSnapshotPreparation = 'prepared' | 'startedAtSend' | 'directoriesChanged';
 
-/** Whether the provider evaluated content exclusion for the snapshot; `notApplicable` when there was no snapshot to check. */
-export type AgentHostWorkspaceSnapshotContentExclusion = 'evaluated' | 'unavailable' | 'notApplicable';
+/** How the provider applied content exclusion to the snapshot; `notApplicable` when there was no snapshot to check. */
+export type AgentHostWorkspaceSnapshotContentExclusion = 'evaluated' | 'notEnabled' | 'unavailable' | 'notApplicable';
 
 export interface IAgentHostWorkspaceSnapshotEvent {
 	preparation: AgentHostWorkspaceSnapshotPreparation;
@@ -126,7 +126,7 @@ type IAgentHostWorkspaceSnapshotClassification = {
 	emptyRootCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of roots omitted because they had no visible files or are Git storage directories.' };
 	failedRootCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of roots omitted because they could not be read.' };
 	waitMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds the first send waited for unfinished roots.' };
-	contentExclusion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the provider evaluated content exclusion for the snapshot, could not (so none was sent), or had no snapshot to check.' };
+	contentExclusion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the provider checked the snapshot against content exclusion, skipped the check because the account does not use content exclusion, could not check it (so none was sent), or had no snapshot to check.' };
 	excludedPathCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of listed paths dropped because content exclusion excludes them.' };
 	snapshotLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Length in characters of the file-name tree that reached the model, after content exclusion, or 0 when none did.' };
 	owner: 'bhavyaus';
