@@ -79,6 +79,12 @@ suite('terminalEnvironment', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz"qux', PosixShellType.Fish), '\'/foo/bar\\\'baz"qux\'');
 		});
 
+		test('should fail closed for csh history expansion', () => {
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz\\qux', PosixShellType.Csh), `'/foo/bar'\\''baz\\qux'`);
+			throws(() => escapeNonWindowsPath('/foo/bar!!baz', PosixShellType.Csh));
+			throws(() => escapeNonWindowsPath('/foo/bar!$baz', PosixShellType.Csh));
+		});
+
 		test('should escape for PowerShell', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar', GeneralShellType.PowerShell), '\'/foo/bar\'');
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', GeneralShellType.PowerShell), '\'/foo/bar\'\'baz\'');
