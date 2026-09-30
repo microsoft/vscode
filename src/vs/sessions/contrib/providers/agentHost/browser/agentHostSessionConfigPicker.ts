@@ -42,10 +42,10 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
-import { NEW_WORKTREE_LABEL } from '../../../../common/sessionConfig.js';
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { NEW_WORKTREE_LABEL } from '../../../chat/browser/branchPicker.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';

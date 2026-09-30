@@ -40,7 +40,7 @@ import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/co
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
-import { BranchPicker, IBranchPickerBranch } from '../../chat/browser/branchPicker.js';
+import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../chat/browser/branchPicker.js';
 import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
 import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
@@ -67,7 +67,6 @@ import { ISessionContext, SessionContext } from '../../../services/sessions/brow
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
-import { NEW_WORKTREE_LABEL } from '../../../common/sessionConfig.js';
 import { Menus } from '../../../browser/menus.js';
 
 const $ = DOM.$;
