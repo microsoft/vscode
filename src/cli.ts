@@ -25,9 +25,9 @@ process.env['VSCODE_CLI'] = '1';
 // Bootstrap ESM
 await bootstrapESM();
 
-// Geliştirici Tanılama Kancası: ESM başlatma sonrası loglama ve süre ölçümü
+// Developer Diagnostic Hook: Logging and duration measurement after ESM initialization
 if (process.env['VSCODE_DEV'] || process.env['VSCODE_CLI_DEBUG']) {
-    console.log(`[Dev Helper Diagnostic] CLI initialized successfully in ${Date.now() - startupTimestamp}ms`);
+    console.error(`[Dev Helper Diagnostic] ESM bootstrap completed in ${Date.now() - startupTimestamp}ms`);
 }
 
 // Load Server
