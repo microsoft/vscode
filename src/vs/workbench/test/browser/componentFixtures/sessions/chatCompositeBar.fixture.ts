@@ -195,7 +195,7 @@ async function renderStickyMessageFrame(ctx: ComponentFixtureContext, width: num
 	});
 	// The fixture helper adds a workbench stacking context that is absent from production chat views.
 	chatView.classList.remove('monaco-workbench');
-	assert(handle);
+	assert(handle !== undefined, 'Expected the chat widget to render');
 	const { listWidget } = handle;
 	const targetWindow = getWindow(content);
 	for (let attempt = 0; attempt < 60; attempt++) {
