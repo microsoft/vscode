@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, registerAutorunSelfDisposable } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
@@ -15,7 +14,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { hasTaskDependencies, ISessionTaskWithTarget, ISessionsTasksService } from './sessionsTasksService.js';
+import { ISessionsTasksService, ISessionTaskWithTarget } from './sessionsTasksService.js';
 
 const LOG_PREFIX = '[WorktreeCreatedTaskDispatcher]';
 
@@ -82,8 +81,6 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 		this._sessionDisposables.set(session.sessionId, store);
 
 		const taskHandles = store.add(new DisposableStore());
-		const taskCancellation = new CancellationTokenSource();
-		store.add({ dispose: () => taskCancellation.dispose(true) });
 
 		registerAutorunSelfDisposable(store, reader => {
 			if (session.loading.read(reader)) {
@@ -96,70 +93,58 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 				return;
 			}
 			reader.dispose();
-			this._dispatchWorktreeCreatedTasks(session, taskHandles, taskCancellation.token);
+			this._dispatchWorktreeCreatedTasks(session, taskHandles);
 		});
 
 		store.add(autorun(reader => {
 			if (session.isArchived.read(reader)) {
-				taskCancellation.cancel();
 				taskHandles.clear();
 			}
 		}));
 	}
 
-	private async _dispatchWorktreeCreatedTasks(session: ISession, taskHandles: DisposableStore, token: CancellationToken): Promise<void> {
+	private async _dispatchWorktreeCreatedTasks(session: ISession, taskHandles: DisposableStore): Promise<void> {
 		if (isAgentHostProviderId(session.providerId) && !this._configurationService.getValue<boolean>(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING)) {
 			this._logService.trace(`${LOG_PREFIX} Skipping worktreeCreated tasks for agent host session '${session.sessionId}' — '${AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING}' is disabled.`);
 			return;
 		}
 
 		let tasks;
+		let allTasks;
 		try {
 			tasks = await this._sessionsTasksService.getSessionTasksOnce(session);
+			allTasks = await this._sessionsTasksService.getAllTasks(session);
 		} catch (err) {
 			this._logService.warn(`${LOG_PREFIX} Failed to read tasks for session '${session.sessionId}': ${err}`);
 			return;
 		}
 
+		// The worktree's own tasks.json comes from the checked-out branch. Ask before
+		// running a task it defines, or one that could resolve to it by label or dependency.
+		const workspaceTaskLabels = new Set(allTasks.filter(({ target }) => target === 'workspace').map(({ task }) => task.label));
+		const requiresConfirmation = ({ task, target }: ISessionTaskWithTarget) => target === 'workspace' || workspaceTaskLabels.has(task.label) || task.dependsOn !== undefined;
 		const worktreeCreatedTasks = tasks.filter(({ task }) => task.runOptions?.runOn === 'worktreeCreated');
-		if (worktreeCreatedTasks.length === 0 || !this._canDispatchTasks(session)) {
-			return;
+		let confirmed = false;
+		if (worktreeCreatedTasks.some(requiresConfirmation)) {
+			confirmed = (await this._dialogService.confirm({
+				type: Severity.Warning,
+				message: localize('confirmWorktreeCreatedTasks', "Run Automatic Tasks from This Worktree?"),
+				detail: localize('confirmWorktreeCreatedTasksDetail', "The selected branch defines automatic task commands in .vscode/tasks.json. Only run them if you trust this worktree."),
+				primaryButton: localize('runWorktreeCreatedTasks', "&&Run Tasks"),
+			})).confirmed;
 		}
 
-		const requiresWorkspaceTaskApproval = worktreeCreatedTasks.some(entry => this._requiresWorkspaceTaskApproval(entry));
-		let workspaceTasksApproved = false;
-		if (requiresWorkspaceTaskApproval) {
-			try {
-				workspaceTasksApproved = (await this._dialogService.confirm({
-					type: Severity.Warning,
-					message: localize('confirmWorktreeCreatedTasks', "Run Automatic Tasks from This Worktree?"),
-					detail: localize('confirmWorktreeCreatedTasksDetail', "The selected branch defines automatic task commands in .vscode/tasks.json. Only run them if you trust this worktree."),
-					primaryButton: localize('runWorktreeCreatedTasks', "&&Run Tasks"),
-				})).confirmed;
-			} catch (err) {
-				this._logService.warn(`${LOG_PREFIX} Failed to confirm worktreeCreated tasks for session '${session.sessionId}': ${err}`);
-			}
-			if (!this._canDispatchTasks(session)) {
-				return;
-			}
-		}
-
-		for (const { task, target } of worktreeCreatedTasks) {
-			if (!this._canDispatchTasks(session)) {
-				return;
-			}
-			if (this._requiresWorkspaceTaskApproval({ task, target }) && !workspaceTasksApproved) {
+		for (const entry of worktreeCreatedTasks) {
+			const { task } = entry;
+			if (!confirmed && requiresConfirmation(entry)) {
+				this._logService.trace(`${LOG_PREFIX} Skipping worktreeCreated task '${task.label}' for session '${session.sessionId}' — not confirmed.`);
 				continue;
 			}
 			this._logService.trace(`${LOG_PREFIX} Running worktreeCreated task '${task.label}' for session '${session.sessionId}'`);
 			try {
-				const handle = await this._sessionsTasksService.runTask(task, session, undefined, {
-					taskTarget: target,
-					allowWorkspaceTaskDependencies: workspaceTasksApproved,
-					token,
-				});
+				const handle = await this._sessionsTasksService.runTask(task, session);
 				if (handle) {
-					if (!this._canDispatchTasks(session) || token.isCancellationRequested) {
+					if (session.isArchived.get()) {
 						handle.dispose();
 					} else {
 						taskHandles.add(handle);
@@ -169,13 +154,5 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 				this._logService.warn(`${LOG_PREFIX} Failed to run task '${task.label}' for session '${session.sessionId}': ${err}`);
 			}
 		}
-	}
-
-	private _requiresWorkspaceTaskApproval({ task, target }: ISessionTaskWithTarget): boolean {
-		return target === 'workspace' || hasTaskDependencies(task);
-	}
-
-	private _canDispatchTasks(session: ISession): boolean {
-		return !!this._sessionDisposables.get(session.sessionId) && !session.isArchived.get();
 	}
 }
