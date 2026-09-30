@@ -4883,7 +4883,6 @@ export class AgentService extends Disposable implements IAgentService {
 					: existing);
 			this._catalogSyncSuppressedSessions.add(sessionKey);
 			try {
-				const modifiedAt = new Date().toISOString();
 				await this._peerChatStore.upsert(
 					session,
 					chat,
@@ -4891,7 +4890,6 @@ export class AgentService extends Disposable implements IAgentService {
 					peerChatOrigin,
 					createResult?.inheritedTurnId,
 					createOptions?.workingDirectories?.map(directory => directory.toString()),
-					modifiedAt,
 				);
 				if (title !== undefined) {
 					await persistSessionMetadataValues(this._sessionDataService, chat.toString(), {
@@ -4906,7 +4904,6 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.addChat(sessionKey, chat.toString(), {
 					...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
 					...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
-					modifiedAt,
 					...(providerData !== undefined ? { providerData } : {}),
 					...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
 					...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
@@ -8468,7 +8465,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _readOrMigrateLegacyPeerChatCatalog(agent: IAgent, session: URI, database?: AgentHostCatalogDatabaseReference): Promise<IPersistedPeerChat[]> {
 		const persisted = await this._peerChatStore.reconcileLegacy(session, database);
 		if (persisted !== undefined) {
-			return this._peerChatStore.readLocalChatMetadata(persisted);
+			return persisted;
 		}
 		const cached = await this._readCachedChatCatalog(session);
 		if (cached?.some(chat => chat.kind === 'peer')) {
@@ -8532,14 +8529,12 @@ export class AgentService extends Disposable implements IAgentService {
 					session: session.toString(),
 					chat: chatUri.toString(),
 				}, cachedTitle ? { title: cachedTitle } : {}),
-				entry.modifiedAt === undefined
-					? agent.getChatMetadata(chatUri, this._chatContext(session, chatUri), entry.providerData, { activation: 'restore' })
-					: undefined,
+				agent.getChatMetadata(chatUri, this._chatContext(session, chatUri), entry.providerData, { activation: 'restore' }),
 			]);
-			if (entry.modifiedAt === undefined && !metadata) {
+			if (!metadata) {
 				throw new Error(`Cannot restore peer chat '${chatUri}': provider metadata is unavailable`);
 			}
-			const modifiedAtDate = new Date(entry.modifiedAt ?? metadata!.modifiedTime);
+			const modifiedAtDate = new Date(metadata.modifiedTime);
 			if (isNaN(modifiedAtDate.getTime())) {
 				throw new Error(`Cannot restore peer chat '${chatUri}': provider modified time is invalid`);
 			}

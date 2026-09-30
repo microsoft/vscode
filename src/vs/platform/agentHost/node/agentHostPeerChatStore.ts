@@ -21,7 +21,6 @@ export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
 export const CHAT_ORIGIN_METADATA_KEY = 'agentHost.chatOrigin';
 export const CHAT_INHERITED_TURN_METADATA_KEY = 'agentHost.chatInheritedTurnId';
 export const CHAT_WORKING_DIRECTORIES_METADATA_KEY = 'agentHost.chatWorkingDirectories';
-export const CHAT_MODIFIED_AT_METADATA_KEY = 'agentHost.chatModifiedAt';
 const CHAT_METADATA_CONCURRENCY = 4;
 const IMPORTED_PEER_CHAT_LIMIT = AGENT_HOST_CATALOG_CHILD_LIMIT - 1;
 
@@ -30,7 +29,6 @@ export const IAgentHostPeerChatPersistenceService = createDecorator<IAgentHostPe
 export interface IAgentHostPeerChatPersistenceService {
 	readonly _serviceBrand: undefined;
 	setArchived(session: URI, chat: URI, archived: boolean): Promise<void>;
-	setModifiedAt(session: URI, chat: URI, modifiedAt: string): Promise<void>;
 }
 
 export interface IPersistedPeerChat {
@@ -40,7 +38,6 @@ export interface IPersistedPeerChat {
 	readonly origin?: ChatOrigin;
 	readonly inheritedTurnId?: string;
 	readonly workingDirectories?: readonly string[];
-	readonly modifiedAt?: string;
 }
 
 interface IReplaceCentralOptions {
@@ -121,7 +118,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					return;
 				}
 				const local = await this.readLocalChatMetadata(central);
-				if (JSON.stringify(this._catalogEntries(local)) !== JSON.stringify(central)) {
+				if (JSON.stringify(local) !== JSON.stringify(central)) {
 					const replaceResult = await this._replaceCentral(session, local, catalog.revision, { database });
 					if (replaceResult === 'conflict') {
 						continue;
@@ -170,7 +167,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			if (raw === undefined) {
 				return undefined;
 			}
-			return { raw, entries: this._catalogEntries(this._parse(session, raw, IMPORTED_PEER_CHAT_LIMIT)) };
+			return { raw, entries: this._parse(session, raw, IMPORTED_PEER_CHAT_LIMIT) };
 		} catch (error) {
 			this._logService.warn(`[AgentService] Ignoring malformed peer-chat catalog for ${session.toString()}: ${toErrorMessage(error)}`);
 			return undefined;
@@ -207,19 +204,18 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			}
 			const result = await this._database.replaceSessionChatCatalog(sessionKey, this._catalogRows(entries), undefined);
 			if (result.status === 'applied') {
-				await this._database.recordSessionChatCatalogLegacyMirrorPayload(sessionKey, result.revision, this._stringifyCatalogEntries(entries));
+				await this._database.recordSessionChatCatalogLegacyMirrorPayload(sessionKey, result.revision, JSON.stringify(entries));
 			}
 		});
 	}
 
-	upsert(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin, inheritedTurnId?: string, workingDirectories?: readonly string[], modifiedAt?: string): Promise<void> {
+	upsert(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin, inheritedTurnId?: string, workingDirectories?: readonly string[]): Promise<void> {
 		const chatUri = chat.toString();
 		return this._enqueueWrite(session, entries => {
 			const existing = entries.find(entry => entry.uri === chatUri);
 			const effectiveOrigin = origin ?? existing?.origin;
 			const effectiveInheritedTurnId = inheritedTurnId ?? existing?.inheritedTurnId;
 			const effectiveWorkingDirectories = workingDirectories ?? existing?.workingDirectories;
-			const effectiveModifiedAt = modifiedAt ?? existing?.modifiedAt;
 			const next = entries.filter(entry => entry.uri !== chatUri);
 			next.push({
 				uri: chatUri,
@@ -228,7 +224,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				...(effectiveOrigin !== undefined ? { origin: effectiveOrigin } : {}),
 				...(effectiveInheritedTurnId !== undefined ? { inheritedTurnId: effectiveInheritedTurnId } : {}),
 				...(effectiveWorkingDirectories !== undefined ? { workingDirectories: [...effectiveWorkingDirectories] } : {}),
-				...(effectiveModifiedAt !== undefined ? { modifiedAt: effectiveModifiedAt } : {}),
 			});
 			return next;
 		});
@@ -245,7 +240,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				...(existing?.providerData !== undefined ? { providerData: existing.providerData } : {}),
 				...(existing?.origin !== undefined ? { origin: existing.origin } : {}),
 				...(existing?.inheritedTurnId !== undefined ? { inheritedTurnId: existing.inheritedTurnId } : {}),
-				...(existing?.modifiedAt !== undefined ? { modifiedAt: existing.modifiedAt } : {}),
 				workingDirectories: [...workingDirectories],
 			});
 			return next;
@@ -258,17 +252,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			entry.uri === chatUri
 				? { ...entry, archived: archived || undefined }
 				: entry));
-	}
-
-	setModifiedAt(session: URI, chat: URI, modifiedAt: string): Promise<void> {
-		return this._enqueue(session, async () => {
-			const ref = this._sessionDataService.openDatabase(chat);
-			try {
-				await ref.object.setMetadata(CHAT_MODIFIED_AT_METADATA_KEY, modifiedAt);
-			} finally {
-				ref.dispose();
-			}
-		});
 	}
 
 	remove(session: URI, chat: URI): Promise<void> {
@@ -369,8 +352,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				?? central
 				?? [];
 			const currentWithWorkingDirectories = await this._readWorkingDirectories(current);
-			const currentWithModifiedTimes = await this._readModifiedTimes(currentWithWorkingDirectories);
-			const updated = this._parse(session, JSON.stringify(mutate(currentWithModifiedTimes)));
+			const updated = this._parse(session, JSON.stringify(mutate(currentWithWorkingDirectories)));
 			const result = await this._replaceCentral(session, updated, catalog?.revision, {
 				previousEntries: legacyIsCurrentMirror ? central : undefined,
 				legacyMergeBase: legacy !== undefined && !legacyIsCurrentMirror ? legacy : undefined,
@@ -389,7 +371,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			}
 			return result.status === 'conflict' ? 'conflict' : 'sessionUnavailable';
 		}
-		if (options.legacyMergeBase && !await this._database.recordSessionChatCatalogLegacyMirrorPayload(session.toString(), result.revision, this._stringifyCatalogEntries(options.legacyMergeBase))) {
+		if (options.legacyMergeBase && !await this._database.recordSessionChatCatalogLegacyMirrorPayload(session.toString(), result.revision, JSON.stringify(options.legacyMergeBase))) {
 			return 'conflict';
 		}
 		if (options.publishCompatibility !== false) {
@@ -420,16 +402,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}));
 	}
 
-	private _catalogEntries(entries: readonly IPersistedPeerChat[]): IPersistedPeerChat[] {
-		return entries.map(({ modifiedAt: _modifiedAt, ...entry }) => entry);
-	}
-
-	private _stringifyCatalogEntries(entries: readonly IPersistedPeerChat[]): string {
-		return JSON.stringify(this._catalogEntries(entries));
-	}
-
 	private async _publishCompatibilityState(session: URI, initialEntries: readonly IPersistedPeerChat[], initialRevision: number, database?: AgentHostCatalogDatabaseReference, initialPreviousEntries?: readonly IPersistedPeerChat[]): Promise<void> {
-		let entries = await this._readModifiedTimes(initialEntries);
+		let entries = initialEntries;
 		let revision = initialRevision;
 		let previousEntries = initialPreviousEntries;
 		while (true) {
@@ -445,7 +419,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			}
 			if (current.revision !== revision) {
 				previousEntries = entries;
-				entries = await this._readModifiedTimes(await this._readWorkingDirectories(this._entriesFromCatalog(current.chats)));
+				entries = await this._readWorkingDirectories(this._entriesFromCatalog(current.chats));
 				revision = current.revision;
 				continue;
 			}
@@ -457,7 +431,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				return;
 			}
 			previousEntries = entries;
-			entries = await this._readModifiedTimes(await this._readWorkingDirectories(this._entriesFromCatalog(superseding.chats)));
+			entries = await this._readWorkingDirectories(this._entriesFromCatalog(superseding.chats));
 			revision = superseding.revision;
 		}
 	}
@@ -518,7 +492,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	private async _writeLegacyMirror(session: URI, entries: readonly IPersistedPeerChat[], revision: number, database?: AgentHostCatalogDatabaseReference): Promise<boolean> {
-		const payload = this._stringifyCatalogEntries(entries);
+		const payload = JSON.stringify(entries);
 		const ref = database ?? this._sessionDataService.openDatabase(session);
 		try {
 			await ref.object.setMetadata(PEER_CHATS_METADATA_KEY, payload);
@@ -540,7 +514,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			return {
 				databaseExists: true,
 				...(raw === undefined ? {} : { raw }),
-				entries: raw === undefined ? undefined : this._catalogEntries(this._parse(session, raw, IMPORTED_PEER_CHAT_LIMIT)),
+				entries: raw === undefined ? undefined : this._parse(session, raw, IMPORTED_PEER_CHAT_LIMIT),
 			};
 		} catch (error) {
 			this._logService.warn(`[AgentService] Ignoring malformed peer-chat catalog for ${session.toString()}: ${toErrorMessage(error)}`);
@@ -555,7 +529,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			return undefined;
 		}
 		try {
-			return this._catalogEntries(this._parse(session, payload));
+			return this._parse(session, payload);
 		} catch (error) {
 			this._logService.warn(`[AgentHostPeerChatStore] Ignoring malformed legacy mirror base for ${session.toString()}: ${toErrorMessage(error)}`);
 			return undefined;
@@ -595,7 +569,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				[CHAT_ORIGIN_METADATA_KEY]: true,
 				[CHAT_INHERITED_TURN_METADATA_KEY]: true,
 				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: true,
-				[CHAT_MODIFIED_AT_METADATA_KEY]: true,
 			});
 			const origin = metadata[CHAT_ORIGIN_METADATA_KEY]
 				? this._parseOrigin(metadata[CHAT_ORIGIN_METADATA_KEY])
@@ -603,9 +576,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			const workingDirectories = metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY]
 				? this._parseWorkingDirectories(metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY])
 				: metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY] === '' ? undefined : entry.workingDirectories;
-			const modifiedAt = metadata[CHAT_MODIFIED_AT_METADATA_KEY]
-				? this._parseModifiedAt(metadata[CHAT_MODIFIED_AT_METADATA_KEY])
-				: metadata[CHAT_MODIFIED_AT_METADATA_KEY] === '' ? undefined : entry.modifiedAt;
 			return {
 				uri: entry.uri,
 				...(metadata[CHAT_PROVIDER_DATA_METADATA_KEY] !== undefined
@@ -616,7 +586,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					? metadata[CHAT_INHERITED_TURN_METADATA_KEY] ? { inheritedTurnId: metadata[CHAT_INHERITED_TURN_METADATA_KEY] } : {}
 					: entry.inheritedTurnId !== undefined ? { inheritedTurnId: entry.inheritedTurnId } : {}),
 				...(workingDirectories !== undefined ? { workingDirectories } : {}),
-				...(modifiedAt !== undefined ? { modifiedAt } : {}),
 			};
 		} finally {
 			ref.dispose();
@@ -650,32 +619,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		})));
 	}
 
-	private async _readModifiedTimes(entries: readonly IPersistedPeerChat[]): Promise<IPersistedPeerChat[]> {
-		const limiter = new Limiter<IPersistedPeerChat>(CHAT_METADATA_CONCURRENCY);
-		return Promise.all(entries.map(entry => limiter.queue(async () => {
-			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(entry.uri));
-			if (!ref) {
-				return entry;
-			}
-			try {
-				const raw = await ref.object.getMetadata(CHAT_MODIFIED_AT_METADATA_KEY);
-				if (raw === undefined) {
-					return entry;
-				}
-				const { modifiedAt: _existingModifiedAt, ...entryWithoutModifiedAt } = entry;
-				return {
-					...entryWithoutModifiedAt,
-					...(raw ? { modifiedAt: this._parseModifiedAt(raw) } : {}),
-				};
-			} catch (error) {
-				this._logService.warn(`[AgentHostPeerChatStore] Failed to read chat modified time for ${entry.uri}: ${toErrorMessage(error)}`);
-				return entry;
-			} finally {
-				ref.dispose();
-			}
-		})));
-	}
-
 	private async _writeChatMetadata(entry: IPersistedPeerChat): Promise<void> {
 		const ref = this._sessionDataService.openDatabase(URI.parse(entry.uri));
 		try {
@@ -684,7 +627,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				[CHAT_ORIGIN_METADATA_KEY]: entry.origin === undefined ? '' : this._stringifyOrigin(entry.origin),
 				[CHAT_INHERITED_TURN_METADATA_KEY]: entry.inheritedTurnId ?? '',
 				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: entry.workingDirectories === undefined ? '' : JSON.stringify(entry.workingDirectories),
-				[CHAT_MODIFIED_AT_METADATA_KEY]: entry.modifiedAt ?? '',
 			});
 		} finally {
 			ref.dispose();
@@ -710,13 +652,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			throw new Error('expected an array of working-directory URIs');
 		}
 		return parsed;
-	}
-
-	private _parseModifiedAt(raw: string): string {
-		if (!Number.isFinite(Date.parse(raw))) {
-			throw new Error('expected an ISO 8601 modified time');
-		}
-		return raw;
 	}
 
 	private _entriesFromCatalog(chats: readonly {
@@ -797,7 +732,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				...(origin ? { origin } : {}),
 				...(typeof value.inheritedTurnId === 'string' ? { inheritedTurnId: value.inheritedTurnId } : {}),
 				...(Array.isArray(value.workingDirectories) ? { workingDirectories: value.workingDirectories } : {}),
-				...(typeof value.modifiedAt === 'string' && Number.isFinite(Date.parse(value.modifiedAt)) ? { modifiedAt: value.modifiedAt } : {}),
 			});
 		}
 		return result;

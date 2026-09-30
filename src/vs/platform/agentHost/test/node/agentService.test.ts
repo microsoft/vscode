@@ -59,7 +59,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
-import { CHAT_MODIFIED_AT_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
+import { CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION } from '../../node/agentHostCatalogReconciliationService.js';
@@ -20948,31 +20948,6 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('stores a new peer chat modified time in chat-local metadata', async () => {
-			const perSession = createPerSessionDataService();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			class MultiChatAgent extends MockAgent {
-				override async createChat(): Promise<IAgentCreateChatResult> {
-					return {};
-				}
-			}
-			const agent = disposables.add(new MultiChatAgent('copilot'));
-			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ provider: agent.id });
-			const peer = URI.parse(buildChatUri(session, 'peer'));
-
-			await localService.createChat(session, peer);
-			const stateChat = getStateManager(localService).getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString());
-
-			assert.deepStrictEqual({
-				chatModifiedAt: await perSession.database(peer).getMetadata(CHAT_MODIFIED_AT_METADATA_KEY),
-				legacyCatalog: JSON.parse(await perSession.database(session).getMetadata(PEER_CHATS_METADATA_KEY) ?? '[]') as IPersistedPeerChat[],
-			}, {
-				chatModifiedAt: stateChat?.modifiedAt,
-				legacyCatalog: [{ uri: peer.toString() }],
-			});
-		});
-
 		test('marks a restored peer chat backing session on first materialize, keeping it out of the registered session list', async () => {
 			// S2: `_materializeRestoredPeerChat` must persist the backing
 			// marker for a *restored* peer chat's backing session, exactly as
@@ -21206,9 +21181,6 @@ suite('AgentService (node dispatcher)', () => {
 			const peerModifiedTime = 42_000;
 			class MultiChatAgent extends MockAgent {
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-					if (!isDefaultChatUri(chat)) {
-						calls.push({ call: 'metadata', uri: chat.toString() });
-					}
 					return isDefaultChatUri(chat)
 						? super.getChatMetadata(chat, context)
 						: { chat, startTime: 1_000, modifiedTime: peerModifiedTime };
@@ -21235,22 +21207,17 @@ suite('AgentService (node dispatcher)', () => {
 					return [];
 				}
 			}
-			const perSession = createPerSessionDataService();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
 			const peerOrigin = { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session), turnId: 'source-turn' };
-			await perSession.database(session).setMetadata('peerChats', JSON.stringify([{
-				uri: peerUri.toString(),
-				providerData: 'blob-1',
-				origin: peerOrigin,
-			}]));
-			await perSession.database(peerUri).setMetadata(CHAT_MODIFIED_AT_METADATA_KEY, new Date(peerModifiedTime).toISOString());
-			await perSession.database(session).setMetadata(`customChatTitle:${peerUri.toString()}`, 'Persisted Peer Title');
-			await perSession.database(session).setChatDraft(peerUri, { text: 'Persisted draft', origin: { kind: MessageKind.User } });
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1', origin: peerOrigin }]));
+			await db.setMetadata(`customChatTitle:${peerUri.toString()}`, 'Persisted Peer Title');
+			await db.setChatDraft(peerUri, { text: 'Persisted draft', origin: { kind: MessageKind.User } });
 
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
