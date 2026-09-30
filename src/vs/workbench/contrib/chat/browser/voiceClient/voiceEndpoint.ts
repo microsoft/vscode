@@ -76,7 +76,6 @@ export function getOpenAiWebSocketProtocols(authToken: string): string[] {
 	return [
 		'realtime',
 		`openai-insecure-api-key.${authToken}`,
-		'openai-beta.realtime-v1',
 	];
 }
 

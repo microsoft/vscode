@@ -175,7 +175,6 @@ suite('Voice endpoint', () => {
 		assert.deepStrictEqual(getOpenAiWebSocketProtocols('test-key'), [
 			'realtime',
 			'openai-insecure-api-key.test-key',
-			'openai-beta.realtime-v1',
 		]);
 	});
 });
