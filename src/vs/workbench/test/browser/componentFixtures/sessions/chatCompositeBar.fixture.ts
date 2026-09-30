@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, getWindow } from '../../../../../base/browser/dom.js';
+import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -27,6 +28,7 @@ import { applyAgentsPartCardStyles } from '../../../../../sessions/browser/parts
 // eslint-disable-next-line local/code-import-patterns
 import { Menus } from '../../../../../sessions/browser/menus.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { IChatWidgetFixtureHandle, renderChatWidget } from '../chat/chatWidget.fixture.js';
 
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
@@ -96,7 +98,7 @@ function createMockDelegate(session: IActiveSession, chats: readonly IChat[], ac
 // Render helper
 // ============================================================================
 
-function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], activeChat: IChat, options: { startEditing?: boolean; connected?: boolean; compact?: boolean; active?: boolean; width?: number } = {}): void {
+function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], activeChat: IChat, options: { startEditing?: boolean; connected?: boolean; compact?: boolean; active?: boolean; width?: number } = {}): HTMLElement {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -141,13 +143,16 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 	card.appendChild(cardContent);
 	const sessionView = $('.session-view.tabs-replace-header.modern-ui-editor-tab-group');
 	sessionView.classList.toggle('modern-ui-editor-tab-group-active', options.active !== false);
+	sessionView.classList.toggle('is-active', options.active !== false);
 	applySessionViewThemeColors(sessionView, ctx.theme, options.active !== false);
 	sessionView.style.backgroundColor = 'var(--session-view-background)';
 	cardContent.appendChild(sessionView);
+	const sessionContent = $('.session-view-content');
+	sessionView.appendChild(sessionContent);
 	const groups = $('.chat-groups-view.single-group');
 	const group = $('.chat-group-view');
 	const barContainer = $('.chat-group-view-bar');
-	sessionView.appendChild(groups);
+	sessionContent.appendChild(groups);
 	groups.appendChild(group);
 	group.appendChild(barContainer);
 
@@ -165,6 +170,42 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 		const tabs = bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab');
 		tabs[tabs.length - 1]?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 	}
+	return content;
+}
+
+async function renderStickyMessageFrame(ctx: ComponentFixtureContext, width: number): Promise<void> {
+	const chat = createMockChat({ title: 'Review panel edges' });
+	const content = renderBar(ctx, [chat], chat, { width });
+	const chatView = $('.chat-view');
+	content.style.height = '320px';
+	content.appendChild(chatView);
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatWidget({ ...ctx, container: chatView }, {
+		width: content.clientWidth,
+		height: 320,
+		listHeight: 320,
+		useAuxiliaryBarWrapper: false,
+		inputVisible: false,
+		stickyScroll: true,
+		messages: [{
+			user: 'Keep the sticky message inside the panel frame.',
+			assistant: [{ kind: 'markdown', text: Array.from({ length: 16 }, () => 'The panel outline should stay continuous on both sides while this response scrolls beneath the pinned request.').join('\n\n') }],
+		}],
+		onRendered: widget => handle = widget,
+	});
+	// The fixture helper adds a workbench stacking context that is absent from production chat views.
+	chatView.classList.remove('monaco-workbench');
+	assert(handle);
+	const { listWidget } = handle;
+	const targetWindow = getWindow(content);
+	for (let attempt = 0; attempt < 60; attempt++) {
+		listWidget.scrollTop = 160;
+		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+		if (listWidget.scrollTop === 160 && listWidget.stickyScrollDomNode?.querySelector('.monaco-tree-sticky-row.request')) {
+			return;
+		}
+	}
+	throw new Error('Expected the request to stick above the scrolled response');
 }
 
 // ============================================================================
@@ -173,6 +214,16 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
+	StickyMessageFrame: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The user message is pinned above a scrolled response beneath the connected chat tab. The panel frame remains continuous along both sides of the sticky message, with no gaps or overlap.'],
+		render: ctx => renderStickyMessageFrame(ctx, 800),
+	}),
+	StickyMessageFrameNarrow: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A narrow chat panel shows a wrapped sticky user message above the scrolled response. The connected panel outline stays visible on both sides of the pinned message.'],
+		render: ctx => renderStickyMessageFrame(ctx, 360),
+	}),
 	FirstChatActive: defineComponentFixture({
 		additionalThemes: ['visualStudioDark', 'darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['The first selected tab and the chat card share one continuous outline, with no clipped corner or dangling left edge.'],
