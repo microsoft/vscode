@@ -51,6 +51,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { isObject } from '../../../../base/common/types.js';
+import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 
 const $ = DOM.$;
 
@@ -124,7 +125,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
 			this._terminalGroupService.onDidShow(() => this.refresh()),
 			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
-			this._terminalService.onAnyInstanceTitleChange(() => this.refresh()),
 			this._terminalService.onAnyInstanceIconChange(() => this.refresh()),
 			this._terminalService.onAnyInstancePrimaryStatusChange(() => this.refresh()),
 			this._terminalService.onDidChangeConnectionState(() => this.refresh()),
@@ -338,8 +338,40 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
+		this._renderLabel(instance, template);
+		if (this._getVisibilityState.getHasText()) {
+			this.fillActionBar(instance, template);
+		}
+		if (!this._getVisibilityState.getHasActionBar()) {
+			template.actionBar.clear();
+		}
+
+		// Kill terminal on middle click
+		template.elementDisposables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
+			e.stopImmediatePropagation();
+			if (e.button === 1/*middle*/) {
+				this._terminalService.safeDisposeTerminal(instance);
+			}
+		}));
+
+		const editableData = this._terminalEditingService.getEditableData(instance);
+		template.label.element.classList.toggle('editable-tab', !!editableData);
+		if (editableData) {
+			// eslint-disable-next-line no-restricted-syntax
+			template.elementDisposables.add(this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData));
+			template.actionBar.clear();
+		}
+
+		template.elementDisposables.add(instance.onTitleChanged(() => {
+			if (this._terminalEditingService.isEditable(instance)) {
+				return;
+			}
+			this._renderLabel(instance, template);
+		}));
+	}
+
+	private _renderLabel(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		const hasText = this._getVisibilityState.getHasText();
-		const hasActionBar = this._getVisibilityState.getHasActionBar();
 
 		const group = this._terminalGroupService.getGroupForInstance(instance);
 		if (!group) {
@@ -378,7 +410,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				label = `${prefix}$(${iconId})`;
 			}
 		} else {
-			this.fillActionBar(instance, template);
 			label = prefix;
 			// Only add the title if the icon is set, this prevents the title jumping around for
 			// example when launching with a ShellLaunchConfig.name and no icon
@@ -386,18 +417,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				label += editableData ? `$(${iconId})` : `$(${iconId}) ${instance.title}`;
 			}
 		}
-
-		if (!hasActionBar) {
-			template.actionBar.clear();
-		}
-
-		// Kill terminal on middle click
-		template.elementDisposables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
-			e.stopImmediatePropagation();
-			if (e.button === 1/*middle*/) {
-				this._terminalService.safeDisposeTerminal(instance);
-			}
-		}));
 
 		const extraClasses: string[] = [];
 		const colorClass = getColorClass(instance);
@@ -424,12 +443,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			},
 			extraClasses
 		});
-		template.label.element.classList.toggle('editable-tab', !!editableData);
-		if (editableData) {
-			// eslint-disable-next-line no-restricted-syntax
-			template.elementDisposables.add(this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData));
-			template.actionBar.clear();
-		}
 	}
 
 	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable {
@@ -523,7 +536,11 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 		return localize('terminal.tabs', "Terminal tabs");
 	}
 
-	getAriaLabel(instance: ITerminalInstance): string {
+	getAriaLabel(instance: ITerminalInstance): IObservable<string> {
+		return observableFromEvent(instance.onTitleChanged, () => this._getAriaLabel(instance));
+	}
+
+	private _getAriaLabel(instance: ITerminalInstance): string {
 		let ariaLabel: string = '';
 		const tab = this._terminalGroupService.getGroupForInstance(instance);
 		if (tab && tab.terminalInstances?.length > 1) {
