@@ -96,7 +96,7 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 export interface IArtifactServerToolAccessor {
 	/** Whether the artifact tools are advertised and executable. */
 	readonly isEnabled: () => boolean;
-	/** Persists one chat's artifacts and references so they survive a host restart. */
+	/** Persists the session-wide artifact and reference collection, including entries from every chat. */
 	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
 	/** Verifies a PR against the invoking chat's folder and associates it when its head branch matches. */
 	readonly associatePullRequest?: (chat: string, pullRequestUrl: string) => Promise<boolean>;
