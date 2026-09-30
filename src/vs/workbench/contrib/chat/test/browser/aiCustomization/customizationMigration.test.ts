@@ -210,7 +210,7 @@ suite('customizationMigration', () => {
 			};
 			const cases: { removed: NonNullable<IMcpServerCustomizationMigrationCandidate['removedProperties']>; warning: string }[] = [
 				{
-					removed: { gallery: false },
+					removed: { gallery: true },
 					warning: 'The \'gallery\' property will be removed. This MCP server will no longer be automatically updated from the registry.',
 				},
 				{
@@ -228,6 +228,14 @@ suite('customizationMigration', () => {
 				{
 					removed: { sandboxEnabled: false },
 					warning: 'The \'sandboxEnabled\' property will be removed. VS Code sandboxing is already disabled for this server. Any sandboxing after migration is controlled by Copilot.',
+				},
+				{
+					removed: { gallery: false },
+					warning: 'The \'gallery\' property will be removed. Automatic updates from the registry are already disabled for this MCP server.',
+				},
+				{
+					removed: { gallery: 'https://registry.example' },
+					warning: 'The \'gallery\' property will be removed. This MCP server will no longer be automatically updated from the registry.',
 				},
 			];
 			const detail = category.getConfirmation([server], 'Copilot').detail;

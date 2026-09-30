@@ -101,7 +101,7 @@ export function getMcpCompatibilityDetail(reason: AgentHostMcpSupportReason): st
 		case AgentHostMcpSupportReason.WorkingDirectoryNotPortable:
 			return localize('mcpCompatibilityWorkingDirectoryNotPortable', "Working directory settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the cwd property.");
 		case AgentHostMcpSupportReason.GalleryMetadataNotPortable:
-			return localize('mcpCompatibilityGalleryMetadataNotPortable', "Gallery metadata is not supported in the destination MCP configuration.\nMigration can remove the gallery property after you confirm that this MCP server will no longer be automatically updated from the registry.");
+			return localize('mcpCompatibilityGalleryMetadataNotPortable', "Gallery metadata is not supported in the destination MCP configuration.\nMigration can remove the gallery property. After migration, this MCP server will not receive automatic updates from the registry.");
 		case AgentHostMcpSupportReason.ServerVersionNotPortable:
 			return localize('mcpCompatibilityServerVersionNotPortable', "Server version metadata is not supported in the destination MCP configuration.\nMigration can remove the version property after you confirm the loss of version metadata. Version pins in the command, arguments, or URL will not change.");
 		case AgentHostMcpSupportReason.SseTransportNotPortable:

@@ -712,7 +712,9 @@ function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationC
 		.map(property => {
 			switch (property) {
 				case 'gallery':
-					return localize('mcpMigrationRemoveGallery', "The 'gallery' property will be removed. This MCP server will no longer be automatically updated from the registry.");
+					return server.removedProperties?.gallery === false
+						? localize('mcpMigrationRemoveDisabledGallery', "The 'gallery' property will be removed. Automatic updates from the registry are already disabled for this MCP server.")
+						: localize('mcpMigrationRemoveGallery', "The 'gallery' property will be removed. This MCP server will no longer be automatically updated from the registry.");
 				case 'version':
 					return localize('mcpMigrationRemoveVersion', "The 'version' property will be removed. The migrated configuration will no longer record version metadata. Version pins in the command, arguments, or URL will not change.");
 				case 'dev':
