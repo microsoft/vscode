@@ -671,15 +671,27 @@
 	display: none;
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-upper-row.tab-border-bottom > .tab-fill::after {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-upper-row.tab-border-bottom > .tab-fill::after,
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.connected-tab-upper-row:hover:not(.selected):not(.active) > .tab-fill::after {
 	content: '';
 	position: absolute;
 	right: var(--vscode-cornerRadius-small);
 	bottom: calc(-1 * var(--vscode-strokeThickness));
 	left: var(--vscode-cornerRadius-small);
 	height: var(--vscode-strokeThickness);
-	background-color: var(--tab-border-bottom-color);
 	pointer-events: none;
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-upper-row.tab-border-bottom > .tab-fill::after {
+	background-color: var(--tab-border-bottom-color);
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container.active > .title.tabs .tabs-container > .tab.connected-tab-upper-row:hover:not(.selected):not(.active) > .tab-fill::after {
+	background-color: var(--modern-ui-editor-tab-hover-border);
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title.tabs .tabs-container > .tab.connected-tab-upper-row:hover:not(.selected):not(.active) > .tab-fill::after {
+	background-color: var(--modern-ui-editor-tab-unfocused-hover-border);
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.connected-tab-upper-row > .tab-connected-edge {

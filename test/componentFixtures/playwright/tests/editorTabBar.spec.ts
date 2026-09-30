@@ -284,6 +284,51 @@ test('wrapped upper connected tabs inset customized border accents', async ({ pa
 	});
 });
 
+test('wrapped upper connected hover borders use focused and unfocused inset accents', async ({ page }) => {
+	await openFixture(page, 'editor/editorTabBar/editorTabBar/BorderOwnership/ConnectedWrapped/Dark', '.tabs-container > .tab.active.connected-tab-upper-row');
+	const hovered = page.locator('.tabs-container > .tab.connected-tab-upper-row:not(.active)').first();
+	await hovered.hover();
+	const readOwnership = () => hovered.evaluate(tab => {
+		const fill = tab.querySelector<HTMLElement>('.tab-fill');
+		const bottom = tab.querySelector<HTMLElement>('.tab-border-bottom-container');
+		if (!fill || !bottom) {
+			throw new Error('Expected hovered wrapped tab border elements');
+		}
+		const accent = getComputedStyle(fill, '::after');
+		return {
+			fillBottom: getComputedStyle(fill).borderBottomColor,
+			indicator: getComputedStyle(bottom).display,
+			accent: {
+				color: accent.backgroundColor,
+				left: accent.left,
+				right: accent.right,
+				height: accent.height,
+			},
+		};
+	});
+	expect(await readOwnership()).toEqual({
+		fillBottom: 'rgba(0, 0, 0, 0)',
+		indicator: 'none',
+		accent: {
+			color: 'rgb(249, 115, 22)',
+			left: '4px',
+			right: '4px',
+			height: '1px',
+		},
+	});
+	await page.locator('.editor-group-container').evaluate(group => group.classList.remove('active'));
+	expect(await readOwnership()).toEqual({
+		fillBottom: 'rgba(0, 0, 0, 0)',
+		indicator: 'none',
+		accent: {
+			color: 'rgb(168, 85, 247)',
+			left: '4px',
+			right: '4px',
+			height: '1px',
+		},
+	});
+});
+
 for (const [fixture, expected] of [
 	['FirstActive', {
 		capLeft: 'rgba(0, 0, 0, 0)',

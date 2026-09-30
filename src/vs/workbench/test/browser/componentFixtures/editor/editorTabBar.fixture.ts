@@ -53,9 +53,11 @@ import {
 	TAB_ACTIVE_BORDER_TOP,
 	TAB_BORDER,
 	TAB_DIVIDER,
+	TAB_HOVER_BORDER,
 	TAB_SELECTED_BORDER_TOP,
 	TAB_UNFOCUSED_ACTIVE_BORDER,
 	TAB_UNFOCUSED_ACTIVE_BORDER_TOP,
+	TAB_UNFOCUSED_HOVER_BORDER,
 } from '../../../../common/theme.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { BreadcrumbsService, IBreadcrumbsService } from '../../../../browser/parts/editor/breadcrumbs.js';
@@ -864,8 +866,10 @@ function getLegacyEditorTabBorderCustomizations(): Readonly<Record<string, strin
 		[TAB_ACTIVE_BORDER_TOP]: '#22D3EE',
 		[TAB_BORDER]: '#FACC15',
 		[TAB_DIVIDER]: '#FFFFFF',
+		[TAB_HOVER_BORDER]: '#F97316',
 		[TAB_UNFOCUSED_ACTIVE_BORDER]: '#FB923C',
 		[TAB_UNFOCUSED_ACTIVE_BORDER_TOP]: '#C084FC',
+		[TAB_UNFOCUSED_HOVER_BORDER]: '#A855F7',
 		[TAB_SELECTED_BORDER_TOP]: '#A3E635',
 	};
 }
