@@ -643,7 +643,11 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 
 	const marketplaceRef = parseMarketplaceReference('microsoft/plugins')!;
 
-	function createService(autoUpdate: AutoUpdateConfigurationValue = 'on', extraMarketplaces: Record<string, unknown> = {}): PluginMarketplaceService {
+	function createService(
+		autoUpdate: AutoUpdateConfigurationValue = 'on',
+		extraMarketplaces: Record<string, unknown> = {},
+		workspaceExtraMarketplaces: IWorkspacePluginSettingsService['extraMarketplaces'] = observableValue('test.extraMarketplaces', []),
+	): PluginMarketplaceService {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
@@ -658,7 +662,7 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 		instantiationService.stub(IWorkspacePluginSettingsService, {
-			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			extraMarketplaces: workspaceExtraMarketplaces,
 			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
 		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
 		instantiationService.stub(IWorkspaceTrustManagementService, {
@@ -725,11 +729,15 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		});
 	});
 
-	test('repository marketplace autoUpdate overrides the global setting', () => {
-		const service = createService('off');
-		const repositoryMarketplace = { ...parseMarketplaceReference('microsoft/repository-plugins')!, autoUpdate: true };
+	test('current repository marketplace autoUpdate overrides the installed snapshot and global setting', () => {
+		const installedMarketplace = { ...parseMarketplaceReference('microsoft/repository-plugins')!, autoUpdate: false };
+		const configuredMarketplace = { ...installedMarketplace, autoUpdate: true };
+		const service = createService('off', {}, observableValue('test.extraMarketplaces', [{
+			name: 'repository',
+			reference: configuredMarketplace,
+		}]));
 
-		assert.strictEqual(service.isMarketplaceAutoUpdateEnabled(repositoryMarketplace), true);
+		assert.strictEqual(service.isMarketplaceAutoUpdateEnabled(installedMarketplace), true);
 	});
 });
 
@@ -928,7 +936,8 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 			runIdle = runner;
 			return Disposable.None;
 		}));
-		const repositoryRef = { ...marketplaceRef, autoUpdate: true };
+		const installedRepositoryRef = { ...marketplaceRef, autoUpdate: false };
+		const configuredRepositoryRef = { ...marketplaceRef, autoUpdate: true };
 		const workspaceExtraMarketplaces = observableValue<readonly { name: string; reference: IMarketplaceReference }[]>('test.extraMarketplaces', []);
 		let fetchCount = 0;
 		const service = createService({
@@ -943,7 +952,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		});
 		service.addInstalledPlugin(
 			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
-			makePlugin('my-plugin', 'my-plugin', repositoryRef),
+			makePlugin('my-plugin', 'my-plugin', installedRepositoryRef),
 		);
 
 		assert.ok(runIdle);
@@ -951,7 +960,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		await timeout(0);
 		const beforeRepositoryConfiguration = fetchCount;
 
-		workspaceExtraMarketplaces.set([{ name: 'repository', reference: repositoryRef }], undefined);
+		workspaceExtraMarketplaces.set([{ name: 'repository', reference: configuredRepositoryRef }], undefined);
 		await timeout(0);
 		await timeout(0);
 
