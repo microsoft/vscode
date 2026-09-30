@@ -48,7 +48,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasSnapshot, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasSnapshot, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { isAutoModel } from './modelIdentifiers.js';
@@ -749,7 +749,7 @@ const NANO_AIU_PER_CREDIT = 1_000_000_000;
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
  */
 export class CopilotAgent extends Disposable implements IAgent {
-	readonly id = 'copilotcli' as const;
+	readonly id = COPILOT_CLI_AGENT_PROVIDER_ID;
 	readonly agentHostCapabilities = { workspaceConversion: true } as const;
 	protected readonly _now = Date.now;
 
@@ -1251,13 +1251,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Requests a CLI client restart, running it immediately when every chat is
-	 * idle and otherwise parking it until the last in-flight turn ends.
+	 * idle and otherwise parking it until the last in-flight turn or subagent
+	 * ends.
 	 *
 	 * Restarting tears the SDK sessions down, and a torn-down session stops
 	 * producing the events that finalize its protocol turn — the client would be
 	 * left with a turn that never completes, cancels, or errors, i.e. a session
-	 * that spins forever. Startup-only values (session sync, the SDK log level,
-	 * the enterprise host, the system proxy) can also change without any user
+	 * that spins forever. A background subagent can still be finishing after its
+	 * root turn went idle; tearing it down strands its chat and revokes the SDK
+	 * session's GitHub token provider registration while the subagent still
+	 * needs it. Startup-only values (session sync, the SDK log level, the
+	 * enterprise host, the system proxy) can also change without any user
 	 * action, from an experiment or policy refresh, so this must never be paid
 	 * for with a running turn. {@link _ensureClient} reads them fresh on the next
 	 * start, so applying the restart late is always correct.
@@ -1284,9 +1288,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info(`[Copilot] Deferring CopilotClient restart (${reason}) until GitHub credential updates finish`);
 			return true;
 		}
-		const busyChats = this._chatsWithActiveTurn();
+		const busyChats = this._chatsWithInFlightWork();
 		if (busyChats > 0) {
-			this._logService.info(`[Copilot] Deferring CopilotClient restart (${reason}) until ${busyChats} in-flight turn(s) finish`);
+			this._logService.info(`[Copilot] Deferring CopilotClient restart (${reason}) until ${busyChats} chat(s) finish their in-flight turns and subagents`);
 			return true;
 		}
 		await this._applyPendingClientRestart();
@@ -1295,11 +1299,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Runs a restart parked by {@link _requestClientRestart} once no chat has
-	 * an in-flight turn. No-op while any turn is still running; the next chat
-	 * to go idle drives this again.
+	 * an in-flight turn or subagent. No-op while any is still running; the next
+	 * chat to go idle drives this again.
 	 */
 	private async _applyPendingClientRestart(): Promise<void> {
-		if (this._pendingClientRestartReasons.size === 0 || this._shutdownPromise || !this._client || this._updatingGitHubCredentials || this._chatsWithActiveTurn() > 0) {
+		if (this._pendingClientRestartReasons.size === 0 || this._shutdownPromise || !this._client || this._updatingGitHubCredentials || this._chatsWithInFlightWork() > 0) {
 			return;
 		}
 		const reason = [...this._pendingClientRestartReasons].join('; ');
@@ -1318,9 +1322,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Called by a {@link CopilotAgentSession} when its turn ends. Scheduled off
-	 * the current stack because the callback fires from inside that session's
-	 * SDK event handling and the restart disposes the session making the call.
+	 * Called by a {@link CopilotAgentSession} when its turn or last in-flight
+	 * subagent ends. Scheduled off the current stack because the callback fires
+	 * from inside that session's SDK event handling and the restart disposes the
+	 * session making the call.
 	 */
 	private _onChatTurnEnded(): void {
 		if (this._pendingClientRestartReasons.size === 0) {
@@ -1427,6 +1432,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Number of live chats (default or peer, across all sessions) with an in-flight turn. */
 	private _chatsWithActiveTurn(): number {
 		return this._allLiveSessions().filter(session => session.hasActiveTurn).length;
+	}
+
+	private _chatsWithInFlightWork(): number {
+		return this._allLiveSessions().filter(session => session.hasActiveTurn || session.hasActiveSubagents).length;
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -1822,6 +1831,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			}).catch(error => this._logService.warn(`[Copilot:${session.sessionId}] Failed to schedule Connector MCP refresh`, error))
 		));
+	}
+
+	async uninstallPlugin(request: IAgentPluginUninstallRequest): Promise<void> {
+		const pluginSpec = request.marketplace ? `${request.name}@${request.marketplace}` : request.name;
+		await this._retryAfterClosedConnection('uninstallPlugin', client => client.rpc.plugins.uninstall({
+			name: pluginSpec,
+			directSourceId: request.directSourceId,
+		}));
 	}
 
 	async startMcpServer(session: URI, id: string, token: CancellationToken = CancellationToken.None): Promise<void> {
@@ -2402,7 +2419,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 *
 	 * Each model is surfaced under the provider-qualified id `vendor/[group/]id` so a
 	 * selection round-trips to the per-session provider config synthesized by
-	 * `resolveByokSessionConfig`.
+	 * `synthesizeByokSessionConfig`.
 	 */
 	private _refreshByokModels(): void {
 		if (this._shutdownPromise) {
@@ -2433,6 +2450,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 		this._logService.trace(`[Copilot] Found ${this._byokModels.length} BYOK models${this._byokModels.length ? ': ' + this._byokModels.map(m => m.name).join(', ') : ''}`);
 		this._publishModels();
+		if (this._byokModels.length) {
+			// Sessions launched before these models were reported (notably chats
+			// restored during startup) must register them before they can select them.
+			// A session still mid-launch is not in `_chatEntriesBySdkId` yet and is
+			// missed here; `CopilotAgentSession.setModel` syncs again, which covers it.
+			for (const entry of this._chatEntriesBySdkId.values()) {
+				entry.chatSession.syncByokModels().catch(err =>
+					this._logService.warn(`[Copilot:${entry.chatSession.sessionId}] Failed to register BYOK models on live session`, err)
+				);
+			}
+		}
 	}
 
 	/**

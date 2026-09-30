@@ -251,6 +251,12 @@ export interface IAgentMaterializeChatEvent {
 }
 
 export type AgentProvider = string;
+
+export interface IAgentPluginUninstallRequest {
+	readonly name: string;
+	readonly marketplace: string;
+	readonly directSourceId?: string;
+}
 export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
 export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
 
@@ -288,6 +294,9 @@ export const CLAUDE_AGENT_PROVIDER_ID = 'claude' as const;
 
 /** Well-known agent provider id for the Codex agent-host backend. */
 export const CODEX_AGENT_PROVIDER_ID = 'codex' as const;
+
+/** Well-known agent provider id for the Copilot CLI agent-host backend. */
+export const COPILOT_CLI_AGENT_PROVIDER_ID = 'copilotcli' as const;
 
 /**
  * Static capability facts an agent backend advertises about itself. Each flag
@@ -338,6 +347,8 @@ export interface AuthenticateParams {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	/** Optional client metadata. Hosts must remain usable when it is absent. */
+	readonly _meta?: Record<string, unknown>;
 }
 
 /** Request for a previously accepted bearer token. */
@@ -1261,6 +1272,9 @@ export interface IAgent {
 
 	/** Refresh live sessions after account-backed Connector membership changes. */
 	refreshConnectorSessions?(): Promise<void>;
+
+	/** Uninstall a plugin through the provider that owns its installation state. */
+	uninstallPlugin?(request: IAgentPluginUninstallRequest): Promise<void>;
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;

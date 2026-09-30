@@ -124,7 +124,7 @@ It already composes:
 
 ### Gaps to close before these replacements are equivalent
 
-1. **Identity:** the current engine has one active credential/endpoint context. Callers need multiple sessions, scopes, issuers, anonymous/device modes and bootstrap credentials.
+1. **Identity:** the engine supports explicit provider/session/scope/endpoint clients, with shared quota coordination and isolated private resources. Current workbench features retain default-account selection in their binding. Extension consent, anonymous/device modes, additional issuers and CAPI-specific bootstrap credentials still need integration.
 2. **Transport shapes:** the current contract is primarily JSON plus bounded text download, not yet the general binary, multipart, SSE/WebSocket and response-metadata contract these clients require.
 3. **Operation coverage:** existing typed APIs cover much of PR work, but not everything. Repository discovery/search and pending-review creation, for example, need additional coverage or governed REST/GraphQL access.
 4. **Aggregate protection:** per-engine bounded admission, caller fairness, request deadlines and response limits are implemented. Credential invalidation preserves live cooldowns and reclaims expired inactive-account state. Request-rate budgets, aggregate pagination/fan-out budgets, live subscription caps and cross-window coordination remain to be implemented.

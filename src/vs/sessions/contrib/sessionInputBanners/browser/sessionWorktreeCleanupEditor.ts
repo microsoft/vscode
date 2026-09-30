@@ -13,6 +13,7 @@ import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -50,6 +51,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private list: HTMLElement | undefined;
 	private summary: HTMLElement | undefined;
 	private cleanupButton: Button | undefined;
+	private ageSelect: HTMLSelectElement | undefined;
 	private scrollableElement: DomScrollableElement | undefined;
 	private layoutDimension: dom.Dimension | undefined;
 	private minimumAgeDays = 15;
@@ -89,7 +91,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		parent.appendChild(this.scrollableElement.getDomNode());
 		const content = dom.append(this.container, dom.$('.session-worktree-cleanup-content'));
 
-		dom.append(content, dom.$('h1', undefined, localize('sessionWorktreeCleanup.heading', "Clean Up Agent Worktrees")));
+		dom.append(content, dom.$('h1', undefined, localize('sessionWorktreeCleanup.heading', "Open worktree cleanup")));
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
 			localize('sessionWorktreeCleanup.intro', "Inactive, unpinned sessions older than the selected period can be cleaned up to reclaim the disk space their worktrees use. Cleaning up a session marks it as done and deletes its worktree; you can restore the session later to recreate it. Active, running, needs-input, and pinned sessions are always protected.")));
 
@@ -98,6 +100,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const controls = dom.append(content, dom.$('.session-worktree-cleanup-controls'));
 		const ageLabel = dom.append(controls, dom.$('label', undefined, localize('sessionWorktreeCleanup.ageLabel', "Untouched for")));
 		const ageSelect = dom.append(ageLabel, dom.$('select.session-worktree-cleanup-age')) as HTMLSelectElement;
+		this.ageSelect = ageSelect;
 		for (const days of MINIMUM_AGE_OPTIONS) {
 			const option = dom.append(ageSelect, dom.$('option')) as HTMLOptionElement;
 			option.value = String(days);
@@ -153,6 +156,12 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private async load(): Promise<void> {
 		const version = ++this.renderVersion;
+		if (this.ageSelect) {
+			this.ageSelect.disabled = true;
+		}
+		if (this.cleanupButton) {
+			this.cleanupButton.enabled = false;
+		}
 		if (this.summary) {
 			dom.clearNode(this.summary);
 			dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, localize('sessionWorktreeCleanup.loading', "Measuring worktree storage...")));
@@ -168,9 +177,17 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		} catch (error) {
 			if (version === this.renderVersion && this.summary) {
 				dom.clearNode(this.summary);
-				dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, localize('sessionWorktreeCleanup.loadFailed', "Worktree storage could not be measured.")));
+				dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, isCancellationError(error)
+					? localize('sessionWorktreeCleanup.loadCanceled', "Worktree measurement canceled.")
+					: localize('sessionWorktreeCleanup.loadFailed', "Worktree storage could not be measured.")));
 			}
-			this.notificationService.error(error);
+			if (!isCancellationError(error)) {
+				this.notificationService.error(error);
+			}
+		} finally {
+			if (version === this.renderVersion && this.ageSelect) {
+				this.ageSelect.disabled = false;
+			}
 		}
 	}
 
