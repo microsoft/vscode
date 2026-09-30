@@ -37,6 +37,7 @@ import { TOTAL_SESSIONS_KEY } from '../../../sessions/browser/sessionsLifecycleT
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
+import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -211,6 +212,7 @@ interface ISessionCountHarness {
 
 interface ISessionOptionsPersistenceHarness {
 	readonly storageService: IStorageService;
+	readonly _usage: AgentsWindowUsage;
 	readonly configurationService: {
 		getValue<T>(key: string): T;
 	};
@@ -348,6 +350,7 @@ suite('NewChatWidget', () => {
 			const expanded = observableValue('sessionOptionsExpanded', initial);
 			const harness: ISessionOptionsPersistenceHarness = {
 				storageService,
+				_usage: new AgentsWindowUsage(storageService),
 				configurationService: {
 					getValue: <T>(key: string) => ({
 						[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
