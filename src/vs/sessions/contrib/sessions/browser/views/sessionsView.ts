@@ -9,7 +9,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
@@ -21,6 +21,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../workbench/common/views.js';
@@ -43,6 +44,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionCollectionsService } from '../../../../services/sessions/browser/sessionCollectionsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
@@ -56,6 +58,9 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
+import { getWorkbenchContribution, IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
+import { SESSIONS_LIST_COLLECTION_SWITCHER_SETTING, SESSIONS_LIST_COLLECTIONS_SETTING, SessionsCollectionSwitcher } from '../../../../common/sessionConfig.js';
+import { ISessionCollectionsSwitcherDelegate, SESSION_COLLECTIONS_CONTROLLER_ID, SessionCollectionTitleButton, SessionCollectionsTabs, shouldShowCollectionsInSidebar } from '../sessionCollectionsSwitcher.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -88,6 +93,12 @@ export interface ISessionsHeaderElements {
 	readonly toolbar: MenuWorkbenchToolBar | undefined;
 }
 
+export interface ISessionsHeaderCollectionsOptions {
+	readonly collectionsEnabled: IObservable<boolean>;
+	readonly collectionsService: ISessionCollectionsService;
+	readonly delegate: ISessionCollectionsSwitcherDelegate;
+}
+
 interface IRegisteredSessionsHeader extends ISessionsHeaderElements {
 	readonly treeHeader: boolean;
 }
@@ -99,6 +110,7 @@ export function renderSessionsHeader(
 	contextKeyService: IContextKeyService,
 	disposables: DisposableStore,
 	onDidShowFilters?: () => void,
+	collections?: ISessionsHeaderCollectionsOptions,
 ): ISessionsHeaderElements {
 	const row = DOM.append(parent, $('.agent-sessions-header-row'));
 	const label = DOM.append(row, $('.agent-sessions-header-label'));
@@ -106,7 +118,13 @@ export function renderSessionsHeader(
 	let toolbar: MenuWorkbenchToolBar | undefined;
 
 	if (!phoneLayout) {
-		label.textContent = localize('sessionsHeader', "Sessions");
+		if (collections) {
+			disposables.add(instantiationService.createInstance(SessionCollectionTitleButton, label, {
+				shouldShow: reader => collections.collectionsEnabled.read(reader) && collections.collectionsService.collections.read(reader).length > 1,
+			}, collections.delegate));
+		} else {
+			label.textContent = localize('sessionsHeader', "Sessions");
+		}
 		const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.SidebarSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -162,6 +180,8 @@ export class SessionsView extends ViewPane {
 	private readonly sessionsListRearrangeExperimentState: SessionsListRearrangeExperimentState;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
 	private readonly customizationsNavigationState: CustomizationsNavigationState;
+	private readonly collectionsEnabled: IObservable<boolean>;
+	private readonly collectionSwitcher: IObservable<SessionsCollectionSwitcher>;
 	private customizationsPresentation: CustomizationsPresentation = 'hidden';
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
@@ -188,6 +208,7 @@ export class SessionsView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionCollectionsService private readonly sessionCollectionsService: ISessionCollectionsService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -197,6 +218,8 @@ export class SessionsView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.sessionsListRearrangeExperimentState = this._register(instantiationService.createInstance(SessionsListRearrangeExperimentState));
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
+		this.collectionsEnabled = observableConfigValue<boolean>(SESSIONS_LIST_COLLECTIONS_SETTING, false, configurationService);
+		this.collectionSwitcher = observableConfigValue<SessionsCollectionSwitcher>(SESSIONS_LIST_COLLECTION_SWITCHER_SETTING, SessionsCollectionSwitcher.TitleBar, configurationService);
 
 		// Restore persisted grouping
 		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
@@ -262,6 +285,7 @@ export class SessionsView extends ViewPane {
 		// widget mounts inside it.
 		const phoneLayout = isPhoneLayout(this.layoutService);
 		const sessionsHeaderContainer = this.sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
+		this.installCollectionTabs(sessionsContent, sessionsHeaderContainer, phoneLayout);
 		const header = this.createSessionsHeader(sessionsHeaderContainer, phoneLayout, false, this._register(new DisposableStore()));
 
 		// Container for the tree's find widget (toggled by the toolbar's Find action)
@@ -289,6 +313,7 @@ export class SessionsView extends ViewPane {
 				return this.createSessionsHeader(container, phoneLayout, true, disposables).row;
 			},
 			onDidScroll: () => this.scheduleFindHeaderPositionUpdate(),
+			showUndoNotification: (message, undo) => this.showUndoNotification(message, undo, localize('listPresentationUndoHelp', "{0}\nThis notice appears after changing a group, a section color, or a collection. Use Tab and Shift+Tab to reach Undo and Dismiss. Press Enter or Space to activate them, or Escape to dismiss the notice.\nUndo restores the previous group, color, or collection.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open. The bar along the bottom shows the remaining time.", message)),
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {
@@ -445,8 +470,51 @@ export class SessionsView extends ViewPane {
 		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSidebarSplitView()));
 	}
 
+	private installCollectionTabs(sessionsContent: HTMLElement, before: HTMLElement, phoneLayout: boolean): void {
+		if (phoneLayout) {
+			return;
+		}
+		const tabs = this._register(new MutableDisposable<DisposableStore>());
+		const relayout = () => {
+			if (this.currentBodyHeight > 0) {
+				this.layoutBody(this.currentBodyHeight, this.currentBodyWidth);
+			}
+		};
+		this._register(autorun(reader => {
+			if (!shouldShowCollectionsInSidebar(this.collectionsEnabled, this.collectionSwitcher, SessionsCollectionSwitcher.Tabs, this.sessionCollectionsService, reader)) {
+				if (tabs.value) {
+					tabs.clear();
+					relayout();
+				}
+				return;
+			}
+			if (tabs.value) {
+				return;
+			}
+			const store = new DisposableStore();
+			const container = DOM.$('.session-collections-tabs-container');
+			sessionsContent.insertBefore(container, before);
+			store.add(toDisposable(() => container.remove()));
+			store.add(this.instantiationService.createInstance(SessionCollectionsTabs, container, this.getSessionCollectionsDelegate()));
+			tabs.value = store;
+			relayout();
+		}));
+	}
+
+	private getSessionCollectionsDelegate(): ISessionCollectionsSwitcherDelegate {
+		return getWorkbenchContribution<ISessionCollectionsSwitcherDelegate & IWorkbenchContribution>(SESSION_COLLECTIONS_CONTROLLER_ID);
+	}
+
+	private getSessionsHeaderCollectionsOptions(): ISessionsHeaderCollectionsOptions {
+		return {
+			collectionsEnabled: this.collectionsEnabled,
+			collectionsService: this.sessionCollectionsService,
+			delegate: this.getSessionCollectionsDelegate(),
+		};
+	}
+
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, treeHeader: boolean, disposables: DisposableStore): ISessionsHeaderElements {
-		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportArchivedFilterShown());
+		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportArchivedFilterShown(), this.getSessionsHeaderCollectionsOptions());
 		const registeredHeader: IRegisteredSessionsHeader = { ...header, treeHeader };
 		this.sessionsHeaders.add(registeredHeader);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(registeredHeader)));
@@ -823,6 +891,12 @@ export class SessionsView extends ViewPane {
 
 	refresh(): void {
 		this.sessionsControl?.refresh();
+	}
+
+	showUndoNotification(message: string, undo: () => void | Promise<void>, help?: string): void {
+		this.archiveNotification?.show(message, async () => {
+			await undo();
+		}, help);
 	}
 
 	openFind(): void {

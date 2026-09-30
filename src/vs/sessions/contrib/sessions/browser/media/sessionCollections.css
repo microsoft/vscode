@@ -1,0 +1,198 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-collections-strip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	max-width: 240px;
+	padding: var(--vscode-spacing-size20);
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-foreground) 7%, transparent);
+}
+
+.session-collections-strip-button,
+.session-collections-tab,
+.session-collections-title-button {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 0;
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--session-collection-accent, var(--vscode-icon-foreground));
+	cursor: pointer;
+}
+
+.session-collections-strip-button {
+	flex: 0 0 auto;
+	width: 30px;
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+}
+
+.session-collections-strip-button.session-collections-add {
+	width: var(--vscode-spacing-size240);
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-collections-strip-button:hover,
+.session-collections-tab:hover,
+.session-collections-title-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.session-collections-strip-button.active,
+.session-collections-tab.active {
+	background: color-mix(in srgb, var(--vscode-foreground) 15%, transparent);
+	border-color: var(--vscode-contrastActiveBorder, transparent);
+}
+
+.session-collections-strip-button.active::after,
+.session-collections-tab.active::after {
+	content: '';
+	position: absolute;
+	left: 25%;
+	right: 25%;
+	bottom: var(--vscode-spacing-size20);
+	height: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--session-collection-accent);
+}
+
+.session-collections-strip-button:focus-visible,
+.session-collections-tab:focus-visible,
+.session-collections-title-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(var(--vscode-strokeThickness) * -1);
+}
+
+.session-collections-switcher-icon,
+.session-collections-title-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	color: inherit;
+}
+
+.session-collections-switcher-icon > .codicon,
+.session-collections-title-icon > .codicon {
+	color: inherit;
+}
+
+.session-collection-attention {
+	position: absolute;
+	top: var(--vscode-spacing-size20);
+	right: var(--vscode-spacing-size40);
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size60);
+	height: var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-sideBar-background);
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.session-collection-attention.needs-input {
+	background: var(--vscode-list-warningForeground);
+}
+
+.session-collection-attention.unread {
+	background: var(--vscode-textLink-foreground);
+}
+
+.session-collections-dragging .session-collections-strip-button:not(.active):not(.session-collections-add),
+.session-collections-dragging .session-collections-tab:not(.active):not(.session-collections-add) {
+	outline: var(--vscode-strokeThickness) dashed var(--session-collection-accent);
+	outline-offset: calc(var(--vscode-strokeThickness) * -1);
+}
+
+.session-collections-strip-button.session-collections-drop-target,
+.session-collections-tab.session-collections-drop-target {
+	background: color-mix(in srgb, var(--session-collection-accent) 28%, transparent);
+	outline: calc(var(--vscode-strokeThickness) * 2) solid var(--session-collection-accent);
+	outline-offset: calc(var(--vscode-strokeThickness) * -2);
+}
+
+.session-collections-tabs-container {
+	flex: none;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size120) var(--vscode-spacing-size80);
+}
+
+.session-collections-tabs {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	overflow: hidden;
+}
+
+.session-collections-tab {
+	flex: 1 1 0;
+	gap: var(--vscode-spacing-size60);
+	height: var(--vscode-spacing-size280);
+	padding: 0 var(--vscode-spacing-size80);
+	color: var(--vscode-foreground);
+	font: inherit;
+}
+
+.session-collections-tab.session-collections-add {
+	flex: 0 0 var(--vscode-spacing-size280);
+	padding: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-collections-tab .session-collections-switcher-icon {
+	color: var(--session-collection-accent);
+}
+
+.session-collections-tab-label,
+.session-collections-title-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-collections-tab .session-collection-attention {
+	top: var(--vscode-spacing-size20);
+	right: var(--vscode-spacing-size20);
+}
+
+.session-collections-title-button {
+	gap: var(--vscode-spacing-size60);
+	max-width: 100%;
+	margin-left: calc(-1 * var(--vscode-spacing-size60));
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	font: inherit;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.session-collections-title-icon {
+	color: var(--session-collection-accent);
+}
+
+.session-collections-title-chevron {
+	flex: none;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.monaco-workbench.hc-black .session-collections-strip-button.active,
+.monaco-workbench.hc-light .session-collections-strip-button.active,
+.monaco-workbench.hc-black .session-collections-tab.active,
+.monaco-workbench.hc-light .session-collections-tab.active {
+	border-color: var(--vscode-contrastActiveBorder);
+}
+
+.monaco-workbench.hc-black .session-collections-strip-button.session-collections-drop-target,
+.monaco-workbench.hc-light .session-collections-strip-button.session-collections-drop-target,
+.monaco-workbench.hc-black .session-collections-tab.session-collections-drop-target,
+.monaco-workbench.hc-light .session-collections-tab.session-collections-drop-target {
+	outline-color: var(--vscode-contrastActiveBorder);
+}

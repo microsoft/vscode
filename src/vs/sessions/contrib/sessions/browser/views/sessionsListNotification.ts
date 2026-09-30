@@ -44,7 +44,7 @@ export class SessionsListNotification extends Disposable {
 		super();
 	}
 
-	show(message: string, undo: () => Promise<void>): void {
+	show(message: string, undo: () => Promise<void>, help?: string): void {
 		this.notification.clear();
 		const store = this.notification.value = new DisposableStore();
 		const element = DOM.append(this.container, DOM.$('.sessions-list-notification'));
@@ -143,7 +143,7 @@ export class SessionsListNotification extends Disposable {
 			const provider = new AccessibleContentProvider(
 				AccessibleViewProviderId.SessionsListNotification,
 				{ type: AccessibleViewType.Help },
-				() => localize('notificationHelp', "{0}\nThis notice appears after marking sessions done or archiving them. Use Tab and Shift+Tab to reach Undo and Dismiss. Press Enter or Space to activate them, or Escape to dismiss the notice.\nUndo restores the sessions and their previous custom groups, if those groups still exist. It does not restart stopped requests.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open. The bar along the bottom shows the remaining time.", message),
+				() => help ?? localize('notificationHelp', "{0}\nThis notice appears after marking sessions done or archiving them. Use Tab and Shift+Tab to reach Undo and Dismiss. Press Enter or Space to activate them, or Escape to dismiss the notice.\nUndo restores the sessions and their previous custom groups, if those groups still exist. It does not restart stopped requests.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open. The bar along the bottom shows the remaining time.", message),
 				() => {
 					if (!store.isDisposed) {
 						if (DOM.isHTMLElement(activeElement) && element.contains(activeElement)) {
