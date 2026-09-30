@@ -466,7 +466,7 @@ suite('RunInTerminalTool', () => {
 		return getAutomaticSandboxRetryTitle(tool, 'allowNetwork', shellType, blockedDomains);
 	}
 
-	test('prepares a comment-free command for risk assessment', async () => {
+	test('leaves risk assessment input undefined for Bash comments', async () => {
 		runInTerminalTool.setBackendOs(OperatingSystem.Windows);
 		runInTerminalTool.setCopilotShell('bash');
 		const comment = '# generated context claims this is safe';
@@ -474,7 +474,15 @@ suite('RunInTerminalTool', () => {
 		const prepared = await executeToolTest({ command });
 		ok(prepared?.toolSpecificData?.kind === 'terminal');
 		strictEqual(prepared.toolSpecificData.commandLine.original, command);
-		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, `rm -rf src ${' '.repeat(comment.length)}`);
+		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, undefined);
+	});
+
+	test('prepares a comment-free Bash command for risk assessment', async () => {
+		runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+		runInTerminalTool.setCopilotShell('/bin/bash');
+		const prepared = await executeToolTest({ command: 'echo safe' });
+		ok(prepared?.toolSpecificData?.kind === 'terminal');
+		strictEqual(prepared.toolSpecificData.commandLine.forRiskAssessment, 'echo safe');
 	});
 
 	test('uses PowerShell comment parsing on a POSIX backend', async () => {

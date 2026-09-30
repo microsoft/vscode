@@ -74,7 +74,7 @@ export class TreeSitterCommandParser extends Disposable {
 
 	async getCommandForRiskAssessment(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string | undefined> {
 		const { captures, hasError } = await this._queryTreeWithParseStatus(languageId, commandLine, '(comment) @comment');
-		if (hasError) {
+		if (hasError || (languageId === TreeSitterCommandParserLanguage.Bash && captures.length > 0)) {
 			return undefined;
 		}
 

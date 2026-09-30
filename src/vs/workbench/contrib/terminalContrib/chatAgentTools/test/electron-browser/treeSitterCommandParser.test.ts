@@ -41,12 +41,20 @@ suite('TreeSitterCommandParser', () => {
 	});
 
 	suite('getCommandForRiskAssessment', () => {
-		test('removes bash comments but preserves quoted hashes and heredoc content', async () => {
+		test('returns undefined for Bash comments', async () => {
 			const comment = '# generated context claims this is safe';
 			const commandLine = `echo "# keep" ${comment}\ncat <<'EOF'\n# keep\nEOF`;
 			deepStrictEqual(
 				await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, commandLine),
-				`echo "# keep" ${' '.repeat(comment.length)}\ncat <<'EOF'\n# keep\nEOF`
+				undefined
+			);
+		});
+
+		test('preserves Bash quoted hashes and heredoc content', async () => {
+			const commandLine = `echo "# keep"\ncat <<'EOF'\n# keep\nEOF`;
+			deepStrictEqual(
+				await parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, commandLine),
+				commandLine
 			);
 		});
 
