@@ -14,6 +14,7 @@ import { GitHubHydratableResourceRef, GitHubIssue, GitHubIssueRef, GitHubReposit
 import { FragmentState, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../platform/github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTransport.js';
 import { GitHubAccountHandle, GitHubRequestErrorKind } from '../../../../platform/github/common/githubTypes.js';
+import { GitHubLinkTarget, parseGitHubLinkTarget } from '../../../../platform/github/common/githubUrls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -21,11 +22,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 const githubRepositoryProviderId = 'workbench.github.repositoryLinkPresentation';
 const githubIssueProviderId = 'workbench.github.issueLinkPresentation';
 const githubPullRequestProviderId = 'workbench.github.pullRequestLinkPresentation';
-
-type GitHubLinkTarget =
-	| { readonly kind: 'repository'; readonly owner: string; readonly repo: string }
-	| { readonly kind: 'issue'; readonly owner: string; readonly repo: string; readonly number: number }
-	| { readonly kind: 'pullRequest'; readonly owner: string; readonly repo: string; readonly number: number };
 
 export class GitHubLinkPresentationContribution extends Disposable implements IWorkbenchContribution {
 
@@ -428,30 +424,6 @@ function failurePresentation(kind: LinkPresentationKind, errorKind: GitHubReques
 		tooltip: localize('github.failure.tooltip', "GitHub could not load this resource: {0}", label),
 		ariaLabel: localize('github.failure.ariaLabel', "GitHub {0} lookup failed: {1}", kind, label),
 	};
-}
-
-function parseGitHubLinkTarget(resource: URI): GitHubLinkTarget | undefined {
-	if (resource.scheme !== 'https') {
-		return undefined;
-	}
-	const segments = resource.path.split('/').filter(Boolean);
-	if (segments.length === 2) {
-		return { kind: 'repository', owner: segments[0], repo: segments[1] };
-	}
-	if (segments.length !== 4) {
-		return undefined;
-	}
-	const number = Number(segments[3]);
-	if (!Number.isSafeInteger(number) || number <= 0) {
-		return undefined;
-	}
-	if (segments[2] === 'issues') {
-		return { kind: 'issue', owner: segments[0], repo: segments[1], number };
-	}
-	if (segments[2] === 'pull') {
-		return { kind: 'pullRequest', owner: segments[0], repo: segments[1], number };
-	}
-	return undefined;
 }
 
 function formatTarget(target: GitHubLinkTarget): string {
