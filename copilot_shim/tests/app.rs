@@ -102,6 +102,41 @@ fn copied_shim_is_skipped_and_binary_marker_is_retained() {
 	);
 }
 
+#[test]
+fn diagnostics_require_the_verbose_modifier() {
+	let binary = Path::new(env!("CARGO_BIN_EXE_copilot"));
+	let quiet = Command::new(binary)
+		.arg("--vscode-shim")
+		.output()
+		.expect("run quiet malformed invocation");
+	let verbose = Command::new(binary)
+		.args(["--vscode-shim", "verbose", "--vscode-shim"])
+		.output()
+		.expect("run verbose malformed invocation");
+
+	assert_eq!(
+		(
+			quiet.status.code(),
+			quiet.stdout,
+			quiet.stderr,
+			verbose.status.code(),
+			verbose.stdout,
+			String::from_utf8(verbose.stderr)
+				.expect("UTF-8 verbose diagnostic")
+				.trim_end()
+				.to_owned(),
+		),
+		(
+			Some(2),
+			Vec::<u8>::new(),
+			Vec::<u8>::new(),
+			Some(2),
+			Vec::<u8>::new(),
+			String::from("--vscode-shim requires an option name"),
+		)
+	);
+}
+
 #[cfg(unix)]
 #[test]
 fn unix_black_box_preserves_launch_contract() {
@@ -130,6 +165,8 @@ fn unix_black_box_preserves_launch_contract() {
 		.args([
 			"--vscode-shim",
 			"clear",
+			"--vscode-shim",
+			"verbose",
 			"--clear",
 			"",
 			"with spaces",

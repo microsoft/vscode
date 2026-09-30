@@ -8,13 +8,13 @@
 //! The options form a prefix of the command line:
 //!
 //! ```text
-//! copilot [--vscode-shim <modifier>]... [--] [copilot arguments...]
-//! copilot --vscode-shim <info|probe|install> [command options...]
+//! copilot [--vscode-shim <clear|verbose>]... [--] [copilot arguments...]
+//! copilot [--vscode-shim verbose]... --vscode-shim <info|probe|install> [command options...]
 //! ```
 //!
 //! Modifiers are removed and the remaining arguments are forwarded to the Copilot CLI. Commands run and exit without
-//! ever launching the Copilot CLI. Parsing stops at the first argument that is not a `--vscode-shim` option, so
-//! arguments meant for the Copilot CLI are never consumed.
+//! ever launching the Copilot CLI. `verbose` may precede a command, while `clear` may not. Parsing stops at the first
+//! argument that is not a `--vscode-shim` option, so arguments meant for the Copilot CLI are never consumed.
 
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
@@ -37,6 +37,12 @@ pub(crate) enum Invocation {
 	Info,
 	Probe(ProbeOptions),
 	Install(InstallOptions),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ParsedInvocation {
+	pub(crate) verbose: bool,
+	pub(crate) result: Result<Invocation, InvocationError>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -75,7 +81,7 @@ pub(crate) struct InstallOptions {
 pub(crate) enum InvocationError {
 	MissingOptionName,
 	UnknownOption(OsString),
-	CommandAfterModifier(OsString),
+	CommandAfterClear(OsString),
 	UnknownCommandOption {
 		command: &'static str,
 		option: OsString,
@@ -100,9 +106,9 @@ impl std::fmt::Display for InvocationError {
 		match self {
 			Self::MissingOptionName => write!(formatter, "{OPTION} requires an option name"),
 			Self::UnknownOption(name) => write!(formatter, "unknown {OPTION} option {name:?}"),
-			Self::CommandAfterModifier(name) => write!(
+			Self::CommandAfterClear(name) => write!(
 				formatter,
-				"{OPTION} {name:?} must be the first option and cannot be combined with modifiers"
+				"{OPTION} {name:?} cannot be combined with {OPTION} clear"
 			),
 			Self::UnknownCommandOption { command, option } => {
 				write!(
@@ -131,7 +137,16 @@ impl std::fmt::Display for InvocationError {
 	}
 }
 
-pub(crate) fn parse(arguments: Vec<OsString>) -> Result<Invocation, InvocationError> {
+pub(crate) fn parse(arguments: Vec<OsString>) -> ParsedInvocation {
+	let mut verbose = false;
+	let result = parse_invocation(arguments, &mut verbose);
+	ParsedInvocation { verbose, result }
+}
+
+fn parse_invocation(
+	arguments: Vec<OsString>,
+	verbose: &mut bool,
+) -> Result<Invocation, InvocationError> {
 	let mut clear = false;
 	let mut index = 0;
 	while arguments
@@ -146,8 +161,12 @@ pub(crate) fn parse(arguments: Vec<OsString>) -> Result<Invocation, InvocationEr
 				clear = true;
 				index += 2;
 			}
-			Some("info" | "probe" | "install") if index > 0 => {
-				return Err(InvocationError::CommandAfterModifier(name.clone()));
+			Some("verbose") => {
+				*verbose = true;
+				index += 2;
+			}
+			Some("info" | "probe" | "install") if clear => {
+				return Err(InvocationError::CommandAfterClear(name.clone()));
 			}
 			Some("info") => return parse_info(&arguments[index + 2..]),
 			Some("probe") => return parse_probe(&arguments[index + 2..]),
@@ -345,11 +364,18 @@ mod tests {
 		values.iter().map(OsString::from).collect()
 	}
 
-	fn launch(clear: bool, forwarded: &[&str]) -> Result<Invocation, InvocationError> {
-		Ok(Invocation::Launch {
-			clear,
-			arguments: arguments(forwarded),
-		})
+	fn parsed(verbose: bool, result: Result<Invocation, InvocationError>) -> ParsedInvocation {
+		ParsedInvocation { verbose, result }
+	}
+
+	fn launch(verbose: bool, clear: bool, forwarded: &[&str]) -> ParsedInvocation {
+		parsed(
+			verbose,
+			Ok(Invocation::Launch {
+				clear,
+				arguments: arguments(forwarded),
+			}),
+		)
 	}
 
 	#[test]
@@ -362,29 +388,31 @@ mod tests {
 				parse(arguments(&[
 					"--vscode-shim",
 					"clear",
+					"--vscode-shim",
+					"verbose",
 					"--",
 					"--vscode-shim",
 					"clear"
 				])),
 				parse(arguments(&[
 					"--vscode-shim",
-					"clear",
+					"verbose",
 					"--vscode-shim",
-					"clear"
+					"verbose"
 				])),
 				parse(arguments(&["--", "--vscode-shim", "clear"])),
 				parse(arguments(&["-p", "--vscode-shim", "clear"])),
 				parse(arguments(&["--clear", "x"])),
 			],
 			[
-				launch(false, &[]),
-				launch(false, &["--resume", "id"]),
-				launch(true, &["--resume", "id"]),
-				launch(true, &["--vscode-shim", "clear"]),
-				launch(true, &[]),
-				launch(false, &["--", "--vscode-shim", "clear"]),
-				launch(false, &["-p", "--vscode-shim", "clear"]),
-				launch(false, &["--clear", "x"]),
+				launch(false, false, &[]),
+				launch(false, false, &["--resume", "id"]),
+				launch(false, true, &["--resume", "id"]),
+				launch(true, true, &["--vscode-shim", "clear"]),
+				launch(true, false, &[]),
+				launch(false, false, &["--", "--vscode-shim", "clear"]),
+				launch(false, false, &["-p", "--vscode-shim", "clear"]),
+				launch(false, false, &["--clear", "x"]),
 			]
 		);
 	}
@@ -395,6 +423,8 @@ mod tests {
 			[
 				parse(arguments(&["--vscode-shim", "info"])),
 				parse(arguments(&[
+					"--vscode-shim",
+					"verbose",
 					"--vscode-shim",
 					"probe",
 					"--scope",
@@ -419,27 +449,42 @@ mod tests {
 					"--running-mutex",
 					"mutex",
 				])),
-				parse(arguments(&["--vscode-shim", "install", "--interactive"])),
+				parse(arguments(&[
+					"--vscode-shim",
+					"verbose",
+					"--vscode-shim",
+					"install",
+					"--interactive"
+				])),
 			],
 			[
-				Ok(Invocation::Info),
-				Ok(Invocation::Probe(ProbeOptions {
-					scope: ProbeScope::Machine,
-					network: false,
-					timeout: Duration::from_millis(250),
-					result_file: PathBuf::from("probe.ini"),
-				})),
-				Ok(Invocation::Install(InstallOptions {
-					mode: InstallMode::Setup {
-						progress_file: Some(PathBuf::from("progress.ini")),
-						result_file: PathBuf::from("result.ini"),
-						cancel_file: Some(PathBuf::from("cancel")),
-						running_mutex: Some(OsString::from("mutex")),
-					},
-				})),
-				Ok(Invocation::Install(InstallOptions {
-					mode: InstallMode::Interactive,
-				})),
+				parsed(false, Ok(Invocation::Info)),
+				parsed(
+					true,
+					Ok(Invocation::Probe(ProbeOptions {
+						scope: ProbeScope::Machine,
+						network: false,
+						timeout: Duration::from_millis(250),
+						result_file: PathBuf::from("probe.ini"),
+					}))
+				),
+				parsed(
+					false,
+					Ok(Invocation::Install(InstallOptions {
+						mode: InstallMode::Setup {
+							progress_file: Some(PathBuf::from("progress.ini")),
+							result_file: PathBuf::from("result.ini"),
+							cancel_file: Some(PathBuf::from("cancel")),
+							running_mutex: Some(OsString::from("mutex")),
+						},
+					}))
+				),
+				parsed(
+					true,
+					Ok(Invocation::Install(InstallOptions {
+						mode: InstallMode::Interactive,
+					}))
+				),
 			]
 		);
 	}
@@ -454,10 +499,17 @@ mod tests {
 					"--vscode-shim",
 					"clear",
 					"--vscode-shim",
+					"verbose",
+					"--vscode-shim",
 					"probe"
 				])),
 				parse(arguments(&["--vscode-shim", "info", "extra"])),
-				parse(arguments(&["--vscode-shim", "probe"])),
+				parse(arguments(&[
+					"--vscode-shim",
+					"verbose",
+					"--vscode-shim",
+					"probe"
+				])),
 				parse(arguments(&[
 					"--vscode-shim",
 					"probe",
@@ -485,43 +537,68 @@ mod tests {
 				parse(arguments(&["--vscode-shim", "install"])),
 			],
 			[
-				Err(InvocationError::MissingOptionName),
-				Err(InvocationError::UnknownOption(OsString::from(
-					"future-option"
-				))),
-				Err(InvocationError::CommandAfterModifier(OsString::from(
-					"probe"
-				))),
-				Err(InvocationError::UnknownCommandOption {
-					command: "info",
-					option: OsString::from("extra"),
-				}),
-				Err(InvocationError::MissingRequiredOption {
-					command: "probe",
-					option: "--result-file",
-				}),
-				Err(InvocationError::InvalidValue {
-					command: "probe",
-					option: "--scope",
-					value: OsString::from("everyone"),
-				}),
-				Err(InvocationError::InvalidValue {
-					command: "probe",
-					option: "--timeout-ms",
-					value: OsString::from("0"),
-				}),
-				Err(InvocationError::MissingValue {
-					command: "probe",
-					option: "--result-file",
-				}),
-				Err(InvocationError::MissingRequiredOption {
-					command: "install",
-					option: "--consent=installer",
-				}),
-				Err(InvocationError::MissingRequiredOption {
-					command: "install",
-					option: "exactly one of --interactive or --non-interactive",
-				}),
+				parsed(false, Err(InvocationError::MissingOptionName)),
+				parsed(
+					false,
+					Err(InvocationError::UnknownOption(OsString::from(
+						"future-option"
+					)))
+				),
+				parsed(
+					true,
+					Err(InvocationError::CommandAfterClear(OsString::from("probe")))
+				),
+				parsed(
+					false,
+					Err(InvocationError::UnknownCommandOption {
+						command: "info",
+						option: OsString::from("extra"),
+					})
+				),
+				parsed(
+					true,
+					Err(InvocationError::MissingRequiredOption {
+						command: "probe",
+						option: "--result-file",
+					})
+				),
+				parsed(
+					false,
+					Err(InvocationError::InvalidValue {
+						command: "probe",
+						option: "--scope",
+						value: OsString::from("everyone"),
+					})
+				),
+				parsed(
+					false,
+					Err(InvocationError::InvalidValue {
+						command: "probe",
+						option: "--timeout-ms",
+						value: OsString::from("0"),
+					})
+				),
+				parsed(
+					false,
+					Err(InvocationError::MissingValue {
+						command: "probe",
+						option: "--result-file",
+					})
+				),
+				parsed(
+					false,
+					Err(InvocationError::MissingRequiredOption {
+						command: "install",
+						option: "--consent=installer",
+					})
+				),
+				parsed(
+					false,
+					Err(InvocationError::MissingRequiredOption {
+						command: "install",
+						option: "exactly one of --interactive or --non-interactive",
+					})
+				),
 			]
 		);
 	}

@@ -396,7 +396,9 @@ pub(crate) fn run<R: Runtime>(
 	arguments: Vec<OsString>,
 	target: Option<HostTarget>,
 ) -> i32 {
-	let (clear, arguments) = match invocation::parse(arguments) {
+	let invocation = invocation::parse(arguments);
+	runtime.set_diagnostics_enabled(invocation.verbose);
+	let (clear, arguments) = match invocation.result {
 		Ok(Invocation::Launch { clear, arguments }) => (clear, arguments),
 		// Commands for VS Code report and exit; they never launch the Copilot CLI.
 		Ok(Invocation::Info) => return setup::info(),
@@ -510,7 +512,7 @@ fn request_install<R: Runtime>(
 		report_installer_plan_error(runtime, &error);
 		ApplicationExit::InternalFailure
 	})?;
-	match run_installer(runtime, &routes, &tools) {
+	match run_installer(runtime, &routes, &tools, runtime.diagnostics_enabled()) {
 		InstallerResult::Succeeded { attempts } => {
 			report_failed_installer_attempts(runtime, &attempts);
 			Ok(PromptResponse::Accepted)
@@ -724,6 +726,7 @@ mod tests {
 		prompts: RefCell<Vec<String>>,
 		clears: Cell<usize>,
 		diagnostics: RefCell<Vec<String>>,
+		diagnostics_enabled: Cell<bool>,
 		policy_disabled: Cell<bool>,
 		no_terminal: Cell<bool>,
 	}
@@ -753,6 +756,7 @@ mod tests {
 				prompts: RefCell::new(Vec::new()),
 				clears: Cell::new(0),
 				diagnostics: RefCell::new(Vec::new()),
+				diagnostics_enabled: Cell::new(true),
 				policy_disabled: Cell::new(false),
 				no_terminal: Cell::new(false),
 			}
@@ -867,6 +871,14 @@ mod tests {
 	}
 
 	impl UserInteractionEffects for FakeRuntime {
+		fn set_diagnostics_enabled(&self, enabled: bool) {
+			self.diagnostics_enabled.set(enabled);
+		}
+
+		fn diagnostics_enabled(&self) -> bool {
+			self.diagnostics_enabled.get()
+		}
+
 		fn clear_terminal(&self) -> io::Result<()> {
 			self.clears.set(self.clears.get() + 1);
 			Ok(())
@@ -886,7 +898,9 @@ mod tests {
 		}
 
 		fn write_diagnostic(&self, message: &str) {
-			self.diagnostics.borrow_mut().push(message.to_owned());
+			if self.diagnostics_enabled.get() {
+				self.diagnostics.borrow_mut().push(message.to_owned());
+			}
 		}
 	}
 
@@ -1038,6 +1052,59 @@ mod tests {
 					]),
 					SupervisionMode::FinalInteractiveCli,
 				)],
+			)
+		);
+	}
+
+	#[test]
+	fn candidate_discovery_diagnostics_require_verbose() {
+		let configured_runtime = || {
+			let runtime = FakeRuntime::default();
+			runtime.add_directory(Path::new("/cli"));
+			runtime.add_program(&cli_path("/cli"));
+			runtime.set_path(&[Path::new("/denied"), Path::new("/cli")]);
+			runtime
+				.inspection_errors
+				.borrow_mut()
+				.insert(PathBuf::from("/denied"), io::ErrorKind::PermissionDenied);
+			runtime.push_process_result(Ok(interactive_exit(0)));
+			runtime
+		};
+
+		let quiet = configured_runtime();
+		let quiet_exit = run(&quiet, Vec::new(), Some(HostTarget::LinuxGnuX64));
+
+		let verbose = configured_runtime();
+		let verbose_exit = run(
+			&verbose,
+			vec![OsString::from("--vscode-shim"), OsString::from("verbose")],
+			Some(HostTarget::LinuxGnuX64),
+		);
+
+		assert_eq!(
+			(
+				quiet_exit,
+				quiet.diagnostics.borrow().clone(),
+				verbose_exit,
+				verbose
+					.diagnostics
+					.borrow()
+					.iter()
+					.any(|message| message.contains("candidate discovery PathEntry")
+						&& message.contains("/denied")
+						&& message.contains("PermissionDenied")),
+				verbose
+					.commands
+					.borrow()
+					.first()
+					.map(|(command, _)| command.arguments().clone()),
+			),
+			(
+				0,
+				Vec::<String>::new(),
+				0,
+				true,
+				Some(CommandArguments::Native(Vec::new())),
 			)
 		);
 	}
@@ -1415,21 +1482,46 @@ mod tests {
 	}
 
 	#[test]
-	fn without_a_terminal_a_missing_cli_exits_127_without_a_prompt() {
-		let missing = FakeRuntime::default();
-		missing.no_terminal.set(true);
-		missing.add_directory(Path::new("/empty"));
-		missing.set_path(&[Path::new("/empty")]);
+	fn without_a_terminal_a_missing_cli_only_explains_exit_127_when_verbose() {
+		let configured_runtime = || {
+			let runtime = FakeRuntime::default();
+			runtime.no_terminal.set(true);
+			runtime.add_directory(Path::new("/empty"));
+			runtime.set_path(&[Path::new("/empty")]);
+			runtime
+		};
 
-		let exit = run(
-			&missing,
+		let quiet = configured_runtime();
+		let quiet_exit = run(
+			&quiet,
 			vec![OsString::from("-p")],
 			Some(HostTarget::LinuxGnuX64),
 		);
 
+		let verbose = configured_runtime();
+		let verbose_exit = run(
+			&verbose,
+			vec![
+				OsString::from("--vscode-shim"),
+				OsString::from("verbose"),
+				OsString::from("-p"),
+			],
+			Some(HostTarget::LinuxGnuX64),
+		);
+
 		assert_eq!(
-			(exit, missing.prompts.borrow().len(), missing.diagnostics.borrow().clone()),
 			(
+				quiet_exit,
+				quiet.prompts.borrow().len(),
+				quiet.diagnostics.borrow().clone(),
+				verbose_exit,
+				verbose.prompts.borrow().len(),
+				verbose.diagnostics.borrow().clone(),
+			),
+			(
+				127,
+				0,
+				Vec::<String>::new(),
 				127,
 				0,
 				vec![format!(
@@ -1450,7 +1542,11 @@ mod tests {
 		};
 
 		let missing = policy_runtime("/empty");
-		let missing_exit = run(&missing, Vec::new(), Some(HostTarget::LinuxGnuX64));
+		let missing_exit = run(
+			&missing,
+			vec![OsString::from("--vscode-shim"), OsString::from("verbose")],
+			Some(HostTarget::LinuxGnuX64),
+		);
 
 		let installed = policy_runtime("/cli");
 		installed.add_program(&cli_path("/cli"));

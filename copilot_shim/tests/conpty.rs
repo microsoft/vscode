@@ -451,6 +451,17 @@ fn windows_conpty_prompt_and_cli_interaction() {
 
 #[test]
 fn windows_conpty_ctrl_c_cancels_without_fallback() {
+	let installed_cli = env::var_os("LOCALAPPDATA")
+		.map(PathBuf::from)
+		.map(|path| path.join("GitHubCopilotCLI").join("copilot.exe"));
+	if installed_cli.as_ref().is_some_and(|path| path.is_file()) {
+		eprintln!(
+			"skipping cancellation test because GitHub Copilot CLI is installed at {}",
+			installed_cli.expect("installed CLI path").display()
+		);
+		return;
+	}
+
 	let root = tempfile::tempdir().expect("create cancellation test directory");
 	let tools = root.path().join("tools");
 	let working_directory = root.path().join("working");
