@@ -39,11 +39,12 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
-import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../common/customizationMarketplaceInstallService.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
@@ -53,6 +54,7 @@ import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
 import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery, CustomizationDiscoveryType } from './aiCustomizationQuery.js';
+import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOrigin, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
 import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
@@ -210,12 +212,18 @@ function hasInstallationTarget(state: CustomizationMarketplaceInstallState): sta
 	return 'target' in state;
 }
 
-function matchesInstallationTarget(item: IInstalledDiscoveryItem, target: CustomizationMarketplaceInstallationTarget): boolean {
-	switch (target.kind) {
-		case 'skill': return item.type === 'skill' && !!item.uri && isEqual(item.uri, target.uri);
-		case 'plugin': return item.type === 'plugin' && !!item.uri && isEqual(item.uri, target.uri);
-		case 'mcp': return item.type === 'mcp' && item.mcpServerId === target.id;
-		case 'copilotConnector': return false;
+function getInstalledItemMarketplaceRecord(
+	item: IInstalledDiscoveryItem,
+	installations: ICustomizationMarketplaceInstallationSnapshot,
+): IRecordedCustomizationMarketplaceResource | undefined {
+	switch (item.type) {
+		case 'skill':
+		case 'plugin':
+			return item.uri ? installations.findByTarget({ kind: item.type, uri: item.uri }) : undefined;
+		case 'mcp':
+			return item.mcpServerId ? installations.findByTarget({ kind: 'mcp', id: item.mcpServerId }) : undefined;
+		default:
+			return undefined;
 	}
 }
 
@@ -329,6 +337,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		private readonly onOpenDetails: (resource: ICustomizationMarketplaceResource) => void,
 		private readonly onOpenInstalled: (item: IInstalledDiscoveryItem) => void,
 		private readonly isDirectUninstalling: (item: IInstalledDiscoveryItem) => boolean,
+		private readonly themeService: IThemeService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IDiscoveryRowTemplate {
@@ -388,24 +397,13 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			installed && element.disabled ? localize('customizationDiscovery.disabled', "Disabled") : undefined,
 		].filter(Boolean).join(' · ');
 
-		const fallback = DOM.append(templateData.icon, $('.codicon'));
-		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : type === 'skill' ? Codicon.lightbulb : Codicon.file));
-		fallback.setAttribute('aria-hidden', 'true');
-		templateData.icon.classList.toggle('is-fallback', !resource?.icon);
-		if (resource?.icon) {
-			const image = DOM.append(templateData.icon, $('img')) as HTMLImageElement;
-			image.alt = '';
-			image.loading = 'lazy';
-			image.referrerPolicy = 'no-referrer';
-			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => {
-				templateData.icon.classList.remove('is-fallback');
-			}));
-			templateData.elementDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => {
-				templateData.icon.classList.add('is-fallback');
-				image.remove();
-			}));
-			image.src = resource.icon.toString(true);
-		}
+		renderCustomizationMarketplaceIcon(
+			templateData.icon,
+			type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : type === 'skill' ? Codicon.lightbulb : Codicon.file,
+			resource?.icon,
+			this.themeService.getColorTheme().type,
+			templateData.elementDisposables,
+		);
 
 		templateData.name.textContent = name;
 		templateData.name.removeAttribute('href');
@@ -623,6 +621,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 		this.enabledSourceIds = this.getEnabledCatalogSourceIds();
@@ -712,6 +711,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			resource => this.openMarketplaceItem(resource, 'search'),
 			item => this.openInstalledItem(item),
 			item => this.pendingDirectUninstalls.has(item.id),
+			this.themeService,
 		);
 		this.resultList = this._register(this.instantiationService.createInstance(
 			WorkbenchList<DiscoveryListEntry>,
@@ -768,6 +768,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		});
 		this._register(this.installService.onDidChange(() => this.render()));
+		this._register(this.themeService.onDidColorThemeChange(() => this.render()));
 		if (this.marketplaceService.onDidChangeSources) {
 			this._register(this.marketplaceService.onDidChangeSources(() => this.scheduleMarketplaceRefresh(true)));
 		}
@@ -1074,7 +1075,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					id: `installed:${section}:${item.id}`,
 					name: item.displayName ?? item.name,
 					description: item.description ?? item.filename,
-					sourceLabel: getSourceLabel(item),
+					sourceLabel: item.marketplace ? this.getMarketplaceResourceLabel(item.marketplace.resource) : getSourceLabel(item),
 					type,
 					section,
 					uri: item.uri,
@@ -1082,6 +1083,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					promptType: item.promptType,
 					itemId: item.id,
 					promptDetail: item,
+					catalogResource: item.marketplace?.resource,
 					removable: !item.isBuiltin && item.source !== 'extension' && item.source !== 'builtin',
 					disabled: item.disabled,
 				});
@@ -1372,7 +1374,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private getSearchMarketplaceResources(): readonly ICustomizationMarketplaceResource[] {
 		const resources = new Map(this.catalogItems.map(resource => [getCustomizationMarketplaceResourceKey(resource), resource]));
-		for (const resource of this.installService.getRecordedResources()) {
+		for (const { resource } of this.installService.installations.get().installations) {
 			const key = getCustomizationMarketplaceResourceKey(resource);
 			if (!resources.has(key)) {
 				resources.set(key, resource);
@@ -1391,14 +1393,23 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private renderSearchResults(preserveResults: boolean): void {
 		this.resultStatusDisposables.clear();
 		const installed = [...this.getFilteredInstalledItems()];
+		const marketplaceInstallations = this.installService.installations.get();
+		const installedByMarketplaceRecord = new Map<IRecordedCustomizationMarketplaceResource, number>();
+		for (let index = 0; index < installed.length; index++) {
+			const marketplace = getInstalledItemMarketplaceRecord(installed[index], marketplaceInstallations);
+			if (marketplace && !installedByMarketplaceRecord.has(marketplace)) {
+				installedByMarketplaceRecord.set(marketplace, index);
+			}
+		}
 		const installedCatalog: IInstalledDiscoveryItem[] = [];
 		const available: ICatalogDiscoveryItem[] = [];
 		for (const resource of this.getSearchMarketplaceResources()) {
 			const type = getCatalogType(resource)!;
 			const state = this.getInstallState(resource);
 			if (hasInstallationTarget(state)) {
-				const matchingInstalledIndex = installed.findIndex(item => matchesInstallationTarget(item, state.target));
-				if (matchingInstalledIndex >= 0) {
+				const marketplace = marketplaceInstallations.findByResource(resource);
+				const matchingInstalledIndex = marketplace ? installedByMarketplaceRecord.get(marketplace) : undefined;
+				if (matchingInstalledIndex !== undefined) {
 					installed[matchingInstalledIndex] = {
 						...installed[matchingInstalledIndex],
 						sourceLabel: this.getMarketplaceResourceLabel(resource),
@@ -1461,7 +1472,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		} else {
 			this.resultStatus.textContent = '';
 		}
-		if (catalogPending) {
+		if (this.loading) {
 			this.announce(this.getLoadingLabel());
 		}
 		if (!catalogPending && !this.errorMessage) {
@@ -1566,24 +1577,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.browseDisposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.CLICK, () => this.openMarketplaceItem(item, 'browse')));
 		const icon = DOM.append(primaryAction, $('.customization-discovery-card-icon'));
 		const type = getCatalogType(item);
-		const fallback = DOM.append(icon, $('.codicon'));
-		fallback.classList.add(...ThemeIcon.asClassNameArray(type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : Codicon.lightbulb));
-		fallback.setAttribute('aria-hidden', 'true');
-		icon.classList.toggle('is-fallback', !item.icon);
-		if (item.icon) {
-			const image = DOM.append(icon, $('img')) as HTMLImageElement;
-			image.alt = '';
-			image.loading = 'lazy';
-			image.referrerPolicy = 'no-referrer';
-			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => {
-				icon.classList.remove('is-fallback');
-			}));
-			this.browseDisposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => {
-				icon.classList.add('is-fallback');
-				image.remove();
-			}));
-			image.src = item.icon.toString(true);
-		}
+		renderCustomizationMarketplaceIcon(
+			icon,
+			type === 'mcp' ? Codicon.server : type === 'plugin' ? Codicon.extensions : Codicon.lightbulb,
+			item.icon,
+			this.themeService.getColorTheme().type,
+			this.browseDisposables,
+		);
 		const body = DOM.append(primaryAction, $('.customization-discovery-card-body'));
 		const heading = DOM.append(body, $('.customization-discovery-card-heading'));
 		const name = DOM.append(heading, $('.customization-discovery-card-name'));
@@ -1980,10 +1980,18 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	getAccessibilityContent(): string {
 		const searchResources = this.getSearchMarketplaceResources();
+		const marketplaceInstallations = this.installService.installations.get();
 		const recorded = searchResources
 			.map(resource => ({ resource, state: this.getInstallState(resource) }))
 			.filter(entry => hasInstallationTarget(entry.state));
-		const installed = this.getFilteredInstalledItems().filter(item => !recorded.some(entry => hasInstallationTarget(entry.state) && matchesInstallationTarget(item, entry.state.target)));
+		const recordedInstallations = new Set(recorded.flatMap(({ resource }) => {
+			const installation = marketplaceInstallations.findByResource(resource);
+			return installation ? [installation] : [];
+		}));
+		const installed = this.getFilteredInstalledItems().filter(item => {
+			const marketplace = getInstalledItemMarketplaceRecord(item, marketplaceInstallations);
+			return !marketplace || !recordedInstallations.has(marketplace);
+		});
 		const available = searchResources.filter(item => {
 			const type = getCatalogType(item);
 			return type && this.matchesType(type) && !hasInstallationTarget(this.getInstallState(item));

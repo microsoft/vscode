@@ -3,16 +3,10 @@ parameters:
     type: string
   - name: VSCODE_CIBUILD
     type: boolean
+  - name: VSCODE_TEST_IDS
+    type: object
+    default: []
   - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
-    type: boolean
-    default: false
-  - name: VSCODE_RUN_ELECTRON_TESTS
-    type: boolean
-    default: false
-  - name: VSCODE_RUN_BROWSER_TESTS
-    type: boolean
-    default: false
-  - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
 
@@ -21,10 +15,10 @@ parameters:
 steps:
   - template: ../../common/checkout.yml@self
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
     - template: ../../copilot/pull-test-cache.yml@self
 
-  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+  - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - template: ../../common/ensure-test-artifact-directories.yml@self
 
   - task: NodeTool@0
@@ -99,7 +93,7 @@ steps:
     env:
       npm_config_arch: $(VSCODE_ARCH)
       npm_config_foreground_scripts: "true"
-      ${{ if and(eq(parameters.VSCODE_CIBUILD, true), or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true))) }}:
+      ${{ if and(eq(parameters.VSCODE_CIBUILD, true), gt(length(parameters.VSCODE_TEST_IDS), 0)) }}:
         # Use an absolute path so nested installs share the existing CI logs artifact.
         npm_config_timing: "true"
         npm_config_logs_dir: $(Build.SourcesDirectory)/.build/logs/npm

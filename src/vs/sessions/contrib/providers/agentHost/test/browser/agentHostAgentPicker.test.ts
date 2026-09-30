@@ -16,6 +16,7 @@ import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSes
 import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
 import '../../browser/agentHostAgentPicker.js';
 import '../../browser/mobile/mobileChatInputConfigPicker.js';
+import '../../../../chat/browser/modelPicker.js';
 
 suite('agentHostAgentPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,6 +24,26 @@ suite('agentHostAgentPicker', () => {
 	const alpha: AgentCustomization = { type: CustomizationType.Agent, id: 'agent://a', uri: 'agent://a', name: 'alpha' };
 	const beta: AgentCustomization = { type: CustomizationType.Agent, id: 'agent://b', uri: 'agent://b', name: 'beta', description: 'b desc' };
 	const agents: readonly AgentCustomization[] = [alpha, beta];
+
+	test('orders the new-session agent before mode and model without duplicating it in automations', () => {
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
+		IsPhoneLayoutContext.bindTo(context).set(false);
+		const inDialog = ChatContextKeys.inAutomationsDialog.bindTo(context);
+		const ids = ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker', 'sessions.modelPicker'];
+		const controls = () => [Menus.NewSessionControl, Menus.NewSessionConfig].flatMap(menu =>
+			MenuRegistry.getMenuItems(menu).filter(isIMenuItem)
+				.filter(item => ids.includes(item.command.id) && context.contextMatchesRules(item.when))
+				.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+				.map(item => item.command.id));
+		inDialog.set(false);
+		const newSession = controls();
+		inDialog.set(true);
+		assert.deepStrictEqual({ newSession, automationSecondary: controls() }, {
+			newSession: ids,
+			automationSecondary: ['sessions.agentHost.newSessionModePicker', 'sessions.modelPicker'],
+		});
+	});
 
 	test('uses the same desktop and phone agent controls in the automation prompt', () => {
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
