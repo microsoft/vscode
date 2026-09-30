@@ -414,7 +414,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		SessionWorktreeCleanupEditor,
 		SessionWorktreeCleanupEditor.ID,
-		localize('sessionWorktreeCleanupEditor', "Clean Up Agent Worktrees Editor"),
+		localize('sessionWorktreeCleanupEditor', "Open worktree cleanup editor"),
 	),
 	[new SyncDescriptor(SessionWorktreeCleanupEditorInput)],
 );
