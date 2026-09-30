@@ -13,7 +13,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathS
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
-import { join } from '../../../../../../base/common/path.js';
+import { basename, join } from '../../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import {
@@ -40,6 +40,7 @@ import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
 import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, type IAhpSnapshotOptions } from './ahpSnapshot.js';
 import { normalizeShellToolNameForCapture } from './shellToolNames.js';
+import { preserveAgentHostE2ELogs } from './agentHostE2EDiagnostics.js';
 
 // #region Record/replay
 
@@ -1073,6 +1074,12 @@ export class AgentHostE2EServerLease {
 	 * output. Best-effort: never throws because it runs during failed-test teardown.
 	 */
 	dumpRuntimeLogsOnFailure(label: string): void {
+		const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `agent-host-e2e-${process.pid}-${basename(this._startOptions.homeDir)}`);
+		try {
+			preserveAgentHostE2ELogs(this._startOptions.userDataDir, this._startOptions.homeDir, destination, label);
+		} catch (error) {
+			process.stdout.write(`[agent-host-e2e] Failed to preserve logs for "${label}": ${error}\n`);
+		}
 		this._dumpAgentHostLogOnFailure(label);
 		if (!this._isCopilotProvider) {
 			return;
