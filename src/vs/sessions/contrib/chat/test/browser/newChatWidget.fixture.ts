@@ -50,7 +50,7 @@ import { ICustomizationHarnessService } from '../../../../../workbench/contrib/c
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, ICustomizationMigrationHint, ICustomizationMigrationService, McpServerCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService, McpServerCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IMcpWorkbenchService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -544,7 +544,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 
 	if (migrationCount > 0) {
-		await configurationService.setUserConfiguration(getCustomizationMigrationEnablementSetting(CustomizationMigrationType.PromptFiles), true);
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled, true);
 	}
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
