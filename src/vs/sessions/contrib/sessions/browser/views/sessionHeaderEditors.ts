@@ -714,7 +714,17 @@ class SessionCollectionEditorBody extends Disposable {
 		DOM.append(deleteTargets, $('span.session-header-editor-label', undefined, localize('sessionCollectionEditor.moveContentsTo', "Move contents to:")));
 		const deleteChips = DOM.append(deleteTargets, $('.session-header-editor-chips'));
 		this.renderDeleteTargets(deleteChips);
-		this._register(DOM.addDisposableListener(deleteButton, DOM.EventType.CLICK, () => deleteTargets.classList.add('visible')));
+		// Only ask where to move contents when there are any; an empty collection is deleted right away.
+		this._register(DOM.addDisposableListener(deleteButton, DOM.EventType.CLICK, () => {
+			if (this.getGroupCount() + this.getSessionCount() > 0) {
+				deleteTargets.classList.add('visible');
+				return;
+			}
+			const fallback = this.getEmptyCollectionFallback();
+			if (fallback) {
+				this.deleteCollection(fallback);
+			}
+		}));
 
 		const update = () => {
 			const collection = this.getCollection();
@@ -798,6 +808,18 @@ class SessionCollectionEditorBody extends Disposable {
 		if (this.collectionsService.deleteCollection(this.options.collectionId, moveToId)) {
 			this.options.close();
 		}
+	}
+
+	/**
+	 * Where an empty collection's leftover workspace assignments go: the default
+	 * collection, or when deleting the default, the first other collection, which
+	 * then becomes the default.
+	 */
+	private getEmptyCollectionFallback(): string | undefined {
+		const defaultId = this.collectionsService.defaultCollectionId.get();
+		return defaultId !== this.options.collectionId
+			? defaultId
+			: this.collectionsService.collections.get().find(collection => collection.id !== this.options.collectionId)?.id;
 	}
 
 	private getCollection(): ISessionCollection | undefined {
