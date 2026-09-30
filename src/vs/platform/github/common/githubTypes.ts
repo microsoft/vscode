@@ -76,6 +76,12 @@ export class GitHubRequestError extends Error {
 	}
 }
 
+export class GitHubRequestTimeoutError extends GitHubRequestError {
+	constructor(readonly requestDispatched = false) {
+		super('GitHub request timed out', 'timeout');
+	}
+}
+
 export interface GitHubHostCapabilities {
 	readonly graphql: boolean;
 	readonly mergeQueue: boolean;

@@ -23,6 +23,61 @@ suite('GitHub request lifecycle', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const kind of ['rest', 'graphql'] as const) {
+		test(`${kind}: classifies oversized HTTP failures before the response size error`, async () => {
+			const transport = store.add(new GitHubTransport(async () => new Response('invalid credential details', { status: 401 }), undefined, false, undefined, { maximumResponseBytes: 4 }));
+			await assert.rejects(request(transport, kind), { kind: 'authentication', statusCode: 401, responseBody: 'inva' });
+		});
+
+		test(`${kind}: detaches cancelled waiters while keeping a shared peer alive`, async () => {
+			const scheduler = store.add(new FakeGitHubScheduler());
+			const response = new DeferredPromise<Response>();
+			let calls = 0;
+			const transport = store.add(new GitHubTransport(async () => {
+				calls++;
+				return response.p;
+			}, scheduler, false, undefined, { maximumSharedWaiters: 2 }));
+			const peer = new AbortController();
+			const pending = request(transport, kind, {}, peer.signal);
+			for (let i = 0; i < 100; i++) {
+				const controller = new AbortController();
+				const reason = new Error('cancelled waiter');
+				const rejected = assert.rejects(request(transport, kind, {}, controller.signal), error => error === reason);
+				controller.abort(reason);
+				await rejected;
+			}
+			const waitingTimers = scheduler.pendingCount;
+			await response.complete(new Response('{"data":{}}'));
+			await pending;
+			assert.deepStrictEqual({
+				calls, waitingTimers,
+				timers: scheduler.pendingCount,
+			}, { calls: 1, waitingTimers: 2, timers: 0 });
+		});
+
+		for (const phase of ['queued', 'headers', 'body'] as const) {
+			test(`${kind}: timeout records whether a mutation reached network dispatch (${phase})`, async () => {
+				const scheduler = store.add(new FakeGitHubScheduler());
+				const started = new DeferredPromise<void>();
+				const transport = store.add(new GitHubTransport(async () => {
+					await started.complete();
+					return phase === 'headers' ? new Promise<Response>(() => { }) : new Response(new ReadableStream<Uint8Array>());
+				}, scheduler, false, undefined, { requestTimeout: 10 }));
+				const signal = new AbortController().signal;
+				const pending = kind === 'rest'
+					? transport.rest(account, 'token', { method: 'POST', url, body: {} }, signal)
+					: transport.graphql(account, 'token', url, 'mutation Write { write { id } }', {}, signal);
+				const rejected = assert.rejects(pending, { kind: 'timeout', requestDispatched: phase !== 'queued' });
+				if (phase !== 'queued') {
+					await started.p;
+					await Promise.resolve();
+					await Promise.resolve();
+				}
+				scheduler.advanceBy(10);
+				await rejected;
+				assert.strictEqual(scheduler.pendingCount, 0);
+			});
+		}
+
 		test(`${kind}: bounds decoded response bytes and accepts the exact limit`, async () => {
 			const body = JSON.stringify(kind === 'rest' ? { value: '\u00e9' } : { data: { value: '\u00e9' } });
 			const bytes = new TextEncoder().encode(body).byteLength;
@@ -321,6 +376,86 @@ suite('GitHub request lifecycle', () => {
 		transport.rateLimits.updateFromResponse(account, new Response('', { status: 429, headers: { 'Retry-After': '5' } }));
 		await assert.rejects(pending, { kind: 'rateLimit' });
 		assert.deepStrictEqual({ calls, timers: scheduler.pendingCount }, { calls: 0, timers: 0 });
+	});
+
+	test('account invalidation reclaims quota state after its last cooldown expires', () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		const transport = store.add(new GitHubTransport(undefined, scheduler));
+		transport.rateLimits.updateFromResponse(account, new Response(null, { headers: { 'x-ratelimit-resource': 'graphql' } }));
+		transport.rateLimits.updateFromResponse(account, new Response(null, { status: 403, headers: { 'retry-after': '1' } }), 'secondary rate limit');
+		transport.invalidateAccount(account);
+		scheduler.advanceBy(999);
+		const blocked = transport.rateLimits.getDelay(account, 'graphql');
+		scheduler.advanceBy(1);
+		assert.deepStrictEqual({
+			blocked,
+			core: transport.rateLimits.getState(account, 'core'),
+			graphql: transport.rateLimits.getState(account, 'graphql'),
+			timers: scheduler.pendingCount,
+		}, { blocked: 1, core: undefined, graphql: undefined, timers: 0 });
+	});
+
+	test('account invalidation immediately reclaims quota state without a cooldown', () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		const transport = store.add(new GitHubTransport(undefined, scheduler));
+		transport.rateLimits.updateFromResponse(account, new Response(null, { headers: { 'x-ratelimit-remaining': '10' } }));
+		transport.invalidateAccount(account);
+		assert.deepStrictEqual({ state: transport.rateLimits.getState(account, 'core'), timers: scheduler.pendingCount }, {
+			state: undefined, timers: 0,
+		});
+	});
+
+	test('account reuse cancels expiry cleanup without discarding its cooldown', async () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		const transport = store.add(new GitHubTransport(async () => new Response('{}'), scheduler));
+		transport.rateLimits.updateFromResponse(account, new Response(null, { status: 429, headers: { 'retry-after': '1' } }));
+		transport.invalidateAccount(account);
+		const pending = request(transport, 'rest');
+		scheduler.advanceBy(1_000);
+		await pending;
+		const retained = transport.rateLimits.getState(account, 'core') !== undefined;
+		transport.invalidateAccount(account);
+		assert.deepStrictEqual({ retained, state: transport.rateLimits.getState(account, 'core'), timers: scheduler.pendingCount }, {
+			retained: true, state: undefined, timers: 0,
+		});
+	});
+
+	test('many inactive accounts share one expiry timer and release all quota state', () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		const transport = store.add(new GitHubTransport(undefined, scheduler));
+		const accounts = Array.from({ length: 100 }, (_, i) => ({ ...account, accountId: String(i) }));
+		for (const inactive of accounts) {
+			transport.rateLimits.updateFromResponse(inactive, new Response(null, { status: 429, headers: { 'retry-after': '1' } }));
+			transport.invalidateAccount(inactive);
+		}
+		const cleanupTimers = scheduler.pendingCount;
+		scheduler.advanceBy(1_000);
+		assert.deepStrictEqual({
+			cleanupTimers,
+			retained: accounts.filter(inactive => transport.rateLimits.getState(inactive, 'core') !== undefined).length,
+			timers: scheduler.pendingCount,
+		}, { cleanupTimers: 1, retained: 0, timers: 0 });
+	});
+
+	test('long GraphQL comments cannot trigger backtracking or hide the mutation operation', async () => {
+		let calls = 0;
+		const transport = store.add(new GitHubTransport(async () => {
+			calls++;
+			return new Response('{}', { status: 503 });
+		}));
+		const comment = `#${'#'.repeat(100_000)} query NotAnOperation`;
+		await assert.rejects(transport.graphql(account, 'token', url, `${comment}\r\n, # { ignored }\nmutation Write { write { id } }`, {}, new AbortController().signal), { kind: 'server' });
+		assert.strictEqual(calls, 1);
+	});
+
+	test('does not retry mutations whose comments contain query keywords', async () => {
+		let calls = 0;
+		const transport = store.add(new GitHubTransport(async () => {
+			calls++;
+			return new Response('{}', { status: 503 });
+		}));
+		await assert.rejects(transport.graphql(account, 'token', url, '# query NotAnOperation\nmutation Write { write { id } }', {}, new AbortController().signal), { kind: 'server' });
+		assert.strictEqual(calls, 1);
 	});
 
 	test('rejects expired or cancelled requests before network access', async () => {

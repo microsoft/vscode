@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { GitHubAccountHandle, GitHubRequestContext, GitHubRequestError, GitHubRequestPriority } from './githubTypes.js';
+import { GitHubAccountHandle, GitHubRequestContext, GitHubRequestError, GitHubRequestPriority, GitHubRequestTimeoutError } from './githubTypes.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubRequestOutcome, GitHubRequestTelemetry, gitHubRequestOutcome, IGitHubRequestTiming } from './githubRequestTelemetry.js';
 
@@ -82,7 +82,7 @@ export class GitHubRequestQueue extends Disposable {
 		}
 	}
 
-	enqueue<T>(context: GitHubRequestContext, task: (signal: AbortSignal) => Promise<T>): Promise<T> {
+	enqueue<T>(context: GitHubRequestContext, task: (signal: AbortSignal, onDispatch: () => void) => Promise<T>): Promise<T> {
 		if (context.signal.aborted) {
 			return Promise.reject(context.signal.reason);
 		}
@@ -93,7 +93,7 @@ export class GitHubRequestQueue extends Disposable {
 			return Promise.reject(new GitHubRequestError('Invalid GitHub request context', 'validation'));
 		}
 		if (context.deadline <= this._scheduler.now()) {
-			return Promise.reject(new GitHubRequestError('GitHub request timed out', 'timeout'));
+			return Promise.reject(new GitHubRequestTimeoutError());
 		}
 		this._drain();
 		const accountKey = GitHubRequestQueue.accountKey(context.account);
@@ -114,6 +114,7 @@ export class GitHubRequestQueue extends Disposable {
 			const controller = new AbortController();
 			const timing = this._telemetry?.startQueue(context);
 			let settled = false;
+			let dispatched = false;
 			const finish = (complete: () => void, outcome: GitHubRequestOutcome) => {
 				if (settled) {
 					return;
@@ -142,7 +143,7 @@ export class GitHubRequestQueue extends Disposable {
 				run: () => {
 					void Promise.resolve().then(() => {
 						controller.signal.throwIfAborted();
-						return task(controller.signal);
+						return task(controller.signal, () => { dispatched = true; });
 					}).then(
 						value => finish(() => resolve(value), 'success'),
 						error => finish(() => reject(error), gitHubRequestOutcome(error, controller.signal.aborted)),
@@ -157,7 +158,7 @@ export class GitHubRequestQueue extends Disposable {
 			store.add(toDisposable(() => context.signal.removeEventListener('abort', onAbort)));
 			context.signal.addEventListener('abort', onAbort, { once: true });
 			store.add(this._scheduler.schedule(
-				() => request.cancel(new GitHubRequestError('GitHub request timed out', 'timeout')),
+				() => request.cancel(new GitHubRequestTimeoutError(dispatched)),
 				context.deadline - this._scheduler.now(),
 			));
 			this._pending.push(request);
@@ -206,7 +207,7 @@ export class GitHubRequestQueue extends Disposable {
 			// Wall-clock deadlines can expire before their timers fire after suspend or a clock adjustment.
 			for (const request of [...this._pending]) {
 				if (request.context.deadline <= this._scheduler.now()) {
-					request.cancel(new GitHubRequestError('GitHub request timed out', 'timeout'));
+					request.cancel(new GitHubRequestTimeoutError());
 				}
 			}
 			while (this._active.size < this._options.maximumConcurrency) {
@@ -242,7 +243,7 @@ export class GitHubRequestQueue extends Disposable {
 		for (let index = 0; index < this._pending.length; index++) {
 			const candidate = this._pending[index];
 			if (candidate.context.deadline <= this._scheduler.now()) {
-				candidate.cancel(new GitHubRequestError('GitHub request timed out', 'timeout'));
+				candidate.cancel(new GitHubRequestTimeoutError());
 				index--;
 				continue;
 			}

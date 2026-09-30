@@ -7,7 +7,7 @@ import { LRUCache } from '../../../base/common/map.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
-import { GitHubAccountHandle, GitHubFetch, GitHubGraphQLError, GitHubRequestContext, GitHubRequestError, GitHubRequestErrorKind, GitHubRequestKind, GitHubRequestOptions, GitHubRequestPriority } from './githubTypes.js';
+import { GitHubAccountHandle, GitHubFetch, GitHubGraphQLError, GitHubRequestContext, GitHubRequestError, GitHubRequestErrorKind, GitHubRequestKind, GitHubRequestOptions, GitHubRequestPriority, GitHubRequestTimeoutError } from './githubTypes.js';
 import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { GitHubRequestQueue, GitHubRequestQueueOptions } from './githubRequestQueue.js';
@@ -80,18 +80,15 @@ interface IRestCacheEntry {
 	readonly representationVersion: number;
 }
 
-interface ISharedRequest {
+interface ISharedRequest<T> {
 	readonly controller: AbortController;
 	readonly deadline: number;
-	readonly promise: Promise<GitHubRestResponse<unknown>>;
-	waiters: number;
+	readonly waiters: Set<ISharedRequestWaiter<T>>;
 }
 
-interface ISharedGraphQLRequest {
-	readonly controller: AbortController;
-	readonly deadline: number;
-	readonly promise: Promise<GitHubGraphQLResponse<unknown>>;
-	waiters: number;
+interface ISharedRequestWaiter<T> {
+	resolve(value: T): void;
+	reject(error: unknown): void;
 }
 
 export interface GitHubTransportOptions {
@@ -114,8 +111,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	private readonly _rateLimits: GitHubRateLimitCoordinator;
 	private readonly _restCache = new LRUCache<string, IRestCacheEntry>(500);
 	private readonly _redirects = new Map<string, string>();
-	private readonly _inFlight = new Map<string, ISharedRequest>();
-	private readonly _graphQlInFlight = new Map<string, ISharedGraphQLRequest>();
+	private readonly _inFlight = new Map<string, ISharedRequest<GitHubRestResponse<unknown>>>();
+	private readonly _graphQlInFlight = new Map<string, ISharedRequest<GitHubGraphQLResponse<unknown>>>();
 	private readonly _options: GitHubTransportOptions;
 
 	constructor(
@@ -164,7 +161,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		let shared = this._inFlight.get(coalescingKey);
 		if (shared && shared.deadline <= this._scheduler.now()) {
 			this._inFlight.delete(coalescingKey);
-			shared.controller.abort(new GitHubRequestError('GitHub request timed out', 'timeout'));
+			shared.controller.abort(new GitHubRequestTimeoutError());
 			shared = undefined;
 		}
 		const coalesced = shared !== undefined;
@@ -172,17 +169,27 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			const controller = new AbortController();
 			const requestDeadline = this._deadline({});
 			const promise = this._executeRest<unknown>(account, token, { ...request, deadline: requestDeadline }, controller.signal, cacheKey);
-			shared = { controller, deadline: requestDeadline, promise, waiters: 0 };
+			shared = { controller, deadline: requestDeadline, waiters: new Set() };
 			this._inFlight.set(coalescingKey, shared);
 			const created = shared;
 			void promise.then(
-				() => this._deleteRestRequest(coalescingKey, created),
-				() => this._deleteRestRequest(coalescingKey, created),
+				value => {
+					this._deleteRestRequest(coalescingKey, created);
+					for (const waiter of created.waiters) {
+						waiter.resolve(value);
+					}
+				},
+				error => {
+					this._deleteRestRequest(coalescingKey, created);
+					for (const waiter of created.waiters) {
+						waiter.reject(error);
+					}
+				},
 			);
 		} else {
-			this._logService?.trace(`[GitHubTransport] Reusing REST ${formatRequestUrl(finalUrl)} (waiters: ${shared.waiters + 1})`);
+			this._logService?.trace(`[GitHubTransport] Reusing REST ${formatRequestUrl(finalUrl)} (waiters: ${shared.waiters.size + 1})`);
 		}
-		if (shared.waiters >= this._options.maximumSharedWaiters) {
+		if (shared.waiters.size >= this._options.maximumSharedWaiters) {
 			this._telemetry?.recordRejection('waiter');
 			throw new GitHubRequestError('GitHub shared request capacity exceeded', 'overloaded');
 		}
@@ -190,12 +197,10 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			this._telemetry?.record('coalesced');
 		}
 		this._queue.promote(shared.controller.signal, request.priority ?? 'interactive');
-		shared.waiters++;
 		try {
-			return await this._waitForShared(shared.promise, signal, deadline) as GitHubRestResponse<T>;
+			return await this._waitForShared(shared, signal, deadline) as GitHubRestResponse<T>;
 		} finally {
-			shared.waiters--;
-			if (shared.waiters === 0 && this._inFlight.get(coalescingKey) === shared) {
+			if (shared.waiters.size === 0 && this._inFlight.get(coalescingKey) === shared) {
 				this._inFlight.delete(coalescingKey);
 				this._logService?.trace(`[GitHubTransport] Cancelling REST ${formatRequestUrl(finalUrl)} because all waiters detached`);
 				shared.controller.abort(new Error('All GitHub request waiters cancelled'));
@@ -244,7 +249,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		}
 		const deadline = this._deadline(request, Math.max(0, request.timeout));
 		const priority = request.priority ?? 'interactive';
-		return this._logRequest('download', formatDownloadUrl(request.url), account, priority, signal, () => this._enqueueWithRateLimit(account, 'core', priority, signal, async combinedSignal => {
+		return this._logRequest('download', formatDownloadUrl(request.url), account, priority, signal, () => this._enqueueWithRateLimit(account, 'core', priority, signal, async (combinedSignal, onDispatch) => {
 			const initialOrigin = new URL(request.url).origin;
 			let url = request.url;
 			let authenticated = true;
@@ -264,6 +269,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				let response: Response;
 				try {
 					this._telemetry?.recordWireAttempt(false, false);
+					onDispatch();
 					response = await this._fetch(url, {
 						method: 'GET',
 						cache: 'no-store',
@@ -362,7 +368,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		let shared = this._graphQlInFlight.get(key);
 		if (shared && shared.deadline <= this._scheduler.now()) {
 			this._graphQlInFlight.delete(key);
-			shared.controller.abort(new GitHubRequestError('GitHub request timed out', 'timeout'));
+			shared.controller.abort(new GitHubRequestTimeoutError());
 			shared = undefined;
 		}
 		const coalesced = shared !== undefined;
@@ -370,17 +376,27 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			const controller = new AbortController();
 			const requestDeadline = this._deadline({});
 			const promise = this._executeGraphQL<unknown>(account, token, url, query, variables, controller.signal, priority, { caller: options.caller, deadline: requestDeadline });
-			shared = { controller, deadline: requestDeadline, promise, waiters: 0 };
+			shared = { controller, deadline: requestDeadline, waiters: new Set() };
 			this._graphQlInFlight.set(key, shared);
 			const created = shared;
 			void promise.then(
-				() => this._deleteGraphQLRequest(key, created),
-				() => this._deleteGraphQLRequest(key, created),
+				value => {
+					this._deleteGraphQLRequest(key, created);
+					for (const waiter of created.waiters) {
+						waiter.resolve(value);
+					}
+				},
+				error => {
+					this._deleteGraphQLRequest(key, created);
+					for (const waiter of created.waiters) {
+						waiter.reject(error);
+					}
+				},
 			);
 		} else {
-			this._logService?.trace(`[GitHubTransport] Reusing GraphQL ${graphQLOperationName(query)} (waiters: ${shared.waiters + 1})`);
+			this._logService?.trace(`[GitHubTransport] Reusing GraphQL ${graphQLOperationName(query)} (waiters: ${shared.waiters.size + 1})`);
 		}
-		if (shared.waiters >= this._options.maximumSharedWaiters) {
+		if (shared.waiters.size >= this._options.maximumSharedWaiters) {
 			this._telemetry?.recordRejection('waiter');
 			throw new GitHubRequestError('GitHub shared request capacity exceeded', 'overloaded');
 		}
@@ -388,12 +404,10 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			this._telemetry?.record('coalesced');
 		}
 		this._queue.promote(shared.controller.signal, priority);
-		shared.waiters++;
 		try {
-			return await this._waitForShared(shared.promise, signal, options.deadline) as GitHubGraphQLResponse<T>;
+			return await this._waitForShared(shared, signal, options.deadline) as GitHubGraphQLResponse<T>;
 		} finally {
-			shared.waiters--;
-			if (shared.waiters === 0 && this._graphQlInFlight.get(key) === shared) {
+			if (shared.waiters.size === 0 && this._graphQlInFlight.get(key) === shared) {
 				this._graphQlInFlight.delete(key);
 				this._logService?.trace(`[GitHubTransport] Cancelling GraphQL ${graphQLOperationName(query)} because all waiters detached`);
 				shared.controller.abort(new Error('All GitHub GraphQL request waiters cancelled'));
@@ -412,7 +426,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		options: GitHubRequestOptions,
 	): Promise<GitHubGraphQLResponse<T>> {
 		const operation = graphQLOperationName(query);
-		return this._logRequest('GraphQL', operation, account, priority, signal, () => this._enqueueWithRateLimit(account, 'graphql', priority, signal, async signal => {
+		return this._logRequest('GraphQL', operation, account, priority, signal, () => this._enqueueWithRateLimit(account, 'graphql', priority, signal, async (signal, onDispatch) => {
 			const response = await this._fetchWithRetry(account, 'graphql', url, {
 				method: 'POST',
 				cache: 'no-store',
@@ -425,7 +439,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				body: JSON.stringify({ query, variables }),
 				signal,
 				redirect: 'manual',
-			}, isGraphQLRead(query), options.caller);
+			}, isGraphQLRead(query), options.caller, onDispatch);
 			this._logService?.trace(`[GitHubTransport] GraphQL ${operation} returned HTTP ${response.status}`);
 			const body = await this._readResponse(account, response, signal, 'graphql');
 			signal.throwIfAborted();
@@ -455,6 +469,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		const graphQlRequests = [...this._graphQlInFlight.keys()].filter(key => key.startsWith(`${accountKey}\x00`)).length;
 		this._logService?.debug(`[GitHubTransport] Invalidating state for ${account.host} (REST requests: ${restRequests}, GraphQL requests: ${graphQlRequests})`);
 		this._queue.cancelAccount(account, reason);
+		this._rateLimits.releaseAccount(account);
 		const cacheKeys: string[] = [];
 		for (const [key, entry] of this._restCache) {
 			if (entry.accountKey === accountKey) {
@@ -507,7 +522,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	): Promise<GitHubRestResponse<T>> {
 		const priority = request.priority ?? (request.method === 'GET' ? 'interactive' : 'mutation');
 		const operation = `${request.method} ${formatRequestUrl(request.url)}`;
-		return this._logRequest('REST', operation, account, priority, signal, () => this._enqueueWithRateLimit(account, restResource(request.url), priority, signal, async signal => {
+		return this._logRequest('REST', operation, account, priority, signal, () => this._enqueueWithRateLimit(account, restResource(request.url), priority, signal, async (signal, onDispatch) => {
 			const cached = request.etag !== false && !request.unconditional ? this._restCache.get(cacheKey) : undefined;
 			if (cached) {
 				this._logService?.trace(`[GitHubTransport] Using cached ETag for ${operation}`);
@@ -530,7 +545,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				body: request.body === undefined ? undefined : JSON.stringify(request.body),
 				signal,
 				redirect: 'manual',
-			}, request.method === 'GET', request.caller);
+			}, request.method === 'GET', request.caller, onDispatch);
 			this._logService?.trace(`[GitHubTransport] REST ${operation} returned HTTP ${response.status}`);
 			const finalUrl = response.url || this._redirects.get(request.url) || request.url;
 			const body = await this._readResponse(account, response, signal, restResource(request.url));
@@ -610,7 +625,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		resource: string,
 		priority: GitHubRequestPriority,
 		signal: AbortSignal,
-		task: (signal: AbortSignal) => Promise<T>,
+		task: (signal: AbortSignal, onDispatch: () => void) => Promise<T>,
 		options: GitHubRequestOptions,
 		kind: GitHubRequestKind,
 	): Promise<T> {
@@ -619,14 +634,15 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			caller: options.caller ?? 'github',
 			deadline: this._deadline(options),
 		};
+		this._rateLimits.retainAccount(account);
 		return this._queue.enqueue(context, task);
 	}
 
-	private async _fetchRestWithRedirects(account: GitHubAccountHandle, initialUrl: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined): Promise<Response> {
+	private async _fetchRestWithRedirects(account: GitHubAccountHandle, initialUrl: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined, onDispatch: () => void): Promise<Response> {
 		let url = this._redirects.get(initialUrl) ?? initialUrl;
 		const initialOrigin = new URL(url).origin;
 		for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
-			const response = await this._fetchWithRetry(account, restResource(url), url, init, retry, caller);
+			const response = await this._fetchWithRetry(account, restResource(url), url, init, retry, caller, onDispatch);
 			if (![301, 302, 307, 308].includes(response.status)) {
 				if (url !== initialUrl) {
 					this._redirects.set(initialUrl, url);
@@ -649,7 +665,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		throw new GitHubRequestError('GitHub API request exceeded the redirect limit', 'unknown');
 	}
 
-	private async _fetchWithRetry(account: GitHubAccountHandle, resource: string, url: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined): Promise<Response> {
+	private async _fetchWithRetry(account: GitHubAccountHandle, resource: string, url: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined, onDispatch: () => void): Promise<Response> {
 		let failure: unknown;
 		for (let attempt = 0; attempt < (retry ? 2 : 1); attempt++) {
 			init.signal.throwIfAborted();
@@ -659,6 +675,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			const headers = { ...init.headers, ...this._options.requestMetadata?.getHeaders(url, caller, attempt > 0) };
 			try {
 				this._telemetry?.recordWireAttempt(attempt > 0, init.headers['If-None-Match'] !== undefined);
+				onDispatch();
 				const response = await this._fetch(url, { ...init, headers });
 				this._telemetry?.recordResponse(response.status);
 				if (init.signal.aborted) {
@@ -699,7 +716,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			this._telemetry?.record('rateLimitedResponses');
 		}
 		this._rateLimits.updateFromResponse(account, response, body, resource);
-		if (result.truncated) {
+		if (result.truncated && response.ok) {
 			throw new GitHubRequestError('GitHub response exceeded its byte limit', 'responseTooLarge', response.status);
 		}
 		return body;
@@ -713,7 +730,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		const now = this._scheduler.now();
 		const deadline = Math.min(options.deadline ?? Infinity, now + Math.min(timeout, this._options.requestTimeout));
 		if (deadline <= now) {
-			throw new GitHubRequestError('GitHub request timed out', 'timeout');
+			throw new GitHubRequestTimeoutError();
 		}
 		return deadline;
 	}
@@ -737,13 +754,13 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		].join('\x00');
 	}
 
-	private _deleteRestRequest(key: string, request: ISharedRequest): void {
+	private _deleteRestRequest(key: string, request: ISharedRequest<GitHubRestResponse<unknown>>): void {
 		if (this._inFlight.get(key) === request) {
 			this._inFlight.delete(key);
 		}
 	}
 
-	private _deleteGraphQLRequest(key: string, request: ISharedGraphQLRequest): void {
+	private _deleteGraphQLRequest(key: string, request: ISharedRequest<GitHubGraphQLResponse<unknown>>): void {
 		if (this._graphQlInFlight.get(key) === request) {
 			this._graphQlInFlight.delete(key);
 		}
@@ -811,7 +828,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		}
 	}
 
-	private _waitForShared<T>(promise: Promise<T>, signal: AbortSignal, deadline: number): Promise<T> {
+	private _waitForShared<T>(shared: ISharedRequest<T>, signal: AbortSignal, deadline: number): Promise<T> {
 		if (signal.aborted) {
 			return Promise.reject(signal.reason);
 		}
@@ -822,30 +839,44 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			};
 			const timeout = this._scheduler.schedule(() => {
 				cleanup();
-				reject(new GitHubRequestError('GitHub request timed out', 'timeout'));
+				reject(new GitHubRequestTimeoutError());
 			}, Math.max(0, deadline - this._scheduler.now()));
 			const cleanup = () => {
 				timeout.dispose();
 				signal.removeEventListener('abort', onAbort);
+				shared.waiters.delete(waiter);
 			};
-			signal.addEventListener('abort', onAbort, { once: true });
-			void promise.then(
-				response => {
+			const waiter: ISharedRequestWaiter<T> = {
+				resolve: response => {
 					cleanup();
 					resolve(response);
 				},
-				error => {
+				reject: error => {
 					cleanup();
 					reject(error);
 				},
-			);
+			};
+			shared.waiters.add(waiter);
+			signal.addEventListener('abort', onAbort, { once: true });
 		});
 	}
 
 }
 
 function isGraphQLRead(query: string): boolean {
-	return /^(?:[\s,]|#[^\r\n]*)*(?:query\b|\{)/.test(query);
+	let offset = 0;
+	while (offset < query.length) {
+		if (query[offset] === '#') {
+			while (offset < query.length && query[offset] !== '\r' && query[offset] !== '\n') {
+				offset++;
+			}
+		} else if (/[\s,]/.test(query[offset])) {
+			offset++;
+		} else {
+			break;
+		}
+	}
+	return /^(?:query\b|\{)/.test(query.slice(offset));
 }
 
 function restResource(url: string): string {
@@ -989,17 +1020,9 @@ async function readBoundedResponse(
 	const chunks: Uint8Array[] = [];
 	let length = 0;
 	let complete = false;
-	let onAbort: () => void = () => { };
-	const aborted = new Promise<never>((_, reject) => {
-		onAbort = () => reject(signal.reason);
-		signal.addEventListener('abort', onAbort, { once: true });
-	});
 	try {
 		while (true) {
-			if (signal.aborted) {
-				throw signal.reason;
-			}
-			const result = await Promise.race([reader.read(), aborted]);
+			const result = await readResponseChunk(reader, signal);
 			signal.throwIfAborted();
 			if (result.done) {
 				complete = true;
@@ -1020,12 +1043,29 @@ async function readBoundedResponse(
 		}
 		return { bytes: concatenateBytes(chunks, length), truncated: false };
 	} finally {
-		signal.removeEventListener('abort', onAbort);
 		if (!complete) {
 			cancelDownloadBody(reader, logService);
 		}
 		reader.releaseLock();
 	}
+}
+
+function readResponseChunk(reader: ReadableStreamDefaultReader<Uint8Array>, signal: AbortSignal): Promise<ReadableStreamReadResult<Uint8Array>> {
+	signal.throwIfAborted();
+	return new Promise((resolve, reject) => {
+		const onAbort = () => reject(signal.reason);
+		signal.addEventListener('abort', onAbort, { once: true });
+		void reader.read().then(
+			result => {
+				signal.removeEventListener('abort', onAbort);
+				resolve(result);
+			},
+			error => {
+				signal.removeEventListener('abort', onAbort);
+				reject(error);
+			},
+		);
+	});
 }
 
 function cancelDownloadBody(body: { cancel(): Promise<void> }, logService?: ILogService): void {

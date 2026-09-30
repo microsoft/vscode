@@ -356,6 +356,42 @@ suite('PullRequestMutationService', () => {
 		});
 	}
 
+	for (const operation of ['comment', 'reply'] as const) {
+		test(`does not reconcile a ${operation} that times out before dispatch`, async () => {
+			await withServers(async server => {
+				const scheduler = disposables.add(new FakeGitHubScheduler());
+				const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
+				const ref = { ...account, owner: 'octo', repo: 'repo', number: 7 };
+				const credentials = disposables.add(new TestCredentialService(account));
+				let writes = 0;
+				let refreshes = 0;
+				const transport = disposables.add(new GitHubTransport(async () => {
+					writes++;
+					return new Response('{}');
+				}, scheduler, false, undefined, { requestTimeout: 10 }));
+				for (const resource of ['core', 'graphql']) {
+					transport.rateLimits.updateFromResponse(account, new Response(null, { status: 429, headers: {
+						'retry-after': '1', 'x-ratelimit-resource': resource,
+					} }));
+				}
+				const resources = new TestResourceService(ref, completeSnapshot(server));
+				resources.refreshHandler = () => {
+					refreshes++;
+					throw new Error('A queued write must not require reconciliation');
+				};
+				const service = disposables.add(new PullRequestMutationService(scheduler, credentials, transport, resources, server.createEndpointService()));
+				const pending = operation === 'comment'
+					? service.addComment(ref, { operationId: 'operation-1', body: 'hello' }, signal())
+					: service.replyToThread(ref, { operationId: 'operation-1', body: 'hello', threadId: 'T1' }, signal());
+				const rejected = assert.rejects(pending, { kind: 'timeout' });
+				await new Promise(resolve => setTimeout(resolve, 0));
+				scheduler.advanceBy(10);
+				await rejected;
+				assert.deepStrictEqual({ writes, refreshes, timers: scheduler.pendingCount }, { writes: 0, refreshes: 0, timers: 0 });
+			});
+		});
+	}
+
 	test('never resolves a review thread when the reply fails', async () => {
 		await withServers(async server => {
 			server.enqueue(gitHubGraphQLStep({

@@ -121,6 +121,19 @@ suite('GitHubCredentialService', () => {
 		});
 	});
 
+	test('invalidates a rejected bootstrap credential even when the 401 body is oversized', async () => {
+		const tokenProvider = disposables.add(new TestTokenProvider());
+		tokenProvider.setToken('rejected-token');
+		const transport = disposables.add(new GitHubTransport(async () => new Response('credential was rejected', { status: 401 }), undefined, false, undefined, { maximumResponseBytes: 4 }));
+		const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, {
+			onDidChange: Event.None,
+			getApiBaseUri: () => 'https://api.example.test',
+			getGraphQlUri: () => 'https://api.example.test/graphql',
+		}));
+		await assert.rejects(credentials.getCredential(signal()), { kind: 'authentication', statusCode: 401 });
+		assert.deepStrictEqual(tokenProvider.invalidatedTokens, ['rejected-token']);
+	});
+
 	test('invalidates the matching authentication generation after 401', async () => {
 		await withServer(async server => {
 			server.enqueue(

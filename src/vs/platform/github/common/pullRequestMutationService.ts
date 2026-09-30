@@ -41,7 +41,7 @@ import {
 	PullRequestSnapshot,
 	PullRequestSubscription,
 } from './githubPullRequestService.js';
-import { IGitHubEndpointProvider } from './githubTypes.js';
+import { GitHubRequestTimeoutError, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
@@ -1010,7 +1010,8 @@ function rerunProvenAbsent(run: GitHubWorkflowRun, expectedRunAttempt: number): 
 
 function isAmbiguousMutationError(error: unknown): boolean {
 	return error instanceof GitHubRequestError && (
-		error.kind === 'network' || error.kind === 'server' || error.kind === 'timeout'
+		error.kind === 'network' || error.kind === 'server'
+		|| error.kind === 'timeout' && (!(error instanceof GitHubRequestTimeoutError) || error.requestDispatched)
 		|| error.kind === 'responseTooLarge' && (error.statusCode === undefined || error.statusCode < 400 || error.statusCode >= 500)
 	);
 }

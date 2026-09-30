@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { GitHubAccountHandle } from './githubTypes.js';
 import { GitHubRequestQueue } from './githubRequestQueue.js';
 import { IGitHubScheduler, schedulerDelay } from './githubScheduler.js';
@@ -23,6 +23,8 @@ export class GitHubRateLimitCoordinator extends Disposable {
 
 	private readonly _states = new Map<string, GitHubRateLimitState>();
 	private readonly _accountBlockedUntil = new Map<string, number>();
+	private readonly _inactiveAccounts = new Map<string, number>();
+	private readonly _cleanup = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _scheduler: IGitHubScheduler,
@@ -131,7 +133,38 @@ export class GitHubRateLimitCoordinator extends Disposable {
 	}
 
 	clearAccount(account: GitHubAccountHandle): void {
+		this._clearAccount(GitHubRequestQueue.accountKey(account));
+		this._scheduleCleanup();
+	}
+
+	retainAccount(account: GitHubAccountHandle): void {
+		if (this._inactiveAccounts.delete(GitHubRequestQueue.accountKey(account))) {
+			this._scheduleCleanup();
+		}
+	}
+
+	/** Drops unused quota data once all server-required cooldowns for the account have elapsed. */
+	releaseAccount(account: GitHubAccountHandle): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		const accountKey = GitHubRequestQueue.accountKey(account);
+		const prefix = `${accountKey}\x00`;
+		let expiresAt = this._accountBlockedUntil.get(accountKey) ?? 0;
+		for (const [key, state] of this._states) {
+			if (key.startsWith(prefix)) {
+				expiresAt = Math.max(expiresAt, state.blockedUntil ?? (state.remaining === 0 ? state.resetAt ?? 0 : 0));
+			}
+		}
+		if (expiresAt > this._scheduler.now()) {
+			this._inactiveAccounts.set(accountKey, expiresAt);
+		} else {
+			this._clearAccount(accountKey);
+		}
+		this._scheduleCleanup();
+	}
+
+	private _clearAccount(accountKey: string): void {
 		const prefix = `${accountKey}\x00`;
 		for (const key of this._states.keys()) {
 			if (key.startsWith(prefix)) {
@@ -139,11 +172,32 @@ export class GitHubRateLimitCoordinator extends Disposable {
 			}
 		}
 		this._accountBlockedUntil.delete(accountKey);
+		this._inactiveAccounts.delete(accountKey);
+	}
+
+	private _scheduleCleanup(): void {
+		this._cleanup.clear();
+		if (this._inactiveAccounts.size === 0 || this._store.isDisposed) {
+			return;
+		}
+		let next = Infinity;
+		for (const expiresAt of this._inactiveAccounts.values()) {
+			next = Math.min(next, expiresAt);
+		}
+		this._cleanup.value = this._scheduler.schedule(() => {
+			for (const [accountKey, expiresAt] of this._inactiveAccounts) {
+				if (expiresAt <= this._scheduler.now()) {
+					this._clearAccount(accountKey);
+				}
+			}
+			this._scheduleCleanup();
+		}, Math.max(0, next - this._scheduler.now()));
 	}
 
 	override dispose(): void {
 		this._states.clear();
 		this._accountBlockedUntil.clear();
+		this._inactiveAccounts.clear();
 		super.dispose();
 	}
 
