@@ -434,6 +434,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return keys;
 		});
 
+		const onDidChangeWorkspaceMarketplaces = Event.fromObservableLight(this._workspacePluginSettingsService.extraMarketplaces);
 		this.onDidChangeMarketplaces = Event.any(
 			Event.filter(
 				_configurationService.onDidChangeConfiguration,
@@ -441,7 +442,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					e.affectsConfiguration(ChatConfiguration.PluginMarketplaces) ||
 					e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces),
 			) as Event<unknown> as Event<void>,
-			Event.fromObservableLight(this._workspacePluginSettingsService.extraMarketplaces),
+			onDidChangeWorkspaceMarketplaces,
 		);
 		this._register(this.onDidChangeMarketplaces(() => this._invalidateQueries()));
 		this._register(Event.filter(
@@ -458,6 +459,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					|| e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces)
 					|| e.affectsConfiguration(ChatConfiguration.StrictMarketplaces),
 			)(() => {
+				this._marketplacesWithUpdates.set(new Set(), undefined);
+				this._scheduleUpdateCheck(0);
+			}));
+			this._register(onDidChangeWorkspaceMarketplaces(() => {
 				this._marketplacesWithUpdates.set(new Set(), undefined);
 				this._scheduleUpdateCheck(0);
 			}));
@@ -956,7 +961,11 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return true;
 		}
 		const { extraValues } = readConfiguredMarketplaces(this._configurationService);
-		return parseMarketplaceReferences(extraValues).some(ref => ref.autoUpdate === true);
+		if (parseMarketplaceReferences(extraValues).some(ref => ref.autoUpdate === true)) {
+			return true;
+		}
+		return this._workspacePluginSettingsService.extraMarketplaces.get()
+			.some(entry => this.isMarketplaceAutoUpdateEnabled(entry.reference));
 	}
 
 	/**
