@@ -391,11 +391,11 @@ marker reserved for this component, for example:
 VSCODE_COPILOT_RUST_SHIM_V1
 ```
 
-Native candidates MUST be inspected for this marker using a bounded-memory
-streaming search. A candidate containing it is another shim copy and MUST be
-skipped. The search covers only the first 16 MiB: a shim is about 1 MB, and a
-full Copilot CLI executable (about 150 MB) would otherwise be read on every
-launch.
+Native candidates whose size is at most 16 MiB MUST be inspected for this
+marker using a bounded-memory streaming search. A candidate containing it is
+another shim copy and MUST be skipped. The size gate keeps discovery from
+reading a large Copilot CLI executable (about 150 MB) on every launch; official
+VS Code shim builds are much smaller than the limit.
 
 Recursion exclusion uses canonical paths, supported file identities, the binary
 marker, and legacy-wrapper signatures. The shim MUST NOT set or require a
