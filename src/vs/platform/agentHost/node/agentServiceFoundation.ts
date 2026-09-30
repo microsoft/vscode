@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createGitHubClientMetadata } from '../../github/common/githubRequestMetadata.js';
@@ -11,8 +12,9 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
+import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
-import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
+import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
 import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -146,6 +148,9 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			endpoint: gitHubEndpointService,
 			telemetrySource: 'agentHost',
 			clientMetadata: createGitHubClientMetadata(options.productService, 'agent-host', 'node'),
+			onDidChangeTelemetryLevel: Event.filter<TelemetryLevel, undefined>(Event.map(configurationService.onDidRootConfigChange, () =>
+				agentHostConfigValueToTelemetryLevel(configurationService.getRootConfigValues()[AgentHostTelemetryLevelConfigKey])
+				, options.owned), (level): level is TelemetryLevel => level !== undefined, options.owned),
 			tokenProvider: {
 				getToken: () => {
 					const resource = gitHubEndpointService.getRepoResource();

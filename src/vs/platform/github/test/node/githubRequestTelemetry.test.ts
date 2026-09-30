@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -220,6 +221,29 @@ suite('GitHubRequestTelemetry', () => {
 			attempts: sink.summary().wireAttempts,
 			samples: sink.timings().length,
 		}, { requests: 1, successes: 1, attempts: 0, samples: 0 });
+	});
+
+	test('discards aggregates and completion handles on an idle opt-out and opt-in transition', () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		const sink = new RecordingTelemetryService();
+		const levelChanged = store.add(new Emitter<TelemetryLevel>());
+		const telemetry = store.add(new GitHubRequestTelemetry('workbench', scheduler, sink, new NullLogService(), levelChanged.event));
+		const finish = telemetry.startRequest();
+		const timing = telemetry.startQueue(context());
+		telemetry.recordWireAttempt(false, false);
+		sink.telemetryLevel = TelemetryLevel.NONE;
+		levelChanged.fire(TelemetryLevel.NONE);
+		sink.telemetryLevel = TelemetryLevel.USAGE;
+		levelChanged.fire(TelemetryLevel.USAGE);
+		finish?.('success');
+		timing?.finish('success');
+		telemetry.flush();
+		assert.deepStrictEqual({ events: sink.events, timers: scheduler.pendingCount }, { events: [], timers: 0 });
+		telemetry.startRequest()?.('success');
+		telemetry.flush();
+		assert.deepStrictEqual({ requests: sink.summary().requests, successes: sink.summary().succeeded, samples: sink.timings().length }, {
+			requests: 1, successes: 1, samples: 0,
+		});
 	});
 
 	test('counts shared-waiter rejections and cancellation independently', async () => {

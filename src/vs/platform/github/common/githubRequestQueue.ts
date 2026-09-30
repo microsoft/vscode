@@ -161,7 +161,10 @@ export class GitHubRequestQueue extends Disposable {
 							checkDeadline();
 							finish(() => resolve(value), 'success');
 						},
-						error => finish(() => reject(error), gitHubRequestOutcome(error, controller.signal.aborted)),
+						error => {
+							checkDeadline();
+							finish(() => reject(error), gitHubRequestOutcome(error, controller.signal.aborted));
+						},
 					);
 				},
 				cancel: reason => {

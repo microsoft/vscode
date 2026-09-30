@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
@@ -136,6 +137,7 @@ export class GitHubRequestTelemetry extends Disposable {
 	private _windowStart: number | undefined;
 	private _generation = 0;
 	private _collecting = false;
+	private _configuredTelemetryLevel = TelemetryLevel.USAGE;
 	private readonly _source: GitHubTelemetrySource;
 
 	constructor(
@@ -143,9 +145,18 @@ export class GitHubRequestTelemetry extends Disposable {
 		private readonly _scheduler: IGitHubScheduler,
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _logService: ILogService,
+		onDidChangeTelemetryLevel: Event<TelemetryLevel> = Event.None,
 	) {
 		super();
 		this._source = source === 'workbench' || source === 'web' || source === 'agentHost' || source === 'sharedProcess' ? source : 'other';
+		this._register(onDidChangeTelemetryLevel(level => {
+			this._configuredTelemetryLevel = level;
+			if (level < TelemetryLevel.USAGE) {
+				this._reset();
+				this._generation++;
+				this._collecting = false;
+			}
+		}));
 	}
 
 	startRequest(): ((outcome: GitHubRequestOutcome) => void) | undefined {
@@ -336,7 +347,7 @@ export class GitHubRequestTelemetry extends Disposable {
 	}
 
 	private _enabled(): boolean {
-		if (this._store.isDisposed || this._telemetryService.telemetryLevel < TelemetryLevel.USAGE) {
+		if (this._store.isDisposed || this._configuredTelemetryLevel < TelemetryLevel.USAGE || this._telemetryService.telemetryLevel < TelemetryLevel.USAGE) {
 			if (this._collecting) {
 				this._reset();
 				this._generation++;

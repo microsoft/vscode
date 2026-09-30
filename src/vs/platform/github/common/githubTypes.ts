@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import type { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 
 export type GitHubFetch = typeof globalThis.fetch;
 export type GitHubRequestKind = 'rest' | 'graphql' | 'download';
@@ -116,4 +117,5 @@ export interface GitHubServiceOptions {
 	readonly fetch?: GitHubFetch;
 	readonly telemetrySource?: GitHubTelemetrySource;
 	readonly clientMetadata?: GitHubClientMetadata;
+	readonly onDidChangeTelemetryLevel?: Event<TelemetryLevel>;
 }

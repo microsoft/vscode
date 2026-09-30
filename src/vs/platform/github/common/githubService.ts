@@ -53,7 +53,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 		this._logService.debug('[GitHubService] Initializing reusable GitHub service');
 		this.endpoint = options.endpoint;
-		const telemetry = this._register(new GitHubRequestTelemetry(options.telemetrySource ?? 'other', systemGitHubScheduler, telemetryService, this._logService));
+		const telemetry = this._register(new GitHubRequestTelemetry(options.telemetrySource ?? 'other', systemGitHubScheduler, telemetryService, this._logService, options.onDidChangeTelemetryLevel));
 		this.transport = this._register(new GitHubTransport(options.fetch, undefined, false, this._logService, {
 			requestMetadata: options.clientMetadata ? new GitHubRequestMetadata(options.clientMetadata, options.endpoint) : undefined,
 		}, telemetry));

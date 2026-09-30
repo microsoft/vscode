@@ -300,6 +300,24 @@ suite('GitHubRequestQueue', () => {
 		assert.deepStrictEqual({ aborted: signal.aborted, timers: scheduler.pendingCount }, { aborted: true, timers: 0 });
 	});
 
+	test('rejects an overdue active failure as a timeout before its delayed timer fires', async () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		const queue = store.add(new GitHubRequestQueue(scheduler));
+		const started = new DeferredPromise<void>();
+		const result = new DeferredPromise<void>();
+		const pending = queue.enqueue(context({ deadline: 20 }), async (_signal, onDispatch) => {
+			onDispatch();
+			await started.complete();
+			return result.p;
+		});
+		const rejected = assert.rejects(pending, { kind: 'timeout', requestDispatched: true });
+		await started.p;
+		scheduler.advanceWallClockBy(60);
+		await result.error(new GitHubRequestError('late network failure', 'network'));
+		await rejected;
+		assert.strictEqual(scheduler.pendingCount, 0);
+	});
+
 	test('cancels parked work and disposes active and pending work', async () => {
 		const scheduler = store.add(new FakeGitHubScheduler());
 		const queue = store.add(new GitHubRequestQueue(scheduler, request => request.resource === 'search' ? 1_000 : 0));
