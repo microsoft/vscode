@@ -149,6 +149,8 @@ exchanges:
             ---
 
             Please write the summary now, following the structure and guidelines above. Be concise where possible, but don't sacrifice important context for brevity.
+
+            Tools are unavailable in this step, so do not call any tools, even if other instructions say to call one before responding: respond only with the summary text.
     response:
       content: |-
         <overview>
