@@ -1053,7 +1053,7 @@ export function renderForm(
 	const scheduleSelectOptions: ISelectBoxOptions = {
 		useCustomDrawn: !hasNativeContextMenu(configurationService),
 		anchorPosition: AnchorPosition.ABOVE,
-		maxVisibleOptions: 8,
+		maxVisibleOptions: 6,
 		layoutContainer: form.closest<HTMLElement>('.monaco-dialog-box') ?? form,
 	};
 

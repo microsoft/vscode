@@ -144,8 +144,8 @@ suite('SelectBoxList', () => {
 	});
 
 	for (const { name, top, height, count, expectedHeight, expectedPosition } of [
-		{ name: 'caps long lists at eight options', top: 180, height: 280, count: 96, expectedHeight: 176, expectedPosition: AnchorPosition.ABOVE },
-		{ name: 'falls back within the container', top: 10, height: 280, count: 96, expectedHeight: 176, expectedPosition: AnchorPosition.BELOW },
+		{ name: 'caps long lists at six options', top: 180, height: 280, count: 96, expectedHeight: 132, expectedPosition: AnchorPosition.ABOVE },
+		{ name: 'falls back within the container', top: 10, height: 280, count: 96, expectedHeight: 132, expectedPosition: AnchorPosition.BELOW },
 		{ name: 'shrinks to the available container space', top: 80, height: 130, count: 96, expectedHeight: 66, expectedPosition: AnchorPosition.ABOVE },
 		{ name: 'does not pad short lists to the cap', top: 180, height: 280, count: 4, expectedHeight: 88, expectedPosition: AnchorPosition.ABOVE },
 	]) {
@@ -163,7 +163,7 @@ suite('SelectBoxList', () => {
 				0,
 				contextViewProvider,
 				unthemedSelectBoxStyles,
-				{ anchorPosition: AnchorPosition.ABOVE, maxVisibleOptions: 8, layoutContainer: bounds },
+				{ anchorPosition: AnchorPosition.ABOVE, maxVisibleOptions: 6, layoutContainer: bounds },
 			));
 			selectBox.render(container);
 			const select = container.querySelector('select')!;
