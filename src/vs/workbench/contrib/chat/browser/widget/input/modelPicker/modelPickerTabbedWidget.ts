@@ -144,12 +144,7 @@ export class TabbedModelPicker extends Disposable {
 			if (!this.isVisible || !this._context) {
 				return;
 			}
-			const controlModels = getModelPickerControlModels(
-				this._languageModelsService.getModelsControlManifest(),
-				this._entitlementService.entitlement,
-				this._models,
-			);
-			this._context = this._filterModelsForEntitlement({ ...this._context, models: this._models, controlModels });
+			this._context = this._refreshContextForModels(this._context, this._models);
 			if (this._context.selectedModelId && !this._context.models.some(model => model.identifier === this._context?.selectedModelId)) {
 				const fallback = this._autoModel(this._context) ?? this._fallbackModel(this._context);
 				if (fallback) {
@@ -216,7 +211,7 @@ export class TabbedModelPicker extends Disposable {
 		}
 		if (models) {
 			this._models = models;
-			this._context = this._filterModelsForEntitlement({ ...this._context, models: this._models });
+			this._context = this._refreshContextForModels(this._context, this._models);
 		}
 		const destinations = this._buildDestinations(this._context);
 		if (!destinations.length) {
@@ -246,6 +241,15 @@ export class TabbedModelPicker extends Disposable {
 			models: filterModelPickerModelsForEntitlement(context.models, this._entitlementService.entitlement, this._languageModelsService),
 			controlModels: filterModelPickerControlModelsForEntitlement(context.controlModels, context.models, this._entitlementService.entitlement, this._languageModelsService),
 		};
+	}
+
+	private _refreshContextForModels(context: ITabbedModelPickerContext, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ITabbedModelPickerContext {
+		const controlModels = getModelPickerControlModels(
+			this._languageModelsService.getModelsControlManifest(),
+			this._entitlementService.entitlement,
+			models,
+		);
+		return this._filterModelsForEntitlement({ ...context, models, controlModels });
 	}
 
 	private _showCurrent(initialFilterValue?: string): void {

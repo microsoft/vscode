@@ -82,7 +82,7 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(tabbed: boolean, selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel]) {
+	function createPicker(tabbed: boolean, selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
@@ -91,6 +91,7 @@ suite('ModelPickerTelemetry', () => {
 		const openedLinks: string[] = [];
 		const configurations = new Map<string, IStringDictionary<unknown>>();
 		const pinnedModelIds: string[] = [];
+		const delegateSelections: string[] = [];
 		let tabbedShows = 0;
 		const configurationAccess: IModelConfigurationAccess = {
 			getModelConfiguration: id => configurations.get(id),
@@ -286,7 +287,7 @@ suite('ModelPickerTelemetry', () => {
 		const entitlementService = new class extends TestChatEntitlementService {
 			override readonly onDidChangeEntitlement = entitlementChanged.event;
 		}();
-		entitlementService.entitlement = ChatEntitlement.Pro;
+		entitlementService.entitlement = entitlement;
 		instantiationService.stub(IChatEntitlementService, entitlementService);
 		instantiationService.stub(IUpdateService, { state: { type: StateType.Uninitialized } });
 		instantiationService.stub(IUriIdentityService, { extUri });
@@ -298,7 +299,7 @@ suite('ModelPickerTelemetry', () => {
 
 		const picker = store.add(instantiationService.createInstance(ModelPickerWidget, {
 			currentModel: constObservable(selectedModel),
-			setModel: () => { },
+			setModel: model => delegateSelections.push(model.identifier),
 			getModels: () => models,
 			getChatSessionId: () => 'session-1',
 			getPresentationOptions: () => ({
@@ -311,7 +312,7 @@ suite('ModelPickerTelemetry', () => {
 		picker.show(container);
 
 		return {
-			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds,
+			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds, delegateSelections,
 			get visible() { return visible; },
 			get flatPickerHideCount() { return flatPickerHideCount; },
 			get tabbedShows() { return tabbedShows; },
@@ -345,6 +346,18 @@ suite('ModelPickerTelemetry', () => {
 			},
 		};
 	}
+
+	test('Free entitlement replaces a persisted HydraFusion selection when the picker is constructed', () => {
+		const hydraFusion = createModel('hydrafusion');
+		const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model], ChatEntitlement.Free);
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			delegateSelections: result.delegateSelections,
+		}, {
+			selected: autoModel.identifier,
+			delegateSelections: [autoModel.identifier],
+		});
+	});
 
 	test('legacy picker closes and replaces selected HydraFusion when entitlement resolves to Free', () => {
 		const hydraFusion = createModel('hydrafusion');

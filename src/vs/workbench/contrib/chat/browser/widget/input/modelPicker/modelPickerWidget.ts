@@ -218,23 +218,10 @@ export class ModelPickerWidget extends Disposable {
 		// The setup-required state derives from entitlement / sentiment / anonymous
 		// access, so refresh the label when any of those change (e.g. after sign-in).
 		this._register(this._entitlementService.onDidChangeEntitlement(() => {
-			if (this._entitlementService.entitlement === ChatEntitlement.Free &&
-				this._selectedModel &&
-				isHydraFusionModel(this._selectedModel) &&
-				!isUserProvidedModel(this._selectedModel, this._languageModelsService)) {
-				const models = this._delegate.getModels();
-				const fallback = models.find(model => isAutoModel(model) && !isUserProvidedModel(model, this._languageModelsService))
-					?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService));
-				if (fallback) {
-					this._selectedModel = fallback;
-					this._tabbedPicker.value?.setSelectedModel(fallback.identifier);
-					this._onDidChangeSelection.fire(fallback);
-				}
-			}
+			this.setSelectedModel(this._selectedModel);
 			if (!this._tabbedPicker.value?.isVisible && this._nameButton?.getAttribute('aria-expanded') === 'true') {
 				this._actionWidgetService.hide();
 			}
-			this._renderLabel();
 		}));
 		this._register(this._entitlementService.onDidChangeSentiment(() => this._renderLabel()));
 		this._register(this._entitlementService.onDidChangeAnonymous(() => this._renderLabel()));
@@ -278,9 +265,26 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	setSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
-		this._selectedModel = model;
-		this._tabbedPicker.value?.setSelectedModel(model?.identifier);
+		const selectedModel = this._normalizeSelectedModel(model);
+		this._selectedModel = selectedModel;
+		this._tabbedPicker.value?.setSelectedModel(selectedModel?.identifier);
+		if (selectedModel && selectedModel !== model) {
+			this._delegate.setModel(selectedModel);
+		}
 		this._renderLabel();
+	}
+
+	private _normalizeSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): ILanguageModelChatMetadataAndIdentifier | undefined {
+		if (this._entitlementService.entitlement !== ChatEntitlement.Free ||
+			!model ||
+			!isHydraFusionModel(model) ||
+			isUserProvidedModel(model, this._languageModelsService)) {
+			return model;
+		}
+		const models = this._delegate.getModels();
+		return models.find(model => isAutoModel(model) && !isUserProvidedModel(model, this._languageModelsService))
+			?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
+			?? model;
 	}
 
 	setEnabled(enabled: boolean): void {

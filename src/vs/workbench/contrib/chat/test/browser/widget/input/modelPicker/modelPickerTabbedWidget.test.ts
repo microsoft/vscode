@@ -667,6 +667,21 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('Free plans remove the synthesized HydraFusion upgrade when the live model is removed', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: auto.identifier,
+			entitlement: ChatEntitlement.Free,
+			showUnavailable: false,
+			controlModels: {},
+		});
+		assert.ok(result.popup.querySelector('.chat-model-picker-unavailable'));
+		result.picker.refresh([auto, ...models]);
+		assert.strictEqual(result.popup.querySelector('.chat-model-picker-unavailable'), null);
+	});
+
 	test('resolving an open picker to Free replaces HydraFusion with an unavailable upgrade', () => {
 		const auto = createAutoModel();
 		const hydra = createHydraFusionModel();
