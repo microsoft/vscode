@@ -12,9 +12,54 @@ use crate::model::{
 	CommandArguments, CommandSpec, ProcessError, ProcessOutcome, ProcessTermination,
 	SupervisionMode, SystemError,
 };
-use crate::runtime::{EnvironmentEffects, FileSystemEffects, InspectedFileType, ProcessEffects};
+use crate::runtime::{
+	EnvironmentEffects, FileSystemEffects, InspectedFileType, ProcessEffects, Runtime,
+};
 
 pub(crate) const OFFICIAL_INSTALLER_URL: &str = "https://gh.io/copilot-install";
+
+/// Mirrors the official script's PREFIX default, without making that directory visible to the installer via PATH.
+#[cfg(unix)]
+pub(crate) fn official_install_directory<R: EnvironmentEffects>(
+	runtime: &R,
+	target: Option<HostTarget>,
+) -> io::Result<Option<PathBuf>> {
+	if !matches!(
+		target,
+		Some(
+			HostTarget::MacosX64
+				| HostTarget::MacosArm64
+				| HostTarget::LinuxGnuX64
+				| HostTarget::LinuxGnuArm64
+		)
+	) {
+		return Ok(None);
+	}
+	let prefix = if let Some(prefix) = runtime
+		.environment_variable("PREFIX")
+		.filter(|value| !value.is_empty())
+	{
+		PathBuf::from(prefix)
+	} else if runtime.is_root() {
+		PathBuf::from("/usr/local")
+	} else {
+		PathBuf::from(
+			runtime
+				.environment_variable("HOME")
+				.filter(|value| !value.is_empty())
+				.ok_or_else(|| {
+					io::Error::other("HOME is not set; set HOME or PREFIX to locate the Copilot CLI installation")
+				})?,
+		)
+		.join(".local")
+	};
+	let prefix = if prefix.is_absolute() {
+		prefix
+	} else {
+		runtime.current_directory()?.join(prefix)
+	};
+	Ok(Some(prefix.join("bin")))
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HostTarget {
@@ -231,6 +276,7 @@ pub(crate) enum InstallerAttemptResult {
 pub(crate) enum InstallerFailure {
 	MissingBash,
 	TemporaryScript(SystemError),
+	Environment(String),
 	AttemptsFailed,
 }
 
@@ -238,6 +284,7 @@ pub(crate) enum InstallerFailure {
 pub(crate) enum InstallerResult {
 	Succeeded {
 		attempts: Vec<InstallerAttempt>,
+		route: InstallerRoute,
 	},
 	Cancelled {
 		attempts: Vec<InstallerAttempt>,
@@ -280,7 +327,7 @@ impl TemporaryScriptFactory for NativeTemporaryScriptFactory {
 	}
 }
 
-pub(crate) fn run_installer<R: ProcessEffects>(
+pub(crate) fn run_installer<R: Runtime>(
 	runtime: &R,
 	routes: &[InstallerRoute],
 	tools: &ToolInventory,
@@ -292,6 +339,16 @@ pub(crate) fn run_installer<R: ProcessEffects>(
 		routes,
 		tools,
 		verbose,
+		|| {
+			#[cfg(unix)]
+			{
+				crate::candidate::installer_path(runtime).map(Some)
+			}
+			#[cfg(not(unix))]
+			{
+				Ok(None)
+			}
+		},
 	)
 }
 
@@ -301,6 +358,7 @@ pub(crate) fn run_installer_with<R, T>(
 	routes: &[InstallerRoute],
 	tools: &ToolInventory,
 	verbose: bool,
+	mut script_path: impl FnMut() -> io::Result<Option<OsString>>,
 ) -> InstallerResult
 where
 	R: ProcessEffects,
@@ -330,6 +388,15 @@ where
 						attempts,
 					};
 				};
+				let path = match script_path() {
+					Ok(path) => path,
+					Err(error) => {
+						return InstallerResult::Failed {
+							failure: InstallerFailure::Environment(error.to_string()),
+							attempts,
+						}
+					}
+				};
 				let temporary_script = match temporary_scripts.create() {
 					Ok(script) => script,
 					Err(error) => {
@@ -351,10 +418,13 @@ where
 						runtime,
 						*route,
 						InstallerStage::RunScript,
-						Some(native_command(
-							bash.as_os_str(),
-							vec![temporary_script.path().as_os_str().to_os_string()],
-						)),
+						Some(
+							native_command(
+								bash.as_os_str(),
+								vec![temporary_script.path().as_os_str().to_os_string()],
+							)
+							.with_path(path),
+						),
 						&mut attempts,
 					),
 					outcome => outcome,
@@ -363,7 +433,12 @@ where
 		};
 
 		match outcome {
-			RouteOutcome::Succeeded => return InstallerResult::Succeeded { attempts },
+			RouteOutcome::Succeeded => {
+				return InstallerResult::Succeeded {
+					attempts,
+					route: *route,
+				}
+			}
 			RouteOutcome::Cancelled => return InstallerResult::Cancelled { attempts },
 			RouteOutcome::Failed => {}
 		}
@@ -540,6 +615,83 @@ mod tests {
 			wget: path("wget"),
 			bash: path("bash"),
 		}
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn official_install_location_matches_prefix_home_and_effective_user_rules() {
+		struct Environment {
+			prefix: Option<OsString>,
+			home: Option<OsString>,
+			root: bool,
+		}
+		impl EnvironmentEffects for Environment {
+			fn path(&self) -> Option<OsString> {
+				None
+			}
+			fn current_executable(&self) -> io::Result<PathBuf> {
+				Err(io::ErrorKind::Unsupported.into())
+			}
+			fn current_directory(&self) -> io::Result<PathBuf> {
+				Ok(PathBuf::from("/working"))
+			}
+			fn environment_variable(&self, name: &str) -> Option<OsString> {
+				match name {
+					"PREFIX" => self.prefix.clone(),
+					"HOME" => self.home.clone(),
+					_ => None,
+				}
+			}
+			fn is_root(&self) -> bool {
+				self.root
+			}
+		}
+		let observations: Vec<_> = [
+			(None, Some("/home/user"), false),
+			(Some(""), Some("/home/user"), false),
+			(None, None, true),
+			(Some("/custom prefix"), None, true),
+			(Some("relative"), None, false),
+		]
+		.into_iter()
+		.map(|(prefix, home, root)| {
+			install::official_install_directory(
+				&Environment {
+					prefix: prefix.map(OsString::from),
+					home: home.map(OsString::from),
+					root,
+				},
+				Some(HostTarget::LinuxGnuX64),
+			)
+			.expect("install directory")
+		})
+		.collect();
+		assert_eq!(
+			observations,
+			[
+				"/home/user/.local/bin",
+				"/home/user/.local/bin",
+				"/usr/local/bin",
+				"/custom prefix/bin",
+				"/working/relative/bin",
+			]
+			.into_iter()
+			.map(|path| Some(PathBuf::from(path)))
+			.collect::<Vec<_>>()
+		);
+		let missing = Environment {
+			prefix: None,
+			home: Some(OsString::new()),
+			root: false,
+		};
+		assert!(
+			install::official_install_directory(&missing, Some(HostTarget::LinuxGnuX64)).is_err()
+		);
+		assert_eq!(
+			install::official_install_directory(&missing, Some(HostTarget::LinuxMuslX64))
+				.expect("unsupported"),
+			None
+		);
 	}
 
 	#[test]
@@ -923,7 +1075,7 @@ mod tests {
 		let scripts = TrackedTemporaryScriptFactory {
 			tracked: Rc::clone(&processes.tracked_scripts),
 		};
-		let result = run_installer_with(&processes, &scripts, routes, tools, verbose);
+		let result = run_installer_with(&processes, &scripts, routes, tools, verbose, || Ok(None));
 		(result, processes)
 	}
 
@@ -931,6 +1083,50 @@ mod tests {
 		match command.arguments() {
 			CommandArguments::Native(arguments) => arguments.clone(),
 			CommandArguments::WindowsCommand { .. } => panic!("installer command must be native"),
+		}
+	}
+
+	#[test]
+	fn only_the_official_script_receives_the_installer_path() {
+		for route in [InstallerRoute::Curl, InstallerRoute::Wget] {
+			let processes = FakeProcesses::new([
+				FakeProcessResult::Exit(1),
+				FakeProcessResult::Exit(0),
+				FakeProcessResult::Exit(0),
+			]);
+			let scripts = TrackedTemporaryScriptFactory {
+				tracked: Rc::clone(&processes.tracked_scripts),
+			};
+			let result = run_installer_with(
+				&processes,
+				&scripts,
+				&[InstallerRoute::Homebrew, route],
+				&all_tools(),
+				false,
+				|| Ok(Some(OsString::from("filtered-path"))),
+			);
+			assert!(matches!(result, InstallerResult::Succeeded { .. }));
+			assert_eq!(
+				processes
+					.commands
+					.borrow()
+					.iter()
+					.map(|(command, _)| command.path().map(OsString::from))
+					.collect::<Vec<_>>(),
+				vec![None, None, Some(OsString::from("filtered-path"))]
+			);
+		}
+		for route in [InstallerRoute::Homebrew, InstallerRoute::Msi] {
+			let processes = FakeProcesses::new([FakeProcessResult::Exit(0)]);
+			let scripts = TrackedTemporaryScriptFactory {
+				tracked: Rc::clone(&processes.tracked_scripts),
+			};
+			let result =
+				run_installer_with(&processes, &scripts, &[route], &all_tools(), false, || {
+					panic!("this route must not request filtered PATH")
+				});
+			assert!(matches!(result, InstallerResult::Succeeded { .. }));
+			assert_eq!(processes.commands.borrow()[0].0.path(), None);
 		}
 	}
 
