@@ -165,7 +165,6 @@ suite('TabbedModelPicker', () => {
 			onDidChange: changed.event,
 		};
 		const selections: string[] = [];
-		const links: string[] = [];
 		const pins: string[] = [];
 		const configurationChanges: Parameters<ITabbedModelPickerContext['onConfigurationChanged']>[] = [];
 		let hintDismissed = false;
@@ -176,7 +175,7 @@ suite('TabbedModelPicker', () => {
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
 			configurationAccess: access, isUBB: false, showManageModels: false, providerPlaceholders: options.providerPlaceholders ?? [],
 			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: undefined, updateStateType: StateType.Idle },
-			onUnavailableLinkClick: uri => links.push(uri.toString(true)),
+			onUnavailableLinkClick: () => { },
 			onSelect: model => selections.push(model.identifier),
 			onTogglePin: (id, pinned) => { if (pinned) { pins.push(id); } },
 			onManageModels: () => { },
@@ -189,7 +188,7 @@ suite('TabbedModelPicker', () => {
 		const picker = disposables.add(instantiationService.createInstance(TabbedModelPicker));
 		picker.show(anchor, context, options.details);
 		return {
-			picker, popup, anchor, context, selections, links, pins, values, changed, configurationService, configurationChanges,
+			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges,
 			get hintDismissed() { return hintDismissed; },
 		};
 	}
@@ -408,41 +407,35 @@ suite('TabbedModelPicker', () => {
 		row.click();
 	}
 
-	test('HydraFusion routing shows its description and Learn more under the entry like the Auto tiers, without a flyout', () => {
+	test('HydraFusion routing shows its description and Learn more under the entry, without a flyout', () => {
 		const auto = createAutoModel();
 		const hydra = createHydraFusionModel();
 		const result = createPicker({ models: [auto, hydra, ...models], selectedModelId: auto.identifier });
 		const row = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-routing-model'))
 			.find(row => row.querySelector('.title')?.textContent === 'HydraFusion');
 		assert.ok(row);
-		const link = element(row, '.detail a');
-		const list = element(result.popup, '.monaco-list');
-		list.focus();
-		for (let i = 0; i < 5 && !row.classList.contains('focused'); i++) {
-			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
-		}
-		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
-		const tabFocusedLink = document.activeElement === link;
-		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-		link.click();
+		// A large font stands in for a long translation, which must shorten the text rather than hide the link.
+		result.popup.style.cssText = '--vscode-fontSize-label2: 16px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px;';
+		const detail = element(row, '.detail');
+		const link = element(detail, '.monaco-link');
+		const detailBounds = detail.getBoundingClientRect();
+		const linkBounds = link.getBoundingClientRect();
 		const snapshot = {
-			detail: row.querySelector('.detail')?.textContent,
+			detail: detail.lastChild?.textContent,
+			link: link.textContent,
 			ariaLabel: row.getAttribute('aria-label'),
-			hasPopup: row.hasAttribute('aria-haspopup'),
 			chevron: !!row.querySelector('.action-list-submenu-indicator.has-submenu'),
-			tabFocusedLink,
-			links: [...result.links],
-			selectionsAfterLink: [...result.selections],
+			truncated: detail.scrollHeight > detail.clientHeight,
+			linkEndsLastLine: Math.abs(linkBounds.bottom - detailBounds.bottom) <= 0.5 && Math.abs(linkBounds.right - detailBounds.right) <= 0.5,
 		};
 		row.click();
 		assert.deepStrictEqual({ ...snapshot, selections: result.selections }, {
-			detail: 'Picks a workflow per task, using one or more models to draft, review, or escalate. Learn more',
+			detail: 'Picks a workflow per task, using one or more models to draft, review, or escalate.',
+			link: 'Learn more',
 			ariaLabel: 'HydraFusion, Research preview, Picks a workflow per task, using one or more models to draft, review, or escalate.',
-			hasPopup: false,
 			chevron: false,
-			tabFocusedLink: true,
-			links: ['https://aka.ms/hydrafusion-blog', 'https://aka.ms/hydrafusion-blog'],
-			selectionsAfterLink: [],
+			truncated: true,
+			linkEndsLastLine: true,
 			selections: [hydra.identifier],
 		});
 	});

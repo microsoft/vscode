@@ -5,7 +5,7 @@
 import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { renderAsPlaintext, renderMarkdown } from '../../../base/browser/markdownRenderer.js';
+import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { getAnchorRect, IAnchor, IContextViewCloseAnimation } from '../../../base/browser/ui/contextview/contextview.js';
@@ -138,10 +138,11 @@ export interface IActionListItem<T> {
 	readonly disabled?: boolean;
 	readonly label?: string;
 	/**
-	 * Optional detail text displayed as a second line below the label. Links in
-	 * markdown detail are reached with Tab from the focused item.
+	 * Optional detail text displayed as a second line below the label.
 	 */
-	readonly detail?: string | IMarkdownString;
+	readonly detail?: string;
+	/** Optional link shown at the end of {@link detail}, reached with Tab from the focused item. */
+	readonly detailLink?: IActionListHeaderLink;
 	/**
 	 * Optional inline toggle switch rendered on its own row inside the item.
 	 */
@@ -470,7 +471,18 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			if (typeof element.description === 'string') {
 				data.description!.textContent = stripNewlines(element.description);
 			} else {
-				data.description!.appendChild(this._renderMarkdown(element.description, element, data.elementDisposables));
+				const rendered = renderMarkdown(element.description, {
+					actionHandler: (content: string) => {
+						const uri = URI.parse(content);
+						if (this._linkHandler) {
+							this._linkHandler(uri, element);
+						} else {
+							void this._openerService.open(uri, { allowCommands: true });
+						}
+					}
+				});
+				data.elementDisposables.add(rendered);
+				data.description!.appendChild(rendered.element);
 			}
 			data.description!.style.display = 'inline';
 		} else {
@@ -489,22 +501,23 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 
 		// Render optional detail (shown as second line below the label)
-		dom.clearNode(data.detail);
-		if (typeof element.detail === 'string') {
+		if (element.detail) {
 			data.detail.textContent = stripNewlines(element.detail);
 			data.detail.style.display = '';
-		} else if (element.detail) {
-			const rendered = this._renderMarkdown(element.detail, element, data.elementDisposables);
-			// eslint-disable-next-line no-restricted-syntax
-			const links = Array.from(rendered.getElementsByTagName('a'));
-			// The list moves focus into these links, so native Tab should not reach other rows' links.
-			for (const link of links) {
-				link.tabIndex = -1;
+			if (element.detailLink) {
+				const { label, uri } = element.detailLink;
+				const linkHandler = this._linkHandler;
+				data.elementDisposables.add(new Link(data.detail, { label, href: uri.toString(true) }, { opener: linkHandler && (() => linkHandler(uri, element)) }, this._hoverService, this._openerService));
+				const link = data.detail.lastElementChild;
+				if (dom.isHTMLElement(link)) {
+					// Placed before the text so it floats to the end of the last visible line.
+					data.detail.prepend(link);
+					link.tabIndex = -1;
+					data.elementDisposables.add(this._registerDetailLinks(element, [link]));
+				}
 			}
-			data.elementDisposables.add(this._registerDetailLinks(element, links));
-			data.detail.appendChild(rendered);
-			data.detail.style.display = '';
 		} else {
+			data.detail.textContent = '';
 			data.detail.style.display = 'none';
 		}
 		data.container.classList.toggle('has-detail', !!element.detail);
@@ -626,20 +639,6 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				data.container.removeAttribute('aria-expanded');
 			}
 		}
-	}
-
-	private _renderMarkdown(markdown: IMarkdownString, element: IActionListItem<T>, store: DisposableStore): HTMLElement {
-		const rendered = store.add(renderMarkdown(markdown, {
-			actionHandler: (content: string) => {
-				const uri = URI.parse(content);
-				if (this._linkHandler) {
-					this._linkHandler(uri, element);
-				} else {
-					void this._openerService.open(uri, { allowCommands: true });
-				}
-			}
-		}));
-		return rendered.element;
 	}
 
 	disposeTemplate(templateData: IActionMenuTemplateData): void {
@@ -1071,9 +1070,8 @@ export class ActionListWidget<T> extends Disposable {
 						for (const badge of element.additionalBadges ?? []) {
 							label = label + ', ' + stripNewlines(badge.label);
 						}
-						const detailText = element.detail ? stripNewlines(renderAsPlaintext(element.detail)) : undefined;
-						if (detailText) {
-							label = label + ', ' + detailText;
+						if (element.detail) {
+							label = label + ', ' + stripNewlines(element.detail);
 						}
 						if (element.ariaDescription) {
 							label = label + ', ' + stripNewlines(element.ariaDescription);
@@ -1083,7 +1081,7 @@ export class ActionListWidget<T> extends Disposable {
 						}
 						if (element.hover?.content && !element.ariaDescription && !element.description) {
 							const hoverContent = element.hover.content;
-							const hoverText = typeof hoverContent === 'string' ? hoverContent : isMarkdownString(hoverContent) ? hoverContent.value : dom.isHTMLElement(hoverContent) ? hoverContent.textContent ?? undefined : undefined; if (hoverText && detailText !== stripNewlines(hoverText)) {
+							const hoverText = typeof hoverContent === 'string' ? hoverContent : isMarkdownString(hoverContent) ? hoverContent.value : dom.isHTMLElement(hoverContent) ? hoverContent.textContent ?? undefined : undefined; if (hoverText && (!element.detail || stripNewlines(element.detail) !== stripNewlines(hoverText))) {
 								label = label + ', ' + stripNewlines(hoverText);
 							}
 						}

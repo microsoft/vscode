@@ -884,6 +884,13 @@
 	opacity: 1;
 }
 
+/* Pushes a detail link down to the second line. */
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model .detail::before {
+	content: '';
+	float: right;
+	height: 1lh;
+}
+
 .chat-model-picker-welcome {
 	display: flex;
 	flex-direction: column;

@@ -242,11 +242,11 @@
 	opacity: 1;
 }
 
-/* Keep rendered markdown in the detail line's text flow, so clamping and ellipsis still apply. */
-.action-widget .monaco-list-row.action .detail > div,
-.action-widget .monaco-list-row.action .detail p {
-	display: inline;
-	margin: 0;
+/* Floating keeps the link visible, since truncation shortens the text beside it. */
+.action-widget .monaco-list-row.action .detail > .monaco-link {
+	float: right;
+	clear: both;
+	margin-inline-start: var(--vscode-spacing-size40, 4px);
 }
 
 .action-widget .monaco-list-row.action .action-item-additional-badges {
@@ -324,15 +324,12 @@
 	font-size: 12px;
 }
 
-.action-widget .monaco-list .monaco-list-row .description a,
-.action-widget .monaco-list .monaco-list-row .detail a {
+.action-widget .monaco-list .monaco-list-row .description a {
 	color: var(--vscode-textLink-foreground);
 }
 
 .action-widget .monaco-list .monaco-list-row .description a:hover,
-.action-widget .monaco-list .monaco-list-row .description a:active,
-.action-widget .monaco-list .monaco-list-row .detail a:hover,
-.action-widget .monaco-list .monaco-list-row .detail a:active {
+.action-widget .monaco-list .monaco-list-row .description a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
 

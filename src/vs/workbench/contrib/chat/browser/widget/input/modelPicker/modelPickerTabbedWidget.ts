@@ -37,7 +37,6 @@ import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
-import { getModelDescriptionMarkdown } from './modelPickerDetails.js';
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -599,7 +598,8 @@ export class TabbedModelPicker extends Disposable {
 				const description = localize('chat.modelPicker.hydraFusionDescription', "Picks a workflow per task, using one or more models to draft, review, or escalate.");
 				items.push({
 					...item,
-					detail: getModelDescriptionMarkdown(description, HYDRA_FUSION_LEARN_MORE_URL),
+					detail: description,
+					detailLink: { label: localize('chat.modelPicker.learnMore', "Learn more"), uri: HYDRA_FUSION_LEARN_MORE_URL },
 					badge: item.badge ?? hydra.metadata.detail,
 					ariaDescription: [item.ariaDescription, description].filter(Boolean).join(', '),
 					tooltip: [item.tooltip, description].filter(Boolean).join(' \u00b7 '),
