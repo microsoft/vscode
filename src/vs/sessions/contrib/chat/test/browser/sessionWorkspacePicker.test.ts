@@ -734,12 +734,16 @@ suite('WorkspacePicker - Connection Status', () => {
 		) as ClockPicker;
 		const container = document.createElement('div');
 		const popupItem = document.createElement('button');
+		const unrelatedButton = document.createElement('button');
 		let popupSelectionCount = 0;
+		let unrelatedSelectionCount = 0;
 		popupItem.addEventListener('click', () => popupSelectionCount++);
-		document.body.append(container, popupItem);
+		unrelatedButton.addEventListener('click', () => unrelatedSelectionCount++);
+		document.body.append(container, popupItem, unrelatedButton);
 		disposables.add(toDisposable(() => {
 			container.remove();
 			popupItem.remove();
+			unrelatedButton.remove();
 		}));
 		picker.renderCategoryTriggers(container, [
 			{ label: 'Folder', ariaLabel: 'Choose a folder', icon: Codicon.folder, group: SESSION_WORKSPACE_GROUP_LOCAL },
@@ -749,10 +753,12 @@ suite('WorkspacePicker - Connection Status', () => {
 		// The popup opens before the browser's ghost click, so the click can land on a popup item
 		// that replaced the trigger beneath the touch point.
 		picker.now = 1000;
-		trigger.dispatchEvent(new CustomEvent(touch.EventType.Tap, { bubbles: true, cancelable: true }));
+		trigger.dispatchEvent(Object.assign(new CustomEvent(touch.EventType.Tap, { bubbles: true, cancelable: true }), { pageX: 100, pageY: 100 }));
+		picker.now = 1100;
+		unrelatedButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 200, clientY: 200, detail: 1 }));
 		picker.now = 1200;
-		popupItem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-		const afterTapAndGhostClick = { visible, showCount, hideCount, popupSelectionCount };
+		popupItem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 100, clientY: 100, detail: 1 }));
+		const afterTapAndGhostClick = { visible, showCount, hideCount, popupSelectionCount, unrelatedSelectionCount };
 
 		// A deliberate mouse click (no preceding tap) after the guard window still toggles it closed.
 		picker.now = 5000;
@@ -760,7 +766,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		const afterDeliberateClick = { visible, showCount, hideCount };
 
 		assert.deepStrictEqual({ afterTapAndGhostClick, afterDeliberateClick }, {
-			afterTapAndGhostClick: { visible: true, showCount: 1, hideCount: 0, popupSelectionCount: 0 },
+			afterTapAndGhostClick: { visible: true, showCount: 1, hideCount: 0, popupSelectionCount: 0, unrelatedSelectionCount: 1 },
 			afterDeliberateClick: { visible: false, showCount: 1, hideCount: 1 },
 		});
 	});
