@@ -18,10 +18,10 @@ import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/res
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentCanvasAvailability, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
-import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { AgentHostCodexAgentEnabledSettingId, IAgentHostService, type IAgentHostCanvases } from '../../../../../../platform/agentHost/common/agentService.js';
+import { getAgentHostExtensionInitializeResultMeta, supportsAgentHostCanvases } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -109,6 +109,22 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		snapshots: [],
 		_meta: { 'vscode.detachedWorktrees': true, [AgentHostAutonomousAutomationsCapabilityMetaKey]: true },
 	});
+	private readonly _canvasSnapshots = new Map<string, IAgentCanvasSnapshot>();
+	private readonly _onDidChangeCanvases = new Emitter<IAgentCanvasSnapshot>();
+	private readonly _canvases: IAgentHostCanvases = {
+		onDidChange: this._onDidChangeCanvases.event,
+		getSnapshots: () => [...this._canvasSnapshots.values()],
+		resolveSource: async (chat, instanceId, revision) => {
+			const canvas = this._canvasSnapshots.get(chat.toString())?.canvases.find(canvas => canvas.instanceId === instanceId);
+			if (!canvas || canvas.revision !== revision || canvas.availability !== AgentCanvasAvailability.Ready) {
+				throw new Error('Canvas source is unavailable');
+			}
+			return `https://example.test/${instanceId}/${revision}`;
+		},
+	};
+	override get canvases(): IAgentHostCanvases | undefined {
+		return supportsAgentHostCanvases(this.initializeResult.get()) ? this._canvases : undefined;
+	}
 
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
@@ -162,6 +178,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	nextClientSeq(): number {
 		return this._nextSeq++;
+	}
+
+	setCanvasSnapshot(snapshot: IAgentCanvasSnapshot): void {
+		if (snapshot.canvases.length > 0) {
+			this._canvasSnapshots.set(snapshot.chat.toString(), snapshot);
+		} else {
+			this._canvasSnapshots.delete(snapshot.chat.toString());
+		}
+		this._onDidChangeCanvases.fire(snapshot);
 	}
 
 	/**
@@ -482,6 +507,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onDidRootStateError.dispose();
 		this._onAgentHostStart.dispose();
 		this._onAgentHostExit.dispose();
+		this._onDidChangeCanvases.dispose();
+		this._canvasSnapshots.clear();
 		for (const emitter of this._sessionStateEmitters.values()) {
 			emitter.dispose();
 		}
@@ -871,8 +898,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}
 
 		const listenerCountAfterSessions = agentHost.rootStateListenerCount;
-		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
+		agentHost.initializeResult.set({
+			...agentHost.initializeResult.get(),
+			_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, true),
+		}, undefined);
+		agentHost.setRootState({
+			agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo],
+			config: { schema: { type: 'object', properties: {} }, values: {} },
+		});
 		const supportsMultipleChatsAfterHydration = provider.getSessions()[0].capabilities.get().supportsMultipleChats;
+		const supportsCanvasesAfterHydration = provider.getSessions()[0].capabilities.get().supportsCanvases;
 		agentHost.setRootStateError();
 
 		assert.deepStrictEqual({
@@ -880,13 +915,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 			listenerCountAfterSessions,
 			sessionCount: provider.getSessions().length,
 			supportsMultipleChatsAfterHydration,
+			supportsCanvasesAfterHydration,
 			supportsMultipleChatsAfterError: provider.getSessions()[0].capabilities.get().supportsMultipleChats,
+			supportsCanvasesAfterError: provider.getSessions()[0].capabilities.get().supportsCanvases,
 		}, {
 			listenerCountBeforeSessions: 1,
 			listenerCountAfterSessions: 1,
 			sessionCount: 200,
 			supportsMultipleChatsAfterHydration: true,
+			supportsCanvasesAfterHydration: true,
 			supportsMultipleChatsAfterError: false,
+			supportsCanvasesAfterError: true,
 		});
 	});
 
@@ -3580,7 +3619,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
-		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsCanvases: false, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
 	}));
 
 	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -6726,6 +6765,68 @@ suite('LocalAgentHostSessionsProvider', () => {
 			provider.getSessionConfig(session!.sessionId);
 			return session!;
 		}
+
+		test('maps local Copilot canvas snapshots into provider-neutral chat canvases', async () => {
+			const agents = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo];
+			agentHost.initializeResult.set({
+				...agentHost.initializeResult.get(),
+				_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, true),
+			}, undefined);
+			agentHost.setRootState({
+				agents,
+				config: { schema: { type: 'object', properties: {} }, values: {} },
+			});
+			const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+			const rawId = 'canvas-projection';
+			const session = setupMultiChatSession(provider, rawId);
+			activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const chat = URI.parse(buildDefaultChatUri(sessionUri));
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(chat.toString(), 'Default'),
+			], { defaultChat: chat.toString() }));
+			agentHost.setCanvasSnapshot({
+				chat,
+				canvases: [{
+					instanceId: 'preview-1',
+					extensionId: 'project:preview',
+					extensionName: 'Preview',
+					canvasId: 'preview',
+					title: 'Preview',
+					status: 'ready',
+					revision: 2,
+					availability: AgentCanvasAvailability.Ready,
+				}],
+			});
+			const canvas = session.mainChat.get().canvases?.get()[0];
+			assert.ok(canvas);
+			const source = await canvas.resolveSource();
+
+			assert.deepStrictEqual({
+				supportsCanvases: session.capabilities.get().supportsCanvases,
+				canvas: {
+					resource: canvas.resource.scheme,
+					instanceId: canvas.instanceId,
+					title: canvas.title,
+					status: canvas.status,
+					revision: canvas.revision,
+					availability: canvas.availability,
+				},
+				source: source.toString(),
+			}, {
+				supportsCanvases: true,
+				canvas: {
+					resource: 'agent-host-canvas',
+					instanceId: 'preview-1',
+					title: 'Preview',
+					status: 'ready',
+					revision: 2,
+					availability: 'ready',
+				},
+				source: 'https://example.test/preview-1/2',
+			});
+		});
 
 		test('list metadata surfaces peer titles and archived state without subscribing and loads stable chat details while observed', async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
