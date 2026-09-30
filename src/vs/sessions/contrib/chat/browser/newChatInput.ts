@@ -710,7 +710,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				const pendingInput = this._draftKey === undefined && this.isInputReady && this.hasInput;
 				this._draftKey = key;
 				if (this.isInputReady && !pendingInput) {
-					this._restoreState();
+					this._restoreState(this._getDraftState() ?? { inputText: '', attachments: [] });
 				}
 			}
 		}));
@@ -1927,15 +1927,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			&& this._canSendRequest.get();
 	}
 
-	private _restoreState(): void {
-		const draft = this._initialDraft ?? this._getDraftState() ?? { inputText: '', attachments: [] };
+	private _restoreState(draft = this._initialDraft ?? this._getDraftState()): void {
 		this._initialDraft = undefined;
-		if (this._editor?.getValue() !== draft.inputText) {
-			this._editor?.getModel()?.setValue(draft.inputText);
+		if (draft) {
+			if (this._editor?.getValue() !== draft.inputText) {
+				this._editor?.getModel()?.setValue(draft.inputText);
+			}
+			this._contextAttachments.setAttachments(draft.attachments);
+			this._syncInputGitHubContext();
+			this._draftState = draft;
 		}
-		this._contextAttachments.setAttachments(draft.attachments);
-		this._syncInputGitHubContext();
-		this._draftState = draft;
 		this._updateSendButtonState();
 	}
 
