@@ -128,6 +128,25 @@ suite('GitHubRequestTelemetry', () => {
 		]);
 	});
 
+	test('does not count an expired dispatch boundary as a wire attempt', async () => {
+		const { scheduler, sink, telemetry } = setup();
+		let calls = 0;
+		const transport = store.add(new GitHubTransport(async () => {
+			calls++;
+			return new Response('{}');
+		}, scheduler, false, undefined, { requestTimeout: 20 }, telemetry));
+		await assert.rejects(transport.rest(context().account, 'token', {
+			method: 'POST',
+			url: 'https://private-tenant.example/resource',
+			body: { toJSON: () => { scheduler.advanceWallClockBy(60); return {}; } },
+		}, context().signal), { kind: 'timeout', requestDispatched: false });
+		telemetry.flush();
+		const summary = sink.summary();
+		assert.deepStrictEqual({ calls, attempts: summary.wireAttempts, retries: summary.retries, timeouts: summary.timedOut, timers: scheduler.pendingCount }, {
+			calls: 0, attempts: 0, retries: 0, timeouts: 1, timers: 0,
+		});
+	});
+
 	test('allowlists categories and never emits request identity or raw errors', () => {
 		const { sink, telemetry } = setup();
 		const finish = telemetry.startRequest();

@@ -272,8 +272,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				}
 				let response: Response;
 				try {
-					this._telemetry?.recordWireAttempt(false, false);
 					onDispatch();
+					this._telemetry?.recordWireAttempt(false, false);
 					response = await this._fetch(url, {
 						method: 'GET',
 						cache: 'no-store',
@@ -685,8 +685,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			}
 			const headers = { ...init.headers, ...this._options.requestMetadata?.getHeaders(url, caller, attempt > 0) };
 			try {
-				this._telemetry?.recordWireAttempt(attempt > 0, init.headers['If-None-Match'] !== undefined);
 				onDispatch();
+				this._telemetry?.recordWireAttempt(attempt > 0, init.headers['If-None-Match'] !== undefined);
 				const response = await this._fetch(url, { ...init, headers });
 				this._telemetry?.recordResponse(response.status);
 				if (init.signal.aborted) {
@@ -860,7 +860,11 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			const waiter: ISharedRequestWaiter<T> = {
 				resolve: response => {
 					cleanup();
-					resolve(response);
+					if (deadline <= this._scheduler.now()) {
+						reject(new GitHubRequestTimeoutError());
+					} else {
+						resolve(response);
+					}
 				},
 				reject: error => {
 					cleanup();

@@ -23,6 +23,73 @@ suite('GitHub request lifecycle', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const kind of ['rest', 'graphql'] as const) {
+		for (const boundary of ['task', 'payload'] as const) {
+			test(`${kind}: rejects a mutation whose deadline expires before ${boundary === 'task' ? 'its task starts' : 'wire dispatch'}`, async () => {
+				const scheduler = store.add(new FakeGitHubScheduler());
+				let calls = 0;
+				const transport = store.add(new GitHubTransport(async () => {
+					calls++;
+					return new Response('{"data":{}}');
+				}, scheduler, false, undefined, { requestTimeout: 20 }));
+				const body = {
+					toJSON: () => {
+						if (boundary === 'payload') {
+							scheduler.advanceWallClockBy(60);
+						}
+						return {};
+					},
+				};
+				const signal = new AbortController().signal;
+				const pending = kind === 'rest'
+					? transport.rest(account, 'token', { method: 'POST', url, body }, signal)
+					: transport.graphql(account, 'token', url, 'mutation Write { write { id } }', body, signal);
+				const rejected = assert.rejects(pending, { kind: 'timeout', requestDispatched: false });
+				if (boundary === 'task') {
+					scheduler.advanceWallClockBy(60);
+				}
+				await rejected;
+				assert.deepStrictEqual({ calls, timers: scheduler.pendingCount }, { calls: 0, timers: 0 });
+			});
+		}
+
+		test(`${kind}: rechecks the physical deadline before a delayed retry`, async () => {
+			const scheduler = store.add(new FakeGitHubScheduler({ jitterValues: [50] }));
+			let calls = 0;
+			const transport = store.add(new GitHubTransport(async () => {
+				calls++;
+				return calls === 1 ? new Response('{}', { status: 503 }) : new Response('{"data":{}}');
+			}, scheduler, false, undefined, { requestTimeout: 200 }));
+			const rejected = assert.rejects(request(transport, kind), { kind: 'timeout', requestDispatched: true });
+			await new Promise(resolve => setTimeout(resolve, 0));
+			scheduler.advanceBy(150);
+			scheduler.advanceWallClockBy(100);
+			await rejected;
+			assert.deepStrictEqual({ calls, timers: scheduler.pendingCount }, { calls: 1, timers: 0 });
+		});
+
+		test(`${kind}: rejects an expired shared waiter when completion beats its overdue timer`, async () => {
+			const scheduler = store.add(new FakeGitHubScheduler());
+			const started = new DeferredPromise<AbortSignal>();
+			const response = new DeferredPromise<Response>();
+			let calls = 0;
+			const transport = store.add(new GitHubTransport(async (_input, options) => {
+				calls++;
+				assert.ok(options?.signal);
+				await started.complete(options.signal);
+				return response.p;
+			}, scheduler));
+			const rejected = assert.rejects(request(transport, kind, { deadline: 50 }), { kind: 'timeout' });
+			const peer = request(transport, kind, { deadline: 2_000 });
+			const signal = await started.p;
+			scheduler.advanceWallClockBy(75);
+			await response.complete(new Response(JSON.stringify(kind === 'rest' ? { value: 'shared' } : { data: { value: 'shared' } })));
+			await rejected;
+			const result = await peer;
+			assert.deepStrictEqual({ calls, data: result.data, aborted: signal.aborted, timers: scheduler.pendingCount }, {
+				calls: 1, data: { value: 'shared' }, aborted: false, timers: 0,
+			});
+		});
+
 		test(`${kind}: bounds retained timers during a synchronous rejected-request burst`, async () => {
 			const scheduler = store.add(new FakeGitHubScheduler());
 			const transport = store.add(new GitHubTransport(async () => new Promise<Response>(() => { }), scheduler, false, undefined, {
@@ -180,6 +247,27 @@ suite('GitHub request lifecycle', () => {
 			assert.deepStrictEqual({ outcome: await outcome, calls, data: result.data, timers: scheduler.pendingCount }, {
 				outcome: 'timeout', calls: ['/busy', kind === 'rest' ? '/repos/owner/repo' : '/graphql'], data: { value: 'fresh' }, timers: 0,
 			});
+		});
+	}
+
+	for (const kind of ['rest', 'download'] as const) {
+		test(`${kind}: rejects a redirect hop after the retained deadline expires`, async () => {
+			const scheduler = store.add(new FakeGitHubScheduler());
+			let calls = 0;
+			const transport = store.add(new GitHubTransport(async () => {
+				calls++;
+				if (calls === 1) {
+					scheduler.advanceWallClockBy(60);
+					return new Response(null, { status: 302, headers: { Location: '/redirected' } });
+				}
+				return new Response('{}');
+			}, scheduler, false, undefined, { requestTimeout: 20 }));
+			const signal = new AbortController().signal;
+			const pending = kind === 'rest'
+				? transport.rest(account, 'token', { method: 'GET', url }, signal)
+				: transport.download(account, 'token', { url, maximumBytes: 100, timeout: 20 }, signal);
+			await assert.rejects(pending, { kind: 'timeout', requestDispatched: true });
+			assert.deepStrictEqual({ calls, timers: scheduler.pendingCount }, { calls: 1, timers: 0 });
 		});
 	}
 

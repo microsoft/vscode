@@ -282,6 +282,24 @@ suite('GitHubRequestQueue', () => {
 		});
 	});
 
+	test('rejects an overdue active result before its delayed deadline timer fires', async () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		const queue = store.add(new GitHubRequestQueue(scheduler));
+		const started = new DeferredPromise<AbortSignal>();
+		const release = new DeferredPromise<string>();
+		const pending = queue.enqueue(context({ deadline: 20 }), async (signal, onDispatch) => {
+			onDispatch();
+			await started.complete(signal);
+			return release.p;
+		});
+		const rejected = assert.rejects(pending, { kind: 'timeout', requestDispatched: true });
+		const signal = await started.p;
+		scheduler.advanceWallClockBy(60);
+		await release.complete('too late');
+		await rejected;
+		assert.deepStrictEqual({ aborted: signal.aborted, timers: scheduler.pendingCount }, { aborted: true, timers: 0 });
+	});
+
 	test('cancels parked work and disposes active and pending work', async () => {
 		const scheduler = store.add(new FakeGitHubScheduler());
 		const queue = store.add(new GitHubRequestQueue(scheduler, request => request.resource === 'search' ? 1_000 : 0));

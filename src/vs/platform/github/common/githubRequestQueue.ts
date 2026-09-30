@@ -135,6 +135,11 @@ export class GitHubRequestQueue extends Disposable {
 				complete();
 				this._drain();
 			};
+			const checkDeadline = () => {
+				if (!settled && context.deadline <= this._scheduler.now()) {
+					request.expire();
+				}
+			};
 			const request: IQueuedRequest = {
 				context,
 				accountKey,
@@ -144,10 +149,18 @@ export class GitHubRequestQueue extends Disposable {
 				timing,
 				run: () => {
 					void Promise.resolve().then(() => {
+						checkDeadline();
 						controller.signal.throwIfAborted();
-						return task(controller.signal, () => { dispatched = true; });
+						return task(controller.signal, () => {
+							checkDeadline();
+							controller.signal.throwIfAborted();
+							dispatched = true;
+						});
 					}).then(
-						value => finish(() => resolve(value), 'success'),
+						value => {
+							checkDeadline();
+							finish(() => resolve(value), 'success');
+						},
 						error => finish(() => reject(error), gitHubRequestOutcome(error, controller.signal.aborted)),
 					);
 				},
