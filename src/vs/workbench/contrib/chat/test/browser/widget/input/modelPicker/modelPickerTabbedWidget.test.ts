@@ -92,6 +92,7 @@ suite('TabbedModelPicker', () => {
 		selectedModelId?: string;
 		pinnedModelIds?: string[];
 		controlModels?: IStringDictionary<IModelControlEntry>;
+		entitlement?: ChatEntitlement;
 		showUnavailable?: boolean;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
@@ -142,7 +143,7 @@ suite('TabbedModelPicker', () => {
 			getContainer: () => container, mainContainer: container, onDidChangeActiveContainer: Event.None,
 		}));
 		instantiationService.set(IStorageService, disposables.add(new InMemoryStorageService()));
-		instantiationService.set(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ entitlement: ChatEntitlement.Pro }));
+		instantiationService.set(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ entitlement: options.entitlement ?? ChatEntitlement.Pro }));
 		instantiationService.set(ILanguageModelsService, upcastPartial<ILanguageModelsService>({
 			getVendors: () => [
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'copilot', displayName: 'Copilot', isDefault: true }),
@@ -626,6 +627,34 @@ suite('TabbedModelPicker', () => {
 		element(result.popup, '[role="switch"]').click();
 		assert.deepStrictEqual({ unavailable: hydra.querySelector('.title')?.textContent, routing, selections: result.selections }, {
 			unavailable: 'HydraFusion', routing: ['Balance'], selections: [models[1].identifier],
+		});
+	});
+
+	test('Free plans show HydraFusion as an unavailable upgrade instead of a routing choice', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: auto.identifier,
+			entitlement: ChatEntitlement.Free,
+			showUnavailable: true,
+			controlModels: {
+				hydrafusion: { label: 'HydraFusion', exists: false, featured: true },
+			},
+		});
+		result.picker.refresh([auto, hydra, ...models]);
+		const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
+		unavailableHydra.click();
+		assert.deepStrictEqual({
+			label: unavailableHydra.querySelector('.title')?.textContent,
+			upgrade: unavailableHydra.textContent?.includes('Upgrade'),
+			selected: selectedModels(result.popup),
+			selections: result.selections,
+		}, {
+			label: 'HydraFusion',
+			upgrade: true,
+			selected: ['Balance'],
+			selections: [],
 		});
 	});
 

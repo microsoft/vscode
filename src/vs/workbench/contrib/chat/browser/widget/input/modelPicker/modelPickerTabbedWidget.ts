@@ -22,7 +22,7 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { resolveConfiguredModel } from '../../../../common/modelSelection.js';
@@ -169,12 +169,13 @@ export class TabbedModelPicker extends Disposable {
 		}
 		this._anchor = anchor;
 		this._selectionVersion++;
-		this._context = context;
+		const pickerContext = this._filterModelsForEntitlement(context);
+		this._context = pickerContext;
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
 		this._contextViewLayer = contextViewLayer;
-		this._rememberSelection(context.selectedModelId);
+		this._rememberSelection(pickerContext.selectedModelId);
 		this._showCurrent();
-		const detailsModel = context.models.find(model => model.identifier === detailsModelId);
+		const detailsModel = pickerContext.models.find(model => model.identifier === detailsModelId);
 		if (detailsModel && !isAutoModel(detailsModel) && !isHydraFusionModel(detailsModel)) {
 			this._showModelDetails(detailsModel, focusConfiguration);
 		}
@@ -194,7 +195,7 @@ export class TabbedModelPicker extends Disposable {
 			return;
 		}
 		if (models) {
-			this._context = { ...this._context, models };
+			this._context = this._filterModelsForEntitlement({ ...this._context, models });
 		}
 		const destinations = this._buildDestinations(this._context);
 		if (!destinations.length) {
@@ -216,6 +217,13 @@ export class TabbedModelPicker extends Disposable {
 			this._getModelCard(model, this._context).refresh();
 		}
 		this._widget.refreshActiveList();
+	}
+
+	private _filterModelsForEntitlement(context: ITabbedModelPickerContext): ITabbedModelPickerContext {
+		if (this._entitlementService.entitlement !== ChatEntitlement.Free) {
+			return context;
+		}
+		return { ...context, models: context.models.filter(model => !isHydraFusionModel(model)) };
 	}
 
 	private _showCurrent(initialFilterValue?: string): void {
