@@ -508,9 +508,9 @@ suite('CopilotConnectorsService', () => {
 		fixture.setSessions([unscoped]);
 		await fixture.service.refresh(CancellationToken.None);
 
-		const upscoped = { ...unscoped, scopes: [...unscoped.scopes, 'write:plugin_gateway_connections'] };
-		fixture.setSessions([upscoped]);
-		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, changed: [upscoped], removed: undefined } });
+		const upscoped = { ...unscoped, id: 'connector-authorized-session', scopes: [...unscoped.scopes, 'write:plugin_gateway_connections'] };
+		fixture.setSessions([unscoped, upscoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: [upscoped], changed: undefined, removed: undefined } });
 		await timeout(0);
 
 		assert.deepStrictEqual(fixture.reconciliations.length, 1);
