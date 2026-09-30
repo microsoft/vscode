@@ -538,6 +538,26 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
+	test('refreshes live sessions when connector authorization arrives before catalog initialization', async () => {
+		const fixture = createFixture([]);
+		const unscoped = { ...fixture.initialSession, scopes: ['read:user'] };
+		const upscoped = { ...unscoped, id: 'connector-authorized-session', scopes: [...unscoped.scopes, 'write:plugin_gateway_connections'] };
+		const otherAccountScoped = { ...upscoped, id: 'other-account-session', account: { id: 'other-account', label: 'someone-else' } };
+		fixture.setSessions([unscoped, otherAccountScoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: [otherAccountScoped], changed: undefined, removed: undefined } });
+		await timeout(0);
+
+		const afterOtherAccount = fixture.reconciliations.length;
+		fixture.setSessions([unscoped, upscoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: [upscoped], changed: undefined, removed: undefined } });
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterOtherAccount, afterActiveAccount: fixture.reconciliations.length }, {
+			afterOtherAccount: 0,
+			afterActiveAccount: 1,
+		});
+	});
+
 	for (const outcome of ['cancelled', 'denied', 'wrong-account', 'missing-scope']) {
 		test(`authorization ${outcome} does not make connector mutations or switch the active account`, async () => {
 			const fixture = createFixture([{ body: catalogResponse('connected') }]);

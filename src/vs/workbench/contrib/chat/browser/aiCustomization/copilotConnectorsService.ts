@@ -440,7 +440,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		}
 		const affectedSessions = [...event.added ?? [], ...event.changed ?? [], ...event.removed ?? []];
 		const authenticationAccountId = this.authenticationAccountId
-			?? affectedSessions.find(session => session.id === account.sessionId)?.account.id;
+			?? affectedSessions.find(session => session.id === account.sessionId || session.account.label === account.accountName)?.account.id;
 		if (!authenticationAccountId || !affectedSessions.some(session =>
 			session.id === account.sessionId ||
 			session.account.id === authenticationAccountId && (hasConnectorScope(session, true) || this.connectorAuthorizationSessionIds.has(session.id)))) {
