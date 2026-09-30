@@ -308,9 +308,9 @@ A user can run a failing command through Copilot's custom terminal tool and expe
     --grep "custom terminal tool preserves a nonzero"
   ```
 
-### Copilot plugin hooks do not execute on Windows
+### Copilot client-plugin hooks do not execute on Windows
 
-A user can contribute lifecycle hooks through a client-pushed or runtime-installed Copilot plugin to observe session creation, submitted prompts, tool calls, results, and session disposal. On Windows, the plugin's other contributions work, but none of its hook commands write their expected output, so hook-driven automation never runs.
+A user can contribute lifecycle hooks through a client-pushed Copilot plugin to observe session creation, submitted prompts, tool calls, results, and session disposal. On Windows, the plugin's skill and MCP server work, but none of its hook commands write their expected output, so hook-driven automation never runs.
 
 - Tests:
   - `VS Code-managed agent plugin reaches the runtime and runs plugin hooks`
@@ -321,16 +321,16 @@ A user can contribute lifecycle hooks through a client-pushed or runtime-install
   - `plugin SessionEnd hook runs when the session is disposed`
   - `failing plugin hook is non-fatal to the provider turn`
   - `non-JSON plugin hook output is ignored without failing the provider turn`
-- Scope: Copilot client-pushed and runtime-installed plugins on Windows.
+- Scope: Copilot client-pushed plugins on Windows.
 - Expected: each configured hook executes and writes its event payload; failure and non-JSON variants remain non-fatal to the provider turn.
 - Observed: each scenario completes its provider turn, but the expected hook log is never created or updated.
-- Gate: the runtime-installed provider integration test and all seven client-pushed E2E variants are skipped on Windows.
+- Gate: the VS Code-managed provider integration test and all seven client-pushed E2E variants are skipped on Windows.
 - Reproduce on Windows:
 
   ```powershell
   .\scripts\test-integration.bat --run `
     src\vs\platform\agentHost\test\node\providerIntegration\copilotCustomizations.integrationTest.ts `
-    --grep "SDK-installed plugin reaches the client and runs plugin hooks"
+    --grep "VS Code-managed agent plugin reaches the runtime and runs plugin hooks"
 
   .\scripts\test-integration.bat --run `
     src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts `

@@ -6756,13 +6756,13 @@ class PluginController extends Disposable {
 		};
 	}
 
-	public async resolveSyncedCustomization(item: ISyncedCustomization, clientId: string, input: ClientPluginCustomization | undefined, workspaceRoot?: URI): Promise<IResolvedCustomization> {
+	public async resolveSyncedCustomization(item: ISyncedCustomization, clientId: string, input: ClientPluginCustomization | undefined): Promise<IResolvedCustomization> {
 		const baseCustomization: PluginCustomization = { ...item.customization, clientId };
 		if (!item.pluginDir) {
 			return { customization: baseCustomization, input };
 		}
 
-		const parsed = await this.tryParsePlugin(item.pluginDir, workspaceRoot);
+		const parsed = await this.tryParsePlugin(item.pluginDir);
 		if (!parsed) {
 			return {
 				customization: {
@@ -6784,9 +6784,9 @@ class PluginController extends Disposable {
 		};
 	}
 
-	public async tryParsePlugin(pluginDir: URI, workspaceRoot?: URI): Promise<IParsedPlugin | undefined> {
+	public async tryParsePlugin(pluginDir: URI): Promise<IParsedPlugin | undefined> {
 		try {
-			return await parsePlugin(pluginDir, this._fileService, workspaceRoot, this.getUserHome(), pluginDir);
+			return await parsePlugin(pluginDir, this._fileService, undefined, this.getUserHome(), pluginDir);
 		} catch (error) {
 			this._logService.warn(`[Copilot:PluginController] Error parsing plugin '${pluginDir.toString()}': ${error instanceof Error ? error.message : String(error)}`);
 			return undefined;
@@ -7134,7 +7134,7 @@ class SessionPluginController extends Disposable {
 				});
 			});
 
-			const resolved = await Promise.all(result.map(item => this._parent.resolveSyncedCustomization(item, clientId, inputByUri.get(item.customization.uri), this._directory)));
+			const resolved = await Promise.all(result.map(item => this._parent.resolveSyncedCustomization(item, clientId, inputByUri.get(item.customization.uri))));
 			if (revision === client.revision) {
 				client.customizations = resolved;
 				for (const item of resolved) {

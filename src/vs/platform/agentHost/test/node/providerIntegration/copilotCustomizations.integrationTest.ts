@@ -738,24 +738,26 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				{ type: CustomizationType.Hook, name: 'hooks.json' },
 			].sort((a, b) => a.name.localeCompare(b.name)));
 
-		const hookInvocations = (await readFile(hookLog, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as {
-			input?: { prompt?: string };
-			cwd?: string;
-			pluginRoot?: string;
-			scriptDirectory?: string;
-		});
-		assert.deepStrictEqual({
-			count: hookInvocations.length,
-			prompts: hookInvocations.map(invocation => invocation.input?.prompt),
-			workingDirectories: hookInvocations.map(invocation => invocation.cwd),
-			pluginRootsMatchScripts: hookInvocations.every(invocation => invocation.pluginRoot === invocation.scriptDirectory),
-			usesMaterializedPlugin: hookInvocations.every(invocation => invocation.scriptDirectory !== pluginSourceDir && invocation.scriptDirectory?.includes('agentPlugins')),
-		}, {
-			count: 1,
-			prompts: ['hello'],
-			workingDirectories: [workspaceDir],
-			pluginRootsMatchScripts: true,
-			usesMaterializedPlugin: true,
+		await waitForAssert(async () => {
+			const hookInvocations = (await readFile(hookLog, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as {
+				input?: { prompt?: string };
+				cwd?: string;
+				pluginRoot?: string;
+				scriptDirectory?: string;
+			});
+			assert.deepStrictEqual({
+				count: hookInvocations.length,
+				prompts: hookInvocations.map(invocation => invocation.input?.prompt),
+				pluginRootsMatchScripts: hookInvocations.every(invocation => invocation.pluginRoot === invocation.scriptDirectory),
+				workingDirectoriesMatchPluginRoots: hookInvocations.every(invocation => invocation.cwd === invocation.pluginRoot),
+				usesMaterializedPlugin: hookInvocations.every(invocation => invocation.scriptDirectory !== pluginSourceDir && invocation.scriptDirectory?.includes('agentPlugins')),
+			}, {
+				count: 1,
+				prompts: ['hello'],
+				pluginRootsMatchScripts: true,
+				workingDirectoriesMatchPluginRoots: true,
+				usesMaterializedPlugin: true,
+			});
 		});
 	}
 
