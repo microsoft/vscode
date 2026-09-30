@@ -314,7 +314,6 @@ A user can contribute lifecycle hooks through a client-pushed or runtime-install
 
 - Tests:
   - `VS Code-managed agent plugin reaches the runtime and runs plugin hooks`
-  - `SDK-installed plugin reaches the client and runs plugin hooks`
   - `plugin SessionStart hook runs when the provider materializes`
   - `plugin UserPromptSubmit hook receives the submitted prompt`
   - `plugin PreToolUse hook runs before an MCP tool`

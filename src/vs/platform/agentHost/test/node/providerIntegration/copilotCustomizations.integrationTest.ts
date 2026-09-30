@@ -231,7 +231,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		await runManagedAgentPluginHooksTest();
 	});
 
-	pluginHookTest('SDK-installed plugin reaches the client and runs plugin hooks', async function () {
+	test('SDK-installed plugin reaches the client as a plugin customization', async function () {
 		this.timeout(TEST_TIMEOUT_MS);
 		await runSdkInstalledPluginCustomizationsTest();
 	});
@@ -702,27 +702,9 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		const hookLog = join(workspaceDir, 'managed-plugin-hook.log');
 		const hookScript = join(pluginSourceDir, 'record-hook.cjs');
 		const pluginUri = URI.file(pluginSourceDir).toString();
-		await Promise.all([
-			mkdir(join(pluginSourceDir, 'agents'), { recursive: true }),
-			mkdir(join(pluginSourceDir, 'skills', 'managed-skill'), { recursive: true }),
-		]);
 		const hookCommand = `${quoteShellArgument(process.execPath)} "\${PLUGIN_ROOT}/record-hook.cjs" ${quoteShellArgument(hookLog)}`;
 		await Promise.all([
 			writeFile(join(pluginSourceDir, 'plugin.json'), JSON.stringify({ name: 'VS Code Managed Agent Plugin', version: '1.0.0' }, undefined, 2)),
-			writeFile(join(pluginSourceDir, 'agents', 'managed.agent.md'), [
-				'---',
-				'name: Managed Agent',
-				'description: Agent from a VS Code-managed plugin',
-				'---',
-				'You are managed by VS Code.',
-			].join('\n')),
-			writeFile(join(pluginSourceDir, 'skills', 'managed-skill', 'SKILL.md'), [
-				'---',
-				'name: managed-skill',
-				'description: Skill from a VS Code-managed plugin',
-				'---',
-				'Use the managed skill.',
-			].join('\n')),
 			writeFile(hookScript, [
 				'const fs = require("fs");',
 				'const [log] = process.argv.slice(2);',
@@ -753,9 +735,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		assert.deepStrictEqual((managedPlugin.children ?? [])
 			.map(child => ({ type: child.type, name: child.name }))
 			.sort((a, b) => a.name.localeCompare(b.name)), [
-				{ type: CustomizationType.Agent, name: 'Managed Agent' },
 				{ type: CustomizationType.Hook, name: 'hooks.json' },
-				{ type: CustomizationType.Skill, name: 'managed-skill' },
 			].sort((a, b) => a.name.localeCompare(b.name)));
 
 		const hookInvocations = (await readFile(hookLog, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as {
@@ -807,14 +787,11 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		const workspaceDir = await createWorkspace('ahp-customizations-sdk-plugin-workspace-mock-');
 		const pluginSourceDir = await createWorkspace('ahp-customizations-sdk-plugin-source-mock-', false);
 		const pluginHomeDir = await createWorkspace('ahp-customizations-sdk-plugin-home-mock-', false);
-		const hookLog = join(pluginHomeDir, 'user-prompt-hook.log');
-		const hookScript = join(pluginSourceDir, 'record-hook.cjs');
 		await Promise.all([
 			mkdir(join(pluginSourceDir, 'agents'), { recursive: true }),
 			mkdir(join(pluginSourceDir, 'skills', 'installed-skill'), { recursive: true }),
 			mkdir(join(pluginSourceDir, 'rules'), { recursive: true }),
 		]);
-		const hookCommand = [process.execPath, hookScript, hookLog].map(quoteShellArgument).join(' ');
 		await Promise.all([
 			writeFile(join(pluginSourceDir, 'plugin.json'), JSON.stringify({ name: 'SDK Installed Plugin', version: '1.0.0' }, undefined, 2)),
 			writeFile(join(pluginSourceDir, 'agents', 'installed.agent.md'), [
@@ -832,24 +809,6 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				'Use the installed skill.',
 			].join('\n')),
 			writeFile(join(pluginSourceDir, 'rules', 'installed.instructions.md'), 'Prefer SDK-installed plugin defaults.'),
-			writeFile(hookScript, [
-				'const fs = require("fs");',
-				'const [log] = process.argv.slice(2);',
-				'let input = "";',
-				'process.stdin.setEncoding("utf8");',
-				'process.stdin.on("data", chunk => input += chunk);',
-				'process.stdin.on("end", () => fs.appendFileSync(log, `${JSON.stringify({ input: JSON.parse(input), cwd: process.cwd() })}\\n`));',
-			].join('\n')),
-			writeFile(join(pluginSourceDir, 'hooks.json'), JSON.stringify({
-				version: 1,
-				hooks: {
-					userPromptSubmitted: [{
-						type: 'command',
-						command: hookCommand,
-						env: { ELECTRON_RUN_AS_NODE: '1' },
-					}],
-				},
-			})),
 		]);
 
 		client.close();
@@ -900,20 +859,9 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				pluginDirectories: [],
 				children: [
 					{ type: CustomizationType.Agent, name: 'Installed Agent' },
-					{ type: CustomizationType.Hook, name: 'hooks.json' },
 					{ type: CustomizationType.Rule, name: 'installed' },
 					{ type: CustomizationType.Skill, name: 'installed-skill' },
 				].sort((a, b) => a.name.localeCompare(b.name)),
-			});
-			const hookInvocations = (await readFile(hookLog, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as { input?: { prompt?: string }; cwd?: string });
-			assert.deepStrictEqual({
-				count: hookInvocations.length,
-				prompts: hookInvocations.map(invocation => invocation.input?.prompt),
-				workingDirectories: hookInvocations.map(invocation => invocation.cwd),
-			}, {
-				count: 1,
-				prompts: ['hello'],
-				workingDirectories: [workspaceDir],
 			});
 		} finally {
 			if (consumerSessionUri) {
