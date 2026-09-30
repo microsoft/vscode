@@ -32,6 +32,7 @@ import { IChatAttachmentResolveService } from '../../../browser/attachments/chat
 import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
 import { IChatTipService } from '../../../browser/chatTipService.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
@@ -40,6 +41,7 @@ import { ChatRequestVariableSet } from '../../../common/attachments/chatVariable
 import { clearChatMarks } from '../../../common/chatPerf.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { IChatMode } from '../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ChatResponseModelChangeReason, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
@@ -1114,9 +1116,11 @@ suite('ChatWidget - acceptInput submission', () => {
 			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({ kind: ChatModeKind.Ask, isBuiltin: true }),
 			currentLanguageModel: undefined,
 			hasPendingProgrammaticModelSelection: false,
+			isManagedSettingsRefreshBlocked: false,
 			generating: undefined,
 			selectedToolsModel: upcastPartial<ChatInputPart['selectedToolsModel']>({
 				entriesMap: observableValue('tools', ToolAndToolSetEnablementMap.fromEntries([])),
+				userSelectedTools: observableValue('userSelectedTools', {}),
 			}),
 		});
 		input.getAttachedContext.returns(attachments);
@@ -1154,7 +1158,7 @@ suite('ChatWidget - acceptInput submission', () => {
 				begin: () => ({ rendererId: 'test', interactionOrdinal: 1 }),
 				report: () => { },
 				flush: async () => ({ schemaVersion: 1, started: 0, completed: 0, failed: 0 }),
-			})) : parser);
+			}, upcastPartial<ILanguageModelsService>({ lookupLanguageModel: () => undefined }))) : parser);
 		const viewOptions: IChatWidgetViewOptions = {};
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
@@ -1188,7 +1192,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			updateChatViewVisibility: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
-		return { widget, options, original, input, editorService, chatService, response, sent };
+		return { widget, viewOptions, options, original, input, editorService, chatService, response, sent };
 	}
 
 	test('blocks submission without accepting input and allows sending after the lock clears', async () => {
@@ -1207,6 +1211,76 @@ suite('ChatWidget - acceptInput submission', () => {
 		const response = await fixture.widget.acceptInput('Test request', fixture.options);
 		assert.deepStrictEqual({ response, requests: fixture.chatService.sendRequest.callCount }, { response: fixture.response, requests: 1 });
 	});
+
+	test('blocks submissions during managed settings refresh without touching the draft', async () => {
+		const fixture = createSubmissionWidget();
+		Object.defineProperty(fixture.input, 'isManagedSettingsRefreshBlocked', { value: true });
+		const result = await fixture.widget.acceptInput('Test request', fixture.options);
+		assert.deepStrictEqual({
+			result,
+			requests: fixture.chatService.sendRequest.callCount,
+			accepted: fixture.input.acceptInput.callCount,
+			saves: fixture.editorService.saveAll.callCount,
+			modeChanges: fixture.input.setChatMode.callCount,
+		}, { result: undefined, requests: 0, accepted: 0, saves: 0, modeChanges: 0 });
+	});
+
+	for (const stage of ['save', 'attachments', 'submit handler'] as const) {
+		test(`blocks in-flight custom-agent submission when refresh begins during ${stage}`, async () => {
+			const fixture = createSubmissionWidget();
+			let blocked = false;
+			Object.defineProperty(fixture.input, 'isManagedSettingsRefreshBlocked', { get: () => blocked });
+			Object.defineProperty(fixture.input, 'currentModeKind', { get: () => blocked ? ChatModeKind.Edit : ChatModeKind.Agent });
+			Object.defineProperty(fixture.input, 'currentModeObs', {
+				value: observableValue('selectedAgent', upcastPartial<IChatMode>({ id: 'custom-agent', kind: ChatModeKind.Agent, isBuiltin: false })),
+			});
+			Object.defineProperty(fixture.input, 'currentModeInfo', {
+				get: () => ({ kind: blocked ? ChatModeKind.Edit : ChatModeKind.Agent, isBuiltin: false, modeInstructions: { name: 'Custom', content: 'custom instructions', toolReferences: [] } }),
+			});
+			const entered = new DeferredPromise<void>();
+			const released = new DeferredPromise<void>();
+			if (stage === 'attachments') {
+				Object.defineProperty(fixture.widget, '_resolveDirectoryImageAttachments', {
+					value: async () => {
+						entered.complete();
+						await released.p;
+						return [];
+					},
+				});
+			} else {
+				fixture.editorService.saveAll.callsFake(async () => {
+					entered.complete();
+					await released.p;
+					return { success: true, editors: [] };
+				});
+			}
+			let handled = 0;
+			if (stage === 'submit handler') {
+				fixture.viewOptions.submitHandler = async () => {
+					handled++;
+					return true;
+				};
+			}
+			const sending = fixture.widget.acceptInput('Test request', fixture.options);
+			await entered.p;
+			blocked = true;
+			released.complete();
+			const result = await sending;
+			assert.deepStrictEqual({
+				result,
+				requests: fixture.chatService.sendRequest.callCount,
+				accepted: fixture.input.acceptInput.callCount,
+				modeChanges: fixture.input.setChatMode.callCount,
+				handled,
+			}, { result: undefined, requests: 0, accepted: 0, modeChanges: 0, handled: 0 });
+
+			blocked = false;
+			if (stage !== 'submit handler') {
+				const response = await fixture.widget.acceptInput('Test request', fixture.options);
+				assert.deepStrictEqual({ response, requests: fixture.chatService.sendRequest.callCount }, { response: fixture.response, requests: 1 });
+			}
+		});
+	}
 
 	for (const explicit of [false, true]) {
 		test(`excludes ${explicit ? 'explicitly' : 'implicitly'} queued submissions without cancelling the request`, async () => {

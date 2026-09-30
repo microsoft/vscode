@@ -16,6 +16,11 @@ export interface ITestChatSpec {
 	readonly title: string;
 	readonly workspace?: string;
 	readonly status?: SessionStatus;
+	/** Status description rendered as markdown. */
+	readonly description?: string;
+	/** Minutes since the chat was last updated; defaults to the session's modified time. */
+	readonly minutesAgo?: number;
+	readonly isRead?: boolean;
 	readonly interactivity?: ChatInteractivity;
 	readonly isArchived?: boolean;
 	/** Whether the chat can be archived on its own; defaults to `false`, like {@link DEFAULT_CHAT_CAPABILITIES}. */
@@ -34,6 +39,11 @@ export interface ITestSessionSpec {
 	readonly status?: SessionStatus;
 	/** Status of the main chat when it differs from the session status. */
 	readonly mainChatStatus?: SessionStatus;
+	/** Status description of the main chat when it differs from the session description. */
+	readonly mainChatDescription?: string;
+	/** Minutes since the main chat was last updated; defaults to {@link minutesAgo}. */
+	readonly mainChatMinutesAgo?: number;
+	readonly mainChatIsRead?: boolean;
 	/** Status description rendered as markdown. */
 	readonly description?: string;
 	/** Minutes since the session was last updated. */
@@ -111,9 +121,9 @@ function buildTestChat(resource: URI, spec: Omit<ITestChatSpec, 'id'>, createdAt
 		modelSource: constObservable(undefined),
 		mode: constObservable(undefined),
 		isArchived,
-		isRead: constObservable(true),
+		isRead: constObservable(spec.isRead ?? true),
 		interactivity: constObservable(spec.interactivity ?? ChatInteractivity.Full),
-		description: constObservable(undefined),
+		description: constObservable(spec.description ? new MarkdownString(spec.description) : undefined),
 		lastTurnEnd: constObservable(undefined),
 		capabilities: constObservable({ ...DEFAULT_CHAT_CAPABILITIES, canArchive: spec.canArchive ?? DEFAULT_CHAT_CAPABILITIES.canArchive }),
 	};
@@ -125,8 +135,16 @@ export function buildTestSession(spec: ITestSessionSpec, now: number = Date.now(
 	const updatedAt = new Date(now - (spec.minutesAgo ?? 0) * 60_000);
 	const createdAt = new Date(now - (spec.createdMinutesAgo ?? spec.minutesAgo ?? 0) * 60_000);
 	const status = observableValue('testSessionStatus', spec.status ?? SessionStatus.Completed);
-	const mainChat = buildTestChat(getTestChatResource(spec.id, 'main'), { title: spec.title, status: spec.mainChatStatus ?? spec.status }, createdAt, updatedAt);
-	const chats = new Map((spec.chats ?? []).map(chat => [chat.id, buildTestChat(getTestChatResource(spec.id, chat.id), chat, createdAt, updatedAt)] as const));
+	const mainChat = buildTestChat(getTestChatResource(spec.id, 'main'), {
+		title: spec.title,
+		status: spec.mainChatStatus ?? spec.status,
+		description: spec.mainChatDescription,
+		isRead: spec.mainChatIsRead,
+	}, createdAt, new Date(now - (spec.mainChatMinutesAgo ?? spec.minutesAgo ?? 0) * 60_000));
+	const chats = new Map((spec.chats ?? []).map(chat => [
+		chat.id,
+		buildTestChat(getTestChatResource(spec.id, chat.id), chat, createdAt, new Date(now - (chat.minutesAgo ?? spec.minutesAgo ?? 0) * 60_000)),
+	] as const));
 	const title = observableValue('testSessionTitle', spec.title);
 	const isRead = observableValue('testSessionIsRead', spec.isRead ?? true);
 	const isArchived = observableValue('testSessionIsArchived', spec.isArchived ?? false);

@@ -1838,7 +1838,7 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('persistent progress switches Draw styles in place and keeps text visible without an icon', async () => {
+	test('persistent progress switches animation styles in place and keeps text visible without an icon', async () => {
 		const { configurationService, request, container, renderer, template, node } = createPersistentProgressRenderer();
 		configurePersistentProgressTypography(container, 13);
 		container.classList.remove('monaco-reduce-motion');
@@ -1850,7 +1850,12 @@ suite('ChatListRenderer', () => {
 		assert.ok(footer && logo && text);
 		const textLeft = text.getBoundingClientRect().left;
 		const snapshots = [];
-		for (const animation of [ChatProgressAnimation.Draw, ChatProgressAnimation.DrawMonochrome, ChatProgressAnimation.DrawMonochromeNoIcon, ChatProgressAnimation.Draw]) {
+		for (const animation of [
+			ChatProgressAnimation.Draw,
+			ChatProgressAnimation.DrawMonochrome,
+			ChatProgressAnimation.DrawMonochromeNoIcon,
+			ChatProgressAnimation.Draw,
+		]) {
 			await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
 			configurationService.onDidChangeConfigurationEmitter.fire({
 				source: ConfigurationTarget.USER,
@@ -1865,6 +1870,7 @@ suite('ChatListRenderer', () => {
 				sameLogo: footer.querySelector('.chat-working-logo') === logo,
 				iconVisibility: targetWindow.getComputedStyle(logo).visibility,
 				iconAnimations: logo.getAnimations({ subtree: true }).length,
+				drawBands: logo.querySelectorAll('.chat-working-logo-draw-band').length,
 				text: text.textContent,
 				textVisibility: targetWindow.getComputedStyle(text).visibility,
 				textAligned: Math.abs(text.getBoundingClientRect().left - textLeft) < 0.1,
@@ -1877,18 +1883,52 @@ suite('ChatListRenderer', () => {
 			snapshots,
 			completedFooters: template.value.querySelectorAll('.chat-working-progress').length,
 		}, {
-			snapshots: ['draw', 'drawMonochrome', 'drawMonochromeNoIcon', 'draw'].map(animation => ({
+			snapshots: [
+				{ animation: 'draw' },
+				{ animation: 'drawMonochrome' },
+				{ animation: 'drawMonochromeNoIcon' },
+				{ animation: 'draw' },
+			].map(({ animation }) => ({
 				animation,
 				sameFooter: true,
 				sameLogo: true,
 				iconVisibility: animation === 'drawMonochromeNoIcon' ? 'hidden' : 'visible',
-				iconAnimations: animation === 'drawMonochromeNoIcon' ? 0 : 3,
+				iconAnimations: 0,
+				drawBands: 3,
 				text: 'Working',
 				textVisibility: 'visible',
 				textAligned: true,
 				textShimmer: 'chat-thinking-shimmer',
 			})),
 			completedFooters: 0,
+		});
+	});
+
+	test('hidden retained progress stops Draw motion when the response completes', async () => {
+		const { request, container, renderer, template, node } = createPersistentProgressRenderer();
+		container.classList.remove('monaco-reduce-motion');
+		container.classList.add('monaco-enable-motion');
+		renderer.renderElement(node, 0, template);
+		const footer = template.value.querySelector<HTMLElement>('.chat-working-progress');
+		const logo = footer?.querySelector<HTMLElement>('.chat-working-logo');
+		assert.ok(footer && logo);
+		container.style.display = 'none';
+		request.response?.complete();
+		const pathsAfterCompletion = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+		const pathsAfterFrames = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		assert.deepStrictEqual({
+			sameLogo: footer.querySelector('.chat-working-logo') === logo,
+			active: logo.classList.contains('chat-working-logo-active'),
+			progressActive: footer.classList.contains('chat-working-progress-active'),
+			assembled: logo.classList.contains('chat-working-logo-draw-assembled'),
+			pathsStopped: pathsAfterFrames.every((path, index) => path === pathsAfterCompletion[index]),
+		}, {
+			sameLogo: true,
+			active: false,
+			progressActive: false,
+			assembled: true,
+			pathsStopped: true,
 		});
 	});
 
@@ -1901,14 +1941,13 @@ suite('ChatListRenderer', () => {
 			snapshots.push({
 				persistentRows: template.value.querySelectorAll('.chat-working-progress').length,
 				logos: template.value.querySelectorAll('.chat-working-logo').length,
-				staticLogos: template.value.querySelectorAll('.chat-working-logo-static').length,
 				hasLegacyWorking: [...template.value.querySelectorAll('.progress-container')].some(row => !row.classList.contains('chat-working-progress') && row.textContent === 'Working'),
 			});
 		}
 		assert.deepStrictEqual(snapshots, [
-			{ persistentRows: 0, logos: 0, staticLogos: 0, hasLegacyWorking: true },
-			{ persistentRows: 1, logos: 1, staticLogos: 0, hasLegacyWorking: false },
-			{ persistentRows: 0, logos: 0, staticLogos: 0, hasLegacyWorking: true },
+			{ persistentRows: 0, logos: 0, hasLegacyWorking: true },
+			{ persistentRows: 1, logos: 1, hasLegacyWorking: false },
+			{ persistentRows: 0, logos: 0, hasLegacyWorking: true },
 		]);
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
@@ -6443,7 +6482,8 @@ suite('ChatListRenderer', () => {
 						includesDetail: target.textContent?.includes('Reviewing'),
 					}];
 				}),
-				logoFaces: template.value.getAnimations({ subtree: true }).filter(animation => animation instanceof CSSAnimation && animation.animationName.startsWith('chat-logo-draw-')).length,
+				logoAnimations: logo.getAnimations({ subtree: true }).length,
+				drawBands: logo.querySelectorAll('.chat-working-logo-draw-band').length,
 				innerRows: thinking.querySelectorAll('.chat-thinking-spinner-item').length,
 				headerLogos: thinking.querySelectorAll('.chat-working-logo').length,
 				footerIsLast: template.value.lastElementChild === footer,
@@ -6455,7 +6495,8 @@ suite('ChatListRenderer', () => {
 			const collapsed = snapshot();
 			const expected = {
 				shimmers: [{ location: 'footer', paintsText: true, includesDetail: false }],
-				logoFaces: 3,
+				logoAnimations: 0,
+				drawBands: 3,
 				innerRows: 0,
 				headerLogos: 0,
 				footerIsLast: true,

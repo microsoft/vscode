@@ -284,6 +284,40 @@ suite('CustomizationMarketplaceIpc', () => {
 		});
 	});
 
+	test('revives light and dark icon URI bundles', async () => {
+		const page: ICustomizationMarketplacePage = {
+			items: [{
+				sourceId: 'testSource',
+				identifier: 'themed',
+				displayName: 'Themed',
+				description: '',
+				mediaType: CustomizationMarketplaceMediaType.McpServer,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				icon: {
+					light: URI.parse('https://example.com/light.png'),
+					dark: URI.parse('https://example.com/dark.png'),
+				},
+			}],
+		};
+		const client = createClient({ query: async () => page });
+		const result = await client.query({}, CancellationToken.None);
+		const icon = result.items[0].icon;
+
+		assert.deepStrictEqual(URI.isUri(icon) ? undefined : {
+			light: icon?.light instanceof URI,
+			dark: icon?.dark instanceof URI,
+			lightUri: icon?.light.toString(),
+			darkUri: icon?.dark.toString(),
+		}, {
+			light: true,
+			dark: true,
+			lightUri: 'https://example.com/light.png',
+			darkUri: 'https://example.com/dark.png',
+		});
+	});
+
 	test('does not fabricate absent URI fields or a search total', async () => {
 		const page: ICustomizationMarketplacePage = {
 			items: [{
