@@ -392,6 +392,7 @@ extends:
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
         - stage: Linux
+          displayName: Linux X64
           dependsOn: []
           pool:
             name: 1es-ubuntu-22.04-x64
@@ -445,6 +446,7 @@ extends:
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
         - stage: macOS
+          displayName: macOS ARM64
           dependsOn: []
           pool:
             name: AcesShared
@@ -458,6 +460,12 @@ extends:
               - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
                 parameters:
                   VSCODE_ARCH: x64
+                  VSCODE_CHECK_ONLY: true
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
+              - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
                   VSCODE_CHECK_ONLY: true
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 

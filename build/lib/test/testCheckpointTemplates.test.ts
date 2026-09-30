@@ -475,6 +475,53 @@ suite('Product test checkpoint templates', () => {
 		]);
 	});
 
+	test('Linux and macOS CI stage labels include the architecture', () => {
+		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
+		assert.deepStrictEqual(pipelineFiles.map(file => ({
+			file,
+			stages: records(readTemplate(file))
+				.filter(record => record.stage === 'Linux' || record.stage === 'macOS')
+				.map(record => ({ stage: record.stage, displayName: record.displayName })),
+		})), pipelineFiles.map(file => ({
+			file,
+			stages: [
+				{ stage: 'Linux', displayName: 'Linux X64' },
+				{ stage: 'macOS', displayName: 'macOS ARM64' },
+			],
+		})));
+	});
+
+	test('macOS CI includes a CLI job for each selected architecture', () => {
+		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
+		const observed = pipelineFiles.map(file => {
+			const stage = records(readTemplate(file)).find(record => record.stage === 'macOS');
+			if (!Array.isArray(stage?.jobs)) {
+				throw new Error(`Missing macOS CI jobs in ${file}`);
+			}
+			return {
+				file,
+				cliJobs: (stage.jobs as Record<string, unknown>[]).flatMap(job => Object.entries(job)
+					.filter(([key]) => key.startsWith('${{ if '))
+					.flatMap(([when, branch]) => records(branch)
+						.filter(record => typeof record.template === 'string' && record.template.endsWith('darwin/product-build-darwin-cli.yml@self'))
+						.map(record => {
+							const parameters = record.parameters as { VSCODE_ARCH: string; VSCODE_CHECK_ONLY: boolean | string };
+							return { when, arch: parameters.VSCODE_ARCH, checkOnly: parameters.VSCODE_CHECK_ONLY };
+						}))),
+			};
+		});
+		assert.deepStrictEqual(observed, pipelineFiles.map(file => {
+			const checkOnly = file === 'product-build-ado-ci.yml' ? true : '${{ variables.VSCODE_CIBUILD }}';
+			return {
+				file,
+				cliJobs: [
+					{ when: '${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}', arch: 'x64', checkOnly },
+					{ when: '${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}', arch: 'arm64', checkOnly },
+				],
+			};
+		}));
+	});
+
 	test('the Linux policy fixture is skipped with the Electron smoke test', () => {
 		const smoke = readTemplate(linuxTestFile).steps.flatMap(step =>
 			Object.entries(step)
