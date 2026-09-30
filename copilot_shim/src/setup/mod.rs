@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//! The `--vscode-shim info|probe|install` commands. They report to VS Code setup through INI files and never launch
-//! the Copilot CLI. `install` also backs the interactive first-use install on Windows.
+//! The `--vscode-shim probe|install` commands. They report to VS Code setup through INI files and never launch the
+//! Copilot CLI. `install` also backs the interactive first-use install on Windows.
 
 use std::ffi::OsString;
 use std::io::{self, Read};
@@ -25,7 +25,7 @@ use crate::runtime::{
 pub(crate) mod windows;
 
 /// Folder under `%LOCALAPPDATA%` that GitHub's per-user Copilot CLI MSI installs `copilot.exe` into.
-#[cfg(any(windows, test))]
+#[cfg(windows)]
 pub(crate) const CLI_INSTALL_FOLDER: &str = "GitHubCopilotCLI";
 
 /// Version of the setup contract. VS Code setup rejects probe results that report a different version.
@@ -156,11 +156,6 @@ impl<R: FileSystemEffects> FileSystemEffects for SearchPathRuntime<'_, R> {
 		self.inner.inspect_path(path)
 	}
 
-	#[cfg(any(windows, test))]
-	fn read_directory(&self, path: &Path) -> io::Result<Vec<OsString>> {
-		self.inner.read_directory(path)
-	}
-
 	fn open_file(&self, path: &Path) -> io::Result<Box<dyn Read>> {
 		self.inner.open_file(path)
 	}
@@ -180,9 +175,14 @@ where
 			result
 				.candidates
 				.first()
-				.map(|candidate| candidate.discovered_path().to_path_buf())
+				.map(|candidate| candidate.path.clone())
 		})
-		.map_err(|error| format!("{:?} failed: {:?}", error.operation, error.error.kind))
+		.map_err(|error| {
+			format!(
+				"identifying the running shim failed: {:?}",
+				error.error.kind
+			)
+		})
 }
 
 fn probe_search_path<R: EnvironmentEffects>(runtime: &R, scope: ProbeScope) -> Option<OsString> {
@@ -220,14 +220,6 @@ where
 			})
 }
 
-// info
-
-pub(crate) fn info() -> i32 {
-	println!("protocol={PROTOCOL_VERSION}");
-	println!("version={}", env!("CARGO_PKG_VERSION"));
-	0
-}
-
 // probe
 
 pub(crate) fn probe<R>(runtime: &R, target: Option<HostTarget>, options: &ProbeOptions) -> i32
@@ -238,20 +230,25 @@ where
 	let policy_disabled = runtime.copilot_cli_command_disabled();
 	let search_path = probe_search_path(runtime, options.scope);
 	let mut reasons = Vec::new();
-	let cli = find_cli(runtime, search_path.clone()).unwrap_or_else(|error| {
-		reasons.push(format!("discovery: {error}"));
-		None
-	});
+	let cli_found = find_cli(runtime, search_path.clone())
+		.unwrap_or_else(|error| {
+			reasons.push(format!("discovery: {error}"));
+			None
+		})
+		.is_some();
 	let windows_target = matches!(
 		target,
 		Some(HostTarget::WindowsX64 | HostTarget::WindowsArm64)
 	);
 	let power_shell = !windows_target || find_power_shell(runtime, search_path.as_ref());
 
-	let download = if policy_disabled {
+	// Setup doesn't offer the download when Copilot CLI is already installed, so there's nothing to check.
+	let download_size = if policy_disabled {
 		reasons.push(format!(
 			"the {COPILOT_CLI_COMMAND_POLICY} policy is disabled"
 		));
+		None
+	} else if cli_found {
 		None
 	} else if options.network {
 		probe_download_before(target, deadline)
@@ -264,14 +261,6 @@ where
 
 	let entries = [
 		("protocol", PROTOCOL_VERSION.to_string()),
-		("shimVersion", String::from(env!("CARGO_PKG_VERSION"))),
-		(
-			"scope",
-			String::from(match options.scope {
-				ProbeScope::User => "user",
-				ProbeScope::Machine => "machine",
-			}),
-		),
 		(
 			"policy",
 			String::from(if policy_disabled {
@@ -280,25 +269,10 @@ where
 				"allowed"
 			}),
 		),
-		("cliFound", flag(cli.is_some())),
-		(
-			"cliPath",
-			cli.map(|path| path.display().to_string())
-				.unwrap_or_default(),
-		),
+		("cliFound", flag(cli_found)),
 		("pwshFound", flag(power_shell)),
-		("downloadAvailable", flag(download.is_some())),
-		(
-			"downloadSize",
-			download
-				.as_ref()
-				.map(|(_, size)| size.to_string())
-				.unwrap_or_else(|| String::from("0")),
-		),
-		(
-			"releaseTag",
-			download.map(|(tag, _)| tag).unwrap_or_default(),
-		),
+		("downloadAvailable", flag(download_size.is_some())),
+		("downloadSize", download_size.unwrap_or(0).to_string()),
 		("reason", reasons.join("; ")),
 	];
 	match write_ini(&options.result_file, "probe", &entries) {
@@ -326,7 +300,7 @@ fn releases_base() -> String {
 #[cfg(windows)]
 fn resolve_latest_tag(client: &windows::HttpClient, base: &str) -> Result<String, String> {
 	let response = client
-		.get(&format!("{base}/latest"), false)
+		.request("HEAD", &format!("{base}/latest"), false)
 		.map_err(|error| format!("could not reach {base}: {error}"))?;
 	if !(300..400).contains(&response.status) {
 		return Err(format!(
@@ -341,8 +315,9 @@ fn resolve_latest_tag(client: &windows::HttpClient, base: &str) -> Result<String
 		.ok_or_else(|| String::from("the latest release redirect has no tag"))
 }
 
+/// Returns the size of the MSI in the latest release.
 #[cfg(windows)]
-fn probe_download(target: Option<HostTarget>, deadline: Instant) -> Result<(String, u64), String> {
+fn probe_download(target: Option<HostTarget>, deadline: Instant) -> Result<u64, String> {
 	let asset = msi_asset(target).ok_or("no MSI for this architecture")?;
 	let remaining = |deadline: Instant| {
 		deadline
@@ -357,29 +332,23 @@ fn probe_download(target: Option<HostTarget>, deadline: Instant) -> Result<(Stri
 	remaining(deadline)?;
 	let url = format!("{base}/download/{tag}/{asset}");
 	let response = client
-		.get(&url, true)
+		.request("HEAD", &url, true)
 		.map_err(|error| format!("could not reach {url}: {error}"))?;
 	if response.status != 200 {
 		return Err(format!("{url} returned HTTP {}", response.status));
 	}
-	Ok((tag, response.content_length().unwrap_or(0)))
+	Ok(response.content_length().unwrap_or(0))
 }
 
 #[cfg(not(windows))]
-fn probe_download(
-	_target: Option<HostTarget>,
-	_deadline: Instant,
-) -> Result<(String, u64), String> {
+fn probe_download(_target: Option<HostTarget>, _deadline: Instant) -> Result<u64, String> {
 	Err(String::from("unsupported on this platform"))
 }
 
 /// Runs the download check on another thread and stops waiting at the deadline. WinHTTP timeouts apply to each
 /// stage separately and do not cover proxy discovery, and setup only waits a little past the probe timeout for the
 /// result file. The process exits after writing the result, which ends an abandoned check.
-fn probe_download_before(
-	target: Option<HostTarget>,
-	deadline: Instant,
-) -> Result<(String, u64), String> {
+fn probe_download_before(target: Option<HostTarget>, deadline: Instant) -> Result<u64, String> {
 	let (sender, receiver) = std::sync::mpsc::channel();
 	std::thread::spawn(move || {
 		let _ = sender.send(probe_download(target, deadline));
@@ -581,14 +550,28 @@ where
 	});
 	match &options.mode {
 		InstallMode::Interactive => {
-			let outcome = policy_outcome.unwrap_or_else(|| {
+			// The parent shim waits for this process, so Ctrl+C stops the install at the next step and the partial
+			// download is removed instead of the process ending with it.
+			if let Err(error) = crate::runtime::platform::install_cancellation_handler() {
+				runtime.write_diagnostic(&format!("failed to handle Ctrl+C: {error}"));
+			}
+			let mut outcome = policy_outcome.unwrap_or_else(|| {
 				let mut reporter = ConsoleReporter {
 					last_phase: None,
 					last_percent: None,
 				};
 				install_cli(target, &mut reporter)
 			});
+			// After Ctrl+C, a step that failed because it was interrupted is the cancellation. The parent shim reports it.
+			if crate::runtime::platform::is_process_cancellation_requested()
+				&& !matches!(
+					outcome.status,
+					InstallStatus::Installed | InstallStatus::AlreadyInstalled
+				) {
+				outcome.status = InstallStatus::Cancelled;
+			}
 			match outcome.status {
+				InstallStatus::Cancelled => {}
 				InstallStatus::Installed => eprintln!(
 					"Installed GitHub Copilot CLI{}.",
 					outcome
@@ -637,7 +620,7 @@ where
 
 			let outcome = match policy_outcome {
 				Some(outcome) => outcome,
-				None => match find_cli(runtime, runtime.path()) {
+				None => match find_cli(runtime, probe_search_path(runtime, ProbeScope::User)) {
 					Ok(Some(path)) => InstallOutcome {
 						status: InstallStatus::AlreadyInstalled,
 						reason: String::new(),
@@ -723,9 +706,11 @@ fn install_cli(target: Option<HostTarget>, reporter: &mut dyn InstallReporter) -
 	if matches!(windows::cli_msi_registered(), Ok(true)) {
 		return InstallOutcome::failed(
 			InstallStatus::Error,
-			"GitHub Copilot CLI is registered in Installed apps, but its copilot.exe is missing; repair or uninstall it in Settings > Apps > Installed apps",
+			"GitHub Copilot CLI is registered in Installed apps, but its copilot.exe is missing; uninstall it in Settings > Apps > Installed apps and try again",
 		);
 	}
+	let cancelled =
+		|| InstallOutcome::failed(InstallStatus::Cancelled, "the install was cancelled");
 	reporter.report(InstallPhase::Resolving, 0, 0);
 	let base = releases_base();
 	let client = match windows::HttpClient::new(INSTALL_REQUEST_TIMEOUT) {
@@ -743,7 +728,7 @@ fn install_cli(target: Option<HostTarget>, reporter: &mut dyn InstallReporter) -
 
 	let checksums_url = format!("{base}/download/{tag}/SHA256SUMS.txt");
 	let mut checksums = String::new();
-	match client.get(&checksums_url, true) {
+	match client.request("GET", &checksums_url, true) {
 		Ok(response) if response.status == 200 => {
 			if let Err(error) = response
 				.take(MAXIMUM_CHECKSUMS_SIZE)
@@ -791,7 +776,7 @@ fn install_cli(target: Option<HostTarget>, reporter: &mut dyn InstallReporter) -
 	let url = format!("{base}/download/{tag}/{asset}");
 	let download = (|| -> Result<String, InstallOutcome> {
 		let mut response = client
-			.get(&url, true)
+			.request("GET", &url, true)
 			.map_err(|error| InstallOutcome::failed(InstallStatus::Network, error.to_string()))?;
 		if response.status != 200 {
 			return Err(InstallOutcome::failed(
@@ -809,10 +794,7 @@ fn install_cli(target: Option<HostTarget>, reporter: &mut dyn InstallReporter) -
 		reporter.report(InstallPhase::Downloading, 0, total);
 		loop {
 			if reporter.cancelled() {
-				return Err(InstallOutcome::failed(
-					InstallStatus::Cancelled,
-					"the download was cancelled",
-				));
+				return Err(cancelled());
 			}
 			let read = response.read(&mut buffer).map_err(|error| {
 				InstallOutcome::failed(InstallStatus::Network, error.to_string())
@@ -826,8 +808,6 @@ fn install_cli(target: Option<HostTarget>, reporter: &mut dyn InstallReporter) -
 			current += read as u64;
 			reporter.report(InstallPhase::Downloading, current, total);
 		}
-		file.sync_all()
-			.map_err(|error| InstallOutcome::failed(InstallStatus::Error, error.to_string()))?;
 		hash.finish()
 			.map(|digest| hex(&digest))
 			.map_err(|error| InstallOutcome::failed(InstallStatus::Error, error.to_string()))
@@ -860,6 +840,10 @@ fn install_cli(target: Option<HostTarget>, reporter: &mut dyn InstallReporter) -
 		}
 	}
 
+	// msiexec can't be stopped safely once it runs, so this is the last point where a cancel takes effect.
+	if reporter.cancelled() {
+		return with_tag(cancelled());
+	}
 	reporter.report(InstallPhase::Installing, 0, 0);
 	let log = std::env::temp_dir().join("vscode-copilot-cli-install.log");
 	let msiexec = std::env::var_os("SystemRoot")

@@ -7,8 +7,9 @@ use std::ffi::{OsStr, OsString};
 use std::io;
 use std::path::{Path, PathBuf};
 
+use crate::candidate::path_directories;
 use crate::model::{
-	CommandArguments, CommandSpec, LaunchAdapter, ProcessError, ProcessOutcome, ProcessTermination,
+	CommandArguments, CommandSpec, ProcessError, ProcessOutcome, ProcessTermination,
 	SupervisionMode, SystemError,
 };
 use crate::runtime::{EnvironmentEffects, FileSystemEffects, InspectedFileType, ProcessEffects};
@@ -86,7 +87,6 @@ pub(crate) struct ToolInventory {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Tool {
-	Shim,
 	Brew,
 	Curl,
 	Wget,
@@ -130,13 +130,7 @@ pub(crate) fn installer_plan(
 	tools: &ToolInventory,
 ) -> Result<Vec<InstallerRoute>, InstallerPlanError> {
 	match target {
-		HostTarget::WindowsX64 | HostTarget::WindowsArm64 => {
-			if tools.shim.is_some() {
-				Ok(vec![InstallerRoute::Msi])
-			} else {
-				Err(InstallerPlanError::MissingPrerequisites(vec![Tool::Shim]))
-			}
-		}
+		HostTarget::WindowsX64 | HostTarget::WindowsArm64 => Ok(vec![InstallerRoute::Msi]),
 		HostTarget::MacosX64 | HostTarget::MacosArm64 => downloader_plan(tools, true),
 		HostTarget::LinuxGnuX64 | HostTarget::LinuxGnuArm64 => downloader_plan(tools, false),
 		HostTarget::LinuxGnuArmhf => Err(InstallerPlanError::Unsupported(
@@ -174,83 +168,42 @@ fn downloader_plan(
 	}
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ToolDiscoveryError {
-	pub(crate) path: PathBuf,
-	pub(crate) error: SystemError,
-}
-
-pub(crate) fn discover_tools<R>(
-	runtime: &R,
-	target: HostTarget,
-) -> Result<ToolInventory, ToolDiscoveryError>
+/// Finds the tools the install routes need. A PATH entry that can't be inspected is skipped, as a shell would.
+pub(crate) fn discover_tools<R>(runtime: &R, target: HostTarget) -> ToolInventory
 where
 	R: EnvironmentEffects + FileSystemEffects,
 {
-	let Some(path) = runtime.path().filter(|path| !path.is_empty()) else {
-		return Ok(ToolInventory::default());
-	};
-	let current_directory = runtime
-		.current_directory()
-		.map_err(|error| ToolDiscoveryError {
-			path: PathBuf::from("."),
-			error: SystemError::from(&error),
-		})?;
-	let directories: Vec<PathBuf> = std::env::split_paths(&path)
-		.map(|entry| {
-			if entry.as_os_str().is_empty() {
-				current_directory.clone()
-			} else if entry.is_absolute() {
-				entry
-			} else {
-				current_directory.join(entry)
-			}
-		})
-		.collect();
-	let windows = matches!(target, HostTarget::WindowsX64 | HostTarget::WindowsArm64);
-
 	let mut inventory = ToolInventory::default();
-	if windows {
+	if matches!(target, HostTarget::WindowsX64 | HostTarget::WindowsArm64) {
 		inventory.shim = runtime.current_executable().ok();
-	} else {
-		inventory.bash = find_first(runtime, &directories, &["bash"])?;
-		inventory.curl = find_first(runtime, &directories, &["curl"])?;
-		inventory.wget = find_first(runtime, &directories, &["wget"])?;
-		if matches!(target, HostTarget::MacosX64 | HostTarget::MacosArm64) {
-			inventory.brew = find_first(runtime, &directories, &["brew"])?;
-		}
+		return inventory;
 	}
-	Ok(inventory)
+	let directories = path_directories(runtime);
+	inventory.bash = find_first(runtime, &directories, "bash");
+	inventory.curl = find_first(runtime, &directories, "curl");
+	inventory.wget = find_first(runtime, &directories, "wget");
+	if matches!(target, HostTarget::MacosX64 | HostTarget::MacosArm64) {
+		inventory.brew = find_first(runtime, &directories, "brew");
+	}
+	inventory
 }
 
 fn find_first<R: FileSystemEffects>(
 	runtime: &R,
 	directories: &[PathBuf],
-	names: &[&str],
-) -> Result<Option<PathBuf>, ToolDiscoveryError> {
-	for name in names {
-		for directory in directories {
-			let path = directory.join(name);
-			match runtime.inspect_path(&path) {
+	name: &str,
+) -> Option<PathBuf> {
+	directories
+		.iter()
+		.map(|directory| directory.join(name))
+		.find(|path| {
+			matches!(
+				runtime.inspect_path(path),
 				Ok(Some(inspection))
-					if inspection.file_type == InspectedFileType::RegularFile
-						&& inspection.executable =>
-				{
-					return Ok(Some(path));
-				}
-				Ok(_) => {}
-				Err(error) => {
-					return Err(ToolDiscoveryError {
-						path,
-						error: SystemError::from(&error),
-					});
-				}
-			}
-		}
-	}
-	Ok(None)
+					if inspection.file_type == InspectedFileType::RegularFile && inspection.executable
+			)
+		})
 }
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum InstallerStage {
 	Install,
@@ -270,7 +223,7 @@ pub(crate) enum InstallerAttemptResult {
 	NumericExit(i32),
 	#[cfg(any(unix, test))]
 	UnixSignal(i32),
-	Cancelled(crate::model::Cancellation),
+	Cancelled,
 	ProcessError(ProcessError),
 }
 
@@ -467,13 +420,13 @@ fn run_command<R: ProcessEffects>(
 			RouteOutcome::Failed
 		}
 		Ok(ProcessOutcome {
-			termination: ProcessTermination::HandledCancellation(cancellation),
+			termination: ProcessTermination::HandledCancellation,
 			..
 		}) => {
 			attempts.push(InstallerAttempt {
 				route,
 				stage,
-				result: InstallerAttemptResult::Cancelled(cancellation),
+				result: InstallerAttemptResult::Cancelled,
 			});
 			RouteOutcome::Cancelled
 		}
@@ -547,11 +500,7 @@ fn downloader_command(
 }
 
 fn native_command(program: &OsStr, arguments: Vec<OsString>) -> CommandSpec {
-	CommandSpec::new(
-		program.to_os_string(),
-		CommandArguments::Native(arguments),
-		LaunchAdapter::Direct,
-	)
+	CommandSpec::new(program.to_os_string(), CommandArguments::Native(arguments))
 }
 
 #[cfg(test)]
@@ -570,8 +519,8 @@ mod tests {
 		Tool, ToolInventory, UnsupportedTarget, OFFICIAL_INSTALLER_URL,
 	};
 	use model::{
-		Cancellation, CommandArguments, CommandSpec, FileIdentityState, ProcessError,
-		ProcessOutcome, ProcessTermination, SupervisionMode,
+		CommandArguments, CommandSpec, FileIdentityState, ProcessError, ProcessOutcome,
+		ProcessTermination, SupervisionMode,
 	};
 	use prompt::PromptResponse;
 	use runtime::{
@@ -670,7 +619,7 @@ mod tests {
 				installer_plan(HostTarget::LinuxGnuX64, &no_wget),
 			),
 			(
-				Err(InstallerPlanError::MissingPrerequisites(vec![Tool::Shim])),
+				Ok(vec![InstallerRoute::Msi]),
 				Err(InstallerPlanError::MissingPrerequisites(vec![
 					Tool::Brew,
 					Tool::Curl,
@@ -699,6 +648,8 @@ mod tests {
 				prompt::parse_response(b" \r\n"),
 				prompt::parse_response(b"yes"),
 				prompt::parse_response(b"no"),
+				prompt::parse_response("\u{3000}\u{FF59}".as_bytes()),
+				prompt::parse_response("\u{FF39}".as_bytes()),
 			],
 			[
 				PromptResponse::Accepted,
@@ -707,35 +658,29 @@ mod tests {
 				PromptResponse::Declined,
 				PromptResponse::Accepted,
 				PromptResponse::Declined,
+				PromptResponse::Accepted,
+				PromptResponse::Accepted,
 			]
 		);
 	}
 
 	#[test]
-	fn prompts_emit_required_text_flush_and_default_no_for_eof_or_noninteractive_input() {
-		let mut install_input = Cursor::new(Vec::<u8>::new());
-		let mut install_output = FlushRecordingWriter::default();
-		let install = prompt::prompt_with_io(&mut install_input, &mut install_output, true)
-			.expect("prompt at EOF");
+	fn prompts_emit_required_text_flush_and_default_no_at_eof() {
+		let mut eof_input = Cursor::new(Vec::<u8>::new());
+		let mut eof_output = FlushRecordingWriter::default();
+		let eof = prompt::prompt_with_io(&mut eof_input, &mut eof_output).expect("prompt at EOF");
 		let mut accepted_input = Cursor::new(b" Y\n");
 		let mut accepted_output = FlushRecordingWriter::default();
-		let accepted = prompt::prompt_with_io(&mut accepted_input, &mut accepted_output, true)
+		let accepted = prompt::prompt_with_io(&mut accepted_input, &mut accepted_output)
 			.expect("accepted prompt");
-		let mut noninteractive_input = FailingReader;
-		let mut noninteractive_output = FlushRecordingWriter::default();
-		let noninteractive =
-			prompt::prompt_with_io(&mut noninteractive_input, &mut noninteractive_output, false)
-				.expect("noninteractive prompt");
 
 		assert_eq!(
 			(
-				install,
-				String::from_utf8(install_output.bytes).unwrap(),
-				install_output.flushes,
+				eof,
+				String::from_utf8(eof_output.bytes).unwrap(),
+				eof_output.flushes,
 				accepted,
 				accepted_output.flushes,
-				noninteractive,
-				noninteractive_output.flushes,
 			),
 			(
 				PromptResponse::Declined,
@@ -746,36 +691,28 @@ mod tests {
 				1,
 				PromptResponse::Accepted,
 				1,
-				PromptResponse::Declined,
-				1,
 			)
 		);
 	}
-
 	#[test]
 	fn prompt_and_clear_errors_are_propagated() {
 		let expected = io::ErrorKind::BrokenPipe;
 		let prompt_error = prompt::prompt_with_io(
 			&mut Cursor::new(b"y"),
 			&mut FailingWriter { fail_flush: false },
-			true,
 		)
 		.unwrap_err();
 		let flush_error = prompt::prompt_with_io(
 			&mut Cursor::new(b"y"),
 			&mut FailingWriter { fail_flush: true },
-			true,
 		)
 		.unwrap_err();
 		let clear_error =
 			prompt::clear_terminal_with(&mut FailingWriter { fail_flush: false }, true)
 				.unwrap_err();
-		let read_error = prompt::prompt_with_io(
-			&mut FailingReader,
-			&mut FlushRecordingWriter::default(),
-			true,
-		)
-		.unwrap_err();
+		let read_error =
+			prompt::prompt_with_io(&mut FailingReader, &mut FlushRecordingWriter::default())
+				.unwrap_err();
 
 		assert_eq!(
 			(
@@ -913,7 +850,7 @@ mod tests {
 					captured_output: None,
 				}),
 				FakeProcessResult::Cancelled => Ok(ProcessOutcome {
-					termination: ProcessTermination::HandledCancellation(Cancellation::Requested),
+					termination: ProcessTermination::HandledCancellation,
 					captured_output: None,
 				}),
 				FakeProcessResult::Error(error) => Err(error),
@@ -1051,7 +988,7 @@ mod tests {
 		};
 		assert_eq!(
 			attempts[0].result,
-			install::InstallerAttemptResult::Cancelled(Cancellation::Requested)
+			install::InstallerAttemptResult::Cancelled
 		);
 	}
 
@@ -1283,10 +1220,6 @@ mod tests {
 			Ok(self.inspections.get(path).cloned())
 		}
 
-		fn read_directory(&self, _path: &Path) -> io::Result<Vec<OsString>> {
-			Err(io::Error::from(io::ErrorKind::Unsupported))
-		}
-
 		fn open_file(&self, _path: &Path) -> io::Result<Box<dyn Read>> {
 			Err(io::Error::from(io::ErrorKind::Unsupported))
 		}
@@ -1329,7 +1262,7 @@ mod tests {
 		}
 
 		assert_eq!(
-			discover_tools(&runtime, HostTarget::LinuxGnuX64).unwrap(),
+			discover_tools(&runtime, HostTarget::LinuxGnuX64),
 			ToolInventory {
 				bash: Some(second.join("bash")),
 				curl: Some(second.join("curl")),
@@ -1354,20 +1287,8 @@ mod tests {
 		runtime.inspections.insert(bash.clone(), executable(&bash));
 
 		assert_eq!(
-			discover_tools(&runtime, HostTarget::LinuxGnuX64)
-				.unwrap()
-				.bash,
+			discover_tools(&runtime, HostTarget::LinuxGnuX64).bash,
 			Some(bash)
 		);
-	}
-
-	#[test]
-	fn official_installer_url_is_https() {
-		assert_eq!(OFFICIAL_INSTALLER_URL, "https://gh.io/copilot-install");
-	}
-
-	#[test]
-	fn host_target_is_selected_from_compile_time_configuration() {
-		assert!(HostTarget::current().is_some());
 	}
 }

@@ -6,62 +6,48 @@
 #[cfg(any(windows, test))]
 use std::ffi::{OsStr, OsString};
 use std::io;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(any(windows, test))]
 use crate::model::CommandBuildError;
-use crate::model::{CommandArguments, CommandSpec, LaunchAdapter, ProcessError, SystemError};
+use crate::model::{CommandArguments, CommandSpec, ProcessError, ProcessTermination, SystemError};
 
 #[cfg(unix)]
 mod unix;
 #[cfg(windows)]
 mod windows;
 
-#[cfg(all(unix, test))]
-use self::unix::{os_string_from_wide, os_string_to_wide};
+#[cfg(unix)]
+use self::unix as native;
 #[cfg(windows)]
-use self::windows::{os_string_from_wide, os_string_to_wide};
+use self::windows as native;
+#[cfg(any(windows, test))]
+use native::{os_string_from_wide, os_string_to_wide};
+
+#[cfg(unix)]
+pub(crate) use native::exec;
+pub(crate) use native::install_cancellation_handler;
+#[cfg(windows)]
+pub(crate) use native::{spawn_captured, CapturedChild};
 
 static PROCESS_CANCELLATION: AtomicBool = AtomicBool::new(false);
 
-#[cfg(unix)]
-pub(crate) type CapturedChild = unix::CapturedChild;
-#[cfg(windows)]
-pub(crate) type CapturedChild = windows::CapturedChild;
-
-#[cfg(unix)]
-pub(crate) fn spawn_captured(command: &CommandSpec) -> Result<CapturedChild, ProcessError> {
-	unix::spawn_captured(command)
-}
-
-#[cfg(windows)]
-pub(crate) fn spawn_captured(command: &CommandSpec) -> Result<CapturedChild, ProcessError> {
-	windows::spawn_captured(command)
-}
-
-#[cfg(unix)]
-pub(crate) fn spawn_interactive(
-	command: &CommandSpec,
-) -> Result<unix::InteractiveChild, ProcessError> {
-	unix::spawn_interactive(command)
-}
-
-#[cfg(windows)]
-pub(crate) fn spawn_interactive(
-	command: &CommandSpec,
-) -> Result<windows::InteractiveChild, ProcessError> {
-	windows::spawn_interactive(command)
-}
-
-#[cfg(unix)]
-pub(crate) fn install_cancellation_handler() -> io::Result<()> {
-	unix::install_cancellation_handler()
-}
-
-#[cfg(windows)]
-pub(crate) fn install_cancellation_handler() -> io::Result<()> {
-	windows::install_cancellation_handler()
+/// Runs `command` attached to the terminal and waits for it to exit.
+pub(crate) fn run_interactive(command: &CommandSpec) -> Result<ProcessTermination, ProcessError> {
+	let mut child = native_command(command)
+		.stdin(Stdio::inherit())
+		.stdout(Stdio::inherit())
+		.stderr(Stdio::inherit())
+		.spawn()
+		.map_err(|error| spawn_error(command, &error))?;
+	child.wait().map(native::termination).map_err(|error| {
+		ProcessError::supervision(
+			crate::model::ProcessOperation::Wait,
+			command.program(),
+			&error,
+		)
+	})
 }
 
 pub(crate) fn request_process_cancellation() {
@@ -72,58 +58,36 @@ pub(crate) fn is_process_cancellation_requested() -> bool {
 	PROCESS_CANCELLATION.load(Ordering::SeqCst)
 }
 
-fn native_command(command: &CommandSpec) -> Result<Command, ProcessError> {
+fn native_command(command: &CommandSpec) -> Command {
 	let mut process = Command::new(command.program());
 	match command.arguments() {
 		CommandArguments::Native(arguments) => {
 			process.args(arguments);
 		}
-		#[cfg(any(windows, test))]
+		#[cfg(windows)]
 		CommandArguments::WindowsCommand {
 			switches,
 			raw_command_tail,
-		} => add_windows_command_arguments(&mut process, switches, raw_command_tail),
+		} => {
+			use std::os::windows::process::CommandExt;
+
+			process.args(switches);
+			process.raw_arg(raw_command_tail);
+		}
+		#[cfg(all(unix, test))]
+		CommandArguments::WindowsCommand { .. } => {
+			unreachable!("Windows command scripts are not executable on Unix")
+		}
 	}
-	Ok(process)
-}
-
-#[cfg(all(unix, test))]
-fn add_windows_command_arguments(
-	_process: &mut Command,
-	_switches: &[OsString],
-	_raw_command_tail: &OsStr,
-) {
-	unreachable!("Windows command scripts are not executable on Unix")
-}
-
-#[cfg(windows)]
-fn add_windows_command_arguments(
-	process: &mut Command,
-	switches: &[OsString],
-	raw_command_tail: &OsStr,
-) {
-	use std::os::windows::process::CommandExt;
-
-	process.args(switches);
-	process.raw_arg(raw_command_tail);
+	process
 }
 
 fn spawn_error(command: &CommandSpec, error: &io::Error) -> ProcessError {
-	match command.adapter() {
-		LaunchAdapter::Direct => ProcessError::SpawnFailed {
-			program: command.program().to_os_string(),
-			error: SystemError::from(error),
-		},
-		#[cfg(any(windows, test))]
-		LaunchAdapter::WindowsCommandScript { .. } | LaunchAdapter::PowerShellScript { .. } => {
-			ProcessError::InterpreterFailed {
-				interpreter: command.program().into(),
-				error: SystemError::from(error),
-			}
-		}
+	ProcessError::SpawnFailed {
+		program: command.program().to_os_string(),
+		error: SystemError::from(error),
 	}
 }
-
 /// The `cmd.exe` switches for running a `.cmd` or `.bat` candidate: command extensions on (required by the `%`
 /// neutralization below), delayed expansion off (so `!` is literal), no AutoRun, and strip only the outer quotes.
 #[cfg(any(windows, test))]
@@ -143,7 +107,7 @@ pub(crate) fn encode_windows_command_tail(
 	script: &OsStr,
 	arguments: &[OsString],
 ) -> Result<OsString, CommandBuildError> {
-	let script = platform_wide(script)?;
+	let script = os_string_to_wide(script)?;
 	if script.is_empty()
 		|| script.contains(&u16::from(b'"'))
 		|| script.last() == Some(&u16::from(b'\\'))
@@ -156,7 +120,7 @@ pub(crate) fn encode_windows_command_tail(
 	command_tail.extend(script);
 	command_tail.push(u16::from(b'"'));
 	for argument in arguments {
-		let argument = platform_wide(argument)?;
+		let argument = os_string_to_wide(argument)?;
 		if contains_forbidden_unit(&argument) {
 			return Err(CommandBuildError::UnsupportedWindowsCommandValue);
 		}
@@ -164,7 +128,7 @@ pub(crate) fn encode_windows_command_tail(
 		append_batch_argument(&mut command_tail, &argument);
 	}
 	command_tail.push(u16::from(b'"'));
-	platform_string_from_wide(&command_tail)
+	os_string_from_wide(&command_tail)
 }
 
 #[cfg(any(windows, test))]
@@ -212,16 +176,6 @@ fn append_batch_argument(command_tail: &mut Vec<u16>, argument: &[u16]) {
 	}
 }
 
-#[cfg(any(windows, test))]
-fn platform_wide(value: &OsStr) -> Result<Vec<u16>, CommandBuildError> {
-	os_string_to_wide(value)
-}
-
-#[cfg(any(windows, test))]
-fn platform_string_from_wide(value: &[u16]) -> Result<OsString, CommandBuildError> {
-	os_string_from_wide(value)
-}
-
 /// Decodes the output of [`encode_windows_command_tail`] back into the script and its arguments, the way a program
 /// behind a batch wrapper (parsing with the Microsoft C runtime rules) receives them.
 #[cfg(test)]
@@ -231,7 +185,7 @@ pub(crate) fn decode_windows_command_tail(
 	let quote = u16::from(b'"');
 	let backslash = u16::from(b'\\');
 	let space = u16::from(b' ');
-	let wide = platform_wide(value)?;
+	let wide = os_string_to_wide(value)?;
 	if wide.len() < 2 || wide.first() != Some(&quote) || wide.last() != Some(&quote) {
 		return Err(CommandBuildError::UnsupportedWindowsCommandValue);
 	}

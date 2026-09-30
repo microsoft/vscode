@@ -3,26 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::io::{self, Read};
+use std::io;
+#[cfg(windows)]
+use std::io::Read;
+#[cfg(test)]
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(windows)]
 use std::sync::mpsc::{self, RecvTimeoutError, SyncSender};
-use std::sync::{Arc, OnceLock};
+#[cfg(test)]
+use std::sync::Arc;
+use std::sync::OnceLock;
+#[cfg(windows)]
 use std::thread;
+#[cfg(windows)]
 use std::time::{Duration, Instant};
 
-use super::platform::{self, CapturedChild};
+use super::platform;
+#[cfg(windows)]
+use crate::model::{CapturedOutput, ProbeLimits, ProcessOperation};
 use crate::model::{
-	Cancellation, CapturedOutput, CommandSpec, ProbeLimits, ProcessDiagnostic, ProcessError,
-	ProcessOperation, ProcessOutcome, ProcessTermination, SupervisionMode, SystemError,
+	CommandSpec, ProcessError, ProcessOutcome, ProcessTermination, SupervisionMode,
 };
 
+#[cfg(windows)]
 const SUPERVISION_INTERVAL: Duration = Duration::from_millis(10);
-const INTERACTIVE_CANCELLATION_GRACE: Duration = Duration::from_millis(250);
+#[cfg(windows)]
 const OUTPUT_CHUNK_SIZE: usize = 8 * 1024;
 static HANDLER_RESULT: OnceLock<Result<(), io::Error>> = OnceLock::new();
 
 #[derive(Clone, Debug)]
 pub(crate) struct CancellationToken {
+	/// Lets tests cancel without touching the process-wide Ctrl+C state.
+	#[cfg(test)]
 	requested: Arc<AtomicBool>,
 	observe_process_handler: bool,
 }
@@ -39,6 +51,7 @@ impl CancellationToken {
 	pub(crate) fn process_wide() -> io::Result<Self> {
 		match HANDLER_RESULT.get_or_init(platform::install_cancellation_handler) {
 			Ok(()) => Ok(Self {
+				#[cfg(test)]
 				requested: Arc::new(AtomicBool::new(false)),
 				observe_process_handler: true,
 			}),
@@ -52,8 +65,11 @@ impl CancellationToken {
 	}
 
 	pub(crate) fn is_requested(&self) -> bool {
-		self.requested.load(Ordering::SeqCst)
-			|| (self.observe_process_handler && platform::is_process_cancellation_requested())
+		#[cfg(test)]
+		if self.requested.load(Ordering::SeqCst) {
+			return true;
+		}
+		self.observe_process_handler && platform::is_process_cancellation_requested()
 	}
 }
 
@@ -71,31 +87,49 @@ impl ProcessSupervisor {
 		command: &CommandSpec,
 		mode: SupervisionMode,
 	) -> Result<ProcessOutcome, ProcessError> {
-		match mode {
+		let termination = match mode {
+			#[cfg(windows)]
 			SupervisionMode::CapturedVersionProbe(limits) => {
-				self.supervise_captured(command, limits)
+				return self.supervise_captured(command, limits)
 			}
-			SupervisionMode::InteractiveBootstrap => self.supervise_interactive(command, true),
-			SupervisionMode::FinalInteractiveCli => self.supervise_interactive(command, false),
-		}
+			// Ctrl+C reaches the installer too, and the installer decides how to stop. The shim waits for it, so a
+			// cancelled install cleans up and an install that can't be stopped finishes, and then reports the cancel.
+			SupervisionMode::InteractiveBootstrap => {
+				let termination = platform::run_interactive(command)?;
+				if self.cancellation.is_requested() {
+					ProcessTermination::HandledCancellation
+				} else {
+					termination
+				}
+			}
+			#[cfg(windows)]
+			SupervisionMode::FinalInteractiveCli => platform::run_interactive(command)?,
+			#[cfg(not(windows))]
+			_ => unreachable!("on Unix the final CLI replaces the shim, and PowerShell probes only run on Windows"),
+		};
+		Ok(ProcessOutcome {
+			termination,
+			captured_output: None,
+		})
 	}
 
+	#[cfg(windows)]
 	fn supervise_captured(
 		&self,
 		command: &CommandSpec,
 		limits: ProbeLimits,
 	) -> Result<ProcessOutcome, ProcessError> {
 		let mut child = platform::spawn_captured(command)?;
-		let stdout = child
-			.take_stdout()
-			.map_err(|error| supervision_error(ProcessOperation::ReadStdout, command, &error))?;
-		let stderr = child
-			.take_stderr()
-			.map_err(|error| supervision_error(ProcessOperation::ReadStderr, command, &error))?;
+		let stdout = child.take_stdout().map_err(|error| {
+			ProcessError::supervision(ProcessOperation::ReadStdout, command.program(), &error)
+		})?;
+		let stderr = child.take_stderr().map_err(|error| {
+			ProcessError::supervision(ProcessOperation::ReadStderr, command.program(), &error)
+		})?;
 		let (sender, receiver) = mpsc::sync_channel(2);
 		let stdout_reader = spawn_reader(stdout, OutputStream::Stdout, sender.clone());
 		let stderr_reader = spawn_reader(stderr, OutputStream::Stderr, sender);
-		let deadline = Instant::now() + limits.timeout.duration();
+		let deadline = Instant::now() + limits.timeout;
 		let mut output = CapturedOutput {
 			stdout: Vec::new(),
 			stderr: Vec::new(),
@@ -110,9 +144,7 @@ impl ProcessSupervisor {
 					&mut child,
 					command,
 					Ok(ProcessOutcome {
-						termination: ProcessTermination::HandledCancellation(
-							Cancellation::Requested,
-						),
+						termination: ProcessTermination::HandledCancellation,
 						captured_output: Some(output),
 					}),
 				);
@@ -121,10 +153,7 @@ impl ProcessSupervisor {
 				break terminate_probe(
 					&mut child,
 					command,
-					Err(ProcessError::TimedOut {
-						timeout: limits.timeout,
-						captured_output: output,
-					}),
+					Err(ProcessError::TimedOut(limits.timeout)),
 				);
 			}
 			if termination.is_none() {
@@ -134,7 +163,11 @@ impl ProcessSupervisor {
 						break terminate_probe(
 							&mut child,
 							command,
-							Err(supervision_error(ProcessOperation::Wait, command, &error)),
+							Err(ProcessError::supervision(
+								ProcessOperation::Wait,
+								command.program(),
+								&error,
+							)),
 						);
 					}
 				}
@@ -158,7 +191,7 @@ impl ProcessSupervisor {
 			match receiver.recv_timeout(remaining.min(SUPERVISION_INTERVAL)) {
 				Ok(ReaderEvent::Data(stream, bytes)) => {
 					let captured_bytes = output.stdout.len() + output.stderr.len();
-					let remaining = limits.output.bytes().saturating_sub(captured_bytes);
+					let remaining = limits.output_bytes.saturating_sub(captured_bytes);
 					let retained_bytes = bytes.len().min(remaining);
 					match stream {
 						OutputStream::Stdout => {
@@ -172,10 +205,7 @@ impl ProcessSupervisor {
 						break terminate_probe(
 							&mut child,
 							command,
-							Err(ProcessError::OutputLimitExceeded {
-								budget: limits.output,
-								captured_output: output,
-							}),
+							Err(ProcessError::OutputLimitExceeded(limits.output_bytes)),
 						);
 					}
 				}
@@ -188,7 +218,11 @@ impl ProcessSupervisor {
 					break terminate_probe(
 						&mut child,
 						command,
-						Err(supervision_error(operation, command, &error)),
+						Err(ProcessError::supervision(
+							operation,
+							command.program(),
+							&error,
+						)),
 					);
 				}
 				Err(RecvTimeoutError::Timeout) => {}
@@ -197,77 +231,19 @@ impl ProcessSupervisor {
 		};
 
 		drop(receiver);
-		Self::join_reader(stdout_reader, command)?;
-		Self::join_reader(stderr_reader, command)?;
+		for reader in [stdout_reader, stderr_reader] {
+			reader.join().map_err(|_| {
+				let error = io::Error::other("probe output reader thread terminated unexpectedly");
+				ProcessError::supervision(ProcessOperation::ReadStdout, command.program(), &error)
+			})?;
+		}
 		result
-	}
-
-	fn join_reader(
-		reader: thread::JoinHandle<()>,
-		command: &CommandSpec,
-	) -> Result<(), ProcessError> {
-		reader.join().map_err(|_| {
-			let error = io::Error::other("probe output reader thread terminated unexpectedly");
-			supervision_error(ProcessOperation::ReadStdout, command, &error)
-		})
-	}
-
-	fn supervise_interactive(
-		&self,
-		command: &CommandSpec,
-		cancel_bootstrap: bool,
-	) -> Result<ProcessOutcome, ProcessError> {
-		let mut child = platform::spawn_interactive(command)?;
-		if !cancel_bootstrap {
-			return child
-				.wait()
-				.map(|termination| ProcessOutcome {
-					termination,
-					captured_output: None,
-				})
-				.map_err(|error| supervision_error(ProcessOperation::Wait, command, &error));
-		}
-
-		loop {
-			if self.cancellation.is_requested() {
-				let deadline = Instant::now() + INTERACTIVE_CANCELLATION_GRACE;
-				while Instant::now() < deadline {
-					if child
-						.try_wait()
-						.map_err(|error| {
-							supervision_error(ProcessOperation::Wait, command, &error)
-						})?
-						.is_some()
-					{
-						return Ok(cancelled_outcome());
-					}
-					thread::sleep(SUPERVISION_INTERVAL);
-				}
-
-				child.terminate().map_err(|error| {
-					supervision_error(ProcessOperation::Terminate, command, &error)
-				})?;
-				child
-					.wait()
-					.map_err(|error| supervision_error(ProcessOperation::Reap, command, &error))?;
-				return Ok(cancelled_outcome());
-			}
-			if let Some(termination) = child
-				.try_wait()
-				.map_err(|error| supervision_error(ProcessOperation::Wait, command, &error))?
-			{
-				return Ok(ProcessOutcome {
-					termination,
-					captured_output: None,
-				});
-			}
-			thread::sleep(SUPERVISION_INTERVAL);
-		}
 	}
 }
 
+#[cfg(windows)]
 fn terminate_probe(
-	child: &mut CapturedChild,
+	child: &mut platform::CapturedChild,
 	command: &CommandSpec,
 	result: Result<ProcessOutcome, ProcessError>,
 ) -> Result<ProcessOutcome, ProcessError> {
@@ -275,35 +251,31 @@ fn terminate_probe(
 	result
 }
 
-fn cleanup_probe(child: &mut CapturedChild, command: &CommandSpec) -> Result<(), ProcessError> {
+#[cfg(windows)]
+fn cleanup_probe(
+	child: &mut platform::CapturedChild,
+	command: &CommandSpec,
+) -> Result<(), ProcessError> {
 	child.terminate_and_reap().map_err(|error| {
-		ProcessError::SupervisionFailed(ProcessDiagnostic {
-			operation: ProcessOperation::Terminate,
-			subject: Some(command.program().into()),
-			error: SystemError::from(&error),
-		})
+		ProcessError::supervision(ProcessOperation::Terminate, command.program(), &error)
 	})
 }
 
-fn cancelled_outcome() -> ProcessOutcome {
-	ProcessOutcome {
-		termination: ProcessTermination::HandledCancellation(Cancellation::Requested),
-		captured_output: None,
-	}
-}
-
+#[cfg(windows)]
 #[derive(Clone, Copy)]
 enum OutputStream {
 	Stdout,
 	Stderr,
 }
 
+#[cfg(windows)]
 enum ReaderEvent {
 	Data(OutputStream, Vec<u8>),
 	Closed,
 	Failed(OutputStream, io::Error),
 }
 
+#[cfg(windows)]
 fn spawn_reader(
 	mut reader: impl Read + Send + 'static,
 	stream: OutputStream,
@@ -334,58 +306,45 @@ fn spawn_reader(
 	})
 }
 
-fn supervision_error(
-	operation: ProcessOperation,
-	command: &CommandSpec,
-	error: &io::Error,
-) -> ProcessError {
-	ProcessError::SupervisionFailed(ProcessDiagnostic {
-		operation,
-		subject: Some(command.program().into()),
-		error: SystemError::from(error),
-	})
-}
-
-#[cfg(test)]
-mod cancellation_tests {
-	use super::*;
-
-	#[test]
-	fn local_cancellation_token_records_requests() {
-		let token = CancellationToken::new();
-		assert!(!token.is_requested());
-
-		token.request();
-
-		assert!(token.is_requested());
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use crate::{model, runtime};
 	use std::ffi::OsString;
+	#[cfg(windows)]
 	use std::fs;
+	#[cfg(windows)]
 	use std::path::PathBuf;
+	#[cfg(windows)]
 	use std::thread;
-	use std::time::{Duration, Instant};
+	use std::time::Duration;
+	#[cfg(windows)]
+	use std::time::Instant;
 
-	use model::{
-		CommandArguments, CommandSpec, LaunchAdapter, OutputBudget, ProbeLimits, ProbeTimeout,
-		ProcessError, ProcessTermination, SupervisionMode,
-	};
+	use model::{CommandArguments, CommandSpec, ProcessTermination, SupervisionMode};
+	#[cfg(windows)]
+	use model::{ProbeLimits, ProcessError};
 	#[cfg(windows)]
 	use runtime::platform;
 	use runtime::supervisor::{CancellationToken, ProcessSupervisor};
-	#[cfg(unix)]
-	use runtime::{NativeRuntime, ProcessEffects};
 
-	#[cfg(unix)]
-	fn shell_command(script: &str) -> CommandSpec {
-		CommandSpec::new(
+	/// Waits about `seconds` and exits with `code`.
+	fn wait_then_exit(seconds: u32, code: i32) -> CommandSpec {
+		#[cfg(unix)]
+		let (program, arguments) = (
 			OsString::from("/bin/sh"),
-			CommandArguments::Native(vec![OsString::from("-c"), OsString::from(script)]),
-			LaunchAdapter::Direct,
+			[String::from("-c"), format!("sleep {seconds}; exit {code}")],
+		);
+		#[cfg(windows)]
+		let (program, arguments) = (
+			std::env::var_os("ComSpec").unwrap_or_else(|| OsString::from("cmd.exe")),
+			[
+				String::from("/C"),
+				format!("ping -n {} 127.0.0.1 >NUL & exit {code}", seconds + 1),
+			],
+		);
+		CommandSpec::new(
+			program,
+			CommandArguments::Native(arguments.into_iter().map(OsString::from).collect()),
 		)
 	}
 
@@ -404,13 +363,6 @@ mod tests {
 					.map(OsString::from)
 					.collect(),
 				raw_command_tail,
-			},
-			LaunchAdapter::WindowsCommandScript {
-				script: script.to_path_buf(),
-				kind: match script.extension().and_then(|extension| extension.to_str()) {
-					Some("cmd") => model::WindowsScriptKind::Cmd,
-					_ => model::WindowsScriptKind::Batch,
-				},
 			},
 		)
 	}
@@ -436,19 +388,32 @@ mod tests {
 			.find(|path| path.is_file())
 	}
 
-	#[cfg(unix)]
-	fn process_exists(process_id: i32) -> bool {
-		let result = unsafe { libc::kill(process_id, 0) };
-		result == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
-	}
+	#[test]
+	fn bootstrap_reports_its_exit_code_or_the_cancellation_after_it_exits() {
+		let exited = ProcessSupervisor::new(CancellationToken::new())
+			.supervise(&wait_then_exit(0, 3), SupervisionMode::InteractiveBootstrap)
+			.expect("bootstrap should complete");
+		let cancellation = CancellationToken::new();
+		let request = cancellation.clone();
+		let requester = std::thread::spawn(move || {
+			std::thread::sleep(Duration::from_millis(50));
+			request.request();
+		});
+		let cancelled = ProcessSupervisor::new(cancellation)
+			.supervise(&wait_then_exit(1, 0), SupervisionMode::InteractiveBootstrap)
+			.expect("a cancelled bootstrap should be an outcome");
+		requester
+			.join()
+			.expect("cancellation requester should finish");
 
-	#[cfg(unix)]
-	fn stop_process(process_id: i32) {
-		unsafe {
-			libc::kill(process_id, libc::SIGKILL);
-		}
+		assert_eq!(
+			(exited.termination, cancelled.termination),
+			(
+				ProcessTermination::NumericExit(3),
+				ProcessTermination::HandledCancellation
+			)
+		);
 	}
-
 	#[cfg(windows)]
 	#[test]
 	fn cmd_and_batch_raw_tail_round_trip_without_injection() {
@@ -482,8 +447,8 @@ mod tests {
 				.supervise(
 					&windows_command_script(&script, arguments.clone()),
 					SupervisionMode::CapturedVersionProbe(ProbeLimits {
-						timeout: ProbeTimeout::new(Duration::from_secs(5)),
-						output: OutputBudget::new(262_144),
+						timeout: Duration::from_secs(5),
+						output_bytes: 262_144,
 					}),
 				)
 				.expect("command script should complete");
@@ -515,7 +480,6 @@ mod tests {
 					.map(OsString::from)
 					.collect(),
 			),
-			LaunchAdapter::Direct,
 		);
 		let supervisor = ProcessSupervisor::new(CancellationToken::new());
 
@@ -532,16 +496,12 @@ mod tests {
 	#[cfg(windows)]
 	#[test]
 	fn available_powershell_hosts_preserve_arguments() {
-		let hosts = [
-			("pwsh.exe", model::PowerShellHost::Modern),
-			("powershell.exe", model::PowerShellHost::WindowsPowerShell),
-		];
-		for (name, host) in hosts {
+		for name in ["pwsh.exe", "powershell.exe"] {
 			let Some(program) = find_windows_program(name) else {
 				eprintln!("skipping {name}: host is unavailable");
 				continue;
 			};
-			if host == model::PowerShellHost::Modern {
+			if name == "pwsh.exe" {
 				let version = std::process::Command::new(&program)
 					.args([
 						"-NoLogo",
@@ -589,22 +549,15 @@ mod tests {
 			.chain(forwarded)
 			.map(OsString::from)
 			.collect();
-			let command = CommandSpec::new(
-				program.into(),
-				CommandArguments::Native(arguments),
-				LaunchAdapter::PowerShellScript {
-					script: script.clone(),
-					host,
-				},
-			);
+			let command = CommandSpec::new(program.into(), CommandArguments::Native(arguments));
 			let supervisor = ProcessSupervisor::new(CancellationToken::new());
 
 			let outcome = supervisor
 				.supervise(
 					&command,
 					SupervisionMode::CapturedVersionProbe(ProbeLimits {
-						timeout: ProbeTimeout::new(Duration::from_secs(10)),
-						output: OutputBudget::new(262_144),
+						timeout: Duration::from_secs(10),
+						output_bytes: 262_144,
 					}),
 				)
 				.expect("PowerShell host should complete");
@@ -622,442 +575,6 @@ mod tests {
 			fs::remove_file(script).expect("remove PowerShell script");
 			fs::remove_file(output).expect("remove PowerShell output");
 		}
-	}
-
-	#[cfg(unix)]
-	fn probe_limits(timeout: Duration, output_bytes: usize) -> SupervisionMode {
-		SupervisionMode::CapturedVersionProbe(ProbeLimits {
-			timeout: ProbeTimeout::new(timeout),
-			output: OutputBudget::new(output_bytes),
-		})
-	}
-
-	#[cfg(unix)]
-	fn read_process_id(path: &PathBuf) -> i32 {
-		fs::read_to_string(path)
-			.expect("descendant pid should be recorded")
-			.parse()
-			.expect("descendant pid should be numeric")
-	}
-
-	#[cfg(unix)]
-	fn wait_for_process_id(path: &PathBuf, timeout: Duration) -> bool {
-		let deadline = Instant::now() + timeout;
-		while Instant::now() < deadline {
-			if fs::read_to_string(path)
-				.ok()
-				.and_then(|value| value.parse::<i32>().ok())
-				.is_some()
-			{
-				return true;
-			}
-			thread::sleep(Duration::from_millis(5));
-		}
-		false
-	}
-
-	#[cfg(unix)]
-	fn assert_process_stopped(process_id: i32) {
-		for _ in 0..50 {
-			if !process_exists(process_id) {
-				return;
-			}
-			thread::sleep(Duration::from_millis(10));
-		}
-		assert!(!process_exists(process_id), "descendant survived cleanup");
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn probe_timeout_terminates_group() {
-		let pid_file = std::env::temp_dir().join(format!(
-			"copilot-shim-timeout-descendant-{}",
-			std::process::id()
-		));
-		let script = format!(
-			"sleep 60 & child=$!; printf '%s' \"$child\" > '{}'; wait \"$child\"",
-			pid_file.display()
-		);
-		let supervisor = ProcessSupervisor::new(CancellationToken::new());
-		let started = Instant::now();
-
-		let result = supervisor.supervise(
-			&shell_command(&script),
-			probe_limits(Duration::from_millis(250), 262_144),
-		);
-
-		assert_eq!(
-			result,
-			Err(ProcessError::TimedOut {
-				timeout: ProbeTimeout::new(Duration::from_millis(250)),
-				captured_output: model::CapturedOutput {
-					stdout: Vec::new(),
-					stderr: Vec::new(),
-				},
-			})
-		);
-		assert!(started.elapsed() < Duration::from_secs(5));
-		assert_process_stopped(read_process_id(&pid_file));
-		fs::remove_file(pid_file).expect("remove descendant pid file");
-	}
-
-	#[test]
-	fn production_probe_limits_are_fixed() {
-		assert_eq!(
-			ProbeLimits::PRODUCTION,
-			ProbeLimits {
-				timeout: ProbeTimeout::new(Duration::from_secs(30)),
-				output: OutputBudget::new(262_144),
-			}
-		);
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn captured_probe_drains_both_streams_and_preserves_nonzero_exit() {
-		let supervisor = ProcessSupervisor::new(CancellationToken::new());
-
-		let outcome = supervisor
-			.supervise(
-				&shell_command("printf 'stdout-value'; printf 'stderr-value' >&2; exit 17"),
-				probe_limits(Duration::from_secs(2), 262_144),
-			)
-			.expect("captured probe should complete");
-
-		assert_eq!(
-			outcome,
-			model::ProcessOutcome {
-				termination: ProcessTermination::NumericExit(17),
-				captured_output: Some(model::CapturedOutput {
-					stdout: b"stdout-value".to_vec(),
-					stderr: b"stderr-value".to_vec(),
-				}),
-			}
-		);
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn native_runtime_uses_process_supervisor() {
-		let runtime = NativeRuntime::default();
-
-		let outcome = runtime
-			.supervise(
-				&shell_command("printf 'native-runtime'"),
-				probe_limits(Duration::from_secs(2), 262_144),
-			)
-			.expect("native runtime should supervise the probe");
-
-		assert_eq!(
-			outcome,
-			model::ProcessOutcome {
-				termination: ProcessTermination::NumericExit(0),
-				captured_output: Some(model::CapturedOutput {
-					stdout: b"native-runtime".to_vec(),
-					stderr: Vec::new(),
-				}),
-			}
-		);
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn immediate_exit_probes_do_not_race_process_group_lookup() {
-		let supervisor = ProcessSupervisor::new(CancellationToken::new());
-
-		for _ in 0..200 {
-			let outcome = supervisor
-				.supervise(
-					&shell_command("exit 0"),
-					probe_limits(Duration::from_secs(2), 262_144),
-				)
-				.expect("immediate probe should not race process-group setup");
-			assert_eq!(outcome.termination, ProcessTermination::NumericExit(0));
-		}
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn captured_probe_disconnects_stdin() {
-		let supervisor = ProcessSupervisor::new(CancellationToken::new());
-
-		let outcome = supervisor
-			.supervise(
-				&shell_command("if read value; then exit 91; else printf 'disconnected'; fi"),
-				probe_limits(Duration::from_secs(2), 262_144),
-			)
-			.expect("captured probe should observe EOF on stdin");
-
-		assert_eq!(
-			outcome,
-			model::ProcessOutcome {
-				termination: ProcessTermination::NumericExit(0),
-				captured_output: Some(model::CapturedOutput {
-					stdout: b"disconnected".to_vec(),
-					stderr: Vec::new(),
-				}),
-			}
-		);
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn combined_output_limit_is_bounded_and_terminates_group() {
-		let pid_file = std::env::temp_dir().join(format!(
-			"copilot-shim-overflow-descendant-{}",
-			std::process::id()
-		));
-		let script = format!(
-			"sleep 60 & child=$!; printf '%s' \"$child\" > '{}'; \
-			 while :; do printf 'stdout'; printf 'stderr' >&2; done",
-			pid_file.display()
-		);
-		let supervisor = ProcessSupervisor::new(CancellationToken::new());
-
-		let result = supervisor.supervise(
-			&shell_command(&script),
-			probe_limits(Duration::from_secs(2), 4_096),
-		);
-
-		let Err(ProcessError::OutputLimitExceeded {
-			budget,
-			captured_output,
-		}) = result
-		else {
-			panic!("expected output limit error, got {result:?}");
-		};
-		assert_eq!(
-			(
-				budget,
-				captured_output.stdout.len() + captured_output.stderr.len(),
-			),
-			(OutputBudget::new(4_096), 4_096)
-		);
-		assert_process_stopped(read_process_id(&pid_file));
-		fs::remove_file(pid_file).expect("remove descendant pid file");
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn cancellation_is_distinct_and_terminates_group() {
-		let directory = tempfile::tempdir().expect("create cancellation test directory");
-		let pid_file = directory.path().join("descendant.pid");
-		let script = format!(
-			"sleep 60 & child=$!; printf '%s' \"$child\" > '{}'; wait \"$child\"",
-			pid_file.display()
-		);
-		let cancellation = CancellationToken::new();
-		let request = cancellation.clone();
-		let readiness_file = pid_file.clone();
-		let requester = thread::spawn(move || {
-			let ready = wait_for_process_id(&readiness_file, Duration::from_secs(5));
-			if ready {
-				request.request();
-			}
-			ready
-		});
-		let supervisor = ProcessSupervisor::new(cancellation);
-
-		let result = supervisor.supervise(
-			&shell_command(&script),
-			probe_limits(Duration::from_secs(10), 262_144),
-		);
-		let ready = requester
-			.join()
-			.expect("cancellation requester should finish");
-		assert!(ready, "descendant PID was not recorded before the deadline");
-		let outcome = result.expect("cancellation should be an outcome");
-
-		assert_eq!(
-			outcome.termination,
-			ProcessTermination::HandledCancellation(model::Cancellation::Requested)
-		);
-		assert_process_stopped(read_process_id(&pid_file));
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn bootstrap_cancellation_is_terminal_and_reaps_child() {
-		let cancellation = CancellationToken::new();
-		let request = cancellation.clone();
-		let requester = thread::spawn(move || {
-			thread::sleep(Duration::from_millis(100));
-			request.request();
-		});
-		let supervisor = ProcessSupervisor::new(cancellation);
-
-		let outcome = supervisor
-			.supervise(
-				&shell_command("sleep 60"),
-				SupervisionMode::InteractiveBootstrap,
-			)
-			.expect("bootstrap cancellation should be an outcome");
-		requester
-			.join()
-			.expect("cancellation requester should finish");
-
-		assert_eq!(
-			outcome,
-			model::ProcessOutcome {
-				termination: ProcessTermination::HandledCancellation(
-					model::Cancellation::Requested,
-				),
-				captured_output: None,
-			}
-		);
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn bootstrap_cancellation_allows_natural_exit_during_grace() {
-		let marker = std::env::temp_dir().join(format!(
-			"copilot-shim-bootstrap-grace-{}",
-			std::process::id()
-		));
-		let cancellation = CancellationToken::new();
-		let request = cancellation.clone();
-		let requester = thread::spawn(move || {
-			thread::sleep(Duration::from_millis(50));
-			request.request();
-		});
-		let supervisor = ProcessSupervisor::new(cancellation);
-
-		let outcome = supervisor
-			.supervise(
-				&shell_command(&format!(
-					"sleep 0.15; printf 'natural' > '{}'",
-					marker.display()
-				)),
-				SupervisionMode::InteractiveBootstrap,
-			)
-			.expect("bootstrap cancellation should preserve the cancellation outcome");
-		requester
-			.join()
-			.expect("cancellation requester should finish");
-
-		assert_eq!(
-			(
-				outcome.termination,
-				fs::read_to_string(&marker).expect("read bootstrap grace marker"),
-			),
-			(
-				ProcessTermination::HandledCancellation(model::Cancellation::Requested),
-				String::from("natural"),
-			)
-		);
-		fs::remove_file(marker).expect("remove bootstrap grace marker");
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn bootstrap_cancellation_forces_child_after_grace() {
-		let cancellation = CancellationToken::new();
-		let request = cancellation.clone();
-		let requester = thread::spawn(move || {
-			thread::sleep(Duration::from_millis(50));
-			request.request();
-		});
-		let supervisor = ProcessSupervisor::new(cancellation);
-		let started = Instant::now();
-
-		let outcome = supervisor
-			.supervise(
-				&shell_command("sleep 60"),
-				SupervisionMode::InteractiveBootstrap,
-			)
-			.expect("bootstrap cancellation should force an unresponsive child");
-		requester
-			.join()
-			.expect("cancellation requester should finish");
-
-		assert_eq!(
-			outcome.termination,
-			ProcessTermination::HandledCancellation(model::Cancellation::Requested)
-		);
-		assert!(started.elapsed() < Duration::from_secs(2));
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn successful_probe_cleans_background_descendant() {
-		let pid_file = std::env::temp_dir().join(format!(
-			"copilot-shim-success-descendant-{}",
-			std::process::id()
-		));
-		let supervisor = ProcessSupervisor::new(CancellationToken::new());
-
-		let outcome = supervisor
-			.supervise(
-				&shell_command(&format!(
-					"sleep 60 & printf '%s' \"$!\" > '{}'; exit 0",
-					pid_file.display()
-				)),
-				probe_limits(Duration::from_secs(2), 262_144),
-			)
-			.expect("probe root should complete");
-		let process_id = read_process_id(&pid_file);
-		let survived = process_exists(process_id);
-		if survived {
-			stop_process(process_id);
-		}
-		fs::remove_file(pid_file).expect("remove descendant pid file");
-
-		assert_eq!(
-			(outcome.termination, survived),
-			(ProcessTermination::NumericExit(0), false)
-		);
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn interactive_modes_keep_uncaptured_foreground_execution() {
-		let supervisor = ProcessSupervisor::new(CancellationToken::new());
-
-		let bootstrap = supervisor
-			.supervise(
-				&shell_command("exit 0"),
-				SupervisionMode::InteractiveBootstrap,
-			)
-			.expect("bootstrap should complete");
-		let final_cli = supervisor
-			.supervise(
-				&shell_command("exit 23"),
-				SupervisionMode::FinalInteractiveCli,
-			)
-			.expect("final CLI should complete");
-
-		assert_eq!(
-			(
-				bootstrap.termination,
-				bootstrap.captured_output,
-				final_cli.termination,
-				final_cli.captured_output,
-			),
-			(
-				ProcessTermination::NumericExit(0),
-				None,
-				ProcessTermination::NumericExit(23),
-				None,
-			)
-		);
-	}
-
-	#[cfg(unix)]
-	#[test]
-	fn final_interactive_cli_preserves_unix_signal_outcome() {
-		let supervisor = ProcessSupervisor::new(CancellationToken::new());
-
-		let outcome = supervisor
-			.supervise(
-				&shell_command("kill -TERM $$"),
-				SupervisionMode::FinalInteractiveCli,
-			)
-			.expect("signal outcome should be reported");
-
-		assert_eq!(
-			outcome.termination,
-			ProcessTermination::UnixSignal(libc::SIGTERM)
-		);
 	}
 
 	#[cfg(windows)]
@@ -1078,20 +595,14 @@ mod tests {
 		let result = supervisor.supervise(
 			&windows_command_script(&script, Vec::new()),
 			SupervisionMode::CapturedVersionProbe(ProbeLimits {
-				timeout: ProbeTimeout::new(Duration::from_millis(250)),
-				output: OutputBudget::new(262_144),
+				timeout: Duration::from_millis(250),
+				output_bytes: 262_144,
 			}),
 		);
 
 		assert_eq!(
 			result,
-			Err(ProcessError::TimedOut {
-				timeout: ProbeTimeout::new(Duration::from_millis(250)),
-				captured_output: model::CapturedOutput {
-					stdout: Vec::new(),
-					stderr: Vec::new(),
-				},
-			})
+			Err(ProcessError::TimedOut(Duration::from_millis(250)))
 		);
 		let deadline = Instant::now() + Duration::from_secs(4);
 		while Instant::now() < deadline && !survivor.exists() {
@@ -1099,11 +610,5 @@ mod tests {
 		}
 		assert!(!survivor.exists(), "Job Object descendant survived timeout");
 		fs::remove_file(script).expect("remove timeout script");
-	}
-
-	#[cfg(not(any(unix, windows)))]
-	#[test]
-	fn probe_timeout_terminates_group() {
-		panic!("process supervision is unsupported on this target");
 	}
 }

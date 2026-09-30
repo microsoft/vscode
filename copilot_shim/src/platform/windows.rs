@@ -9,7 +9,7 @@ use std::io;
 use std::mem::size_of;
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::os::windows::io::FromRawHandle;
-use std::process::{Child, Stdio};
+use std::process::ExitStatus;
 use std::ptr::{null, null_mut};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -34,11 +34,11 @@ use windows_sys::Win32::System::Threading::{
 };
 
 use crate::model::{
-	CommandArguments, CommandBuildError, CommandSpec, ProcessDiagnostic, ProcessError,
-	ProcessOperation, ProcessTermination, SystemError,
+	CommandArguments, CommandBuildError, CommandSpec, ProcessError, ProcessOperation,
+	ProcessTermination,
 };
 
-use super::{native_command, spawn_error};
+use super::spawn_error;
 
 const JOB_VERIFICATION_PERIOD: Duration = Duration::from_secs(1);
 const JOB_VERIFICATION_POLL_INTERVAL: Duration = Duration::from_millis(5);
@@ -187,43 +187,11 @@ impl Drop for CapturedChild {
 	}
 }
 
-pub(crate) struct InteractiveChild {
-	child: Child,
-}
-
-impl InteractiveChild {
-	pub(crate) fn try_wait(&mut self) -> io::Result<Option<ProcessTermination>> {
-		self.child
-			.try_wait()?
-			.map(Self::interactive_termination)
-			.transpose()
-	}
-
-	pub(crate) fn wait(&mut self) -> io::Result<ProcessTermination> {
-		Self::interactive_termination(self.child.wait()?)
-	}
-
-	fn interactive_termination(status: std::process::ExitStatus) -> io::Result<ProcessTermination> {
-		status
-			.code()
-			.map(ProcessTermination::NumericExit)
-			.ok_or_else(|| io::Error::other("Windows process exited without a numeric status"))
-	}
-
-	pub(crate) fn terminate(&mut self) -> io::Result<()> {
-		self.child.kill()
-	}
-}
-
 pub(crate) fn spawn_captured(command: &CommandSpec) -> Result<CapturedChild, ProcessError> {
 	spawn_captured_inner(command).map_err(|failure| match failure {
 		ProbeSpawnFailure::Start(error) => spawn_error(command, &error),
 		ProbeSpawnFailure::Supervision(operation, error) => {
-			ProcessError::SupervisionFailed(ProcessDiagnostic {
-				operation,
-				subject: Some(command.program().into()),
-				error: SystemError::from(&error),
-			})
+			ProcessError::supervision(operation, command.program(), &error)
 		}
 	})
 }
@@ -310,18 +278,6 @@ fn spawn_captured_inner(command: &CommandSpec) -> Result<CapturedChild, ProbeSpa
 		stderr: Some(stderr),
 		reaped: false,
 	})
-}
-
-pub(crate) fn spawn_interactive(command: &CommandSpec) -> Result<InteractiveChild, ProcessError> {
-	let mut process = native_command(command)?;
-	process
-		.stdin(Stdio::inherit())
-		.stdout(Stdio::inherit())
-		.stderr(Stdio::inherit());
-	process
-		.spawn()
-		.map(|child| InteractiveChild { child })
-		.map_err(|error| spawn_error(command, &error))
 }
 
 pub(crate) fn install_cancellation_handler() -> io::Result<()> {
@@ -447,6 +403,11 @@ fn quote_process_argument(argument: &OsStr) -> Vec<u16> {
 	quoted.extend(std::iter::repeat_n(u16::from(b'\\'), backslashes * 2));
 	quoted.push(u16::from(b'"'));
 	quoted
+}
+
+pub(super) fn termination(status: ExitStatus) -> ProcessTermination {
+	// Windows processes always exit with a numeric code.
+	ProcessTermination::NumericExit(status.code().unwrap_or(1))
 }
 
 fn exit_code(process: HANDLE) -> io::Result<ProcessTermination> {

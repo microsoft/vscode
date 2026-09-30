@@ -184,7 +184,7 @@ consumes an argument meant for the Copilot CLI:
 
 ```text
 copilot [--vscode-shim <modifier>]... [--] [copilot arguments...]
-copilot [--vscode-shim verbose]... --vscode-shim <info|probe|install> [command options...]
+copilot [--vscode-shim verbose]... --vscode-shim <probe|install> [command options...]
 ```
 
 - Only leading `--vscode-shim <name>` pairs are options. Parsing stops at the
@@ -258,7 +258,9 @@ The implementation MUST:
 - preserve PATH directory order;
 - treat an empty PATH component as the current working directory where that is
   the platform's command-resolution behavior;
-- resolve relative PATH components against the current working directory;
+- resolve relative PATH components against the current working directory, which
+  is looked up only when such a component exists; if it can't be, those
+  components are skipped;
 - tolerate duplicate directories;
 - skip entries that are not directories;
 - skip a directory named `copilot` rather than treating it as an executable;
@@ -294,7 +296,8 @@ For each PATH directory in order, inspect these names in this order:
 3. `copilot.bat`
 4. `copilot.ps1`
 
-Filename matching is case-insensitive.
+Filename matching is case-insensitive. Each name is looked up directly; PATH
+directories are not listed.
 
 `PATHEXT` MUST NOT reorder this list. `.com` files are outside the first
 implementation. A bare extensionless `copilot` is not launched on Windows, but
@@ -400,9 +403,10 @@ VSCODE_COPILOT_RUST_SHIM_V1
 
 Native candidates whose size is at most 16 MiB MUST be inspected for this
 marker using a bounded-memory streaming search. A candidate containing it is
-another shim copy and MUST be skipped. The size gate keeps discovery from
-reading a large Copilot CLI executable (about 150 MB) on every launch; official
-VS Code shim builds are much smaller than the limit.
+another shim copy and MUST be skipped. A larger candidate is neither a shim copy
+(about 1 MB) nor a legacy script shim, so it isn't read at all; this keeps
+discovery from reading a large Copilot CLI executable (about 150 MB) on every
+launch. The start of a candidate is read once for both checks.
 
 Recursion exclusion uses canonical paths, supported file identities, the binary
 marker, and legacy-wrapper signatures. The shim MUST NOT set or require a
@@ -428,11 +432,15 @@ alone MUST NOT classify a candidate as legacy.
 Text inspection MUST:
 
 - inspect at most the first 128 KiB;
-- accept UTF-8 with or without BOM;
+- accept UTF-8 with or without BOM, including a prefix that ends inside a
+  character;
 - normalize LF and CRLF line endings;
 - use exact case-sensitive markers for POSIX shell scripts;
-- use ASCII-case-insensitive markers for Windows PowerShell/batch wrappers; and
-- skip an unreadable or undecodable script candidate.
+- use ASCII-case-insensitive markers for Windows PowerShell/batch wrappers;
+- treat text that isn't UTF-8, such as a `.cmd` file in the OEM code page or a
+  UTF-16 `.ps1` file, as not legacy, because the legacy shims were written as
+  UTF-8; and
+- skip an unreadable candidate.
 
 ### Required signatures
 
@@ -502,7 +510,9 @@ Install GitHub Copilot CLI? [y/N]
 ```
 
 Only a response whose first non-whitespace character is `y` or `Y` is
-affirmative. No response or EOF means No.
+affirmative, including the full-width `y` and `Y` that an East Asian IME types in
+full-width mode; the ideographic space counts as whitespace. No response or EOF
+means No.
 
 Declining installation exits successfully.
 On ARMhf and Alpine/musl, report manual-install or upstream-support guidance and
@@ -571,9 +581,9 @@ install option, MUST:
 1. Report that Copilot CLI is already installed, without downloading anything,
    when `%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` exists. When Windows
    Installer has a product with the UpgradeCode registered but that file is
-   missing, report an error that points to Installed apps instead of
-   installing. `msi.dll` is loaded only for this check.
-2. Resolve the latest release: request
+   missing, report an error that tells the user to uninstall it in Installed
+   apps instead of installing. `msi.dll` is loaded only for this check.
+2. Resolve the latest release: send a `HEAD` request for
    `https://github.com/github/copilot-cli/releases/latest` without following
    redirects and take the tag from the `/releases/tag/<tag>` redirect location.
 3. Download `SHA256SUMS.txt` (at most 64 KiB) and `copilot-x64.msi` or
@@ -589,6 +599,16 @@ install option, MUST:
    %TEMP%\vscode-copilot-cli-install.log` without elevation. Exit codes `0` and
    `3010` mean success, and `1602` means the install was canceled.
 7. Confirm that `%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` exists.
+
+Ctrl+C stops the install at its next step: between download chunks, after
+verification, or before `msiexec` starts. The temporary MSI is then removed.
+A blocked network request ends when the connection fails or times out. Once
+`msiexec` has started it can't be stopped safely, so it finishes and the result
+is reported before the shim exits with the cancellation. The parent shim waits
+for the install instead of ending it.
+
+WinHTTP errors are reported with WinHTTP's own message text, in the user's
+display language.
 
 Progress goes to stderr. The MSI's `PATH` change isn't visible to processes
 that are already running, so after a successful install the shim launches
@@ -674,9 +694,10 @@ It MUST NOT start a fallback installer, prompt again, or launch the real CLI.
 In particular, Ctrl+C canceling an installer is not an ordinary failure that
 permits the next installation attempt.
 
-Keep interactive installer children attached to the current terminal.
-Coordinate cancellation, wait for/reap the active child, then clean up its
-temporary script file. Cleanup is guaranteed for normal exits, reported
+Keep interactive installer children attached to the current terminal. Ctrl+C
+reaches the installer too, and the installer decides how to stop; the shim
+waits for it to exit rather than ending it, then cleans up its temporary script
+file and reports the cancellation. Cleanup is guaranteed for normal exits, reported
 failures, and handled cancellation, not SIGKILL, abrupt OS termination,
 crashes, or power loss.
 
@@ -707,21 +728,23 @@ The final process MUST:
 - inherit the current working directory; and
 - receive the current environment without adding a recursion-guard variable.
 
-The shim MUST wait for the real CLI and report its result according to the
-outcome table.
+On Windows the shim MUST wait for the real CLI and report its result according
+to the outcome table. On Unix the shim replaces itself with the real CLI
+(`exec`), so the CLI's exit status, signals, and lifetime are the caller's
+directly; a tool that ends `copilot` by its process ID ends the CLI.
 
 ## Outcome and exit behavior
 
 | Outcome | Required shim result |
 |---|---|
 | Real CLI exits with a numeric code | Exit with the same code. |
-| Real CLI terminates from a Unix signal | Exit with `128 + signal`. |
+| Real CLI terminates from a Unix signal | The shim was replaced by the CLI, so the caller sees the signal. |
 | Real CLI or required interpreter cannot start | Exit `1`; with verbose mode, print the failing path and OS error. |
 | Current executable cannot be identified | Exit `1`; with verbose mode, print a diagnostic. |
 | All candidates are unusable and installation is unavailable or fails | Exit `1`; with verbose mode, print an actionable diagnostic. |
 | Installer returns zero but re-discovery fails | Exit `1`; with verbose mode, print the PATH/restart guidance. |
 | Automatic installation is unsupported for the target | Exit `1` without an installer attempt; with verbose mode, print manual-install or upstream-support guidance. |
-| Bootstrap or installer operation is canceled | Stop without fallback, reap the child and clean up owned temporary files; return a nonzero cancellation result (`128 + signal` on Unix). |
+| Bootstrap or installer operation is canceled | Wait for the installer to stop, without fallback, and clean up owned temporary files; exit `130`. |
 | User declines installation | Exit `0` without launching. |
 | Prompt receives EOF | Treat as No and exit `0`. |
 | No terminal (stdin or stderr isn't a terminal) and no usable CLI | Exit `127` without prompting; with verbose mode, print a diagnostic to stderr. |
@@ -774,11 +797,6 @@ Result files are INI files encoded as UTF-16LE with a byte order mark, so
 `GetPrivateProfileString` reads them on every Windows version. Values are
 single-line, and each file is replaced atomically.
 
-### `info`
-
-`copilot --vscode-shim info` prints `protocol=1` and `version=<shim version>`
-on separate lines and exits `0`.
-
 ### `probe`
 
 ```text
@@ -792,14 +810,14 @@ The `user` scope (default) searches the process `PATH`, the machine and user
 MSI folder. The `machine` scope searches only the registry's machine `PATH`. It
 also reports whether PowerShell 7 is available.
 
-Unless `--no-network` is given, it resolves the latest release and requests the
-MSI for the current architecture, within the timeout (default 5 seconds, at most
-60 seconds). The timeout covers the whole check, including proxy discovery, so
-setup gets the local result even when the network hangs. It writes a `[probe]`
-section with `protocol`, `shimVersion`, `scope`, `policy` (`allowed` or
-`disabled`), `cliFound`, `cliPath`, `pwshFound`, `downloadAvailable`,
-`downloadSize`, `releaseTag`, and `reason`, and exits `0` when the file was
-written.
+Unless `--no-network` is given or a CLI was found, it resolves the latest
+release and sends a `HEAD` request for the MSI for the current architecture,
+within the timeout (default 5 seconds, at most 60 seconds). The timeout covers
+the whole check, including proxy discovery, so setup gets the local result even
+when the network hangs. It writes a `[probe]` section with `protocol`,
+`policy` (`allowed` or `disabled`), `cliFound`, `pwshFound`,
+`downloadAvailable`, `downloadSize`, and `reason`, and exits `0` when the file
+was written.
 
 ### `install`
 
@@ -817,10 +835,11 @@ platforms report that it is unsupported.
 `--non-interactive` requires `--consent=installer`, the consent that setup
 collected on its page or command line. In that mode the command:
 
-- reports `alreadyInstalled` without downloading when discovery finds a CLI;
+- reports `alreadyInstalled` without downloading when discovery finds a CLI,
+  searching the same directories as the `user` scope of `probe`;
 - rewrites a `[progress]` section with `phase`, `current`, `total`, and
   `heartbeat` while it works;
-- stops between download chunks when the cancel file exists;
+- stops at its next step, before `msiexec` starts, when the cancel file exists;
 - holds the named mutex while it runs; and
 - writes a `[result]` section with `status`, `exitCode` (the msiexec exit
   code), `cliPath`, `cliVersion`, `log`, and `reason`.
@@ -852,7 +871,9 @@ CI builds MUST use `--locked`.
 On Windows, `build.rs` embeds a version resource whose file and product
 versions are the package version. VS Code setup replaces a published shim only
 when this version differs, so the package version MUST be bumped whenever the
-shim changes. `build.rs` writes the resource in the `.res` format, which the
+shim changes. It MUST be `major.minor.patch` without a pre-release or build
+suffix, which a file version can't carry; `build.rs` rejects one. `build.rs`
+writes the resource in the `.res` format, which the
 MSVC linker accepts directly, so the build needs no resource compiler or extra
 dependencies.
 
@@ -972,7 +993,8 @@ fixtures.
   checks; permission/I/O errors do not silently enable that fallback.
 - Broken symlink and symlink loop.
 - Valid later candidate after rejected candidates.
-- Every positive legacy-wrapper signature.
+- Every positive legacy-wrapper signature, including a UTF-8 prefix that ends
+  inside a character; scripts that aren't UTF-8 remain candidates.
 - Legitimate npm `.cmd` and `.ps1` negative fixtures.
 - Windows extension ordering and case-insensitive names.
 
@@ -995,7 +1017,7 @@ fixtures.
 ### Prompts and install flow
 
 - Default No for blank input.
-- `y` and `Y`.
+- `y` and `Y`, including their full-width forms after an ideographic space.
 - EOF.
 - Without a terminal: no prompt, and exit `127` for a missing CLI.
 - User declines install.
@@ -1010,13 +1032,14 @@ fixtures.
   command, brew, curl/bash, and wget/bash.
 - Successful install followed by re-discovery from the first `PATH` entry and
   launch of the newly found candidate.
-- A successful Windows MSI install launches
-  `%LOCALAPPDATA%\GitHubCopilotCLI\copilot.exe` by its full path, even though
-  the terminal's `PATH` predates it.
+- Windows discovery searches `%LOCALAPPDATA%\GitHubCopilotCLI` after `PATH`, so
+  a CLI that was just installed is found even though the terminal's `PATH`
+  predates it.
 - Successful install not visible in current PATH.
 - No repeated install prompt in one invocation.
 - Ctrl+C/handled termination during installation cancels without fallback,
-  another prompt, or final CLI launch.
+  another prompt, or final CLI launch; the shim waits for the installer to stop.
+- A PATH entry that can't be inspected doesn't stop tool discovery.
 - Temporary-script cleanup occurs after child reaping on success, failure, and
   handled cancellation.
 
@@ -1036,6 +1059,7 @@ fixtures.
 - Result files are UTF-16LE single-line INI files replaced atomically.
 - Install statuses map to the documented exit codes.
 - Unsigned files have no Authenticode signer.
+- WinHTTP errors have readable messages.
 - The MSI registration can be queried.
 - With the `CopilotCliCommand` policy disabled, a missing CLI produces the
   policy diagnostic only in verbose mode and exits with code `10` without a
@@ -1058,7 +1082,7 @@ fixtures.
   and `.ps1` adapters.
 - Numeric nonzero child exit propagation, parameterized across the Unix launch
   path and every Windows adapter.
-- Unix signal mapping.
+- On Unix the shim replaces itself with the CLI.
 - Spawn and interpreter failure diagnostics are suppressed by default and
   emitted in verbose mode.
 - Final CLI/installers receive no shim-owned recursion-guard variable, so

@@ -27,13 +27,17 @@ fn main() {
 	}
 
 	let version = env::var("CARGO_PKG_VERSION").expect("package version");
+	// The file version has no place for a pre-release or build suffix, and setup compares file versions, so a suffix
+	// alone would never replace a published shim.
 	let numbers: Vec<u16> = version
-		.split(['.', '-', '+'])
-		.take(3)
-		.map(|part| part.parse().expect("numeric package version"))
+		.split('.')
+		.map(|part| {
+			part.parse()
+				.unwrap_or_else(|_| panic!("package version {version} must be major.minor.patch"))
+		})
 		.collect();
 	let [major, minor, patch] = numbers[..] else {
-		panic!("package version {version} is not major.minor.patch");
+		panic!("package version {version} must be major.minor.patch");
 	};
 
 	let resource = version_resource(major, minor, patch, &version);
