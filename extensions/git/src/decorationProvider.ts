@@ -258,7 +258,7 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 				return [];
 			}
 
-			const changes = await this.repository.diffBetweenWithStats(ancestor, currentHistoryItemRemoteRef.id);
+			const changes = await this.repository.diffBetween(ancestor, currentHistoryItemRemoteRef.id);
 			return changes;
 		} catch (err) {
 			return [];
