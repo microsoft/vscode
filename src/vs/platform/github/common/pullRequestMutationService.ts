@@ -43,6 +43,7 @@ import {
 } from './githubPullRequestService.js';
 import { IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
+import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, optionalObjectProperty, requiredId, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { IPullRequestResources } from './pullRequestResourceService.js';
@@ -1182,105 +1183,6 @@ function toFragmentError(error: unknown): GitHubFragmentError {
 		return { message: error.message, kind: error.kind, statusCode: error.statusCode };
 	}
 	return { message: error instanceof Error ? error.message : String(error), kind: 'unknown' };
-}
-
-function nextLink(link: string | undefined): string | undefined {
-	if (!link) {
-		return undefined;
-	}
-	for (const part of link.split(',')) {
-		const match = /^\s*<(?<url>[^>]+)>\s*;\s*rel="(?<rel>[^"]+)"/.exec(part);
-		if (match?.groups?.rel.split(/\s+/).includes('next')) {
-			return match.groups.url;
-		}
-	}
-	return undefined;
-}
-
-function objectAt(value: unknown, ...path: readonly string[]): object {
-	let current = asObject(value, 'GitHub response was malformed');
-	for (const part of path) {
-		current = asObject(Reflect.get(current, part), `GitHub response property ${part} was malformed`);
-	}
-	return current;
-}
-
-function asObject(value: unknown, message: string): object {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		throw new GitHubRequestError(message, 'malformedResponse');
-	}
-	return value;
-}
-
-function asArray(value: unknown, message: string): readonly unknown[] {
-	if (!Array.isArray(value)) {
-		throw new GitHubRequestError(message, 'malformedResponse');
-	}
-	return value;
-}
-
-function arrayProperty(value: object, key: string): readonly unknown[] {
-	return asArray(Reflect.get(value, key), `GitHub response property ${key} was not an array`);
-}
-
-function optionalObjectProperty(value: object, key: string): object | undefined {
-	const property = Reflect.get(value, key);
-	return property === null || property === undefined ? undefined : asObject(property, `GitHub response property ${key} was malformed`);
-}
-
-function requiredString(value: object, key: string): string {
-	const property = stringProperty(value, key);
-	if (property === undefined) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not a string`, 'malformedResponse');
-	}
-	return property;
-}
-
-function stringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' ? property : undefined;
-}
-
-function nullableStringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return property === null ? undefined : typeof property === 'string' ? property : undefined;
-}
-
-function normalizedEnumProperty(value: object, key: string): string | undefined {
-	return nullableStringProperty(value, key)?.toUpperCase();
-}
-
-function numberProperty(value: object, key: string): number | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'number' && Number.isFinite(property) ? property : undefined;
-}
-
-function booleanProperty(value: object, key: string): boolean | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'boolean' ? property : undefined;
-}
-
-function idProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' || typeof property === 'number' ? String(property) : undefined;
-}
-
-function requiredId(value: object, ...keys: readonly string[]): string {
-	for (const key of keys) {
-		const id = idProperty(value, key);
-		if (id) {
-			return id;
-		}
-	}
-	throw new GitHubRequestError(`GitHub response did not contain ${keys.join(' or ')}`, 'malformedResponse');
-}
-
-function requiredNumber(value: object, key: string): number {
-	const property = numberProperty(value, key);
-	if (property === undefined) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not a number`, 'malformedResponse');
-	}
-	return property;
 }
 
 function toActor(value: object | undefined): { readonly id?: string; readonly login: string } | undefined {
