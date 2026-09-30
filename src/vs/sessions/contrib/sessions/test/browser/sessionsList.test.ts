@@ -660,18 +660,21 @@ suite('Sessions - SessionsList', () => {
 					uri: URI.parse('https://github.com/microsoft/vscode/pull/17'),
 				},
 			}));
-			const artifact = {
-				...createTestSession('Artifact PR').session,
+			const createSessionWithArtifact = (title: string, number: number, isGitHub?: boolean) => ({
+				...createTestSession(title).session,
 				artifacts: constObservable([{
-					id: 'pr-99',
+					id: `pr-${number}`,
 					kind: SessionArtifactKind.PullRequest,
 					label: 'Recorded PR',
 					isArtifact: true,
-					link: URI.parse('https://github.com/microsoft/vscode/pull/99'),
-					isGitHub: true,
+					link: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`),
+					...(isGitHub !== undefined ? { isGitHub } : {}),
 				}]),
-			};
-			const harness = createListHarness(disposables, [modern, legacy, artifact, createTestSession('Unrelated').session]);
+			});
+			const artifact = createSessionWithArtifact('Artifact PR', 99, true);
+			const unclassifiedArtifact = createSessionWithArtifact('Unclassified Artifact PR', 100);
+			const nonGitHubArtifact = createSessionWithArtifact('Non-GitHub Artifact PR', 101, false);
+			const harness = createListHarness(disposables, [modern, legacy, artifact, unclassifiedArtifact, nonGitHubArtifact, createTestSession('Unrelated').session]);
 			const container = harness.createContainer();
 			const findWidgetContainer = mainWindow.document.createElement('div');
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -691,17 +694,27 @@ suite('Sessions - SessionsList', () => {
 					findInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 					return Array.from(container.querySelectorAll('.session-title'), element => element.textContent);
 				};
+				const findTitleHighlights = (pattern: string) => {
+					findTitles(pattern);
+					return Array.from(container.querySelectorAll('.session-title .highlight'), element => element.textContent);
+				};
 
 				assert.deepStrictEqual({
 					modernWithHash: findTitles('#241533'),
 					modernWithoutHash: findTitles('242000'),
 					legacyWithHash: findTitles('#17'),
 					artifactWithHash: findTitles('#99'),
+					unclassifiedArtifactWithHash: findTitles('#100'),
+					explicitlyNonGitHubArtifactWithHash: findTitles('#101'),
+					titleHighlights: findTitleHighlights('Modern'),
 				}, {
 					modernWithHash: ['Modern PR'],
 					modernWithoutHash: ['Modern PR'],
 					legacyWithHash: ['Legacy PR'],
 					artifactWithHash: ['Artifact PR'],
+					unclassifiedArtifactWithHash: ['Unclassified Artifact PR'],
+					explicitlyNonGitHubArtifactWithHash: [],
+					titleHighlights: ['Modern'],
 				});
 			} finally {
 				list.closeFind();
