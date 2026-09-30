@@ -52,15 +52,26 @@ In the side-by-side single-chat presentation, pinning a chat header keeps that c
 `ISessionsService` owns:
 
 - visible-session identity and order;
-- the active visible session;
+- each slot's owning part and each part's selection;
+- the globally active session used by shared tools;
 - which chat is active in each session;
 - restoration of the visible arrangement.
 
-The Sessions Part renders that model. It does not create a second active-session store. Stable slot identities belong to the visible-session model; ordinary replacement transfers the slot to the new session. Retained sessions keep their views and live chat widgets across movement, reordering, and arrangement changes.
+The Sessions Part renders that model. Its local selection is supplied by the visibility model, not independently chosen by the renderer. Stable slot identities belong to the visible-session model; ordinary replacement transfers the slot to the new session. Retained sessions keep their views and live chat widgets across movement, reordering, and arrangement changes within one document.
 
 Opening, closing, and directional insertion or movement operate through `ISessionsService`. The part owns the canonical split geometry and user sash sizes, using the shared grid primitive. Maximization and phone presentation project a single live view without changing that geometry. Ordinary structural edits preserve unaffected branches and sizes. Balanced tiling is an explicit arrangement operation over this grid, not a persistent mode or a comparison-specific layout.
 
 `ISessionsService` persists a versioned geometry snapshot separately from per-session chat state. Saved leaf bindings restore created sessions, the empty composer, active selection, pins, and maximization; untitled provider drafts are not recreated. Legacy ordered-session state remains readable. Restoration projects the saved topology onto available sessions and retains existing views when delayed providers arrive. Explicit navigation or grid interaction supersedes pending restoration.
+
+### Auxiliary Sessions windows
+
+`SessionsParts` registers the main part and auxiliary parts under stable presentation IDs. `AuxiliarySessionsPart` owns one auxiliary document, titlebar, scoped services, layout, and disposal, using the shared auxiliary-window service. Runtime window IDs are distinct from persisted part IDs.
+
+A session has exactly one visible owner across these parts. Ordinary opening reveals that owner; an explicit move or directional drop changes ownership. Cross-document movement retains the session wrapper, chat models, inner chat-grid state, draft replies, and input text models (including undo history). Window-bound widgets are reconstructed only after their destination containers are attached. Source writers are retired before destination writers are created, and retained transfer state allows failed construction to recover in the source. An unfinished edit of a previous request vetoes transfer and auxiliary-window closure until the edit is finished or canceled.
+
+Auxiliary windows contain a titlebar and Sessions grid. The new-session composer and companion editor, details, and terminal surfaces remain in the main window. Created sessions can move with their existing peer-chat composers; uncreated sessions are not detached. Main-window phone projection does not affect auxiliary grids.
+
+Closing an auxiliary returns its content to main as a subtree without balancing unrelated panes or stopping requests. Empty auxiliaries close after committed removals, but opening and restoring windows are not treated as empty. Parent shutdown flushes view state, saves the separate arrangements, and closes auxiliary hosts without merging them. Multiwindow snapshots store part IDs, canonical grids, selections, pins, active-part identity, and native window state; single-grid snapshots remain readable. Failed and timed-out restores retain unresolved bindings; late provider discovery retries without taking activation from another window. Closing a partially restored window retains its unresolved bindings in the returned main layout.
 
 Session geometry does not determine Editor, Details, or other side-pane visibility policy. That policy remains with the layout controllers.
 

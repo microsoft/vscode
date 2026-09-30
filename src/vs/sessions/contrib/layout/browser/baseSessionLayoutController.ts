@@ -209,14 +209,14 @@ export abstract class BaseLayoutController extends Disposable {
 		});
 
 		this.multipleSessionsVisibleObs = derived<boolean>(reader => {
-			return this._sessionsService.visibleSessions.read(reader).length > 1;
+			return this._sessionsService.mainVisibleSessions.read(reader).length > 1;
 		});
 
 		// [B5] When multiple sessions are visible, drop per-session view/panel state
 		// for each visible session (editor working sets are preserved). This ensures
 		// the default visibility logic runs again after collapsing back to one session.
 		this._register(autorun(reader => {
-			const visibleSessions = this._sessionsService.visibleSessions.read(reader);
+			const visibleSessions = this._sessionsService.mainVisibleSessions.read(reader);
 			if (visibleSessions.length <= 1) {
 				return;
 			}
@@ -696,7 +696,7 @@ export abstract class BaseLayoutController extends Disposable {
 
 	private _saveState(): void {
 		const activeSession = this._sessionsService.activeSession.get();
-		const multipleVisible = this._sessionsService.visibleSessions.get().length > 1;
+		const multipleVisible = this._sessionsService.mainVisibleSessions.get().length > 1;
 
 		// [B4] Capture current state for the active session (skip multiple-visible and untitled).
 		if (activeSession && !multipleVisible && activeSession.status.read(undefined) !== SessionStatus.Untitled) {
@@ -791,7 +791,7 @@ export abstract class BaseLayoutController extends Disposable {
 			// change the visibility of the editor part: the editor area is shared
 			// across the visible sessions and its visibility is controlled by the
 			// user (and by direct editor open/close events outside this path).
-			if (this._sessionsService.visibleSessions.get().length > 1) {
+			if (this._sessionsService.mainVisibleSessions.get().length > 1) {
 				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 				try {
 					await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });

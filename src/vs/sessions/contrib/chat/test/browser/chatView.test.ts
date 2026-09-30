@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -561,6 +562,7 @@ suite('Sessions - Chat View', () => {
 			new class extends mock<ISessionsManagementService>() { }(),
 			sessionsService,
 			new class extends mock<IStorageService>() { }(),
+			new SessionContext(sessionsService.activeSession),
 		));
 
 		assert.strictEqual(inputOptions?.renderRepositoryControls, false);

@@ -117,6 +117,94 @@ suite('VisibleSessions', () => {
 		});
 	});
 
+	suite('window ownership', () => {
+		test('moves retain slots, wrappers and pins while ordinary opening reveals the owner', () => {
+			const model = createModel();
+			const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(stubSession);
+			model.restoreGrid([{ session: a, sticky: true }, { session: b, sticky: false }, { session: c, sticky: false }], 0);
+			const before = model.visibleSessions.get();
+			const slots = model.getGridSlots().slice(0, 2).map(slot => slot.id);
+			model.moveToPart(['a', 'b'], 'auxiliary');
+			model.setActive(d, false, 'main');
+			model.setActive(a, false, 'main');
+			assert.deepStrictEqual({
+				main: model.getVisibleSessions('main').map(session => session?.sessionId),
+				auxiliary: model.getVisibleSessions('auxiliary').map(session => session?.sessionId),
+				identity: model.getVisibleSessions('auxiliary').map((session, index) => session === before[index]),
+				slots: model.getGridSlots('auxiliary').map((slot, index) => slot.id === slots[index]),
+				pinned: model.getVisibleSessions('auxiliary').map(session => session?.sticky.get()),
+				selectedMain: model.getSelectedSession('main')?.sessionId,
+				active: model.activeSession.get()?.sessionId,
+			}, {
+				main: ['d'], auxiliary: ['a', 'b'], identity: [true, true], slots: [true, true],
+				pinned: [true, false], selectedMain: 'd', active: 'a',
+			});
+		});
+
+		test('replacement candidates are independent in each window', () => {
+			const model = createModel();
+			const [a, b, c, d, e, f] = ['a', 'b', 'c', 'd', 'e', 'f'].map(stubSession);
+			model.restoreGrid([{ session: a, sticky: false }, { session: b, sticky: false }, { session: c, sticky: true }], 2);
+			model.toggleStickiness(a);
+			model.toggleStickiness(a);
+			model.appendToPart(d, 'auxiliary');
+			model.setActive(d);
+			model.setActive(e, false, 'auxiliary');
+			model.setActive(f, false, 'main');
+			assert.deepStrictEqual({
+				main: model.getVisibleSessions('main').map(session => session?.sessionId),
+				auxiliary: model.getVisibleSessions('auxiliary').map(session => session?.sessionId),
+			}, { main: ['f', 'b', 'c'], auxiliary: ['e'] });
+		});
+
+		test('closing the final auxiliary session preserves the main selection', () => {
+			const model = createModel();
+			const [a, b] = ['a', 'b'].map(stubSession);
+			model.restoreGrid([{ session: a, sticky: false }, { session: b, sticky: false }], 0);
+			const main = model.activeSession.get();
+			model.moveToPart(['b'], 'auxiliary');
+			model.setActive(b);
+			model.removeMany(['b']);
+			model.forgetPart('auxiliary');
+			assert.deepStrictEqual({
+				mainRetained: model.getVisibleSessions('main')[0] === main,
+				activeRetained: model.activeSession.get() === main,
+				auxiliary: model.getVisibleSessions('auxiliary'),
+			}, { mainRetained: true, activeRetained: true, auxiliary: [] });
+		});
+
+		test('restoring an inactive window does not replace or activate main content', () => {
+			const model = createModel();
+			const [a, b] = ['a', 'b'].map(stubSession);
+			model.setActive(a);
+			const main = model.activeSession.get();
+			const mainSlot = model.getGridSlots('main')[0].id;
+			model.restoreGrid([{ session: b, sticky: true, gridId: 'aux-slot' }], 0, 'auxiliary', false);
+			assert.deepStrictEqual({
+				activeRetained: model.activeSession.get() === main,
+				mainSlot: model.getGridSlots('main')[0].id === mainSlot,
+				auxiliarySlot: model.getGridSlots('auxiliary')[0].id,
+				selectedAuxiliary: model.getSelectedSession('auxiliary')?.sessionId,
+			}, { activeRetained: true, mainSlot: true, auxiliarySlot: 'aux-slot', selectedAuxiliary: 'b' });
+		});
+
+		test('the main composer keeps its identity without stealing auxiliary activation', () => {
+			const model = createModel();
+			const [a, draft] = ['a', 'draft'].map(stubSession);
+			model.setActive(a);
+			const active = model.activeSession.get();
+			model.moveToPart(['a'], 'auxiliary');
+			const composerSlot = model.getGridSlots('main')[0].id;
+			model.refresh();
+			model.setActive(draft, true, 'main', false);
+			assert.deepStrictEqual({
+				activeRetained: model.activeSession.get() === active,
+				composerRetained: model.getGridSlots('main')[0].id === composerSlot,
+				main: model.getVisibleSessions('main').map(session => session?.sessionId),
+			}, { activeRetained: true, composerRetained: true, main: ['draft'] });
+		});
+	});
+
 	suite('setActive', () => {
 
 		test('opening B after non-sticky A replaces A in place', () => {

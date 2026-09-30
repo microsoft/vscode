@@ -12,7 +12,7 @@ import { toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ISessionGridEntry, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
 import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
-import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
+import { ISessionGridState, ISessionWindowsState, isSessionGridState, isSessionWindowsState, joinSessionGrids, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
 import '../../browser/media/workbench.css';
 import '../../browser/parts/media/chatCompositeBar.css';
 
@@ -119,6 +119,70 @@ suite('Sessions - Grid Layout', () => {
 			split: [{ id: 'a', width: 400, height: 600 }, { id: 'b', width: 800, height: 300 }, { id: 'c', width: 800, height: 300 }],
 			closed: [{ id: 'a', width: 400, height: 600 }, { id: 'b', width: 800, height: 600 }],
 		});
+	});
+
+	test('returning a window joins subtrees without rebalancing their user sizes', () => {
+		const { grid, a, b, c } = harness();
+		grid.reconcile([a, b, c], 'a');
+		const auxiliary = store.add(new SessionGridLayout());
+		const d = { id: 'd', view: new View() };
+		const e = { id: 'e', view: new View(), placement: { reference: 'd', direction: Direction.Down } };
+		auxiliary.reconcile([d, e], 'd');
+		auxiliary.layout(600, 600, 0, 0, false);
+		auxiliary.resize('d', 600, 200);
+		const expected = [...sizes(grid), ...sizes(auxiliary)];
+		const combined = joinSessionGrids(grid.serialize()!, auxiliary.serialize()!);
+		auxiliary.reconcile([], undefined);
+		grid.reconcile([a, b, c, d, e], 'a');
+		grid.restore(combined);
+		grid.layout(1800, 600, 0, 0, false);
+		assert.deepStrictEqual({ sizes: sizes(grid), right: grid.neighbor('b', Direction.Right), below: grid.neighbor('d', Direction.Down) }, {
+			sizes: expected, right: 'd', below: 'e',
+		});
+		grid.remove('d');
+		grid.remove('e');
+		assert.deepStrictEqual(grid.order, ['a', 'b', 'c']);
+	});
+
+	test('multiwindow persistence validates global ownership and window geometry', () => {
+		const { grid } = harness();
+		const layout: ISessionGridState = {
+			version: 1, grid: grid.serialize()!, active: 'a',
+			sessions: [{ id: 'a', resource: 'test:/a', sticky: false }, { id: 'b', resource: 'test:/b', sticky: true }],
+		};
+		const auxiliary: ISessionGridState = {
+			...layout, active: 'c',
+			grid: projectSessionGrid(layout.grid, id => id === 'a' ? 'c' : undefined)!,
+			sessions: [{ id: 'c', resource: 'test:/c', sticky: false }],
+		};
+		const state: ISessionWindowsState = {
+			version: 2, activePart: 'auxiliary', parts: [
+				{ id: 'main', layout },
+				{ id: 'auxiliary', layout: auxiliary, window: { bounds: { x: 100, y: 50, width: 800, height: 600 } } },
+			]
+		};
+		assert.deepStrictEqual({
+			valid: isSessionWindowsState(state),
+			missingActive: isSessionWindowsState({ ...state, activePart: 'missing' }),
+			duplicatePart: isSessionWindowsState({ ...state, parts: [...state.parts, state.parts[1]] }),
+			duplicateResource: isSessionWindowsState({ ...state, parts: [state.parts[0], { ...state.parts[1], layout: { ...auxiliary, sessions: [{ id: 'c', resource: 'test:/a', sticky: false }] } }] }),
+			invalidBounds: isSessionWindowsState({ ...state, parts: [state.parts[0], { ...state.parts[1], window: { bounds: { x: 0, y: 0, width: -1, height: 600 } } }] }),
+		}, { valid: true, missingActive: false, duplicatePart: false, duplicateResource: false, invalidBounds: false });
+	});
+
+	test('a returned single-leaf subtree can be detached again in a constrained grid', () => {
+		const { grid, a, b, c } = harness();
+		const source = store.add(new SessionGridLayout());
+		source.reconcile([c], c.id);
+		source.layout(720, 760, 0, 0, false);
+		const combined = joinSessionGrids(grid.serialize()!, source.serialize()!);
+		source.reconcile([], undefined);
+		grid.reconcile([a, b, c], 'c');
+		grid.restore(combined);
+		grid.layout(294, 719, 0, 0, false);
+		grid.remove('c');
+		grid.remove('b');
+		assert.deepStrictEqual(grid.order, ['a']);
 	});
 
 	test('directional moves preserve live content and owned focus across parents', () => {

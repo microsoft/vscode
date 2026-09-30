@@ -13,7 +13,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, thenRegisterOrDispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -24,7 +24,6 @@ import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
-import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
@@ -62,7 +61,7 @@ import { inactiveSessionViewBackground, inactiveSessionViewForeground } from '..
 import { INewChatVoiceTargetService, isNewChatStandaloneDictationVisible, isNewChatVoiceInputModePillActive, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
 import { ISessionTypePickerOptions, SessionTypePicker } from './sessionTypePicker.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -138,6 +137,14 @@ import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
 import { IChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../common/newChatDraftState.js';
+import { ChatInputEditorState } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputEditorState.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+
+export interface INewChatInputTransferState extends IDisposable {
+	readonly editor: ChatInputEditorState;
+	readonly draft: IChatDraft;
+	readonly pendingSubmission?: Promise<boolean>;
+}
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -547,6 +554,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	// Input
 	private _editor!: CodeEditorWidget;
+	private readonly _inputEditorState = this._register(new MutableDisposable<ChatInputEditorState>());
+	private _initialDraft: IChatDraft | undefined;
+	private _draftKey: string | undefined;
+	private _pendingSubmission: Promise<boolean> | undefined;
 	private _editorContainer!: HTMLElement;
 	private _repositoryControlsContainer: HTMLElement | undefined;
 	private _repositoryControlsHome: HTMLElement | undefined;
@@ -605,6 +616,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	constructor(
 		private readonly options: {
 			session: IObservable<IActiveSession | undefined>;
+			chat?: IObservable<IChat | undefined>;
+			inputState?: INewChatInputTransferState;
+			draftKey?: IObservable<string | undefined>;
 			getContextFolderUri: () => URI | undefined;
 			getContextPickerActions?: () => readonly IWorkspacePickerContextAction[];
 			getWorkspacePreselectionSource?: () => NewSessionWorkspacePreselectionSource;
@@ -668,7 +682,39 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
-		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {}));
+		this._initialDraft = options.inputState?.draft;
+		if (options.inputState?.pendingSubmission) {
+			this._pendingSubmission = options.inputState.pendingSubmission;
+			this._sending = true;
+			void this._pendingSubmission.then(sent => {
+				if (this._store.isDisposed) {
+					return;
+				}
+				this._pendingSubmission = undefined;
+				this._sending = false;
+				if (sent) {
+					this._contextAttachments.clear();
+					this._editor.getModel()?.setValue('');
+				}
+				this._editor.updateOptions({ readOnly: false });
+				this._updateDraftState();
+				this.saveState();
+				this._updateSendButtonState();
+				this._updateInputLoadingState();
+			}, error => this.logService.error('Failed to complete a transferred chat submission', error));
+		}
+		this._register(autorun(reader => {
+			const key = options.draftKey?.read(reader);
+			if (key !== this._draftKey) {
+				this.saveState();
+				const pendingInput = this._draftKey === undefined && this.isInputReady && this.hasInput;
+				this._draftKey = key;
+				if (this.isInputReady && !pendingInput) {
+					this._restoreState();
+				}
+			}
+		}));
+		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, { chat: this.options.chat }));
 		this._canSendRequest = derived(this, reader => {
 			if (this.options.canSubmitWithoutSession?.read(reader)) {
 				return true;
@@ -760,12 +806,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			ChatInputNotificationWidget,
 			{
 				modelTargetChatSessionType: this.sessionTypePicker.modelTargetChatSessionType,
-				sessionResource: derived(this, reader => this.options.session.read(reader)?.activeChat.read(reader).resource),
+				sessionResource: derived(this, reader => (this.options.chat?.read(reader) ?? this.options.session.read(reader)?.activeChat.read(reader))?.resource),
 				deferredNotificationsEnabled: this.options.deferredNotificationsEnabled,
 				isTransientChat: derived(this, reader => this.options.session.read(reader)?.isQuickChat?.read(reader) ?? false),
 				sessionStarted: derived(this, reader => {
 					const session = this.options.session.read(reader);
-					return session ? session.activeChat.read(reader).status.read(reader) !== SessionStatus.Untitled : false;
+					const chat = this.options.chat?.read(reader) ?? session?.activeChat.read(reader);
+					return chat ? chat.status.read(reader) !== SessionStatus.Untitled : false;
 				}),
 				modelSelection: {
 					state: this._modelSelection.state,
@@ -1057,14 +1104,26 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	 * input model and force-destroys it when the last reference is released.
 	 * Holding one keeps the model alive for this editor's lifetime.
 	 */
-	private _holdInputModelReference(uri: URI, model: ITextModel): void {
-		const inputModelReference = thenRegisterOrDispose(this.textModelService.createModelReference(uri), this._store);
-		void inputModelReference.catch(error => {
-			model.dispose();
-			if (!this._store.isDisposed) {
-				this.logService.error('Failed to hold the chat input model reference', error);
-			}
-		});
+	private _createInputEditorState(): ChatInputEditorState {
+		const uri = URI.from({ scheme: Schemas.sessionsChatInput, path: `input-${generateUuid()}` });
+		const model = this.modelService.createModel('', null, uri, true);
+		const reference = this.textModelService.createModelReference(uri);
+		void reference.catch(error => this.logService.error('Failed to hold the chat input model reference', error));
+		return ChatInputEditorState.create(model, reference);
+	}
+
+	captureTransferState(): INewChatInputTransferState {
+		if (!this._inputEditorState.value || !this._editor) {
+			throw new Error('Cannot transfer a composer before its input is rendered');
+		}
+		this.saveState();
+		const editor = this._inputEditorState.value.acquire(this._editor.saveViewState());
+		return {
+			editor,
+			draft: { inputText: this._editor.getValue(), attachments: [...this._contextAttachments.attachments] },
+			pendingSubmission: this._sending ? this._pendingSubmission : undefined,
+			dispose: () => editor.dispose(),
+		};
 	}
 
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
@@ -1081,13 +1140,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService])));
 
-		const uri = URI.from({ scheme: Schemas.sessionsChatInput, path: `input-${Date.now()}` });
-		const textModel = this.modelService.createModel('', null, uri, true);
-		this._holdInputModelReference(uri, textModel);
+		this._inputEditorState.value = this.options.inputState?.editor.acquire() ?? this._createInputEditorState();
+		const textModel = this._inputEditorState.value.model;
 
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(this.configurationService),
-			readOnly: false,
+			readOnly: this._sending,
 			// Match the workbench chat input so the post-paste selector is offered.
 			pasteAs: EditorOptions.pasteAs.defaultValue,
 			ariaLabel: this._getAriaLabel(),
@@ -1132,6 +1190,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			CodeEditorWidget, editorContainer, editorOptions, widgetOptions,
 		));
 		this._editor.setModel(textModel);
+		this._editor.restoreViewState(this.options.inputState?.editor.viewState ?? null);
 		this._promptTemplatePlaceholder.value = new PromptTemplatePlaceholderController(this._editor, () => this._promptTypingAnimation.value?.complete());
 		this._register(autorun(reader => {
 			// Re-evaluate when the attached session changes; content changes are
@@ -1748,7 +1807,22 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		return this._send(background);
 	}
 
-	private async _send(background = false): Promise<boolean> {
+	private _send(background = false): Promise<boolean> {
+		if (this._pendingSubmission) {
+			return Promise.resolve(false);
+		}
+		const pending = this._doSend(background);
+		this._pendingSubmission = pending;
+		const clear = () => {
+			if (this._pendingSubmission === pending) {
+				this._pendingSubmission = undefined;
+			}
+		};
+		void pending.then(clear, clear);
+		return pending;
+	}
+
+	private async _doSend(background = false): Promise<boolean> {
 		const rawQuery = this._editor.getModel()?.getValue() ?? '';
 		const query = rawQuery.trim();
 		const queryOffset = rawQuery.length - rawQuery.trimStart().length;
@@ -1788,7 +1862,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				input: query,
 			})) {
 				userInteraction?.cancel('notDispatched');
-				this._editor.getModel()?.setValue('');
+				if (!this._store.isDisposed) {
+					this._editor.getModel()?.setValue('');
+				}
 				return true;
 			}
 
@@ -1806,8 +1882,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				return false;
 			}
 			this.chatInputNotificationService.handleMessageSent(notificationContext);
-			this._contextAttachments.clear();
-			this._editor.getModel()?.setValue('');
+			if (!this._store.isDisposed) {
+				this._contextAttachments.clear();
+				this._editor.getModel()?.setValue('');
+			}
 		} catch (e) {
 			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
 			this.logService.error('Failed to send request:', e);
@@ -1815,17 +1893,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		} finally {
 			this._userInteractionSource.clear();
 			this._sending = false;
-			this._editor.updateOptions({ readOnly: false });
-			this._updateDraftState();
-			this._updateSendButtonState();
-			this._updateInputLoadingState();
+			if (!this._store.isDisposed) {
+				this._editor.updateOptions({ readOnly: false });
+				this._updateDraftState();
+				this._updateSendButtonState();
+				this._updateInputLoadingState();
+			}
 		}
 		return sent;
 	}
 
 	private _getNotificationContext(): IChatInputNotificationContext {
 		const session = this.options.session.get();
-		const activeChat = session?.activeChat.get();
+		const activeChat = this.options.chat?.get() ?? session?.activeChat.get();
 		const modelSelection = this._modelSelection.state.get();
 		return {
 			sessionType: this.sessionTypePicker.modelTargetChatSessionType.get(),
@@ -1848,20 +1928,23 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _restoreState(): void {
-		const draft = this._getDraftState();
-		if (draft) {
+		const draft = this._initialDraft ?? this._getDraftState() ?? { inputText: '', attachments: [] };
+		this._initialDraft = undefined;
+		if (this._editor?.getValue() !== draft.inputText) {
 			this._editor?.getModel()?.setValue(draft.inputText);
-			if (draft.attachments?.length) {
-				this._contextAttachments.setAttachments(draft.attachments);
-			}
-			this._syncInputGitHubContext();
 		}
+		this._contextAttachments.setAttachments(draft.attachments);
+		this._syncInputGitHubContext();
+		this._draftState = draft;
 		this._updateSendButtonState();
 	}
 
 	private _getDraftState(): IChatDraft | undefined {
+		if (this.options.draftKey && this._draftKey === undefined) {
+			return undefined;
+		}
 		try {
-			return readNewChatDraftState(this.storageService);
+			return readNewChatDraftState(this.storageService, this._draftKey);
 		} catch {
 			this.logService.warn('[NewChatInput] Could not restore the saved draft');
 			return undefined;
@@ -1870,12 +1953,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _clearDraftState(): void {
 		this._draftState = { inputText: '', attachments: [] };
-		writeNewChatDraftState(this.storageService, this._draftState);
+		this.saveState();
 	}
 
 	saveState(): void {
-		if (this._draftState) {
-			writeNewChatDraftState(this.storageService, this._draftState);
+		if (this._draftState && (!this.options.draftKey || this._draftKey !== undefined)) {
+			writeNewChatDraftState(this.storageService, this._draftState, this._draftKey);
 		}
 	}
 

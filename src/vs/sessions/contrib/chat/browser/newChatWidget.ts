@@ -47,6 +47,7 @@ import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
+import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
@@ -189,6 +190,7 @@ export class NewChatWidget extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ISessionContext sessionContext: ISessionContext,
 	) {
 		super();
 		this._register(this._pendingPreferredUpgrade);
@@ -196,9 +198,8 @@ export class NewChatWidget extends Disposable {
 
 		this._restoreAndPersistSessionOptionsExpanded();
 
-		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
 		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = sessionContext.session.read(reader);
 			if (activeSession && activeSession.isCreated.read(reader)) {
 				return prev;
 			}

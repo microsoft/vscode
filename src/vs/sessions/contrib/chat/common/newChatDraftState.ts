@@ -10,8 +10,8 @@ import { IChatRequestVariableEntry, isChatRequestVariableEntry } from '../../../
 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 
-export function readNewChatDraftState(storageService: IStorageService): IChatDraft | undefined {
-	const raw = storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
+export function readNewChatDraftState(storageService: IStorageService, chatResource?: string): IChatDraft | undefined {
+	const raw = storageService.get(chatResource ? `${STORAGE_KEY_DRAFT_STATE}:${chatResource}` : STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
 	if (!raw) {
 		return undefined;
 	}
@@ -23,8 +23,8 @@ export function readNewChatDraftState(storageService: IStorageService): IChatDra
 	return { inputText: draft.inputText, attachments: attachments.map(IChatRequestVariableEntry.fromExport) };
 }
 
-export function writeNewChatDraftState(storageService: IStorageService, draft: IChatDraft): void {
-	storageService.store(STORAGE_KEY_DRAFT_STATE, stringify({
+export function writeNewChatDraftState(storageService: IStorageService, draft: IChatDraft, chatResource?: string): void {
+	storageService.store(chatResource ? `${STORAGE_KEY_DRAFT_STATE}:${chatResource}` : STORAGE_KEY_DRAFT_STATE, stringify({
 		inputText: draft.inputText,
 		attachments: draft.attachments.map(IChatRequestVariableEntry.toExport),
 	}), StorageScope.WORKSPACE, StorageTarget.MACHINE);

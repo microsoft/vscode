@@ -25,7 +25,7 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewTransferState, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatHeader } from './chatHeader.js';
 
 /**
@@ -72,6 +72,7 @@ export interface IChatGroupContext {
 
 	/** A chat tab drag has ended. */
 	onTabDragEnd(): void;
+	onRenderError?(error: unknown): void;
 }
 
 interface IChatGroupSurface {
@@ -139,6 +140,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private _serializationIndex = 0;
 
 	constructor(
+		parent: HTMLElement,
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -146,6 +148,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+		parent.appendChild(this.element);
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this._scopedInstantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._activeChatIsClosableKey = SessionActiveChatIsClosableContext.bindTo(scopedContextKeyService);
@@ -333,6 +336,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._contextDisposables.add(autorun(reader => {
 			const session = context.session;
 			const chat = activeChat.read(reader);
+			if (!chat && session.isCreated.read(reader) && !this._currentView.value) {
+				const content = surface.read(reader);
+				this._setRemoteHostUnavailableEmptyState(content.recovery);
+				this._setReadOnlyBanner(content.banner);
+				return;
+			}
 
 			let desiredKind: ChatViewKind;
 			if (session.isCreated.read(reader) === false) {
@@ -347,9 +356,20 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 			let view = this._currentView.value;
 			if (!view || view.kind !== desiredKind) {
-				view = desiredKind === 'chat'
-					? this._chatViewFactory.createChatView(this._scopedInstantiationService)
-					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options, this._scopedInstantiationService);
+				const state = chat && context.options.transferStates?.deleteAndLeak(chat.resource.toString());
+				try {
+					view = desiredKind === 'chat'
+						? this._chatViewFactory.createChatView(this._contentContainer, this._scopedInstantiationService, state)
+						: this._chatViewFactory.createNewChatView(this._contentContainer, desiredKind === 'newChatInSession', { ...context.options, chat: activeChat }, this._scopedInstantiationService, state);
+				} catch (error) {
+					if (!context.onRenderError) {
+						throw error;
+					}
+					context.onRenderError(error);
+					return;
+				} finally {
+					state?.dispose();
+				}
 				this._contentContainer.replaceChildren(view.element, this._remoteHostUnavailableEmptyState.domNode);
 				this._currentView.value = view;
 				currentView.set(view, undefined);
@@ -367,6 +387,23 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			this._setRemoteHostUnavailableEmptyState(surfaceContent.recovery);
 			this._setReadOnlyBanner(surfaceContent.banner);
 		}));
+	}
+
+	captureTransferState(): IChatViewTransferState | undefined {
+		return this._currentView.value?.captureTransferState();
+	}
+
+	getTransferVeto(): string | undefined {
+		return this._currentView.value?.getTransferVeto();
+	}
+
+	saveState(): void {
+		this._currentView.value?.saveState();
+	}
+
+	override dispose(): void {
+		this._contextDisposables.clear();
+		super.dispose();
 	}
 
 	private _setReadOnlyBanner(content: ISessionReadOnlyBannerContent | undefined): void {

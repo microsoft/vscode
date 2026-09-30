@@ -48,6 +48,7 @@ import { isLocation } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { ChatInputEditorState } from './chatInputEditorState.js';
 import { CopyPasteController } from '../../../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { DropIntoEditorController } from '../../../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { ContentHoverController } from '../../../../../../editor/contrib/hover/browser/contentHoverController.js';
@@ -272,6 +273,7 @@ export interface IChatPetHorizontalPlatformProvider {
 }
 
 export interface IChatInputPartOptions {
+	readonly inputEditorState?: ChatInputEditorState;
 	defaultMode?: IChatMode;
 	renderFollowups: boolean;
 	renderStyle?: 'compact';
@@ -877,7 +879,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private cachedExecuteToolbarWidth: number | undefined;
 	private cachedInputToolbarWidth: number | undefined;
 
-	readonly inputUri: URI = URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
+	readonly inputUri: URI = this.options.inputEditorState?.model.uri ?? URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
+	private readonly inputEditorState = this._register(new MutableDisposable<ChatInputEditorState>());
+
+	captureInputEditorState(): ChatInputEditorState {
+		this.flushInputStateToModel();
+		if (!this.inputEditorState.value) {
+			throw new Error('Cannot transfer an input editor before it is rendered');
+		}
+		return this.inputEditorState.value.acquire(this._inputEditor.saveViewState());
+	}
 
 	private _workingSetLinesAddedSpan = new Lazy(() => dom.$('.working-set-lines-added'));
 	private _workingSetLinesRemovedSpan = new Lazy(() => dom.$('.working-set-lines-removed'));
@@ -1874,7 +1885,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// Sync input text
 			if (this._inputEditor) {
-				this._inputEditor.setValue(state?.inputText || '');
+				const text = state?.inputText || '';
+				if (this._inputEditor.getValue() !== text) {
+					this._inputEditor.setValue(text);
+				}
 				if (state?.selections.length) {
 					this._inputEditor.setSelections(state.selections);
 				}
@@ -4092,44 +4106,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputPickerResponsiveLayout.layout();
 		this._secondaryPickerResponsiveLayout.layout();
 
-		let inputModel = this.modelService.getModel(this.inputUri);
-		let createdInputModel: ITextModel | undefined;
-		if (!inputModel) {
-			inputModel = createdInputModel = this.modelService.createModel('', null, this.inputUri, false);
+		if (this.options.inputEditorState) {
+			this.inputEditorState.value = this.options.inputEditorState.acquire();
+		} else {
+			const existing = this.modelService.getModel(this.inputUri);
+			const model = existing ?? this.modelService.createModel('', null, this.inputUri, false);
+			const reference = this.textModelResolverService.createModelReference(this.inputUri);
+			this.inputEditorState.value = ChatInputEditorState.create(model, reference, !existing);
+			void reference.catch(onUnexpectedError);
 		}
 
-		const inputModelReference = this.textModelResolverService.createModelReference(this.inputUri);
-		if (createdInputModel) {
-			const model = createdInputModel;
-			this._register(toDisposable(() => {
-				// Keep the model alive until reference acquisition settles. Otherwise
-				// immediate widget disposal can remove it while TextResourceEditorModel
-				// is still resolving the existing model handle.
-				void inputModelReference.then(
-					() => model.dispose(),
-					() => model.dispose()
-				);
-			}));
-		}
-		inputModelReference.then(ref => {
-			// make sure to hold a reference so that the model doesn't get disposed by the text model service
-			if (this._store.isDisposed) {
-				ref.dispose();
-				return;
-			}
-			this._register(ref);
-		}, error => {
-			// Disposal can race the asynchronous reference acquisition when a chat
-			// widget closes immediately after rendering.
-			if (!this._store.isDisposed) {
-				onUnexpectedError(error);
-			}
-		});
-
-		this.inputModel = inputModel;
+		this.inputModel = this.inputEditorState.value.model;
 		this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });
 		this._inputEditor.setModel(this.inputModel);
-		if (initialValue) {
+		if (this.options.inputEditorState) {
+			this._inputEditor.restoreViewState(this.options.inputEditorState.viewState);
+		} else if (initialValue) {
 			this.inputModel.setValue(initialValue);
 			const lineNumber = this.inputModel.getLineCount();
 			this._inputEditor.setPosition({ lineNumber, column: this.inputModel.getLineMaxColumn(lineNumber) });

@@ -36,15 +36,15 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionsAuxiliaryWindowContext, SessionsAuxiliaryWindowsSupportedContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID, MOVE_SESSION_TO_NEW_WINDOW_COMMAND_ID, MOVE_SESSION_TO_WINDOW_COMMAND_ID, RETURN_SESSIONS_TO_MAIN_WINDOW_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService, MAIN_SESSIONS_PART } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
-import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
+import { $, append, EventHelper, getActiveWindow, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -518,7 +518,8 @@ for (let index = 0; index < 9; index++) {
 			const sessionsService = accessor.get(ISessionsService);
 			const sessionsPartService = accessor.get(ISessionsPartService);
 
-			const visible = sessionsService.visibleSessions.get();
+			const part = sessionsPartService.getPartForWindow(getActiveWindow());
+			const visible = sessionsService.visibleSessions.get().filter(session => sessionsService.getSessionPartId(session) === (part?.partId ?? MAIN_SESSIONS_PART));
 			const targetIndex = isLast ? visible.length - 1 : index;
 			if (targetIndex < 0 || targetIndex >= visible.length) {
 				return;
@@ -1944,6 +1945,94 @@ registerAction2(class CloseSessionAction extends Action2 {
 });
 
 const sessionGridWhen = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), MultipleSessionsVisibleContext);
+const sessionWindowWhen = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), SessionIsCreatedContext, SessionsAuxiliaryWindowsSupportedContext);
+
+registerAction2(class MoveSessionToNewWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_SESSION_TO_NEW_WINDOW_COMMAND_ID,
+			title: localize2('moveSessionToNewWindow', "Move Session to New Window"),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: sessionWindowWhen,
+			menu: [
+				{ id: Menus.SessionHeaderContext, group: '1_view', order: 4, when: sessionWindowWhen },
+				{ id: Menus.SessionBarToolbar, group: 'secondary/4_pin', order: 40, when: sessionWindowWhen },
+			],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
+		const service = accessor.get(ISessionsService);
+		const target = session ?? service.activeSession.get();
+		if (target) {
+			await service.moveSessionsToNewWindow([target]);
+		}
+	}
+});
+
+registerAction2(class MoveSessionToWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: MOVE_SESSION_TO_WINDOW_COMMAND_ID,
+			title: localize2('moveSessionToWindow', "Move Session to Window..."),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: sessionWindowWhen,
+			menu: [
+				{ id: Menus.SessionHeaderContext, group: '1_view', order: 5, when: sessionWindowWhen },
+				{ id: Menus.SessionBarToolbar, group: 'secondary/4_pin', order: 41, when: sessionWindowWhen },
+			],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
+		const service = accessor.get(ISessionsService);
+		const parts = accessor.get(ISessionsPartService);
+		const target = session ?? service.activeSession.get();
+		if (!target) {
+			return;
+		}
+		const sourceId = service.getSessionPartId(target);
+		const items: (IQuickPickItem & { partId?: string })[] = [{ label: localize('newSessionWindow', "New Window") }];
+		for (const [index, part] of parts.getParts().entries()) {
+			if (part.partId !== sourceId) {
+				const titles = service.visibleSessions.get().filter(session => service.getSessionPartId(session) === part.partId).map(session => session?.title.get()).filter(title => !!title).join(', ');
+				items.push({
+					partId: part.partId,
+					label: part.isMain ? localize('mainSessionWindow', "Main Window") : localize('auxiliarySessionWindow', "Sessions Window {0}", index),
+					description: titles,
+				});
+			}
+		}
+		const destination = await accessor.get(IQuickInputService).pick(items, { placeHolder: localize('selectSessionWindow', "Select the destination window") });
+		if (destination) {
+			await (destination.partId ? service.moveSessionsToWindow([target], destination.partId) : service.moveSessionsToNewWindow([target]));
+		}
+	}
+});
+
+registerAction2(class ReturnSessionsToMainWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: RETURN_SESSIONS_TO_MAIN_WINDOW_COMMAND_ID,
+			title: localize2('returnSessionsToMainWindow', "Return All Sessions to Main Window"),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionsAuxiliaryWindowContext),
+			menu: { id: Menus.SessionHeaderContext, group: '1_view', order: 6, when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionsAuxiliaryWindowContext) },
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const parts = accessor.get(ISessionsPartService);
+		const partId = parts.getPartForWindow(getActiveWindow())?.partId;
+		if (partId && partId !== MAIN_SESSIONS_PART) {
+			accessor.get(ISessionsService).returnSessionsToMainWindow(partId);
+			parts.closeAuxiliaryPart(partId);
+		}
+	}
+});
 
 MenuRegistry.appendMenuItem(Menus.SessionHeaderContext, {
 	submenu: Menus.SessionGridLayout,

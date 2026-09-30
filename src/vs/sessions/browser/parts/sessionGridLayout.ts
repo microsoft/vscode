@@ -89,9 +89,18 @@ export class SessionGridLayout extends Disposable {
 		this.projectionHost.style.display = 'none';
 	}
 
-	reconcile(entries: readonly ISessionGridEntry[], active: string): void {
+	reconcile(entries: readonly ISessionGridEntry[], active: string | undefined): void {
 		if (!entries.length) {
-			throw new Error('A Sessions grid must have at least one leaf');
+			for (const leaf of this.leaves.values()) {
+				leaf.project(undefined, false);
+			}
+			this.grid.value?.element.remove();
+			this.grid.clear();
+			this.leaves.clear();
+			this.placements.clear();
+			this.active = undefined;
+			this.setMaximized(undefined);
+			return;
 		}
 		this.preserveFocus(() => {
 			const order = this.order;
@@ -147,6 +156,11 @@ export class SessionGridLayout extends Disposable {
 	private orderedLeaves(): SessionGridLeaf[] {
 		const collect = (node: GridNode<SessionGridLeaf>): SessionGridLeaf[] => isGridBranchNode(node) ? node.children.flatMap(collect) : [node.view];
 		return this.grid.value ? collect(this.grid.value.getViews()) : [];
+	}
+
+	remove(id: string): void {
+		const remaining = this.orderedLeaves().filter(leaf => leaf.id !== id);
+		this.reconcile(remaining.map(leaf => ({ id: leaf.id, view: leaf.view, placement: this.placements.get(leaf.id) })), this.active === id ? remaining[0]?.id : this.active);
 	}
 
 	get order(): readonly string[] { return this.orderedLeaves().map(leaf => leaf.id); }

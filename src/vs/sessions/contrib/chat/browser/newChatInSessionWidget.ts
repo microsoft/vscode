@@ -20,11 +20,13 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { NewChatInputWidget } from './newChatInput.js';
+import { INewChatInputTransferState, NewChatInputWidget } from './newChatInput.js';
 import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
@@ -50,15 +52,17 @@ export class NewChatInSessionWidget extends Disposable {
 	 * picker is right-aligned, keeping both surfaces consistent.
 	 */
 	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
+	private readonly _chat: IObservable<IChat | undefined>;
 
 	constructor(
-		_options: IChatViewOptions & { readonly inputVisible?: IObservable<boolean>; readonly petHostPreferred?: IObservable<boolean> },
+		_options: IChatViewOptions & { readonly inputVisible?: IObservable<boolean>; readonly petHostPreferred?: IObservable<boolean>; readonly inputState?: INewChatInputTransferState },
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISessionContext sessionContext: ISessionContext,
 	) {
 		super();
 
@@ -70,10 +74,8 @@ export class NewChatInSessionWidget extends Disposable {
 			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
 		);
 
-		this._session = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession;
-		});
+		this._session = sessionContext.session;
+		this._chat = _options.chat ?? derived(this, reader => this._session.read(reader)?.activeChat.read(reader));
 
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
@@ -85,6 +87,9 @@ export class NewChatInSessionWidget extends Disposable {
 
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
+			chat: this._chat,
+			inputState: _options.inputState,
+			draftKey: this._chat.map(chat => chat?.resource.toString()),
 			getContextFolderUri: () => this._getContextFolderUri(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
 			inputVisible: _options.inputVisible,
@@ -216,7 +221,10 @@ export class NewChatInSessionWidget extends Disposable {
 		if (!activeSession) {
 			return false;
 		}
-		const activeChat = activeSession.activeChat.get();
+		const activeChat = this._chat.get();
+		if (!activeChat) {
+			return false;
+		}
 		try {
 			// Reset the composer before dispatching the send: both touch shared
 			// chat-session state for chats in the same group, and running them
@@ -244,6 +252,14 @@ export class NewChatInSessionWidget extends Disposable {
 
 	focusInput(): void {
 		this._newChatInput.focus();
+	}
+
+	captureTransferState(): INewChatInputTransferState {
+		return this._newChatInput.captureTransferState();
+	}
+
+	saveState(): void {
+		this._newChatInput.saveState();
 	}
 
 	attach(uris: URI[]): void {

@@ -81,11 +81,11 @@ class TestChatView extends AbstractChatView {
 class TestChatViewFactory extends mock<IChatViewFactory>() {
 	readonly views: TestChatView[] = [];
 
-	override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, instantiationService?: IInstantiationService): AbstractChatView {
+	override createNewChatView(_parent: HTMLElement, isNewChatInSession: boolean, _options: IChatViewOptions, instantiationService?: IInstantiationService): AbstractChatView {
 		return this._createView(isNewChatInSession ? 'newChatInSession' : 'newSession', instantiationService);
 	}
 
-	override createChatView(instantiationService?: IInstantiationService): AbstractChatView {
+	override createChatView(_parent: HTMLElement, instantiationService?: IInstantiationService): AbstractChatView {
 		return this._createView('chat', instantiationService);
 	}
 
@@ -677,6 +677,7 @@ suite('Sessions - ChatGroupsView', () => {
 			container.appendChild(view.element);
 			view.layout(1200, 600, 0, 0);
 			disposables.add(instantiationService.createInstance(SessionDropTarget, container, {
+				partId: 'main',
 				findTargetView: child => container.contains(child) ? { sessionId: session.sessionId, element: container } : undefined,
 			}));
 			const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();

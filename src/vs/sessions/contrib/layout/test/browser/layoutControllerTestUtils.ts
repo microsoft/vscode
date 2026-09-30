@@ -420,6 +420,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession = harness.activeSessionObs;
 		override readonly visibleSessions = harness.visibleSessionsObs;
+		override readonly mainVisibleSessions = harness.visibleSessionsObs;
 	});
 
 	instaService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {

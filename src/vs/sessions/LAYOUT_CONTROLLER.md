@@ -34,6 +34,8 @@ The Agents window keeps a single **active session** but lets the user move betwe
 
 All state flows from the `activeSession` **observable** (never events). The controller derives `activeSessionResourceObs`, `activeSessionIsCreatedObs`, `activeSessionHasWorkspaceObs`, and `multipleSessionsVisibleObs`, then reacts with `autorun`.
 
+With auxiliary Sessions grids, shared main-window tools still follow the globally activated session. Main-pane geometry and multiple-visible-session policy use `mainVisibleSessions`; merely opening sessions in other windows must not reset the main pane's saved layout. Each auxiliary grid retains its own selection independently of these shared tools.
+
 ---
 
 ## 2. The Switch Trigger

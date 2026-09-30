@@ -33,6 +33,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
@@ -198,6 +199,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ISessionContext sessionContext: ISessionContext,
 	) {
 		super(undefined, action, options);
 
@@ -216,7 +218,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		// Re-render when the active session's title, presentation, workspace, or quick-chat kind changes
 		this._register(autorun(reader => {
-			const sessionData = this.sessionsService.activeSession.read(reader);
+			const sessionData = sessionContext.session.read(reader);
 			this._workspaceInfo = getSessionWorkspaceDisplayInfo(sessionData, reader);
 			this._isQuickChat = sessionData?.isQuickChat?.read(reader) ?? false;
 			const showSessionTitle = !!sessionData && chatTabsMode.read(reader) === SessionsChatTabsMode.Single;

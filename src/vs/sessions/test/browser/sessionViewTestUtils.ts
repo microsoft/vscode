@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from '../../../base/common/assert.js';
+import { getWindow } from '../../../base/browser/dom.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
@@ -19,7 +20,7 @@ import { TestInstantiationService } from '../../../platform/instantiation/test/c
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewTransferState } from '../../browser/parts/chatView.js';
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../common/contextkeys.js';
@@ -37,6 +38,11 @@ import { IActiveSession, ISessionsManagementService } from '../../services/sessi
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
 
+class TestChatViewState extends Disposable implements IChatViewTransferState {
+	constructor(readonly kind: ChatViewKind, readonly text: string) { super(); }
+	acquire(): IChatViewTransferState { return new TestChatViewState(this.kind, this.text); }
+}
+
 export class TestChatView extends AbstractChatView {
 	readonly inputPickerVisibility = this._register(new SessionInputPickerVisibility());
 	override readonly pickerVisibility = this.inputPickerVisibility.visibility;
@@ -44,13 +50,17 @@ export class TestChatView extends AbstractChatView {
 	disposeCount = 0;
 	visible = true;
 	chat: IChat | undefined;
+	transferVeto: string | undefined;
 	readonly input = document.createElement('textarea');
+	readonly createdWindow: Window;
 
 	constructor(
+		parent: HTMLElement,
 		readonly kind: ChatViewKind,
 		@IContextKeyService public readonly contextKeyService: IContextKeyService,
 	) {
-		super();
+		super(parent);
+		this.createdWindow = getWindow(this.element);
 		this.element.appendChild(this.input);
 	}
 
@@ -59,6 +69,8 @@ export class TestChatView extends AbstractChatView {
 	protected override doLayout(): void { }
 	override toJSON(): object { return {}; }
 	override focus(): void { this.input.focus(); }
+	override captureTransferState(): IChatViewTransferState { return new TestChatViewState(this.kind, this.input.value); }
+	override getTransferVeto(): string | undefined { return this.transferVeto; }
 	override dispose(): void {
 		this.disposed = true;
 		this.disposeCount++;
@@ -76,18 +88,22 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 		override readonly onDidChangeEditorPartOptions = Event.None;
 		override readonly partOptions = DEFAULT_EDITOR_PART_OPTIONS;
 	}());
-	const createChatView = (kind: ChatViewKind, scopedInstantiationService?: IInstantiationService) => {
+	const createChatView = (parent: HTMLElement, kind: ChatViewKind, scopedInstantiationService?: IInstantiationService, state?: IChatViewTransferState) => {
 		assert(scopedInstantiationService !== undefined);
-		const view = scopedInstantiationService.createInstance(TestChatView, kind);
+		const view = scopedInstantiationService.createInstance(TestChatView, parent, kind);
+		if (state) {
+			assert(state instanceof TestChatViewState);
+			view.input.value = state.text;
+		}
 		chatViews.push(view);
 		return view;
 	};
 	instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
-		override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, scopedInstantiationService?: IInstantiationService): AbstractChatView {
-			return createChatView(isNewChatInSession ? 'newChatInSession' : 'newSession', scopedInstantiationService);
+		override createNewChatView(parent: HTMLElement, isNewChatInSession: boolean, _options: IChatViewOptions, scopedInstantiationService?: IInstantiationService, state?: IChatViewTransferState): AbstractChatView {
+			return createChatView(parent, isNewChatInSession ? 'newChatInSession' : 'newSession', scopedInstantiationService, state);
 		}
-		override createChatView(scopedInstantiationService?: IInstantiationService): AbstractChatView {
-			return createChatView('chat', scopedInstantiationService);
+		override createChatView(parent: HTMLElement, scopedInstantiationService?: IInstantiationService, state?: IChatViewTransferState): AbstractChatView {
+			return createChatView(parent, 'chat', scopedInstantiationService, state);
 		}
 	}());
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -96,7 +112,9 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
 	}());
-	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+		override startSessionDrag(): void { }
+	}());
 	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
 		override getProvider() { return undefined; }
@@ -113,7 +131,13 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 	return { instantiationService, configurationService, contextKeyService, chatViews };
 }
 
-export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'>, mobile = false, options?: { container?: HTMLElement; instantiationService?: TestInstantiationService; layoutService?: IAgentWorkbenchLayoutService }) {
+interface ISessionsPartTestOptions {
+	readonly container?: HTMLElement;
+	readonly instantiationService?: TestInstantiationService;
+	readonly layoutService?: IAgentWorkbenchLayoutService;
+}
+
+export function createSessionsPartTestServices(store: Pick<DisposableStore, 'add'>, mobile = false, options?: ISessionsPartTestOptions) {
 	const services = createSessionViewTestServices(store, options?.instantiationService);
 	const container = options?.container ?? document.createElement('div');
 	container.classList.toggle('phone-layout', mobile);
@@ -132,9 +156,14 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 	}
-	const part = store.add(services.instantiationService.createInstance(mobile ? MobileSessionsPart : SessionsPart));
-	part.create(container);
-	return { ...services, part, container };
+	return { ...services, container };
+}
+
+export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'>, mobile = false, options?: ISessionsPartTestOptions) {
+	const services = createSessionsPartTestServices(store, mobile, options);
+	const part = store.add(services.instantiationService.createInstance(mobile ? MobileSessionsPart : SessionsPart, 'main'));
+	part.create(services.container);
+	return { ...services, part };
 }
 
 export function createTestActiveSession(sessionId: string, isCreated = true) {

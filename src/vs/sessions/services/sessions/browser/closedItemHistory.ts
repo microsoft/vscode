@@ -10,7 +10,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { SessionsHasClosedItemContext } from '../../../common/contextkeys.js';
 import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { ISessionsPartService } from './sessionsPartService.js';
+import { ISessionsPartService, MAIN_SESSIONS_PART } from './sessionsPartService.js';
 import { VisibleSessions } from './visibleSessions.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 
@@ -33,6 +33,7 @@ export interface IClosedSessionItem {
 	/** Grid index the slot occupied when the session left the grid. */
 	readonly index: number;
 	readonly sticky: boolean;
+	readonly partId?: string;
 	readonly placement?: { readonly sessionId: string | undefined; readonly direction: Direction };
 	/**
 	 * Set when the session left the grid because a newly opened slot took its
@@ -98,8 +99,8 @@ export class ClosedItemHistory extends Disposable {
 	 * Remember a session that lost its grid slot to a newly opened one, so it
 	 * can take that slot back.
 	 */
-	recordReplacedSlot(replaced: ISession, index: number, sticky: boolean, replacedBySessionId: string | undefined): void {
-		this._recordSession(replaced, index, sticky, { sessionId: replacedBySessionId });
+	recordReplacedSlot(replaced: ISession, index: number, sticky: boolean, replacedBySessionId: string | undefined, partId = MAIN_SESSIONS_PART): void {
+		this._recordSession(replaced, index, sticky, { sessionId: replacedBySessionId }, partId);
 	}
 
 	/**
@@ -140,37 +141,39 @@ export class ClosedItemHistory extends Disposable {
 	}
 
 	private _reopenSession(item: IClosedSessionItem, session: ISession): void {
+		const partId = item.partId && this._sessionsPartService.getPart(item.partId) ? item.partId : MAIN_SESSIONS_PART;
 		// A session pushed out by a newly opened slot takes that slot back, so
 		// the grid returns to what it looked like before. If the replacement has
 		// meanwhile moved or left the grid, fall back to the recorded index.
-		if (item.replacedBy && this._visibility.getSlot(item.replacedBy.sessionId)) {
+		if (item.replacedBy && this._visibility.getSlot(item.replacedBy.sessionId) && this._visibility.getPartId(item.replacedBy.sessionId) === partId) {
 			this._sessionsManagementService.discardNewSession(this._visibility.getSession(item.replacedBy.sessionId));
 			if (this._visibility.replaceSlot(item.replacedBy.sessionId, session, item.sticky)) {
 				return;
 			}
 		}
 
-		if (!item.replacedBy && (!item.placement || !this._visibility.getSlot(item.placement.sessionId))) {
-			const active = this._visibility.setActive(session);
+		const placement = item.placement && this._visibility.getPartId(item.placement.sessionId) === partId ? item.placement : undefined;
+		if (!item.replacedBy && (!placement || !this._visibility.getSlot(placement.sessionId))) {
+			const active = this._visibility.setActive(session, false, partId);
 			if (item.sticky && !active?.sticky.get()) {
 				this._visibility.toggleStickiness(session);
 			}
 			return;
 		}
 
-		this._visibility.insertAtIndex(session, item.index, item.sticky);
-		if (item.placement && this._visibility.getSlot(item.placement.sessionId)) {
-			const direction = item.placement.direction;
-			this._visibility.insertAt(session, item.placement.sessionId,
+		this._visibility.insertAtIndex(session, item.index, item.sticky, partId);
+		if (placement && this._visibility.getSlot(placement.sessionId)) {
+			const direction = placement.direction;
+			this._visibility.insertAt(session, placement.sessionId,
 				direction === Direction.Left ? 'left' : direction === Direction.Right ? 'right' : direction === Direction.Up ? 'up' : 'down');
 		}
 	}
 
-	private _recordSession(session: ISession, index: number, sticky: boolean, replacedBy?: { readonly sessionId: string | undefined }): void {
+	private _recordSession(session: ISession, index: number, sticky: boolean, replacedBy?: { readonly sessionId: string | undefined }, partId = this._visibility.getPartId(session.sessionId)): void {
 		// An untitled draft is discarded rather than hidden when it leaves the
 		// grid, so there is nothing meaningful to restore.
 		if (session.status.get() !== SessionStatus.Untitled) {
-			this._record({ kind: ClosedItemKind.Session, session, index, sticky, replacedBy, placement: this._sessionsPartService.getSessionPlacement(session.sessionId) });
+			this._record({ kind: ClosedItemKind.Session, session, index, sticky, replacedBy, partId: partId === MAIN_SESSIONS_PART ? undefined : partId, placement: this._sessionsPartService.getSessionPlacement(session.sessionId) });
 		}
 	}
 

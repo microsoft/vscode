@@ -19,9 +19,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
-import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
-import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
+import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
@@ -62,10 +60,6 @@ export class SessionHeaderBar extends Disposable {
 	private _sessionIsCreated = false;
 	private _requestedVisible = true;
 
-	// dragstart's own target is always the draggable container, so this tracks the
-	// preceding pointerdown's target to know where the gesture actually began.
-	private _lastPointerDownTarget: Node | undefined;
-
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
@@ -73,8 +67,6 @@ export class SessionHeaderBar extends Disposable {
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private _visible = false;
-
-	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	private readonly _statusIcon: SessionStatusIcon;
 
@@ -98,6 +90,7 @@ export class SessionHeaderBar extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
+		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
 	) {
 		super();
 
@@ -184,47 +177,16 @@ export class SessionHeaderBar extends Disposable {
 	}
 
 	private _registerDragSource(): void {
-		this._container.draggable = true;
-
-		this._register(addDisposableGenericMouseDownListener(this._container, (e: MouseEvent) => {
+		this._register(addDisposableListener(this._container, 'pointerdown', (e: PointerEvent) => {
 			this._activateChatGroup?.();
-			this._lastPointerDownTarget = (e.target as Node | null) ?? undefined;
-		}));
-
-		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
 			const session = this._session;
-			if (!session || !e.dataTransfer) {
-				e.preventDefault();
+			if (!session || !session.isCreated.get() || this._renameInput || this._actionsTargetChat) {
 				return;
 			}
-
-			// Don't swallow a click on the toolbar into a session drag.
-			const target = this._lastPointerDownTarget;
-			if (target && this._titleActionsEl.contains(target)) {
-				e.preventDefault();
+			if (e.target instanceof Node && this._titleActionsEl.contains(e.target)) {
 				return;
 			}
-
-			// Don't initiate a drag while the title is being renamed.
-			if (this._renameInput) {
-				e.preventDefault();
-				return;
-			}
-
-			this._sessionTransfer.setData(
-				[new DraggedSessionIdentifier(session.sessionId, session.resource)],
-				DraggedSessionIdentifier.prototype,
-			);
-
-			const payload = JSON.stringify({ sessionId: session.sessionId, resource: session.resource.toString() });
-			e.dataTransfer.setData(SessionsDataTransfers.SESSION, payload);
-			e.dataTransfer.effectAllowed = 'move';
-
-			applyDragImage(e, this._container, session.title.get());
-		}));
-
-		this._register(addDisposableListener(this._container, EventType.DRAG_END, () => {
-			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
+			this._sessionsPartService.startSessionDrag(e, this._container, session);
 		}));
 	}
 

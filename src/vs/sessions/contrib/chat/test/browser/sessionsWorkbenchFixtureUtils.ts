@@ -179,8 +179,9 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	disposableStore.add(instantiationService.createInstance(OpenInVSCodeWidgetContribution));
 	disposableStore.add(instantiationService.createInstance(AccountWidgetContribution));
 
-	const part = disposableStore.add(instantiationService.createInstance(SessionsPart));
+	const part = disposableStore.add(instantiationService.createInstance(SessionsPart, 'main'));
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+		override startSessionDrag(): void { }
 		override getSessionView(id: string | undefined) { return part.getSessionView(id); }
 		override toggleMaximizeSession(session: IActiveSession | undefined) { part.toggleMaximizeSession(session?.sessionId); }
 		override focusSession(session: IActiveSession | undefined) { part.focusSession(session?.sessionId); }

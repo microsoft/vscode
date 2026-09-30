@@ -132,7 +132,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { m
 	const { part, grid, layout, instantiationService } = createSessionsWorkbenchFixture(context, 1440, 900, sessionsService);
 	const chats: FixtureChatView[] = [];
 	instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
-		override createNewChatView(isNewChatInSession: boolean): AbstractChatView {
+		override createNewChatView(_parent: HTMLElement, isNewChatInSession: boolean): AbstractChatView {
 			return new FixtureChatView(isNewChatInSession ? 'newChatInSession' : 'newSession', context);
 		}
 		override createChatView(): AbstractChatView {

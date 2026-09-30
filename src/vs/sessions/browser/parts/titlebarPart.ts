@@ -12,12 +12,12 @@ import { hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, T
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isLinux, isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
 import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, AnimationFrameScheduler } from '../../../base/browser/dom.js';
-import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, refineServiceDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { Parts, IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -33,8 +33,35 @@ import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
 import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
+import { ISessionContext } from '../../services/sessions/browser/sessionContext.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { autorun } from '../../../base/common/observable.js';
+import { localize } from '../../../nls.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
+
+export const ISessionsTitleService = refineServiceDecorator<ITitleService, ISessionsTitleService>(ITitleService);
+
+export interface ISessionsTitleService extends ITitleService {
+	createAuxiliarySessionsTitlebarPart(container: HTMLElement, instantiationService: IInstantiationService): IAuxiliaryTitlebarPart;
+}
+
+class AuxiliarySessionTitle extends Disposable {
+	constructor(
+		parent: HTMLElement,
+		@ISessionContext sessionContext: ISessionContext,
+		@IHoverService hoverService: IHoverService,
+	) {
+		super();
+		const label = append(parent, $('.auxiliary-sessions-window-title'));
+		this._register(toDisposable(() => label.remove()));
+		this._register(autorun(reader => {
+			const title = sessionContext.session.read(reader)?.title.read(reader) ?? localize('sessionsWindowTitle', "Sessions");
+			label.textContent = title;
+			reader.store.add(hoverService.setupDelayedHover(label, { content: title }));
+		}));
+	}
+}
 
 /**
  * Simplified agent sessions titlebar part.
@@ -88,6 +115,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
 
 	get leftContainer(): HTMLElement { return this.leftContent; }
+	get centerContainer(): HTMLElement { return this.centerContent; }
 	get rightContainer(): HTMLElement { return this.rightContent; }
 	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
 
@@ -157,6 +185,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Window Controls Container (must be before left toolbar for correct ordering)
 		if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
+			const targetWindow = getWindow(parent);
 			let primaryWindowControlsLocation = isMacintosh ? 'left' : 'right';
 			if (isMacintosh && isNative) {
 				const localeInfo = safeIntl.Locale(platformLocale).value;
@@ -173,7 +202,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 				// Hide spacer in fullscreen (traffic lights are not shown)
 				const updateSpacerVisibility = () => {
-					const fullscreen = isFullscreen(mainWindow);
+					const fullscreen = isFullscreen(targetWindow);
 					spacer.style.display = fullscreen ? 'none' : '';
 					this.leftSpacerWidth = fullscreen ? 0 : 70;
 				};
@@ -181,7 +210,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				spacer.style.width = `${this.leftSpacerWidth}px`;
 				spacer.style.flexShrink = '0';
 				this._register(onDidChangeFullscreen(windowId => {
-					if (windowId === getWindowId(mainWindow)) {
+					if (windowId === getWindowId(targetWindow)) {
 						updateSpacerVisibility();
 					}
 				}));
@@ -447,7 +476,7 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 /**
  * Agent Sessions title service - manages the titlebar parts.
  */
-export class TitleService extends MultiWindowParts<TitlebarPart> implements ITitleService {
+export class TitleService extends MultiWindowParts<TitlebarPart> implements ISessionsTitleService {
 
 	declare _serviceBrand: undefined;
 
@@ -471,25 +500,36 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 
 	//#region Auxiliary Titlebar Parts
 
-	createAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): IAuxiliaryTitlebarPart {
+	createAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): IAuxiliaryTitlebarPart {
+		return this.createAuxiliaryTitlebar(container, instantiationService, false);
+	}
+
+	createAuxiliarySessionsTitlebarPart(container: HTMLElement, instantiationService: IInstantiationService): IAuxiliaryTitlebarPart {
+		return this.createAuxiliaryTitlebar(container, instantiationService, true);
+	}
+
+	private createAuxiliaryTitlebar(container: HTMLElement, instantiationService: IInstantiationService, sessionTitle: boolean): IAuxiliaryTitlebarPart {
 		const titlebarPartContainer = $('.part.titlebar', { role: 'none' });
 		titlebarPartContainer.style.position = 'relative';
 		container.insertBefore(titlebarPartContainer, container.firstChild);
 
 		const disposables = new DisposableStore();
 
-		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, editorGroupsContainer, instantiationService);
+		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, instantiationService);
 		disposables.add(this.registerPart(titlebarPart));
 
 		disposables.add(Event.runAndSubscribe(titlebarPart.onDidChange, () => titlebarPartContainer.style.height = `${titlebarPart.height}px`));
 		titlebarPart.create(titlebarPartContainer);
+		if (sessionTitle) {
+			disposables.add(instantiationService.createInstance(AuxiliarySessionTitle, titlebarPart.centerContainer));
+		}
 
 		Event.once(titlebarPart.onWillDispose)(() => disposables.dispose());
 
 		return titlebarPart;
 	}
 
-	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): TitlebarPart & IAuxiliaryTitlebarPart {
+	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, instantiationService: IInstantiationService): TitlebarPart & IAuxiliaryTitlebarPart {
 		return instantiationService.createInstance(AuxiliaryTitlebarPart, container, this.mainPart);
 	}
 

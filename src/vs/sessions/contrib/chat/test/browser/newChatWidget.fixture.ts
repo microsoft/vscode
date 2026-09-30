@@ -546,7 +546,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	if (migrationCount > 0) {
 		await configurationService.setUserConfiguration(getCustomizationMigrationEnablementSetting(CustomizationMigrationType.PromptFiles), true);
 	}
-	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
+	const view = disposableStore.add(instantiationService.createInstance(NewChatView, sessionViewContent, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
 	}));
 	sessionViewContent.appendChild(view.element);

@@ -179,7 +179,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 
 		applyZoom(windowZoomLevel, auxiliaryWindow);
 
-		return super.createContainer(auxiliaryWindow, disposables);
+		return super.createContainer(auxiliaryWindow, disposables, options);
 	}
 
 	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesHaveLoaded: Barrier): AuxiliaryWindow {

@@ -50,6 +50,9 @@ export const COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID = 'sessions.copyAgentHostChatL
 export const FOCUS_ACTIVE_SESSION_COMMAND_ID = 'sessions.focusActiveSession';
 
 export const ARRANGE_SESSIONS_COMMAND_ID = 'sessions.arrangeSessions';
+export const MOVE_SESSION_TO_NEW_WINDOW_COMMAND_ID = 'sessions.moveSessionToNewWindow';
+export const MOVE_SESSION_TO_WINDOW_COMMAND_ID = 'sessions.moveSessionToWindow';
+export const RETURN_SESSIONS_TO_MAIN_WINDOW_COMMAND_ID = 'sessions.returnSessionsToMainWindow';
 export const SESSION_GRID_FOCUS_COMMANDS = {
 	left: 'sessions.focusSessionLeft',
 	right: 'sessions.focusSessionRight',

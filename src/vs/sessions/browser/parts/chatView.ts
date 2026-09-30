@@ -7,7 +7,7 @@ import { $, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -30,6 +30,13 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
 export interface IChatViewOptions {
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
+	readonly transferStates?: DisposableMap<string, IChatViewTransferState>;
+	readonly chat?: IObservable<IChat | undefined>;
+}
+
+export interface IChatViewTransferState extends IDisposable {
+	readonly kind: ChatViewKind;
+	acquire(): IChatViewTransferState;
 }
 
 export interface ISelectWorkspaceOptions {
@@ -60,6 +67,21 @@ export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 export abstract class AbstractChatView extends Disposable implements ISerializableView {
 
 	readonly element: HTMLElement = $('.chat-view');
+
+	constructor(parent?: HTMLElement) {
+		super();
+		parent?.appendChild(this.element);
+	}
+
+	captureTransferState(): IChatViewTransferState | undefined {
+		return undefined;
+	}
+
+	getTransferVeto(): string | undefined {
+		return undefined;
+	}
+
+	saveState(): void { }
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;

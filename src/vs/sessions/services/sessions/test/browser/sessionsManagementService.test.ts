@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -43,7 +43,8 @@ import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/cha
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService, IActiveSession, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
-import { SessionsService } from '../../browser/sessionsService.js';
+import { ISessionsService, SessionsService } from '../../browser/sessionsService.js';
+import { isSessionWindowsState } from '../../browser/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
@@ -56,6 +57,7 @@ import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
 import { createSessionsPartTestHarness } from '../../../../test/browser/sessionViewTestUtils.js';
+import { createSessionWindowsTestHarness } from '../../../../test/browser/sessionWindowsTestUtils.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -242,7 +244,7 @@ function createSessionsManagementService(
 	partServiceOverride?: TestSessionsPartService,
 	storageOverride?: InMemoryStorageService,
 	openTelemetryService?: ISessionOpenTelemetryService,
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
+): { service: ISessionsManagementService; view: SessionsService; instantiationService: TestInstantiationService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; focusSession: Emitter<string | undefined>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const notifications: (NotificationMessage | NotificationMessage[])[] = [];
 	instantiationService.stub(INotificationService, { error: message => notifications.push(message) });
@@ -273,7 +275,7 @@ function createSessionsManagementService(
 	const focusSession = disposables.add(new Emitter<string | undefined>());
 	const sessionsPartService = partServiceOverride ?? new TestSessionsPartService(focusSession.event);
 	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService, openTelemetryService);
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService, notifications };
+	return { service, view, instantiationService, chatWidgetService, chatService, contextKeyService, customViewService, focusSession, sessionsPartService, notifications };
 }
 
 /** Sessions part stub that records focus requests without rendering views. */
@@ -285,7 +287,16 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 		super();
 	}
 	override readonly onDidToggleMaximizeSession = Event.None;
-	override get onDidInteractWithGrid() { return this.part?.onDidInteractWithGrid ?? Event.None; }
+	override readonly onDidCloseAuxiliaryPart = Event.None;
+	override getParts() { return this.part ? [this.part] : []; }
+	override getPart(_partId: string) { return this.part; }
+	override getPartForWindow(_window: Window) { return this.part; }
+	override getAuxiliaryWindowState(_partId: string) { return undefined; }
+	override setAuxiliaryWindowCloseHandler(_handler: (partId: string) => void): void { }
+	override setSessionDragHandlers(): void { }
+	override startSessionDrag(): void { }
+	override flushState(): void { this.part?.flushState(); }
+	override get onDidInteractWithGrid() { return this.part ? Event.map(this.part.onDidInteractWithGrid, () => this.part!.partId) : Event.None; }
 	override getGridLayout() { return this.part?.getGridLayout(); }
 	override getSessionPlacement(id: string) { return this.part?.getSessionPlacement(id); }
 	override getNeighborSession(id: string | undefined, direction: Direction) { return this.part?.getNeighborSession(id, direction); }
@@ -390,6 +401,307 @@ suite('SessionsManagementService', () => {
 				same: part.getSessionView('a') === aView,
 				disposed: aChat.disposed, input: aChat.input.value,
 			}, { visible: ['b', 'a', 'c'], sticky: [false, true, false], active: 'a', above: 'b', same: true, disposed: false, input: 'still here' });
+		});
+
+		suite('auxiliary windows', () => {
+			function windowsHarness(sessions: ISession[], prepare?: (session: ISession) => Promise<void>, storage?: InMemoryStorageService, resolve?: (resource: URI) => Promise<URI | undefined>) {
+				const store = disposables.add(new DisposableStore());
+				const ui = createSessionWindowsTestHarness(store, false);
+				const sessionsChanged = store.add(new Emitter<ISessionChangeEvent>());
+				const provider = new class extends TestSessionsProvider {
+					override readonly onDidChangeSessions = sessionsChanged.event;
+					override getSessions() { return sessions; }
+					override async prepareSessionForOpen(session: ISession) { await prepare?.(session); }
+					override async resolveSessionResource(resource: URI) { return resolve?.(resource); }
+				}(sessions[0]);
+				const services = createSessionsManagementService(sessions[0], disposables, provider, undefined, undefined, undefined, undefined, storage);
+				services.view.dispose();
+				const view = createView(services.instantiationService, services.service, disposables, services.customViewService, ui.parts);
+				ui.instantiationService.stub(ISessionsService, view);
+				ui.renderMain();
+				return { ...ui, ...services, view, sessionsChanged };
+			}
+
+			test('moving and returning sessions preserves wrappers, drafts, local selection and pins', async () => {
+				const [a, b, c] = ['a', 'b', 'c'].map(created);
+				const h = windowsHarness([a, b, c]);
+				await h.view.openSessionsInGrid([a, b, c]);
+				const wrappers = h.view.visibleSessions.get();
+				h.view.toggleSessionStickiness(b);
+				const input = h.chatViews.find(view => view.chat === b.mainChat.get())!;
+				input.input.value = 'draft B';
+				await h.view.moveSessionsToNewWindow([b, c]);
+				const auxiliary = h.parts.getParts()[1];
+				await h.view.openSession(b.resource, { partId: 'main' });
+				const beforeClose = {
+					main: h.view.mainVisibleSessions.get().map(session => session?.sessionId),
+					auxiliary: h.view.visibleSessions.get().filter(session => h.view.getSessionPartId(session) === auxiliary.partId).map(session => session?.sessionId),
+					active: h.view.activeSession.get()?.sessionId,
+				};
+				h.parts.closeAuxiliaryPart(auxiliary.partId);
+				assert.deepStrictEqual({
+					beforeClose,
+					parts: h.parts.getParts().map(part => part.partId),
+					wrappersRetained: wrappers.map(session => h.view.visibleSessions.get().includes(session)),
+					input: h.chatViews.find(view => !view.disposed && view.chat === b.mainChat.get())?.input.value,
+					pinned: h.view.visibleSessions.get().find(session => session?.sessionId === 'b')?.sticky.get(),
+				}, {
+					beforeClose: { main: ['a'], auxiliary: ['b', 'c'], active: 'b' },
+					parts: ['main'], wrappersRetained: [true, true, true], input: 'draft B', pinned: true,
+				});
+			});
+
+			test('new-window opening failure leaves ownership and live content unchanged', async () => {
+				const [a, b] = ['a', 'b'].map(created);
+				const h = windowsHarness([a, b]);
+				await h.view.openSessionsInGrid([a, b]);
+				const original = h.main.getSessionView('a');
+				h.failOpen(new Error('Popup blocked'));
+				await assert.rejects(h.view.moveSessionsToNewWindow([a]), /Popup blocked/);
+				assert.deepStrictEqual({
+					main: h.view.mainVisibleSessions.get().map(session => session?.sessionId),
+					retained: h.main.getSessionView('a') === original,
+					parts: h.parts.getParts().length,
+				}, { main: ['a', 'b'], retained: true, parts: 1 });
+			});
+
+			test('reopening a closed auxiliary session does not alter the main selection', async () => {
+				const [a, b, c] = ['a', 'b', 'c'].map(created);
+				const h = windowsHarness([a, b, c]);
+				await h.view.openSessionsInGrid([a, b, c]);
+				await h.view.moveSessionsToNewWindow([b, c]);
+				const partId = h.view.getSessionPartId(b);
+				await h.view.openSession(a.resource);
+				h.view.closeSession(b);
+				await h.view.reopenLastClosedItem();
+				assert.deepStrictEqual({
+					main: h.view.mainVisibleSessions.get().map(session => session?.sessionId),
+					mainSelection: h.main.activeSession.get()?.sessionId,
+					bPart: h.view.getSessionPartId(b),
+					active: h.view.activeSession.get()?.sessionId,
+				}, { main: ['a'], mainSelection: 'a', bPart: partId, active: 'b' });
+			});
+
+			test('concurrent opens in different windows do not cancel each other', async () => {
+				const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(created);
+				const gate = new DeferredPromise<void>();
+				const waiting = new DeferredPromise<void>();
+				const h = windowsHarness([a, b, c, d], async session => {
+					if (session === c) {
+						waiting.complete();
+						await gate.p;
+					}
+				});
+				await h.view.openSessionsInGrid([a, b]);
+				await h.view.moveSessionsToNewWindow([b]);
+				const partId = h.view.getSessionPartId(b);
+				const pending = h.view.openSession(c.resource, { partId });
+				await waiting.p;
+				await h.view.openSession(d.resource, { partId: 'main' });
+				gate.complete();
+				await pending;
+				assert.deepStrictEqual({
+					main: h.view.mainVisibleSessions.get().map(session => session?.sessionId),
+					cPart: h.view.getSessionPartId(c),
+					cMounted: !!h.parts.getPart(partId)?.getSessionView('c'),
+					active: h.view.activeSession.get()?.sessionId,
+				}, { main: ['d'], cPart: partId, cMounted: true, active: 'd' });
+			});
+
+			test('a pending drop is canceled when its reference moves to another window', async () => {
+				const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(created);
+				const gate = new DeferredPromise<void>();
+				const waiting = new DeferredPromise<void>();
+				const h = windowsHarness([a, b, c, d], async session => {
+					if (session === c) {
+						waiting.complete();
+						await gate.p;
+					}
+				});
+				await h.view.openSessionsInGrid([a, b, d]);
+				await h.view.moveSessionsToNewWindow([d]);
+				const destination = h.view.getSessionPartId(d);
+				const original = h.main.getSessionView('a');
+				const pending = h.view.openSessionsAt([a, c], b.sessionId, 'down');
+				await waiting.p;
+				await h.view.moveSessionsToWindow([b], destination);
+				gate.complete();
+				await pending;
+				assert.deepStrictEqual({
+					main: h.view.mainVisibleSessions.get().map(session => session?.sessionId),
+					sourceRetained: h.main.getSessionView('a') === original,
+					cVisible: h.view.visibleSessions.get().some(session => session?.sessionId === 'c'),
+					bPart: h.view.getSessionPartId(b),
+				}, { main: ['a'], sourceRetained: true, cVisible: false, bPart: destination });
+			});
+
+			test('delayed side-chat opening completes locally without replacing newer window activation', async () => {
+				const base = created('a');
+				const peer = { ...base.mainChat.get(), resource: URI.parse('test:///a/peer') };
+				const a = { ...base, chats: constObservable([base.mainChat.get(), peer]) };
+				const b = created('b');
+				const gate = new DeferredPromise<void>();
+				const waiting = new DeferredPromise<void>();
+				let delayed = false;
+				const h = windowsHarness([a, b], undefined, undefined, async resource => {
+					if (delayed && resource.toString() === a.resource.toString()) {
+						waiting.complete();
+						await gate.p;
+					}
+					return undefined;
+				});
+				await h.view.openSessionsInGrid([a, b]);
+				await h.view.moveSessionsToNewWindow([b]);
+				await h.view.openSession(a.resource);
+				delayed = true;
+				const pending = h.view.openChatToSide(a, peer.resource, { referenceChatResource: a.mainChat.get().resource });
+				await waiting.p;
+				await h.view.openSession(b.resource);
+				gate.complete();
+				await pending;
+				assert.deepStrictEqual({
+					active: h.view.activeSession.get()?.sessionId,
+					localChat: h.main.getSessionView('a')?.getActiveChat()?.resource.toString(),
+					groups: h.main.getSessionView('a')?.element.querySelectorAll('.chat-group-view').length,
+				}, { active: 'b', localChat: peer.resource.toString(), groups: 2 });
+			});
+
+			for (const partial of [false, true]) {
+				test(`timed-out ${partial ? 'partial' : 'empty'} auxiliary restores retain bindings and recover when the provider arrives`, async () => {
+					await runWithFakedTimers({ useFakeTimers: true }, async () => {
+						const [a, b, c] = ['a', 'b', 'c'].map(created);
+						const storage = disposables.add(new InMemoryStorageService());
+						const first = windowsHarness([a, b, c], undefined, storage);
+						await first.view.openSessionsInGrid([a, b, c]);
+						await first.view.moveSessionsToNewWindow([b, c]);
+						const partId = first.view.getSessionPartId(b);
+						await storage.flush();
+						const saved = storage.get('agentSessions.gridState', StorageScope.WORKSPACE)!;
+						const restoredStorage = disposables.add(new InMemoryStorageService());
+						restoredStorage.store('agentSessions.gridState', saved, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+						const available = partial ? [a, b] : [a];
+						const second = windowsHarness(available, undefined, restoredStorage);
+						await second.view.restoreVisibleSessions();
+						await restoredStorage.flush();
+						const persisted: unknown = JSON.parse(restoredStorage.get('agentSessions.gridState', StorageScope.WORKSPACE)!);
+						assert(isSessionWindowsState(persisted));
+						const retained = persisted.parts.find(part => part.id === partId)?.layout.sessions.map(binding => binding.resource);
+						const present = !!second.parts.getPart(partId);
+						const added = partial ? [c] : [b, c];
+						available.push(...added);
+						second.sessionsChanged.fire({ added, changed: [], removed: [] });
+						await waitForState(second.view.visibleSessions, sessions => sessions.some(session => session?.sessionId === 'c'));
+						assert.deepStrictEqual({
+							present, retained,
+							bPart: second.view.getSessionPartId(b),
+							cPart: second.view.getSessionPartId(c),
+						}, { present: true, retained: [b.resource.toString(), c.resource.toString()], bPart: partId, cPart: partId });
+					});
+				});
+			}
+
+			test('a removed source cannot be resurrected by an in-flight move', async () => {
+				const [a, b, c] = ['a', 'b', 'c'].map(created);
+				const gate = new DeferredPromise<void>();
+				const waiting = new DeferredPromise<void>();
+				const h = windowsHarness([a, b, c], async session => {
+					if (session === c) {
+						waiting.complete();
+						await gate.p;
+					}
+				});
+				await h.view.openSessionsInGrid([a, b]);
+				const destination = await h.parts.createAuxiliaryPart();
+				const move = h.view.moveSessionsToWindow([a, c], destination.partId);
+				await waiting.p;
+				h.view.closeSession(a);
+				gate.complete();
+				await move;
+				assert.deepStrictEqual({
+					main: h.view.mainVisibleSessions.get().map(session => session?.sessionId),
+					aVisible: h.view.visibleSessions.get().some(session => session?.sessionId === 'a'),
+					cVisible: h.view.visibleSessions.get().some(session => session?.sessionId === 'c'),
+				}, { main: ['b'], aVisible: false, cVisible: false });
+			});
+
+			test('unrelated navigation does not close a preparing window or steal focus when its move completes', async () => {
+				const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(created);
+				const gate = new DeferredPromise<void>();
+				const waiting = new DeferredPromise<void>();
+				const h = windowsHarness([a, b, c, d], async session => {
+					if (session === c) {
+						waiting.complete();
+						await gate.p;
+					}
+				});
+				await h.view.openSessionsInGrid([a, b]);
+				h.view.toggleSessionStickiness(a);
+				h.view.setActive(h.view.visibleSessions.get()[1]);
+				const move = h.view.moveSessionsToNewWindow([a, c]);
+				await waiting.p;
+				await h.view.openSession(d.resource, { partId: 'main' });
+				const openDuringPreparation = h.parts.getParts().length;
+				gate.complete();
+				await move;
+				assert.deepStrictEqual({
+					openDuringPreparation,
+					main: h.view.mainVisibleSessions.get().map(session => session?.sessionId),
+					active: h.view.activeSession.get()?.sessionId,
+					sameDestination: h.view.getSessionPartId(a) === h.view.getSessionPartId(c),
+					notMain: h.view.getSessionPartId(a) !== 'main',
+				}, { openDuringPreparation: 2, main: ['d'], active: 'd', sameDestination: true, notMain: true });
+			});
+
+			test('closing an auxiliary during restore keeps unresolved sessions in the returned layout', async () => {
+				const [a, b, c] = ['a', 'b', 'c'].map(created);
+				const storage = disposables.add(new InMemoryStorageService());
+				const first = windowsHarness([a, b, c], undefined, storage);
+				await first.view.openSessionsInGrid([a, b, c]);
+				await first.view.moveSessionsToNewWindow([b, c]);
+				await storage.flush();
+				const restoredStorage = disposables.add(new InMemoryStorageService());
+				restoredStorage.store('agentSessions.gridState', storage.get('agentSessions.gridState', StorageScope.WORKSPACE)!, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				const available = [a, b];
+				const second = windowsHarness(available, undefined, restoredStorage);
+				const restoring = second.view.restoreVisibleSessions();
+				await waitForState(second.view.visibleSessions, sessions => sessions.some(session => session?.sessionId === 'b'));
+				const bWrapper = second.view.visibleSessions.get().find(session => session?.sessionId === 'b');
+				second.parts.closeAuxiliaryPart(second.view.getSessionPartId(b));
+				await restoring;
+				available.push(c);
+				second.sessionsChanged.fire({ added: [c], changed: [], removed: [] });
+				await waitForState(second.view.visibleSessions, sessions => sessions.some(session => session?.sessionId === 'c'));
+				assert.deepStrictEqual({
+					parts: second.parts.getParts().map(part => part.partId),
+					main: second.view.mainVisibleSessions.get().map(session => session?.sessionId),
+					bWrapperRetained: second.view.visibleSessions.get().includes(bWrapper),
+				}, { parts: ['main'], main: ['a', 'b', 'c'], bWrapperRetained: true });
+			});
+
+			test('auxiliary geometry and ownership round-trip through storage', async () => {
+				const [a, b, c] = ['a', 'b', 'c'].map(created);
+				const storage = disposables.add(new InMemoryStorageService());
+				const h = windowsHarness([a, b, c], undefined, storage);
+				await h.view.openSessionsInGrid([a, b, c]);
+				await h.view.moveSessionsToNewWindow([b, c]);
+				h.view.insertAt(c, b.sessionId, 'down');
+				const partId = h.view.getSessionPartId(b);
+				h.parts.getPart(partId)!.resizeSession(b.sessionId, Direction.Up, 100);
+				h.view.toggleSessionStickiness(b);
+				await storage.flush();
+				const raw = storage.get('agentSessions.gridState', StorageScope.WORKSPACE)!;
+				const restoredStorage = disposables.add(new InMemoryStorageService());
+				restoredStorage.store('agentSessions.gridState', raw, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				const restored = windowsHarness([a, b, c], undefined, restoredStorage);
+				await restored.view.restoreVisibleSessions();
+				await restoredStorage.flush();
+				assert.deepStrictEqual({
+					state: JSON.parse(restoredStorage.get('agentSessions.gridState', StorageScope.WORKSPACE)!),
+					main: restored.view.mainVisibleSessions.get().map(session => session?.sessionId),
+					bPart: restored.view.getSessionPartId(b),
+					cPart: restored.view.getSessionPartId(c),
+				}, { state: JSON.parse(raw), main: ['a'], bPart: partId, cPart: partId });
+			});
 		});
 
 		test('balanced subset changes preserve caller order and retained widgets', async () => {
@@ -3296,6 +3608,29 @@ suite('SessionsManagementService', () => {
 			});
 		});
 	}
+
+	test('an existing-session send preserves the pending composer and finishes its failed attempt', async () => {
+		const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+		const existing = stubSession({ sessionId: 'existing', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+		const deleted: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override getSessions() { return [draft, existing]; }
+			override createNewSession() { return draft; }
+			override createQuickChat() { return draft; }
+			override deleteNewSession(id: string): void { deleted.push(id); }
+			override async sendRequest(): Promise<ISession> { throw new Error('Send failed'); }
+		}(draft);
+		const { service } = createSessionsManagementService(draft, disposables, provider);
+		service.createQuickChat({ providerId: 'test' });
+		const events: string[] = [];
+		disposables.add(service.onWillSendRequest(session => events.push(`start:${session.sessionId}`)));
+		disposables.add(service.onDidFinishSendRequest(session => events.push(`finish:${session.sessionId}`)));
+		await assert.rejects(service.sendRequest(existing, existing.mainChat.get(), { query: 'hello' }), /Send failed/);
+		assert.deepStrictEqual({ draftRetained: service.newSession.get() === draft, deleted, events }, {
+			draftRetained: true, deleted: [], events: ['start:existing', 'finish:existing'],
+		});
+	});
 
 	test('sendRequest with background is fire-and-forget and does not fire onWillSendRequest', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat'), status: constObservable(SessionStatus.Untitled) };

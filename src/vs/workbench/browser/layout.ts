@@ -1299,7 +1299,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	focusPart(part: MULTI_WINDOW_PARTS, targetWindow: Window): void;
-	focusPart(part: SINGLE_WINDOW_PARTS): void;
+	focusPart(part: SINGLE_WINDOW_PARTS | Parts.SESSIONS_PART): void;
 	focusPart(part: Parts, targetWindow: Window = mainWindow): void {
 		const container = this.getContainer(targetWindow, part) ?? this.mainContainer;
 
@@ -1360,7 +1360,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isVisible(part: MULTI_WINDOW_PARTS, targetWindow: Window): boolean;
-	isVisible(part: SINGLE_WINDOW_PARTS): boolean;
+	isVisible(part: SINGLE_WINDOW_PARTS | Parts.SESSIONS_PART): boolean;
 	isVisible(part: Parts, targetWindow?: Window): boolean;
 	isVisible(part: Parts, targetWindow: Window = mainWindow): boolean {
 		if (targetWindow !== mainWindow && part === Parts.EDITOR_PART) {

@@ -16,14 +16,14 @@ import { agentsPanelBorder } from '../../common/theme.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
-import { Direction, ISerializedGrid } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, ISerializedGrid, ISerializedNode } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, isHTMLElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { autorun } from '../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../base/common/observable.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Color } from '../../../base/common/color.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
@@ -38,8 +38,11 @@ import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
-import { ISessionGridSlot, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGridPlacement, ISessionGridSlot, MAIN_SESSIONS_PART, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { SessionGridLayout } from './sessionGridLayout.js';
+import { IChatGroupsTransferState } from './chatGroupsView.js';
+import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
+import { isSessionGridLeafData } from '../../services/sessions/browser/sessionGridState.js';
 
 interface IGridSlot {
 	readonly id: string;
@@ -48,6 +51,7 @@ interface IGridSlot {
 	/** Session currently bound to this slot, or `undefined` for the new-session placeholder. */
 	boundSessionId: string | undefined;
 	session?: IActiveSession;
+	placement?: ISessionGridPlacement;
 }
 
 type CodiconConfettiActivationEvent = {};
@@ -80,6 +84,8 @@ export class SessionsPart extends Part {
 
 	/** Stable model slots in depth-first grid order, including the empty composer. */
 	private readonly _slots: IGridSlot[] = [];
+	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
+	readonly activeSession = this._activeSession;
 
 	private readonly _onDidFocusSession = this._register(new Emitter<string | undefined>());
 	/** Fired when a session view in the grid receives keyboard focus. */
@@ -112,6 +118,7 @@ export class SessionsPart extends Part {
 	readonly priority = LayoutPriority.High;
 
 	constructor(
+		readonly partId: string,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IAgentWorkbenchLayoutService private readonly agentWorkbenchLayoutService: IAgentWorkbenchLayoutService,
@@ -122,7 +129,7 @@ export class SessionsPart extends Part {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(
-			Parts.SESSIONS_PART,
+			partId === MAIN_SESSIONS_PART ? Parts.SESSIONS_PART : `workbench.parts.sessions.${partId}`,
 			{ hasTitle: false, borderWidth: () => 0 },
 			themeService,
 			storageService,
@@ -134,6 +141,9 @@ export class SessionsPart extends Part {
 		this._sessionsFocusKey = SessionsFocusContext.bindTo(contextKeyService);
 		this._multipleSessionsVisibleKey = MultipleSessionsVisibleContext.bindTo(contextKeyService);
 		this._pickerVisibilityContextKeys = this._register(new SessionPickerVisibilityContextKeys(contextKeyService));
+		if (!this.isMain) {
+			this._register(autorun(reader => setActiveSessionContextKeys(this.activeSession.read(reader), contextKeyService, reader)));
+		}
 	}
 
 	override create(parent: HTMLElement): void {
@@ -164,14 +174,14 @@ export class SessionsPart extends Part {
 		this._progressBar = this._register(new ProgressBar(contentArea, defaultProgressBarStyles));
 		this._progressBar.hide();
 
-		// Seed the grid with a placeholder slot so SerializableGrid always has
-		// at least one leaf. Rebound to a session when visible sessions appear.
-		const placeholder = this._createSlot('initial');
 		this._gridWidget = this._register(new SessionGridLayout());
 		this._gridWidget.style({ separatorBorder: this._gridSeparatorBorder });
-		this._gridWidget.reconcile([{ id: placeholder.id, view: placeholder.view }], placeholder.id);
-		this._slots.push(placeholder);
 		contentArea.appendChild(this._gridWidget.element);
+		if (this.isMain) {
+			const placeholder = this._createSlot('initial');
+			this._gridWidget.reconcile([{ id: placeholder.id, view: placeholder.view }], placeholder.id);
+			this._slots.push(placeholder);
+		}
 
 		// Propagate the grid's maximized-view state to each session view so the
 		// per-view toolbars can render the maximize action in its toggled state.
@@ -184,12 +194,15 @@ export class SessionsPart extends Part {
 
 		// Drop target for receiving sessions dragged from the sessions list.
 		const dropDelegate: ISessionDropTargetDelegate = {
-			findTargetView: (child: HTMLElement) => this._findTargetView(child),
+			partId: this.partId,
+			findTargetView: (child: HTMLElement) => this.findDropTarget(child),
 		};
 		this._register(this.instantiationService.createInstance(SessionDropTarget, contentArea, dropDelegate));
 
 		return contentArea;
 	}
+
+	get isMain(): boolean { return this.partId === MAIN_SESSIONS_PART; }
 
 	private activateCodicon(element: HTMLElement): void {
 		if (!this.accessibilityService.isMotionReduced()) {
@@ -199,14 +212,14 @@ export class SessionsPart extends Part {
 		this.telemetryService.publicLog2<CodiconConfettiActivationEvent, CodiconConfettiActivationClassification>('vscodeAgents.codiconBackground/confetti', {});
 	}
 
-	private _findTargetView(child: HTMLElement): { readonly sessionId: string; readonly element: HTMLElement } | undefined {
+	findDropTarget(child: Element): { readonly sessionId: string | undefined; readonly element: HTMLElement } | undefined {
 		for (const slot of this._slots) {
-			if (slot.boundSessionId === undefined) {
-				continue;
-			}
 			if (isAncestor(child, slot.view.element)) {
 				return { sessionId: slot.boundSessionId, element: slot.view.element };
 			}
+		}
+		if (!this._slots.length && this.contentArea && isAncestor(child, this.contentArea)) {
+			return { sessionId: undefined, element: this.contentArea };
 		}
 		return undefined;
 	}
@@ -219,18 +232,33 @@ export class SessionsPart extends Part {
 		// Rebinding or disposing the old slot must not publish an intermediate active-view state.
 		this._activeViewPickerVisibility.clear();
 
-		const sessions = visible.length ? visible : [undefined];
+		const sessions = visible.length || !this.isMain ? visible : [undefined];
 		const oldSlots = new Map(this._slots.map(slot => [slot.id, slot]));
-		const next = sessions.map((session, index) => {
-			const id = gridSlots?.[index].id ?? session?.sessionId ?? 'initial';
-			const slot = oldSlots.get(id) ?? this._createSlot(id);
-			oldSlots.delete(id);
-			slot.boundSessionId = session?.sessionId;
-			slot.session = session;
-			slot.view.openSession(session, {});
-			return slot;
-		});
+		const created: IGridSlot[] = [];
+		let next: IGridSlot[];
+		try {
+			next = sessions.map((session, index) => {
+				const id = gridSlots?.[index].id ?? session?.sessionId ?? 'initial';
+				let slot = oldSlots.get(id);
+				if (!slot) {
+					slot = this._createSlot(id);
+					created.push(slot);
+				}
+				oldSlots.delete(id);
+				slot.boundSessionId = session?.sessionId;
+				slot.session = session;
+				slot.placement = gridSlots?.[index].placement;
+				slot.view.openSession(session, {});
+				return slot;
+			});
+		} catch (error) {
+			for (const slot of created) {
+				slot.disposables.dispose();
+			}
+			throw error;
+		}
 		this._slots.splice(0, this._slots.length, ...next);
+		this._activeSession.set(active, undefined);
 
 		// Mark the active session's element for styling/focus indication.
 		const activeId = active?.sessionId;
@@ -242,7 +270,7 @@ export class SessionsPart extends Part {
 			slot.view.setActive(isActive);
 		}
 
-		this._gridWidget.reconcile(next.map((slot, index) => ({ id: slot.id, view: slot.view, placement: gridSlots?.[index].placement })), activeSlot?.id ?? next[0].id);
+		this._gridWidget.reconcile(next.map((slot, index) => ({ id: slot.id, view: slot.view, placement: gridSlots?.[index].placement })), activeSlot?.id ?? next[0]?.id);
 		for (const slot of oldSlots.values()) {
 			slot.disposables.dispose();
 		}
@@ -264,6 +292,71 @@ export class SessionsPart extends Part {
 		this._activeViewPickerVisibility.value = autorun(reader => {
 			this._pickerVisibilityContextKeys.set(activeSlot?.view.pickerVisibility.read(reader) ?? noSessionPickerVisibility);
 		});
+	}
+
+	captureSessionState(sessionId: string): { readonly id: string; readonly state: IChatGroupsTransferState; readonly placement?: ISessionGridPlacement } {
+		const index = this._slots.findIndex(slot => slot.boundSessionId === sessionId);
+		if (index < 0) {
+			throw new Error(`Session '${sessionId}' is not mounted in part '${this.partId}'`);
+		}
+		const slot = this._slots[index];
+		return { id: slot.id, state: slot.view.captureTransferState(), placement: slot.placement };
+	}
+
+	releaseSessionView(sessionId: string): void {
+		const index = this._slots.findIndex(slot => slot.boundSessionId === sessionId);
+		if (index < 0) {
+			throw new Error(`Session '${sessionId}' is not mounted in part '${this.partId}'`);
+		}
+		const slot = this._slots[index];
+		this._activeViewPickerVisibility.clear();
+		this._slots.splice(index, 1);
+		this._gridWidget?.remove(slot.id);
+		slot.disposables.dispose();
+	}
+
+	restoreSessionView(id: string, session: IActiveSession, state: IChatGroupsTransferState, placement?: ISessionGridPlacement): void {
+		const slot = this._createSlot(id);
+		try {
+			slot.boundSessionId = session.sessionId;
+			slot.session = session;
+			slot.placement = placement;
+			slot.view.openSession(session, { transferState: state });
+			this._slots.push(slot);
+		} catch (error) {
+			slot.disposables.dispose();
+			throw error;
+		}
+	}
+
+	restoreGridLayout(grid: ISerializedGrid): void {
+		const ids: string[] = [];
+		const collect = (node: ISerializedNode): void => {
+			if (node.type === 'branch') {
+				node.data.forEach(collect);
+			} else if (isSessionGridLeafData(node.data)) {
+				ids.push(node.data.id);
+			}
+		};
+		collect(grid.root);
+		this._slots.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+		this.updateVisibleSessions(this._slots.map(slot => slot.session), this.activeSession.get(), this._slots.map(slot => ({ id: slot.id, placement: slot.placement })), { type: 'restore', grid });
+	}
+
+	flushState(): void {
+		for (const slot of this._slots) {
+			slot.view.saveState();
+		}
+	}
+
+	getTransferVeto(): string | undefined {
+		for (const slot of this._slots) {
+			const veto = slot.view.getTransferVeto();
+			if (veto) {
+				return veto;
+			}
+		}
+		return undefined;
 	}
 
 	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {
@@ -367,6 +460,14 @@ export class SessionsPart extends Part {
 		slot.view.focus();
 	}
 
+	focusSelectedSession(): void {
+		const selected = this._slots.find(slot => slot.session === this.activeSession.get()) ?? this._slots[0];
+		if (selected) {
+			this._revealView(selected.view);
+			selected.view.focus();
+		}
+	}
+
 	/**
 	 * Ensures the given view is fully visible within the grid. The grid clips its
 	 * leaves (`overflow: hidden`) and lays them out side by side; when there are
@@ -395,8 +496,8 @@ export class SessionsPart extends Part {
 	getProgressIndicator(): IProgressIndicator {
 		if (!this._progressIndicator) {
 			const progressBar = assertReturnsDefined(this._progressBar);
-			const scopeId = Parts.SESSIONS_PART;
-			const isVisible = this.layoutService.isVisible(scopeId);
+			const scopeId = this.getId();
+			const isVisible = this.isMain ? this.layoutService.isVisible(Parts.SESSIONS_PART) : this._isPartVisible;
 			const onDidVisibilityChange = this.onDidVisibilityChange;
 			const scope = this._register(new class extends AbstractProgressScope {
 				constructor() {
@@ -411,7 +512,7 @@ export class SessionsPart extends Part {
 
 	private _createSlot(id: string): IGridSlot {
 		const disposables = new DisposableStore();
-		const view = disposables.add(this.instantiationService.createInstance(SessionView));
+		const view = disposables.add(this.instantiationService.createInstance(SessionView, assertReturnsDefined(this._gridWidget).element));
 		view.setPartVisible(this._sessionViewsVisible);
 		const slot: IGridSlot = { id, view, disposables, boundSessionId: undefined };
 		// Pointer-down also activates non-focusable chrome and the empty new-session slot.
@@ -473,7 +574,7 @@ export class SessionsPart extends Part {
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
-		if (!this.layoutService.isVisible(Parts.SESSIONS_PART)) {
+		if (this.isMain && !this.layoutService.isVisible(Parts.SESSIONS_PART)) {
 			return;
 		}
 
@@ -482,16 +583,16 @@ export class SessionsPart extends Part {
 		const cardSize = getAgentsPartCardContentSize(
 			width,
 			height,
-			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
-			this.layoutService.isVisible(Parts.SIDEBAR_PART),
-			isPhoneLayout(this.layoutService)
+			this.isMain && this.agentWorkbenchLayoutService.isEditorPaneVisible(),
+			this.isMain && this.layoutService.isVisible(Parts.SIDEBAR_PART),
+			this.isMain && isPhoneLayout(this.layoutService)
 		);
 
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);
 
 		// Layout the internal grid widget within the content area.
-		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left, isPhoneLayout(this.layoutService));
+		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left, this.isMain && isPhoneLayout(this.layoutService));
 
 		// Store the full grid-allocated dimensions so that Part.relayout() works correctly.
 		super.layout(width, height, top, left);

@@ -25,6 +25,8 @@ export const SessionItemIsMultiSelectionContext = new RawContextKey<boolean>('se
 
 //#region < --- Session View --- >
 
+export const SessionsAuxiliaryWindowContext = new RawContextKey<boolean>('sessionsAuxiliaryWindow', false, localize('sessionsAuxiliaryWindow', "Whether the Sessions grid is in an auxiliary window"));
+export const SessionsAuxiliaryWindowsSupportedContext = new RawContextKey<boolean>('sessionsAuxiliaryWindowsSupported', false, localize('sessionsAuxiliaryWindowsSupported', "Whether the Sessions workbench can host auxiliary grids"));
 export const SessionIsCreatedContext = new RawContextKey<boolean>('sessionIsCreated', false, localize('sessionIsCreated', "Whether the session view's session has been created (chat view shown, not new-session view)"));
 export const SessionIsStickyContext = new RawContextKey<boolean>('sessionIsSticky', false, localize('sessionIsSticky', "Whether the session view's session is sticky in the grid"));
 export const SessionIsMaximizedContext = new RawContextKey<boolean>('sessionIsMaximized', false, localize('sessionIsMaximized', "Whether the session view is currently maximized in the sessions part's grid"));
