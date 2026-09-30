@@ -564,6 +564,7 @@ suite('pluginParsers', () => {
 			});
 
 			test('reads Copilot components from the sanctioned extension directory by default', async () => {
+				const pluginFsPath = URI.from({ scheme: Schemas.inMemory, path: '/plugins/example' }).fsPath;
 				await write('/plugins/example/plugin.json', JSON.stringify({
 					$schema: AGENT_PLUGIN_SCHEMA,
 					name: 'example',
@@ -601,8 +602,8 @@ suite('pluginParsers', () => {
 					hooks: [{
 						type: 'PostToolUse',
 						commands: [{
-							command: 'echo /plugins/example',
-							env: { PLUGIN_ROOT: '/plugins/example' },
+							command: `echo ${pluginFsPath}`,
+							env: { PLUGIN_ROOT: pluginFsPath },
 						}],
 					}],
 				});
