@@ -358,6 +358,34 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		});
 	});
 
+	test('positions an anchored picker below its anchor when requested', () => {
+		fixture.style.width = '600px';
+		fixture.style.height = '400px';
+		controller.layout({ width: 600, height: 400 }, 0);
+
+		const anchor = document.createElement('div');
+		anchor.style.position = 'absolute';
+		anchor.style.left = '80px';
+		anchor.style.top = '40px';
+		anchor.style.width = '300px';
+		anchor.style.height = '26px';
+		fixture.appendChild(anchor);
+
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.anchor = anchor;
+		quickpick.anchorPosition = 'below';
+		quickpick.show();
+
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		assert.deepStrictEqual({
+			top: widget.getBoundingClientRect().top,
+			anchorBottomWithGap: anchor.getBoundingClientRect().bottom + 4,
+		}, {
+			top: anchor.getBoundingClientRect().bottom + 4,
+			anchorBottomWithGap: anchor.getBoundingClientRect().bottom + 4,
+		});
+	});
+
 	test('pick - basecase', async () => {
 		const item = { label: 'foo' };
 
