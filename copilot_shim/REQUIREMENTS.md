@@ -69,13 +69,15 @@ the reverse.
 
 - The Windows installer ([`copilot.iss`](../build/win32/copilot.iss)) adds the
   folder to `PATH`, and can install Copilot CLI with the setup commands.
-- The development Copilot extension integration uses the global-storage
-  deployment described below. Product artifact placement and Windows setup
-  remain unchanged.
+- The Copilot extension computes the same path and adds the folder to the
+  `PATH` of integrated terminals, unless `chat.copilotCliCommand.enabled` is
+  off. It then removes `<globalStorageUri>/copilotCli`, where earlier versions
+  wrote script shims. When the build doesn't ship the shim, as in a build from
+  source, it uses the development deployment described below instead.
 
 ### Development integrated-terminal deployment
 
-The extension copies a local Rust build to
+When the build doesn't ship the shim, the extension copies a local Rust build to
 `<globalStorageUri>/copilotCli/copilot` (`copilot.exe` on Windows). Fill in the
 absolute, extension-host-local build path in `LOCAL_SHIM_SOURCE_PATHS` in
 [`copilotCLINativeShim.ts`](../extensions/copilot/src/extension/chatSessions/vscode-node/copilotCLINativeShim.ts).
