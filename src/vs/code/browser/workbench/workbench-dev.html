@@ -32,9 +32,60 @@
 		<link rel="manifest" href="{{WORKBENCH_WEB_BASE_URL}}/resources/server/manifest.json" crossorigin="use-credentials" />
 		<style id="vscode-css-modules" type="text/css" media="screen"></style>
 
+		<!-- Startup fallback: shown only if the scripts below never run, e.g. because a proxy,
+			extension or content filter blocked or rewrote them. Styles are inlined and hardcoded
+			because no theme or workbench CSS has loaded at that point. -->
+		<style>
+			#vscode-startup-fallback {
+				visibility: hidden;
+				animation: vscode-startup-fallback-reveal 0s linear 10s forwards;
+				position: fixed;
+				inset: 0;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: safe center;
+				margin: 0;
+				overflow: auto;
+				padding: 0 24px;
+				text-align: center;
+				font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+				color: #3b3b3b;
+				background-color: #f8f8f8;
+			}
+
+			@keyframes vscode-startup-fallback-reveal {
+				to { visibility: visible; }
+			}
+
+			#vscode-startup-fallback h1 {
+				margin: 0 0 8px;
+				font-size: 16px;
+				font-weight: 600;
+			}
+
+			#vscode-startup-fallback p {
+				margin: 0;
+				max-width: 52ch;
+				font-size: 13px;
+				line-height: 1.5;
+			}
+
+			@media (prefers-color-scheme: dark) {
+				#vscode-startup-fallback {
+					color: #cccccc;
+					background-color: #1f1f1f;
+				}
+			}
+		</style>
+
 	</head>
 
 	<body aria-label="">
+		<div id="vscode-startup-fallback">
+			<h1>The editor failed to load</h1>
+			<p>A proxy, browser extension or content filter may be blocking or modifying this page's scripts. Check the browser developer tools console for Content Security Policy errors.</p>
+		</div>
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->

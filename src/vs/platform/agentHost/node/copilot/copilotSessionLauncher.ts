@@ -45,6 +45,7 @@ import { applyConfiguredPromptOverrides } from './prompts/promptOverride.js';
 import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
+import { createCopilotExtensionTools } from './copilotExtensionTools.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 export { ContextSizeConfigKey };
@@ -114,7 +115,7 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 }
 
 const ContextTiers = ['default', 'long_context'] as const;
-const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
+export const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -222,6 +223,7 @@ export interface ICopilotSessionRuntime {
 	createClientSdkTools(toolSearchActive: boolean): Tool<any>[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createServerSdkTools(): Tool<any>[];
+	reloadExtensions(): Promise<void>;
 }
 
 export interface ICopilotSessionLauncher {
@@ -233,12 +235,14 @@ export interface ICopilotSessionLauncher {
 }
 
 type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
-	readonly rpc?: Pick<CopilotClient['rpc'], 'account'>;
+	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox'>;
 };
 
 interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
 	readonly sessionId: string;
+	/** Release-aligned SDK root injected into extension subprocesses for this client residency. */
+	readonly extensionSdkPath?: string;
 	/** Whether this launch is for a transient session that skips durable-only provider work. */
 	readonly isEphemeral?: boolean;
 	/**
@@ -605,15 +609,22 @@ export async function resolveByokSessionConfig(
 	return { providers, models };
 }
 
-/** Applies sandbox configuration to a new or running SDK session. */
-export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService): Promise<void> {
+/** Applies sandbox configuration, returning false when the runtime retains its policy after a managed conflict. */
+export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService): Promise<boolean> {
 	try {
 		const result = await session.rpc.options.update({ sandboxConfig });
 		if (!result.success) {
 			throw new Error('Copilot SDK rejected sandbox config update');
 		}
 		logService.info(`[Copilot:${sessionId}] Applied SDK sandboxConfig via session.options.update`);
+		return true;
 	} catch (err) {
+		const data = isObject(err) ? err.data : undefined;
+		if ((isObject(data) && data.code === 'managed_sandbox_policy_conflict')
+			|| (err instanceof Error && err.message.includes('Sandbox configuration update violates managed policy. Contact your administrator for more information.'))) {
+			logService.warn(`[Copilot:${sessionId}] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime's existing sandbox configuration`, err);
+			return false;
+		}
 		logService.warn(`[Copilot:${sessionId}] Failed to apply SDK sandboxConfig`, err);
 		throw err;
 	}
@@ -653,8 +664,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			const owner = runtime.configurationResource.toString();
 			const config = this._computeSandboxConfig(owner);
-			await applySandboxConfig(session, config, plan.sessionId, this._logService);
-			this._configurationService.setSessionSandboxEnabled(owner, config.enabled);
+			if (await applySandboxConfig(session, config, plan.sessionId, this._logService)) {
+				this._configurationService.setSessionSandboxEnabled(owner, config.enabled);
+			}
 		};
 		if (plan.kind === 'create') {
 			return this._createSession(plan, config, sandboxConfig);
@@ -665,7 +677,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const session = AgentSession.uri('copilotcli', plan.sessionId);
 		try {
 			const raw = await this._resumeSession(session, plan, config);
-			return this._finalizeSession(raw, sandboxConfig, plan, plan.fallback.model?.id);
+			return this._finalizeSession(raw, sandboxConfig, plan, plan.fallback.model?.id, config.requestCanvasRenderer === true);
 		} catch (err) {
 			let resumeError = err;
 			const errCode = getCopilotSdkErrorCode(resumeError);
@@ -677,7 +689,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
 					const raw = await this._resumeSession(session, fallbackPlan, fallbackConfig);
-					return this._finalizeSession(raw, sandboxConfig, fallbackPlan, fallbackPlan.fallback.model?.id);
+					return this._finalizeSession(raw, sandboxConfig, fallbackPlan, fallbackPlan.fallback.model?.id, fallbackConfig.requestCanvasRenderer === true);
 				} catch (retryErr) {
 					resumeError = retryErr;
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
@@ -738,10 +750,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
-		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id);
+		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id, config.requestCanvasRenderer === true);
 	}
 
-	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined): Promise<CopilotSessionWrapper> {
+	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, canvasRuntimeEnabled: boolean): Promise<CopilotSessionWrapper> {
 		try {
 			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
@@ -756,7 +768,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (isGpt56Model(modelId)) {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
-		return new CopilotSessionWrapper(raw, this._logService);
+		return new CopilotSessionWrapper(raw, canvasRuntimeEnabled, this._logService);
 	}
 
 	private async _reconcileCopilotConnectors(session: CopilotSessionWrapper['session'], plan: CopilotSessionLaunchPlan): Promise<void> {
@@ -897,6 +909,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<ResumeSessionConfig> {
 		const plugins = plan.snapshot.plugins;
+		const canvasRuntimeEnabled = !plan.isEphemeral;
+		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
+			throw new Error(`Extension SDK path is unavailable for canvas-enabled Copilot session '${plan.sessionId}'`);
+		}
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
@@ -921,8 +937,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
 		// exception: the SDK validates the session-start `agent:` against `customAgents`
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
-		// Hooks are also projected explicitly below because plugin directory discovery
-		// does not register their commands with the SDK callback surface.
+		// Hooks without an on-disk plugin directory are projected explicitly below.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
@@ -978,7 +993,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
 			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
-		const tools = [...shellTools, ...runtime.createClientSdkTools(toolSearchActive), ...runtime.createServerSdkTools()];
+		const tools = [
+			...shellTools,
+			...runtime.createClientSdkTools(toolSearchActive),
+			...runtime.createServerSdkTools(),
+			...createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService),
+		];
 		const promptOverrides = await applyConfiguredPromptOverrides(promptOverrideString, promptOverrideFile, tools, this._fileService, this._logService);
 		const managedSettingsPermissions = this._managedSettingsService.permissions;
 		const promptContext: IAgentHostPromptContext = {
@@ -1046,14 +1066,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
 			enableSkills: true,
-			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
+			requestExtensions: canvasRuntimeEnabled,
+			requestCanvasRenderer: canvasRuntimeEnabled,
+			...(canvasRuntimeEnabled ? { extensionSdkPath: plan.extensionSdkPath } : {}),
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
 			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
 			mcpOAuthTokenStorage: 'in-memory',
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
-			hooks: toSdkHooks(plugins.flatMap(p => p.hooks), {
+			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),

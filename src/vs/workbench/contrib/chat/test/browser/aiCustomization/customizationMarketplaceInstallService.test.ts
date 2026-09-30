@@ -47,8 +47,10 @@ import { CustomizationMarketplaceInstallationRecordStore } from '../../../browse
 import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginGitService } from '../../../common/plugins/pluginGitService.js';
@@ -130,8 +132,8 @@ function galleryMcpResource(): ICustomizationMarketplaceResource {
 	});
 }
 
-function installedPlugin(sourceDescriptor: IPluginSourceDescriptor, source = 'plugins/demo', version = '1.0.0', pluginUri = URI.file('/cache/installed-plugin')): IMarketplaceInstalledPlugin {
-	const reference = parseMarketplaceReference('owner/catalog#release');
+function installedPlugin(sourceDescriptor: IPluginSourceDescriptor, source = 'plugins/demo', version = '1.0.0', pluginUri = URI.file('/cache/installed-plugin'), marketplace = 'owner/catalog#release'): IMarketplaceInstalledPlugin {
+	const reference = parseMarketplaceReference(marketplace);
 	assert.ok(reference);
 	return {
 		pluginUri,
@@ -226,6 +228,10 @@ class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 suite('CustomizationMarketplaceInstallService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function recordedResources(service: ICustomizationMarketplaceInstallService): readonly ICustomizationMarketplaceResource[] {
+		return service.installations.get().installations.map(installation => installation.resource);
+	}
+
 	async function createFixture(options: { enabled?: boolean; otherSourceEnabled?: boolean } = { enabled: true }) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const logService = store.add(new NullLogService());
@@ -262,16 +268,33 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}
 		}();
 		const agentPlugins = observableValue<readonly IAgentPlugin[]>('agentPlugins', []);
+		const removedPluginEnablements: string[] = [];
 		const agentPluginService = new class extends mock<IAgentPluginService>() {
 			override readonly plugins = agentPlugins;
+			override readonly enablementModel = new class extends mock<IEnablementModel>() {
+				override remove(key: string): void {
+					removedPluginEnablements.push(key);
+				}
+			}();
 		}();
 		const pluginService = new class extends mock<IPluginInstallService>() {
 			readonly calls: { source: string; options: IInstallPluginFromSourceOptions | undefined }[] = [];
 			readonly directInstalls: IMarketplaceInstalledPlugin['plugin'][] = [];
+			readonly uninstalls: URI[] = [];
 			onDirectInstall: ((token: CancellationToken | undefined) => Promise<void>) | undefined;
 			override async installPlugin(plugin: IMarketplaceInstalledPlugin['plugin'], token?: CancellationToken) {
 				this.directInstalls.push(plugin);
 				await this.onDirectInstall?.(token);
+				await this.createInstalledPluginDirectory(plugin);
+			}
+			override async uninstallPlugin(pluginUri: URI): Promise<boolean> {
+				this.uninstalls.push(pluginUri);
+				const current = installedPlugins.get();
+				if (!current.some(candidate => isEqual(candidate.pluginUri, pluginUri))) {
+					return false;
+				}
+				installedPlugins.set(current.filter(candidate => !isEqual(candidate.pluginUri, pluginUri)), undefined);
+				return true;
 			}
 			result: IInstallPluginFromSourceResult = { success: true };
 			onInstall: (() => Promise<IInstallPluginFromSourceResult>) | undefined;
@@ -282,17 +305,27 @@ suite('CustomizationMarketplaceInstallService', () => {
 				this.calls.push({ source, options });
 				const result = this.onInstall ? await this.onInstall() : this.result;
 				if (!result.success || result.matchedPlugin || !this.autoMatch) {
+					if (result.matchedPlugin) {
+						await this.createInstalledPluginDirectory(result.matchedPlugin);
+					}
 					return result;
 				}
 				const reference = parseMarketplaceReference(source);
 				assert.ok(reference?.githubRepo);
 				const path = options?.path ?? '';
 				const entry = installedPlugin({ kind: PluginSourceKind.GitHub, repo: reference.githubRepo, ref: reference.ref, path }, path, this.versions.get(path) ?? this.version, URI.file(`/cache/${reference.githubRepo}/ref_${reference.ref ?? 'default'}/${path || 'root'}`));
+				await fileService.createFolder(entry.pluginUri);
 				installedPlugins.set([...installedPlugins.get(), entry], undefined);
 				return { ...result, matchedPlugin: entry.plugin };
 			}
 			override getPluginInstallUri(plugin: IMarketplacePlugin): URI {
 				return installedPlugins.get().find(entry => entry.plugin === plugin)?.pluginUri ?? URI.file('/cache/missing-plugin');
+			}
+			private async createInstalledPluginDirectory(plugin: IMarketplacePlugin): Promise<void> {
+				const installed = installedPlugins.get().find(entry => entry.plugin === plugin);
+				if (installed) {
+					await fileService.createFolder(installed.pluginUri);
+				}
 			}
 		}();
 		const pluginSource = new class extends mock<IPluginSource>() {
@@ -302,10 +335,14 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}();
 		const repositoryService = new class extends mock<IAgentPluginRepositoryService>() {
 			override readonly agentPluginsHome = URI.file('/cache');
+			readonly marketplaceRepository = URI.file('/cache/indexed-marketplace-repository');
 			readonly calls: { reference: IMarketplaceReference; options: IEnsureRepositoryOptions | undefined }[] = [];
 			onEnsure: (() => Promise<URI>) | undefined;
 			override getPluginSource(): IPluginSource {
 				return pluginSource;
+			}
+			override getRepositoryUri(): URI {
+				return this.marketplaceRepository;
 			}
 			override async ensureRepository(reference: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
 				this.calls.push({ reference, options });
@@ -322,7 +359,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}();
 		const pluginGitService = new class extends mock<IPluginGitService>() {
 			revision = 'a'.repeat(40);
-			override async revParse(): Promise<string> {
+			readonly revParseCalls: URI[] = [];
+			override async revParse(repository: URI): Promise<string> {
+				this.revParseCalls.push(repository);
 				return this.revision;
 			}
 		}();
@@ -545,7 +584,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
 			service, instantiationService, fileService, provider, storageService, commandService, deletedSkills, installedPlugins, marketplaceService, marketplaceChanges, agentPlugins, pluginService, repositoryService, pluginGitService, mcpService, mcpChanges,
-			connectorsService, connectedConnectors, connectorChanges, connectorAccountChanges, connectorDisconnected, mcpGalleryManifestService, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
+			connectorsService, connectedConnectors, connectorChanges, connectorAccountChanges, connectorDisconnected, mcpGalleryManifestService, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService, removedPluginEnablements,
 		};
 	}
 
@@ -647,7 +686,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				state: state.kind,
 				repairUnavailableMessage: state.kind === 'missing' ? state.repairUnavailableMessage : undefined,
 				stateAfterUninstall: fixture.service.getInstallState(candidate).kind,
-				recordedResources: fixture.service.getRecordedResources().length,
+				recordedResources: recordedResources(fixture.service).length,
 			}, {
 				state: 'missing',
 				repairUnavailableMessage: 'Enable the customization marketplace to install this resource.',
@@ -1048,14 +1087,14 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 
 	suite('installation records', () => {
-		test('rejects malformed persisted targets and bounds record count', () => {
+		test('rejects malformed persisted targets and loads records without an arbitrary count or metadata-size cap', () => {
 			const storage = store.add(new TestStorageService());
 			const prefix = 'chat.customizations.marketplace.installationRecord.v1.';
-			const id = 'a'.repeat(64);
-			storage.store(`${prefix}${id}`, JSON.stringify({
+			const malformedId = 'f'.repeat(64);
+			storage.store(`${prefix}${malformedId}`, JSON.stringify({
 				version: 1,
 				record: {
-					id,
+					id: malformedId,
 					sourceId: 'testSource',
 					identifier: 'bad-skill',
 					displayName: 'Bad Skill',
@@ -1065,17 +1104,80 @@ suite('CustomizationMarketplaceInstallService', () => {
 					target: { kind: 'skill', uri: URI.file('/outside/SKILL.md').toString(), files: [SKILL_FILENAME], resolvedRevision: 'a'.repeat(40), source: 'local', harness: 'test-harness', sourceFolder: URI.file('/workspace').toString() },
 				},
 			}), StorageScope.PROFILE, StorageTarget.MACHINE);
-			const malformed = store.add(new CustomizationMarketplaceInstallationRecordStore(storage, store.add(new NullLogService())));
-			for (let index = 0; index < 999; index++) {
-				storage.store(`${prefix}${index.toString(16).padStart(64, '0')}`, '{}', StorageScope.PROFILE, StorageTarget.MACHINE);
+			for (let index = 0; index < 1001; index++) {
+				const id = index.toString(16).padStart(64, '0');
+				storage.store(`${prefix}${id}`, JSON.stringify({
+					version: 1,
+					record: {
+						id,
+						sourceId: 'testSource',
+						identifier: `server-${index}`,
+						displayName: `Server ${index}`,
+						description: index === 0 ? 'x'.repeat(9000) : '',
+						mediaType: CustomizationMarketplaceMediaType.McpServer,
+						installation: { kind: 'mcp', name: `server-${index}`, version: '1.0.0' },
+						target: { kind: 'mcp', id: `mcp-${index}` },
+					},
+				}), StorageScope.PROFILE, StorageTarget.MACHINE);
 			}
-			let bounded = false;
-			try {
-				malformed.ensureCanAdd();
-			} catch (error) {
-				bounded = error instanceof Error && error.message === 'Too many customization marketplace installations are recorded. Uninstall an existing marketplace customization before installing another.';
-			}
-			assert.deepStrictEqual({ records: malformed.records.size, bounded }, { records: 0, bounded: true });
+
+			const records = store.add(new CustomizationMarketplaceInstallationRecordStore(storage, store.add(new NullLogService()))).records;
+
+			assert.deepStrictEqual({ count: records.size, largeDescriptionLength: records.values().next().value?.description.length }, {
+				count: 1001,
+				largeDescriptionLength: 9000,
+			});
+		});
+
+		test('sanitizes invalid optional icons without dropping valid installation records', () => {
+			const storage = store.add(new TestStorageService());
+			const prefix = 'chat.customizations.marketplace.installationRecord.v1.';
+			const warnings: string[] = [];
+			const logService = store.add(new class extends NullLogService {
+				override warn(message: string, ..._args: unknown[]): void { warnings.push(message); }
+			}());
+			const storedRecord = (id: string, icon: unknown, iconDark: unknown) => ({
+				version: 1,
+				record: {
+					id,
+					sourceId: 'testSource',
+					identifier: `server-${id[0]}`,
+					displayName: `Server ${id[0]}`,
+					description: '',
+					mediaType: CustomizationMarketplaceMediaType.McpServer,
+					installation: { kind: 'mcp', name: `server-${id[0]}`, version: '1.0.0' },
+					icon,
+					iconDark,
+					target: { kind: 'mcp', id: `mcp-${id[0]}` },
+				},
+			});
+			const firstId = 'a'.repeat(64);
+			const secondId = 'b'.repeat(64);
+			const thirdId = 'c'.repeat(64);
+			storage.store(`${prefix}${firstId}`, JSON.stringify(storedRecord(firstId, 'javascript:alert(1)', 'https://example.com/dark.png')), StorageScope.PROFILE, StorageTarget.MACHINE);
+			storage.store(`${prefix}${secondId}`, JSON.stringify(storedRecord(secondId, 'https://example.com/light.png', { invalid: true })), StorageScope.PROFILE, StorageTarget.MACHINE);
+			storage.store(`${prefix}${thirdId}`, JSON.stringify(storedRecord(thirdId, 42, 'file:///tmp/icon.png')), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+			const records = [...store.add(new CustomizationMarketplaceInstallationRecordStore(storage, logService)).records.values()];
+
+			assert.deepStrictEqual({
+				records: records.map(record => ({
+					id: record.id,
+					icon: URI.isUri(record.icon) ? record.icon.toString() : record.icon,
+				})),
+				warnings,
+			}, {
+				records: [
+					{ id: firstId, icon: 'https://example.com/dark.png' },
+					{ id: secondId, icon: 'https://example.com/light.png' },
+					{ id: thirdId, icon: undefined },
+				],
+				warnings: [
+					`[CustomizationMarketplace] Sanitized invalid icon metadata fields [icon] for installation record '${prefix}${firstId}'.`,
+					`[CustomizationMarketplace] Sanitized invalid icon metadata fields [iconDark] for installation record '${prefix}${secondId}'.`,
+					`[CustomizationMarketplace] Sanitized invalid icon metadata fields [icon, iconDark] for installation record '${prefix}${thirdId}'.`,
+				],
+			});
 		});
 
 		test('rejects a connector record without a valid account identity', () => {
@@ -1103,7 +1205,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('persists exact targets and reconciles a missing skill after service recreation', async () => {
 			const fixture = await createFixture();
-			const candidate = resource({ version: '1.0.0' });
+			const candidate = resource({ version: '1.0.0', icon: URI.parse('https://example.com/review.png') });
 			await fixture.service.install(candidate);
 			const storageKey = fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).find(key => key.includes('customizations.marketplace.installationRecord.v1'));
 			assert.ok(storageKey);
@@ -1114,32 +1216,73 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
 			await timeout(0);
 			const state = restored.getInstallState(candidate);
+			const recordedIcon = recordedResources(restored)[0]?.icon;
 			assert.deepStrictEqual({
 				record: {
 					version: stored.version,
 					sourceId: storedRecord?.sourceId,
 					identifier: storedRecord?.identifier,
 					resourceVersion: storedRecord?.version,
+					icon: storedRecord?.icon,
 					targetKind: storedRecord?.target.kind,
 					targetUri: storedRecord?.target.uri,
 					files: storedRecord?.target.files,
 					resolvedRevision: storedRecord?.target.resolvedRevision,
 				},
 				state: state.kind,
-				target: state.kind === 'missing' && state.target.kind === 'skill' ? state.target.uri : undefined,
+				target: state.kind === 'missing' && state.target.kind === 'skill' ? state.target.uri.toString() : undefined,
+				recordedIcon: URI.isUri(recordedIcon) ? recordedIcon.toString() : undefined,
 			}, {
 				record: {
 					version: 1,
 					sourceId: 'testSource',
 					identifier: 'skill-resource',
 					resourceVersion: '1.0.0',
+					icon: 'https://example.com/review.png',
 					targetKind: 'skill',
 					targetUri: joinPath(skillDestination, SKILL_FILENAME).toString(),
 					files: [SKILL_FILENAME],
 					resolvedRevision: 'a'.repeat(40),
 				},
 				state: 'missing',
-				target: joinPath(skillDestination, SKILL_FILENAME),
+				target: joinPath(skillDestination, SKILL_FILENAME).toString(),
+				recordedIcon: 'https://example.com/review.png',
+			});
+		});
+
+		test('persists themed icon variants while retaining the v1 scalar icon field', async () => {
+			const fixture = await createFixture();
+			const candidate = resource({
+				icon: {
+					light: URI.parse('https://example.com/review-light.png'),
+					dark: URI.parse('https://example.com/review-dark.png'),
+				},
+			});
+			await fixture.service.install(candidate);
+			const storageKey = fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).find(key => key.includes('customizations.marketplace.installationRecord.v1'));
+			assert.ok(storageKey);
+			const stored = JSON.parse(fixture.storageService.get(storageKey, StorageScope.PROFILE)!);
+			fixture.service.dispose();
+			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			await timeout(0);
+			const restoredIcon = recordedResources(restored)[0]?.icon;
+
+			assert.deepStrictEqual({
+				storedVersion: stored.version,
+				storedLight: stored.record?.icon,
+				storedDark: stored.record?.iconDark,
+				restored: URI.isUri(restoredIcon) ? undefined : {
+					light: restoredIcon?.light.toString(),
+					dark: restoredIcon?.dark.toString(),
+				},
+			}, {
+				storedVersion: 1,
+				storedLight: 'https://example.com/review-light.png',
+				storedDark: 'https://example.com/review-dark.png',
+				restored: {
+					light: 'https://example.com/review-light.png',
+					dark: 'https://example.com/review-dark.png',
+				},
 			});
 		});
 
@@ -1153,7 +1296,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await timeout(0);
 			const state = restored.getInstallState(candidate);
 			assert.deepStrictEqual({
-				recorded: restored.getRecordedResources().map(resource => resource.installation),
+				recorded: recordedResources(restored).map(resource => resource.installation),
 				state: state.kind,
 				target: state.kind === 'installed' ? state.target : undefined,
 			}, {
@@ -1194,7 +1337,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
 			assert.deepStrictEqual({
 				storageKeys: storageKeys.length,
-				recorded: restored.getRecordedResources().map(resource => resource.identifier).sort(),
+				recorded: recordedResources(restored).map(resource => resource.identifier).sort(),
 			}, { storageKeys: 2, recorded: ['mcp-resource', 'plugin-resource'] });
 		});
 
@@ -1283,7 +1426,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				disabled, available, installed,
 				directInstalls: fixture.pluginService.directInstalls,
 				legacyInstalls: fixture.pluginService.calls,
-				recordedInstallations: restored.getRecordedResources().map(resource => resource.installation),
+				recordedInstallations: recordedResources(restored).map(resource => resource.installation),
 			}, {
 				disabled: { kind: 'unavailable', message: 'Enable the customization marketplace to install this resource.' },
 				available: { kind: 'available' },
@@ -1312,7 +1455,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await assert.rejects(fixture.service.install(candidate), /could not be installed/);
 			assert.deepStrictEqual({
 				directInstalls: fixture.pluginService.directInstalls,
-				records: fixture.service.getRecordedResources(),
+				records: recordedResources(fixture.service),
 			}, {
 				directInstalls: [plugin],
 				records: [],
@@ -1452,7 +1595,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					state: fixture.service.getInstallState(candidate).kind,
 				}, {
 					calls: [{ source: 'owner/catalog#release', options: { path } }],
-					firstState: 'available',
+					firstState: 'installing',
 					lastState: 'installed',
 					state: 'installed',
 				});
@@ -1631,6 +1774,72 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		});
 
+		for (const sourceKind of [PluginSourceKind.GitHub, PluginSourceKind.RelativePath]) {
+			test(`rejects a ${sourceKind} plugin result that omits the requested ref`, async () => {
+				const fixture = await createFixture();
+				const candidate = pluginResource();
+				const installed = sourceKind === PluginSourceKind.GitHub
+					? installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', path: 'plugins/demo' })
+					: installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }, 'plugins/demo', '1.0.0', URI.file('/cache/ref-less-plugin'), 'owner/catalog');
+				fixture.pluginService.autoMatch = false;
+				fixture.pluginService.result = { success: true, matchedPlugin: installed.plugin };
+
+				await assert.rejects(fixture.service.install(candidate), /could not be installed/i);
+
+				assert.deepStrictEqual({
+					state: fixture.service.getInstallState(candidate).kind,
+					revisionChecks: fixture.pluginGitService.revParseCalls,
+				}, {
+					state: 'available',
+					revisionChecks: [],
+				});
+			});
+		}
+
+		test('installs and repairs a marketplace-declared relative plugin at its recorded revision', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			const resolvedRevision = 'a'.repeat(40);
+			fixture.pluginService.autoMatch = false;
+			fixture.pluginService.onInstall = async () => {
+				const source = fixture.pluginService.calls.at(-1)!.source;
+				const installed = installedPlugin(
+					{ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' },
+					'plugins/demo',
+					'1.0.0',
+					URI.file(`/cache/installed-plugin-${source.split('#')[1]}`),
+					source,
+				);
+				fixture.installedPlugins.set([installed], undefined);
+				return { success: true, matchedPlugin: installed.plugin };
+			};
+
+			await fixture.service.install(candidate);
+			const installedState = fixture.service.getInstallState(candidate).kind;
+			const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
+			fixture.installedPlugins.set([], undefined);
+			await missing;
+			await fixture.service.repair(candidate);
+
+			assert.deepStrictEqual({
+				installedState,
+				repairedState: fixture.service.getInstallState(candidate).kind,
+				calls: fixture.pluginService.calls,
+				revisionChecks: fixture.pluginGitService.revParseCalls,
+			}, {
+				installedState: 'installed',
+				repairedState: 'installed',
+				calls: [
+					{ source: 'owner/catalog#release', options: { path: 'plugins/demo' } },
+					{ source: `owner/catalog#${resolvedRevision}`, options: { path: 'plugins/demo' } },
+				],
+				revisionChecks: [
+					fixture.repositoryService.marketplaceRepository,
+					fixture.repositoryService.marketplaceRepository,
+				],
+			});
+		});
+
 
 		test('pins plugin repair to the immutable revision recorded at install time', async () => {
 			const fixture = await createFixture();
@@ -1661,6 +1870,80 @@ suite('CustomizationMarketplaceInstallService', () => {
 				sha: fixture.service.getInstallState({ ...candidate, installation: { kind: 'plugin', repository: 'owner/catalog', ref: sha, path: 'plugins/demo' } }).kind,
 				tag: fixture.service.getInstallState(candidate).kind,
 			}, { sha: 'available', tag: 'available' });
+		});
+
+		test('reconciles a recorded plugin when its exact discovered target disappears', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			const installed = installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release', path: 'plugins/demo' });
+			fixture.installedPlugins.set([installed], undefined);
+			fixture.pluginService.autoMatch = false;
+			fixture.pluginService.result = { success: true, matchedPlugin: installed.plugin };
+			await fixture.fileService.createFolder(installed.pluginUri);
+			await fixture.service.install(candidate);
+			fixture.agentPlugins.set([
+				new class extends mock<IAgentPlugin>() {
+					override readonly uri = installed.pluginUri;
+				}(),
+			], undefined);
+			const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
+
+			await fixture.fileService.del(installed.pluginUri, { recursive: true });
+			fixture.agentPlugins.set([], undefined);
+			await missing;
+
+			assert.strictEqual(fixture.service.getInstallState(candidate).kind, 'missing');
+		});
+
+		test('clears a stale plugin record after its exact target folder is deleted', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			const installed = installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release', path: 'plugins/demo' });
+			fixture.installedPlugins.set([installed], undefined);
+			fixture.pluginService.autoMatch = false;
+			fixture.pluginService.result = { success: true, matchedPlugin: installed.plugin };
+			await fixture.fileService.createFolder(installed.pluginUri);
+			await fixture.service.install(candidate);
+			fixture.service.dispose();
+			await fixture.fileService.del(installed.pluginUri, { recursive: true });
+			let unrelatedRemoveCalls = 0;
+			fixture.agentPlugins.set([
+				new class extends mock<IAgentPlugin>() {
+					override readonly uri = URI.file('/cache/unrelated-plugin');
+					override readonly label = 'demo';
+					override async remove(): Promise<boolean> {
+						unrelatedRemoveCalls++;
+						return true;
+					}
+				}(),
+			], undefined);
+			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			await timeout(0);
+			const stateAfterReload = restored.getInstallState(candidate).kind;
+			let uninstallError: string | undefined;
+			try {
+				await restored.uninstall(candidate);
+			} catch (error) {
+				uninstallError = error instanceof Error ? error.message : String(error);
+			}
+
+			assert.deepStrictEqual({
+				stateAfterReload,
+				uninstallError,
+				afterUninstall: restored.getInstallState(candidate).kind,
+				recorded: recordedResources(restored).length,
+				unrelatedRemoveCalls,
+				pluginUninstalls: fixture.pluginService.uninstalls.map(uri => uri.toString()),
+				removedPluginEnablements: fixture.removedPluginEnablements,
+			}, {
+				stateAfterReload: 'missing',
+				uninstallError: undefined,
+				afterUninstall: 'available',
+				recorded: 0,
+				unrelatedRemoveCalls: 0,
+				pluginUninstalls: [installed.pluginUri.toString()],
+				removedPluginEnablements: [installed.pluginUri.toString()],
+			});
 		});
 
 		test('uninstalls through the installed agent plugin', async () => {
@@ -2038,7 +2321,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				disconnects: fixture.connectorsService.disconnectCalls,
 				registryLookups: fixture.mcpService.lookups,
 				after: fixture.service.getInstallState(candidate),
-				recordedResources: fixture.service.getRecordedResources(),
+				recordedResources: recordedResources(fixture.service),
 			}, {
 				before: { kind: 'installed', target: connectorInstallationTarget },
 				disconnects: ['mail'],
@@ -2123,7 +2406,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual({
 				during,
 				disconnects: fixture.connectorsService.disconnectCalls,
-				recorded: fixture.service.getRecordedResources(),
+				recorded: recordedResources(fixture.service),
 			}, {
 				during: { kind: 'uninstalling', target: connectorInstallationTarget },
 				disconnects: ['mail'],
@@ -2143,7 +2426,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				before,
 				connectCalls: fixture.connectorsService.connectCalls,
 				after: fixture.service.getInstallState(candidate),
-				recordedResources: fixture.service.getRecordedResources().map(resource => ({
+				recordedResources: recordedResources(fixture.service).map(resource => ({
 					sourceId: resource.sourceId,
 					identifier: resource.identifier,
 					installation: resource.installation,
@@ -2173,7 +2456,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			fixture.connectorsService.connectionStateKnownOverride = true;
 			fixture.connectorChanges.fire();
 			await timeout(0);
-			const recorded = fixture.service.getRecordedResources();
+			const recorded = recordedResources(fixture.service);
 			const state = fixture.service.getInstallState(recorded[0]);
 
 			assert.deepStrictEqual({
@@ -2193,13 +2476,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('records a connector that was already connected outside this workbench', async () => {
 			const fixture = await createFixture();
-			const recorded = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getRecordedResources().some(resource => resource.identifier === 'mail')));
+			const recorded = Event.toPromise(Event.filter(fixture.service.onDidChange, () => recordedResources(fixture.service).some(resource => resource.identifier === 'mail')));
 			fixture.connectedConnectors.add('mail');
 			fixture.connectorChanges.fire();
 			await recorded;
 
 			assert.deepStrictEqual({
-				recorded: fixture.service.getRecordedResources().map(resource => resource.identifier),
+				recorded: recordedResources(fixture.service).map(resource => resource.identifier),
 				state: fixture.service.getInstallState(connectorResource()),
 			}, {
 				recorded: ['mail'],
@@ -2217,7 +2500,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual({
-				recorded: restored.getRecordedResources().map(resource => resource.identifier),
+				recorded: recordedResources(restored).map(resource => resource.identifier),
 				state: restored.getInstallState(candidate),
 			}, {
 				recorded: ['mail'],
@@ -2231,13 +2514,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 			fixture.connectorsService.catalogVisible = false;
 			fixture.connectorChanges.fire();
 			await timeout(0);
-			const recorded = fixture.service.getRecordedResources()[0];
+			const recorded = recordedResources(fixture.service)[0];
 
 			await fixture.service.uninstall(recorded);
 
 			assert.deepStrictEqual({
 				disconnects: fixture.connectorsService.disconnectCalls,
-				recorded: fixture.service.getRecordedResources(),
+				recorded: recordedResources(fixture.service),
 			}, {
 				disconnects: [],
 				recorded: [],
@@ -2252,7 +2535,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 			assert.deepStrictEqual({
 				disconnects: fixture.connectorsService.disconnectCalls,
-				recorded: fixture.service.getRecordedResources(),
+				recorded: recordedResources(fixture.service),
 			}, {
 				disconnects: ['mail'],
 				recorded: [],
@@ -2274,7 +2557,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 			assert.deepStrictEqual({
 				disconnects: fixture.connectorsService.disconnectCalls,
-				recorded: fixture.service.getRecordedResources(),
+				recorded: recordedResources(fixture.service),
 			}, {
 				disconnects: ['mail'],
 				recorded: [],
@@ -2296,7 +2579,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				before,
 				connectCalls: fixture.connectorsService.connectCalls,
 				after: fixture.service.getInstallState(candidate),
-				recorded: fixture.service.getRecordedResources().map(resource => resource.identifier),
+				recorded: recordedResources(fixture.service).map(resource => resource.identifier),
 			}, {
 				before: { kind: 'missing', target: connectorInstallationTarget, repairUnavailableMessage: undefined },
 				connectCalls: ['mail', 'mail'],
@@ -2338,11 +2621,11 @@ suite('CustomizationMarketplaceInstallService', () => {
 		test('shows connector records only for the account that created them', async () => {
 			const fixture = await createFixture();
 			await fixture.service.install(connectorResource());
-			const originalAccount = fixture.service.getRecordedResources().map(resource => resource.identifier);
+			const originalAccount = recordedResources(fixture.service).map(resource => resource.identifier);
 
 			fixture.connectorsService.accountOverride = { providerId: 'github', accountName: 'hubot', enterprise: false };
 			fixture.connectorAccountChanges.fire();
-			const otherAccount = fixture.service.getRecordedResources();
+			const otherAccount = recordedResources(fixture.service);
 
 			fixture.connectorsService.accountOverride = { providerId: 'github', accountName: 'octocat', enterprise: false };
 			fixture.connectorAccountChanges.fire();
@@ -2350,7 +2633,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual({
 				originalAccount,
 				otherAccount,
-				restoredAccount: fixture.service.getRecordedResources().map(resource => resource.identifier),
+				restoredAccount: recordedResources(fixture.service).map(resource => resource.identifier),
 			}, {
 				originalAccount: ['mail'],
 				otherAccount: [],
@@ -2366,7 +2649,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
 			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled);
 			const disabled = {
-				recorded: fixture.service.getRecordedResources(),
+				recorded: recordedResources(fixture.service),
 				state: fixture.service.getInstallState(candidate),
 			};
 
@@ -2375,7 +2658,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 			assert.deepStrictEqual({
 				disabled,
-				restoredRecords: fixture.service.getRecordedResources().map(resource => resource.identifier),
+				restoredRecords: recordedResources(fixture.service).map(resource => resource.identifier),
 				restoredState: fixture.service.getInstallState(candidate),
 			}, {
 				disabled: {
@@ -2559,6 +2842,30 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		});
 
+
+		test('uninstalls a restored skill record that remains checking while marketplace sources are disabled', async () => {
+			const fixture = await createFixture();
+			const candidate = resource();
+			await fixture.service.install(candidate);
+			fixture.service.dispose();
+			await setSourcesEnabled(fixture.configurationService, false);
+			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			const before = restored.getInstallState(candidate);
+
+			await restored.uninstall(candidate);
+
+			assert.deepStrictEqual({
+				before: before.kind,
+				exists: await fixture.fileService.exists(skillDestination),
+				recorded: recordedResources(restored).length,
+				deletions: fixture.deletedSkills.map(uri => uri.toString()),
+			}, {
+				before: 'checking',
+				exists: false,
+				recorded: 0,
+				deletions: [joinPath(skillDestination, SKILL_FILENAME).toString()],
+			});
+		});
 
 		test('retains the skill record when uninstall cannot verify the target', async () => {
 			const fixture = await createFixture();

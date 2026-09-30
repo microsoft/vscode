@@ -18,7 +18,7 @@ import type { IAgentHostClientTelemetryContext, IAgentProviderTurnTelemetryConte
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
-import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 /** User-selected permission action and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -682,6 +682,31 @@ export interface IAgentChatDataChange {
 	readonly providerData: string;
 }
 
+export const AgentCanvasAvailability = {
+	Ready: 'ready',
+	Unavailable: 'unavailable',
+} as const;
+
+export type AgentCanvasAvailability = typeof AgentCanvasAvailability[keyof typeof AgentCanvasAvailability];
+
+/** A live model-opened canvas projected by an agent provider. */
+export interface IAgentCanvas {
+	readonly instanceId: string;
+	readonly extensionId: string;
+	readonly extensionName?: string;
+	readonly canvasId: string;
+	readonly title?: string;
+	readonly status?: string;
+	readonly revision: number;
+	readonly availability: AgentCanvasAvailability;
+}
+
+/** Full replacement of the live canvas collection for one exact chat. */
+export interface IAgentCanvasSnapshot {
+	readonly chat: URI;
+	readonly canvases: readonly IAgentCanvas[];
+}
+
 /** A legacy concrete chat backing enumerated by {@link IAgent.listLegacyChatBackings} for migration. */
 export interface IAgentLegacyChat {
 	/** The concrete chat's channel URI (see {@link buildChatUri}). */
@@ -731,14 +756,7 @@ export interface IAgentSpawnChatEvent {
 /** Max characters for a subagent tab title before it is ellipsized. */
 const SUBAGENT_CHAT_TITLE_MAX_LENGTH = 60;
 
-/**
- * Builds the tab title for a subagent peer chat. Prefers the concise
- * per-task description (so two subagents of the same type still get
- * distinct, meaningful names), truncating it so an over-long value never
- * blows out the tab strip or the Subagents dropdown; falls back to the
- * agent type's display name, then a generic label. Shared by the live
- * spawn path and the restore path so both name subagent tabs identically.
- */
+/** Builds the shared title for subagent chats and activity messages, preferring a concise task description over the agent type's name. */
 export function subagentChatTitle(taskDescription: string | undefined, agentDisplayName: string | undefined): string {
 	const task = taskDescription?.trim();
 	if (task) {
@@ -781,6 +799,11 @@ export namespace SubagentChatSignal {
 
 // ---- Chat surface --------------------------------------------------
 
+/** A provider's preparation can block input without adding a conversation turn. */
+export interface IAgentPrepareChatResult {
+	readonly error?: ErrorInfo;
+}
+
 /**
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
@@ -791,6 +814,9 @@ export namespace SubagentChatSignal {
  * the provider needs the owning session or storage scope.
  */
 export interface IAgentChats {
+	/** Prepare an existing chat for input without sending a turn. May acquire its native writer lock. */
+	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
+
 	/**
 	 * Create a fresh additional chat within an already-provisioned `session`,
 	 * using the complete working directory and config supplied in
@@ -839,6 +865,9 @@ export interface IAgentChats {
 
 	/** Reconstruct the turns for `chat` (used on restore). */
 	getMessages(chat: URI, context: AgentChatOperationContext): Promise<readonly Turn[]>;
+
+	/** Resolve the current source of a live model-opened canvas. */
+	resolveCanvasSource?(chat: URI, instanceId: string, revision: number, context: AgentChatOperationContext): Promise<string>;
 }
 
 export interface IAgentResolveChatConfigParams {
@@ -965,7 +994,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'factory' | 'extension-management' | 'extension-permission-access' | 'extension-env-access';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'workflow' | 'extension-management' | 'extension-permission-access' | 'extension-env-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
@@ -1246,6 +1275,9 @@ export interface IAgent {
 
 	/** Fires when an opaque chat backing changes and must be persisted again. */
 	readonly onDidChangeChatData: Event<IAgentChatDataChange>;
+
+	/** Full-replacement live canvas snapshots for exact chats owned by this provider. */
+	readonly onDidChangeCanvases?: Event<IAgentCanvasSnapshot>;
 
 	/** Fires when the provider creates a chat, such as a delegated subagent. */
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent>;

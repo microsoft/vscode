@@ -9,20 +9,24 @@ import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
@@ -36,7 +40,7 @@ import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizatio
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import {
 	AgentHostMcpServer,
@@ -50,6 +54,7 @@ import {
 	getAgentHostMcpServerEnablementActions,
 	getMcpCompatibilityPresentation,
 	getMcpEntryGroup,
+	getMarketplaceMcpManagementAction,
 	getMcpRowKey,
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
@@ -72,7 +77,7 @@ import {
 	shouldLoadMcpGallerySnapshot,
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
-import { getEffectiveMcpServerCount } from '../../../browser/aiCustomization/mcpServerCount.js';
+import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 
@@ -230,6 +235,48 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('routes only an exactly recorded MCP uninstall through the marketplace', async () => {
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'testSource',
+			identifier: 'recorded-server',
+			displayName: 'Recorded Server',
+			description: 'Test server',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+		};
+		const uninstallCalls: ICustomizationMarketplaceResource[] = [];
+		const marketplaceInstallService = new class extends mock<ICustomizationMarketplaceInstallService>() {
+			override readonly onDidChange = Event.None;
+			override readonly installations = constObservable(createCustomizationMarketplaceInstallationSnapshot([{
+				resource,
+				state: { kind: 'installed', target: { kind: 'mcp', id: 'recorded-server' } },
+			}]));
+			override async uninstall(candidate: ICustomizationMarketplaceResource): Promise<void> {
+				uninstallCalls.push(candidate);
+			}
+		}();
+		let directUninstallCount = 0;
+		const uninstallAction = disposables.add(new Action('extensions.uninstall', 'Uninstall', 'uninstall', true, () => {
+			directUninstallCount++;
+		}));
+		const marketplaceAction = getMarketplaceMcpManagementAction(uninstallAction, 'recorded-server', marketplaceInstallService);
+		assert.notStrictEqual(marketplaceAction, uninstallAction);
+		if (isDisposable(marketplaceAction)) {
+			disposables.add(marketplaceAction);
+		}
+
+		await marketplaceAction.run();
+		const unrecordedAction = getMarketplaceMcpManagementAction(uninstallAction, 'other-server', marketplaceInstallService);
+		await unrecordedAction.run();
+
+		assert.deepStrictEqual({ directUninstallCount, uninstallCalls }, {
+			directUninstallCount: 1,
+			uninstallCalls: [resource],
+		});
+	});
 
 	test('observes Connector changes only while the experiment is enabled', () => {
 		let enabled = false;
@@ -500,6 +547,35 @@ suite('mcpListWidget', () => {
 		const count = derived(reader => getEffectiveMcpServerCount([], servers, reader, undefined));
 
 		assert.strictEqual(count.get(), 1);
+	});
+
+	test('one native publication per source matches local rows and preserves disabled counts', () => {
+		const names = ['automation', 'explorer'];
+		const localServers = names.map(name => new class extends mock<IMcpServer>() {
+			override readonly definition = new class extends mock<McpServerDefinition>() {
+				override readonly id = `local-${name}`;
+				override readonly label = name;
+			}();
+			override readonly collection = new class extends mock<McpCollectionDefinition>() {
+				override readonly id = 'workspace';
+			}();
+			override readonly enablement = observableValue(this, ContributionEnablementState.EnabledProfile);
+		}());
+		const servers = [
+			...names.map(name => createAgentHostServer({
+				id: `session/file:///workspace/.mcp.json#mcp=${name}`, name, enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			})),
+			...Array.from({ length: 11 }, (_, index) => createAgentHostServer({ id: `session/server-${index}`, name: `server-${index}` })),
+		];
+		const matcher = new ActiveSessionMcpServerMatcher(servers);
+		const matched = localServers.map(server => matcher.take(getRuntimeServerMatchKeys(server)));
+		const count = derived(reader => getEffectiveMcpServerCount(localServers, servers, reader, undefined));
+		assert.deepStrictEqual({
+			matched: matched.map(server => server?.id),
+			rows: matched.length + matcher.unmatched('').length,
+			enabled: count.get(),
+		}, { matched: servers.slice(0, 2).map(server => server.id), rows: 13, enabled: 11 });
 	});
 
 	test('classifies active-session-only MCP servers as built-in entries', () => {
@@ -1376,6 +1452,8 @@ suite('mcpListWidget', () => {
 			let localEnablementCalls: [string, ContributionEnablementState][] = [];
 			let menuActions: IAction[] = [];
 			const hoverContents = new Map<HTMLElement, IManagedHoverContent>();
+			const themeChanges = store.add(new Emitter<ReturnType<IThemeService['getColorTheme']>>());
+			let themeType = ColorScheme.DARK;
 
 			const agentHostCustomizationService = {
 				getMcpServers: () => servers,
@@ -1388,6 +1466,10 @@ suite('mcpListWidget', () => {
 			const customizationHarnessService = {
 				activeSessionResource,
 			} as unknown as ICustomizationHarnessService;
+			const marketplaceInstallService = new class extends mock<ICustomizationMarketplaceInstallService>() {
+				override readonly onDidChange = Event.None;
+				override readonly installations = constObservable(emptyCustomizationMarketplaceInstallationSnapshot);
+			}();
 			const hoverService = new class extends mock<IHoverService>() {
 				override setupManagedHover(_delegate: Parameters<IHoverService['setupManagedHover']>[0], target: HTMLElement) {
 					return {
@@ -1434,6 +1516,10 @@ suite('mcpListWidget', () => {
 				button.label = 'More Actions';
 				registerMcpInlineButtonAction(disposables, button, () => { managementClicks.push('more'); });
 			};
+			const themeService = new class extends mock<IThemeService>() {
+				override readonly onDidColorThemeChange = themeChanges.event;
+				override getColorTheme() { return { type: themeType } as ReturnType<IThemeService['getColorTheme']>; }
+			}();
 			const renderer = store.add(new McpServerItemRenderer(
 				renderManagementActions,
 				() => compatibilityKind,
@@ -1447,6 +1533,7 @@ suite('mcpListWidget', () => {
 				customizationHarnessService,
 				labelService,
 				extensionsWorkbenchService,
+				themeService,
 			));
 
 			const container = document.createElement('div');
@@ -1467,6 +1554,7 @@ suite('mcpListWidget', () => {
 				agentHostCustomizationService,
 				agentPluginService,
 				extensionsWorkbenchService,
+				marketplaceInstallService,
 				customizationHarnessService,
 				mcpService: { servers: runtimeServers },
 				workspaceService: { isSessionsWindow },
@@ -1554,6 +1642,11 @@ suite('mcpListWidget', () => {
 					} : {}),
 					ariaLabel,
 				}),
+				readIcon: () => ({
+					image: templateData.icon.querySelector<HTMLImageElement>('img')?.src,
+					fallbackDisplay: templateData.icon.querySelector<HTMLElement>('.codicon')?.style.display,
+					visibleChildren: [...templateData.icon.children].filter(child => !(child instanceof HTMLElement) || (!child.hidden && child.style.display !== 'none')).length,
+				}),
 				readSource: () => ({
 					label: templateData.sourcePath.textContent,
 					hover: hoverContents.get(templateData.sourcePath),
@@ -1563,12 +1656,64 @@ suite('mcpListWidget', () => {
 				}),
 				notifyUnchanged: () => onDidChangeCustomizations.fire(),
 				setServers: (next: AgentHostMcpServer[]) => { servers = next; },
+				setTheme: (type: ColorScheme) => {
+					themeType = type;
+					themeChanges.fire({ type: themeType } as ReturnType<IThemeService['getColorTheme']>);
+				},
 				setFocusedIndex: (index: number) => renderer.setFocusedRowKey(index === 0 && templateData.currentElement ? getMcpRowKey(templateData.currentElement) : undefined),
 				actionNode: () => templateData.actions.querySelector('.test-management-action, .plugin-card-icon-button'),
 			};
 		}
 
 		const erroring = () => createAgentHostServer({ id: 'server-1', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'failed to start' } } });
+
+		test('renders one marketplace icon and carries it into installed server details', () => {
+			const ctx = createRenderer(createAgentHostServer(), false);
+			disposables.add(ctx.store);
+			const icon = {
+				light: URI.parse('https://example.com/mcp-light.png'),
+				dark: URI.parse('https://example.com/mcp-dark.png'),
+			};
+			const server = new class extends mock<IWorkbenchMcpServer>() {
+				override readonly id = 'marketplace-server';
+				override readonly label = 'Marketplace Server';
+				override readonly description = '';
+				override readonly name = 'marketplace-server';
+				override readonly installState = McpServerInstallState.Installed;
+			}();
+			const entry: Entry = {
+				type: 'server-item',
+				server,
+				marketplaceRecord: {
+					resource: {
+						sourceId: 'testSource',
+						identifier: 'marketplace-server',
+						displayName: 'Marketplace Server',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.McpServer,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+						icon,
+					},
+					state: { kind: 'installed', target: { kind: 'mcp', id: server.id } },
+				},
+			};
+
+			ctx.render(entry);
+			const darkIcon = ctx.readIcon();
+			ctx.setTheme(ColorScheme.LIGHT);
+
+			assert.deepStrictEqual({
+				darkIcon,
+				lightIcon: ctx.readIcon(),
+				detailIcon: getCustomizationMarketplaceIconUri(ctx.detailInput(entry).icon, ColorScheme.DARK)?.toString(),
+			}, {
+				darkIcon: { image: 'https://example.com/mcp-dark.png', fallbackDisplay: 'none', visibleChildren: 1 },
+				lightIcon: { image: 'https://example.com/mcp-light.png', fallbackDisplay: 'none', visibleChildren: 1 },
+				detailIcon: 'https://example.com/mcp-dark.png',
+			});
+		});
 
 		test('hides configuration paths from rows and accessible labels', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);

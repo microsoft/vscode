@@ -45,6 +45,19 @@ interface ITransientSession {
 
 const TOKEN_RENEWAL_WINDOW_MS = 60 * 60 * 1000;
 
+/**
+ * A session option only the workbench can set: VS Code strips every `_workbench` option from
+ * extension requests before they reach a provider. Its value, `{ subjectTokens: string[] }`, carries
+ * Microsoft Entra access tokens for the GitHub audience, and asks whether GitHub links any of those
+ * identities to a GitHub account. The workbench uses it to decide whether to offer "Continue with
+ * Microsoft". Must match `ENTRA_EXCHANGE_PROBE_OPTION` in `chatSetupMicrosoftProbe.ts`.
+ */
+const WORKBENCH_ENTRA_EXCHANGE_PROBE = '_workbenchEntraExchangeProbe';
+
+interface IWorkbenchProbeOptions {
+	readonly [WORKBENCH_ENTRA_EXCHANGE_PROBE]?: unknown;
+}
+
 export enum AuthProviderType {
 	github = 'github',
 	githubEnterprise = 'github-enterprise'
@@ -97,14 +110,15 @@ export class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements 
 		this.fire(uri);
 	}
 
-	public async waitForCode(logger: Log, scopes: string, nonce: string, token: vscode.CancellationToken) {
-		const existingNonces = this._pendingNonces.get(scopes) || [];
-		this._pendingNonces.set(scopes, [...existingNonces, nonce]);
+	public async waitForCode(logger: Log, scopes: string, nonce: string, token: vscode.CancellationToken, baseUri: vscode.Uri) {
+		const scopeKey = `${baseUri.toString()} ${scopes}`;
+		const existingNonces = this._pendingNonces.get(scopeKey) || [];
+		this._pendingNonces.set(scopeKey, [...existingNonces, nonce]);
 
-		let codeExchangePromise = this._codeExchangePromises.get(scopes);
+		let codeExchangePromise = this._codeExchangePromises.get(scopeKey);
 		if (!codeExchangePromise) {
-			codeExchangePromise = promiseFromEvent(this.event, this.handleEvent(logger, scopes));
-			this._codeExchangePromises.set(scopes, codeExchangePromise);
+			codeExchangePromise = promiseFromEvent(this.event, this.handleEvent(logger, scopeKey));
+			this._codeExchangePromises.set(scopeKey, codeExchangePromise);
 		}
 
 		try {
@@ -114,9 +128,9 @@ export class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements 
 				promiseFromEvent<void, string>(token.onCancellationRequested, (_, __, reject) => { reject(USER_CANCELLATION_ERROR); }).promise
 			]);
 		} finally {
-			this._pendingNonces.delete(scopes);
+			this._pendingNonces.delete(scopeKey);
 			codeExchangePromise?.cancel.fire();
-			this._codeExchangePromises.delete(scopes);
+			this._codeExchangePromises.delete(scopeKey);
 		}
 	}
 
@@ -153,7 +167,8 @@ function generateSessionId(): string {
 	return crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), '');
 }
 
-export class GitHubAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
+/** Holds authentication sessions and token flows for one GitHub instance. */
+export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscode.Disposable {
 	private readonly _sessionChangeEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 	private readonly _logger: Log;
 	private readonly _githubServer: IGitHubServer;
@@ -200,18 +215,19 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		uriHandler: UriEventHandler,
-		ghesUri?: vscode.Uri
+		ghesUri?: vscode.Uri,
+		storageKey?: string
 	) {
 		const { aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(aiKey));
 
 		const type = ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
 
-		this._logger = new Log(type);
+		this._logger = new Log(type, ghesUri);
 
-		const serviceId = type === AuthProviderType.github
+		const serviceId = storageKey ?? (type === AuthProviderType.github
 			? `${type}.auth`
-			: `${ghesUri?.authority}${ghesUri?.path}.ghes.auth`;
+			: `${ghesUri?.authority}${ghesUri?.path}.ghes.auth`);
 
 		this._keychain = new Keychain(this.context, serviceId, this._logger);
 
@@ -235,20 +251,10 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return sessions;
 		});
 
-		const supportedAuthorizationServers = ghesUri
-			? [vscode.Uri.joinPath(ghesUri, '/login/oauth')]
-			: [vscode.Uri.parse('https://github.com/login/oauth')];
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
-			vscode.authentication.registerAuthenticationProvider(
-				type,
-				this._githubServer.friendlyName,
-				this,
-				{
-					supportsMultipleAccounts: true,
-					supportedAuthorizationServers
-				}
-			),
+			this._sessionChangeEmitter,
+			this._logger,
 			this.context.secrets.onDidChange(() => this.checkForUpdates()),
 			// The two sides of the Microsoft account list moving. Signing in makes a restore that was
 			// impossible a moment ago possible, so whatever we gave up on is worth another try.
@@ -281,7 +287,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return this._sessionChangeEmitter.event;
 	}
 
+	/** Returns locally held sessions without restoring or renewing tokens. */
+	async getCachedSessions(): Promise<readonly vscode.AuthenticationSession[]> {
+		return [...await this._persistedSessionsPromise, ...this.transientSessions];
+	}
+
 	async getSessions(scopes: string[] | undefined, options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
+		const probe = (options as IWorkbenchProbeOptions | undefined)?.[WORKBENCH_ENTRA_EXCHANGE_PROBE];
+		if (probe !== undefined) {
+			return await this.probeMicrosoftLink(probe);
+		}
+
 		// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 		const sortedScopes = scopes?.sort() || [];
 		const describedScopes = sortedScopes.length ? sortedScopes.join(',') : 'all scopes';
@@ -298,6 +314,36 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const restored = await this.restore(sortedScopes, options?.account, finalSessions);
 		this._logger.info(`Got ${finalSessions.length + restored.length} sessions for ${describedScopes}...`);
 		return [...finalSessions, ...restored];
+	}
+
+	/**
+	 * Answers a `getSessions` call from the workbench that set {@link WORKBENCH_ENTRA_EXCHANGE_PROBE}.
+	 *
+	 * Tries each Microsoft token in turn and stops at the first one GitHub links to an account, so
+	 * that as few GitHub tokens as possible are minted. The returned session only describes that
+	 * account: it has no access token, and it is never persisted, published or announced through
+	 * {@link onDidChangeSessions}.
+	 */
+	private async probeMicrosoftLink(probe: unknown): Promise<vscode.AuthenticationSession[]> {
+		const subjectTokens = (probe as { subjectTokens?: unknown } | null)?.subjectTokens;
+		if (!Array.isArray(subjectTokens) || !subjectTokens.every(token => typeof token === 'string' && token)) {
+			throw new Error('The Microsoft link probe requires a list of subject tokens.');
+		}
+		this._logger.info(`Checking whether any of ${subjectTokens.length} Microsoft identities is linked to a GitHub account...`);
+		for (const subjectToken of subjectTokens) {
+			const account = await this._githubServer.probeMicrosoftLink(subjectToken);
+			if (account) {
+				return [{
+					id: account.id,
+					// Deliberately empty. This session only says which account is linked; it is not a
+					// sign-in, and the token minted to find out never leaves this extension.
+					accessToken: '',
+					account: { id: account.id, label: account.accountName },
+					scopes: []
+				}];
+			}
+		}
+		return [];
 	}
 
 	/**

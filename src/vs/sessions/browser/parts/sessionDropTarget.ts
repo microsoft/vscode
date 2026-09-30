@@ -16,10 +16,18 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../workbench/common/theme
 import { DraggedSessionIdentifier } from '../dnd.js';
 import { ISession } from '../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { ISessionsService, SessionGridDirection } from '../../services/sessions/browser/sessionsService.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 
 /** Side of a target view where a dragged session can be dropped. */
-type DropSide = 'left' | 'right';
+type DropSide = SessionGridDirection;
+
+export function getSessionDropDirection(x: number, y: number, width: number, height: number): SessionGridDirection {
+	const horizontal = x / Math.max(1, width);
+	const vertical = y / Math.max(1, height);
+	const edge = Math.min(horizontal, 1 - horizontal, vertical, 1 - vertical);
+	return edge === horizontal ? 'left' : edge === 1 - horizontal ? 'right' : edge === vertical ? 'up' : 'down';
+}
 
 /**
  * Resolves an HTML element under the part's content area to the session view
@@ -96,7 +104,7 @@ class SessionDropOverlay extends Themable {
 					return;
 				}
 
-				this._positionOverlay(e.offsetX);
+				this._positionOverlay(e.clientX, e.clientY);
 
 				if (this._cleanupOverlayScheduler.isScheduled()) {
 					this._cleanupOverlayScheduler.cancel();
@@ -109,6 +117,7 @@ class SessionDropOverlay extends Themable {
 			onDrop: e => {
 				EventHelper.stop(e, true);
 
+				this._positionOverlay(e.clientX, e.clientY);
 				const side = this._currentSide;
 				this.dispose();
 
@@ -153,25 +162,19 @@ class SessionDropOverlay extends Themable {
 			return;
 		}
 
-		const primary = sessions[0];
-
-		// Insert each next to the target. When dropping on the right we insert in
-		// reverse so the drag order is preserved left-to-right; only the primary
-		// (first) dragged session is activated.
-		const ordered = side === 'right' ? [...sessions].reverse() : sessions;
-		for (const session of ordered) {
-			this._sessionsService.insertAt(session, this.targetSessionId, side, session === primary);
-		}
+		void this._sessionsService.openSessionsAt(sessions, this.targetSessionId, side).catch(onUnexpectedError);
 	}
 
-	private _positionOverlay(mousePosX: number): void {
-		const width = this._targetElement.clientWidth;
-		const side: DropSide = mousePosX < width / 2 ? 'left' : 'right';
+	private _positionOverlay(clientX: number, clientY: number): void {
+		const rect = this._targetElement.getBoundingClientRect();
+		const side = getSessionDropDirection(clientX - rect.left, clientY - rect.top, rect.width, rect.height);
 
 		if (side === 'left') {
 			this._doPositionOverlay({ left: '0', width: '50%' });
-		} else {
+		} else if (side === 'right') {
 			this._doPositionOverlay({ left: '50%', width: '50%' });
+		} else {
+			this._doPositionOverlay({ left: '0', width: '100%', top: side === 'up' ? '0' : '50%', height: '50%' });
 		}
 
 		const overlay = assertReturnsDefined(this._overlay);
@@ -183,11 +186,11 @@ class SessionDropOverlay extends Themable {
 		this._currentSide = side;
 	}
 
-	private _doPositionOverlay(options: { left: string; width: string }): void {
+	private _doPositionOverlay(options: { left: string; width: string; top?: string; height?: string }): void {
 		const [container, overlay] = assertReturnsAllDefined(this._container, this._overlay);
 		container.style.height = '100%';
-		overlay.style.top = '0';
-		overlay.style.height = '100%';
+		overlay.style.top = options.top ?? '0';
+		overlay.style.height = options.height ?? '100%';
 		overlay.style.left = options.left;
 		overlay.style.width = options.width;
 	}
@@ -216,11 +219,10 @@ class SessionDropOverlay extends Themable {
 /**
  * Drop target for the sessions grid. Listens for drag events over the part's
  * content area, displays a half-pane overlay on whichever session view is
- * being hovered, and calls into {@link ISessionsManagementService} to insert
+ * being hovered, and calls into {@link ISessionsService} to insert
  * or move the dragged session next to the target.
  *
- * Currently supports only left/right insertion; up/down and "into" drops are
- * not supported.
+ * The nearest normalized edge selects a split; the center never merges sessions.
  */
 export class SessionDropTarget extends Themable {
 
@@ -267,12 +269,16 @@ export class SessionDropTarget extends Themable {
 			return;
 		}
 
-		this._updateContainer(true);
-
 		const target = event.target as HTMLElement;
 		if (!target) {
 			return;
 		}
+		const targetView = this._delegate.findTargetView(target);
+		if (targetView && this._sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.every(dragged => dragged.sessionId === targetView.sessionId)) {
+			return;
+		}
+
+		this._updateContainer(true);
 
 		// If the mouse jumped out of the current overlay, dispose it.
 		if (this.overlay && !this.overlay.contains(target)) {
@@ -283,7 +289,6 @@ export class SessionDropTarget extends Themable {
 			return;
 		}
 
-		const targetView = this._delegate.findTargetView(target);
 		if (!targetView) {
 			return;
 		}

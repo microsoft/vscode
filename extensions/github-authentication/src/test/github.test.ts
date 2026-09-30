@@ -10,7 +10,7 @@ import { IGitHubUserInfo } from '../common/gitHubAccount';
 import { Log } from '../common/logger';
 import { EntraTokenExchangeError, EntraTokenExchangeFailure, IEntraExchangedToken, IEntraLoginOptions, IEntraRenewal, IEntraRenewedToken } from '../entraTokenExchange';
 import { GitHubSignInProvider } from '../flows';
-import { AuthProviderType, GitHubAuthenticationProvider } from '../github';
+import { AuthProviderType, GitHubSessionEngine } from '../github';
 import { IGitHubServer } from '../githubServer';
 import { TestMemento } from './testMemento';
 
@@ -64,7 +64,7 @@ suite('GitHub session persistence', () => {
 				info: _message => { },
 				trace: _message => { }
 			},
-			readSessions: GitHubAuthenticationProvider.prototype['readSessions'],
+			readSessions: GitHubSessionEngine.prototype['readSessions'],
 			storeSessions: async _sessions => {
 				secretWrites++;
 				// Browser secret storage fires a change event for every write. The Codespaces
@@ -143,7 +143,7 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 	}
 
 	interface IHarness {
-		readonly provider: GitHubAuthenticationProvider;
+		readonly provider: GitHubSessionEngine;
 		readonly state: IProviderState;
 		readonly accountLinks: AccountLinks;
 		/** Every renewal the provider put on the wire, in order. */
@@ -228,9 +228,9 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 
 		// One object, reached two ways: the provider's own methods run against exactly the state a
 		// test reads and writes, rather than against a copy of it.
-		const provider = Object.assign(Object.create(GitHubAuthenticationProvider.prototype), state);
+		const provider = Object.assign(Object.create(GitHubSessionEngine.prototype), state);
 		return {
-			provider: provider as GitHubAuthenticationProvider,
+			provider: provider as GitHubSessionEngine,
 			state: provider as IProviderState,
 			accountLinks,
 			logins,
@@ -266,6 +266,22 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 		await harness.accountLinks.link(MICROSOFT_ACCOUNT.label, { id: GITHUB_ACCOUNT.id, label: GITHUB_ACCOUNT.accountName });
 		return harness;
 	}
+
+	test('cached session inventory does not renew or restore Microsoft sessions', async () => {
+		const cached = sessionFor('cached', 'cached-session', 'cached-token');
+		const expired = sessionFor(GITHUB_ACCOUNT.accountName, 'expired-session', 'expired-token');
+		const harness = await withLink(createHarness({ persisted: [cached], transient: [[expired, -1]] }));
+		const sessions = await harness.provider.getCachedSessions();
+		assert.deepStrictEqual({
+			sessions: sessions.map(session => ({ id: session.id, accessToken: session.accessToken })),
+			renewals: harness.renewals,
+			logins: harness.logins,
+			announced: harness.announced
+		}, {
+			sessions: [{ id: 'cached-session', accessToken: 'cached-token' }, { id: 'expired-session', accessToken: 'expired-token' }],
+			renewals: [], logins: [], announced: []
+		});
+	});
 
 	test('uses the issuer returned with Microsoft tokens during creation, restoration, and renewal', async () => {
 		const serverBaseUri = vscode.Uri.parse('https://unrelated.example');
@@ -494,3 +510,59 @@ for (const { name, type, base, issuer } of [
 ]) {
 	suite(`${name} Microsoft-brokered sessions`, () => registerMicrosoftBrokeredSessionTests(type, vscode.Uri.parse(base), issuer));
 }
+
+suite('GitHub Microsoft link probe', () => {
+
+	/** A provider with just the state the probe path touches: nothing that could persist or announce a session. */
+	function createProvider(linkedToken: string | undefined) {
+		const probed: string[] = [];
+		const githubServer: Pick<IGitHubServer, 'probeMicrosoftLink'> = {
+			probeMicrosoftLink: async subjectToken => {
+				probed.push(subjectToken);
+				return subjectToken === linkedToken ? { id: '42', accountName: 'mona_contoso', avatarUrl: undefined } : undefined;
+			}
+		};
+		const provider = Object.assign(Object.create(GitHubSessionEngine.prototype), {
+			_logger: new Log(AuthProviderType.github),
+			_githubServer: githubServer
+		}) as GitHubSessionEngine;
+		return { provider, probed };
+	}
+
+	async function probe(linkedToken: string | undefined, value: unknown): Promise<{ result: unknown; probed: string[] }> {
+		const { provider, probed } = createProvider(linkedToken);
+		let result: unknown;
+		try {
+			result = await provider.getSessions([], { _workbenchEntraExchangeProbe: value } as vscode.AuthenticationProviderSessionOptions);
+		} catch (e) {
+			result = (e as Error).message;
+		}
+		return { result, probed };
+	}
+
+	test('stops at the first linked identity and describes the account without a token', async () => {
+		assert.deepStrictEqual({
+			linkedSecond: await probe('entra-2', { subjectTokens: ['entra-1', 'entra-2', 'entra-3'] }),
+			unlinked: await probe(undefined, { subjectTokens: ['entra-1'] }),
+		}, {
+			linkedSecond: {
+				result: [{ id: '42', accessToken: '', account: { id: '42', label: 'mona_contoso' }, scopes: [] }],
+				probed: ['entra-1', 'entra-2'],
+			},
+			unlinked: { result: [], probed: ['entra-1'] },
+		});
+	});
+
+	test('refuses a malformed probe without contacting GitHub', async () => {
+		const malformed = 'The Microsoft link probe requires a list of subject tokens.';
+		assert.deepStrictEqual({
+			missing: await probe('entra-1', {}),
+			notStrings: await probe('entra-1', { subjectTokens: ['entra-1', 42] }),
+			empty: await probe('entra-1', { subjectTokens: [''] }),
+		}, {
+			missing: { result: malformed, probed: [] },
+			notStrings: { result: malformed, probed: [] },
+			empty: { result: malformed, probed: [] },
+		});
+	});
+});

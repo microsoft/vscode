@@ -776,6 +776,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return lastResponse?.result?.errorDetails && !lastResponse?.result?.errorDetails.responseIsIncomplete;
 		}));
 
+		this._register(bindContextKey(ChatContextKeys.inputBlocked, contextKeyService, reader => viewModelObs.read(reader)?.model.isInputBlocked.read(reader) ?? false));
+
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
 		// Clear the autopilot goal banner whenever the active request finishes.
@@ -2083,7 +2085,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * Read-only chats hide the composer and expose a context key so mutating
 	 * actions (e.g. Start Over, Restore Checkpoint) are not offered.
 	 */
-	setReadOnly(readOnly: boolean): void {
+	setReadOnly(readOnly: boolean, keepInputVisible = false): void {
 		const wasReadOnly = this._readOnly;
 		this._readOnly = readOnly;
 		this._readOnlyContextKey.set(readOnly || this.isTranscriptProgressActive);
@@ -2092,7 +2094,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.finishedEditing();
 			}
 			this.chatSuggestNextWidget.hide();
-			if (this.hasInputFocus()) {
+			if (this.hasInputFocus() && !keepInputVisible) {
 				if (this.listWidget.focusLastItem(true) < 0) {
 					this.listWidget.focus();
 				}
@@ -2100,8 +2102,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (wasReadOnly) {
 			this.renderChatSuggestNextWidget();
 		}
-		this.readOnlyBanner?.setVisible(readOnly);
-		this.setInputVisible(!readOnly);
+		this.readOnlyBanner?.setVisible(readOnly && !keepInputVisible);
+		this.setInputVisible(!readOnly || keepInputVisible);
 		// Authoritative over the lock/unlock `editable` toggles below.
 		this._applyRendererEditable(!readOnly);
 		if (this.visible) {
@@ -2640,6 +2642,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					() => this.focusInput(),
 					this.viewOptions.customizationMigrationNotice.onDidChangeAvailability,
 					visible => input.setCustomizationMigrationNoticeVisible(visible),
+					undefined,
 				));
 			} else {
 				this.customizationMigrationNotice.clear();
@@ -2904,7 +2907,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, undefined);
 		if (!this.viewOptions.isSessionsWindow) {
-			this.viewModelDisposables.add(autorun(reader => this.setReadOnly(model.isReadOnly.read(reader))));
+			this.viewModelDisposables.add(autorun(reader => this.setReadOnly(model.isReadOnly.read(reader), model.isInputBlocked.read(reader))));
 		}
 
 		this.listWidget.setViewModel(this.viewModel);
@@ -3155,7 +3158,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this._readOnly || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection) {
+		if (this._readOnly || this.viewModel?.model.isInputBlocked.get() || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection || this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return undefined;
 		}
 		const sessionResource = this.viewModel?.sessionResource;
@@ -3209,7 +3212,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async rerunLastRequest(): Promise<void> {
-		if (this._readOnly || this.isTranscriptProgressActive || !this.viewModel) {
+		if (this._readOnly || this.isTranscriptProgressActive || !this.viewModel || this.viewModel.model.isInputBlocked.get()) {
 			return;
 		}
 
@@ -3361,8 +3364,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return true;
 	}
 
+	private isSubmissionBlockedByManagedSettingsRefresh(): boolean {
+		const blocked = this.input.isManagedSettingsRefreshBlocked;
+		if (blocked) {
+			this.logService.debug('ChatWidget: Submission blocked by managed settings refresh');
+		}
+		return blocked;
+	}
+
 	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse']): Promise<IChatResponseModel | undefined> {
-		if (this.isTranscriptProgressActive) {
+		if (this.isTranscriptProgressActive || this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return undefined;
 		}
 		if (!query && this.input.generating) {
@@ -3379,7 +3390,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			await Event.toPromise(this.onDidChangeViewModel, this._store);
 		}
 
-		if (!this.viewModel) {
+		if (!this.viewModel || this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return;
 		}
 
@@ -3393,6 +3404,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			try {
 				const inputValue = !query ? this.getInput() : query.query;
 				await saveAllBeforeChatSend(this.configurationService, this.editorService);
+				if (this.isSubmissionBlockedByManagedSettingsRefresh()) {
+					return;
+				}
 				savedBeforeSend = true;
 				const attachedContext = this.input.getAttachedContext().asArray();
 				const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext, options.isVoiceModeInput);
@@ -3406,6 +3420,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const isUserQuery = !query;
 		const inputValue = isUserQuery ? this.getInput() : query.query;
+		if (this.isSubmissionBlockedByManagedSettingsRefresh()) {
+			return;
+		}
 		if (this.viewModel.model.hasActiveRequest.get() && await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined)) {
 			this.setInput('');
 			return;
@@ -3423,6 +3440,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!savedBeforeSend) {
 			await saveAllBeforeChatSend(this.configurationService, this.editorService);
+		}
+		if (this.isSubmissionBlockedByManagedSettingsRefresh()) {
+			return;
 		}
 
 		if (!options.preserveInput) {
@@ -3553,6 +3573,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: uniqueWorkingSetEntries.size, actualSize: uniqueWorkingSetEntries.size });
 		}
 
+		if (this.isSubmissionBlockedByManagedSettingsRefresh()) {
+			return;
+		}
 		this.input.validateAgentMode();
 
 		if (this.viewModel.model.checkpoint) {
@@ -3568,6 +3591,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Expand directory attachments: extract images as binary entries
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
+		if (this.isSubmissionBlockedByManagedSettingsRefresh()) {
+			return;
+		}
 		const submittedWithImage = isUserQuery && hasChatPetImageAttachment([
 			...requestInputs.attachedContext.asArray(),
 			...resolvedImageVariables,

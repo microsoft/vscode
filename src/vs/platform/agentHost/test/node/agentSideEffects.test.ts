@@ -57,6 +57,8 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -212,7 +214,9 @@ function createTestSideEffects(
 		getInitialTitleGenerationStrategy: () => options.initialTitleGenerationStrategy ?? 'deferred',
 	}, logService));
 	services.set(IAgentHostSessionTitleController, titleController);
-	services.set(IAgentHostProviderService, createTestAgentHostProviderService(session => options.getAgent(typeof session === 'string' ? session : session.toString())));
+	const providerService = createTestAgentHostProviderService(session => options.getAgent(typeof session === 'string' ? session : session.toString()));
+	services.set(IAgentHostProviderService, providerService);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
@@ -2618,7 +2622,7 @@ suite('AgentSideEffects', () => {
 
 			// The turn with no preceding real turn has no anchor.
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'turn-1'), undefined);
-			const persisted = await db.getLocalTurns();
+			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.strictEqual(persisted.length, 1);
 			const payload = JSON.parse(persisted[0].payload) as { responseParts: { kind: string; toolCall?: { content?: { type: string }[] } }[] };
 			const toolCallPart = payload.responseParts.find(p => p.kind === ResponsePartKind.ToolCall);
@@ -2720,7 +2724,7 @@ suite('AgentSideEffects', () => {
 			await runBang(se, terminalManager, 'local-1');
 
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'local-1'), 'real-1');
-			const persisted = await db.getLocalTurns();
+			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.deepStrictEqual(persisted.map(r => ({ turnId: r.turnId, chatUri: r.chatUri, anchorTurnId: r.anchorTurnId })), [
 				{ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1' },
 			]);
@@ -2762,7 +2766,7 @@ suite('AgentSideEffects', () => {
 			// The local turn is dropped from memory synchronously and from the DB async.
 			assert.strictEqual(localTurns.isLocal(defaultChatUri, 'local-1'), false);
 			await new Promise(r => setTimeout(r, 10));
-			assert.deepStrictEqual(await db.getLocalTurns(), []);
+			assert.deepStrictEqual(await db.getPersistedTurns(), []);
 		});
 	});
 
@@ -6492,9 +6496,9 @@ suite('AgentSideEffects', () => {
 				message: { text: '!echo hi', origin: { kind: MessageKind.User } },
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'p1', content: 'ran' }],
 				usage: undefined,
-				state: 2, // TurnState.Complete
+				state: TurnState.Complete,
 			};
-			await sessionDb.insertLocalTurn({ turnId: 'local-1', chatUri: buildDefaultChatUri(sessionResource.toString()), anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
+			await sessionDb.insertPersistedTurn({ kind: 'local', turnId: 'local-1', chatUri: buildDefaultChatUri(sessionResource.toString()), anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
 
 			await localService.restoreSession(sessionResource);
 
