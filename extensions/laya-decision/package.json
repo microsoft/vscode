@@ -1,0 +1,106 @@
+{
+  "name": "laya-decision",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "10.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "activationEvents": [],
+  "main": "./dist/extension",
+  "contributes": {
+    "commands": [
+      {
+        "category": "%category%",
+        "command": "laya.showStatus",
+        "title": "%command.showStatus%"
+      },
+      {
+        "category": "%category%",
+        "command": "laya.unloadModel",
+        "title": "%command.unloadModel%"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "laya.showStatus",
+          "when": "config.laya.enabled && !config.chat.disableAIFeatures"
+        },
+        {
+          "command": "laya.unloadModel",
+          "when": "config.laya.enabled && !config.chat.disableAIFeatures"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "%config.title%",
+      "properties": {
+        "laya.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "markdownDescription": "%config.enabled%",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "laya.modelPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "%config.modelPath%"
+        },
+        "laya.maxThreads": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 64,
+          "scope": "machine",
+          "markdownDescription": "%config.maxThreads%"
+        },
+        "laya.idleUnloadMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "scope": "machine",
+          "markdownDescription": "%config.idleUnloadMinutes%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:laya-decision",
+    "watch": "gulp watch-extension:laya-decision"
+  },
+  "dependencies": {
+    "@receptron/laya": "0.1.2",
+    "onnxruntime-node": "1.23.2"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x"
+  },
+  "overrides": {
+    "adm-zip": "0.6.1"
+  },
+  "allowScripts": {
+    "onnxruntime-node@1.23.2": false
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

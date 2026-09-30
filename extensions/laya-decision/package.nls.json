@@ -1,0 +1,12 @@
+{
+	"displayName": "Laya Decision Model",
+	"description": "Runs the Laya decision model locally to answer typed choice, score, and yes/no questions.",
+	"category": "Laya",
+	"command.showStatus": "Show Model Status",
+	"command.unloadModel": "Unload Model",
+	"config.title": "Laya Decision Model",
+	"config.enabled": "Controls whether the local Laya decision model can be used by VS Code and extensions. The model is only loaded when a decision is requested.",
+	"config.modelPath": "Path to a folder containing an exported Laya ONNX bundle (`laya.onnx`, `laya.onnx.data`, `laya_config.json` and `tokenizer/`). When empty, the default model is downloaded and verified on first use.",
+	"config.maxThreads": "Maximum number of CPU threads the model may use for a single decision. Use `0` to pick a value based on the number of available cores.",
+	"config.idleUnloadMinutes": "Number of minutes without requests after which the model is unloaded to free memory. Use `0` to keep the model loaded."
+}
