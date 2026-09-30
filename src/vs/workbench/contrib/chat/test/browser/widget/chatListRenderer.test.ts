@@ -2906,6 +2906,46 @@ suite('ChatListRenderer', () => {
 		});
 	}));
 
+	test('persistent progress only reports MCP authentication for the last meaningful part', () => {
+		const authentication: IChatMcpAuthenticationRequired = {
+			kind: 'mcpAuthenticationRequired',
+			sessionResource: URI.parse('chat-session://test/session1'),
+			servers: observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]),
+			isUsed: false,
+		};
+		const markdown: IChatRendererContent = { kind: 'markdownContent', content: new MarkdownString('Continuing the response') };
+		const tool = ChatToolInvocation.createStreaming({
+			toolId: 'search_workspace', toolCallId: 'search-1',
+			toolData: { id: 'search_workspace', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+		});
+		const waitingTool = new ChatToolInvocation(
+			{ invocationMessage: 'Query documentation' },
+			{ id: 'mcp_docs', displayName: 'Documentation', modelDescription: 'Documentation', source: ToolDataSource.Internal },
+			'auth', undefined, {},
+		);
+		waitingTool.setAuthenticationRequired({ id: 'docs', name: 'Documentation', resource: 'https://docs.example.com' });
+
+		assert.deepStrictEqual({
+			trailing: getPersistentProgressState([markdown, authentication], 0, false),
+			followedByMarkdown: getPersistentProgressState([authentication, markdown], 0, false),
+			followedByTool: getPersistentProgressState([authentication, tool], 0, false),
+			followedByThinking: getPersistentProgressState([authentication, { kind: 'thinking', value: 'Considering the next step' }], 0, false),
+			followedByEmptyParts: getPersistentProgressState([authentication, { kind: 'markdownContent', content: new MarkdownString(' \n') }, { kind: 'thinking', value: '' }], 0, false),
+			used: getPersistentProgressState([{ ...authentication, isUsed: true }], 0, false),
+			empty: getPersistentProgressState([{ ...authentication, servers: observableValue('servers', []) }], 0, false),
+			blockingToolFollowedByMarkdown: getPersistentProgressState([waitingTool, markdown], 0, false),
+		}, {
+			trailing: 'authentication',
+			followedByMarkdown: 'active',
+			followedByTool: 'active',
+			followedByThinking: 'active',
+			followedByEmptyParts: 'authentication',
+			used: 'active',
+			empty: 'active',
+			blockingToolFollowedByMarkdown: 'authentication',
+		});
+	});
+
 	test('persistent progress state recognizes tool authentication and legacy confirmation parts', () => {
 		const tool = (id: string, presentation?: ToolInvocationPresentation) => new ChatToolInvocation(
 			{ invocationMessage: 'Query documentation', presentation },
@@ -4977,6 +5017,50 @@ suite('ChatListRenderer', () => {
 			finalTextComplete: [...finalPart.domNode.querySelectorAll(':scope > p')].map(p => p.textContent).join('\n\n').trim() === finalText.trim(),
 		}, { initiallyBuffered: true, collapsedBeforeDraining: false, hasDisclosure: true, finalPartRetained: true, finalTextComplete: true });
 	});
+
+	for (const followingKind of ['markdownContent', 'toolInvocation'] as const) {
+		test(`persistent progress resumes after ${followingKind} follows an unresolved MCP authentication prompt`, () => {
+			const { instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer();
+			const server = new class extends mock<ReturnType<IAgentHostCustomizationService['getMcpServers']>[number]>() {
+				override readonly id = 'mcp';
+				override readonly name = 'MCP server';
+				override readonly enabled = true;
+				override readonly status = McpServerStatus.AuthRequired;
+			}();
+			instantiationService.stub(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getMcpServers() { return [server]; }
+			}());
+			const authentication: IChatMcpAuthenticationRequired = {
+				kind: 'mcpAuthenticationRequired',
+				sessionResource: response.sessionResource,
+				servers: observableValue('servers', [{ id: 'mcp', name: 'MCP server', resource: 'https://example.com/mcp' }]),
+				isUsed: false,
+			};
+			model.acceptResponseProgress(request, authentication);
+			renderer.renderElement(node, 0, template);
+			const label = () => template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+			const before = label();
+			const following: IChatRendererContent = followingKind === 'markdownContent'
+				? { kind: 'markdownContent', content: new MarkdownString('Continuing the response') }
+				: ChatToolInvocation.createStreaming({
+					toolId: 'search_workspace', toolCallId: 'search-1',
+					toolData: { id: 'search_workspace', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+				});
+			model.acceptResponseProgress(request, following);
+			renderer.renderElement(node, 0, template);
+
+			assert.deepStrictEqual({
+				before,
+				after: label(),
+				isUsed: authentication.isUsed,
+				pendingServers: authentication.servers.get().length,
+				promptVisible: !!template.value.querySelector('.chat-mcp-servers-interaction-hint'),
+			}, { before: 'Authentication required', after: 'Working', isUsed: false, pendingServers: 1, promptVisible: true });
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+		});
+	}
 
 	test('persistent progress resumes when authentication finishes without provider output', async () => {
 		const { disposables, instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer();
