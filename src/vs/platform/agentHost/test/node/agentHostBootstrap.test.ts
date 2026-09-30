@@ -15,7 +15,7 @@ import { parseArgs, OPTIONS } from '../../../environment/node/argv.js';
 import { NativeEnvironmentService } from '../../../environment/node/environmentService.js';
 import { LogLevel, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { GitHubService } from '../../../github/common/githubService.js';
+import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import product from '../../../product/common/product.js';
 import { createAgentHostRuntime } from '../../node/agentHostBootstrap.js';
 import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
@@ -148,14 +148,15 @@ suite('agentHostBootstrap', () => {
 			transientProxyConfiguration: false,
 		});
 		const events: string[] = [];
-		const service = disposables.add(new GitHubService(foundation.gitHubServiceOptions, new NullLogService(), new class extends mock<ITelemetryService>() {
+		const service = disposables.add(new AgentHostGitHubService(foundation.gitHubServiceOptions, foundation.authenticationService, foundation.gitHubEndpointService, new NullLogService(), new class extends mock<ITelemetryService>() {
 			override readonly telemetryLevel = TelemetryLevel.USAGE;
 			override publicLog2(name: string): void { events.push(name); }
 		}()));
 		const controller = new AbortController();
 		const reason = new Error('cancelled');
 		controller.abort(reason);
-		await assert.rejects(service.transport.rest({ host: 'api.github.com', accountId: '1' }, 'token', {
+		const client = disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
+		await assert.rejects(client.transport.rest({ host: 'api.github.com', accountId: '1' }, 'token', {
 			method: 'GET', url: 'https://api.github.com/user',
 		}, controller.signal), error => error === reason);
 		foundation.configurationService.updateRootConfig({ [AgentHostTelemetryLevelConfigKey]: 'off' });

@@ -11,15 +11,27 @@ Reusable GitHub engine and cross-target architecture.
 
 ## Current implementation
 
-[GitHubService](common/githubService.ts) composes credentials, capabilities, transport, queries, mutations, and PR subscriptions. It already provides concurrency limits, rate-limit handling, REST ETags, and read coalescing.
+[GitHubService](common/githubService.ts) owns shared admission, cooldowns and telemetry. It supplies explicit authorization-scoped clients composing credentials, capabilities, transport, queries, mutations, and PR subscriptions.
 
-- The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per window and selects the default account.
-- The [Agent Host service graph](../agentHost/node/agentHostServices.ts) creates a separate instance, alongside its own GitHub and CAPI clients.
+- The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per window. Existing features explicitly acquire a client for the selected default account; other callers can select a specific existing session.
+- The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Its service graph still has independent legacy GitHub and CAPI clients awaiting migration.
 - The [legacy Sessions service](../../sessions/contrib/github/browser/githubService.ts) and extension clients still own independent requests and polling.
 
 These instances do not currently share application-wide request state.
 
 The [client inventory](client-inventory.md) maps runtime callers, migration boundaries, and remaining gaps.
+
+### Authorization clients
+
+The hosting binding selects provider/session/scopes and endpoints and supplies a context-specific credential bridge. The engine does not select accounts, prompt for sign-in, or fall back to another session. A missing repository-scoped session surfaces an authentication error; existing explicit sign-in actions remain responsible for consent. Account selection and credential resolution each have a cancellable five-minute deadline, including stalled authentication providers.
+
+Consumers retain a disposable reference from `acquireClient`. Equivalent grants share one client, including resources and coalesced reads. Different sessions, scope sets, issuers or endpoints have separate private caches and subscriptions, even when they resolve to the same GitHub account. They still share account/host/caller limits and stable-account cooldowns within the engine.
+
+At most 64 authorization contexts are retained. Releasing the last reference cancels only that client's work and disposes its resources; bounded identity-backoff bookkeeping remains for up to five minutes so reacquisition cannot reset repeated-failure backoff. Unused bookkeeping can be evicted for a new client. Credential changes retire only affected session clients; default-account selection changes do not revoke explicit clients for other accounts. Live server quota and identity-bootstrap cooldowns survive client release/recreation until expiry.
+
+Each workbench/Agent Host binding retains one reference for its selected default/repository client so short-lived consumers reuse identity, ETags and capability observations. Selection changes and binding disposal release that reference. Other explicit clients remain caller-owned.
+
+Existing consumers use these clients directly; there is no compatibility singleton API for queries or mutations. Agent Merge captures its authorized client with the turn. Host token refresh preserves the client and rotates credentials on the next request; revocation, endpoint changes and a resolved account change reset the dependent runtime. Async consumers release references that arrive after their owning scope has ended and do not install subscriptions with invalidated credentials.
 
 ### Request execution
 

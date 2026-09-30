@@ -5,6 +5,7 @@
 
 import { Event, Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { GitHubAccountHandle, GitHubRequestTimeoutError, IGitHubEndpointProvider, IGitHubTokenProvider } from './githubTypes.js';
 import { GitHubBackoffGate, GitHubBackoffPolicy } from './githubBackoff.js';
@@ -46,6 +47,31 @@ const defaultBackoffPolicy: GitHubBackoffPolicy = {
 
 const credentialResolutionTimeout = 5 * 60_000;
 
+/** Bounds credential selection and resolution, including providers that do not honor cancellation. */
+export async function withGitHubCredentialDeadline<T>(signal: AbortSignal, task: (signal: AbortSignal, deadline: number) => Promise<T>, scheduler: IGitHubScheduler = systemGitHubScheduler): Promise<T> {
+	const controller = new AbortController();
+	const combinedSignal = AbortSignal.any([signal, controller.signal]);
+	const deadline = scheduler.now() + credentialResolutionTimeout;
+	const checkDeadline = () => {
+		combinedSignal.throwIfAborted();
+		if (deadline <= scheduler.now()) {
+			throw new GitHubRequestTimeoutError();
+		}
+	};
+	checkDeadline();
+	const timer = scheduler.schedule(() => controller.abort(new GitHubRequestTimeoutError()), credentialResolutionTimeout);
+	try {
+		const result = await waitForCredential(task(combinedSignal, deadline), combinedSignal);
+		checkDeadline();
+		return result;
+	} catch (error) {
+		checkDeadline();
+		throw error;
+	} finally {
+		timer.dispose();
+	}
+}
+
 interface ICredentialGeneration {
 	readonly token: string;
 	readonly generation: number;
@@ -61,6 +87,10 @@ interface IGitHubUserResponse {
 
 export class GitHubCredentialService extends Disposable implements IGitHubCredentials {
 
+	static createBackoff(scheduler: IGitHubScheduler = systemGitHubScheduler, logService?: ILogService): GitHubBackoffGate {
+		return new GitHubBackoffGate('GitHub identity resolution', defaultBackoffPolicy, scheduler, logService);
+	}
+
 	private readonly _onDidInvalidate = this._register(new Emitter<GitHubCredentialInvalidation>());
 	readonly onDidInvalidate = this._onDidInvalidate.event;
 	private readonly _backoff: GitHubBackoffGate;
@@ -68,6 +98,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 	private _lastCredential: GitHubCredential | undefined;
 	private _generation = 0;
 	private readonly _lifetime = new AbortController();
+	private readonly _identity = generateUuid();
 
 	constructor(
 		private readonly _scheduler: IGitHubScheduler = systemGitHubScheduler,
@@ -76,9 +107,11 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		private readonly _tokenProvider: IGitHubTokenProvider,
 		private readonly _endpointProvider: IGitHubEndpointProvider,
 		private readonly _logService?: ILogService,
+		private readonly _bootstrapQuotaAccount?: GitHubAccountHandle,
+		backoff?: GitHubBackoffGate,
 	) {
 		super();
-		this._backoff = this._register(new GitHubBackoffGate('GitHub identity resolution', policy, this._scheduler, _logService));
+		this._backoff = backoff ?? this._register(new GitHubBackoffGate('GitHub identity resolution', policy, this._scheduler, _logService));
 		if (this._tokenProvider.onDidChangeToken) {
 			this._register(this._tokenProvider.onDidChangeToken(() => this._invalidateCurrent('replacement')));
 		}
@@ -130,22 +163,8 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		super.dispose();
 	}
 
-	private async _withDeadline(signal: AbortSignal, task: (signal: AbortSignal, deadline: number) => Promise<GitHubCredential>): Promise<GitHubCredential> {
-		const controller = new AbortController();
-		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal, controller.signal]);
-		combinedSignal.throwIfAborted();
-		const deadline = this._scheduler.now() + credentialResolutionTimeout;
-		const timer = this._scheduler.schedule(() => controller.abort(new GitHubRequestTimeoutError()), credentialResolutionTimeout);
-		try {
-			const credential = await waitForCredential(task(combinedSignal, deadline), combinedSignal);
-			this._throwIfExpired(combinedSignal, deadline);
-			return credential;
-		} catch (error) {
-			this._throwIfExpired(combinedSignal, deadline);
-			throw error;
-		} finally {
-			timer.dispose();
-		}
+	private _withDeadline(signal: AbortSignal, task: (signal: AbortSignal, deadline: number) => Promise<GitHubCredential>): Promise<GitHubCredential> {
+		return withGitHubCredentialDeadline(AbortSignal.any([signal, this._lifetime.signal]), task, this._scheduler);
 	}
 
 	private _throwIfExpired(signal: AbortSignal, deadline: number): void {
@@ -157,6 +176,10 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 
 	private async _resolve(token: string, signal: AbortSignal, deadline: number): Promise<GitHubCredential> {
 		this._throwIfExpired(signal, deadline);
+		while (this._bootstrapQuotaAccount && this._transport.rateLimits.getDelay(this._bootstrapQuotaAccount, 'core') > 0) {
+			await this._transport.rateLimits.wait(this._bootstrapQuotaAccount, 'core', signal);
+			this._throwIfExpired(signal, deadline);
+		}
 		if (await this._backoff.wait(this._backoffKey(token, this._currentHost()), signal)) {
 			// The wait is long enough for the credential to have been replaced,
 			// and resolving the superseded one would abort the request the
@@ -176,7 +199,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 			const controller = new AbortController();
 			const apiBaseUri = this._endpointProvider.getApiBaseUri();
 			const host = new URL(apiBaseUri).host.toLowerCase();
-			const bootstrapAccount: GitHubAccountHandle = { host, accountId: `bootstrap:${generation}` };
+			const bootstrapAccount: GitHubAccountHandle = { host, accountId: `bootstrap:${this._identity}:${generation}` };
 			this._logService?.debug(`[GitHubCredentialService] Resolving account identity for ${host} (generation ${generation})`);
 			const current: ICredentialGeneration = {
 				token,
@@ -207,7 +230,11 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 						// An invalidated generation was not refused by GitHub, so
 						// it must not count towards the delay the next one serves.
 						if (!controller.signal.aborted) {
-							this._backoff.fail(this._backoffKey(token, host), this._transport.rateLimits.getDelay(bootstrapAccount, 'core'));
+							const cooldown = this._transport.rateLimits.getDelay(bootstrapAccount, 'core');
+							if (this._bootstrapQuotaAccount) {
+								this._transport.rateLimits.preserveCooldown(this._bootstrapQuotaAccount, 'core', cooldown);
+							}
+							this._backoff.fail(this._backoffKey(token, host), cooldown);
 						}
 						this._logService?.debug(`[GitHubCredentialService] Account identity resolution failed for ${host} (generation ${generation}, ${credentialErrorKind(error)})`);
 						throw error;
@@ -294,7 +321,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		if (current.credential) {
 			this._transport.invalidateAccount(current.credential.account);
 		}
-		this._transport.invalidateAccount({ host: current.host, accountId: `bootstrap:${current.generation}` });
+		this._transport.invalidateAccount({ host: current.host, accountId: `bootstrap:${this._identity}:${current.generation}` });
 		this._onDidInvalidate.fire({ credential: current.credential, reason });
 		if (reason === 'endpoint' || reason === 'shutdown') {
 			this._lastCredential = undefined;
@@ -313,7 +340,7 @@ function sameAccount(left: GitHubAccountHandle, right: GitHubAccountHandle): boo
 	return left.host.toLowerCase() === right.host.toLowerCase() && left.accountId === right.accountId;
 }
 
-function waitForCredential(promise: Promise<GitHubCredential>, signal: AbortSignal): Promise<GitHubCredential> {
+function waitForCredential<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
 	return new Promise((resolve, reject) => {
 		const onAbort = () => reject(signal.reason);
 		if (signal.aborted) {
