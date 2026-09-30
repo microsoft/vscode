@@ -84,8 +84,8 @@ import { ISessionsRecentWorkspacesService } from '../../../services/sessions/bro
 
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
-/** Persists whether the new-session options tray is expanded, so the choice is remembered across composers. */
-const SESSION_OPTIONS_EXPANDED_STORAGE_KEY = 'agentSessions.newSession.sessionOptionsExpanded';
+/** Persists whether the user explicitly chose to expand the new-session options tray. */
+const SESSION_OPTIONS_EXPANDED_STORAGE_KEY = 'agentSessions.newSession.sessionOptionsExpanded2';
 let sessionOptionsIdPool = 0;
 const NEW_SESSION_WELCOME_PHRASE_COUNT = 5;
 let nextNewSessionWelcomePhraseIndex = 0;
@@ -194,7 +194,7 @@ export class NewChatWidget extends Disposable {
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
 
-		this._restoreAndPersistSessionOptionsExpanded();
+		this._restoreSessionOptionsExpanded();
 
 		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
 		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
@@ -1280,7 +1280,7 @@ export class NewChatWidget extends Disposable {
 		}));
 		toggle.element.classList.add('new-chat-session-options-toggle');
 		toggle.element.setAttribute('aria-controls', sessionOptions.id);
-		store.add(toggle.onDidClick(() => this._sessionOptionsExpanded.set(!this._sessionOptionsExpanded.get(), undefined)));
+		store.add(toggle.onDidClick(() => this._setSessionOptionsExpandedFromUser(!this._sessionOptionsExpanded.get())));
 		store.add(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, event => {
 			if (!this._useExperimentalComposerLayout.get() || event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
 				return;
@@ -1393,22 +1393,20 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.sessionTypePicker.showPicker();
 	}
 
-	/**
-	 * Restores the remembered expanded/collapsed state of the session options tray and persists
-	 * later changes, so a user who trusts their defaults can keep the composer calm and collapsed
-	 * across sessions.
-	 */
-	private _restoreAndPersistSessionOptionsExpanded(): void {
+	/** Restores an explicit user choice, or uses the experiment-controlled initial state. */
+	private _restoreSessionOptionsExpanded(): void {
 		const storedExpanded = this.storageService.getBoolean(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE);
 		let initialExpanded = storedExpanded ?? true;
 		if (storedExpanded === undefined && isExperimentalSessionComposerLayoutEnabled(this.configurationService)) {
 			logSettingExperimentTrigger(this.telemetryService, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING);
-			initialExpanded = this.configurationService.getValue<boolean>(NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING);
+			initialExpanded = this.configurationService.getValue<boolean>(NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING) ?? true;
 		}
 		this._sessionOptionsExpanded.set(initialExpanded, undefined);
-		this._register(autorun(reader => {
-			this.storageService.store(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, this._sessionOptionsExpanded.read(reader), StorageScope.PROFILE, StorageTarget.USER);
-		}));
+	}
+
+	private _setSessionOptionsExpandedFromUser(expanded: boolean): void {
+		this._sessionOptionsExpanded.set(expanded, undefined);
+		this.storageService.store(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, expanded, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {

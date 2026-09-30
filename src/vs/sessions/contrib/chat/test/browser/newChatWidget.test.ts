@@ -155,7 +155,8 @@ const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreate
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
 const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
-const restoreAndPersistSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreAndPersistSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
+const restoreSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
+const setSessionOptionsExpandedFromUser = Reflect.get(NewChatWidget.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => string | undefined;
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
@@ -214,7 +215,6 @@ interface ISessionOptionsPersistenceHarness {
 	};
 	readonly telemetryService: ITelemetryService;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
-	_register<T extends IDisposable>(disposable: T): T;
 }
 
 interface ISendHarness {
@@ -260,6 +260,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	_workspacePickerRow: HTMLElement | undefined;
 	_workspaceSessionOptionsHost: HTMLElement | undefined;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
+	_setSessionOptionsExpandedFromUser(expanded: boolean): void;
 	readonly _useExperimentalComposerLayout: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
@@ -344,9 +345,9 @@ suite('NewChatWidget', () => {
 	test('remembers the session options expanded state across composers', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const telemetryService = new TestExperimentTriggerTelemetryService();
-		const restore = (initial: boolean, expandedByDefault: boolean) => {
+		const restore = (initial: boolean, expandedByDefault: boolean | undefined) => {
 			const expanded = observableValue('sessionOptionsExpanded', initial);
-			restoreAndPersistSessionOptionsExpanded.call({
+			const harness: ISessionOptionsPersistenceHarness = {
 				storageService,
 				configurationService: {
 					getValue: <T>(key: string) => ({
@@ -357,22 +358,28 @@ suite('NewChatWidget', () => {
 				},
 				telemetryService,
 				_sessionOptionsExpanded: expanded,
-				_register: disposable => disposables.add(disposable),
-			});
-			return expanded;
+			};
+			restoreSessionOptionsExpanded.call(harness);
+			return { expanded, harness };
 		};
 
 		const first = restore(true, false);
-		const configuredDefault = first.get();
-		first.set(true, undefined);
-		const restoredUserChoice = restore(false, false).get();
+		const configuredDefault = first.expanded.get();
+		const defaultBeforeInteraction = restore(true, false).expanded.get();
+		const fallbackDefault = restore(false, undefined).expanded.get();
+		setSessionOptionsExpandedFromUser.call(first.harness, true);
+		const restoredUserChoice = restore(false, false).expanded.get();
 
 		assert.deepStrictEqual({
 			configuredDefault,
+			defaultBeforeInteraction,
+			fallbackDefault,
 			restoredUserChoice,
 			triggers: telemetryService.triggers,
 		}, {
 			configuredDefault: false,
+			defaultBeforeInteraction: false,
+			fallbackDefault: true,
 			restoredUserChoice: true,
 			triggers: [`config.${NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING}`],
 		});
@@ -436,6 +443,7 @@ suite('NewChatWidget', () => {
 			_workspacePickerRow: undefined,
 			_workspaceSessionOptionsHost: undefined,
 			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
+			_setSessionOptionsExpandedFromUser: expanded => harness._sessionOptionsExpanded.set(expanded, undefined),
 			_useExperimentalComposerLayout: observableValue('experimentalComposerLayout', false),
 			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
 			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.
