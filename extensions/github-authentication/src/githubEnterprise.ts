@@ -87,7 +87,7 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 			await migrateEnterpriseStorage(this._context, vscode.Uri.parse(key), uris, options?.legacyUri);
 			this.throwIfDisposed();
 		}
-		const created = this.createHosts(addedKeys, keys.length > 1);
+		const created = this.createHosts(addedKeys);
 		const cancellation = this._disposeCancellation.token.onCancellationRequested(() => created.forEach(disposeHost));
 		try {
 			const initialSessions = await Promise.all(created.map(host => host.engine.getSessions(undefined, { authorizationServer: host.authorizationServer })));
@@ -102,14 +102,13 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 		} finally {
 			cancellation.dispose();
 		}
-		await Promise.all([...this._hosts.values()].map(host => host.engine.setAccountLabelSuffix(keys.length > 1 ? ` (${host.uri.toString(true)})` : undefined)));
 	}
 
-	private createHosts(keys: readonly string[], showHost: boolean): EnterpriseHost[] {
+	private createHosts(keys: readonly string[]): EnterpriseHost[] {
 		const created: EnterpriseHost[] = [];
 		try {
 			for (const key of keys) {
-				created.push(this.createHost(key, showHost));
+				created.push(this.createHost(key));
 			}
 			return created;
 		} catch (error) {
@@ -118,9 +117,9 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 		}
 	}
 
-	private createHost(key: string, showHost: boolean): EnterpriseHost {
+	private createHost(key: string): EnterpriseHost {
 		const uri = vscode.Uri.parse(key);
-		const engine = new GitHubSessionEngine(this._context, this._uriHandler, uri, getEnterpriseStorageKey(uri), showHost ? ` (${uri.toString(true)})` : undefined);
+		const engine = new GitHubSessionEngine(this._context, this._uriHandler, uri, getEnterpriseStorageKey(uri));
 		const initialChanges = new Map<string, vscode.AuthenticationSession | undefined>();
 		const host: EnterpriseHost = {
 			key,

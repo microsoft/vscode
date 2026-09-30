@@ -177,6 +177,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 	private readonly _telemetryReporter: ExperimentationTelemetry;
 	private readonly _keychain: Keychain;
 	private readonly _accountLinks: AccountLinks;
+	private readonly _accountLabelSuffix: string | undefined;
 	private readonly _accountsSeen = new Set<string>();
 	private readonly _disposable: vscode.Disposable | undefined;
 
@@ -217,13 +218,13 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 		private readonly context: vscode.ExtensionContext,
 		uriHandler: UriEventHandler,
 		ghesUri?: vscode.Uri,
-		storageKey?: string,
-		private _accountLabelSuffix?: string
+		storageKey?: string
 	) {
 		const { aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(aiKey));
 
 		const type = ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
+		this._accountLabelSuffix = ghesUri ? ` - ${ghesUri.authority}${ghesUri.path.replace(/\/+$/, '')}` : undefined;
 
 		this._logger = new Log(type, ghesUri);
 
@@ -294,40 +295,13 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 		return [...await this._persistedSessionsPromise, ...this.transientSessions];
 	}
 
-	async setAccountLabelSuffix(suffix: string | undefined): Promise<void> {
-		if (this._accountLabelSuffix === suffix) {
-			return;
-		}
-		this._accountLabelSuffix = suffix;
-		this._persistedSessionsPromise = this.relabelPersistedSessions(this._persistedSessionsPromise);
-		for (const [id, held] of this._transientSessions) {
-			this._transientSessions.set(id, { ...held, session: this.withAccountLabel(held.session) });
-		}
-		const changed = await this.getCachedSessions();
-		if (changed.length) {
-			this._sessionChangeEmitter.fire({ added: [], removed: [], changed });
-		}
-	}
-
-	private async relabelPersistedSessions(sessions: Promise<vscode.AuthenticationSession[]>): Promise<vscode.AuthenticationSession[]> {
-		return (await sessions).map(session => this.withAccountLabel(session));
-	}
-
 	private accountName(label: string): string {
-		if (!label.includes(' (')) {
-			return label;
-		}
-		const suffix = ` (${this._githubServer.getFallbackBaseUri().toString(true)})`;
-		return label.endsWith(suffix) ? label.slice(0, -suffix.length) : label;
+		const suffix = this._accountLabelSuffix;
+		return suffix && label.endsWith(suffix) ? label.slice(0, -suffix.length) : label;
 	}
 
 	private accountLabel(name: string): string {
-		return `${this.accountName(name)}${this._accountLabelSuffix ?? ''}`;
-	}
-
-	private withAccountLabel(session: vscode.AuthenticationSession): vscode.AuthenticationSession {
-		const label = this.accountLabel(session.account.label);
-		return label === session.account.label ? session : { ...session, account: { ...session.account, label } };
+		return `${name}${this._accountLabelSuffix ?? ''}`;
 	}
 
 	async getSessions(scopes: string[] | undefined, options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
@@ -819,7 +793,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 
 	private async storeSessions(sessions: vscode.AuthenticationSession[]): Promise<void> {
 		this._logger.info(`Storing ${sessions.length} sessions...`);
-		this._persistedSessionsPromise = Promise.resolve(sessions.map(session => this.withAccountLabel(session)));
+		this._persistedSessionsPromise = Promise.resolve(sessions);
 		await this._keychain.setToken(JSON.stringify(sessions.map(session => ({
 			...session,
 			account: { ...session.account, label: this.accountName(session.account.label) }
@@ -919,7 +893,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 	}
 
 	private storeTransientSession(session: vscode.AuthenticationSession, expiresAfter: number): vscode.AuthenticationSession {
-		const result = { ...this.withAccountLabel(session), expiresAfter };
+		const result = { ...session, expiresAfter };
 		this._transientSessions.set(result.id, { session: result, expiresAt: Date.now() + expiresAfter });
 		return result;
 	}

@@ -85,6 +85,49 @@ suite('GitHub authentication activation', () => {
 		authorizationServer: vscode.Uri.parse('https://github.com/login/oauth')
 	};
 
+	test('enterprise account-menu labels always include the host and stay stable across configuration changes', async () => {
+		const secrets = new TestSecretStorage();
+		disposables.push(secrets);
+		await secrets.store('github.auth', JSON.stringify([publicSession]));
+		await secrets.store('https://tenant.ghe.com/.ghes.auth', JSON.stringify([{
+			...publicSession, id: 'tenant-session', authorizationServer: vscode.Uri.parse('https://tenant.ghe.com/login/oauth')
+		}]));
+		await secrets.store('https://server.example:8443/Team.ghes.auth', JSON.stringify([{
+			...publicSession, id: 'server-session', authorizationServer: vscode.Uri.parse('https://server.example:8443/Team/login/oauth')
+		}]));
+		const hosts = ['https://tenant.ghe.com'];
+		configure(hosts);
+		const update = sinon.spy(GitHubEnterpriseAuthenticationProvider.prototype, 'update');
+		const writes = sinon.spy(secrets, 'store');
+		await activate(context(secrets, new TestMemento()));
+		const enterprise = providers.get('github-enterprise');
+		const publicProvider = providers.get('github');
+		assert.ok(enterprise && publicProvider);
+		const menuLabels = async () => (await enterprise.getSessions(['repo'], {})).map(session => `${session.account.label} (${registration.lastCall.args[1]})`);
+		const single = await menuLabels();
+
+		hosts.push('https://server.example:8443/Team');
+		configurationChanged.fire({ affectsConfiguration: section => section === enterpriseUrisSetting });
+		await update.lastCall.returnValue;
+		const multiple = await menuLabels();
+
+		hosts.splice(1, 1);
+		configurationChanged.fire({ affectsConfiguration: section => section === enterpriseUrisSetting });
+		await update.lastCall.returnValue;
+		assert.deepStrictEqual({
+			single, multiple,
+			singleAgain: await menuLabels(),
+			publicLabels: (await publicProvider.getSessions(['repo'], {})).map(session => session.account.label),
+			writes: writes.callCount
+		}, {
+			single: ['octocat - tenant.ghe.com (GitHub Enterprise)'],
+			multiple: ['octocat - server.example:8443/Team (GitHub Enterprise)', 'octocat - tenant.ghe.com (GitHub Enterprise)'],
+			singleAgain: single,
+			publicLabels: ['octocat'],
+			writes: 0
+		});
+	});
+
 	test('enterprise initialization failure leaves public GitHub active and registers an actionable error', async () => {
 		const secrets = new TestSecretStorage();
 		disposables.push(secrets);

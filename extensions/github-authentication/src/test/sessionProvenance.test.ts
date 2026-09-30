@@ -19,7 +19,6 @@ interface TestSessionProvider extends vscode.AuthenticationProvider, vscode.Disp
 	readSessions(): Promise<vscode.AuthenticationSession[]>;
 	checkForUpdates(): Promise<void>;
 	getCachedSessions(): Promise<readonly vscode.AuthenticationSession[]>;
-	setAccountLabelSuffix(suffix: string | undefined): Promise<void>;
 }
 
 suite('GitHub session provenance', () => {
@@ -39,7 +38,7 @@ suite('GitHub session provenance', () => {
 		};
 	}
 
-	function createHarness(type: AuthProviderType, baseUri: vscode.Uri, initial: vscode.AuthenticationSession[], authorizationServer = vscode.Uri.joinPath(baseUri, '/login/oauth'), accountLabelSuffix?: string) {
+	function createHarness(type: AuthProviderType, baseUri: vscode.Uri, initial: vscode.AuthenticationSession[], authorizationServer = vscode.Uri.joinPath(baseUri, '/login/oauth')) {
 		const logger = new Log(type);
 		const emitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 		disposables.push(emitter);
@@ -52,7 +51,7 @@ suite('GitHub session provenance', () => {
 		let userInfoCalls = 0;
 		const provider = Object.assign(Object.create(GitHubSessionEngine.prototype), {
 			_logger: logger,
-			_accountLabelSuffix: accountLabelSuffix,
+			_accountLabelSuffix: type === AuthProviderType.githubEnterprise ? ` - ${baseUri.authority}${baseUri.path.replace(/\/+$/, '')}` : undefined,
 			_keychain: {
 				getToken: async () => stored,
 				setToken: async (value: string) => { stored = value; writes.push(value); },
@@ -98,10 +97,9 @@ suite('GitHub session provenance', () => {
 
 	test('creates host labels at the engine boundary while preserving native IDs and saved usernames', async () => {
 		const base = vscode.Uri.parse('https://tenant.ghe.com');
-		const suffix = ` (${base.toString(true)})`;
 		const original = session('native-session-id');
 		const issuer = vscode.Uri.joinPath(base, '/login/oauth');
-		const harness = createHarness(AuthProviderType.githubEnterprise, base, [original], issuer, suffix);
+		const harness = createHarness(AuthProviderType.githubEnterprise, base, [original], issuer);
 		const [loaded] = await harness.provider.getSessions(['repo'], {});
 		const created = await harness.provider.createSession(['repo'], { account: loaded.account, authorizationServer: issuer });
 		const [cached] = await harness.provider.getCachedSessions();
@@ -115,25 +113,30 @@ suite('GitHub session provenance', () => {
 		}, {
 			loadedId: 'native-session-id',
 			accountId: '42',
-			labels: [`octocat${suffix}`, `octocat${suffix}`],
+			labels: ['octocat - tenant.ghe.com', 'octocat - tenant.ghe.com'],
 			loginHints: ['octocat'],
 			storedLabel: 'octocat',
 			sameSession: true
 		});
 	});
 
-	test('changing host labels updates cached sessions without writing credentials', async () => {
+	test('cached reads preserve enterprise labels without publishing changes or writing credentials', async () => {
 		const base = vscode.Uri.parse('https://tenant.ghe.com');
 		const original = session('native-session-id');
 		const harness = createHarness(AuthProviderType.githubEnterprise, base, [original]);
-		await harness.provider.setAccountLabelSuffix(` (${base.toString(true)})`);
-		await harness.provider.setAccountLabelSuffix(undefined);
+		const [first] = await harness.provider.getSessions(['repo'], {});
+		const [cached] = await harness.provider.getCachedSessions();
+		const [reloaded] = await harness.provider.readSessions();
 		assert.deepStrictEqual({
-			changes: harness.changes.map(event => event.changed?.map(session => ({ id: session.id, label: session.account.label }))),
+			labels: [first, cached, reloaded].map(session => session.account.label),
+			sameSession: first === cached,
+			changes: harness.changes,
 			writes: harness.writes,
 			stored: harness.stored
 		}, {
-			changes: [[{ id: original.id, label: 'octocat (https://tenant.ghe.com/)' }], [{ id: original.id, label: 'octocat' }]],
+			labels: ['octocat - tenant.ghe.com', 'octocat - tenant.ghe.com', 'octocat - tenant.ghe.com'],
+			sameSession: true,
+			changes: [],
 			writes: [],
 			stored: JSON.stringify([original])
 		});
@@ -162,6 +165,7 @@ suite('GitHub session provenance', () => {
 	]) {
 		suite(type, () => {
 			const authorizationServer = vscode.Uri.parse(issuer);
+			const account = { ...session('').account, label: type === AuthProviderType.githubEnterprise ? 'octocat - ghe.example:8443/Team Space' : 'octocat' };
 
 			test('loads old saved sessions with provenance without rewriting storage', async () => {
 				const oldSession = session('original-session');
@@ -177,8 +181,8 @@ suite('GitHub session provenance', () => {
 					changes: harness.changes,
 					fallbackCalls: harness.fallbackCalls,
 				}, {
-					loaded: [{ ...oldSession, authorizationServer }],
-					sessions: [{ ...oldSession, authorizationServer }],
+					loaded: [{ ...oldSession, account, authorizationServer }],
+					sessions: [{ ...oldSession, account, authorizationServer }],
 					sameSession: true,
 					stored: JSON.stringify([oldSession]),
 					writes: [],
@@ -204,11 +208,11 @@ suite('GitHub session provenance', () => {
 					revocations: harness.revocations,
 					remaining: await harness.provider.getSessions(['repo'], {})
 				}, {
-					created: { ...native, authorizationServer },
+					created: { ...native, account, authorizationServer },
 					sameSession: true,
 					changes: [
-						{ added: [{ ...native, authorizationServer }], removed: [{ ...oldSession, authorizationServer }], changed: [] },
-						{ added: [], removed: [{ ...native, authorizationServer }], changed: [] }
+						{ added: [{ ...native, account, authorizationServer }], removed: [{ ...oldSession, account, authorizationServer }], changed: [] },
+						{ added: [], removed: [{ ...native, account, authorizationServer }], changed: [] }
 					],
 					writes: [JSON.parse(JSON.stringify([{ ...native, authorizationServer }])), []],
 					reloaded: [issuer],
@@ -229,8 +233,8 @@ suite('GitHub session provenance', () => {
 					stored: harness.stored,
 					writes: harness.writes
 				}, {
-					changes: [{ added: [{ ...addedSession, authorizationServer }], removed: [{ ...oldSession, authorizationServer }], changed: [] }],
-					sessions: [{ ...addedSession, authorizationServer }],
+					changes: [{ added: [{ ...addedSession, account, authorizationServer }], removed: [{ ...oldSession, account, authorizationServer }], changed: [] }],
+					sessions: [{ ...addedSession, account, authorizationServer }],
 					stored: JSON.stringify([addedSession]),
 					writes: []
 				});
