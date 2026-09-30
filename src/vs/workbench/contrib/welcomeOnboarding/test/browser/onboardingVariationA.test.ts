@@ -193,6 +193,22 @@ suite('OnboardingVariationA', () => {
 		}, { hosts, writes: 0, setupCalls: 0, message: 'Enter a GHE.com instance name or HTTPS URL.' });
 	});
 
+	test('a GHES-only configuration prompts for a cloud instance and preserves the server', async () => {
+		const configuration = new TestConfigurationService({ [gitHubEnterpriseUrisSetting]: ['https://github.example.com/Team'] });
+		sinon.stub(configuration, 'updateValue').callsFake((key, value) => configuration.setUserConfiguration(key, value));
+		const { container, executeCommand, commandInvoked } = createOnboarding(configuration);
+		clickEnterpriseSignIn(container);
+		const input = container.querySelector<HTMLInputElement>('.onboarding-a-signin-ghe-input input');
+		assert.ok(input);
+		assert.deepStrictEqual({ value: input.value, setupCalls: executeCommand.callCount }, { value: '', setupCalls: 0 });
+		input.value = 'https://cloud.ghe.com';
+		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		input.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await commandInvoked;
+		await executeCommand.firstCall.returnValue;
+		assert.deepStrictEqual(configuration.getValue(gitHubEnterpriseUrisSetting), ['https://github.example.com/Team', 'https://cloud.ghe.com']);
+	});
+
 	test('correction preserves hosts added while the invalid URI is being edited', async () => {
 		const configuration = new TestConfigurationService({ [gitHubEnterpriseUrisSetting]: ['https://valid.ghe.com', 'not-a-url'] });
 		sinon.stub(configuration, 'updateValue').callsFake((key, value) => configuration.setUserConfiguration(key, value));

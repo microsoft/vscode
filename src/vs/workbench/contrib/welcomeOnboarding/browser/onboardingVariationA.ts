@@ -766,7 +766,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			return;
 		}
 		const invalidUri = uris.find(uri => !isValidGitHubEnterpriseUri(uri));
-		if (!uris.length || invalidUri !== undefined) {
+		const hasCloudInstance = uris.some(uri => parseGheInstanceInput(uri).kind === GheParseResultKind.FullUri);
+		if (!hasCloudInstance || invalidUri !== undefined) {
 			this.enterpriseInstanceValue = invalidUri ?? '';
 			this.enterpriseSignInWatch ??= StopWatch.create();
 			this._setEnterpriseSignInUiState('instance');

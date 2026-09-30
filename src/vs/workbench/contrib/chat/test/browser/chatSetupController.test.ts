@@ -133,6 +133,23 @@ suite('ChatSetupController', () => {
 		}, { hosts, prompts: 0, setupCalls: 1 });
 	});
 
+	test('a GHES-only configuration enrolls a GHE.com instance without replacing the server', async () => {
+		const { controller, configuration, input, setup } = createEnrollmentController({
+			[gitHubEnterpriseUrisSetting]: ['https://github.example.com/Team']
+		});
+		input.resolves('https://cloud.ghe.com');
+		await controller.setupWithProvider({ useEnterpriseProvider: true });
+		assert.deepStrictEqual({
+			prompts: input.getCalls().map(call => call.args[0]?.value),
+			hosts: configuration.getValue(gitHubEnterpriseUrisSetting),
+			setupCalls: setup.callCount
+		}, {
+			prompts: [undefined],
+			hosts: ['https://github.example.com/Team', 'https://cloud.ghe.com'],
+			setupCalls: 1
+		});
+	});
+
 	test('cancels while waiting for browser sign-in', async () => {
 		const signInStarted = new DeferredPromise<void>();
 		const pendingSignIn = new DeferredPromise<Awaited<ReturnType<ChatEntitlementRequests['signIn']>>>();

@@ -366,7 +366,8 @@ export class ChatSetupController extends Disposable {
 		while (!cancellationToken?.isCancellationRequested) {
 			const uris = getConfiguredGitHubEnterpriseUris(this.configurationService, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting);
 			const invalidUri = uris.find(uri => !isValidGitHubEnterpriseUri(uri));
-			if (uris.length && invalidUri === undefined) {
+			const hasCloudInstance = uris.some(uri => parseGheInstanceInput(uri).kind === GheParseResultKind.FullUri);
+			if (hasCloudInstance && invalidUri === undefined) {
 				return true;
 			}
 
