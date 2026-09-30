@@ -70,9 +70,10 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		// Initialize with the model's max tokens
 		this._maxTokens = languageModel.maxInputTokens;
 		this.supportedEditTools = languageModel.capabilities.editToolsHint?.filter(isEndpointEditToolName);
-		this.apiType = languageModel.capabilities.apiType === vscode.LanguageModelChatApiType.ChatCompletions ? 'chatCompletions'
-			: languageModel.capabilities.apiType === vscode.LanguageModelChatApiType.Responses ? 'responses'
-				: languageModel.capabilities.apiType === vscode.LanguageModelChatApiType.Messages ? 'messages' : undefined;
+		const apiTypes = vscode.LanguageModelChatApiType;
+		this.apiType = apiTypes && (languageModel.capabilities.apiType === apiTypes.ChatCompletions ? 'chatCompletions'
+			: languageModel.capabilities.apiType === apiTypes.Responses ? 'responses'
+				: languageModel.capabilities.apiType === apiTypes.Messages ? 'messages' : undefined);
 		this.supportsAdaptiveThinking = languageModel.capabilities.supportsAdaptiveThinking ?? false;
 		const capabilityOverride = getModelCapabilityOverride(languageModel.id, configurationService);
 		this.family = capabilityOverride?.family ?? languageModel.family;

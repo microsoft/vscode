@@ -22,7 +22,8 @@ export interface LanguageModelChatConfiguration {
 	readonly apiKey?: string;
 }
 
-const apiTypes = {
+// Published hosts may not yet expose this proposed API.
+const apiTypes = LanguageModelChatApiType && {
 	chatCompletions: LanguageModelChatApiType.ChatCompletions,
 	responses: LanguageModelChatApiType.Responses,
 	messages: LanguageModelChatApiType.Messages,
@@ -115,7 +116,7 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 				...model,
 				capabilities: {
 					...model.capabilities,
-					apiType: apiTypes[endpoint.apiType],
+					apiType: apiTypes?.[endpoint.apiType],
 					adaptiveThinking: endpoint.supportsAdaptiveThinking,
 				},
 			};
