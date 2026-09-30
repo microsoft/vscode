@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -25,7 +25,8 @@ import type { InitializeResult } from '../../../../../../platform/agentHost/comm
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IGitHubService } from '../../../../../../platform/github/common/githubService.js';
+import { IGitHubClient } from '../../../../../../platform/github/common/githubService.js';
+import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -116,103 +117,116 @@ suite('AgentHostSessionInputPills', () => {
 	});
 	const createInstantiationService = () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
-			credentials: upcastPartial<IGitHubService['credentials']>({
-				onDidInvalidate: Event.None,
-				getCredential: () => new Promise(() => { }),
-			}),
+		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: () => new Promise(() => { }),
 		}));
 		return instantiationService;
 	};
 	const createRichGitHubService = (disposed: string[], options?: {
 		readonly credentialState?: { fail: boolean; calls: number };
 		readonly pullRequestSnapshots?: Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>;
-	}) => upcastPartial<IGitHubService>({
-		credentials: upcastPartial<IGitHubService['credentials']>({
-			onDidInvalidate: Event.None,
-			getCredential: async signal => {
-				if (options?.credentialState) {
-					options.credentialState.calls++;
-					if (options.credentialState.fail) {
-						throw new Error('offline');
+		readonly leases?: { acquired: number; released: number };
+	}) => {
+		const client = upcastPartial<IGitHubClient>({
+			credentials: upcastPartial<IGitHubClient['credentials']>({
+				onDidInvalidate: Event.None,
+				getCredential: async signal => {
+					if (options?.credentialState) {
+						options.credentialState.calls++;
+						if (options.credentialState.fail) {
+							throw new Error('offline');
+						}
 					}
-				}
-				return {
-					account: { host: 'github.com', accountId: 'test' },
-					token: 'token',
-					generation: 1,
-					signal,
-				};
-			},
-		}),
-		query: upcastPartial<IGitHubService['query']>({
-			subscribeIssue: ref => upcastPartial({
-				resource: {
-					ref,
-					state: constObservable({
-						status: 'ready',
-						complete: true,
-						value: {
-							number: ref.number,
-							title: 'Live issue title',
-							body: 'Live issue body',
-							url: `https://github.com/${ref.owner}/${ref.repo}/issues/${ref.number}`,
-							state: 'closed',
-							stateReason: 'completed',
-							author: { login: 'issue-author' },
-							assignees: [],
-							labels: [],
-							createdAt: '2026-09-01T12:00:00Z',
-							updatedAt: '2026-09-02T00:00:00Z',
-						},
-					}),
+					return {
+						account: { host: 'github.com', accountId: 'test' },
+						token: 'token',
+						generation: 1,
+						signal,
+					};
 				},
-				update: () => { },
-				refresh: async () => { },
-				dispose: () => disposed.push(`issue:${ref.number}`),
 			}),
-		}),
-		pullRequests: upcastPartial<IGitHubService['pullRequests']>({
-			subscribePullRequest: (ref): ReturnType<IGitHubService['pullRequests']['subscribePullRequest']> => {
-				const snapshot = observableValue<PullRequestSnapshot>(`pullRequestSnapshot.${ref.number}`, upcastPartial<PullRequestSnapshot>({
-					core: {
-						status: 'ready',
-						complete: true,
-						value: {
-							repositoryNameWithOwner: `${ref.owner}/${ref.repo}`,
-							number: ref.number,
-							title: `Live pull request ${ref.number}`,
-							body: 'Live pull request body',
-							url: `https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`,
-							state: ref.number === 335387 ? 'merged' : 'open',
-							draft: false,
-							headSha: 'head',
-							headRef: 'feature',
-							baseSha: 'base',
-							baseRef: 'main',
-							author: { login: 'pr-author' },
-							createdAt: '2026-09-01T12:00:00Z',
-						},
-					},
-					checks: {
-						status: 'ready',
-						complete: true,
-						value: { headSha: 'head', checks: [], requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true },
-					},
-				}));
-				options?.pullRequestSnapshots?.set(ref.number, snapshot);
-				return upcastPartial({
-					resource: upcastPartial({
+			query: upcastPartial<IGitHubClient['query']>({
+				subscribeIssue: ref => upcastPartial({
+					resource: {
 						ref,
-						snapshot,
-					}),
+						state: constObservable({
+							status: 'ready',
+							complete: true,
+							value: {
+								number: ref.number,
+								title: 'Live issue title',
+								body: 'Live issue body',
+								url: `https://github.com/${ref.owner}/${ref.repo}/issues/${ref.number}`,
+								state: 'closed',
+								stateReason: 'completed',
+								author: { login: 'issue-author' },
+								assignees: [],
+								labels: [],
+								createdAt: '2026-09-01T12:00:00Z',
+								updatedAt: '2026-09-02T00:00:00Z',
+							},
+						}),
+					},
 					update: () => { },
 					refresh: async () => { },
-					dispose: () => disposed.push(`pullRequest:${ref.number}`),
-				});
+					dispose: () => disposed.push(`issue:${ref.number}`),
+				}),
+			}),
+			pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
+				subscribePullRequest: (ref): ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']> => {
+					const snapshot = observableValue<PullRequestSnapshot>(`pullRequestSnapshot.${ref.number}`, upcastPartial<PullRequestSnapshot>({
+						core: {
+							status: 'ready',
+							complete: true,
+							value: {
+								repositoryNameWithOwner: `${ref.owner}/${ref.repo}`,
+								number: ref.number,
+								title: `Live pull request ${ref.number}`,
+								body: 'Live pull request body',
+								url: `https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`,
+								state: ref.number === 335387 ? 'merged' : 'open',
+								draft: false,
+								headSha: 'head',
+								headRef: 'feature',
+								baseSha: 'base',
+								baseRef: 'main',
+								author: { login: 'pr-author' },
+								createdAt: '2026-09-01T12:00:00Z',
+							},
+						},
+						checks: {
+							status: 'ready',
+							complete: true,
+							value: { headSha: 'head', checks: [], requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true },
+						},
+					}));
+					options?.pullRequestSnapshots?.set(ref.number, snapshot);
+					return upcastPartial({
+						resource: upcastPartial({
+							ref,
+							snapshot,
+						}),
+						update: () => { },
+						refresh: async () => { },
+						dispose: () => disposed.push(`pullRequest:${ref.number}`),
+					});
+				},
+			}),
+		});
+		return upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: async () => {
+				if (!options?.leases) {
+					return new ImmortalReference(client);
+				}
+				const leases = options.leases;
+				leases.acquired++;
+				const release = toDisposable(() => leases.released++);
+				return { object: client, dispose: () => release.dispose() };
 			},
-		}),
-	});
+		});
+	};
 
 	test('Back to an untitled draft does not subscribe to its UI identity', () => {
 		const instantiationService = createInstantiationService();
@@ -438,8 +452,9 @@ suite('AgentHostSessionInputPills', () => {
 		const instantiationService = createInstantiationService();
 		const disposedSubscriptions: string[] = [];
 		const credentialState = { fail: false, calls: 0 };
+		const leases = { acquired: 0, released: 0 };
 		const pullRequestSnapshots = new Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>();
-		instantiationService.stub(IGitHubService, createRichGitHubService(disposedSubscriptions, { credentialState, pullRequestSnapshots }));
+		instantiationService.stub(IWorkbenchGitHubService, createRichGitHubService(disposedSubscriptions, { credentialState, pullRequestSnapshots, leases }));
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
 		const issueUrl = 'https://github.com/microsoft/vscode/issues/335383';
@@ -586,6 +601,8 @@ suite('AgentHostSessionInputPills', () => {
 		const cachedHoverCount = pullRequestHoverCache.size;
 		const gitHubReferenceResolver = Reflect.get(pills, '_gitHubReferenceResolver') as {
 			getIssue(target: { owner: string; repo: string; number: number }): IObservable<{ title: string } | undefined>;
+			getPullRequest(target: { owner: string; repo: string; number: number }): void;
+			retain(issues: readonly { owner: string; repo: string; number: number }[], pullRequests: readonly { owner: string; repo: string; number: number }[]): void;
 		};
 		credentialState.fail = true;
 		const recoveredIssue = gitHubReferenceResolver.getIssue({ owner: 'microsoft', repo: 'vscode', number: 999 });
@@ -678,6 +695,14 @@ suite('AgentHostSessionInputPills', () => {
 				controlReplaced: true,
 				focusPreserved: true,
 			},
+		});
+
+		gitHubReferenceResolver.getIssue({ owner: 'microsoft', repo: 'vscode', number: 1000 });
+		gitHubReferenceResolver.getPullRequest({ owner: 'microsoft', repo: 'vscode', number: 1001 });
+		gitHubReferenceResolver.retain([], []);
+		await timeout(0);
+		assert.deepStrictEqual({ leases, credentialCalls: credentialState.calls }, {
+			leases: { acquired: 7, released: 7 }, credentialCalls: 5,
 		});
 	});
 

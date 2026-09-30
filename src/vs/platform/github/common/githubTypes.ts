@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import type { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 
 export type GitHubFetch = typeof globalThis.fetch;
+export type GitHubRequestKind = 'rest' | 'graphql' | 'download';
+export type GitHubTelemetrySource = 'workbench' | 'web' | 'agentHost' | 'sharedProcess' | 'other';
 
 export interface GitHubAccountHandle {
 	readonly host: string;
@@ -30,8 +33,56 @@ export type GitHubRequestErrorKind =
 	| 'rateLimit'
 	| 'network'
 	| 'server'
+	| 'overloaded'
+	| 'timeout'
+	| 'responseTooLarge'
 	| 'malformedResponse'
 	| 'unknown';
+
+export interface GitHubRequestOptions {
+	readonly caller?: string;
+	readonly deadline?: number;
+}
+
+export interface GitHubRequestContext {
+	readonly kind: GitHubRequestKind;
+	readonly account: GitHubAccountHandle;
+	readonly caller: string;
+	readonly resource: string;
+	readonly priority: GitHubRequestPriority;
+	readonly deadline: number;
+	readonly signal: AbortSignal;
+	readonly owner?: object;
+}
+
+export interface GitHubGraphQLError {
+	readonly message?: string;
+	readonly type?: string;
+	readonly path?: readonly (string | number)[];
+	readonly extensions?: {
+		readonly code?: string;
+	};
+}
+
+export class GitHubRequestError extends Error {
+
+	constructor(
+		message: string,
+		readonly kind: GitHubRequestErrorKind,
+		readonly statusCode?: number,
+		readonly responseBody?: string,
+		readonly graphQLErrors?: readonly GitHubGraphQLError[],
+	) {
+		super(message);
+		this.name = 'GitHubRequestError';
+	}
+}
+
+export class GitHubRequestTimeoutError extends GitHubRequestError {
+	constructor(readonly requestDispatched = false) {
+		super('GitHub request timed out', 'timeout');
+	}
+}
 
 export interface GitHubHostCapabilities {
 	readonly graphql: boolean;
@@ -53,8 +104,46 @@ export interface IGitHubTokenProvider {
 	invalidateToken?(token: string): void;
 }
 
+/** Trusted identification supplied by the service binding, not request-provided headers. */
+export interface GitHubClientMetadata {
+	readonly application: string;
+	readonly source: string;
+	/** Describes the fetch implementation, including browser fetch in a desktop renderer. */
+	readonly egress: 'browser' | 'node';
+}
+
 export interface GitHubServiceOptions {
-	readonly endpoint: IGitHubEndpointProvider;
-	readonly tokenProvider: IGitHubTokenProvider;
+	readonly credentialProvider: IGitHubCredentialProvider;
 	readonly fetch?: GitHubFetch;
+	readonly telemetrySource?: GitHubTelemetrySource;
+	readonly clientMetadata?: GitHubClientMetadata;
+	readonly onDidChangeTelemetryLevel?: Event<TelemetryLevel>;
+}
+
+/** Identifies an authorization grant chosen by the hosting binding, never a raw token. */
+export interface GitHubAuthorizationContext {
+	readonly providerId: string;
+	readonly sessionId: string;
+	/** Opaque account provenance supplied by the binding; identity is still verified through GitHub. */
+	readonly accountId?: string;
+	readonly scopes: readonly string[];
+	readonly authorizationServer?: string;
+}
+
+export interface GitHubClientOptions {
+	readonly authorization: GitHubAuthorizationContext;
+	readonly apiBaseUri: string;
+	readonly graphQlUri: string;
+}
+
+export interface GitHubCredentialChange {
+	readonly providerId: string;
+	readonly sessionIds?: readonly string[];
+}
+
+/** Implemented by the host's authentication binding; token access must be silent and context-specific. */
+export interface IGitHubCredentialProvider {
+	readonly onDidChange: Event<GitHubCredentialChange>;
+	getToken(context: GitHubAuthorizationContext, signal: AbortSignal): string | undefined | Promise<string | undefined>;
+	invalidateToken?(context: GitHubAuthorizationContext, token: string): void;
 }

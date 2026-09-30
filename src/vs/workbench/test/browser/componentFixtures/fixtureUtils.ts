@@ -88,6 +88,7 @@ import { TestNotificationService } from '../../../../platform/notification/test/
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../platform/opener/test/common/nullOpenerService.js';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../services/policies/common/accountPolicyService.js';
 import { IApplicationSharedStorageValueChangeEvent, IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageEntry, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -875,6 +876,13 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
  */
 export function registerWorkbenchServices(registration: ServiceRegistration): void {
 	registration.defineInstance(IManagedSettingsService, new NullManagedSettingsService());
+	const accountPolicyGateService = {
+		_serviceBrand: undefined,
+		gateInfo: { state: AccountPolicyGateState.Inactive },
+		onDidChangeGateInfo: Event.None,
+		async whenInitialized(): Promise<void> { },
+	};
+	registration.defineInstance(IAccountPolicyGateService, accountPolicyGateService);
 	registration.defineInstance(IContextMenuService, {
 		showContextMenu: () => { },
 		onDidShowContextMenu: () => ({ dispose: () => { } }),

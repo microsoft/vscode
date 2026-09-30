@@ -6,6 +6,7 @@
 import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -36,7 +37,7 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
-import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
@@ -116,7 +117,7 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 }
 
 const ContextTiers = ['default', 'long_context'] as const;
-const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
+export const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -233,6 +234,13 @@ export interface ICopilotSessionLauncher {
 	 * registering or disposing the returned wrapper.
 	 */
 	launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper>;
+
+	/**
+	 * Resolves the BYOK providers and models that a session launched now would
+	 * register (see {@link synthesizeByokSessionConfig}). Empty when BYOK is gated
+	 * off or the renderer reports no BYOK models.
+	 */
+	resolveByokSessionConfig(sessionId: string): Promise<ICopilotByokSessionConfig>;
 }
 
 type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
@@ -550,12 +558,12 @@ function toSdkCapiSessionOptions(autoTier: AutoModeTier | undefined): Pick<Sessi
  * unit-testable without instantiating the launcher; the launcher passes a
  * `startProxy` thunk that memoizes the single shared proxy handle.
  */
-export async function resolveByokSessionConfig(
+export async function synthesizeByokSessionConfig(
 	sessionId: string,
 	bridgeRegistry: IByokLmBridgeRegistry,
 	startProxy: () => Promise<IByokLmProxyHandle>,
 	logService: ILogService,
-): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
+): Promise<ICopilotByokSessionConfig> {
 	// Surface the serving window's BYOK models. The registry does not union
 	// windows' model sets — all serving windows expose the same set, so it picks
 	// one (see `IByokLmBridgeRegistry`) and the proxy routes inference there.
@@ -608,8 +616,32 @@ export async function resolveByokSessionConfig(
 		...(m.maxPromptTokens !== undefined ? { maxPromptTokens: m.maxPromptTokens } : {}),
 		...(m.maxOutputTokens !== undefined ? { maxOutputTokens: m.maxOutputTokens } : {}),
 	}));
-	logService.info(`[Copilot:${sessionId}] Wired ${models.length} BYOK model(s) across ${providers.length} provider(s) via loopback proxy ${handle.baseUrl}`);
 	return { providers, models };
+}
+
+/**
+ * Merges the currently resolved BYOK config into the config already registered
+ * on a live SDK session. Returns `undefined` when the merge changes nothing, so
+ * callers can skip the `provider.sync` round-trip.
+ *
+ * The merge is additive: an entry in `current` replaces the registered entry
+ * with the same provider name or `provider/id` selection id, and entries missing
+ * from `current` are kept. The runtime deselects a model withdrawn from a live
+ * session, and a renderer can transiently report an empty or partial model set
+ * (e.g. while a window reloads), which must not silently change the session's model.
+ */
+export function mergeByokSessionConfig(applied: ICopilotByokSessionConfig, current: ICopilotByokSessionConfig): ICopilotByokSessionConfig | undefined {
+	const providers = new Map((applied.providers ?? []).map(p => [p.name, p]));
+	for (const provider of current.providers ?? []) {
+		providers.set(provider.name, provider);
+	}
+	const models = new Map((applied.models ?? []).map(m => [`${m.provider}/${m.id}`, m]));
+	for (const model of current.models ?? []) {
+		models.set(`${model.provider}/${model.id}`, model);
+	}
+	const merged: ICopilotByokSessionConfig = { providers: [...providers.values()], models: [...models.values()] };
+	const registered: ICopilotByokSessionConfig = { providers: applied.providers ?? [], models: applied.models ?? [] };
+	return objectsEqual(merged, registered) ? undefined : merged;
 }
 
 /** Applies sandbox configuration, returning false when the runtime retains its policy after a managed conflict. */
@@ -638,7 +670,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	/**
 	 * Memoized handle for the single shared BYOK loopback proxy, started lazily
 	 * on the first session launch that surfaces BYOK models (see
-	 * {@link _resolveByokSessionConfig}). Held as a promise so concurrent
+	 * {@link synthesizeByokSessionConfig}). Held as a promise so concurrent
 	 * launches share one bind. Released and cleared by
 	 * {@link disposeByokProxyHandle} when the owning Copilot client/runtime is
 	 * stopped, so the next start mints a fresh nonce.
@@ -682,7 +714,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const session = AgentSession.uri('copilotcli', plan.sessionId);
 		try {
 			const raw = await this._resumeSession(session, plan, config);
-			return this._finalizeSession(raw, sandboxConfig, plan, plan.fallback.model?.id, config.requestCanvasRenderer === true);
+			return this._finalizeSession(raw, sandboxConfig, plan, plan.fallback.model?.id, config);
 		} catch (err) {
 			let resumeError = err;
 			const errCode = getCopilotSdkErrorCode(resumeError);
@@ -694,7 +726,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
 				try {
 					const raw = await this._resumeSession(session, fallbackPlan, fallbackConfig);
-					return this._finalizeSession(raw, sandboxConfig, fallbackPlan, fallbackPlan.fallback.model?.id, fallbackConfig.requestCanvasRenderer === true);
+					return this._finalizeSession(raw, sandboxConfig, fallbackPlan, fallbackPlan.fallback.model?.id, fallbackConfig);
 				} catch (retryErr) {
 					resumeError = retryErr;
 					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
@@ -755,10 +787,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
-		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id, config.requestCanvasRenderer === true);
+		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id, config);
 	}
 
-	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, canvasRuntimeEnabled: boolean): Promise<CopilotSessionWrapper> {
+	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ResumeSessionConfig): Promise<CopilotSessionWrapper> {
 		plan.stageRecorder?.mark('finalize');
 		try {
 			await this._applyScriptSafety(raw, plan.sessionId);
@@ -774,7 +806,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (isGpt56Model(modelId)) {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
-		return new CopilotSessionWrapper(raw, canvasRuntimeEnabled, this._logService);
+		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, this._logService);
 	}
 
 	private async _reconcileCopilotConnectors(session: CopilotSessionWrapper['session'], plan: CopilotSessionLaunchPlan): Promise<void> {
@@ -870,18 +902,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	/**
-	 * Launcher-bound wrapper over {@link resolveByokSessionConfig}: supplies the
+	 * Launcher-bound wrapper over {@link synthesizeByokSessionConfig}: supplies the
 	 * active bridge registry and a `startProxy` thunk that memoizes the single
 	 * shared proxy handle for this launcher (started lazily on first use).
 	 */
-	private _resolveByokSessionConfig(sessionId: string): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
+	resolveByokSessionConfig(sessionId: string): Promise<ICopilotByokSessionConfig> {
 		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
 		const { enabled, trace } = resolveByokLmEnablement(rootConfigValue);
 		this._logService.trace(`[Copilot:${sessionId}] BYOK session configuration ${trace}`);
 		if (!enabled) {
 			return Promise.resolve({});
 		}
-		return resolveByokSessionConfig(sessionId, this._byokLmBridgeRegistry, () => {
+		return synthesizeByokSessionConfig(sessionId, this._byokLmBridgeRegistry, () => {
 			if (!this._byokProxyHandle) {
 				this._byokProxyHandle = this._byokLmProxyService.start();
 			}
@@ -948,9 +980,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
 		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
-		const byokPromise = this._resolveByokSessionConfig(plan.sessionId);
+		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
 		const [byok, shellTools, customAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);
+		if (byok.models?.length) {
+			// The provider base URL carries the proxy's host:port, which correlates a
+			// session with its `ByokLmProxyService` bind when reading logs.
+			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${byok.models.length} BYOK model(s) across ${byok.providers?.length ?? 0} provider(s) via loopback proxy ${byok.providers?.[0]?.baseUrl}`);
+		}
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;

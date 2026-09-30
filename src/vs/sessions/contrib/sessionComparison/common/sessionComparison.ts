@@ -3,6 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disableFoundryLocalInstall } from './foundryLocalInstall.ts';
-
-disableFoundryLocalInstall();
+export const OPEN_SESSION_COMPARISON_COMMAND_ID = 'sessions.openComparison';
+export const HIDE_INACTIVE_COMPARISON_INPUTS_SETTING = 'sessions.chat.compareAgents.hideInactiveInputs';

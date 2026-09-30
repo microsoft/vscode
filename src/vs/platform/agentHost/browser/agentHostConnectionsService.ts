@@ -5,15 +5,20 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { ILogService } from '../../log/common/log.js';
+import { IPathService } from '../../path/common/pathService.js';
 import { AgentSession } from '../common/agent.js';
 import { IAgentConnection, IAgentHostService } from '../common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionInfo, IAgentHostConnectionsService, IAgentHostSessionIdentity, IAgentHostSessionResolution, IAgentHostSessionResolutionPolicy, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../common/agentHostConnectionsService.js';
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeAuthorityPrefix } from '../common/agentHostSessionType.js';
-import { agentHostAuthority } from '../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
-import type { URI } from '../../../base/common/uri.js';
+import { getAgentHostOperatingSystem } from '../common/agentHostOperatingSystem.js';
 
 /**
  * Default {@link IAgentHostConnectionsService} that composes the ambient
@@ -33,9 +38,14 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@IPathService pathService: IPathService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
+		this._register(pathService.registerPathProvider(AGENT_HOST_SCHEME, {
+			getOperatingSystem: resource => this._getOperatingSystem(resource),
+		}));
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._fireConnectionsChanged()));
 		// Ambient (re)start/exit changes whether the ambient connection is ready.
 		this._register(this._agentHostService.onAgentHostStart(() => this._fireConnectionsChanged()));
@@ -74,10 +84,34 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 	}
 
 	getConnectionByAuthority(authority: string): IAgentConnection | undefined {
-		if (authority === AMBIENT_AGENT_HOST_AUTHORITY) {
+		if (authority === AMBIENT_AGENT_HOST_AUTHORITY || authority === this._ambientResourceAuthority) {
 			return this._agentHostService;
 		}
 		return this._remoteAgentHostService.getConnectionByAuthority(authority);
+	}
+
+	private get _ambientResourceAuthority(): string | undefined {
+		const resource = this._agentHostService.resourceUris.fromAgentHost(URI.from({ scheme: Schemas.file, path: '/' }));
+		return resource.scheme === AGENT_HOST_SCHEME ? resource.authority : undefined;
+	}
+
+	private async _getOperatingSystem(resource: URI): Promise<OperatingSystem | undefined> {
+		const remote = this._remoteAgentHostService.connections.find(info => agentHostAuthority(info.address) === resource.authority);
+		if (remote?.operatingSystem !== undefined) {
+			return remote.operatingSystem;
+		}
+
+		const connection = this.getConnectionByAuthority(resource.authority);
+		if (!connection) {
+			return undefined;
+		}
+
+		try {
+			return await getAgentHostOperatingSystem(connection);
+		} catch (error) {
+			this._logService.error(`[AgentHostConnections] Failed to resolve the operating system for authority ${resource.authority}`, error);
+			return undefined;
+		}
 	}
 
 	getConnectionByAddress(address: string): IAgentConnection | undefined {

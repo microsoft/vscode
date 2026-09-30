@@ -78,12 +78,12 @@ const TABBED_PICKER_WIDTH = 360;
 const RESTORE_CONNECT_GRACE_MS = 5000;
 const MAX_NEW_PICKER_RECENT_WORKSPACES = 10;
 /**
- * A touch tap fires a Gesture Tap and, shortly after, a browser "ghost" click. Both would toggle
- * the picker, opening then immediately closing it. A click within this window of a tap on the same
- * trigger is treated as that ghost click and ignored. A deliberate mouse click has no preceding tap,
- * so double-click toggling is unaffected.
+ * A touch tap fires a Gesture Tap and, shortly after, a browser "ghost" click at the same position.
+ * The picker may render under that position before the click arrives, so the click can be retargeted
+ * to a picker item rather than the trigger.
  */
 const GHOST_CLICK_GUARD_MS = 500;
+const GHOST_CLICK_GUARD_DISTANCE = 30;
 
 /**
  * Item type used in the action list.
@@ -136,10 +136,11 @@ export interface IWorkspacePickerNoWorkspaceOption {
 export interface IWorkspacePickerTrigger {
 	readonly label?: string;
 	readonly ariaLabel: string;
-	readonly tooltip?: string;
+	readonly tooltip?: string | (() => string);
 	readonly focusCommand?: { readonly id: string; readonly when: ContextKeyExpression; readonly enabled: IObservable<boolean> };
 	readonly icon?: ThemeIcon;
 	readonly contextViewLayer?: number;
+	readonly hideNoWorkspaceOption?: boolean;
 	readonly hideIconWhenAttached?: boolean;
 	readonly reflectsWorkspace?: boolean;
 	readonly group?: string;
@@ -576,6 +577,17 @@ export class WorkspacePicker extends Disposable {
 		return slot;
 	}
 
+	/**
+	 * Renders another trigger without replacing the primary picker controls.
+	 */
+	renderAdditionalTrigger(container: HTMLElement, options: IWorkspacePickerTrigger): IDisposable {
+		const disposables = new DisposableStore();
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-workspace-picker'));
+		disposables.add({ dispose: () => slot.remove() });
+		disposables.add(this._addTrigger(slot, options));
+		return disposables;
+	}
+
 	renderCategoryTriggers(container: HTMLElement, triggers: readonly IWorkspacePickerTrigger[], label?: string): HTMLElement {
 		this._renderDisposables.clear();
 		const row = dom.append(container, dom.$('.sessions-workspace-category-picker'));
@@ -641,10 +653,11 @@ export class WorkspacePicker extends Disposable {
 		this._renderTriggerLabel(trigger);
 		if (options?.tooltip) {
 			if (options.focusCommand) {
+				const tooltip = typeof options.tooltip === 'function' ? options.tooltip() : options.tooltip;
 				registerPickerKeybindingPresentation(
 					triggerDisposables,
 					trigger,
-					options.tooltip,
+					tooltip,
 					options.focusCommand.id,
 					options.focusCommand.when,
 					options.focusCommand.enabled,
@@ -654,7 +667,10 @@ export class WorkspacePicker extends Disposable {
 					this.keybindingService,
 				);
 			} else {
-				triggerDisposables.add(this.hoverService.setupDelayedHover(trigger, { content: options.tooltip }));
+				const tooltip = options.tooltip;
+				triggerDisposables.add(typeof tooltip === 'function'
+					? this.hoverService.setupDelayedHover(trigger, () => ({ content: tooltip() }))
+					: this.hoverService.setupDelayedHover(trigger, { content: tooltip }));
 			}
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour
@@ -666,19 +682,26 @@ export class WorkspacePicker extends Disposable {
 		}));
 
 		triggerDisposables.add(touch.Gesture.addTarget(trigger));
-		// A touch tap fires a Gesture Tap and then a browser ghost click; ignore that click so a
-		// single tap does not open and immediately re-close the picker.
-		let lastTapAt = 0;
+		let pendingTap: { readonly at: number; readonly pageX: number; readonly pageY: number } | undefined;
+		triggerDisposables.add(dom.addDisposableListener(dom.getWindow(trigger).document, dom.EventType.CLICK, e => {
+			if (!pendingTap || this._now() - pendingTap.at >= GHOST_CLICK_GUARD_MS) {
+				pendingTap = undefined;
+				return;
+			}
+			if (e.detail > 0
+				&& Math.abs(e.pageX - pendingTap.pageX) < GHOST_CLICK_GUARD_DISTANCE
+				&& Math.abs(e.pageY - pendingTap.pageY) < GHOST_CLICK_GUARD_DISTANCE) {
+				pendingTap = undefined;
+				dom.EventHelper.stop(e, true);
+			}
+		}, true));
 		triggerDisposables.add(dom.addDisposableListener(trigger, touch.EventType.Tap, (e) => {
-			lastTapAt = this._now();
+			pendingTap = { at: this._now(), pageX: e.pageX, pageY: e.pageY };
 			dom.EventHelper.stop(e, true);
 			this.showPicker(false, trigger, options?.group, options?.attachesContext);
 		}));
 		triggerDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
 			dom.EventHelper.stop(e, true);
-			if (this._now() - lastTapAt < GHOST_CLICK_GUARD_MS) {
-				return;
-			}
 			this.showPicker(false, trigger, options?.group, options?.attachesContext);
 		}));
 		triggerDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
@@ -1887,7 +1910,10 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		const noWorkspaceOption = this._getNoWorkspaceOption();
-		if (!noWorkspaceOption || this._directPickerAttachesContext === true) {
+		const hideNoWorkspaceOption = this._activeTriggerElement
+			? this._triggerOptions.get(this._activeTriggerElement)?.hideNoWorkspaceOption === true
+			: false;
+		if (!noWorkspaceOption || this._directPickerAttachesContext === true || hideNoWorkspaceOption) {
 			return items;
 		}
 
