@@ -928,9 +928,6 @@ suite('Workbench - TerminalInstance', () => {
 
 		function createMockTerminalInstance(options: {
 			cwd?: string;
-			isTrusted?: boolean;
-			processCwd?: string;
-			backendOS?: OperatingSystem;
 			remoteAuthority?: string;
 			fileExists?: boolean;
 			fileServiceCanHandle?: boolean;
@@ -939,8 +936,7 @@ suite('Workbench - TerminalInstance', () => {
 
 			if (options.cwd) {
 				const mockCwdDetection = {
-					getCwd: () => options.cwd,
-					isTrusted: options.isTrusted !== false,
+					getCwd: () => options.cwd
 				};
 				capabilities.add(TerminalCapability.CwdDetection, mockCwdDetection as unknown as ICwdDetectionCapability);
 			}
@@ -965,12 +961,7 @@ suite('Workbench - TerminalInstance', () => {
 				capabilities,
 				remoteAuthority: options.remoteAuthority,
 				async getCwdResource(): Promise<URI | undefined> {
-					const cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
-					const cwd = cwdDetection?.isTrusted
-						? cwdDetection.getCwd()
-						: options.backendOS === OperatingSystem.Windows
-							? undefined
-							: options.processCwd;
+					const cwd = this.capabilities.get(TerminalCapability.CwdDetection)?.getCwd();
 					if (!cwd) {
 						return undefined;
 					}
@@ -1028,28 +1019,19 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(result, undefined);
 		});
 
-		test('should use process cwd when detected cwd is untrusted', async () => {
-			const instance = await createRealTerminalInstance({ processCwd: '/process' });
-			const result = await instance.getCwdResourceForAuthorization();
-			strictEqual(result?.path, '/process');
-		});
-
-		test('should return undefined when detected cwd is untrusted and process cwd is unavailable', async () => {
-			const instance = await createRealTerminalInstance({});
-			const result = await instance.getCwdResourceForAuthorization();
-			strictEqual(result, undefined);
-		});
-
-		test('should return undefined for untrusted cwd on Windows', async () => {
-			const instance = await createRealTerminalInstance({ processCwd: 'C:\\process', backendOS: OperatingSystem.Windows });
-			const result = await instance.getCwdResourceForAuthorization();
-			strictEqual(result, undefined);
-		});
-
-		test('should preserve untrusted detected cwd for non-authorization callers', async () => {
-			const instance = await createRealTerminalInstance({ processCwd: '/process' });
-			const result = await instance.getCwdResource();
-			strictEqual(result?.path, '/spoofed');
+		test('should only authorize with a trusted or process-reported cwd', async () => {
+			const cases: [{ processCwd?: string; backendOS?: OperatingSystem }, 'authorization' | 'display'][] = [
+				[{ processCwd: '/process' }, 'authorization'],
+				[{}, 'authorization'],
+				[{ processCwd: 'C:\\process', backendOS: OperatingSystem.Windows }, 'authorization'],
+				[{ processCwd: '/process' }, 'display'],
+			];
+			const paths: (string | undefined)[] = [];
+			for (const [options, use] of cases) {
+				const instance = await createRealTerminalInstance(options);
+				paths.push((use === 'authorization' ? await instance.getCwdResourceForAuthorization() : await instance.getCwdResource())?.path);
+			}
+			deepStrictEqual(paths, ['/process', undefined, undefined, '/spoofed']);
 		});
 
 		test('should return URI.file for local terminal when file exists', async () => {
