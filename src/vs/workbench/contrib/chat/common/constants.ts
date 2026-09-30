@@ -629,6 +629,8 @@ export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.open
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
 /** Cumulative number of sessions started from the Agents Window, persisted in application storage. */
 export const AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY = 'agentSessions.telemetry.totalSessions';
+/** Whether a request has ever been successfully sent from the Agents Window, persisted in application storage. */
+export const AGENTS_WINDOW_HAS_RUN_REQUEST_STORAGE_KEY = 'agentSessions.hasRunRequest';
 export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
 	ChatEntitlementContextKeys.Setup.hidden.negate(),
 	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),

@@ -287,6 +287,7 @@ export class SessionsLifecycleTracker extends Disposable {
 	}
 
 	private _recordRequestSent(session: ISession, isNewChat: boolean): void {
+		this._usage.recordRequest();
 		const entry = this._ensure(session);
 		entry.requestsSent++;
 		if (isNewChat) {

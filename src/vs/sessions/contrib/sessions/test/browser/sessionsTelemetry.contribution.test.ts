@@ -35,6 +35,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { SessionsTelemetryContribution } from '../../browser/sessionsTelemetry.contribution.js';
 import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';
+import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 
@@ -366,6 +367,7 @@ suite('SessionsTelemetryContribution', () => {
 			editorMessagesWithOtherSessionInProgressAcrossWindows: 1,
 			editorLastMessageSecondsAgo: 5,
 		});
+		assert.strictEqual(new AgentsWindowUsage(storageService).hasRunRequest, true);
 	});
 
 	test('requestSent snapshots the non-archived Sessions list count independently of visible grid slots', async () => {

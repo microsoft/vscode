@@ -24,7 +24,7 @@ import { asJson, IRequestService } from '../../../../platform/request/common/req
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { timeout } from '../../../../base/common/async.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { CopilotAssignmentFilterProvider, GitHubCoreAssignmentsFilterProvider } from './assignmentFilters.js';
+import { AgentsWindowAssignmentFilterProvider, CopilotAssignmentFilterProvider, GitHubCoreAssignmentsFilterProvider } from './assignmentFilters.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AssignmentContextFilter } from './assignmentContextFilter.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -482,6 +482,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		const extensionsFilterProvider = this.instantiationService.createInstance(CopilotAssignmentFilterProvider);
 		this.tasSetupDisposables.add(extensionsFilterProvider);
 		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
+		const agentsWindowFilterProvider = this.instantiationService.createInstance(AgentsWindowAssignmentFilterProvider);
+		this.tasSetupDisposables.add(agentsWindowFilterProvider);
+		this.tasSetupDisposables.add(agentsWindowFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
 
 		// New TAS assignments API. Its endpoint is sourced from account entitlements and it
 		// uses dedicated providers that emit the new userParam key names, so the legacy filter
@@ -505,6 +508,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 				coreAssignmentsFilterProvider,
 				githubAssignmentsFilterProvider,
 				{ getFilters: () => extensionsFilterProvider.getAssignmentsFilters() },
+				{ getFilters: () => agentsWindowFilterProvider.getAssignmentsFilters() },
 			];
 		}
 
@@ -521,7 +525,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		// module loading time from the measurement.
 		const fetchStopWatch = StopWatch.create();
 		const tasClient = new tasClientModule.ExperimentationService({
-			filterProviders: [filterProvider, extensionsFilterProvider],
+			filterProviders: [filterProvider, extensionsFilterProvider, agentsWindowFilterProvider],
 			telemetry,
 			storageKey: ASSIGNMENT_STORAGE_KEY,
 			keyValueStorage,

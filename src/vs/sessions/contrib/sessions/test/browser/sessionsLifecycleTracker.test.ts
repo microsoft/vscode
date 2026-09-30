@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { SessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
@@ -124,6 +125,15 @@ suite('SessionsLifecycleTracker', () => {
 		tracker.recordNewChatRequestSent(session);
 
 		assert.strictEqual(tracker.isTracked(session.sessionId), true);
+	});
+
+	test('records that the user has run an Agents window request', () => {
+		const session = createSession('s1');
+		const usage = new AgentsWindowUsage(storage);
+
+		tracker.recordRequestSent(session);
+
+		assert.strictEqual(usage.hasRunRequest, true);
 	});
 
 	test('finalize emits summary and removes tracking entry', () => {

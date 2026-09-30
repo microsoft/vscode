@@ -5,12 +5,13 @@
 
 import type { IExperimentationFilterProvider } from 'tas-client';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { AgentsWindowUsage } from '../../../contrib/chat/common/agentsWindowUsage.js';
 import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 
@@ -55,6 +56,37 @@ export enum ExtensionsFilter {
 	 * Whether the `fcv1` flag is set to `'1'` in the copilot token.
 	 */
 	CopilotIsFcv1 = 'X-GitHub-Copilot-IsFcv1',
+}
+
+export enum AgentsWindowFilter {
+	HasRunRequest = 'X-VSCode-AgentsWindowHasRunRequest',
+}
+
+export enum AgentsWindowAssignmentsFilter {
+	HasRunRequest = 'vscode_core_agentswindowhasrunrequest',
+}
+
+export class AgentsWindowAssignmentFilterProvider extends Disposable implements IExperimentationFilterProvider {
+	private readonly usage: AgentsWindowUsage;
+	private readonly _onDidChangeFilters = this._register(new Emitter<void>());
+	readonly onDidChangeFilters = this._onDidChangeFilters.event;
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+	) {
+		super();
+		this.usage = new AgentsWindowUsage(storageService);
+		const store = this._register(new DisposableStore());
+		this._register(this.usage.onDidChangeHasRunRequest(store)(() => this._onDidChangeFilters.fire()));
+	}
+
+	getFilters(): Map<string, string> {
+		return new Map([[AgentsWindowFilter.HasRunRequest, this.usage.hasRunRequest ? '1' : '0']]);
+	}
+
+	getAssignmentsFilters(): Map<string, string> {
+		return new Map([[AgentsWindowAssignmentsFilter.HasRunRequest, this.usage.hasRunRequest ? '1' : '0']]);
+	}
 }
 
 enum StorageVersionKeys {

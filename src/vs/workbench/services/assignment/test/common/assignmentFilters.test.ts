@@ -12,11 +12,58 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
+import { AGENTS_WINDOW_HAS_RUN_REQUEST_STORAGE_KEY, AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../contrib/chat/common/constants.js';
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { TestExtensionService, mock } from '../../../../test/common/workbenchTestServices.js';
-import { CopilotAssignmentFilterProvider, ExtensionsFilter, GitHubAssignmentsFilter, GitHubCoreAssignmentsFilterProvider } from '../../common/assignmentFilters.js';
+import { AgentsWindowAssignmentFilterProvider, AgentsWindowAssignmentsFilter, AgentsWindowFilter, CopilotAssignmentFilterProvider, ExtensionsFilter, GitHubAssignmentsFilter, GitHubCoreAssignmentsFilterProvider } from '../../common/assignmentFilters.js';
+
+suite('AgentsWindowAssignmentFilterProvider', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('emits legacy and assignments filters and refreshes after first request', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, storage);
+		const provider = disposables.add(instantiationService.createInstance(AgentsWindowAssignmentFilterProvider));
+		let changes = 0;
+		disposables.add(provider.onDidChangeFilters(() => changes++));
+
+		const before = {
+			legacy: Object.fromEntries(provider.getFilters()),
+			assignments: Object.fromEntries(provider.getAssignmentsFilters()),
+		};
+		storage.store(AGENTS_WINDOW_HAS_RUN_REQUEST_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const after = {
+			legacy: Object.fromEntries(provider.getFilters()),
+			assignments: Object.fromEntries(provider.getAssignmentsFilters()),
+		};
+
+		assert.deepStrictEqual({ before, after, changes }, {
+			before: {
+				legacy: { [AgentsWindowFilter.HasRunRequest]: '0' },
+				assignments: { [AgentsWindowAssignmentsFilter.HasRunRequest]: '0' },
+			},
+			after: {
+				legacy: { [AgentsWindowFilter.HasRunRequest]: '1' },
+				assignments: { [AgentsWindowAssignmentsFilter.HasRunRequest]: '1' },
+			},
+			changes: 1,
+		});
+	});
+
+	test('backfills the filter from the existing session counter', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, 2, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, storage);
+		const provider = disposables.add(instantiationService.createInstance(AgentsWindowAssignmentFilterProvider));
+
+		assert.strictEqual(provider.getAssignmentsFilters().get(AgentsWindowAssignmentsFilter.HasRunRequest), '1');
+	});
+});
 
 suite('CopilotAssignmentFilterProvider', () => {
 
