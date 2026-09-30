@@ -8189,7 +8189,11 @@ suite('AgentService (node dispatcher)', () => {
 				const orphanSessions = orphans.map(orphan => orphan.toString()).sort();
 				const orphanOutcomes = outcomes
 					.filter((outcome): outcome is { readonly session: string; readonly status: string; readonly reason: string } =>
-						typeof outcome === 'object' && outcome !== null && 'session' in outcome && orphanSessions.includes(outcome.session))
+						typeof outcome === 'object' && outcome !== null
+						&& 'session' in outcome && typeof outcome.session === 'string'
+						&& 'status' in outcome && typeof outcome.status === 'string'
+						&& 'reason' in outcome && typeof outcome.reason === 'string'
+						&& orphanSessions.includes(outcome.session))
 					.sort((a, b) => a.session.localeCompare(b.session));
 				const provisionalMarkers = (await orchestratorDatabase.listProvisionalSessions())
 					.filter(session => orphanSessions.includes(session))
