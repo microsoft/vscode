@@ -82,6 +82,11 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: prepare
+          onlyOnNodeModulesCacheMiss: true
+
       - script: |
           set -e
 
@@ -141,6 +146,11 @@ jobs:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - template: ../common/foundry-local.yml@self
+        parameters:
+          phase: install
+          onlyOnNodeModulesCacheMiss: true
 
       - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

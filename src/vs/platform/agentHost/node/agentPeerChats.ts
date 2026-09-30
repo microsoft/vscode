@@ -4,182 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
-import { renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
-import { type ActiveTurn, type AgentSelection, type ModelSelection, type Turn } from '../common/state/protocol/state.js';
-
-const SIDE_CHAT_CONTEXT_START = '<side-chat-context>';
-const SIDE_CHAT_CONTEXT_END = '</side-chat-context>';
-const SIDE_CHAT_CONTEXT_LENGTH_PREFIX = 'length=';
-const SIDE_CHAT_GUIDANCE = 'This is a side conversation. Prefer explanation over action; do not make changes or carry out work unless the user explicitly asks.';
-export const MAX_SIDE_CHAT_CONTEXT_CHARS = 20_000;
-
-export interface IPersistedSideChat {
-	readonly source?: string;
-	readonly turnId: string;
-	readonly selection?: { readonly text: string; readonly responsePartId?: string };
-	readonly providerAnchorTurnId?: string;
-	/** Id of the last turn the chat inherited from its source. */
-	readonly inheritedTurnId?: string;
-	readonly partialResponse?: string;
-	readonly context?: string;
-}
-
-export function buildSideChatSourceContext(turns: readonly Turn[], activeTurn?: ActiveTurn): string | undefined {
-	const blocks: string[] = [];
-	for (const turn of turns) {
-		const block = buildSideChatContextBlock(turn.message.text, renderResponseMarkdown(turn.responseParts));
-		if (block) {
-			blocks.push(block);
-		}
-	}
-	if (activeTurn) {
-		const block = buildSideChatContextBlock(activeTurn.message.text, undefined);
-		if (block) {
-			blocks.push(block);
-		}
-	}
-	if (blocks.length === 0) {
-		return undefined;
-	}
-	const conversation = blocks.join('\n\n---\n\n');
-	return conversation.length > MAX_SIDE_CHAT_CONTEXT_CHARS ? truncateMiddle(conversation, MAX_SIDE_CHAT_CONTEXT_CHARS) : conversation;
-}
-
-export function getSideChatPartialResponse(activeTurn: ActiveTurn | undefined): string | undefined {
-	if (!activeTurn) {
-		return undefined;
-	}
-	const responseMarkdown = renderResponseMarkdown(activeTurn.responseParts);
-	return responseMarkdown ? truncateMiddle(responseMarkdown, MAX_SIDE_CHAT_CONTEXT_CHARS) : undefined;
-}
-
-export function buildBoundedSideChatSourceContext(turns: readonly Turn[], turnId: string, activeTurn?: ActiveTurn): string | undefined {
-	if (activeTurn?.id === turnId) {
-		return buildSideChatSourceContext(turns, activeTurn);
-	}
-	const turnIndex = turns.findIndex(turn => turn.id === turnId);
-	return turnIndex === -1 ? undefined : buildSideChatSourceContext(turns.slice(0, turnIndex + 1));
-}
-
-export function injectSideChatContext(prompt: string, partialResponse?: string, sourceContext?: string, selectionText?: string): string {
-	const context = [SIDE_CHAT_GUIDANCE];
-	if (selectionText) {
-		context.push(
-			'',
-			'Selected text:',
-			'',
-			selectionText,
-		);
-	}
-	if (sourceContext) {
-		context.push(
-			'',
-			'Source conversation up to the branching point:',
-			'',
-			sourceContext,
-		);
-	}
-	if (partialResponse) {
-		context.push(
-			'',
-			'The side chat was created while the source assistant was still responding.',
-			'The user-visible response had produced the following text at that moment:',
-			'',
-			partialResponse,
-		);
-	}
-	const contextBody = context.join('\n');
-	return [SIDE_CHAT_CONTEXT_START, `${SIDE_CHAT_CONTEXT_LENGTH_PREFIX}${contextBody.length}`, contextBody, SIDE_CHAT_CONTEXT_END, '', prompt].join('\n');
-}
-
-export function prepareSideChatPrompt(prompt: string, turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): string {
-	if (!sideChat || turns.length > resolveSideChatBoundary(turns, sideChat)) {
-		return prompt;
-	}
-	const selectedSourceTurn = turns.find(turn => turn.id === sideChat.turnId);
-	const sourceContext = selectedSourceTurn ? undefined : sideChat.context;
-	let partialResponse = sideChat.partialResponse;
-	if (partialResponse) {
-		const inheritedResponse = selectedSourceTurn ? renderResponseMarkdown(selectedSourceTurn.responseParts) : '';
-		if (inheritedResponse.includes(partialResponse)) {
-			partialResponse = undefined;
-		}
-	}
-	return injectSideChatContext(prompt, partialResponse, sourceContext, sideChat.selection?.text);
-}
-
-function buildSideChatContextBlock(message: string, response: string | undefined): string | undefined {
-	const userText = message.trim();
-	const responseText = response?.trim();
-	if (!userText && !responseText) {
-		return undefined;
-	}
-	return responseText
-		? `User request:\n${userText}\n\nAgent response:\n${responseText}`
-		: `User request:\n${userText}`;
-}
-
-function parseSideChatSeed(text: string): string | undefined {
-	if (!text.startsWith(SIDE_CHAT_CONTEXT_START)) {
-		return undefined;
-	}
-	const lengthHeaderStart = SIDE_CHAT_CONTEXT_START.length + 1;
-	if (text.slice(lengthHeaderStart).startsWith(SIDE_CHAT_CONTEXT_LENGTH_PREFIX)) {
-		const lengthLineEnd = text.indexOf('\n', lengthHeaderStart);
-		const parsedLength = lengthLineEnd > 0
-			? Number.parseInt(text.slice(lengthHeaderStart + SIDE_CHAT_CONTEXT_LENGTH_PREFIX.length, lengthLineEnd), 10)
-			: Number.NaN;
-		if (Number.isInteger(parsedLength) && parsedLength >= 0) {
-			const contextStart = lengthLineEnd + 1;
-			const contextEnd = contextStart + parsedLength;
-			if (text.slice(contextEnd, contextEnd + SIDE_CHAT_CONTEXT_END.length + 1) === `\n${SIDE_CHAT_CONTEXT_END}`) {
-				return text.slice(contextEnd + SIDE_CHAT_CONTEXT_END.length + 1).trimStart();
-			}
-		}
-	}
-	const endIndex = text.lastIndexOf(SIDE_CHAT_CONTEXT_END);
-	return endIndex < 0 ? undefined : text.slice(endIndex + SIDE_CHAT_CONTEXT_END.length).trimStart();
-}
-
-export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): readonly Turn[] {
-	if (!sideChat || turns.length === 0) {
-		return turns;
-	}
-	const first = turns[0];
-	const userPrompt = parseSideChatSeed(first.message.text);
-	if (userPrompt === undefined) {
-		return turns;
-	}
-	return [{ ...first, message: { ...first.message, text: userPrompt } }, ...turns.slice(1)];
-}
-
-/** Resolves the index of the first turn owned by a side chat. */
-export function resolveSideChatBoundary(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): number {
-	if (!sideChat) {
-		return 0;
-	}
-	if (sideChat.inheritedTurnId !== undefined) {
-		const inheritedIndex = turns.findIndex(turn => turn.id === sideChat.inheritedTurnId);
-		if (inheritedIndex !== -1) {
-			return inheritedIndex + 1;
-		}
-	}
-	for (let i = turns.length - 1; i >= 0; i--) {
-		if (parseSideChatSeed(turns[i].message.text) !== undefined) {
-			return i;
-		}
-	}
-	return turns.length;
-}
-
-/** Returns the turns owned by a side chat. */
-export function sliceSideChatTurns(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): readonly Turn[] {
-	if (!sideChat) {
-		return turns;
-	}
-
-	return stripSideChatContext(turns.slice(resolveSideChatBoundary(turns, sideChat)), sideChat);
-}
+import { type AgentSelection, type ModelSelection } from '../common/state/protocol/state.js';
 
 /**
  * Provider-owned backing for an exact chat. Records the SDK chat id so it can
@@ -192,7 +17,6 @@ export interface IPersistedChat {
 	readonly sdkSessionId: string;
 	readonly model?: ModelSelection;
 	readonly agent?: AgentSelection;
-	readonly sideChat?: IPersistedSideChat;
 }
 
 export interface IResolvedAgentChat<TSession extends IDisposable> {
@@ -216,55 +40,35 @@ export function encodeProviderData(backing: IPersistedChat): string {
  */
 export function decodeProviderData(providerData: string): IPersistedChat | undefined {
 	try {
-		const value = JSON.parse(providerData) as { sdkSessionId?: unknown; model?: unknown; agent?: unknown; sideChat?: unknown };
+		const value = JSON.parse(providerData) as { sdkSessionId?: unknown; model?: unknown; agent?: unknown };
 		if (!value || typeof value !== 'object') {
 			return undefined;
 		}
-		const { sdkSessionId, model } = value;
+		const { sdkSessionId } = value;
 		if (typeof sdkSessionId !== 'string' || !sdkSessionId) {
 			return undefined;
 		}
 		// The blob is client-influenced and may be corrupted or shape-shifted by
-		// a future serialization change: only accept a `model` that actually
-		// looks like a `ModelSelection`.
-		const validModel = model && typeof model === 'object' && typeof (model as { id?: unknown }).id === 'string'
-			? model as ModelSelection
-			: undefined;
-		const agent = value.agent as { uri?: unknown } | undefined;
-		const validAgent = agent && typeof agent === 'object' && typeof agent.uri === 'string'
-			? { uri: agent.uri }
-			: undefined;
-		const sideChat = value.sideChat as { source?: unknown; turnId?: unknown; selection?: unknown; providerAnchorTurnId?: unknown; inheritedTurnId?: unknown; partialResponse?: unknown; context?: unknown } | undefined;
-		const validSelection = sideChat?.selection
-			&& typeof sideChat.selection === 'object'
-			&& typeof (sideChat.selection as { text?: unknown }).text === 'string'
-			&& (((sideChat.selection as { responsePartId?: unknown }).responsePartId) === undefined || typeof (sideChat.selection as { responsePartId?: unknown }).responsePartId === 'string')
-			? {
-				text: (sideChat.selection as { text: string }).text,
-				...((sideChat.selection as { responsePartId?: string }).responsePartId ? { responsePartId: (sideChat.selection as { responsePartId?: string }).responsePartId } : {}),
-			}
-			: undefined;
-		const validSideChat = sideChat
-			&& (sideChat.source === undefined || typeof sideChat.source === 'string')
-			&& typeof sideChat.turnId === 'string'
-			&& (sideChat.providerAnchorTurnId === undefined || typeof sideChat.providerAnchorTurnId === 'string')
-			&& (sideChat.inheritedTurnId === undefined || typeof sideChat.inheritedTurnId === 'string')
-			&& (sideChat.partialResponse === undefined || typeof sideChat.partialResponse === 'string')
-			&& (sideChat.context === undefined || typeof sideChat.context === 'string')
-			? {
-				...(sideChat.source ? { source: sideChat.source } : {}),
-				turnId: sideChat.turnId,
-				...(validSelection ? { selection: validSelection } : {}),
-				...(sideChat.providerAnchorTurnId ? { providerAnchorTurnId: sideChat.providerAnchorTurnId } : {}),
-				...(sideChat.inheritedTurnId !== undefined ? { inheritedTurnId: sideChat.inheritedTurnId } : {}),
-				...(sideChat.partialResponse ? { partialResponse: sideChat.partialResponse } : {}),
-				...(sideChat.context ? { context: sideChat.context } : {}),
-			}
-			: undefined;
-		return { sdkSessionId, ...(validModel ? { model: validModel } : {}), ...(validAgent ? { agent: validAgent } : {}), ...(validSideChat ? { sideChat: validSideChat } : {}) };
+		// a future serialization change: only accept values that actually look
+		// like a `ModelSelection` / `AgentSelection`.
+		const validModel = isModelSelection(value.model) ? value.model : undefined;
+		const validAgent = isAgentSelection(value.agent) ? value.agent : undefined;
+		return {
+			sdkSessionId,
+			...(validModel ? { model: validModel } : {}),
+			...(validAgent ? { agent: validAgent } : {}),
+		};
 	} catch {
 		return undefined;
 	}
+}
+
+function isModelSelection(value: unknown): value is ModelSelection {
+	return !!value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string';
+}
+
+function isAgentSelection(value: unknown): value is AgentSelection {
+	return !!value && typeof value === 'object' && typeof (value as { uri?: unknown }).uri === 'string';
 }
 
 /**

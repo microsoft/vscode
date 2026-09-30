@@ -4,20 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ManagedSettingsData, PolicyCategory } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AgentHostEnablementService } from '../../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
-import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountProvider, IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService, thirdPartyAgentEnabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { getComputedDefaultSessionType, getDefaultNewChatSessionType } from '../../../../contrib/chat/common/constants.js';
+import { localChatSessionType, SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { storeUserSelectedSessionType } from '../../../../contrib/chat/common/chatSessionTypePreference.js';
 import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
-import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, AccountPolicyService, APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateInfo } from '../../common/accountPolicyService.js';
+import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, AccountPolicyService, APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateInfo, whenAccountPolicySettled } from '../../common/accountPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: {
@@ -41,10 +50,12 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly managedSettingsRawResponse: unknown = null;
 	readonly managedSettingsCompatibilityError = null;
 	readonly onDidChangeManagedSettingsCompatibilityError = Event.None;
+	readonly onDidChangeManagedSettingsFreshness = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
 		readonly policyData: IPolicyData | null = {},
+		readonly managedSettingsFreshness: IManagedSettingsFreshness = MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED,
 	) { }
 
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
@@ -195,9 +206,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					// Mirrors the third-party harness policies: keys off the presence of managed
-					// settings, so it deliberately declares no `managedSettings`.
-					value: thirdPartyAgentEnabledValue,
+					value: managedSettingsDisabledValue,
 				}
 			}
 		}
@@ -405,11 +414,11 @@ suite('AccountPolicyService', () => {
 		assert.strictEqual(policyService.getPolicyValueSource('PolicySettingF'), PolicyValueSource.NativeMdm);
 	});
 
-	test('managed settings: three-channel precedence native MDM > Server > File', async () => {
+	test('managed settings: three-channel precedence preserves the sandbox force-on exception', async () => {
 		// All three channels provide the same key with different values.
 		// Server says 'enable', MDM says 'disable', File says 'file-value'.
 		// Native MDM should win.
-		const fileManagedSettingsService = new FakeFileManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'file-value', [COPILOT_SANDBOX_ENABLED_KEY]: true });
+		const fileManagedSettingsService = disposables.add(new FakeFileManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'file-value', [COPILOT_SANDBOX_ENABLED_KEY]: true }));
 		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable', [COPILOT_SANDBOX_ENABLED_KEY]: false }));
 		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService, fileManagedSettingsService));
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
@@ -422,27 +431,133 @@ suite('AccountPolicyService', () => {
 
 		await policyConfiguration.initialize();
 
-		const initialSandbox = policyService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY);
-		const managedSettingsChanged = Event.toPromise(policyService.onDidChangeManagedSettings);
-		nativeManagedSettingsService.setManagedSettings({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
-		await managedSettingsChanged;
-
 		assert.deepStrictEqual({
 			policy: policyService.getPolicyValue('PolicySettingF'),
 			source: policyService.getPolicyValueSource('PolicySettingF'),
-			initialSandbox,
-			updatedSandbox: policyService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY),
+			sandbox: policyService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY),
 		}, {
 			policy: false,
 			source: PolicyValueSource.NativeMdm,
-			initialSandbox: false,
-			updatedSandbox: true,
+			sandbox: true,
+		});
+	});
+
+	test('managed telemetry block replacement removes lower-source identity policy and withdrawal restores it', async () => {
+		const key = COPILOT_OTEL_CAPTURE_IDENTITY_KEY;
+		const file = disposables.add(new FakeFileManagedSettingsService(normalizeManagedSettings({ telemetry: { capture: { identity: true } } })));
+		const native = disposables.add(new FakeNativeManagedSettingsService({}));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, native, file));
+		await policyService.updatePolicyDefinitions({
+			TelemetryIdentity: { type: 'boolean', value: managedSettingValue(key), managedSettings: { [key]: { type: 'boolean' } } },
+		});
+		const initial = policyService.getPolicyValue('TelemetryIdentity');
+		const replaced = Event.toPromise(policyService.onDidChange);
+		native.setManagedSettings(normalizeManagedSettings({ telemetry: {} }));
+		await replaced;
+		const empty = policyService.getPolicyValue('TelemetryIdentity');
+		const denied = Event.toPromise(policyService.onDidChange);
+		native.setManagedSettings(normalizeManagedSettings({ telemetry: { capture: { identity: false } } }));
+		await denied;
+		const explicitFalse = policyService.getPolicyValue('TelemetryIdentity');
+		const withdrawn = Event.toPromise(policyService.onDidChange);
+		native.setManagedSettings({});
+		await withdrawn;
+		assert.deepStrictEqual({ initial, empty, explicitFalse, withdrawn: policyService.getPolicyValue('TelemetryIdentity') }, {
+			initial: true, empty: undefined, explicitFalse: false, withdrawn: true,
+		});
+	});
+
+	test('Auto defaults discard the previous account value while new policy is unresolved and when removed', async () => {
+		const changed = disposables.add(new Emitter<IPolicyData | null>());
+		const accountChanged = disposables.add(new Emitter<IDefaultAccount | null>());
+		const provider = new class extends DefaultAccountProvider {
+			override readonly onDidChangePolicyData = changed.event;
+			override readonly onDidChangeDefaultAccount = accountChanged.event;
+			override defaultAccount = BASE_DEFAULT_ACCOUNT;
+			override policyData: IPolicyData | null = { managedSettings: { [COPILOT_AUTO_TIER_KEY]: 'intelligence' } };
+		}(BASE_DEFAULT_ACCOUNT);
+		defaultAccountService.setDefaultAccountProvider(provider);
+		await defaultAccountService.refresh();
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService));
+		await policyService.updatePolicyDefinitions({});
+		const initial = policyService.getManagedSettingValue(COPILOT_AUTO_TIER_KEY);
+		provider.defaultAccount = { ...BASE_DEFAULT_ACCOUNT, accountName: 'second-account', sessionId: 'second-session' };
+		provider.policyData = null;
+		accountChanged.fire(provider.defaultAccount);
+		changed.fire(null);
+		await defaultAccountService.refresh();
+		await policyService.updatePolicyDefinitions({});
+		const unresolved = policyService.getManagedSettingValue(COPILOT_AUTO_TIER_KEY);
+		const loaded = Event.toPromise(policyService.onDidChangeManagedSettings);
+		provider.policyData = { managedSettings: { [COPILOT_AUTO_TIER_KEY]: 'efficiency' } };
+		changed.fire(provider.policyData);
+		await loaded;
+		const nextAccount = policyService.getManagedSettingValue(COPILOT_AUTO_TIER_KEY);
+		const cleared = Event.toPromise(policyService.onDidChangeManagedSettings);
+		provider.policyData = {};
+		changed.fire(provider.policyData);
+		await cleared;
+		assert.deepStrictEqual({ initial, unresolved, nextAccount, removed: policyService.getManagedSettingValue(COPILOT_AUTO_TIER_KEY) }, {
+			initial: 'intelligence', unresolved: undefined, nextAccount: 'efficiency', removed: undefined,
+		});
+	});
+
+	test('managed sandbox policy refresh selects Agent Host Copilot despite device false and remembered local', async () => {
+		const key = COPILOT_SANDBOX_ENABLED_KEY;
+		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [key]: false }));
+		const policyDataChanged = disposables.add(new Emitter<IPolicyData | null>());
+		const provider = new class extends DefaultAccountProvider {
+			override readonly onDidChangePolicyData = policyDataChanged.event;
+			override policyData: IPolicyData = { managedSettings: { [key]: false } };
+		}(BASE_DEFAULT_ACCOUNT);
+		defaultAccountService.setDefaultAccountProvider(provider);
+		await defaultAccountService.refresh();
+
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService));
+		await policyService.updatePolicyDefinitions({ SandboxTest: { type: 'boolean' } });
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const enablementService = disposables.add(new AgentHostEnablementService(true, configurationService, contextKeyService, policyService));
+		const storageService = disposables.add(new TestStorageService());
+		storeUserSelectedSessionType(storageService, localChatSessionType);
+		const workspace = new TestContextService().getWorkspace();
+		const chatSessionsService = {
+			getChatSessionContribution: () => undefined,
+			getAllChatSessionContributions: () => [],
+		};
+		const snapshot = () => {
+			const enabled = enablementService.enabled.get();
+			const managedSandboxEnforced = enablementService.managedSandboxEnforced.get();
+			return {
+				managedSandboxEnforced,
+				computed: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, enabled, managedSandboxEnforced),
+				remembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, enabled, { currentSessionType: localChatSessionType }, managedSandboxEnforced),
+			};
+		};
+
+		const before = snapshot();
+		const enforced = Event.toPromise(policyService.onDidChangeManagedSettings);
+		provider.policyData = { managedSettings: { [key]: true } };
+		policyDataChanged.fire(provider.policyData);
+		await enforced;
+		const after = snapshot();
+
+		const removed = Event.toPromise(policyService.onDidChangeManagedSettings);
+		provider.policyData = {};
+		policyDataChanged.fire(provider.policyData);
+		await removed;
+
+		assert.deepStrictEqual({ before, after, removed: snapshot() }, {
+			before: { managedSandboxEnforced: false, computed: localChatSessionType, remembered: localChatSessionType },
+			after: { managedSandboxEnforced: true, computed: SessionType.AgentHostCopilot, remembered: SessionType.AgentHostCopilot },
+			removed: { managedSandboxEnforced: false, computed: localChatSessionType, remembered: localChatSessionType },
 		});
 	});
 
 	test('managed settings: file-based settings apply when server and MDM are empty', async () => {
 		// Only the file channel provides a value — it should be used.
-		const fileManagedSettingsService = new FakeFileManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
+		const fileManagedSettingsService = disposables.add(new FakeFileManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
 		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({}));
 		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService, fileManagedSettingsService));
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
@@ -464,7 +579,7 @@ suite('AccountPolicyService', () => {
 		// key. Neither overrides the other, so BOTH reach policy evaluation: setting F resolves from
 		// native MDM and setting G resolves from the file. This is the per-key fill-down behavior.
 		const enabledPluginsJson = '{"assign-issue@skills":true}';
-		const fileManagedSettingsService = new FakeFileManagedSettingsService({ [COPILOT_ENABLED_PLUGINS_KEY]: enabledPluginsJson });
+		const fileManagedSettingsService = disposables.add(new FakeFileManagedSettingsService({ [COPILOT_ENABLED_PLUGINS_KEY]: enabledPluginsJson }));
 		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
 		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService, fileManagedSettingsService));
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
@@ -491,7 +606,7 @@ suite('AccountPolicyService', () => {
 
 	test('managed settings: attributes policies caused by multiple channels as mixed', async () => {
 		const enabledPluginsJson = '{"assign-issue@skills":true}';
-		const fileManagedSettingsService = new FakeFileManagedSettingsService({ [COPILOT_ENABLED_PLUGINS_KEY]: enabledPluginsJson });
+		const fileManagedSettingsService = disposables.add(new FakeFileManagedSettingsService({ [COPILOT_ENABLED_PLUGINS_KEY]: enabledPluginsJson }));
 		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
 		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService, fileManagedSettingsService));
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
@@ -511,9 +626,8 @@ suite('AccountPolicyService', () => {
 		});
 	});
 
-	test('managed settings: their mere presence disables the third-party harnesses', async () => {
-		// A runtime-owned key VS Code never declares still counts as governance.
-		const fileManagedSettingsService = new FakeFileManagedSettingsService({ 'permissions.deny': '["Bash"]' });
+	test('managed settings: raw permission rules disable presence-gated settings', async () => {
+		const fileManagedSettingsService = disposables.add(new FakeFileManagedSettingsService({}, { permissions: { deny: ['Shell'] } }));
 		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, undefined, fileManagedSettingsService));
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
@@ -534,7 +648,68 @@ suite('AccountPolicyService', () => {
 		});
 	});
 
-	test('managed settings: an ungoverned account leaves the third-party harnesses alone', async () => {
+	test('managed settings: removing raw permission rules releases presence-gated settings', async () => {
+		const fileManagedSettingsService = disposables.add(new FakeFileManagedSettingsService({}, { permissions: { deny: ['Shell'] } }));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, undefined, fileManagedSettingsService));
+		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+		await defaultConfiguration.initialize();
+		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
+
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, {}));
+		await defaultAccountService.refresh();
+		await policyConfiguration.initialize();
+
+		const change = Event.toPromise(policyService.onDidChange);
+		fileManagedSettingsService.setManagedSettings({}, {});
+		assert.deepStrictEqual({
+			changed: await change,
+			setting: policyConfiguration.configurationModel.getValue('setting.J'),
+			value: policyService.getPolicyValue('PolicySettingJ'),
+		}, {
+			changed: ['PolicySettingJ'],
+			setting: undefined,
+			value: undefined,
+		});
+	});
+
+	test('managed settings: sandbox settings disable presence-gated settings even when false', async () => {
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, {
+			managedSettings: { [COPILOT_SANDBOX_ENABLED_KEY]: false },
+		}));
+		await defaultAccountService.refresh();
+		await policyConfiguration.initialize();
+
+		assert.deepStrictEqual({
+			setting: policyConfiguration.configurationModel.getValue('setting.J'),
+			value: policyService.getPolicyValue('PolicySettingJ'),
+			source: policyService.getPolicyValueSource('PolicySettingJ'),
+		}, {
+			setting: false,
+			value: false,
+			source: PolicyValueSource.ServerManagedSettings,
+		});
+	});
+
+	test('managed settings: raw server settings disable presence-gated settings', async () => {
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, {
+			managedSettings: {},
+			managedSettingsActive: true,
+		}));
+		await defaultAccountService.refresh();
+		await policyConfiguration.initialize();
+
+		assert.deepStrictEqual({
+			setting: policyConfiguration.configurationModel.getValue('setting.J'),
+			value: policyService.getPolicyValue('PolicySettingJ'),
+			source: policyService.getPolicyValueSource('PolicySettingJ'),
+		}, {
+			setting: false,
+			value: false,
+			source: PolicyValueSource.ServerManagedSettings,
+		});
+	});
+
+	test('managed settings: an ungoverned account leaves presence-gated settings alone', async () => {
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, { chat_preview_features_enabled: true }));
 		await defaultAccountService.refresh();
 		await policyConfiguration.initialize();
@@ -666,20 +841,33 @@ suite('AccountPolicyService', () => {
 		}
 	}
 
-	class FakeFileManagedSettingsService implements IFileManagedSettingsService {
+	class FakeFileManagedSettingsService extends Disposable implements IFileManagedSettingsService {
 		readonly _serviceBrand: undefined;
-		readonly rawManagedSettings = {};
-		readonly onDidChangeRawManagedSettings = Event.None;
-		private readonly _onDidChangeManagedSettings = new Emitter<ManagedSettingsData>();
-		readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
+		private readonly _onDidChangeRawManagedSettings = this._register(new Emitter<RawManagedSettingsData>());
+		readonly onDidChangeRawManagedSettings = this._onDidChangeRawManagedSettings.event;
+		readonly onDidChangeManagedSettings = Event.None;
 
-		constructor(public managedSettings: ManagedSettingsData = {}) { }
+		constructor(
+			public managedSettings: ManagedSettingsData = {},
+			public rawManagedSettings: RawManagedSettingsData = managedSettings,
+		) {
+			super();
+		}
+
+		async initialize(): Promise<ManagedSettingsData> { return this.managedSettings; }
+
+		setManagedSettings(managedSettings: ManagedSettingsData, rawManagedSettings: RawManagedSettingsData = managedSettings): void {
+			this.managedSettings = managedSettings;
+			this.rawManagedSettings = rawManagedSettings;
+			this._onDidChangeRawManagedSettings.fire(this.rawManagedSettings);
+		}
 	}
 
 	async function setupGate(opts: {
 		approvedOrgs?: string[] | string;
 		account?: IDefaultAccount | null;
 		policyData?: IPolicyData | null;
+		managedSettingsFreshness?: IManagedSettingsFreshness;
 	}): Promise<{ policyService: AccountPolicyService; managed: FakeManagedPolicyService }> {
 		const managed = disposables.add(new FakeManagedPolicyService());
 		if (opts.approvedOrgs !== undefined) {
@@ -692,7 +880,7 @@ suite('AccountPolicyService', () => {
 		const accountService = disposables.add(new DefaultAccountService(TestProductService));
 		if (opts.account !== null && opts.account !== undefined) {
 			const policyData = opts.policyData === undefined ? {} : opts.policyData;
-			accountService.setDefaultAccountProvider(new DefaultAccountProvider(opts.account, policyData));
+			accountService.setDefaultAccountProvider(new DefaultAccountProvider(opts.account, policyData, opts.managedSettingsFreshness));
 			await accountService.refresh();
 		}
 
@@ -704,10 +892,197 @@ suite('AccountPolicyService', () => {
 		return { policyService: service, managed };
 	}
 
+	for (const scenario of ['pending', 'unresolved', 'inactive', 'signedOut'] as const) {
+		test(`policy settlement waits for gate initialization: ${scenario}`, async () => {
+			const accountInitialized = new DeferredPromise<IDefaultAccount | null>();
+			const gateUpdateStarted = new DeferredPromise<void>();
+			const gateUpdateCompleted = new DeferredPromise<ManagedSettingsData>();
+			const freshnessChanged = disposables.add(new Emitter<IManagedSettingsFreshness>());
+			const policyDataChanged = disposables.add(new Emitter<IPolicyData | null>());
+			const provider = new class extends DefaultAccountProvider {
+				override readonly onDidChangeManagedSettingsFreshness = freshnessChanged.event;
+				override readonly onDidChangePolicyData = policyDataChanged.event;
+				override managedSettingsFreshness = MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED;
+				override policyData: IPolicyData | null = null;
+				override refresh() { return accountInitialized.p; }
+			}(BASE_DEFAULT_ACCOUNT);
+			const accountService = disposables.add(new DefaultAccountService(TestProductService));
+			accountService.setDefaultAccountProvider(provider);
+			const managed = disposables.add(new FakeManagedPolicyService());
+			if (scenario === 'unresolved' || scenario === 'signedOut') {
+				managed.setPolicy(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, '["*"]');
+			}
+			const native = disposables.add(new class extends FakeNativeManagedSettingsService {
+				holdUpdate = false;
+				override async updatePolicyDefinitions(definitions: Record<string, PolicyDefinition>): Promise<ManagedSettingsData> {
+					if (this.holdUpdate) {
+						await gateUpdateStarted.complete();
+						return gateUpdateCompleted.p;
+					}
+					return super.updatePolicyDefinitions(definitions);
+				}
+			}());
+			const service = disposables.add(new AccountPolicyService(logService, accountService, managed, native));
+			await service.updatePolicyDefinitions({
+				enabled: { type: 'boolean', restrictedValue: false, managedSettings: { enabled: { type: 'boolean' } } },
+				exporterType: { type: 'string', restrictedValue: '' },
+			});
+			const initialGate = service.gateInfo;
+			let gateChanges = 0;
+			disposables.add(service.onDidChangeGateInfo(() => gateChanges++));
+			native.holdUpdate = true;
+			let settled = false;
+			const waiting = whenAccountPolicySettled(service).then(() => { settled = true; });
+			if (scenario === 'pending') {
+				provider.managedSettingsFreshness = { state: ManagedSettingsFreshnessState.Pending, source: 'server' };
+			}
+			await accountInitialized.complete(scenario === 'signedOut' ? null : BASE_DEFAULT_ACCOUNT);
+			await gateUpdateStarted.p;
+			await timeout(0);
+			assert.deepStrictEqual({ settled, gate: service.gateInfo }, { settled: false, gate: initialGate });
+
+			native.holdUpdate = false;
+			if (scenario === 'inactive') {
+				native.setManagedSettings({});
+				await timeout(0);
+				assert.strictEqual(settled, false, 'an overlapping update must not complete gate initialization');
+			}
+			await gateUpdateCompleted.complete({});
+			if (scenario === 'pending' || scenario === 'unresolved') {
+				await timeout(0);
+				assert.strictEqual(settled, false);
+				let policyChanges = 0;
+				disposables.add(service.onDidChange(() => policyChanges++));
+				if (scenario === 'pending') {
+					provider.managedSettingsFreshness = {
+						state: ManagedSettingsFreshnessState.Blocked, source: 'server',
+						failure: ManagedSettingsFreshnessFailure.Network, lastAttemptAt: 42,
+					};
+					freshnessChanged.fire(provider.managedSettingsFreshness);
+				} else {
+					provider.policyData = {};
+					policyDataChanged.fire(provider.policyData);
+				}
+				await waiting;
+				assert.deepStrictEqual({
+					settled, policyChanges,
+					values: [service.getPolicyValue('enabled'), service.getPolicyValue('exporterType')],
+				}, {
+					settled: true, policyChanges: 0,
+					values: scenario === 'pending' ? [false, ''] : [undefined, undefined],
+				});
+			} else {
+				await waiting;
+				assert.deepStrictEqual({ settled, gateChanges, gate: service.gateInfo }, { settled: true, gateChanges: 0, gate: initialGate });
+			}
+		});
+	}
+
+	for (const failingService of ['account', 'managedSettings'] as const) {
+		test(`policy settlement propagates and logs ${failingService} initialization failures`, async () => {
+			const failure = new Error(`${failingService} unavailable`);
+			const loggedErrors: { message: string | Error; error?: Error }[] = [];
+			const logger = new class extends NullLogService {
+				override error(message: string | Error, error?: Error): void {
+					loggedErrors.push({ message, error });
+				}
+			}();
+			const accountInitialized = new DeferredPromise<IDefaultAccount | null>();
+			const accountService = disposables.add(new class extends DefaultAccountService {
+				override async getDefaultAccount(): Promise<IDefaultAccount | null> {
+					const account = await super.getDefaultAccount();
+					if (failingService === 'account') {
+						throw failure;
+					}
+					return account;
+				}
+			}(TestProductService));
+			accountService.setDefaultAccountProvider(new class extends DefaultAccountProvider {
+				override refresh() { return accountInitialized.p; }
+			}(BASE_DEFAULT_ACCOUNT, null));
+			const native = disposables.add(new class extends FakeNativeManagedSettingsService {
+				failUpdate = false;
+				override async updatePolicyDefinitions(definitions: Record<string, PolicyDefinition>): Promise<ManagedSettingsData> {
+					if (this.failUpdate) {
+						throw failure;
+					}
+					return super.updatePolicyDefinitions(definitions);
+				}
+			}());
+			const service = disposables.add(new AccountPolicyService(logger, accountService, undefined, native));
+			await service.updatePolicyDefinitions({
+				enabled: { type: 'boolean', managedSettings: { enabled: { type: 'boolean' } } },
+			});
+			native.failUpdate = true;
+			await accountInitialized.complete(BASE_DEFAULT_ACCOUNT);
+			await timeout(0);
+			await assert.rejects(whenAccountPolicySettled(service), error => error === failure);
+			assert.deepStrictEqual(loggedErrors, [{
+				message: 'AccountPolicyService: Failed to initialize account policy',
+				error: failure,
+			}]);
+		});
+	}
+
 	test('gate inactive (no approved orgs set): behaves identically to today', async () => {
 		const { policyService } = await setupGate({ account: APPROVED_ORG_ACCOUNT, policyData: { chat_preview_features_enabled: false } });
 		assert.strictEqual(policyService.gateInfo.state, AccountPolicyGateState.Inactive);
 		assert.strictEqual(policyService.getPolicyValue('PolicySettingD'), false); // account policy still flows
+	});
+
+	test('forced managed settings refresh blocks independently of approved account policy', async () => {
+		const freshness: IManagedSettingsFreshness = {
+			state: ManagedSettingsFreshnessState.Blocked,
+			source: 'server',
+			failure: ManagedSettingsFreshnessFailure.Network,
+			lastAttemptAt: 42,
+		};
+		const { policyService } = await setupGate({
+			account: APPROVED_ORG_ACCOUNT,
+			policyData: {},
+			managedSettingsFreshness: freshness,
+		});
+
+		assert.deepStrictEqual(policyService.gateInfo, {
+			state: AccountPolicyGateState.Restricted,
+			reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+			managedSettingsFreshness: freshness,
+		});
+		assert.strictEqual(policyService.getPolicyValueSource('PolicySettingD'), PolicyValueSource.AccountGate);
+	});
+
+	test('policy settlement resumes on Pending to Blocked without changed policy values', async () => {
+		const freshnessChanged = disposables.add(new Emitter<IManagedSettingsFreshness>());
+		const provider = new class extends DefaultAccountProvider {
+			override readonly onDidChangeManagedSettingsFreshness = freshnessChanged.event;
+			override managedSettingsFreshness: IManagedSettingsFreshness = { state: ManagedSettingsFreshnessState.Pending, source: 'server' };
+		}(APPROVED_ORG_ACCOUNT);
+		const accountService = disposables.add(new DefaultAccountService(TestProductService));
+		accountService.setDefaultAccountProvider(provider);
+		await accountService.refresh();
+		const service = disposables.add(new AccountPolicyService(logService, accountService));
+		await service.updatePolicyDefinitions({
+			enabled: { type: 'boolean', restrictedValue: false },
+			exporterType: { type: 'string', restrictedValue: '' },
+		});
+		const valuesBefore = [service.getPolicyValue('enabled'), service.getPolicyValue('exporterType')];
+		let policyChanges = 0;
+		disposables.add(service.onDidChange(() => policyChanges++));
+		let settled = false;
+		const waiting = whenAccountPolicySettled(service).then(() => { settled = true; });
+		await timeout(0);
+		assert.strictEqual(settled, false);
+
+		provider.managedSettingsFreshness = {
+			state: ManagedSettingsFreshnessState.Blocked, source: 'server',
+			failure: ManagedSettingsFreshnessFailure.Network, lastAttemptAt: 42,
+		};
+		freshnessChanged.fire(provider.managedSettingsFreshness);
+		await waiting;
+		assert.deepStrictEqual({
+			settled, policyChanges, valuesBefore,
+			valuesAfter: [service.getPolicyValue('enabled'), service.getPolicyValue('exporterType')],
+		}, { settled: true, policyChanges: 0, valuesBefore: [false, ''], valuesAfter: [false, ''] });
 	});
 
 	test('gate active, no account signed in: restricted', async () => {

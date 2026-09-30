@@ -130,6 +130,9 @@ const upstreamSpecs = [
 	// Ruby
 	'bundle',
 	'ruby',
+
+	// Rust
+	'cargo',
 ];
 
 const extRoot = path.resolve(path.join(__dirname, '..'));
@@ -140,13 +143,19 @@ const replaceStrings = [
 	],
 	[
 		'import { filepaths, keyValue } from "@fig/autocomplete-generators";',
-		'import { filepaths } from \'../../helpers/filepaths\'; import { keyValue } from \'../../helpers/keyvalue\';'
+		'import { filepaths } from \'../../helpers/filepaths\';\nimport { keyValue } from \'../../helpers/keyvalue\';'
 	],
 ];
 const indentSearch = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(e => new RegExp('^' + ' '.repeat(e * 2), 'gm'));
 const indentReplaceValue = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(e => '\t'.repeat(e));
 
 const specSpecificReplaceStrings = new Map([
+	['cargo', [
+		[
+			'\tconsole.log(rootManifestPath);',
+			''
+		]
+	]],
 	['docker', [
 		[
 			'console.error(error);',
@@ -202,8 +211,9 @@ for (const spec of upstreamSpecs) {
 	fs.copyFileSync(source, destination);
 
 	let content = fs.readFileSync(destination).toString();
+	const eol = content.includes('\r\n') ? '\r\n' : '\n';
 	for (const replaceString of replaceStrings) {
-		content = content.replaceAll(replaceString[0], replaceString[1]);
+		content = content.replaceAll(replaceString[0], replaceString[1].replaceAll('\n', eol));
 	}
 	for (let i = 0; i < indentSearch.length; i++) {
 		content = content.replaceAll(indentSearch[i], indentReplaceValue[i]);
@@ -211,7 +221,7 @@ for (const spec of upstreamSpecs) {
 	const thisSpecReplaceStrings = specSpecificReplaceStrings.get(spec);
 	if (thisSpecReplaceStrings) {
 		for (const replaceString of thisSpecReplaceStrings) {
-			content = content.replaceAll(replaceString[0], replaceString[1]);
+			content = content.replaceAll(replaceString[0], replaceString[1].replaceAll('\n', eol));
 		}
 	}
 

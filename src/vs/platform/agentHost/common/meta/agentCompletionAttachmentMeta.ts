@@ -42,6 +42,8 @@ export interface IAgentHostCompletionAction {
 export interface ICommandCompletionAttachmentMeta {
 	/** The slash command name (without the leading `/`). */
 	readonly command: string;
+	/** Whether this text-dispatched command originated from a runtime skill. */
+	readonly isSkill?: true;
 	/** Optional human-readable description of the command. */
 	readonly description?: string;
 	/**
@@ -49,6 +51,10 @@ export interface ICommandCompletionAttachmentMeta {
 	 * inline placeholder (ghost text) after an accepted command completion.
 	 */
 	readonly argumentHint?: string;
+	/** Whether accepting the completion should immediately request the next completion level. */
+	readonly retriggerSuggestions?: true;
+	/** Whether accepting the completion should immediately submit the completed command. */
+	readonly submitOnAccept?: true;
 	/**
 	 * Optional client-side action to run when the completion is accepted (e.g. a
 	 * permission/mode session-config toggle). See {@link IAgentHostCompletionAction}.
@@ -96,8 +102,11 @@ export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment
 		return {
 			kind: 'command',
 			command: meta['command'],
+			...(meta['isSkill'] === true ? { isSkill: true } : {}),
 			...(typeof meta['description'] === 'string' ? { description: meta['description'] } : {}),
 			...(typeof meta['argumentHint'] === 'string' ? { argumentHint: meta['argumentHint'] } : {}),
+			...(meta['retriggerSuggestions'] === true ? { retriggerSuggestions: true } : {}),
+			...(meta['submitOnAccept'] === true ? { submitOnAccept: true } : {}),
 			...(action ? { action } : {}),
 		};
 	}
@@ -121,11 +130,20 @@ export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment
  */
 export function toCommandCompletionAttachmentMeta(meta: ICommandCompletionAttachmentMeta): Record<string, unknown> {
 	const result: Record<string, unknown> = { command: meta.command };
+	if (meta.isSkill === true) {
+		result['isSkill'] = true;
+	}
 	if (meta.description !== undefined) {
 		result['description'] = meta.description;
 	}
 	if (meta.argumentHint !== undefined) {
 		result['argumentHint'] = meta.argumentHint;
+	}
+	if (meta.retriggerSuggestions === true) {
+		result['retriggerSuggestions'] = true;
+	}
+	if (meta.submitOnAccept === true) {
+		result['submitOnAccept'] = true;
 	}
 	const action = toCompletionActionMeta(meta.action);
 	if (action !== undefined) {

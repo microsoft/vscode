@@ -26,13 +26,20 @@ function resolveLegacyTabColor(theme: ColorThemeData, legacyColorId: ColorIdenti
 	return theme.getColor(legacyColorId);
 }
 
+function resolveExplicitTabColor(theme: ColorThemeData, modernColorId: ColorIdentifier, modernColorIds: readonly ColorIdentifier[], legacyColorId: ColorIdentifier, ...relatedLegacyColorIds: ColorIdentifier[]): Color | undefined {
+	if (modernColorIds.some(id => theme.getColorCustomization(id))) {
+		return theme.getColor(modernColorId);
+	}
+	return resolveLegacyTabColor(theme, legacyColorId, modernColorIds, ...relatedLegacyColorIds);
+}
+
 function addColorVariable(declarations: string[], name: string, color: Color | undefined): void {
 	if (color) {
 		declarations.push(`${name}: ${color};`);
 	}
 }
 
-function flattenActionBackground(color: Color, editorBackgroundColor: Color | undefined): Color {
+function flattenTabBackground(color: Color, editorBackgroundColor: Color | undefined): Color {
 	return editorBackgroundColor ? color.makeOpaque(editorBackgroundColor) : color;
 }
 
@@ -54,6 +61,14 @@ registerThemingParticipant((theme, collector) => {
 	const hasModernActiveActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND);
 	const hasModernHoverActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND);
 	const hasModernActiveHoverActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND);
+	const explicitActiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND], TAB_ACTIVE_BACKGROUND);
+	const explicitUnfocusedActiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND], TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND);
+	const explicitInactiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_INACTIVE_BACKGROUND], TAB_INACTIVE_BACKGROUND);
+	const explicitUnfocusedInactiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_INACTIVE_BACKGROUND], TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_INACTIVE_BACKGROUND);
+	const explicitHoverBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_HOVER_BACKGROUND, [MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND], TAB_HOVER_BACKGROUND);
+	const explicitUnfocusedHoverBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_HOVER_BACKGROUND, [MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND], TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_HOVER_BACKGROUND);
+	const explicitActiveHoverBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND], TAB_HOVER_BACKGROUND);
+	const explicitUnfocusedActiveHoverBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND], TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_HOVER_BACKGROUND);
 
 	addColorVariable(declarations, '--modern-ui-editor-tab-active-background', activeBackground);
 	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-active-background', unfocusedActiveBackground);
@@ -77,24 +92,32 @@ registerThemingParticipant((theme, collector) => {
 	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-active-border-top', resolveLegacyTabColor(theme, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, [], TAB_ACTIVE_BORDER_TOP));
 	addColorVariable(declarations, '--modern-ui-editor-tab-hover-border', resolveLegacyTabColor(theme, TAB_HOVER_BORDER, []));
 	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-hover-border', resolveLegacyTabColor(theme, TAB_UNFOCUSED_HOVER_BORDER, [], TAB_HOVER_BORDER));
+	addColorVariable(declarations, '--modern-ui-editor-tab-custom-active-background', explicitActiveBackground);
+	addColorVariable(declarations, '--modern-ui-editor-tab-custom-unfocused-active-background', explicitUnfocusedActiveBackground);
+	addColorVariable(declarations, '--modern-ui-editor-tab-custom-inactive-background', explicitInactiveBackground);
+	addColorVariable(declarations, '--modern-ui-editor-tab-custom-unfocused-inactive-background', explicitUnfocusedInactiveBackground);
+	addColorVariable(declarations, '--modern-ui-editor-tab-custom-hover-background', explicitHoverBackground);
+	addColorVariable(declarations, '--modern-ui-editor-tab-custom-unfocused-hover-background', explicitUnfocusedHoverBackground);
+	addColorVariable(declarations, '--modern-ui-editor-tab-custom-active-hover-background', explicitActiveHoverBackground);
+	addColorVariable(declarations, '--modern-ui-editor-tab-custom-unfocused-active-hover-background', explicitUnfocusedActiveHoverBackground);
 
 	if (activeBackground && !hasModernActiveActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-active-background', flattenActionBackground(activeBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-active-background', flattenTabBackground(activeBackground, editorBackgroundColor));
 	}
 	if (unfocusedActiveBackground && !hasModernActiveActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-active-background', flattenActionBackground(unfocusedActiveBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-active-background', flattenTabBackground(unfocusedActiveBackground, editorBackgroundColor));
 	}
 	if (hoverBackground && !hasModernHoverActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-hover-background', flattenActionBackground(hoverBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-hover-background', flattenTabBackground(hoverBackground, editorBackgroundColor));
 	}
 	if (unfocusedHoverBackground && !hasModernHoverActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-hover-background', flattenActionBackground(unfocusedHoverBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-hover-background', flattenTabBackground(unfocusedHoverBackground, editorBackgroundColor));
 	}
 	if (activeHoverBackground && !hasModernActiveHoverActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-active-hover-background', flattenActionBackground(activeHoverBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-active-hover-background', flattenTabBackground(activeHoverBackground, editorBackgroundColor));
 	}
 	if (unfocusedActiveHoverBackground && !hasModernActiveHoverActionBackground) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-active-hover-background', flattenActionBackground(unfocusedActiveHoverBackground, editorBackgroundColor));
+		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-active-hover-background', flattenTabBackground(unfocusedActiveHoverBackground, editorBackgroundColor));
 	}
 
 	if (declarations.length > 0) {

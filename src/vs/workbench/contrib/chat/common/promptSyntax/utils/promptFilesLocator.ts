@@ -18,7 +18,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { AgentInstructionFileType, IPromptPath, IAgentInstructionFile, Logger, PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -127,7 +127,8 @@ export class PromptFilesLocator {
 
 	/**
 	 * Walks up from {@link folderUri} collecting parent folders until a
-	 * repository root (a folder containing `.git`) is found.  Returns the
+	 * repository root (a folder containing a `.git` directory or pointer) is
+	 * found. Returns the
 	 * intermediate parent folders only when a repo root is found; returns
 	 * an empty array when the walk reaches the filesystem root, the user
 	 * home directory, or a folder already present in {@link seen}.
@@ -137,7 +138,8 @@ export class PromptFilesLocator {
 		let current = folderUri;
 		while (true) {
 			try {
-				const isRepoRoot = await this.fileService.exists(joinPath(current, '.git'));
+				const gitStat = await this.fileService.stat(joinPath(current, '.git')).then(stat => stat, () => undefined);
+				const isRepoRoot = gitStat?.isDirectory === true || gitStat?.isFile === true;
 				if (isRepoRoot) {
 					if ((await this.workspaceTrustManagementService.getUriTrustInfo(current)).trusted) {
 						candidates.push(current);
@@ -212,8 +214,10 @@ export class PromptFilesLocator {
 				paths.add(file);
 				result.push({ uri: file, source: isUserDataFile ? PromptFileSource.UserData : source });
 			}
+			// Report cancellation as an error so callers cannot mistake a partial
+			// scan for a complete "no prompt files" answer and cache it.
 			if (token.isCancellationRequested) {
-				return [];
+				throw new CancellationError();
 			}
 		}
 		return result;

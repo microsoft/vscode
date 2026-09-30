@@ -11,7 +11,8 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IFileWriteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AhpJsonlLogger, getAhpLogByteLength, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
+import { AhpJsonlLogger, getAhpLogByteLength, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
+import { ResolveAgentHostCanvasSourceExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 
 suite('AhpJsonlLogger', () => {
 
@@ -22,7 +23,7 @@ suite('AhpJsonlLogger', () => {
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
 
 		const logger = store.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'conn:1', transport: 'websocket' },
+			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'conn:1', transport: 'websocket' },
 			fileService,
 			new NullLogService(),
 		));
@@ -106,6 +107,7 @@ suite('AhpJsonlLogger', () => {
 				},
 			},
 		]);
+		assert.strictEqual(isAhpLogFileFor('logical-host', basename(logger.resource)), true);
 
 		for (const entry of parsed) {
 			assert.strictEqual(entry.jsonrpc, '2.0');
@@ -118,7 +120,7 @@ suite('AhpJsonlLogger', () => {
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
 
 		const logger = store.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'rotating', transport: 'websocket', maxFileSizeBytes: 1, maxFiles: 2 },
+			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'rotating', transport: 'websocket', maxFileSizeBytes: 1, maxFiles: 2 },
 			fileService,
 			new NullLogService(),
 		));
@@ -141,10 +143,12 @@ suite('AhpJsonlLogger', () => {
 		assert.deepStrictEqual({
 			firstFileExists: await fileService.exists(firstResource),
 			ids: parsed.map(entry => entry.id),
+			segmentsMatchLogicalHost: [rotated1, rotated2].every(resource => isAhpLogFileFor('logical-host', basename(resource))),
 			rootsAreJsonRpc: parsed.every(entry => entry.jsonrpc === '2.0' && (entry.method !== undefined || (entry.id !== undefined && (Object.hasOwn(entry, 'result') || Object.hasOwn(entry, 'error'))))),
 		}, {
 			firstFileExists: false,
 			ids: [2, 3],
+			segmentsMatchLogicalHost: true,
 			rootsAreJsonRpc: true,
 		});
 	});
@@ -155,7 +159,7 @@ suite('AhpJsonlLogger', () => {
 		store.add(fileService.registerProvider('file', provider));
 
 		const logger = store.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'batched', transport: 'websocket' },
+			{ logsHome: URI.file('/logs'), logId: 'batched', connectionId: 'batched', transport: 'websocket' },
 			fileService,
 			new NullLogService(),
 		));
@@ -183,12 +187,59 @@ suite('AhpJsonlLogger', () => {
 		});
 	});
 
+	test('redacts resolved canvas source URLs by request id', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'canvas-source', connectionId: 'canvas-source', transport: 'websocket' },
+			fileService,
+			new NullLogService(),
+		));
+
+		logger.log({ jsonrpc: '2.0', id: 7, method: ResolveAgentHostCanvasSourceExtensionMethod, params: { chat: 'ahp-chat:/session/main', instanceId: 'preview', revision: 1 } }, 'c2s');
+		logger.log({ jsonrpc: '2.0', id: 8, result: { url: 'https://visible.example/path' } }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 7, result: { url: 'https://secret.example/path?token=sensitive' } }, 's2c');
+		await logger.flush();
+
+		const entries = (await fileService.readFile(logger.resource)).value.toString().split('\n').filter(Boolean).map(line => JSON.parse(line));
+		assert.deepStrictEqual(entries.map(entry => entry.result?.url), [
+			undefined,
+			'https://visible.example/path',
+			'<redacted canvas source>',
+		]);
+	});
+
+	test('fails closed when canvas source request tracking saturates', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'canvas-source-saturated', connectionId: 'canvas-source-saturated', transport: 'websocket' },
+			fileService,
+			new NullLogService(),
+		));
+
+		for (let id = 0; id < 1025; id++) {
+			logger.log({ jsonrpc: '2.0', id, method: ResolveAgentHostCanvasSourceExtensionMethod, params: { chat: 'ahp-chat:/session/main', instanceId: `preview-${id}`, revision: 1 } }, 'c2s');
+		}
+		logger.log({ jsonrpc: '2.0', id: 0, result: { url: 'https://secret.example/oldest' } }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 1024, result: { url: 'https://secret.example/overflow' } }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 'unrelated', result: { url: 'https://example.com/fail-closed' } }, 's2c');
+		await logger.flush();
+
+		const entries = (await fileService.readFile(logger.resource)).value.toString().split('\n').filter(Boolean).map(line => JSON.parse(line));
+		assert.deepStrictEqual(entries.slice(-3).map(entry => entry.result.url), [
+			'<redacted canvas source>',
+			'<redacted canvas source>',
+			'<redacted canvas source>',
+		]);
+	});
+
 	test('flush waits for batched writes and ordering is preserved across drains', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
 
 		const logger = store.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'flush-order', transport: 'websocket' },
+			{ logsHome: URI.file('/logs'), logId: 'flush-order', connectionId: 'flush-order', transport: 'websocket' },
 			fileService,
 			new NullLogService(),
 		));
@@ -213,7 +264,7 @@ suite('AhpJsonlLogger', () => {
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
 
 		const logger = store.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'conn:1', transport: 'websocket' },
+			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'conn:1', transport: 'websocket' },
 			fileService,
 			new NullLogService(),
 		));

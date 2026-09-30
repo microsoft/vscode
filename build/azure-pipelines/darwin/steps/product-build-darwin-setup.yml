@@ -1,0 +1,143 @@
+parameters:
+  - name: VSCODE_CIBUILD
+    type: boolean
+  - name: VSCODE_TEST_IDS
+    type: object
+    default: []
+  - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
+    type: boolean
+    default: false
+  - name: VSCODE_RUN_ELECTRON_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_RUN_BROWSER_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_RUN_REMOTE_TESTS
+    type: boolean
+    default: false
+
+# Checks out the sources and installs the dependencies that every macOS job
+# needs regardless of whether it compiles, tests or packages the product.
+steps:
+  - template: ../../common/checkout.yml@self
+
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'copilot'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
+    - template: ../../copilot/pull-test-cache.yml@self
+
+  - ${{ if or(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - template: ../../common/ensure-test-artifact-directories.yml@self
+
+  - task: NodeTool@0
+    inputs:
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+
+  - ${{ if or(eq(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true)) }}:
+    - script: node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+      displayName: Disable Foundry Local Native Install
+
+  - template: ../../distro/download-distro.yml@self
+
+  - task: AzureKeyVault@2
+    displayName: "Azure Key Vault: Get GitHub token"
+    inputs:
+      azureSubscription: vscode-oss-build-secrets
+      KeyVaultName: vscode-oss-build-secrets
+      SecretsFilter: "github-token-code-oss"
+
+  - script: node build/setup-npm-registry.ts $NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - template: ../../common/apply-sdk-canary.yml@self
+
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+    displayName: Prepare node_modules cache key
+
+  - task: Cache@2
+    inputs:
+      key: '"node_modules" | .build/packagelockhash'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - script: tar -xzf .build/node_modules_cache/cache.tgz
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract node_modules cache
+
+  - script: |
+      set -e
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
+    - template: ../../common/foundry-local.yml@self
+      parameters:
+        phase: prepare
+
+  - task: PipAuthenticate@1
+    inputs:
+      artifactFeeds: Monaco/vscode
+    displayName: Setup Python Package Authentication
+
+  - script: |
+      set -e
+      c++ --version
+      xcode-select -print-path
+      python3 -m pip install setuptools
+
+      for i in {1..5}; do # try 5 times
+        npm ci && break
+        if [ $i -eq 5 ]; then
+          echo "Npm install failed too many times" >&2
+          exit 1
+        fi
+        echo "Npm install failed $i, trying again..."
+      done
+    env:
+      npm_config_arch: $(VSCODE_ARCH)
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-token-code-oss)"
+      # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
+      # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
+      # flipped the default to support legacy linux distros which shouldn't happen
+      # on macOS.
+      GYP_DEFINES: "kerberos_use_rtld=false"
+    displayName: Install dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
+    - template: ../../common/foundry-local.yml@self
+      parameters:
+        phase: install
+
+  - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+    displayName: Verify native optional dependency binaries
+
+  - script: node build/azure-pipelines/distro/mixin-npm.ts
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Mixin distro node modules
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+      mkdir -p .build/node_modules_cache
+      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Create node_modules archive
+
+  - script: node build/azure-pipelines/distro/mixin-quality.ts
+    displayName: Mixin distro quality

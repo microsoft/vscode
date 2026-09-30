@@ -86,6 +86,7 @@ export class TerminalChatWidget extends Disposable {
 	private readonly _requestActiveContextKey: IContextKey<boolean>;
 	private readonly _responseContainsCodeBlockContextKey: IContextKey<boolean>;
 	private readonly _responseContainsMulitpleCodeBlocksContextKey: IContextKey<boolean>;
+	private readonly _usesAgentHostContextKey: IContextKey<boolean>;
 
 	private _messages = this._store.add(new Emitter<Message>());
 
@@ -130,6 +131,7 @@ export class TerminalChatWidget extends Disposable {
 		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(contextKeyService);
 		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(contextKeyService);
 		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(contextKeyService);
+		this._usesAgentHostContextKey = TerminalChatContextKeys.usesAgentHost.bindTo(contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
@@ -367,10 +369,12 @@ export class TerminalChatWidget extends Disposable {
 			if (lockToAgent) {
 				this._inlineChatWidget.chatWidget.lockToCodingAgent(lockToAgent.name, lockToAgent.displayName, lockToAgent.type, lockToAgent.agentHostProviderId);
 				this._agentHostSessionResource = model.sessionResource;
+				this._usesAgentHostContextKey.set(true);
 				this._refreshAgentHostSessionMetadata();
 			} else {
 				this._inlineChatWidget.chatWidget.unlockFromCodingAgent();
 				this._agentHostSessionResource = undefined;
+				this._usesAgentHostContextKey.set(false);
 			}
 			this._resetPlaceholder();
 		});
@@ -425,6 +429,7 @@ export class TerminalChatWidget extends Disposable {
 		this.cancel();
 		this._model.clear();
 		this._agentHostSessionResource = undefined;
+		this._usesAgentHostContextKey.reset();
 		this._inlineChatWidget.chatWidget.unlockFromCodingAgent();
 		this._responseContainsCodeBlockContextKey.reset();
 		this._requestActiveContextKey.reset();

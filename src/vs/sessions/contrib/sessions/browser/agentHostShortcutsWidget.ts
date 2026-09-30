@@ -37,6 +37,11 @@ export class AgentHostShortcutsWidget extends Disposable {
 	}
 
 	private _render(parent: HTMLElement, options: IAgentHostShortcutsWidgetOptions | undefined): void {
+		// Separates the picker from the customizations above it, mirroring the
+		// split view's separator between sessions and customizations — but
+		// static, since this section is not resizable.
+		DOM.append(parent, $('.agent-host-toolbar-separator'));
+
 		const container = DOM.append(parent, $('.agent-host-toolbar'));
 
 		const toolbarContainer = DOM.append(container, $('.agent-host-toolbar-content'));

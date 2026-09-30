@@ -122,7 +122,7 @@ function parseActionEnvelope(value: unknown, eventIndex: number): ActionEnvelope
 		requireNonEmptyString(rejectionReason, 'payload.data.rejectionReason', eventIndex);
 	}
 
-	// The live path (`remoteAgentHostProtocolClient`) likewise forwards the wire envelope as-is;
+	// The live path (`agentHostProtocolClient`) likewise forwards the wire envelope as-is;
 	// the protocol's `URI` is a string alias, so no revival is needed.
 	return value as unknown as ActionEnvelope;
 }

@@ -93,16 +93,22 @@ body {
 }
 
 .monaco-workbench.border:not(.fullscreen) {
+	--window-border-width: 1px;
 	box-sizing: border-box;
 	border: 1px solid var(--window-border-color);
 }
 
-.monaco-workbench.border.mac {
-	border-radius: 10px;
+/* Native frame geometry stays fixed in screen coordinates when the workbench is zoomed. */
+.monaco-workbench.mac {
+	--window-corner-radius: calc(10px / var(--window-zoom-factor, 1));
 }
 
-.monaco-workbench.border.mac.macos-tahoe {
-	border-radius: 16px; /* macOS Tahoe increased rounded corners size */
+.monaco-workbench.mac.macos-tahoe {
+	--window-corner-radius: calc(16px / var(--window-zoom-factor, 1));
+}
+
+.monaco-workbench.border.mac {
+	border-radius: var(--window-corner-radius);
 }
 
 .monaco-workbench img {

@@ -33,6 +33,9 @@ jobs:
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
+      ${{ if eq(parameters.os, 'macOS') }}:
+        demands:
+          - ImageOverride -equals ACES_VM_SharedPool_Sequoia
     timeoutInMinutes: 30
     templateContext:
       outputs:
@@ -102,6 +105,9 @@ jobs:
           displayName: Create Crash Dumps Directory
 
       - ${{ if and(eq(parameters.os, 'windows'), eq(parameters.arch, 'arm64')) }}:
+        - task: NuGetAuthenticate@1
+          displayName: Setup NuGet Authentication
+
         - script: |
             @echo off
             setlocal enabledelayedexpansion
@@ -117,7 +123,7 @@ jobs:
               if exist "!SDK_ROOT!" rmdir /s /q "!SDK_ROOT!"
 
               set "SDK_PACKAGE=$(Agent.TempDirectory)\windows-sdk-build-tools.nupkg"
-              curl.exe -fsSL --retry 5 --retry-delay 2 --retry-all-errors "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.buildtools/!PACKAGE_VERSION!/microsoft.windows.sdk.buildtools.!PACKAGE_VERSION!.nupkg" -o "!SDK_PACKAGE!"
+              curl.exe -fsSL --retry 5 --retry-delay 2 --retry-all-errors -u "vscode:%VSS_NUGET_ACCESSTOKEN%" "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/flat2/microsoft.windows.sdk.buildtools/!PACKAGE_VERSION!/microsoft.windows.sdk.buildtools.!PACKAGE_VERSION!.nupkg" -o "!SDK_PACKAGE!"
 
               set "ACTUAL_HASH="
               for /f "skip=1" %%A in ('certutil -hashfile "!SDK_PACKAGE!" SHA256') do if not defined ACTUAL_HASH set "ACTUAL_HASH=%%A"

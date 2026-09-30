@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../../../../workbench/contrib/modernUI/browser/media/tabs.css';
+import '../../../../workbench/contrib/modernUI/browser/connectedEditorTabs.js';
 import './media/editorBreadcrumbs.css';
 import './media/editorHeader.css';
 import '../../../../workbench/services/themes/browser/modernTabColorCustomizations.js';
@@ -13,6 +14,7 @@ import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { getWindow } from '../../../../base/browser/dom.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
@@ -35,8 +37,9 @@ import { resolveCommandsContext } from '../../../../workbench/browser/parts/edit
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { ChangesViewPane } from '../../changes/browser/changesView.js';
-import { prepareMoveCopyEditors } from '../../../../workbench/browser/parts/editor/editor.js';
-import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { CONNECTED_EDITOR_TABS_CLASS, prepareMoveCopyEditors } from '../../../../workbench/browser/parts/editor/editor.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
@@ -47,6 +50,49 @@ import { IChangesViewService } from '../../changes/common/changesViewService.js'
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
+export class SessionsTabStyleContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.tabStyle';
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
+	) {
+		super();
+		for (const container of this.layoutService.containers) {
+			this.applyTo(container);
+		}
+		this._register(this.layoutService.onDidAddContainer(({ container }) => this.applyTo(container)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE)) {
+				for (const container of this.layoutService.containers) {
+					this.applyTo(container);
+				}
+				this.layoutService.layout();
+				for (const container of this.layoutService.containers) {
+					if (container !== this.layoutService.mainContainer) {
+						this.auxiliaryWindowService.getWindow(getWindow(container).vscodeWindowId)?.layout();
+					}
+				}
+			}
+		}));
+	}
+
+	private applyTo(container: HTMLElement): void {
+		container.classList.toggle(CONNECTED_EDITOR_TABS_CLASS, this.configurationService.getValue<ModernUIEditorTabStyle>(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE) === ModernUIEditorTabStyle.Connected);
+	}
+
+	override dispose(): void {
+		for (const container of this.layoutService.containers) {
+			container.classList.remove(CONNECTED_EDITOR_TABS_CLASS);
+		}
+		super.dispose();
+	}
+}
+
+registerWorkbenchContribution2(SessionsTabStyleContribution.ID, SessionsTabStyleContribution, WorkbenchPhase.BlockStartup);
+
 // The pop-out-to-modal and close-editor-area buttons do not apply to the single-pane
 // redesign, so they are hidden when single-pane is enabled (original layout keeps them).
 const singlePaneDetailPanel = SinglePaneLayoutEnabledContext;
@@ -56,9 +102,9 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
-// Maximize/restore renders first in the editor-title layout cluster.
+// Maximize/restore renders before Toggle Details in the editor-title layout cluster.
 // Hide/Show Editor remain registered but are hidden from the menu.
-const singlePaneLayoutMaximizeOrder = 10;
+const singlePaneLayoutMaximizeOrder = 9;
 const singlePaneLayoutHideEditorOrder = 20;
 
 // Keybinding scope for the single-pane maximize/restore toggle: active in the
@@ -448,7 +494,7 @@ class AddFileAsContextAction extends Action2 {
 			f1: true,
 			precondition,
 			menu: [{
-				id: Menus.SessionsEditorHeaderSecondary,
+				id: Menus.SessionsEditorTitle,
 				group: 'navigation',
 				order: 100000,
 				when: ContextKeyExpr.and(precondition, singlePaneDetailPanel)
@@ -483,7 +529,7 @@ class AddFileAsContextAction extends Action2 {
 registerAction2(AddFileAsContextAction);
 
 /**
- * Mirrors extension-contributed `editor/title` items into {@link Menus.SessionsEditorHeaderSecondary}
+ * Mirrors extension-contributed `editor/title` items into {@link Menus.SessionsEditorTitle}
  * so they are not lost in the single-pane layout. See `LAYOUT.md` for details.
  */
 export class EditorTitleMenuBridgeContribution extends Disposable implements IWorkbenchContribution {
@@ -524,10 +570,7 @@ export class EditorTitleMenuBridgeContribution extends Disposable implements IWo
 				? !!item.command.source
 				: item.submenu.id.startsWith(EditorTitleMenuBridgeContribution._extensionSubmenuPrefix);
 			if (isExtensionItem) {
-				const group = item.group === 'navigation'
-					? 'extension/navigation'
-					: `secondary/extension/${item.group ?? 'other'}`;
-				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, { ...item, group }));
+				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, item));
 			}
 		}
 	}

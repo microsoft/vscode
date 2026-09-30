@@ -14,7 +14,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { IAgent } from '../common/agent.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 
 type DebugLogsProvider = Pick<IAgent, 'id' | 'collectDebugLogs'>;
 type LocalZipFile = IFile & { readonly localPath: string };
@@ -38,7 +38,7 @@ export class AgentHostDebugLogsCollector extends Disposable {
 		this._register(toDisposable(() => void this.cleanup()));
 	}
 
-	async collect(providers: readonly DebugLogsProvider[], session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	async collect(providers: readonly DebugLogsProvider[], session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
 		const id = generateUuid();
 		const staging = join(this._environment.tmpDir.fsPath, `agent-host-debug-logs-${id}`);
 		await mkdir(staging, { recursive: true });
@@ -54,7 +54,7 @@ export class AgentHostDebugLogsCollector extends Disposable {
 				// An implemented provider contributor is part of this collection,
 				// so its failure must fail the export. Providers without additional
 				// diagnostics still get the Agent Host process log below.
-				providerLogsIncluded = await provider.collectDebugLogs(session, URI.file(staging)) || providerLogsIncluded;
+				providerLogsIncluded = await provider.collectDebugLogs(session, URI.file(staging), chat) || providerLogsIncluded;
 			}
 
 			await this._copyAgentHostLogs(staging);
@@ -67,10 +67,6 @@ export class AgentHostDebugLogsCollector extends Disposable {
 				uncompressedSize += size;
 				artifactEntries.push({ path: file.path, size });
 			}
-			if (uncompressedSize > AGENT_HOST_DEBUG_LOGS_MAX_BYTES) {
-				throw new Error(`Agent Host debug logs are too large (${uncompressedSize} bytes; limit ${AGENT_HOST_DEBUG_LOGS_MAX_BYTES} bytes)`);
-			}
-
 			if (kind === 'directory') {
 				retainStaging = true;
 				this._scheduleCleanup(staging, true, files.map(file => file.localPath));
@@ -79,9 +75,6 @@ export class AgentHostDebugLogsCollector extends Disposable {
 
 			await zip(archive, files);
 			const archiveSize = (await stat(archive)).size;
-			if (archiveSize > AGENT_HOST_DEBUG_LOGS_MAX_BYTES) {
-				throw new Error(`Agent Host debug log archive is too large (${archiveSize} bytes; limit ${AGENT_HOST_DEBUG_LOGS_MAX_BYTES} bytes)`);
-			}
 			this._scheduleCleanup(archive, false, [archive]);
 			return { kind, resource: URI.file(archive), providerLogsIncluded, size: archiveSize, uncompressedSize, entries: artifactEntries };
 		} catch (error) {

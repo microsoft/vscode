@@ -5,10 +5,11 @@
 
 import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../../platform/localTranscription/common/localTranscription.js';
-import { DICTATION_MAI_MODEL_ID, DICTATION_MODEL_SETTING } from './chatSpeechToTextService.js';
+import { DICTATION_MODEL_SETTING, resolveDictationBackend } from './chatSpeechToTextService.js';
 
 /**
  * Build a hover with a bold title line and a one-sentence description below it.
@@ -32,9 +33,10 @@ function asHoverContent(title: string, description: string): IManagedHoverConten
  * Names the model dictation actually uses, so it is obvious that `dictation.model`
  * governs this button and not Voice Mode (see microsoft/vscode-internalbacklog#8600).
  */
-function getDictationDescription(configurationService: IConfigurationService): string {
+function getDictationDescription(configurationService: IConfigurationService, web: boolean): string {
 	const modelId = configurationService.getValue<string>(DICTATION_MODEL_SETTING)?.trim();
-	if (modelId === DICTATION_MAI_MODEL_ID) {
+	const policyModelId = configurationService.inspect<string>(DICTATION_MODEL_SETTING).policyValue?.trim();
+	if (resolveDictationBackend(modelId, policyModelId, web) === 'mai') {
 		return localize('dictation.hover.cloud', "Types what you say into the input. Transcribes in the cloud with the MAI speech model.");
 	}
 	if (!modelId || modelId === DEFAULT_LOCAL_TRANSCRIPTION_MODEL) {
@@ -52,13 +54,13 @@ function getVoiceModeDescription(): string {
 }
 
 /** Hover markdown for the dictation mic button. */
-export function getDictationHoverMarkdown(title: string, configurationService: IConfigurationService): MarkdownString {
-	return createMicButtonHover(title, getDictationDescription(configurationService));
+export function getDictationHoverMarkdown(title: string, configurationService: IConfigurationService, web = isWeb): MarkdownString {
+	return createMicButtonHover(title, getDictationDescription(configurationService, web));
 }
 
 /** Hover for the dictation mic button, for APIs that take managed hover content. */
 export function getDictationHoverContent(title: string, configurationService: IConfigurationService): IManagedHoverContent {
-	return asHoverContent(title, getDictationDescription(configurationService));
+	return asHoverContent(title, getDictationDescription(configurationService, isWeb));
 }
 
 /** Hover for the Voice Mode button, for APIs that take managed hover content. */

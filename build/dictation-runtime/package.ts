@@ -11,7 +11,7 @@
  *
  * The library form is what `produce.ts` calls during the per-platform
  * "Dictation runtime: build + upload" pipeline step; the CLI form is for local
- * one-off builds.
+ * one-off builds and requires `VSS_NUGET_ACCESSTOKEN` for the VS Code NuGet feed.
  *
  * The addon is copied from the pinned `foundry-local-sdk` package's `prebuilds/`
  * (which ships every target), and the core libraries are fetched from NuGet for
@@ -33,7 +33,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
 import { getRuntimeVersion, parseFlags, SDK_PACKAGE_NAME, sha256OfFile, SUPPORTED_TARGETS } from './common.ts';
-import { fetchCoreLibraries } from './nuget.ts';
+import { fetchCoreLibraries, getStandardArtifacts, type IFoundryDependencyVersions, requiredCoreLibraryNames } from './nuget.ts';
 
 const SCRIPT = 'package.ts';
 
@@ -108,22 +108,8 @@ async function stageAddon(stagingDir: string, target: string): Promise<void> {
  * Runtime package. Host-independent — `target` need not match the build host.
  */
 async function stageCoreLibraries(stagingDir: string, target: string): Promise<void> {
-	const deps = sdkRequire(`${SDK_PACKAGE_NAME}/deps_versions.json`) as {
-		'foundry-local-core': { nuget: string };
-		onnxruntime: { version: string };
-		'onnxruntime-genai': { version: string };
-	};
-
-	// Microsoft.ML.OnnxRuntime.Gpu.Linux only ships x86_64 native binaries, so
-	// linux-arm64 (and every non-linux-x64 target) uses the cross-platform
-	// Foundry ORT package. Mirrors `ensureCoreLibraries` in the runtime.
-	const ortPackageName = target === 'linux-x64' ? 'Microsoft.ML.OnnxRuntime.Gpu.Linux' : 'Microsoft.ML.OnnxRuntime.Foundry';
-
-	const artifacts = [
-		{ name: 'Microsoft.AI.Foundry.Local.Core', version: deps['foundry-local-core'].nuget },
-		{ name: ortPackageName, version: deps.onnxruntime.version },
-		{ name: 'Microsoft.ML.OnnxRuntimeGenAI.Foundry', version: deps['onnxruntime-genai'].version },
-	];
+	const dependencies = sdkRequire(`${SDK_PACKAGE_NAME}/deps_versions.json`) as IFoundryDependencyVersions;
+	const artifacts = getStandardArtifacts(target, dependencies);
 
 	const coreDir = path.join(stagingDir, 'foundry-local-core', target);
 	await fetchCoreLibraries(target, artifacts, coreDir);
@@ -133,19 +119,6 @@ async function stageCoreLibraries(stagingDir: string, target: string): Promise<v
 			throw new Error(`[${SCRIPT}] Core library '${name}' missing after install for ${target} — refusing to build an incomplete tarball.`);
 		}
 	}
-}
-
-/** The core library filenames required for `target`. Mirrors the runtime gate. */
-function requiredCoreLibraryNames(target: string): string[] {
-	const isWin = target.startsWith('win32-');
-	const isMac = target.startsWith('darwin-');
-	const ext = isWin ? '.dll' : isMac ? '.dylib' : '.so';
-	const prefix = isWin ? '' : 'lib';
-	return [
-		`Microsoft.AI.Foundry.Local.Core${ext}`,
-		`${prefix}onnxruntime${ext}`,
-		`${prefix}onnxruntime-genai${ext}`,
-	];
 }
 
 /**

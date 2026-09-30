@@ -6,7 +6,7 @@
 import { distinct } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { getLanguageModelProviderDisplayName, ILanguageModelChatMetadata, ILanguageModelsService, ILanguageModelProviderDescriptor, ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
+import { canHideModel, getLanguageModelProviderDisplayName, ILanguageModelsService, ILanguageModelProviderDescriptor, ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 import Severity from '../../../../../base/common/severity.js';
@@ -482,15 +482,9 @@ export class ChatModelsViewModel extends Disposable {
 				if (!metadata) {
 					continue;
 				}
-				if (vendor.isDefault && metadata.id === 'auto') {
-					continue;
-				}
-				// Agent-host BYOK models are copies of the user's own BYOK models surfaced
-				// by an agent host (e.g. Copilot CLI). They already appear under their real
-				// provider group, so listing them again under the agent-host vendor would
-				// duplicate the entire BYOK catalogue (e.g. hundreds of OpenRouter models
-				// under "Copilot"). Skip them here.
-				if (ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata) !== undefined) {
+				// Models with no toggle of their own are not listed here. Listing the
+				// agent-host BYOK copies would also duplicate the whole BYOK catalogue.
+				if (!canHideModel(identifier, metadata)) {
 					continue;
 				}
 				const sourcePresentation = metadata.modelGroup?.sourceId

@@ -26,7 +26,7 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession, ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ModePicker, ModePickerModel } from '../../copilotChatSessions/browser/modePicker.js';
+import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
@@ -46,17 +46,22 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('agentHostAgentPicker', "Agent"),
 			f1: false,
 			menu: [{
-				id: Menus.NewSessionConfig,
+				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: -1,
-				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate()),
+			}, {
+				id: Menus.AutomationsDialogInputToolbar,
+				group: 'navigation',
+				order: -1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
 			}, {
 				// Running-session input bar — only inside the dedicated
 				// Agents Window. The regular VS Code chat editor uses the
 				// built-in mode picker for Agent Host custom agents.
 				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 1,
+				order: 0,
 				// Hide the agent picker while a delegation (continue in) target is pending.
 				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, IsPhoneLayoutContext.negate(), ChatContextKeys.hasPendingDelegationTarget.negate()),
 			}],
@@ -66,14 +71,27 @@ registerAction2(class extends Action2 {
 });
 
 class AgentHostModePickerActionViewItem extends BaseActionViewItem {
+	private compact = false;
+
 	constructor(private readonly picker: ModePicker, disposable: IDisposable) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 		this._register(disposable);
 	}
 
 	override render(container: HTMLElement): void {
+		this.element = container;
 		container.classList.add('chat-input-picker-item', 'chat-agent-picker-item');
+		container.classList.toggle('compact-picker', this.compact);
 		this.picker.render(container);
+	}
+
+	isCompact(): boolean {
+		return this.compact;
+	}
+
+	setCompact(compact: boolean): void {
+		this.compact = compact;
+		this.element?.classList.toggle('compact-picker', compact);
 	}
 
 	override dispose(): void {
@@ -88,7 +106,6 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IChatService private readonly chatService: IChatService,
@@ -97,8 +114,11 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		const modePickerModel = this._register(instantiationService.createInstance(ModePickerModel));
 		let settingAgentInternally = false;
+		const modePickerModels = this._register(new ScopedModePickerModelCache(session => {
+			const provider = sessionsProvidersService.getProvider(session.providerId);
+			return !!provider && isAgentHostProvider(provider);
+		}));
 
 		const initAgentFromActiveSession = () => {
 			const session = sessionsService.activeSession.get();
@@ -112,10 +132,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 
 		this._register(autorun(reader => {
 			const session = sessionsService.activeSession.read(reader);
-			const provider = this._getProvider(session, sessionsProvidersService);
 			const selectedAgentUri = session?.mode.read(reader)?.id;
-
-			modePickerModel.setSession(provider ? session : undefined, selectedAgentUri);
 
 			const isUntitled = session?.status.read(reader) === SessionStatus.Untitled;
 			this._syncChatInputMode(session, selectedAgentUri, sessionsProvidersService);
@@ -141,8 +158,9 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 
 		const factory = (_action: IAction, _options: IActionViewItemOptions, scopedInstantiationService: IInstantiationService) => {
 			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel, session);
 			const disposableStore = new DisposableStore();
+			const modePickerModel = disposableStore.add(modePickerModels.acquire(session, scopedInstantiationService));
+			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel.model, session);
 
 			disposableStore.add(picker.onDidSelect(mode => {
 				this._selectMode(mode, session.get(), sessionsProvidersService);
@@ -150,7 +168,8 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			return scopedInstantiationService.createInstance(AgentHostModePickerActionViewItem, picker, disposableStore);
 		};
 
-		this._register(actionViewItemService.register(Menus.NewSessionConfig, 'sessions.agentHost.agentPicker', factory));
+		this._register(actionViewItemService.register(Menus.NewSessionControl, 'sessions.agentHost.agentPicker', factory));
+		this._register(actionViewItemService.register(Menus.AutomationsDialogInputToolbar, 'sessions.agentHost.agentPicker', factory));
 		this._register(actionViewItemService.register(MenuId.ChatInput, 'sessions.agentHost.agentPicker', factory));
 	}
 

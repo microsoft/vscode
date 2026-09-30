@@ -57,6 +57,7 @@ describe('byokKnownModelToAPIInfo', () => {
 
 		expect(info.maxInputTokens).toBe(1000000 - 384000);
 		expect(info.maxOutputTokens).toBe(384000);
+		expect(info.maxContextWindowTokens).toBe(1000000);
 	});
 });
 

@@ -35,7 +35,7 @@ const context = new TestContext({
 	cleanup: options.cleanup,
 	checkSigning: options['signing-check'],
 	headlessBrowser: options.headless,
-	downloadOnly: !options['detection'],
+	downloadOnly: !options.detection,
 	screenshotsDir: options['screenshots-dir'],
 	crashDumpsDir: options['crash-dumps-dir'],
 	artifactsDir: options['artifacts-dir'],

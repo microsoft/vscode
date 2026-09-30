@@ -30,6 +30,11 @@
 	flex: 1;
 }
 
+.monaco-workbench .part.auxiliarybar.pane-composite-part > .composite.title > .title-label {
+	flex: 0 0 auto;
+	max-width: 40%;
+}
+
 .monaco-workbench .part.auxiliarybar > .title > .title-label h2 {
 	text-transform: uppercase;
 }
@@ -99,7 +104,7 @@
 }
 
 .monaco-workbench .auxiliarybar.part.pane-composite-part > .composite.title > .title-actions {
-	flex: inherit;
+	flex: 1;
 }
 
 .monaco-workbench .auxiliarybar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {

@@ -12,6 +12,7 @@ import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { formatChatQuestion } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatFollowup } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { compactCodiconsIn } from '../../chatIcons.js';
 
 const $ = dom.$;
 
@@ -56,6 +57,7 @@ export class ChatFollowups<T extends IChatFollowup> extends Disposable {
 		}
 		button.element.ariaLabel = localize('followUpAriaLabel', "Follow up question: {0}", baseTitle);
 		button.label = new MarkdownString(baseTitle);
+		compactCodiconsIn(button.element);
 
 		this._register(button.onDidClick(() => this.clickHandler(followup)));
 	}
