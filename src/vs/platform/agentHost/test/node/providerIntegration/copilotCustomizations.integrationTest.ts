@@ -223,7 +223,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		await runWorkspaceAndPluginCustomizationsTest();
 	});
 
-	test('SDK-installed plugin reaches the client and runs plugin hooks', async function () {
+	// The SDK-owned runtime does not invoke plugin hook callbacks on Windows.
+	(isWindows ? test.skip : test)('SDK-installed plugin reaches the client and runs plugin hooks', async function () {
 		this.timeout(TEST_TIMEOUT_MS);
 		await runSdkInstalledPluginCustomizationsTest();
 	});
