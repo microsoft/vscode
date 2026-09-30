@@ -64,6 +64,10 @@ export class CopilotSessionDirectoryWatcher extends Disposable {
 	}
 
 	start(): void {
+		this._watchRoot();
+	}
+
+	private _watchRoot(): void {
 		const store = new DisposableStore();
 		this._watch.value = store;
 		const watcher = store.add(this._fileService.createWatcher(this._root, {
@@ -127,6 +131,12 @@ export class CopilotSessionDirectoryWatcher extends Disposable {
 					if (result.reset) {
 						this._generation++;
 						this._known.clear();
+						if (stat) {
+							this._watchRoot();
+							this._logService.debug('[CopilotDiscovery] Re-armed session root watcher after root availability or identity changed');
+						} else {
+							this._watch.clear();
+						}
 					}
 					// Capture before enumeration so concurrent additions are not absorbed into its fingerprint.
 					this._rootStat = stat;

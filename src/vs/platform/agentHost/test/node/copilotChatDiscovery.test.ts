@@ -24,18 +24,28 @@ class DiscoveryFileService extends mock<IFileService>() {
 	private readonly _entries = new Map<string, IFileStatWithPartialMetadata>();
 	private _timestamp = 1;
 	private _activeStats = 0;
-	readonly watches = new Map<string, { resource: URI; options: IWatchOptionsWithoutCorrelation; changes: Emitter<FileChangesEvent>; armedAt: number }>();
+	readonly watches = new Map<string, { resource: URI; options: IWatchOptionsWithoutCorrelation; changes: Emitter<FileChangesEvent>; armedAt: number; rootIdentity: number | undefined }>();
+	readonly watchRequests: URI[] = [];
 	readonly statCalls: string[] = [];
 	maxWatches = 0;
 	maxActiveStats = 0;
 	resolveCalls = 0;
 	watchDelay = 0;
 
+	constructor() {
+		super();
+		this._set(root, true);
+	}
+
 	override createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation & { recursive: false }) {
 		const store = new DisposableStore();
 		this._watchStores.set(resource.path, store);
 		const changes = store.add(new Emitter<FileChangesEvent>());
-		this.watches.set(resource.path, { resource, options, changes, armedAt: Date.now() + this.watchDelay });
+		this.watchRequests.push(resource);
+		this.watches.set(resource.path, {
+			resource, options, changes, armedAt: Date.now() + this.watchDelay,
+			rootIdentity: this._entries.get(root.path)?.ctime,
+		});
 		store.add(toDisposable(() => this.watches.delete(resource.path)));
 		this.maxWatches = Math.max(this.maxWatches, this.watches.size);
 		return { onDidChange: changes.event, dispose: () => this._watchStores.deleteAndDispose(resource.path) };
@@ -117,8 +127,17 @@ class DiscoveryFileService extends mock<IFileService>() {
 		this._set(root, true);
 	}
 
+	removeRoot(): void {
+		this._entries.clear();
+		this.change(root, FileChangeType.DELETED);
+	}
+
 	change(resource: URI, type: FileChangeType): void {
 		for (const watch of [...this.watches.values()]) {
+			if (isEqual(watch.resource, root) && (watch.rootIdentity === undefined
+				|| (watch.rootIdentity !== this._entries.get(root.path)?.ctime && !(isEqual(resource, root) && type === FileChangeType.DELETED)))) {
+				continue;
+			}
 			if (Date.now() >= watch.armedAt && (isEqual(resource, watch.resource) || isEqual(dirname(resource), watch.resource))) {
 				watch.changes.fire(new FileChangesEvent([{ resource, type }], false));
 			}
@@ -452,6 +471,7 @@ suite('CopilotChatDiscovery', () => {
 	});
 
 	testDiscovery('recovers an unobserved populated root and silent root replacement', async (files, catalog, discovery) => {
+		files.removeRoot();
 		await discovery.start();
 		files.mkdir('missed', false);
 		files.write('missed', 'events.jsonl', false);
@@ -469,6 +489,55 @@ suite('CopilotChatDiscovery', () => {
 			published: catalog.published, settledCalls, idleCalls: catalog.calls.length - settledCalls, watches: files.watches.size,
 		}, { published: ['missed', 'replacement'], settledCalls: 3, idleCalls: 0, watches: 1 });
 	});
+
+	for (const recovery of ['initially missing', 'silently replaced', 'deleted and recreated'] as const) {
+		testDiscovery(`re-arms the ${recovery} root for subsequent event-driven discovery`, async (files, catalog, discovery) => {
+			if (recovery === 'initially missing') {
+				files.removeRoot();
+			}
+			await discovery.start();
+			const initialRootWatches = files.watchRequests.filter(resource => isEqual(resource, root)).length;
+			if (recovery === 'silently replaced') {
+				files.replaceRoot();
+			} else if (recovery === 'deleted and recreated') {
+				files.removeRoot();
+				await timeout(501);
+			}
+			files.mkdir('recovered');
+			files.write('recovered', 'events.jsonl');
+			catalog.sessions.add('recovered');
+			await timeout(60_001);
+			const recoveredRootWatches = files.watchRequests.filter(resource => isEqual(resource, root)).length;
+			const enumerations = files.resolveCalls;
+			const calls = catalog.calls.length;
+			const createdAt = Date.now();
+			files.mkdir('subsequent');
+			files.write('subsequent', 'events.jsonl');
+			catalog.sessions.add('subsequent');
+			await timeout(501);
+			const subsequentScan = catalog.calls[calls];
+			const immediate = {
+				additionalScans: catalog.calls.length - calls,
+				discoveryDelay: subsequentScan ? subsequentScan.time - createdAt : undefined,
+				enumerations: files.resolveCalls - enumerations,
+				published: [...catalog.published],
+			};
+			await timeout(60_001);
+			assert.deepStrictEqual({
+				rearmed: recoveredRootWatches - initialRootWatches,
+				immediate,
+				additionalRootWatches: files.watchRequests.filter(resource => isEqual(resource, root)).length - recoveredRootWatches,
+				watches: files.watches.size,
+				maxWatches: files.maxWatches,
+			}, {
+				rearmed: 1,
+				immediate: { additionalScans: 1, discoveryDelay: 500, enumerations: 0, published: ['recovered', 'subsequent'] },
+				additionalRootWatches: 0,
+				watches: 1,
+				maxWatches: 2,
+			});
+		});
+	}
 
 	for (const readyImmediately of [true, false]) {
 		testDiscovery(`rediscovers a same-ID directory replaced within one interval (ready=${readyImmediately})`, async (files, catalog, discovery) => {
