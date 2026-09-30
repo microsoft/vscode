@@ -25,6 +25,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
+import { SessionOriginKind } from '../../common/state/protocol/channels-session/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
 import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
@@ -1519,7 +1520,8 @@ suite('AgentHostAutomationService', () => {
 					startedAt: timestamp,
 					completedAt: timestamp,
 				},
-				sessions: [],
+				sessions: [AgentSession.uri('mock', `primary-${index}`).toString(), AgentSession.uri('mock', `secondary-${index}`).toString()],
+				primarySession: AgentSession.uri('mock', `primary-${index}`).toString(),
 			};
 		});
 		storageService.set('automations', {
@@ -1532,7 +1534,8 @@ suite('AgentHostAutomationService', () => {
 						automation: run.automation,
 						origin: run.origin,
 						lifecycle: run.lifecycle,
-						sessionCount: 0,
+						primarySession: run.primarySession,
+						sessionCount: run.sessions.length,
 					})),
 					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
 					createdAt: '2026-01-01T00:00:00.000Z',
@@ -1543,16 +1546,28 @@ suite('AgentHostAutomationService', () => {
 			manualRunRequests: [],
 		});
 		await storageService.whenIdle();
+		stateManager.dispatchServerAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false },
+		});
 		const service = createService();
 
 		assert.deepStrictEqual({
 			count: stateManager.getAutomationCatalogState()?.entries[0].runs.length,
 			cursor: stateManager.getAutomationCatalogState()?.entries[0].runsNextCursor,
+			oldestOrigins: runs[0].sessions.map(session => service.getLegacySessionOrigin(session)),
+			ordinaryOrigin: service.getLegacySessionOrigin(AgentSession.uri('mock', 'ordinary').toString()),
 		}, {
 			count: 50,
 			cursor: '50',
+			oldestOrigins: runs[0].sessions.map(() => ({ kind: SessionOriginKind.Automation, automation: automationResource, run: runs[0].resource })),
+			ordinaryOrigin: undefined,
 		});
 
+		stateManager.dispatchServerAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
+		});
 		await service.fetchAutomationRuns({
 			channel: 'ahp-automations://',
 			automation: automationResource,

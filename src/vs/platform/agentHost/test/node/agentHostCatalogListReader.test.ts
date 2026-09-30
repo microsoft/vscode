@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
 import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
-import { ChatInteractivity } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, SessionOriginKind, type SessionOrigin } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildSubagentChatUri, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
@@ -128,6 +128,38 @@ suite('AgentHostCatalogListReader', () => {
 			source: registered.source,
 		};
 		return database;
+	}
+
+	test('retains session origin in catalog-only listings', async () => {
+		const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };
+		const result = await new AgentHostCatalogListReader(createDatabase({ ...data, origin })).read(registered);
+		assert.ok(result.eligible);
+		assert.deepStrictEqual(result.metadata.origin, origin);
+	});
+
+	for (const mismatch of ['session', 'provider', 'registration'] as const) {
+		test(`does not forward a catalogue with a mismatched ${mismatch} to origin recovery`, async () => {
+			const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/other', run: 'ahp-automation-run:/other' };
+			const database = createDatabase({ ...data, origin });
+			const catalog = database.catalog;
+			assert.ok(catalog);
+			database.getSessionV2 = async () => ({
+				...catalog,
+				...(mismatch === 'session' ? { session: AgentSession.uri('copilot', 'other').toString() } : {}),
+				...(mismatch === 'provider' ? { provider: 'claude' } : {}),
+			});
+			const result = await new AgentHostCatalogListReader(database).read(
+				mismatch === 'registration' ? { ...registered, provider: 'claude' } : registered,
+			);
+
+			assert.deepStrictEqual({
+				eligible: result.eligible,
+				catalog: result.catalog,
+			}, {
+				eligible: false,
+				catalog: null,
+			});
+		});
 	}
 
 	test('converts a verified catalog payload into complete list metadata and chats', async () => {
@@ -321,13 +353,29 @@ suite('AgentHostCatalogListReader', () => {
 		assert.deepStrictEqual(actual, cases.map(testCase => testCase.expected));
 	});
 
+	test('retains catalog reads independently of listing eligibility', async () => {
+		const eligible = createDatabase();
+		const outdated = createDatabase();
+		outdated.catalog = { ...outdated.catalog!, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION - 1 };
+		const missing = createDatabase();
+		missing.catalog = undefined;
+		const failed = createDatabase();
+		failed.readError = new Error('read failed');
+
+		const results = await Promise.all([eligible, outdated, missing, failed].map(database =>
+			new AgentHostCatalogListReader(database).read(registered)
+		));
+
+		assert.deepStrictEqual(results.map(result => result.catalog), [eligible.catalog, outdated.catalog, null, undefined]);
+	});
+
 	test('hides a chat-backing payload even when the row marker disagrees', async () => {
 		const database = createDatabase({ ...data, isChatBacking: true });
 		database.catalog = { ...database.catalog!, isChatBacking: false };
 
 		const result = await new AgentHostCatalogListReader(database).read(registered);
 
-		assert.deepStrictEqual(result, { eligible: false, chatBacking: true });
+		assert.deepStrictEqual(result, { eligible: false, chatBacking: true, catalog: database.catalog });
 	});
 
 	test('rejects a registry provider that does not match the session identity', async () => {

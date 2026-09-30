@@ -112,6 +112,8 @@ The host owns:
 
 Definitions and run mutations are persisted before corresponding AHP state is published. An unreadable or unsupported host storage format must not be replaced with an empty writable catalogue.
 
+Automation-created sessions carry host-owned `SessionOrigin` identifying their Automation and run. The host persists this provenance before publishing the session and preserves it in session state, catalogue listings, and client caches. The ordinary Agents Window list omits sessions with Automation origin independently of run-history availability, pagination, or feature enablement; the sessions remain in the management catalogue for Automation history and explicit opening. Run membership, chat origin, and message origin do not replace session provenance. Sessions without recoverable provenance remain ordinary list entries.
+
 At most one non-terminal run occupies an Automation's active-run slot. `pending` and `running` are non-terminal; `completed` and `failed` are terminal in the Sessions projection. AHP cancellation projects as failed with its cancellation reason. A run exposes its session resource only once the host links that session.
 
 Run Now submits a manual request to this authority and observes dispatch and completion. An existing active run is reported without creating another session. Pre-dispatch cancellation prevents the request; supported in-flight cancellation is forwarded to the host. Observation failure or window closure cannot synthesize a terminal run or move execution elsewhere.
