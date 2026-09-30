@@ -300,11 +300,19 @@ suite('Product test checkpoint templates', () => {
 		const compileTemplate = readTemplate('win32/steps/product-build-win32-compile.yml');
 		const setup = readTemplate('win32/steps/product-build-win32-setup.yml');
 		const product = readTemplate('win32/product-build-win32.yml');
+		const productTestJob = records(product).find(record => record.job === 'Windows_${{ parameters.VSCODE_ARCH }}_Test_${{ testJob.name }}');
 		const productSteps = records(product).filter(record => record.template === './steps/product-build-win32-test.yml@self' || record.template === './steps/product-build-win32-setup.yml@self');
 		const compileSteps = records(compileTemplate).filter(record => record.template === 'product-build-win32-test.yml@self' || record.template === 'product-build-win32-setup.yml@self');
 		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
 		const jobsByPipeline = pipelineFiles.map(file => ciJobs(file, 'win32'));
 		const jobs = jobsByPipeline[0];
+		const productJobsByPipeline = ['product-build.yml', 'product-build-template.yml'].map(file => records(readTemplate(file))
+			.filter(record => typeof record.template === 'string' && record.template.endsWith('win32/product-build-win32.yml@self'))
+			.map(record => {
+				const parameters = record.parameters as Record<string, unknown>;
+				const testJobs = (parameters['${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}'] as { VSCODE_TEST_JOBS?: { name: string; displayName: string; testIds: string[] }[] } | undefined)?.VSCODE_TEST_JOBS;
+				return { arch: parameters.VSCODE_ARCH, jobs: testJobs?.map(job => ({ name: job.name, displayName: job.displayName, ids: job.testIds })) };
+			}));
 		const assignedIds = jobs.flatMap(job => job.ids).sort();
 		const copilotCheckpoints = copilotCalls('win32').map(call => call.testId);
 		const availableIds = [
@@ -326,6 +334,8 @@ suite('Product test checkpoint templates', () => {
 			defaultTestIds: [compileTemplate, setup, readTemplate(windowsTestFile)].map(template => template.parameters?.find(parameter => parameter.name === 'VSCODE_TEST_IDS')?.default),
 			forwardedTestIds: compileSteps.map(step => (step.parameters as Record<string, string>).VSCODE_TEST_IDS),
 			productTestIds: productSteps.map(step => (step.parameters as Record<string, string>).VSCODE_TEST_IDS).filter(value => value !== undefined),
+			productTestJob: { dependsOn: productTestJob?.dependsOn, displayName: productTestJob?.displayName },
+			productJobsByPipeline,
 			copilotSetup: Object.keys(setup.steps.find(step => records(step).some(record => record.template === '../../copilot/pull-test-cache.yml@self')) ?? {}),
 			copilotTests: Object.keys(steps.find(step => records(step).some(record => record.template === '../../copilot/test-integration-steps.yml@self')) ?? {}),
 			agentHostSmoke: Object.keys(compileTemplate.steps.find(step => records(step).some(record => record.displayName === '🧪 Smoke test packaged Agent Host')) ?? {}),
@@ -353,7 +363,16 @@ suite('Product test checkpoint templates', () => {
 			ciTestIds: '${{ parameters.VSCODE_TEST_IDS }}',
 			defaultTestIds: [[], [], []],
 			forwardedTestIds: ['${{ parameters.VSCODE_TEST_IDS }}', '${{ parameters.VSCODE_TEST_IDS }}'],
-			productTestIds: [],
+			productTestIds: ['${{ testJob.testIds }}', '${{ testJob.testIds }}'],
+			productTestJob: {
+				dependsOn: 'Windows_${{ parameters.VSCODE_ARCH }}_Compile',
+				displayName: 'Windows (${{ upper(parameters.VSCODE_ARCH) }}) - ${{ testJob.displayName }}',
+			},
+			// The product build runs the same test jobs as CI, and only for x64
+			productJobsByPipeline: [
+				[{ arch: 'x64', jobs }, { arch: 'arm64', jobs: undefined }],
+				[{ arch: 'x64', jobs }, { arch: 'arm64', jobs: undefined }],
+			],
 			copilotSetup: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'copilot\'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}'],
 			copilotTests: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'copilot\'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}'],
 			agentHostSmoke: ['${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'))) }}'],

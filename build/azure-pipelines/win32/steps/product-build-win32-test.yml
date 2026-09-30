@@ -6,10 +6,13 @@ parameters:
     default: []
   - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
+    default: false
   - name: VSCODE_RUN_BROWSER_TESTS
     type: boolean
+    default: false
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
+    default: false
 
 # Each test task records a checkpoint once it passes, and retries of the job
 # skip the test tasks that already passed in an earlier attempt of the same

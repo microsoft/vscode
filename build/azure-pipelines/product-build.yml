@@ -414,9 +414,31 @@ extends:
                   VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  # Same test jobs as the Windows CI jobs above
+                  ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
+                    VSCODE_TEST_JOBS:
+                      - name: Unit
+                        displayName: Unit Tests
+                        testIds:
+                          - unit-electron
+                          - unit-node
+                          - unit-browser-chromium
+                          - copilot
+                      - name: BrowserRemote
+                        displayName: Browser & Remote Tests
+                        testIds:
+                          - integration-browser-firefox
+                          - integration-remote
+                          - smoke-browser-chromium
+                          - smoke-remote
+                      - name: Integration
+                        displayName: Integration Tests (Electron)
+                        testIds:
+                          - integration-electron
+                      - name: Smoke
+                        displayName: Smoke Tests (Electron)
+                        testIds:
+                          - smoke-electron
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS_ARM64'], true) }}:
         - stage: WindowsARM64

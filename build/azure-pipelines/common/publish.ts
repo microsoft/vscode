@@ -11,6 +11,7 @@ import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
 import { retry } from './retry.ts';
+import { getGatingJob, type IGatingJob, type Timeline, type TimelineRecord } from './publishGating.ts';
 import { getCertificatesFromPFX, getKeyFromPFX } from '../../lib/pfx.ts';
 import { CosmosClient } from '@azure/cosmos';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
@@ -601,18 +602,6 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
 
-interface TimelineRecord {
-	readonly name: string;
-	readonly identifier?: string;
-	readonly type: string;
-	readonly state: string;
-	readonly result: string;
-}
-
-interface Timeline {
-	readonly records: TimelineRecord[];
-}
-
 /**
  * Whether the timeline record is the given stage. Stages are matched by their
  * YAML identifier, since the record name is the stage's display name when one
@@ -624,66 +613,6 @@ function isStage(record: TimelineRecord, stage: string): boolean {
 
 async function getPipelineTimeline(): Promise<Timeline> {
 	return await requestAZDOAPI<Timeline>('timeline');
-}
-
-/**
- * Artifacts that can only be published once a job succeeded, by job name. The
- * platform test jobs run in parallel with the jobs that produce these artifacts
- * (see the platform-specific product-build job templates).
- */
-const artifactsByGatingJob: Readonly<Record<string, readonly string[]>> = {
-	'Windows_x64_Test': [
-		'vscode_client_win32_x64_setup',
-		'vscode_client_win32_x64_user-setup',
-		'vscode_client_win32_x64_archive',
-		'vscode_server_win32_x64_archive',
-		'vscode_web_win32_x64_archive',
-		'vscode_cli_win32_x64_cli',
-	],
-	'Linux_x64_Test': [
-		'vscode_client_linux_x64_archive-unsigned',
-		'vscode_client_linux_x64_deb-package',
-		'vscode_client_linux_x64_rpm-package',
-		'vscode_client_linux_x64_snap',
-		'vscode_server_linux_x64_archive-unsigned',
-		'vscode_web_linux_x64_archive-unsigned',
-		'vscode_cli_linux_x64_cli',
-	],
-	'macOS_arm64_Test': [
-		'vscode_client_darwin_arm64_archive',
-		'vscode_client_darwin_arm64_dmg',
-		'vscode_server_darwin_arm64_archive',
-		'vscode_web_darwin_arm64_archive',
-		'vscode_cli_darwin_arm64_cli',
-		'vscode_client_darwin_universal_archive',
-		'vscode_client_darwin_universal_dmg',
-	],
-};
-
-interface IGatingJob {
-	readonly name: string;
-	/** `missing` when the job is not part of the pipeline run, e.g. when tests are skipped. */
-	readonly state: 'succeeded' | 'pending' | 'failed' | 'missing';
-}
-
-/** Returns the job that gates the publishing of the artifact, if any, see `artifactsByGatingJob`. */
-function getGatingJob(timeline: Timeline, artifactName: string): IGatingJob | undefined {
-	const name = Object.keys(artifactsByGatingJob).find(job => artifactsByGatingJob[job].includes(artifactName));
-
-	if (!name) {
-		return undefined;
-	}
-
-	// Job identifiers have the form `<stage>.<job>.__default`, and a retried job has a record for each attempt
-	const attempts = timeline.records.filter(r => r.type === 'Job' && (r.name === name || r.identifier?.split('.').includes(name)));
-
-	if (attempts.length === 0) {
-		return { name, state: 'missing' };
-	} else if (attempts.some(r => r.state === 'completed' && (r.result === 'succeeded' || r.result === 'succeededWithIssues'))) {
-		return { name, state: 'succeeded' };
-	} else {
-		return { name, state: attempts.some(r => r.state !== 'completed') ? 'pending' : 'failed' };
-	}
 }
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
