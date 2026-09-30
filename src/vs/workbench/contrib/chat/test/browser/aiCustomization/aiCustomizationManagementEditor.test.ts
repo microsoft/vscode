@@ -2435,7 +2435,9 @@ suite('aiCustomizationManagementEditor', () => {
 
 	for (const storage of [undefined, PromptsStorage.local, PromptsStorage.user]) {
 		test(`renders and independently selects the three MCP sections in ${storage ?? 'all'} storage`, () => {
-			const editor = createTestEditor();
+			const editor = createTestEditor(undefined, createConfigurationServiceStub({
+				[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+			}));
 			const servers = ([PromptsStorage.local, PromptsStorage.user] as const).flatMap(storage => [false, true].map(changes => ({
 				type: CustomizationMigrationType.McpServers,
 				storage,
@@ -2587,7 +2589,9 @@ suite('aiCustomizationManagementEditor', () => {
 
 	for (const confirmed of [false, true]) {
 		test(`${confirmed ? 'executes' : 'cancels'} MCP property removals only after a warning confirmation`, async () => {
-			const editor = createTestEditor();
+			const editor = createTestEditor(undefined, createConfigurationServiceStub({
+				[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+			}));
 			const server: IMcpServerCustomizationMigrationCandidate = {
 				type: CustomizationMigrationType.McpServers,
 				storage: PromptsStorage.local,
