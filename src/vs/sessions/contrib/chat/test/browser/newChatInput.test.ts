@@ -56,6 +56,8 @@ const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInp
 const getInputValue = Reflect.get(NewChatInputWidget.prototype, 'getInputValue') as (this: IInputValueHarness) => string;
 const setInputValue = Reflect.get(NewChatInputWidget.prototype, 'setInputValue') as (this: IInputValueHarness, value: string) => void;
 const clearInputOnSendStart = Reflect.get(NewChatInputWidget.prototype, '_clearInputOnSendStart') as (this: IClearInputOnSendStartHarness, rawQuery: string) => (() => void) | undefined;
+const showContextPicker = Reflect.get(NewChatInputWidget.prototype, '_showContextPicker') as (this: IContextPickerHarness) => void;
+const showAttachmentPicker = Reflect.get(NewChatContextAttachments.prototype, 'showPicker') as (this: IAttachmentPickerHarness, folderUri?: URI, contextActions?: readonly [], anchor?: HTMLElement) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
 
@@ -164,6 +166,40 @@ interface IClearInputOnSendStartHarness {
 			setValue(value: string): void;
 		} | null;
 	};
+}
+
+interface IContextPickerHarness {
+	readonly options: {
+		readonly getContextFolderUri: () => URI | undefined;
+		readonly getContextPickerActions?: () => readonly [];
+	};
+	readonly _attachButton: HTMLElement | undefined;
+	readonly _contextAttachments: {
+		showPicker(folderUri?: URI, contextActions?: readonly [], anchor?: HTMLElement): void;
+	};
+}
+
+interface IAttachmentPickerHarness {
+	readonly quickInputService: {
+		readonly currentQuickInput: { readonly anchor?: unknown } | undefined;
+		cancel(): Promise<void>;
+		createQuickPick?(): {
+			placeholder: string;
+			matchOnDescription: boolean;
+			sortByLabel: boolean;
+			anchor: HTMLElement | undefined;
+			anchorPosition: 'above' | 'below' | 'overlay' | undefined;
+			items: readonly unknown[];
+			readonly selectedItems: readonly [];
+			show(): void;
+			hide(): void;
+			dispose(): void;
+			readonly onDidAccept: Event<void>;
+			readonly onDidHide: Event<void>;
+		};
+	};
+	isPickerVisibleAt(anchor: HTMLElement): boolean;
+	_getStaticPicks?(contextActions: readonly []): readonly [];
 }
 
 interface IAttachmentRenderingHarness {
@@ -342,6 +378,87 @@ suite('NewChatInputWidget', () => {
 			focused: { input: true, stack: true },
 			blurred: { input: false, stack: false },
 		});
+	});
+
+	test('anchors the context picker to the attach button', () => {
+		const attachButton = document.createElement('div');
+		const folderUri = URI.file('/workspace');
+		const calls: Array<{ folderUri: URI | undefined; anchor: HTMLElement | undefined }> = [];
+		const harness: IContextPickerHarness = {
+			options: {
+				getContextFolderUri: () => folderUri,
+				getContextPickerActions: () => [],
+			},
+			_attachButton: attachButton,
+			_contextAttachments: {
+				showPicker: (folderUri, _contextActions, anchor) => calls.push({ folderUri, anchor }),
+			},
+		};
+
+		showContextPicker.call(harness);
+
+		assert.deepStrictEqual(calls.map(call => ({
+			folderUri: call.folderUri?.toString(),
+			anchor: call.anchor === attachButton ? 'attachButton' : undefined,
+		})), [
+			{ folderUri: folderUri.toString(), anchor: 'attachButton' },
+		]);
+	});
+
+	test('hides the anchored context picker when its button is activated again', () => {
+		const attachButton = document.createElement('div');
+		let cancelCount = 0;
+		const quickInputService = {
+			currentQuickInput: { anchor: attachButton },
+			cancel: async () => { cancelCount++; },
+		};
+		const harness: IAttachmentPickerHarness = {
+			quickInputService,
+			isPickerVisibleAt: anchor => quickInputService.currentQuickInput.anchor === anchor,
+		};
+
+		showAttachmentPicker.call(harness, undefined, [], attachButton);
+
+		assert.strictEqual(cancelCount, 1);
+	});
+
+	test('opens the anchored context picker below the attach button', () => {
+		const attachButton = document.createElement('div');
+		const onDidHideEmitter = disposables.add(new Emitter<void>());
+		const picker = {
+			placeholder: '',
+			matchOnDescription: false,
+			sortByLabel: true,
+			anchor: undefined as HTMLElement | undefined,
+			anchorPosition: undefined as 'above' | 'below' | 'overlay' | undefined,
+			items: [] as readonly unknown[],
+			selectedItems: [] as const,
+			show: () => { },
+			hide: () => { },
+			dispose: () => { },
+			onDidAccept: Event.None,
+			onDidHide: onDidHideEmitter.event,
+		};
+		const harness: IAttachmentPickerHarness = {
+			quickInputService: {
+				currentQuickInput: undefined,
+				cancel: async () => { },
+				createQuickPick: () => picker,
+			},
+			isPickerVisibleAt: () => false,
+			_getStaticPicks: () => [],
+		};
+
+		showAttachmentPicker.call(harness, undefined, [], attachButton);
+
+		assert.deepStrictEqual({
+			anchor: picker.anchor === attachButton ? 'attachButton' : undefined,
+			anchorPosition: picker.anchorPosition,
+		}, {
+			anchor: 'attachButton',
+			anchorPosition: 'below',
+		});
+		onDidHideEmitter.fire();
 	});
 
 	test('shows loading in the send button slot', () => {

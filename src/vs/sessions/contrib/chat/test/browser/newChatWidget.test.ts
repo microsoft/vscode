@@ -21,10 +21,10 @@ import { ISendRequestOptions, ISessionsProvider } from '../../../../services/ses
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
-import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING } from '../../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -33,11 +33,13 @@ import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessio
 import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import { TOTAL_SESSIONS_KEY } from '../../../sessions/browser/sessionsLifecycleTracker.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { ISessionComparisonAttemptConfiguration, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionComparisonSetupContext, ISessionComparisonSetupResult, ISessionComparisonWorkspaceChange, SessionComparisonSetupDialog } from '../../browser/sessionComparisonSetupDialog.js';
 import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
+import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -157,7 +159,8 @@ const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreate
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
 const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
-const restoreAndPersistSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreAndPersistSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
+const restoreSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
+const setSessionOptionsExpandedFromUser = Reflect.get(NewChatWidget.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const configureComparison = Reflect.get(NewChatWidget.prototype, '_configureComparison') as (this: IConfigureComparisonHarness) => Promise<void>;
 const getComparisonBranch = Reflect.get(NewChatWidget.prototype, '_getComparisonBranch') as (this: IGetComparisonBranchHarness, session?: ISession) => string | undefined;
@@ -209,13 +212,17 @@ interface ISyncWorkspacePickerHarness {
 }
 
 interface ISessionCountHarness {
-	readonly storageService: { getNumber(key: string, scope: unknown, defaultValue: number): number };
+	readonly _usage: { readonly createdSessionCount: number };
 }
 
 interface ISessionOptionsPersistenceHarness {
 	readonly storageService: IStorageService;
+	readonly _usage: AgentsWindowUsage;
+	readonly configurationService: {
+		getValue<T>(key: string): T;
+	};
+	readonly telemetryService: ITelemetryService;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
-	_register<T extends IDisposable>(disposable: T): T;
 }
 
 interface ISendHarness {
@@ -367,6 +374,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	_workspacePickerRow: HTMLElement | undefined;
 	_workspaceSessionOptionsHost: HTMLElement | undefined;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
+	_setSessionOptionsExpandedFromUser(expanded: boolean): void;
 	readonly _useExperimentalComposerLayout: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
@@ -448,26 +456,62 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('remembers the session options expanded state across composers', () => {
-		const storageService = disposables.add(new InMemoryStorageService());
-		const restore = (initial: boolean) => {
+	test('applies the session options experiment only before the first created session', () => {
+		const restore = (storageService: IStorageService, telemetryService: ITelemetryService, initial: boolean, expandedByDefault: boolean | undefined) => {
 			const expanded = observableValue('sessionOptionsExpanded', initial);
-			restoreAndPersistSessionOptionsExpanded.call({
+			const harness: ISessionOptionsPersistenceHarness = {
 				storageService,
+				_usage: new AgentsWindowUsage(storageService),
+				configurationService: {
+					getValue: <T>(key: string) => ({
+						[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
+						[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
+						[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING]: expandedByDefault,
+					})[key] as T,
+				},
+				telemetryService,
 				_sessionOptionsExpanded: expanded,
-				_register: disposable => disposables.add(disposable),
-			});
-			return expanded;
+			};
+			restoreSessionOptionsExpanded.call(harness);
+			return { expanded, harness };
 		};
 
-		// No stored preference restores the expanded default, then collapsing is persisted and
-		// restored by the next composer.
-		const first = restore(false);
-		const defaultExpanded = first.get();
-		first.set(false, undefined);
-		const restoredCollapsed = restore(true).get();
+		const firstTimeStorage = disposables.add(new InMemoryStorageService());
+		const firstTimeTelemetry = new TestExperimentTriggerTelemetryService();
+		const first = restore(firstTimeStorage, firstTimeTelemetry, true, false);
+		const configuredDefault = first.expanded.get();
+		const defaultBeforeInteraction = restore(firstTimeStorage, firstTimeTelemetry, true, false).expanded.get();
+		setSessionOptionsExpandedFromUser.call(first.harness, true);
+		const restoredUserChoice = restore(firstTimeStorage, firstTimeTelemetry, false, false).expanded.get();
 
-		assert.deepStrictEqual({ defaultExpanded, restoredCollapsed }, { defaultExpanded: true, restoredCollapsed: false });
+		const returningStorage = disposables.add(new InMemoryStorageService());
+		returningStorage.store(TOTAL_SESSIONS_KEY, 1, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const returningTelemetry = new TestExperimentTriggerTelemetryService();
+		const returningDefault = restore(returningStorage, returningTelemetry, false, false).expanded.get();
+
+		const fallbackStorage = disposables.add(new InMemoryStorageService());
+		const fallbackTelemetry = new TestExperimentTriggerTelemetryService();
+		const fallbackDefault = restore(fallbackStorage, fallbackTelemetry, false, undefined).expanded.get();
+
+		assert.deepStrictEqual({
+			configuredDefault,
+			defaultBeforeInteraction,
+			restoredUserChoice,
+			returningDefault,
+			fallbackDefault,
+			firstTimeTriggers: firstTimeTelemetry.triggers,
+			returningTriggers: returningTelemetry.triggers,
+			fallbackTriggers: fallbackTelemetry.triggers,
+		}, {
+			configuredDefault: false,
+			defaultBeforeInteraction: false,
+			restoredUserChoice: true,
+			returningDefault: true,
+			fallbackDefault: true,
+			firstTimeTriggers: [`config.${NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING}`],
+			returningTriggers: [],
+			fallbackTriggers: [`config.${NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING}`],
+		});
 	});
 
 	test('workspace remains visible while repository and harness controls expand without being recreated', () => {
@@ -528,6 +572,7 @@ suite('NewChatWidget', () => {
 			_workspacePickerRow: undefined,
 			_workspaceSessionOptionsHost: undefined,
 			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
+			_setSessionOptionsExpandedFromUser: expanded => harness._sessionOptionsExpanded.set(expanded, undefined),
 			_useExperimentalComposerLayout: observableValue('experimentalComposerLayout', false),
 			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
 			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.
@@ -1859,7 +1904,7 @@ suite('NewChatWidget', () => {
 
 	test('only allows first-run notices once the session count threshold is reached', () => {
 		const eligibility = [0, 1, 2, 5].map(sessionCount => hasEnoughSessionsForFirstRunNotices.call({
-			storageService: { getNumber: () => sessionCount },
+			_usage: { createdSessionCount: sessionCount },
 		}));
 
 		assert.deepStrictEqual(eligibility, [false, false, true, true]);

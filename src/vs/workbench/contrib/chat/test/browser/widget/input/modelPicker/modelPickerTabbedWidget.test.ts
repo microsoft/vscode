@@ -434,59 +434,36 @@ suite('TabbedModelPicker', () => {
 		row.click();
 	}
 
-	test('HydraFusion routing shows a concise description and Learn more in its accessible flyout', () => {
+	test('HydraFusion routing shows its description and Learn more under the entry, without a flyout', () => {
 		const auto = createAutoModel();
-		const result = createPicker({ models: [auto, createHydraFusionModel(), ...models], selectedModelId: auto.identifier });
+		const hydra = createHydraFusionModel();
+		const result = createPicker({ models: [auto, hydra, ...models], selectedModelId: auto.identifier });
 		const row = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-routing-model'))
 			.find(row => row.querySelector('.title')?.textContent === 'HydraFusion');
 		assert.ok(row);
-		row.querySelector<HTMLElement>('.action-list-submenu-indicator')?.click();
-		const panel = result.popup.querySelector<HTMLElement>('.action-list-submenu-panel');
-		const link = panel?.querySelector<HTMLAnchorElement>('a');
-		assert.deepStrictEqual({
-			detail: row.querySelector('.detail')?.textContent,
-			ariaDescription: row.getAttribute('aria-label'),
-			expanded: row.getAttribute('aria-expanded'),
-			panelRole: panel?.getAttribute('role'),
-			description: panel?.querySelector('.chat-model-hover-description p')?.textContent?.trim(),
-			paragraphCount: panel?.querySelectorAll('.chat-model-hover-description p').length,
-			linkInline: link?.parentElement === panel?.querySelector('.chat-model-hover-description p'),
-			link: { label: link?.textContent, href: link?.getAttribute('href') },
-			selections: result.selections,
-		}, {
-			detail: 'May use multiple models',
-			ariaDescription: 'HydraFusion, Research preview, HydraFusion picks a workflow for each task, using one or more models to draft, review, or escalate when needed.',
-			expanded: 'true',
-			panelRole: 'dialog',
-			description: 'HydraFusion picks a workflow for each task, using one or more models to draft, review, or escalate when needed. Learn more',
-			paragraphCount: 1,
-			linkInline: true,
-			link: { label: 'Learn more', href: 'https://aka.ms/hydrafusion-blog' },
-			selections: [],
-		});
-	});
-
-	test('HydraFusion flyout link is reachable by keyboard without selecting the model', () => {
-		const auto = createAutoModel();
-		const result = createPicker({ models: [auto, createHydraFusionModel(), ...models], selectedModelId: auto.identifier });
-		const row = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-routing-model'))
-			.find(row => row.querySelector('.title')?.textContent === 'HydraFusion');
-		assert.ok(row);
-		const list = element(result.popup, '.monaco-list');
-		list.focus();
-		for (let i = 0; i < 5 && !row.closest('.monaco-list-row')?.classList.contains('focused'); i++) {
-			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
-		}
-		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
-		const link = result.popup.querySelector<HTMLAnchorElement>('.action-list-submenu-panel a');
-		assert.deepStrictEqual({
-			linkFocused: document.activeElement === link,
-			expanded: row.getAttribute('aria-expanded'),
-			selections: result.selections,
-		}, {
-			linkFocused: true,
-			expanded: 'true',
-			selections: [],
+		// A large font stands in for a long translation, which must shorten the text rather than hide the link.
+		result.popup.style.cssText = '--vscode-fontSize-label2: 16px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px;';
+		const detail = element(row, '.detail');
+		const link = element(detail, '.monaco-link');
+		const detailBounds = detail.getBoundingClientRect();
+		const linkBounds = link.getBoundingClientRect();
+		const snapshot = {
+			detail: detail.lastChild?.textContent,
+			link: link.textContent,
+			ariaLabel: row.getAttribute('aria-label'),
+			chevron: !!row.querySelector('.action-list-submenu-indicator.has-submenu'),
+			truncated: detail.scrollHeight > detail.clientHeight,
+			linkEndsLastLine: Math.abs(linkBounds.bottom - detailBounds.bottom) <= 0.5 && Math.abs(linkBounds.right - detailBounds.right) <= 0.5,
+		};
+		row.click();
+		assert.deepStrictEqual({ ...snapshot, selections: result.selections }, {
+			detail: 'Picks a workflow per task, using one or more models to draft, review, or escalate.',
+			link: 'Learn more',
+			ariaLabel: 'HydraFusion, Research preview, Picks a workflow per task, using one or more models to draft, review, or escalate.',
+			chevron: false,
+			truncated: true,
+			linkEndsLastLine: true,
+			selections: [hydra.identifier],
 		});
 	});
 
