@@ -26,6 +26,8 @@
 	/* Derived per row, so a row that moves its icon moves its guides too. */
 	.monaco-list-row {
 		--session-hierarchy-guide-x: calc(var(--session-row-icon-start) + var(--session-row-icon-size) / 2);
+		/* Guides are drawn as a left border, so they start half a stroke before the icon's center. */
+		--session-hierarchy-guide-left: calc(var(--session-hierarchy-guide-x) - var(--vscode-strokeThickness) / 2);
 		--session-chat-content-start: calc(var(--session-hierarchy-guide-x) + var(--vscode-spacing-size160));
 	}
 
@@ -686,7 +688,7 @@
 	position: absolute;
 	top: var(--vscode-spacing-size280);
 	bottom: calc(-1 * var(--vscode-spacing-size20));
-	left: var(--session-hierarchy-guide-x);
+	left: var(--session-hierarchy-guide-left);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 	opacity: 0;
 }
@@ -715,7 +717,7 @@
 		position: absolute;
 		top: 0;
 		bottom: calc(-1 * var(--vscode-spacing-size20));
-		left: var(--session-hierarchy-guide-x);
+		left: var(--session-hierarchy-guide-left);
 		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		opacity: 0;
 	}
@@ -726,8 +728,8 @@
 		box-sizing: border-box;
 		top: 0;
 		height: calc(var(--session-chat-base-height) / 2);
-		left: var(--session-hierarchy-guide-x);
-		width: calc(var(--session-chat-content-start) - var(--session-hierarchy-guide-x) - var(--vscode-spacing-size40));
+		left: var(--session-hierarchy-guide-left);
+		width: calc(var(--session-chat-content-start) - var(--session-hierarchy-guide-left) - var(--vscode-spacing-size40));
 		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		border-bottom-left-radius: var(--vscode-cornerRadius-small);

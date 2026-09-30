@@ -1019,6 +1019,7 @@
 		"--session-header-editor-background",
 		"--session-header-editor-fill",
 		"--session-header-editor-text",
+		"--session-hierarchy-guide-left",
 		"--session-hierarchy-guide-x",
 		"--session-rail-gutter",
 		"--session-row-icon-size",
