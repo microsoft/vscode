@@ -156,8 +156,23 @@ interface IAttachmentPickerHarness {
 	readonly quickInputService: {
 		readonly currentQuickInput: { readonly anchor?: unknown } | undefined;
 		cancel(): Promise<void>;
+		createQuickPick?(): {
+			placeholder: string;
+			matchOnDescription: boolean;
+			sortByLabel: boolean;
+			anchor: HTMLElement | undefined;
+			anchorPosition: 'above' | 'below' | 'overlay' | undefined;
+			items: readonly unknown[];
+			readonly selectedItems: readonly [];
+			show(): void;
+			hide(): void;
+			dispose(): void;
+			readonly onDidAccept: Event<void>;
+			readonly onDidHide: Event<void>;
+		};
 	};
 	isPickerVisibleAt(anchor: HTMLElement): boolean;
+	_getStaticPicks?(contextActions: readonly []): readonly [];
 }
 
 interface IAttachmentRenderingHarness {
@@ -333,6 +348,45 @@ suite('NewChatInputWidget', () => {
 		showAttachmentPicker.call(harness, undefined, [], attachButton);
 
 		assert.strictEqual(cancelCount, 1);
+	});
+
+	test('opens the anchored context picker above the attach button', () => {
+		const attachButton = document.createElement('div');
+		const onDidHideEmitter = disposables.add(new Emitter<void>());
+		const picker = {
+			placeholder: '',
+			matchOnDescription: false,
+			sortByLabel: true,
+			anchor: undefined as HTMLElement | undefined,
+			anchorPosition: undefined as 'above' | 'below' | 'overlay' | undefined,
+			items: [] as readonly unknown[],
+			selectedItems: [] as const,
+			show: () => { },
+			hide: () => { },
+			dispose: () => { },
+			onDidAccept: Event.None,
+			onDidHide: onDidHideEmitter.event,
+		};
+		const harness: IAttachmentPickerHarness = {
+			quickInputService: {
+				currentQuickInput: undefined,
+				cancel: async () => { },
+				createQuickPick: () => picker,
+			},
+			isPickerVisibleAt: () => false,
+			_getStaticPicks: () => [],
+		};
+
+		showAttachmentPicker.call(harness, undefined, [], attachButton);
+
+		assert.deepStrictEqual({
+			anchor: picker.anchor === attachButton ? 'attachButton' : undefined,
+			anchorPosition: picker.anchorPosition,
+		}, {
+			anchor: 'attachButton',
+			anchorPosition: 'above',
+		});
+		onDidHideEmitter.fire();
 	});
 
 	test('shows loading in the send button slot', () => {
