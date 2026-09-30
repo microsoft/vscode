@@ -113,7 +113,7 @@ function maskPwshFlagEquals(commandLine: string): string {
  * `*>>log.txt`). The grammar parses these as `generic_token` command arguments
  * rather than `redirection` nodes, which only cover the spaced form.
  */
-const pwshNoSpaceRedirectRegex = /^[1-6*]?>>?/;
+const pwshNoSpaceRedirectRegex = /^[0-9*]?>>?/;
 
 /**
  * Result of a command auto-approval check.
