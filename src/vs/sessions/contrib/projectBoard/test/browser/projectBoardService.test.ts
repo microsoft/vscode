@@ -814,7 +814,8 @@ suite('ProjectBoardService', () => {
 			assert.deepStrictEqual({
 				attempts: h.state.archiveAttempts, count: count(h.container), disabled: done(h.container).getAttribute('aria-disabled'),
 				checked: checkbox(h.container, failed).getAttribute('aria-checked'), checkboxDisabled: checkbox(h.container, failed).getAttribute('aria-disabled'),
-			}, { attempts: [h.session], count: 'Marking conversations as done…', disabled: 'true', checked: 'true', checkboxDisabled: 'true' });
+				cardDisabled: card(h.container, failed).querySelector('[aria-label="Mark as Done"]')?.getAttribute('aria-disabled'),
+			}, { attempts: [h.session], count: 'Marking conversations as done…', disabled: 'true', checked: 'true', checkboxDisabled: 'true', cardDisabled: 'true' });
 			await barrier.complete();
 			await timeout(0);
 			assert.deepStrictEqual({
@@ -898,17 +899,20 @@ suite('ProjectBoardService', () => {
 				selectable: h.container.querySelectorAll('.project-board-card-select').length,
 				draft: h.container.querySelector('.project-board-card-draft .project-board-card-select'),
 				missing: h.container.querySelector('.project-board-card-unavailable .project-board-card-select'),
-			}, { selectable: 1, draft: null, missing: null });
+				doneActions: h.container.querySelectorAll('.project-board-card [aria-label="Mark as Done"]').length,
+			}, { selectable: 1, draft: null, missing: null, doneActions: 1 });
 			select(h.container, chat);
 			h.session.remoteConnectionStatus.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
 			assert.strictEqual(count(h.container), '0 conversations selected');
 			assert.strictEqual(h.container.querySelectorAll('.project-board-card-select').length, 0);
+			assert.strictEqual(h.container.querySelectorAll('.project-board-card [aria-label="Mark as Done"]').length, 0);
 			h.session.remoteConnectionStatus.set({ kind: 'connected' }, undefined);
 			select(h.container, chat);
 			h.state.providerAvailable = false;
 			h.providersChanged.fire({ added: [], removed: [h.provider] });
 			assert.strictEqual(count(h.container), '0 conversations selected');
 			assert.strictEqual(h.container.querySelectorAll('.project-board-card-select').length, 0);
+			assert.strictEqual(h.container.querySelectorAll('.project-board-card [aria-label="Mark as Done"]').length, 0);
 			h.state.providerAvailable = true;
 			h.providersChanged.fire({ added: [h.provider], removed: [] });
 			assert.strictEqual(checkbox(h.container, chat).getAttribute('aria-checked'), 'false');
@@ -1023,8 +1027,7 @@ suite('ProjectBoardService', () => {
 			const barrier = h.state.archiveBarrier = new DeferredPromise<void>();
 			h.state.archiveErrors.add(h.session.sessionId);
 			await h.service.open(DEFAULT_PROJECT_BOARD_ID);
-			select(h.container, chat);
-			done(h.container).click();
+			card(h.container, chat).querySelector<HTMLElement>('[aria-label="Mark as Done"]')!.click();
 			await h.service.open(other);
 			select(h.currentContainer, chat);
 			done(h.currentContainer).click();
@@ -1197,8 +1200,8 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.auxiliaryWindows[1].container.querySelectorAll('[data-chat-resource]').length, 0);
 	});
 
-	test('deleting a session removes its known and unavailable placements from every board', async () => {
-		const chat = new TestChat('Delete everywhere');
+	test('marking a card done preserves known and unavailable placements on every board', async () => {
+		const chat = new TestChat('Done everywhere');
 		const h = createBoard(mainWindow.document, [chat]);
 		const other = h.catalog.createBoard('Other');
 		const firstState = store.add(h.instantiationService.createInstance(ProjectBoardState, DEFAULT_PROJECT_BOARD_ID));
@@ -1206,14 +1209,13 @@ suite('ProjectBoardService', () => {
 		firstState.moveCard(getProjectBoardCardId(h.session, chat), { rowId: 'general', columnId: 'p0' });
 		otherState.moveCard(`${getProjectBoardSessionKey(h.session)}\0missing-child`, { rowId: 'general', columnId: 'p1' });
 		otherState.moveCard('unrelated-session-chat', { rowId: 'general', columnId: 'p2' });
-		h.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		await h.service.open(DEFAULT_PROJECT_BOARD_ID);
-		h.container.querySelector<HTMLElement>('[aria-label="Delete Session"]')!.click();
-		await Promise.resolve();
-		await Promise.resolve();
-		assert.strictEqual(firstState.configuration.get().placements.length, 0);
-		assert.deepStrictEqual(otherState.configuration.get().placements.map(p => p.cardId), ['unrelated-session-chat']);
-		assert.deepStrictEqual(h.state.deletedSessions, [h.session]);
+		const configuration = h.catalog.boards.get();
+		h.container.querySelector<HTMLElement>('.project-board-card [aria-label="Mark as Done"]')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			archived: h.session.isArchived.get(), deleted: h.state.deletedSessions, configuration: h.catalog.boards.get(),
+		}, { archived: true, deleted: [], configuration });
 	});
 
 	test('deleting the last board offers a focused New Board action without deleting chats', async () => {
@@ -2452,6 +2454,8 @@ suite('ProjectBoardService', () => {
 			assert.strictEqual(openMenu(h, chat).find(action => action.label === 'Move to row')?.enabled, false);
 			h.contextMenu.delegate!.onHide?.(true);
 			h.contextMenu.delegate = undefined;
+			assert.strictEqual(h.container.querySelector('.project-board-card .monaco-button'), null, 'Unsent cards have neither Done nor Delete');
+			chat.status.set(SessionStatus.Completed, undefined);
 			const control = h.container.querySelector('.project-board-card .monaco-button')!;
 			const event = new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
 			control.dispatchEvent(event);
@@ -3001,69 +3005,87 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(observer.observed.size, 0);
 	});
 
-	test('session card delete action confirms, deletes the backing session, and does not open the card', async () => {
-		const chat = new TestChat('Delete me');
-		const h = createBoard(mainWindow.document, [chat]);
-		h.instantiationService.stub(IDialogService, {
-			confirm: async confirmation => {
-				assert.deepStrictEqual({
-					message: confirmation.message,
-					detail: confirmation.detail,
-					primaryButton: confirmation.primaryButton,
-				}, {
-					message: 'Are you sure you want to delete this session?',
-					detail: 'This deletes the session and its chats from every board. This action cannot be undone.',
-					primaryButton: 'Delete',
-				});
-				return { confirmed: true };
-			},
+	for (const surface of ['embedded', 'standalone'] as const) {
+		test(`${surface} card Done action archives only its owning session and preserves history for restoration`, async () => {
+			const chat = new TestChat('Keep my history');
+			const worker = new class extends TestChat {
+				override readonly origin = { kind: ChatOriginKind.Tool, parentChat: chat.resource };
+			}('Worker');
+			worker.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+			const otherChat = new TestChat('Unrelated selection');
+			const h = createBoard(mainWindow.document, [chat, worker]);
+			const other = new TestBoardSession([otherChat], 'other');
+			h.state.sessions.push(other);
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const card = (target: IChat) => [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')]
+				.find(element => element.dataset.chatResource === target.resource.toString())!;
+			card(worker).querySelector<HTMLElement>('.project-board-card-select')!.click();
+			card(otherChat).querySelector<HTMLElement>('.project-board-card-select')!.click();
+			const button = card(worker).querySelector<HTMLElement>('[aria-label="Mark as Done"]')!;
+			assert.ok(button.classList.contains('codicon-check'));
+			assert.ok(button.getAttribute('aria-description')?.includes('entire session'));
+			button.focus();
+			assert.strictEqual(mainWindow.getComputedStyle(button.parentElement!).opacity, '1');
+			button.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true, cancelable: true }));
+			await timeout(0);
+			assert.deepStrictEqual({
+				attempts: h.state.archiveAttempts, archived: [h.session.isArchived.get(), other.isArchived.get()],
+				deleted: h.state.deletedSessions, opened: h.opened, chats: h.session.chats.get(),
+				cardCount: h.container.querySelectorAll('[data-chat-resource]').length,
+				selected: card(otherChat).querySelector('.project-board-card-select')?.getAttribute('aria-checked'),
+				deleteActions: h.container.querySelectorAll('[aria-label="Delete Session"]').length,
+				read: [chat.isRead.get(), worker.isRead.get(), otherChat.isRead.get()],
+			}, {
+				attempts: [h.session], archived: [true, false], deleted: [], opened: [], chats: [chat, worker],
+				cardCount: 1, selected: 'true', deleteActions: 0, read: [false, false, false],
+			});
+			if (surface === 'embedded') {
+				h.service.toggleArchived();
+			} else {
+				h.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+			}
+			assert.strictEqual(card(worker).querySelector('[aria-label="Mark as Done"]'), null);
+			h.session.isArchived.set(false, undefined);
+			assert.ok(card(worker).querySelector('[aria-label="Mark as Done"]'), 'Restoring the session restores its Done action');
 		});
-		await h.service.open();
-		const button = h.container.querySelector<HTMLElement>('[aria-label="Delete Session"]')!;
-		assert.ok(button.classList.contains('codicon-trash'));
-		const actions = button.parentElement!;
-		assert.ok(actions.classList.contains('project-board-card-actions'));
-		button.focus();
-		assert.strictEqual(mainWindow.getComputedStyle(actions).opacity, '1');
-		const deleted = Event.toPromise(h.sessionsChanged.event);
-		button.click();
-		await deleted;
-		await Promise.resolve();
-		assert.deepStrictEqual({
-			deletedSessions: h.state.deletedSessions,
-			opened: h.opened,
-			cardCount: h.container.querySelectorAll('[data-chat-resource]').length,
-		}, {
-			deletedSessions: [h.session],
-			opened: [],
-			cardCount: 0,
-		});
-	});
+	}
 
-	test('session card delete action leaves the card in place when cancelled or deletion fails', async () => {
+	test('session card Done action reports archive failure, remains retryable and keeps focus through rerenders', async () => {
+		const { document } = createBoardDocument();
 		const chat = new TestChat('Keep me');
-		const h = createBoard(mainWindow.document, [chat]);
-		let confirmed = false;
-		h.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed }) });
+		const h = createBoard(document, [chat]);
+		h.state.archiveErrors.add(h.session.sessionId);
 		await h.service.open();
-		const button = () => h.container.querySelector<HTMLElement>('[aria-label="Delete Session"]')!;
-		button().click();
-		await Promise.resolve();
-		assert.deepStrictEqual({ deleted: h.state.deletedSessions.length, cards: h.container.querySelectorAll('[data-chat-resource]').length }, { deleted: 0, cards: 1 });
-
-		confirmed = true;
-		h.state.deletionError = new Error('Delete failed');
+		const button = () => h.container.querySelector<HTMLElement>('.project-board-card [aria-label="Mark as Done"]')!;
+		button().focus();
+		chat.title.set('Renamed while focused', undefined);
+		assert.strictEqual(document.activeElement, button());
 		const notification = Event.toPromise(h.errors.event);
 		button().click();
-		assert.strictEqual(await notification, 'The session could not be deleted.');
-		assert.deepStrictEqual({ deleted: h.state.deletedSessions.length, cards: h.container.querySelectorAll('[data-chat-resource]').length }, { deleted: 0, cards: 1 });
+		assert.strictEqual(await notification, '1 of 1 sessions could not be marked as done. The remaining selected conversations can be retried.');
+		assert.deepStrictEqual({
+			deleted: h.state.deletedSessions, archived: h.session.isArchived.get(), enabled: button().getAttribute('aria-disabled'),
+		}, { deleted: [], archived: false, enabled: 'false' });
+		h.state.archiveErrors.clear();
+		button().click();
+		await timeout(0);
+		assert.deepStrictEqual({ attempts: h.state.archiveAttempts, archived: h.session.isArchived.get(), deleted: h.state.deletedSessions },
+			{ attempts: [h.session, h.session], archived: true, deleted: [] });
 	});
 
-	test('session card delete action is omitted when the backing provider cannot delete the session', async () => {
+	test('session card Done action does not require provider deletion support', async () => {
 		const h = createBoard(mainWindow.document, [new TestChat('Read only')]);
 		h.session.capabilities.set({ supportsMultipleChats: true, supportsDelete: false }, undefined);
 		await h.service.open();
 		assert.strictEqual(h.container.querySelector('[aria-label="Delete Session"]'), null);
+		h.container.querySelector<HTMLElement>('.project-board-card [aria-label="Mark as Done"]')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ attempts: h.state.archiveAttempts, deleted: h.state.deletedSessions },
+			{ attempts: [h.session], deleted: [] });
 	});
 
 	test('PB-16 top-right New Session delegates creation without owner navigation', async () => {
@@ -3614,16 +3636,16 @@ suite('ProjectBoardService', () => {
 		}
 	});
 
-	test('PB-05 cards only have their delete action and double-click opens the exact child', async () => {
+	test('PB-05 cards only have their Done action and double-click opens the exact child', async () => {
 		const main = new TestChat('main');
 		const child = new TestChat('child');
 		const { service, container, opened, onOpened, state } = createBoard(mainWindow.document.implementation.createHTMLDocument(), [main, child]);
 		await service.open();
 		const card = [...container.querySelectorAll<HTMLElement>('.project-board-card')].find(element => element.querySelector('h4')?.textContent === 'child')!;
 		assert.deepStrictEqual({
-			deleteActions: container.querySelectorAll('.project-board-card [aria-label="Delete Session"]').length,
-			otherControls: container.querySelectorAll('.project-board-card button, .project-board-card select, .project-board-card .monaco-button:not([aria-label="Delete Session"])').length,
-		}, { deleteActions: 2, otherControls: 0 });
+			doneActions: container.querySelectorAll('.project-board-card [aria-label="Mark as Done"]').length,
+			otherControls: container.querySelectorAll('.project-board-card button, .project-board-card select, .project-board-card .monaco-button:not([aria-label="Mark as Done"])').length,
+		}, { doneActions: 2, otherControls: 0 });
 		card.click();
 		assert.deepStrictEqual(opened, []);
 		assert.strictEqual(child.isRead.get(), false);
