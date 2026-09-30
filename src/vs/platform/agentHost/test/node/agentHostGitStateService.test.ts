@@ -243,6 +243,7 @@ suite('AgentHostGitStateService', () => {
 		const authenticationService: IAgentHostAuthenticationService = {
 			_serviceBrand: undefined,
 			onDidChangeAuthToken: Event.None,
+			getAuthAccount: () => undefined,
 			getAuthToken: () => 'token',
 		};
 
@@ -1226,6 +1227,7 @@ suite('AgentHostGitStateService', () => {
 			const authenticationService: IAgentHostAuthenticationService = {
 				_serviceBrand: undefined,
 				onDidChangeAuthToken: Event.None,
+				getAuthAccount: () => undefined,
 				getAuthToken: () => 'token',
 			};
 			const h = createHarness({ octoKitService, authenticationService });

@@ -88,7 +88,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 			graphQlUri: new URL(options.graphQlUri).href,
 			authorization: Object.freeze({ ...authorization, scopes: Object.freeze([...new Set(authorization.scopes)].sort()) }),
 		};
-		const key = JSON.stringify([normalized.authorization.providerId, normalized.authorization.sessionId, normalized.authorization.scopes, normalized.authorization.authorizationServer, normalized.apiBaseUri, normalized.graphQlUri]);
+		const key = JSON.stringify([normalized.authorization.providerId, normalized.authorization.sessionId, normalized.authorization.accountId, normalized.authorization.scopes, normalized.authorization.authorizationServer, normalized.apiBaseUri, normalized.graphQlUri]);
 		let entry = this._clients.get(key);
 		if (!entry) {
 			if (this._clients.size >= GitHubService.maximumClients) {
@@ -188,7 +188,7 @@ class GitHubClient extends Disposable implements IGitHubClient {
 			invalidateToken: token => options.credentialProvider.invalidateToken?.(this.authorization, token),
 		}, this.endpoint, logService, {
 			host: new URL(context.apiBaseUri).host,
-			accountId: `bootstrap:${JSON.stringify([context.authorization.providerId, context.authorization.sessionId, context.authorization.authorizationServer, context.apiBaseUri])}`,
+			accountId: `bootstrap:${JSON.stringify([context.authorization.providerId, context.authorization.sessionId, context.authorization.accountId, context.authorization.authorizationServer, context.apiBaseUri])}`,
 		}, backoff));
 		this.capabilities = this._register(new GitHubHostCapabilitiesService(undefined, undefined, this.transport, this.endpoint, logService));
 

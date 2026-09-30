@@ -19,7 +19,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
 import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
-import { AgentCanvasAvailability, AgentSession } from '../../common/agent.js';
+import { AgentCanvasAvailability, AgentSession, AuthenticateParams } from '../../common/agent.js';
+import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
@@ -3839,8 +3840,10 @@ suite('AgentHostProtocolClient', () => {
 				jsonrpc: '2.0', id: initialAnnotationsSubscribe.id,
 				result: { snapshot: { resource: annotationsUri.toString(), state: { annotations: [] }, fromSeq: 5 } },
 			});
-			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token', expiresIn: 3600 });
+			const accountMeta = authenticationAccountMeta({ providerId: 'github', accountId: 'account' });
+			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token', expiresIn: 3600, _meta: accountMeta });
 			const initialAuthenticate = await waitForRequest(transports[0], 'authenticate');
+			assert.deepStrictEqual((initialAuthenticate.params as AuthenticateParams)._meta, accountMeta);
 			transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
 			await authentication;
 			await flushMicrotasks();
@@ -3885,6 +3888,7 @@ suite('AgentHostProtocolClient', () => {
 			});
 
 			const restoredAuthenticate = await waitForRequestAt(reconnectTransport, 'authenticate', 0);
+			assert.deepStrictEqual((restoredAuthenticate.params as AuthenticateParams)._meta, accountMeta);
 			const restoredExpiresIn = (restoredAuthenticate.params as { expiresIn?: number }).expiresIn;
 			assert.ok(restoredExpiresIn !== undefined && restoredExpiresIn > 0 && restoredExpiresIn <= 3600);
 			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');

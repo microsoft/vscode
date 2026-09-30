@@ -124,6 +124,8 @@ export interface GitHubServiceOptions {
 export interface GitHubAuthorizationContext {
 	readonly providerId: string;
 	readonly sessionId: string;
+	/** Opaque account provenance supplied by the binding; identity is still verified through GitHub. */
+	readonly accountId?: string;
 	readonly scopes: readonly string[];
 	readonly authorizationServer?: string;
 }
