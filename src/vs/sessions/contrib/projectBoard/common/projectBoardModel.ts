@@ -5,9 +5,10 @@
 
 import { IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IProjectBoardConfiguration } from './projectBoardConfiguration.js';
-import { IChat, ISession, ChatInteractivity, ChatOriginKind, SessionStatus, getGitHubPullRequestRefs, getSessionChildChats } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ChatInteractivity, ChatOriginKind, SessionArtifactKind, SessionStatus, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, getSessionChildChats } from '../../../services/sessions/common/session.js';
 
 export interface IProjectBoardAxis {
 	readonly id: string;
@@ -32,6 +33,13 @@ export interface IProjectBoardCard {
 	readonly readOnly: boolean;
 	readonly workspace: string | undefined;
 	readonly sharedContext: readonly { readonly label: string; readonly uri: URI }[];
+	readonly pullRequests: readonly {
+		readonly label: string;
+		readonly uri: URI;
+		readonly title?: string;
+		readonly icon?: ThemeIcon;
+		readonly state?: 'open' | 'closed' | 'merged';
+	}[];
 	readonly connection: string | undefined;
 }
 
@@ -124,17 +132,18 @@ export class ProjectBoardModel {
 		this.knownChatIds.clear();
 		for (const session of sessions) {
 			const sessionTitle = session.title.read(reader);
-			const workspace = session.workspace?.read(reader);
+			const sessionWorkspace = session.workspace?.read(reader);
 			const sharedContext = new Map<string, { label: string; uri: URI }>();
-			for (const folder of workspace?.folders ?? []) {
-				for (const pr of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))) {
-					sharedContext.set(pr.uri.toString(), { label: `${pr.owner}/${pr.repo}#${pr.number}`, uri: pr.uri });
-				}
-			}
+			const sharedPullRequests = new Map<string, IProjectBoardCard['pullRequests'][number]>();
 			for (const artifact of session.artifacts?.read(reader) ?? []) {
 				const uri = artifact.link ?? artifact.uri;
 				if (uri) {
-					sharedContext.set(uri.toString(), { label: artifact.label, uri });
+					const link = { label: artifact.label, uri };
+					if (artifact.kind === SessionArtifactKind.PullRequest && artifact.isArtifact && ['http', 'https'].includes(uri.scheme)) {
+						sharedPullRequests.set(uri.toString(), link);
+					} else {
+						sharedContext.set(uri.toString(), link);
+					}
 				}
 			}
 			const connection = session.remoteConnectionStatus?.read(reader)?.kind;
@@ -142,6 +151,26 @@ export class ProjectBoardModel {
 				this.knownChatIds.add(getProjectBoardCardId(session, chat));
 				if (chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
 					continue;
+				}
+				const workspace = chat.workspace?.read(reader) ?? sessionWorkspace;
+				const context = new Map(sharedContext);
+				const pullRequests = new Map(sharedPullRequests);
+				for (const folder of workspace?.folders ?? []) {
+					const info = folder.gitRepository?.gitHubInfo.read(reader);
+					for (const pr of getGitHubPullRequestRefs(info)) {
+						context.set(pr.uri.toString(), { label: `${pr.owner}/${pr.repo}#${pr.number}`, uri: pr.uri });
+					}
+					for (const pr of getSessionOwnedGitHubPullRequestRefs(info)) {
+						if (['http', 'https'].includes(pr.uri.scheme)) {
+							pullRequests.set(pr.uri.toString(), {
+								label: `${pr.owner}/${pr.repo}#${pr.number}`, uri: pr.uri, title: pr.title,
+								icon: pr.icon, state: pr.liveState ?? pr.state,
+							});
+						}
+					}
+				}
+				for (const uri of pullRequests.keys()) {
+					context.delete(uri);
 				}
 				cards.push({
 					id: getProjectBoardCardId(session, chat),
@@ -155,7 +184,8 @@ export class ProjectBoardModel {
 					archived: !!(session.isArchived?.read(reader) || chat.isArchived?.read(reader)),
 					readOnly: chat.interactivity.read(reader) === ChatInteractivity.ReadOnly,
 					workspace: workspace?.label,
-					sharedContext: [...sharedContext.values()],
+					sharedContext: [...context.values()],
+					pullRequests: [...pullRequests.values()],
 					connection: connection && connection !== 'connected' ? connection : undefined,
 				});
 			}

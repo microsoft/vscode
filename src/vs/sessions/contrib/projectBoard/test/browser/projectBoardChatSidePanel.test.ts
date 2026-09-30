@@ -65,7 +65,7 @@ function createCard(name = 'child'): IProjectBoardCard {
 		session: { ...session, mainChat: constObservable(mainChat), chats: constObservable([mainChat, chat]) },
 		title: name, sessionTitle: 'owning-session', status: SessionStatus.Completed, isRead: false,
 		description: undefined, archived: false, readOnly: false, workspace: undefined,
-		sharedContext: [], connection: undefined,
+		sharedContext: [], pullRequests: [], connection: undefined,
 	};
 }
 

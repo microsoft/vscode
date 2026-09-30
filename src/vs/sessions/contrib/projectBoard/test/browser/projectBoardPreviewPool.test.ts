@@ -42,18 +42,19 @@ suite('ProjectBoardPreviewPool', () => {
 	function metadataStub(instantiation: TestInstantiationService) {
 		const calls = { credits: [] as boolean[], configuration: [] as boolean[], disposed: 0 };
 		const metadata = observableValue<IProjectBoardMetadata>('metadata', { kind: 'loading' });
-		const helper: IProjectBoardMetadataLease = {
+		const actions = observableValue<IProjectBoardPendingActions | undefined>('actions', undefined);
+		const helper: Omit<IProjectBoardMetadataLease, 'isRevoked'> = {
 			metadata,
 			credits: observableValue<number | undefined>('credits', undefined),
 			creditsError: observableValue<string | undefined>('creditsError', undefined),
 			configuration: observableValue<IProjectBoardInputConfiguration | undefined>('configuration', undefined),
-			actions: observableValue<IProjectBoardPendingActions | undefined>('actions', undefined),
+			actions,
 			setIncludeCredits: value => { assert.strictEqual(calls.disposed, 0); calls.credits.push(value); },
 			setIncludeConfiguration: value => { assert.strictEqual(calls.disposed, 0); calls.configuration.push(value); },
 			dispose: () => { calls.disposed++; },
 		};
 		instantiation.stubInstance(ProjectBoardMetadata, helper);
-		return { helper, calls, metadata };
+		return { helper, calls, metadata, actions };
 	}
 
 	function questionStub(instantiation: TestInstantiationService) {
@@ -113,6 +114,61 @@ suite('ProjectBoardPreviewPool', () => {
 		const replacement = questionStub(h.instantiation);
 		assert.strictEqual(store.add(h.pool.acquireQuestions(chat('overflow'))!).preview, replacement.helper.preview);
 		assert.strictEqual(helpers[0].calls.disposed, 1);
+	});
+
+	test('explicit refresh revokes shared noninteractive leases without exceeding the metadata quota', () => {
+		const h = setup();
+		const helpers = Array.from({ length: projectBoardMetadataLimits.activeHelpers }, (_, index) => {
+			const stub = metadataStub(h.instantiation);
+			const lease = store.add(h.pool.acquireMetadata(chat(String(index)))!);
+			const shared = store.add(h.pool.acquireMetadata(chat(String(index)))!);
+			return { ...stub, lease, shared };
+		});
+		const replacement = metadataStub(h.instantiation);
+		const requested = store.add(h.pool.acquireMetadata(chat('requested'), true)!);
+		helpers[0].lease.setIncludeCredits(true);
+		helpers[0].shared.dispose();
+		assert.deepStrictEqual({
+			revoked: [helpers[0].lease.isRevoked.get(), helpers[0].shared.isRevoked.get()],
+			disposed: helpers.map(helper => helper.calls.disposed),
+			current: requested.metadata === replacement.metadata,
+			overflow: h.pool.acquireMetadata(chat('automatic-overflow')),
+		}, { revoked: [true, true], disposed: [1, ...Array(15).fill(0)], current: true, overflow: undefined });
+	});
+
+	test('explicit refresh prefers idle entries and protects pending questions and approvals', () => {
+		const h = setup();
+		const helpers = Array.from({ length: projectBoardMetadataLimits.activeHelpers }, (_, index) => {
+			const stub = metadataStub(h.instantiation);
+			stub.metadata.set({ kind: 'ready', prompt: String(index), context: [] }, undefined);
+			return { ...stub, lease: store.add(h.pool.acquireMetadata(chat(String(index)))!) };
+		});
+		questionStub(h.instantiation);
+		const questions = store.add(h.pool.acquireQuestions(chat('0'))!);
+		helpers[1].actions.set(new class extends mock<IProjectBoardPendingActions>() { }(), undefined);
+		helpers[15].lease.dispose();
+		metadataStub(h.instantiation);
+		store.add(h.pool.acquireMetadata(chat('first-request'), true)!);
+		metadataStub(h.instantiation);
+		store.add(h.pool.acquireMetadata(chat('second-request'), true)!);
+		assert.deepStrictEqual(helpers.map(helper => helper.calls.disposed), [0, 0, 1, ...Array(12).fill(0), 1]);
+		assert.strictEqual(questions.preview.get().kind, 'loading');
+	});
+
+	test('explicit refresh reports no slot when every preview has pending interactions and can retry later', () => {
+		const h = setup();
+		const helpers = Array.from({ length: projectBoardMetadataLimits.activeHelpers }, (_, index) => {
+			const stub = metadataStub(h.instantiation);
+			stub.actions.set(new class extends mock<IProjectBoardPendingActions>() { }(), undefined);
+			store.add(h.pool.acquireMetadata(chat(String(index)))!);
+			return stub;
+		});
+		assert.strictEqual(h.pool.acquireMetadata(chat('requested'), true), undefined);
+		assert.ok(helpers.every(helper => helper.calls.disposed === 0));
+		helpers[4].actions.set(undefined, undefined);
+		metadataStub(h.instantiation);
+		store.add(h.pool.acquireMetadata(chat('requested'), true)!);
+		assert.deepStrictEqual(helpers.map(helper => helper.calls.disposed), [...Array(4).fill(0), 1, ...Array(11).fill(0)]);
 	});
 
 	test('ready metadata stays warm between boards but idle entries yield to the global quota', () => {
@@ -177,6 +233,35 @@ suite('ProjectBoardPreviewPool', () => {
 		second.setIncludeCredits(true);
 		second.setIncludeConfiguration(true);
 		assert.strictEqual(calls.disposed, 1);
+	});
+
+	test('explicit refresh cancels an evicted real metadata load and releases its late reference', async () => {
+		const h = setup();
+		const loaded = new DeferredPromise<IChatModelReference | undefined>();
+		let token: CancellationToken | undefined;
+		let released = 0;
+		h.instantiation.stub(IChatService, new class extends mock<IChatService>() {
+			override acquireExistingSession() { return undefined; }
+			override acquireOrLoadSession(_resource: URI, _location: ChatAgentLocation, cancellation: CancellationToken) {
+				token = cancellation;
+				return loaded.p;
+			}
+		}());
+		h.instantiation.stub(ILogService, store.add(new NullLogService()));
+		h.instantiation.stub(IChatSessionsService, { getMaterializedSessionResource: () => undefined });
+		const evicted = store.add(h.pool.acquireMetadata(chat('pending'))!);
+		for (let index = 1; index < projectBoardMetadataLimits.activeHelpers; index++) {
+			metadataStub(h.instantiation);
+			store.add(h.pool.acquireMetadata(chat(String(index)))!);
+		}
+		metadataStub(h.instantiation);
+		store.add(h.pool.acquireMetadata(chat('requested'), true)!);
+		await loaded.complete({
+			get object(): never { throw new Error('Must not read evicted history'); },
+			dispose: () => { released++; },
+		});
+		assert.deepStrictEqual({ revoked: evicted.isRevoked.get(), cancelled: token?.isCancellationRequested, released },
+			{ revoked: true, cancelled: true, released: 1 });
 	});
 
 	test('metadata feature updates stop if an observable consumer disposes the pool', () => {

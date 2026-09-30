@@ -6,12 +6,15 @@
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { ProjectBoardMetadata, projectBoardMetadataLimits } from './projectBoardMetadata.js';
 import { ProjectBoardQuestionPreview } from './projectBoardQuestions.js';
 
-export interface IProjectBoardMetadataLease extends IDisposable, Pick<ProjectBoardMetadata, 'metadata' | 'credits' | 'creditsError' | 'configuration' | 'actions' | 'setIncludeCredits' | 'setIncludeConfiguration'> { }
+export interface IProjectBoardMetadataLease extends IDisposable, Pick<ProjectBoardMetadata, 'metadata' | 'credits' | 'creditsError' | 'configuration' | 'actions' | 'setIncludeCredits' | 'setIncludeConfiguration'> {
+	readonly isRevoked: IObservable<boolean>;
+}
 
 export interface IProjectBoardQuestionLease extends IDisposable, Pick<ProjectBoardQuestionPreview, 'preview' | 'questionCarousels' | 'submit'> { }
 
@@ -24,6 +27,7 @@ interface IMetadataEntry extends IMetadataFeatures {
 	readonly key: string;
 	readonly helper: ProjectBoardMetadata;
 	readonly leases: Set<IMetadataFeatures>;
+	readonly revoked: ISettableObservable<boolean>;
 }
 
 interface IQuestionEntry {
@@ -49,7 +53,13 @@ export class ProjectBoardPreviewPool extends Disposable {
 		super();
 	}
 
-	acquireMetadata(chat: Pick<IChat, 'resource'>): IProjectBoardMetadataLease | undefined {
+	acquireMetadata(chat: Pick<IChat, 'resource'>, prioritize = false): IProjectBoardMetadataLease | undefined {
+		let lease: IProjectBoardMetadataLease | undefined;
+		transaction(tx => { lease = this._acquireMetadata(chat, prioritize, tx); });
+		return lease;
+	}
+
+	private _acquireMetadata(chat: Pick<IChat, 'resource'>, prioritize: boolean, tx: ITransaction): IProjectBoardMetadataLease | undefined {
 		if (this._isDisposed) {
 			return undefined;
 		}
@@ -62,17 +72,22 @@ export class ProjectBoardPreviewPool extends Disposable {
 		}
 		if (!entry) {
 			if (this._metadata.size >= projectBoardMetadataLimits.activeHelpers) {
-				const idle = [...this._metadata].find(([, candidate]) => !candidate.leases.size);
-				if (!idle) {
+				const candidates = [...this._metadata.values()];
+				const evicted = candidates.find(candidate => !candidate.leases.size)
+					?? (prioritize ? candidates.find(candidate => !this._questions.has(candidate.key) && !candidate.helper.actions.get()) : undefined);
+				if (!evicted) {
 					return undefined;
 				}
-				this._metadata.delete(idle[0]);
-				idle[1].helper.dispose();
+				this._metadata.delete(evicted.key);
+				evicted.leases.clear();
+				evicted.revoked.set(true, tx);
+				evicted.helper.dispose();
 			}
 			entry = {
 				key,
 				helper: this._instantiationService.createInstance(ProjectBoardMetadata, chat),
 				leases: new Set(), includeCredits: false, includeConfiguration: false,
+				revoked: observableValue('projectBoardMetadataRevoked', false),
 			};
 			this._metadata.set(key, entry);
 		} else {
@@ -84,6 +99,7 @@ export class ProjectBoardPreviewPool extends Disposable {
 		retained.leases.add(features);
 		const isActive = () => !this._isDisposed && retained.leases.has(features);
 		return {
+			isRevoked: retained.revoked,
 			metadata: retained.helper.metadata,
 			credits: retained.helper.credits,
 			creditsError: retained.helper.creditsError,

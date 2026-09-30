@@ -317,6 +317,28 @@
 	padding: 0;
 }
 
+.project-board-card-refresh.monaco-button {
+	width: fit-content;
+	max-width: 100%;
+	margin-top: 6px;
+}
+
+.project-board-card-pull-requests {
+	margin-top: 6px;
+}
+
+.project-board-card-pull-requests a {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.project-board-card-pull-requests .codicon {
+	margin-right: 4px;
+	vertical-align: middle;
+}
+
 .project-board-grid .project-board-card {
 	width: 100%;
 }

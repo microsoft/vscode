@@ -47,7 +47,7 @@ import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/bro
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { ChatInteractivity, getChatCapabilities, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatCapabilities, IChat, ISession, ISessionGitRepository, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getProjectBoardCardId, getProjectBoardSessionKey, IProjectBoardAxis, IProjectBoardCard, IProjectBoardPlacement, ProjectBoardModel } from '../common/projectBoardModel.js';
 import { ProjectBoardState } from './projectBoardState.js';
@@ -71,12 +71,13 @@ import { IProjectBoardCatalogService } from '../common/projectBoardCatalog.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { KANBAN_CUSTOM_VIEW_ID } from '../../../common/projectBoard.js';
 import { ProjectBoardPreviewPool, IProjectBoardMetadataLease, IProjectBoardQuestionLease } from './projectBoardPreviewPool.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { computePullRequestIcon, getPullRequestStatusFromIcon } from '../../github/common/types.js';
 import './projectBoardCatalog.js';
 import './media/projectBoard.css';
 
 const projectBoardDragDataType = 'application/vnd.code.project-board-card';
 const maxQuestionPreviews = 8;
-const maxMetadataPreviews = 16;
 
 interface IProjectBoardSessionList extends IDisposable {
 	readonly container: HTMLElement;
@@ -148,6 +149,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly notifiedCreditErrors = new Map<string, string>();
 	private readonly renderDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly previewRender = this._register(new RunOnceScheduler(() => this.render(), 0));
+	private readonly gitHubResolution = this._register(new RunOnceScheduler(() => this.resolveGitHubInfo(), 0));
 	private readonly deferredRenderSources = new Set<IObservable<unknown>>();
 	private waitingForPreview = false;
 	private readonly sessionObserver = this._register(new MutableDisposable());
@@ -171,6 +173,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly metadataChats = new Map<string, IChat>();
 	private readonly metadataStates = new Map<string, IProjectBoardMetadata>();
 	private readonly notifiedMetadataErrors = new Map<string, string>();
+	private readonly resolvedGitHubRepositories = new WeakSet<ISessionGitRepository>();
 	private readonly promptTimes = new Map<string, number>();
 	private showArchived = false;
 	private readonly visibleCounts = new Map<string, number>();
@@ -332,6 +335,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			this.observeSessions();
 		} else {
 			this.previewRender.cancel();
+			this.gitHubResolution.cancel();
 			this.dragging = false;
 			this.model.setSortingDeferred(false);
 			this.movePicker.clear();
@@ -542,9 +546,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	getAccessibleContent(): string {
 		const lines = [this.title];
-		const appendCurrentChat = (card: IProjectBoardCard) => {
+		const appendCardDetails = (card: IProjectBoardCard) => {
 			if (this.active && !this.showHeader && card.id === this.chatSidePanel.activeCardId.get()) {
 				lines.push(localize('projectBoard.accessibleCurrentChat', "  Open in Side Panel"));
+			}
+			for (const pullRequest of card.pullRequests) {
+				lines.push(this.getPullRequestLabel(pullRequest));
 			}
 		};
 		if (!this.showSessionList) {
@@ -571,11 +578,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					lines.push(localize('projectBoard.accessibleSession', "{0}, {1}", card.sessionTitle, this.getStatusLabel(card, true)));
 					for (const sibling of this.model.cards.filter(sibling => sibling.session === card.session && (this.showArchived || !sibling.archived))) {
 						lines.push(localize('projectBoard.accessibleChildChat', "  {0}, {1}", sibling.title, this.getStatusLabel(sibling)));
-						appendCurrentChat(sibling);
+						appendCardDetails(sibling);
 					}
 				} else {
 					lines.push(localize('projectBoard.accessibleCard', "{0}, {1}, {2}", card.title, card.sessionTitle, this.getStatusLabel(card)));
-					appendCurrentChat(card);
+					appendCardDetails(card);
 					if (this.selectedCards.has(card.id)) {
 						lines.push(localize('projectBoard.accessibleSelected', "  Selected"));
 					}
@@ -585,7 +592,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 						lines.push(this.collapsedChats.has(card.id) ? localize('projectBoard.collapsedGroup', "{0} (collapsed)", summary) : summary);
 						for (const child of children) {
 							lines.push(localize('projectBoard.accessibleChildChat', "  {0}, {1}", child.title, this.getStatusLabel(child)));
-							appendCurrentChat(child);
+							appendCardDetails(child);
 						}
 					}
 				}
@@ -645,6 +652,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				}
 			}
 			this.stateDurations.update(this.model.cards);
+			this.gitHubResolution.schedule();
 			this.updateMetadata(reader);
 			this.updateConfigurationDetails(reader);
 			this.updateChatActions(reader);
@@ -687,8 +695,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		for (const card of cards) {
 			const helper = this.metadataPreviews.get(card.id);
 			if (!helper) {
-				const field = { label: localize('projectBoard.configuration', "Configuration"), value: localize('projectBoard.configurationLimit', "Preview limit reached. Open the chat for configuration.") };
-				this.configurationDetails.set(card.id, { model: [field], permissions: [field] });
 				continue;
 			}
 			try {
@@ -768,7 +774,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				this.rememberPromptTime(card.id, getProjectBoardSubmittedAt(model));
 			}
 		}
-		const visible = this.getDisplayedCards().slice(0, maxMetadataPreviews);
+		const visible = this.getDisplayedCards();
 		const observed = new Set(visible.map(card => card.id));
 		for (const id of this.metadataPreviews.keys()) {
 			if (!observed.has(id)) {
@@ -781,6 +787,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.metadataStates.clear();
 		this.creditValues.clear();
 		for (const card of visible) {
+			const previous = this.metadataPreviews.get(card.id);
+			if (previous && this.readPreview(previous.isRevoked, reader)) {
+				this.metadataPreviews.deleteAndDispose(card.id);
+				this.metadataChats.delete(card.id);
+			}
 			if (this.metadataChats.get(card.id) !== card.chat) {
 				const lease = this.previewPool.acquireMetadata(card.chat);
 				if (!lease) {
@@ -791,6 +802,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				this.metadataChats.set(card.id, card.chat);
 			}
 			const helper = this.metadataPreviews.get(card.id)!;
+			this.readPreview(helper.isRevoked, reader);
 			const showCredits = !!this.boardState.configuration.read(reader).display?.showCredits;
 			helper.setIncludeCredits(showCredits);
 			const metadata = this.readPreview(helper.metadata, reader);
@@ -811,6 +823,52 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			if (metadata.kind === 'error' && this.notifiedMetadataErrors.get(card.id) !== metadata.error) {
 				this.notifiedMetadataErrors.set(card.id, metadata.error);
 				this.notificationService.error(metadata.message);
+			}
+		}
+	}
+
+	private refreshMetadata(cardId: string): void {
+		if (!this.active || this._store.isDisposed) {
+			return;
+		}
+		const card = this.getDisplayedCards().find(card => card.id === cardId);
+		if (!card || card.connection || !this.sessionsProvidersService.getProvider(card.session.providerId)) {
+			this.notificationService.warn(localize('projectBoard.refreshUnavailable', "This chat is no longer available for refresh."));
+			return;
+		}
+		try {
+			const lease = this.previewPool.acquireMetadata(card.chat, true);
+			if (!lease) {
+				this.notificationService.warn(localize('projectBoard.refreshBusy', "All preview slots have pending input or approvals. Finish an interaction or open the chat to see its details."));
+				return;
+			}
+			this.metadataPreviews.set(card.id, lease);
+			this.metadataChats.set(card.id, card.chat);
+			this.observeSessions();
+		} catch (error) {
+			this.logService.error('[ProjectBoard] Failed to refresh chat metadata', error);
+			this.notificationService.error(localize('projectBoard.refreshFailed', "Could not refresh the chat details."));
+		}
+	}
+
+	private resolveGitHubInfo(): void {
+		if (!this.active || this._store.isDisposed) {
+			return;
+		}
+		for (const card of this.getDisplayedCards()) {
+			const workspace = card.chat.workspace?.get() ?? card.session.workspace?.get();
+			for (const folder of workspace?.folders ?? []) {
+				const repository = folder.gitRepository;
+				if (!repository?.resolveGitHubInfo || this.resolvedGitHubRepositories.has(repository)) {
+					continue;
+				}
+				this.resolvedGitHubRepositories.add(repository);
+				try {
+					repository.resolveGitHubInfo();
+				} catch (error) {
+					this.logService.error('[ProjectBoard] Failed to resolve pull request information', error);
+					this.notificationService.error(localize('projectBoard.pullRequestsFailed', "Could not load pull request information for \"{0}\".", folder.name));
+				}
 			}
 		}
 	}
@@ -1138,7 +1196,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				focusedQuestion.focus({ preventScroll: true });
 			} else if (focusedControl) {
 				const fallback = focusedControl.startsWith('more:') ? focusedControl.replace('more:', 'less:') : focusedControl.replace('less:', 'more:');
-				(this.controlElements.get(focusedControl) ?? this.controlElements.get(fallback) ?? this.markDoneButton?.element)?.focus({ preventScroll: true });
+				const refreshedCard = focusedControl.startsWith('refresh:') ? this.cardElements.get(focusedControl.slice('refresh:'.length)) : undefined;
+				(this.controlElements.get(focusedControl) ?? this.controlElements.get(fallback) ?? refreshedCard ?? this.markDoneButton?.element)?.focus({ preventScroll: true });
 			} else if (focusedCard) {
 				const card = this.model.cards.find(card => card.id === focusedCard[0]);
 				if (card && this.showSessionList) {
@@ -2112,6 +2171,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 		element.appendChild(this.createStatus(document, this.getStatusLabel(card), this.getStatusGlyph(card.status, card.isRead), card.status === SessionStatus.InProgress));
 		const display = this.boardState.configuration.get().display;
+		const metadata = this.metadataStates.get(card.id);
 		const metrics = document.createElement('div');
 		metrics.className = 'project-board-card-metrics';
 		if (display?.showStateDuration && !card.archived) {
@@ -2129,7 +2189,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			this.durationElements.set(card.id, value);
 			metrics.appendChild(duration);
 		}
-		if (display?.showCredits) {
+		if (display?.showCredits && metadata) {
 			const credits = document.createElement('div');
 			credits.className = 'project-board-card-credits';
 			credits.setAttribute('role', 'img');
@@ -2189,7 +2249,20 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				element.appendChild(row);
 			}
 		}
-		const metadata = this.metadataStates.get(card.id);
+		if (!metadata || metadata.kind === 'loading') {
+			const button = this.createControl(element, metadata
+				? localize('projectBoard.refreshing', "Refreshing…")
+				: localize('projectBoard.pendingRefresh', "Pending refresh"), `refresh:${card.id}`, store);
+			button.element.classList.add('project-board-card-refresh');
+			button.element.setAttribute('aria-busy', String(!!metadata));
+			button.enabled = !metadata && !card.connection && !!this.sessionsProvidersService.getProvider(card.session.providerId);
+			store.add(this.hoverService.setupDelayedHover(button.element, { content: localize('projectBoard.refreshHelp', "Load this chat's existing history for card details without opening it, marking it read, or sending a prompt.") }));
+			store.add(button.onDidClick(event => {
+				event.preventDefault();
+				event.stopPropagation();
+				this.refreshMetadata(card.id);
+			}));
+		}
 		const prompt = document.createElement('div');
 		prompt.className = 'project-board-card-prompt';
 		prompt.textContent = metadata?.kind === 'ready' && metadata.prompt !== undefined
@@ -2199,7 +2272,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				: metadata?.kind === 'loading'
 					? localize('projectBoard.loadingPrompt', "Loading last prompt…")
 					: localize('projectBoard.promptUnavailable', "Prompt unavailable");
-		if (display?.showLastPrompt !== false) {
+		if (display?.showLastPrompt !== false && metadata && metadata.kind !== 'loading') {
 			describe(prompt);
 			store.add(this.hoverService.setupDelayedHover(prompt, { content: prompt.textContent }));
 			element.appendChild(prompt);
@@ -2207,6 +2280,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const time = this.promptTimes.get(card.id);
 		const recency = document.createElement('div');
 		recency.className = 'project-board-card-recency';
+		recency.hidden = !metadata && time === undefined;
 		describe(recency);
 		if (time === undefined) {
 			recency.textContent = localize('projectBoard.recencyUnavailable', "Recency unavailable");
@@ -2222,11 +2296,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			capability.className = metadata.kind === 'ready' ? 'project-board-card-metadata-note' : 'project-board-card-warning';
 			capability.textContent = metadata.message;
 			element.appendChild(capability);
-		} else if (!metadata) {
-			const capability = document.createElement('div');
-			capability.className = 'project-board-card-warning';
-			capability.textContent = localize('projectBoard.metadataLimit', "Metadata preview limit reached. Open the chat for details.");
-			element.appendChild(capability);
 		}
 		if (metadata?.kind === 'ready' && metadata.context.length) {
 			const context = document.createElement('section');
@@ -2238,6 +2307,26 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				this.createContextLink(context, item.label, item.uri, `${card.id}:prompt:${item.uri}`, store);
 			}
 			element.appendChild(context);
+		}
+		if (card.pullRequests.length) {
+			const pullRequests = document.createElement('section');
+			pullRequests.className = 'project-board-card-pull-requests';
+			pullRequests.setAttribute('aria-label', localize('projectBoard.pullRequests', "Associated pull requests"));
+			describe(pullRequests);
+			for (const pullRequest of card.pullRequests) {
+				const link = this.createContextLink(pullRequests, pullRequest.label, pullRequest.uri, `${card.id}:pr:${pullRequest.uri}`, store, true);
+				const label = this.getPullRequestLabel(pullRequest);
+				link.setAttribute('aria-label', label);
+				store.add(this.hoverService.setupDelayedHover(link, { content: label }));
+				const icon = pullRequest.icon ?? (pullRequest.state ? computePullRequestIcon(pullRequest.state) : Codicon.gitPullRequest);
+				const glyph = renderIcon(icon);
+				glyph.setAttribute('aria-hidden', 'true');
+				if (icon.color) {
+					glyph.style.color = asCssVariable(icon.color.id);
+				}
+				link.prepend(glyph);
+			}
+			element.appendChild(pullRequests);
 		}
 		if (card.sharedContext.length) {
 			const context = document.createElement('section');
@@ -2314,7 +2403,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}));
 		const rename = card.status !== SessionStatus.Untitled && getChatCapabilities(card.chat, undefined, undefined).canRename ? () => this.renameChat(card) : undefined;
 		this.registerCardInteractions(element, () => this.openCard(card), store, () => { void this.pickPlacement(card); }, rename, card);
-		if (actionWidget || hasInteractiveQuestions || this.cardCheckboxes.has(card.id)) {
+		if (actionWidget || hasInteractiveQuestions || this.cardCheckboxes.has(card.id) || !metadata || metadata.kind === 'loading' || card.pullRequests.length) {
 			element.setAttribute('role', 'group');
 		}
 
@@ -2340,7 +2429,20 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return button;
 	}
 
-	private createContextLink(container: HTMLElement, label: string, uri: URI, key: string, store: DisposableStore): void {
+	private getPullRequestLabel(pullRequest: IProjectBoardCard['pullRequests'][number]): string {
+		const state = pullRequest.state === 'merged' || pullRequest.state === 'closed'
+			? pullRequest.state : getPullRequestStatusFromIcon(pullRequest.icon) ?? pullRequest.state;
+		const label = state === 'merged' ? localize('projectBoard.prMerged', "Merged")
+			: state === 'closed' ? localize('projectBoard.prClosed', "Closed")
+				: state === 'draft' ? localize('projectBoard.prDraft', "Draft")
+					: state === 'open' ? localize('projectBoard.prOpen', "Open")
+						: localize('projectBoard.prUnknown', "State unavailable");
+		return pullRequest.title
+			? localize('projectBoard.prTitleState', "{0}: {1}, {2}", pullRequest.label, pullRequest.title, label)
+			: localize('projectBoard.prState', "{0}, {1}", pullRequest.label, label);
+	}
+
+	private createContextLink(container: HTMLElement, label: string, uri: URI, key: string, store: DisposableStore, openExternal = false): HTMLAnchorElement {
 		const link = mainWindow.document.createElement('a');
 		link.textContent = label;
 		link.href = uri.toString();
@@ -2349,14 +2451,15 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		store.add(addDisposableListener(link, EventType.CLICK, event => {
 			event.preventDefault();
 			event.stopPropagation();
-			void this.openContext(uri);
+			void this.openContext(uri, openExternal);
 		}));
 		container.appendChild(link);
+		return link;
 	}
 
-	private async openContext(uri: URI): Promise<void> {
+	private async openContext(uri: URI, openExternal: boolean): Promise<void> {
 		try {
-			if (!await this.openerService.open(uri, { fromUserGesture: true, allowCommands: false })) {
+			if (!await this.openerService.open(uri, { fromUserGesture: true, allowCommands: false, ...(openExternal ? { openExternal: true } : {}) })) {
 				throw new Error(`No opener for ${uri.scheme}`);
 			}
 		} catch (error) {
