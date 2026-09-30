@@ -3,16 +3,16 @@
 //
 // Included from the [Code] section of code.iss when the build contains bin\copilot-shim\copilot.exe (CopilotShim).
 //
-// Shim contract used by setup (all files are INI files written atomically by the shim):
+// Shim contract used by setup (all files are UTF-16LE INI files written atomically by the shim):
 //   copilot.exe --vscode-shim probe --scope user|machine [--no-network] --timeout-ms N --result-file <ini>
 //     [probe] protocol=1, policy=allowed|disabled, cliFound=0|1, downloadAvailable=0|1,
 //             downloadSize=<bytes>, pwshFound=0|1, reason=<text>
 //   copilot.exe --vscode-shim install --non-interactive --consent=installer --progress-file <ini>
 //               --result-file <ini> --cancel-file <path> --running-mutex <name>
-//     [progress] phase=downloading|verifying|installing, current=<bytes>, total=<bytes>, heartbeat=<n>
-//     [result] status=installed|alreadyInstalled|policy|network|verification|msiexec|cancelled|timeout|error,
-//              exitCode=<n>, cliPath=<path>, cliVersion=<version>, log=<path>
-//   The install command holds the named mutex while it runs and rewrites the progress file at least every 5 seconds.
+//     [progress] phase=resolving|downloading|verifying|installing, current=<bytes>, total=<bytes>, heartbeat=<n>
+//     [result] status=installed|alreadyInstalled|unsupported|policy|network|verification|msiexec|cancelled|error,
+//              exitCode=<n>, cliPath=<path>, cliVersion=<release tag>, log=<path>, reason=<text>
+//   The install command holds the named mutex while it runs and increments heartbeat while it works.
 
 #ifndef CopilotCliPolicyName
 #define CopilotCliPolicyName "CopilotCliCommand"
@@ -548,52 +548,36 @@ end;
 // and remove_files in microsoft/inno-updater src/main.rs). A running shim (an open Copilot session) can't be deleted or
 // overwritten but can be renamed, so it's renamed to old_copilot.exe and the session keeps running from that file.
 
+#ifndef CopilotRetryAttempts
+#define CopilotRetryAttempts 11
+#endif
+
 const
   CopilotShimName = 'copilot.exe';
-  CopilotRetryAttempts = 11;
 
+// Renames Source to Target, or copies it when Copy is set. Retries like inno_updater's util::retry, which absorbs
+// transient locks such as antivirus scans: up to 11 attempts, waiting attempt^2 * 50 ms after each failure.
+function CopilotMoveWithRetry(const Source, Target: String; const Copy: Boolean): Boolean;
 var
-  // Overrides CopilotRetryAttempts when positive; for tests.
-  CopilotRetryLimit: Integer;
-
-function CopilotMaxAttempts(): Integer;
+  Attempt: Integer;
 begin
-  if CopilotRetryLimit > 0 then
-    Result := CopilotRetryLimit
-  else
-    Result := CopilotRetryAttempts;
+  Attempt := 0;
+  repeat
+    Attempt := Attempt + 1;
+    if Copy then
+      Result := CopyFile(Source, Target, False)
+    else
+      Result := RenameFile(Source, Target);
+    if not Result and (Attempt < {#CopilotRetryAttempts}) then
+      Sleep(Attempt * Attempt * 50);
+  until Result or (Attempt >= {#CopilotRetryAttempts});
+  if not Result then
+    Log('Copilot: could not move ' + Source + ' to ' + Target + ' after ' + IntToStr(Attempt) + ' attempts');
 end;
 
-// Retries like inno_updater's util::retry, which absorbs transient locks such as antivirus scans: up to 11 attempts,
-// waiting attempt^2 * 50 ms after each failure.
 function CopilotRenameWithRetry(const Source, Target: String): Boolean;
-var
-  Attempt: Integer;
 begin
-  Attempt := 0;
-  repeat
-    Attempt := Attempt + 1;
-    Result := RenameFile(Source, Target);
-    if not Result and (Attempt < CopilotMaxAttempts()) then
-      Sleep(Attempt * Attempt * 50);
-  until Result or (Attempt >= CopilotMaxAttempts());
-  if not Result then
-    Log('Copilot: could not rename ' + Source + ' to ' + Target + ' after ' + IntToStr(Attempt) + ' attempts');
-end;
-
-function CopilotCopyWithRetry(const Source, Target: String): Boolean;
-var
-  Attempt: Integer;
-begin
-  Attempt := 0;
-  repeat
-    Attempt := Attempt + 1;
-    Result := CopyFile(Source, Target, False);
-    if not Result and (Attempt < CopilotMaxAttempts()) then
-      Sleep(Attempt * Attempt * 50);
-  until Result or (Attempt >= CopilotMaxAttempts());
-  if not Result then
-    Log('Copilot: could not copy ' + Source + ' to ' + Target + ' after ' + IntToStr(Attempt) + ' attempts');
+  Result := CopilotMoveWithRetry(Source, Target, False);
 end;
 
 // Returns old_copilot.exe, or old_1_copilot.exe, old_2_copilot.exe, and so on when an older session still holds it.
@@ -669,7 +653,7 @@ end;
 
 function CopilotPublishShimFile(const Source, Dir: String): Boolean;
 var
-  Target, Staging: String;
+  Target, Staging, PreviousVersion: String;
 begin
   Result := False;
   Target := Dir + '\' + CopilotShimName;
@@ -687,9 +671,10 @@ begin
       exit;
     end;
 
-    if CopilotCopyWithRetry(Source, Staging) then
+    PreviousVersion := CopilotVersionString(Target);
+    if CopilotMoveWithRetry(Source, Staging, True) then
       Result := CopilotThreeWayRename(Target, CopilotAvailableOldPath(Dir), Staging);
-    Log('Copilot: published shim version ' + CopilotVersionString(Source) + ' over ' + CopilotVersionString(Target)
+    Log('Copilot: published shim version ' + CopilotVersionString(Source) + ' over ' + PreviousVersion
       + ', success=' + BoolToStr(Result));
     // Removes the previous shim unless a Copilot session still runs it, and any staged copy left by a failure.
     CopilotDeleteOldShims(Dir);
@@ -717,18 +702,10 @@ end;
 
 // Install now
 
+// Returns the heartbeat, which changes whenever the shim reports progress.
 function CopilotReadInstallProgress(const ProgressFile: String; var Phase: String; var Current, Total: Int64): String;
-var
-  Content: AnsiString;
 begin
-  Result := '';
-  Phase := '';
-  Current := 0;
-  Total := 0;
-  if not FileExists(ProgressFile) then
-    exit;
-  if LoadStringFromFile(ProgressFile, Content) then
-    Result := String(Content);
+  Result := GetIniString('progress', 'heartbeat', '', ProgressFile);
   Phase := GetIniString('progress', 'phase', '', ProgressFile);
   Current := StrToInt64Def(GetIniString('progress', 'current', '0', ProgressFile), 0);
   Total := StrToInt64Def(GetIniString('progress', 'total', '0', ProgressFile), 0);
@@ -911,10 +888,6 @@ end;
 procedure CopilotUninstall();
 begin
   CopilotRemoveFromPath({#EnvironmentRootKey}, '{#EnvironmentKey}', CopilotShimDir());
-#if "user" != InstallTarget
-  // Best effort for an entry added from VS Code by the account that is uninstalling.
-  CopilotRemoveFromPath(HKCU, CopilotUserEnvironmentKey, CopilotShimDir());
-#endif
 end;
 
 // Wizard pages
