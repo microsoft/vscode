@@ -12,7 +12,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { Action, IAction } from '../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -493,13 +493,13 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 				: host.status === AgentHostFilterConnectionStatus.Connecting
 					? localize('agentHostFilter.hostConnecting', "{0} (connecting…)", host.label)
 					: localize('agentHostFilter.hostDisconnected', "{0} (disconnected)", host.label);
-			actions.push(new Action(
-				`agentHostFilter.host.${host.id}`,
+			actions.push(toAction({
+				id: `agentHostFilter.host.${host.id}`,
 				label,
-				selectedId === host.id ? 'codicon codicon-check' : undefined,
-				true,
-				async () => this._filterService.setSelectedHostId(host.id),
-			));
+				tooltip: '',
+				class: selectedId === host.id ? 'codicon codicon-check' : undefined,
+				run: () => this._filterService.setSelectedHostId(host.id),
+			}));
 		}
 
 		const anchor = dom.isMouseEvent(e)

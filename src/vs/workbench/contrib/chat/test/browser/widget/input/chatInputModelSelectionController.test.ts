@@ -183,6 +183,8 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [], sessionType: 'test' }, modelChanges, [])));
 		const first = model('test/first');
 		const second = model('test/second');
+		const userSelections: { fromModelId: string; toModelId: string }[] = [];
+		disposables.add(controller.onDidChangeUserSelectedModel(event => userSelections.push(event)));
 
 		controller.applySelection(first, () => { }, false);
 		const automatic = {
@@ -195,10 +197,12 @@ suite('ChatInputModelSelectionController', () => {
 			automatic,
 			current: controller.currentModel.get()?.identifier,
 			explicitAfterUserSelection: controller.selectionReason,
+			userSelections,
 		}, {
 			automatic: { current: first.identifier, explicit: undefined },
 			current: second.identifier,
 			explicitAfterUserSelection: ModelSelectionReason.UserSelection,
+			userSelections: [{ fromModelId: first.identifier, toModelId: second.identifier }],
 		});
 	});
 
@@ -239,15 +243,19 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [], sessionType: 'test' }, modelChanges, [])));
 		const first = model('test/first');
 		const second = model('test/second');
+		const userSelections: { fromModelId: string; toModelId: string }[] = [];
+		disposables.add(controller.onDidChangeUserSelectedModel(event => userSelections.push(event)));
 		controller.applySelection(first, () => { }, false);
 
 		assert.throws(() => controller.applySelection(second, () => { throw new Error('rejected'); }, true, true), /rejected/);
 		assert.deepStrictEqual({
 			current: controller.currentModel.get()?.identifier,
 			reason: controller.selectionReason,
+			userSelections,
 		}, {
 			current: first.identifier,
 			reason: undefined,
+			userSelections: [],
 		});
 	});
 

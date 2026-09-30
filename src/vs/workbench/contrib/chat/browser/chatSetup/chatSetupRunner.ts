@@ -11,6 +11,7 @@ import { Dialog, DialogContentsAlignment } from '../../../../../base/browser/ui/
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -209,29 +210,42 @@ export async function showChatSetupDialogWithCancellation(
 	cancellationToken: CancellationToken | undefined,
 	onDidDismissDialog?: () => void,
 	onDidShowDialog?: () => void,
+	defaultAccountService?: IDefaultAccountService,
 ): Promise<ChatSetupStrategy> {
+	const disposables = new DisposableStore();
 	let canceled = false;
-	const cancellationListener = cancellationToken?.onCancellationRequested(() => {
-		canceled = true;
-		dialog.dispose();
-	});
+	let signedIn = false;
 	try {
-		if (cancellationToken?.isCancellationRequested) {
-			canceled = true;
-			dialog.dispose();
+		if (cancellationToken) {
+			disposables.add(cancellationToken.onCancellationRequested(() => {
+				canceled = true;
+				dialog.dispose();
+			}));
 		}
-		if (canceled) {
+		if (defaultAccountService) {
+			disposables.add(Event.once(Event.filter(defaultAccountService.onDidChangeDefaultAccount, account => account !== null))(() => {
+				signedIn = true;
+				dialog.dispose();
+			}));
+		}
+		if (cancellationToken?.isCancellationRequested) {
 			return ChatSetupStrategy.Canceled;
+		}
+		if (signedIn || defaultAccountService?.currentDefaultAccount) {
+			return ChatSetupStrategy.DefaultSetup;
 		}
 		const result = dialog.show();
 		onDidShowDialog?.();
 		const strategy = await result;
+		if (signedIn && !canceled) {
+			return ChatSetupStrategy.DefaultSetup;
+		}
 		if (!canceled && strategy === ChatSetupStrategy.Canceled) {
 			onDidDismissDialog?.();
 		}
 		return strategy;
 	} finally {
-		cancellationListener?.dispose();
+		disposables.dispose();
 		dialog.dispose();
 	}
 }
@@ -273,7 +287,7 @@ export function getChatSetupDialogButtons(entitlement: ChatEntitlement, options:
 export function getChatSetupDialogFooter(
 	forceAnonymous: ChatSetupAnonymous | undefined,
 	telemetryLevel: TelemetryLevel,
-	settingsUrl: string,
+	settingsUrl: string | undefined,
 	content: IChatSetupDialogFooterContent = {
 		providerName: defaultChat.provider.default.name,
 		termsStatementUrl: defaultChat.termsStatementUrl,
@@ -283,6 +297,10 @@ export function getChatSetupDialogFooter(
 ): string {
 	if (forceAnonymous || telemetryLevel === TelemetryLevel.NONE) {
 		return localize({ key: 'settingsAnonymous', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}).", content.providerName, content.termsStatementUrl, content.privacyStatementUrl);
+	}
+
+	if (!settingsUrl) {
+		return localize({ key: 'settingsWithoutLink', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}). {3} Copilot may show [public code]({4}) suggestions and use your data to improve the product. You can change these settings anytime.", content.providerName, content.termsStatementUrl, content.privacyStatementUrl, content.providerName, content.publicCodeMatchesUrl);
 	}
 
 	return localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}', '{Locked="]({5})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}). {3} Copilot may show [public code]({4}) suggestions and use your data to improve the product. You can change these [settings]({5}) anytime.", content.providerName, content.termsStatementUrl, content.privacyStatementUrl, content.providerName, content.publicCodeMatchesUrl, settingsUrl);
@@ -381,7 +399,8 @@ export class ChatSetup {
 			setupStrategy = await this.showDialog(options);
 		}
 
-		if (setupStrategy === ChatSetupStrategy.DefaultSetup && this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise) {
+		const signedInAccount = options?.autoDismissOnSignIn ? this.defaultAccountService.currentDefaultAccount : undefined;
+		if (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount && this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise) {
 			setupStrategy = ChatSetupStrategy.SetupWithEnterpriseProvider; // users with a configured provider go through provider setup
 		}
 
@@ -390,7 +409,7 @@ export class ChatSetup {
 		let errorAlreadyHandled = false;
 		const setupCancellation = new CancellationTokenSource(options?.cancellationToken);
 		try {
-			if (setupStrategy !== ChatSetupStrategy.Canceled) {
+			if (entersProviderAuthentication(setupStrategy) || (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount)) {
 				options?.onSignInStarted?.(() => setupCancellation.cancel());
 			}
 
@@ -417,7 +436,7 @@ export class ChatSetup {
 					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useSocialProvider: 'microsoft', additionalScopes: options?.additionalScopes, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
 					break;
 				case ChatSetupStrategy.DefaultSetup:
-					success = await this.controller.value.setup({ ...options, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
+					success = await this.controller.value.setup({ ...options, useEnterpriseProvider: signedInAccount?.authenticationProvider.enterprise, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
 					break;
 				case ChatSetupStrategy.Canceled:
 					this.context.update({ later: true });
@@ -514,7 +533,7 @@ export class ChatSetup {
 				entitlement: ChatEntitlement[entitlement],
 				forceSignInDialog: options?.forceSignInDialog === true,
 			});
-		});
+		}, options?.autoDismissOnSignIn ? this.defaultAccountService : undefined);
 	}
 
 	private getDialogTitle(options?: IChatSetupRunOptions): string {

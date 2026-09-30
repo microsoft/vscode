@@ -26,7 +26,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCopilotConfigSlashSubmitHandlerContribution } from '../browser/copilotConfigSlashSubmitHandler.js';
-import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft, isAgentsWindowDraft, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -39,6 +39,7 @@ import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { AgentsWindowWorkspaceHandoff } from '../browser/agentsWindowWorkspaceHandoff.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sessionsWorkspaceSelectionTelemetry.js';
+import { ParallelWorkOnboarding } from '../../onboardingTours/browser/parallelWorkOnboarding.js';
 
 export class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -47,6 +48,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	private readonly _workspaceSelectionTelemetry = this._register(new MutableDisposable<SessionsWorkspaceSelectionTelemetry>());
 	private readonly _openIntent = this._register(new MutableDisposable());
 	private readonly _workspaceHandoff: AgentsWindowWorkspaceHandoff;
+	private readonly _parallelWorkOnboarding: ParallelWorkOnboarding;
 	private _didHandleInitialWindowOpen = false;
 
 	constructor(
@@ -68,24 +70,38 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	) {
 		super();
 		this._workspaceHandoff = this._register(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
+		this._parallelWorkOnboarding = this._register(instantiationService.createInstance(ParallelWorkOnboarding));
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
 			this._workspaceHandoff.cancel();
 			const cancellation = new CancellationTokenSource();
 			this._openIntent.value = toDisposable(() => cancellation.dispose(true));
 			const workspaceUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
-			const { folderUri, preferDevContainer } = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
 			const sessionResource = args[1] ? URI.revive(args[1] as UriComponents) : undefined;
 			const source = isAgentsWindowOpenSource(args[2]) ? args[2] : AgentsWindowOpenSource.Unknown;
+			const onboardingSessionResource = source === AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff && args[5] ? URI.revive(args[5] as UriComponents) : undefined;
 			const workspaceArgumentIsDefault = args[3] === true;
-			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
+			if (args[4] !== undefined && !isAgentsWindowDraft(args[4])) {
+				this.logService.error('[AgentsHandoff] Invalid draft payload');
+				this.notificationService.warn(localize('agentsHandoff.invalidDraft', "The draft could not be copied. Your prompt and attachments are still in the editor."));
+				return;
+			}
+			const draft = args[4];
+			const noWorkspace = source === AgentsWindowOpenSource.Link && draft !== undefined && workspaceUri === undefined;
+			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${workspaceUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
 			const telemetry = this._startWindowOpenTelemetry(source, {
 				workspaceArgumentKind: getAgentsWindowWorkspaceArgumentKind(workspaceUri),
 				hasSessionArgument: sessionResource !== undefined,
 				workspaceArgumentIsDefault,
 			});
 
-			this._handleOpenIntentAndCaptureInitialState(folderUri, sessionResource, preferDevContainer, workspaceArgumentIsDefault, cancellation.token, telemetry)
-				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
+			const handoff = () => this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft, noWorkspace);
+			const opening = onboardingSessionResource && !sessionResource
+				? this._parallelWorkOnboarding.runWithHandoff(handoff, async () => {
+					await this.waitForSessionAvailable(onboardingSessionResource, cancellation.token);
+					return this.sessionsManagementService.getSession(onboardingSessionResource);
+				}, cancellation.token)
+				: handoff();
+			opening.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 		};
 		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
 		this._register({ dispose: () => ipcRenderer.removeListener('vscode:selectAgentsFolder', handleSelectAgentsFolder) });
@@ -110,6 +126,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			() => getNonArchivedSessionListCount(this.sessionsManagementService.getSessions()),
 			this.telemetryService,
 			this.lifecycleService,
+			this.storageService,
 		);
 		if (!context.hasSessionArgument) {
 			this._workspaceSelectionTelemetry.value = this.instantiationService.createInstance(SessionsWorkspaceSelectionTelemetry, source, context);
@@ -122,9 +139,9 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		telemetry?.captureInitialViewState();
 	}
 
-	private async _handleOpenIntentAndCaptureInitialState(folderUri: URI | undefined, sessionResource: URI | undefined, preferDevContainer: boolean, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined): Promise<void> {
+	private async _handleOpenIntentAndCaptureInitialState(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false): Promise<void> {
 		try {
-			await this.handleOpenIntent(folderUri, sessionResource, preferDevContainer, isDefault, token, telemetry);
+			await this.handleOpenIntent(workspaceUri, sessionResource, isDefault, token, telemetry, draft, noWorkspace);
 		} catch (error) {
 			telemetry?.recordWorkspaceHandoffState('error');
 			throw error;
@@ -156,7 +173,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		};
 	}
 
-	private async handleOpenIntent(folderUri: URI | undefined, sessionResource: URI | undefined, preferDevContainer: boolean, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined): Promise<void> {
+	private async handleOpenIntent(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false): Promise<void> {
 		// Opening an existing session establishes its own workspace context, so
 		// the folder selection is only needed for the folder-only handoff (no
 		// session to restore).
@@ -164,8 +181,10 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			await this.openExistingSession(sessionResource, token);
 			return;
 		}
-		if (folderUri) {
-			await this._workspaceHandoff.selectWorkspace({ folderUri, preferDevContainer, isDefault }, state => telemetry?.recordWorkspaceHandoffState(state));
+		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
+		const folderUri = resolved.folderUri ?? (draft ? workspaceUri : undefined);
+		if (folderUri || draft) {
+			await this._workspaceHandoff.selectWorkspace({ folderUri, preferDevContainer: resolved.preferDevContainer, isDefault, draft, noWorkspace }, state => telemetry?.recordWorkspaceHandoffState(state));
 		}
 	}
 

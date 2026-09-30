@@ -442,7 +442,12 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		// Flash/Bounce
 		if (isWindows || isLinux) {
 			this.win?.flashFrame(true);
-			disposables.add(toDisposable(() => this.win?.flashFrame(false)));
+			disposables.add(toDisposable(() => {
+				const win = this.win;
+				if (win && !win.isDestroyed()) {
+					win.flashFrame(false);
+				}
+			}));
 		} else if (isMacintosh) {
 			electron.app.dock?.bounce('informational');
 		}

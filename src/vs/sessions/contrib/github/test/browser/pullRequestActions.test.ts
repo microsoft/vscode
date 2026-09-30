@@ -256,6 +256,49 @@ suite('Pull Request Actions', () => {
 		}]);
 	});
 
+	test('Open and Copy Pull Request actions support multiple selected sessions', async () => {
+		const firstPullRequestUri = URI.parse('https://github.com/owner/repo/pull/1');
+		const secondPullRequestUri = URI.parse('https://github.com/owner/repo/pull/2');
+		const sessions = [
+			createSessionWithPullRequest(firstPullRequestUri),
+			createSessionWithPullRequest(undefined),
+			createSessionWithPullRequest(secondPullRequestUri),
+		];
+
+		const instantiationService = new TestInstantiationService();
+		const openerService = new TestOpenerService();
+		const clipboardService = new class extends mock<IClipboardService>() {
+			readonly writes: string[] = [];
+			override async writeText(text: string): Promise<void> {
+				this.writes.push(text);
+			}
+		};
+		instantiationService.stub(IOpenerService, openerService);
+		instantiationService.stub(IClipboardService, clipboardService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(undefined);
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor, sessions));
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, sessions));
+
+		assert.deepStrictEqual({
+			opened: openerService.opened,
+			copied: clipboardService.writes,
+		}, {
+			opened: [{
+				resource: firstPullRequestUri,
+				openExternal: true,
+				allowContributedOpeners: true,
+			}, {
+				resource: secondPullRequestUri,
+				openExternal: true,
+				allowContributedOpeners: true,
+			}],
+			copied: [`${firstPullRequestUri.toString(true)}\n${secondPullRequestUri.toString(true)}`],
+		});
+	});
+
 	test('Copy Pull Request URL uses an explicit contextual pull request', async () => {
 		const secondPullRequestUri = URI.parse('https://github.com/upstream/project/pull/7');
 		const secondPullRequest = { owner: 'upstream', repo: 'project', number: 7, uri: secondPullRequestUri };

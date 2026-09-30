@@ -434,10 +434,7 @@
  *
  * IMPLEMENTATION NOTE — specificity over `!important`
  *
- * The chips live inside two parallel toolbar groups:
- *   .new-chat-controls-container > div > .monaco-toolbar
- *      > .monaco-action-bar > .actions-container > .action-item
- *        > .sessions-chat-picker-slot                      (Approvals)
+ * Repository chips live inside the secondary toolbar:
  *   .new-chat-secondary-controls-container
  *     > .new-chat-repo-config-container > .monaco-toolbar
  *      > .monaco-action-bar > .actions-container > .action-item
@@ -526,7 +523,6 @@
  * flattening) and only relies on the standard
  * `.monaco-action-bar > .actions-container > .action-item` chain that's
  * part of monaco's public structure. */
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container,
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .new-chat-secondary-controls-container,
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container,
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-toolbar,
@@ -567,7 +563,7 @@
  * specificity 0,7,0 (action-bar path) / 0,6,0 (slot path), which beats
  * the desktop floor at 0,5,0 / 0,4,0 — no `!important` required. */
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label,
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label {
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label:not(.separator) {
 	box-sizing: content-box;
 	display: inline-flex;
 	align-items: center;
@@ -591,7 +587,7 @@
 }
 
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label:active,
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label:active {
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label:not(.separator):active {
 	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground, transparent));
 }
 

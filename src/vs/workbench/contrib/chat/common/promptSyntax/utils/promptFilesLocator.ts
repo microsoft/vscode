@@ -127,7 +127,8 @@ export class PromptFilesLocator {
 
 	/**
 	 * Walks up from {@link folderUri} collecting parent folders until a
-	 * repository root (a folder containing `.git`) is found.  Returns the
+	 * repository root (a folder containing a `.git` directory or pointer) is
+	 * found. Returns the
 	 * intermediate parent folders only when a repo root is found; returns
 	 * an empty array when the walk reaches the filesystem root, the user
 	 * home directory, or a folder already present in {@link seen}.
@@ -138,7 +139,7 @@ export class PromptFilesLocator {
 		while (true) {
 			try {
 				const gitStat = await this.fileService.stat(joinPath(current, '.git')).then(stat => stat, () => undefined);
-				const isRepoRoot = gitStat?.isDirectory === true;
+				const isRepoRoot = gitStat?.isDirectory === true || gitStat?.isFile === true;
 				if (isRepoRoot) {
 					if ((await this.workspaceTrustManagementService.getUriTrustInfo(current)).trusted) {
 						candidates.push(current);
