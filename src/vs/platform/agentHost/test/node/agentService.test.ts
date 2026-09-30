@@ -1428,7 +1428,7 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
-		function markAutomationSession(stateManager: AgentHostStateManager, session: URI): void {
+		function markAutomationSession(stateManager: ReturnType<typeof getStateManager>, session: URI): void {
 			stateManager.setAutomationRunState({
 				resource: 'ahp-automation-run:/promotion', automation: 'ahp-automation:/promotion',
 				origin: { kind: AutomationRunOriginKind.Manual },
@@ -1501,24 +1501,27 @@ suite('AgentService (node dispatcher)', () => {
 			}, { persisted: 'true', central: true, listed: true, restored: true });
 		});
 
-		test('rejected human turns do not promote archived automation sessions', async () => {
-			registerTestAgentProvider(service, copilotAgent);
-			const session = await service.createSession({ provider: 'copilot' });
-			const stateManager = getStateManager(service);
-			markAutomationSession(stateManager, session);
-			const chat = buildDefaultChatUri(session.toString());
-			stateManager.dispatchServerAction(chat, {
-				type: ActionType.ChatTurnStarted, turnId: 'rejected-human', startedAt: '2026-09-29T00:00:00Z',
-				message: { text: 'Old user turn', origin: { kind: MessageKind.User } },
+		for (const replay of [false, true]) {
+			test(`${replay ? 'replayed' : 'fresh rejected'} human turns do not promote archived automation sessions`, async () => {
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ provider: 'copilot' });
+				const stateManager = getStateManager(service);
+				markAutomationSession(stateManager, session);
+				const chat = buildDefaultChatUri(session.toString());
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatTurnStarted, turnId: 'rejected-human', startedAt: '2026-09-29T00:00:00Z',
+					message: { text: 'Old user turn', origin: { kind: MessageKind.User } },
+				});
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'rejected-human', duration: 1 });
+				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+				service.dispatchAction(buildDefaultChatUri(session.toString()), {
+					type: ActionType.ChatTurnStarted, turnId: replay ? 'rejected-human' : 'fresh-human', startedAt: '2026-09-29T00:00:00Z',
+					message: { text: 'Hello', origin: { kind: MessageKind.User } },
+				}, 'other-client', 1);
+				await timeout(0);
+				assert.strictEqual(readSessionIsPromoted(stateManager.getSessionState(session.toString())), false);
 			});
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'rejected-human', duration: 1 });
-			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
-			service.dispatchAction(buildDefaultChatUri(session.toString()), {
-				type: ActionType.ChatTurnStarted, turnId: 'rejected-human', startedAt: '2026-09-29T00:00:00Z',
-				message: { text: 'Hello', origin: { kind: MessageKind.User } },
-			}, 'other-client', 1);
-			assert.strictEqual(readSessionIsPromoted(stateManager.getSessionState(session.toString())), false);
-		});
+		}
 
 		test('restricted pull-request associations replace the central payload without restoring removed links', async () => {
 			const database = new TestSessionDatabase();
