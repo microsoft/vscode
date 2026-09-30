@@ -19,7 +19,8 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { IListService } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IsSessionsWindowContext, ResourceContextKey, WorkspaceFolderCountContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext, ResourceContextKey, WorkspaceFolderCountContext } from '../../../../../workbench/common/contextkeys.js';
+import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { Extensions, IViewContainersRegistry, IViewsRegistry } from '../../../../../workbench/common/views.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { FileDownload } from '../../../../../workbench/contrib/files/browser/fileImportExport.js';
@@ -28,6 +29,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { TestFileEditorInput } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { DownloadRemoteFileAction, RegisterFilesViewContribution, SESSIONS_FILES_CONTAINER_ID } from '../../browser/files.contribution.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID } from '../../browser/filesView.js';
 
@@ -83,6 +85,7 @@ suite('Sessions Download Remote File action', () => {
 	test('shows Download in the editor title menu only for remote filesystem resources', () => {
 		const context = store.add(new MockContextKeyService());
 		const sessions = IsSessionsWindowContext.bindTo(context);
+		const activeEditor = ActiveEditorContext.bindTo(context);
 		const scheme = ResourceContextKey.Scheme.bindTo(context);
 		const fileSystem = ResourceContextKey.IsFileSystemResource.bindTo(context);
 		const singlePane = SinglePaneLayoutEnabledContext.bindTo(context);
@@ -95,16 +98,18 @@ suite('Sessions Download Remote File action', () => {
 			.filter(item => item.command.id === DownloadRemoteFileAction.ID)
 			.map(item => ({ item, menu: menu.name })));
 		const cases = [
-			{ scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: true },
-			{ scheme: Schemas.vscodeRemote, sessions: true, fileSystem: true, singlePane: true },
-			{ scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: false },
-			{ scheme: Schemas.file, sessions: true, fileSystem: true, singlePane: true },
-			{ scheme: Schemas.untitled, sessions: true, fileSystem: false, singlePane: true },
-			{ scheme: AGENT_HOST_SCHEME, sessions: false, fileSystem: true, singlePane: true },
-			{ scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: false, singlePane: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: Schemas.vscodeRemote, sessions: true, fileSystem: true, singlePane: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: false },
+			{ activeEditor: EmptyFileEditorInput.EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: Schemas.file, sessions: true, fileSystem: true, singlePane: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: Schemas.untitled, sessions: true, fileSystem: false, singlePane: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: false, fileSystem: true, singlePane: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: false, singlePane: true },
 		];
 		assert.deepStrictEqual(cases.map(testCase => {
 			sessions.set(testCase.sessions);
+			activeEditor.set(testCase.activeEditor);
 			scheme.set(testCase.scheme);
 			fileSystem.set(testCase.fileSystem);
 			singlePane.set(testCase.singlePane);
@@ -115,6 +120,7 @@ suite('Sessions Download Remote File action', () => {
 			[{ menu: 'sessionsEditorTitle', group: '2_download' }],
 			[{ menu: 'sessionsEditorTitle', group: '2_download' }],
 			[{ menu: 'editorTitle', group: 'navigation' }],
+			[],
 			[],
 			[],
 			[],
