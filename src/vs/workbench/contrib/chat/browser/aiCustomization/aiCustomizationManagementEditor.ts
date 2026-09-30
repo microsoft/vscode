@@ -11,7 +11,7 @@ import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceIcon, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -108,10 +108,11 @@ import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '.
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IExtension } from '../../../extensions/common/extensions.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
-import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
+import { EmbeddedAgentPluginDetail, MarketplacePluginPreviewLoader } from './embeddedAgentPluginDetail.js';
 import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
 import { ICopilotConnector } from './copilotConnectorsService.js';
 import { EmbeddedMarketplaceDetail } from './embeddedMarketplaceDetail.js';
+import { getPluginMarketplaceIdentifier } from './pluginCustomizationMarketplaceProvider.js';
 import { getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections } from './customizationCardList.js';
 import { IMcpService, IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -120,7 +121,8 @@ import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '.
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
-import { IPluginMarketplaceService, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
+import { IPluginMarketplaceService, MarketplaceType, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
+import { parseMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
 import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationBanner, type ICustomizationMigrationCandidatePresentation, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import {
@@ -5208,16 +5210,28 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.marketplaceDetailScrollable = this.editorDisposables.add(new DomScrollableElement(detailBody, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
-			useShadows: true,
+			useShadows: false,
 		}));
 		const scrollableNode = this.marketplaceDetailScrollable.getDomNode();
 		scrollableNode.classList.add('marketplace-detail-scrollable');
 		this.marketplaceDetailContainer.appendChild(scrollableNode);
+		const previewLoader = this.instantiationService.createInstance(MarketplacePluginPreviewLoader);
 		this.embeddedMarketplaceDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMarketplaceDetail, detailBody, {
 			getSourceLabel: sourceId => this.marketplaceService.sources.find(source => source.id === sourceId)?.displayName ?? sourceId,
 			install: resource => this.marketplaceInstallService.install(resource),
 			openExternal: resource => this.openMarketplaceExternal(resource),
+			loadPluginPreview: (resource, token) => {
+				const plugin = this.resolveMarketplacePlugin(resource);
+				return plugin ? previewLoader.load(plugin, token) : Promise.resolve(undefined);
+			},
 		}));
+		const resizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
+			'AICustomizationManagementEditor.marketplaceDetailScrollable',
+			() => this.marketplaceDetailScrollable?.scanDomNode(),
+			DOM.getWindow(detailBody),
+		));
+		this.editorDisposables.add(resizeObserver.observe(detailBody));
+		this.editorDisposables.add(this.embeddedMarketplaceDetail.onDidChangeContent(() => this.marketplaceDetailScrollable?.scanDomNode()));
 		const backButton = DOM.append(this.embeddedMarketplaceDetail.leadingSlot, $('button.editor-back-button')) as HTMLButtonElement;
 		this.marketplaceDetailBackButton = backButton;
 		backButton.type = 'button';
@@ -5232,19 +5246,48 @@ export class AICustomizationManagementEditor extends EditorPane {
 				keyboardEvent.preventDefault();
 				keyboardEvent.stopPropagation();
 				this.goBackFromMarketplaceDetail();
+				return;
 			}
+			const isArrowKey = keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.DownArrow;
+			if (event.defaultPrevented || (isArrowKey && event.target !== backButton) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+				return;
+			}
+			const scrollable = this.marketplaceDetailScrollable;
+			if (!scrollable) {
+				return;
+			}
+			const { scrollTop } = scrollable.getScrollPosition();
+			const { height, scrollHeight } = scrollable.getScrollDimensions();
+			let nextScrollTop: number;
+			switch (keyboardEvent.keyCode) {
+				case KeyCode.UpArrow:
+					nextScrollTop = scrollTop - 40;
+					break;
+				case KeyCode.DownArrow:
+					nextScrollTop = scrollTop + 40;
+					break;
+				case KeyCode.PageUp:
+					nextScrollTop = scrollTop - height;
+					break;
+				case KeyCode.PageDown:
+					nextScrollTop = scrollTop + height;
+					break;
+				case KeyCode.Home:
+					nextScrollTop = 0;
+					break;
+				case KeyCode.End:
+					nextScrollTop = scrollHeight;
+					break;
+				default:
+					return;
+			}
+			scrollable.setScrollPosition({ scrollTop: nextScrollTop });
+			keyboardEvent.preventDefault();
+			keyboardEvent.stopPropagation();
 		}));
 	}
 
 	private showMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void {
-		const pluginItem = this.resolveMarketplacePlugin(resource);
-		if (pluginItem && this.embeddedPluginDetail && this.marketplaceInstallService.getInstallState(resource).kind !== 'unavailable') {
-			this.marketplaceDetailResource = resource;
-			this.marketplaceDetailOrigin = origin;
-			this.embeddedMarketplaceDetail?.setInput(resource);
-			this.showEmbeddedPluginDetail(pluginItem, { kind: 'discover', marketplaceOrigin: origin });
-			return;
-		}
 		this.showGenericMarketplaceDetail(resource, origin);
 	}
 
@@ -5292,10 +5335,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private resolveMarketplacePlugin(resource: ICustomizationMarketplaceResource): IMarketplacePluginItem | undefined {
 		const installation = resource.installation;
-		if (installation?.kind !== 'plugin') {
-			return undefined;
-		}
 		const plugin = this.pluginMarketplaceService.lastFetchedPlugins?.get?.().find(candidate => {
+			if (installation?.kind !== 'plugin') {
+				return installation?.kind === 'configuredPlugin' && getPluginMarketplaceIdentifier(candidate) === resource.identifier;
+			}
 			if (resource.version !== undefined && candidate.version !== resource.version) {
 				return false;
 			}
@@ -5310,7 +5353,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 				&& candidate.marketplaceReference.ref === installation.ref
 				&& candidate.source.replace(/^\.\//, '').replace(/\/$/, '') === installation.path;
 		});
-		return plugin ? {
+		if (plugin) {
+			return {
 			kind: AgentPluginItemKind.Marketplace,
 			name: plugin.name,
 			description: plugin.description,
@@ -5321,7 +5365,36 @@ export class AICustomizationManagementEditor extends EditorPane {
 			marketplaceReference: plugin.marketplaceReference,
 			marketplaceType: plugin.marketplaceType,
 			readmeUri: plugin.readmeUri,
-		} : undefined;
+			};
+		}
+		if (installation?.kind !== 'plugin') {
+			return undefined;
+		}
+		const marketplaceReference = parseMarketplaceReference(`${installation.repository}#${installation.ref}`);
+		const marketplaceType = resource.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin
+			? MarketplaceType.Copilot
+			: resource.mediaType === CustomizationMarketplaceMediaType.ClaudePlugin
+				? MarketplaceType.Claude
+				: undefined;
+		if (!marketplaceReference || !marketplaceType) {
+			return undefined;
+		}
+		return {
+			kind: AgentPluginItemKind.Marketplace,
+			name: resource.displayName,
+			description: resource.description,
+			version: resource.version,
+			source: installation.path,
+			sourceDescriptor: {
+				kind: PluginSourceKind.GitHub,
+				repo: installation.repository,
+				ref: installation.ref,
+				path: installation.path || undefined,
+			},
+			marketplace: this.marketplaceService.sources.find(source => source.id === resource.sourceId)?.displayName ?? resource.sourceId,
+			marketplaceReference,
+			marketplaceType,
+		};
 	}
 
 	private async openMarketplaceExternal(resource: URI | string): Promise<void> {

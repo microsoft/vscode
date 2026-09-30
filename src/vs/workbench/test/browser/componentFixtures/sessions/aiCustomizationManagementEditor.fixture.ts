@@ -1082,6 +1082,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
+	fileContents.set(URI.file('/home/dev/.vscode/agent-plugins/figma-plugin/.plugin/plugin.json'), JSON.stringify({ name: 'figma-plugin' }));
+	fileContents.set(URI.file('/home/dev/.vscode/agent-plugins/figma-plugin/skills/design-review/SKILL.md'), '---\nname: design-review\ndescription: Review a design for consistency\n---');
+	fileContents.set(URI.file('/home/dev/.vscode/agent-plugins/figma-plugin/.mcp.json'), JSON.stringify({ mcpServers: { figma: { command: 'figma-mcp' } } }));
+	fileContents.set(URI.file('/home/dev/.vscode/agent-plugins/figma-plugin/README.md'), '# Figma Plugin\n\nInspect design systems, review components, and export implementation-ready assets.\n\n## Workflows\n\n- Review component consistency\n- Inspect design tokens\n- Export assets\n\n## Usage\n\nAsk the agent to review the components in your Figma file.');
 	const delayedReadFiles = new ResourceSet();
 	if (options.pluginReadmeContent !== undefined) {
 		const pluginReadmeUri = URI.file('/workspace/.copilot/plugins/circleci/README.md');
@@ -1440,7 +1444,40 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
 				override async exists(resource: URI) {
-					return fileContents.has(resource) || createdFolders.has(resource);
+					if (fileContents.has(resource) || createdFolders.has(resource)) {
+						return true;
+					}
+					const prefix = resource.path.endsWith('/') ? resource.path : `${resource.path}/`;
+					for (const [fileResource] of fileContents) {
+						if (fileResource.scheme === resource.scheme && fileResource.authority === resource.authority && fileResource.path.startsWith(prefix)) {
+							return true;
+						}
+					}
+					return false;
+				}
+				override async resolve(resource: URI) {
+					const value = fileContents.get(resource);
+					if (value !== undefined) {
+						return createFixtureFileStat(resource, value.length, false);
+					}
+
+					const children = new Map<string, IFileStatWithMetadata>();
+					const prefix = resource.path.endsWith('/') ? resource.path : `${resource.path}/`;
+					for (const [fileResource, content] of fileContents) {
+						if (fileResource.scheme !== resource.scheme || fileResource.authority !== resource.authority || !fileResource.path.startsWith(prefix)) {
+							continue;
+						}
+						const [name, remaining] = fileResource.path.slice(prefix.length).split('/', 2);
+						if (!name) {
+							continue;
+						}
+						const childResource = URI.joinPath(resource, name);
+						children.set(name, { ...createFixtureFileStat(childResource, remaining ? 0 : content.length, !!remaining), name });
+					}
+					if (children.size === 0 && !createdFolders.has(resource)) {
+						throw new Error(`Fixture file not found: ${resource.toString()}`);
+					}
+					return { ...createFixtureFileStat(resource, 0, true), children: [...children.values()] };
 				}
 				override async readFile(resource: URI) {
 					if (delayedReadFiles.has(resource)) {
@@ -3311,7 +3348,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverAvailableSearchResult: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Opening an available skill keeps discovery inside VS Code and shows its description, install state, publisher, version, stars, tags, capabilities, representative query, and explicit external actions.'],
+		expectedVisualDescriptions: ['Opening an available skill keeps discovery inside VS Code and shows a compact header with Back and Install, a subtle Try this section, and an ordered Details table with linked source and repository metadata.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -3333,7 +3370,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverAvailableSearchResultNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['At a narrow width, marketplace detail facts and metadata sections remain readable in one column with explicit Back, Install, Open Resource, and Open Repository actions.'],
+		expectedVisualDescriptions: ['At a narrow width, the available marketplace detail keeps Back, title, install state, and Install readable while Try this and the ordered Details table remain aligned in one column.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -3357,7 +3394,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverPluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['A plugin marketplace item backed by a real plugin marketplace model reuses the embedded plugin detail presentation with its Install action and marketplace provenance.'],
+		expectedVisualDescriptions: ['An available plugin shows Try this, ordered linked metadata, Skills and MCP Servers in the Contains table, and its README inline beneath one theme-aware page scrollbar.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,

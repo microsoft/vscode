@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -12,13 +13,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { EmbeddedMarketplaceDetail } from '../../../browser/aiCustomization/embeddedMarketplaceDetail.js';
+import { EmbeddedMarketplaceDetail, type IEmbeddedMarketplaceDetailOptions } from '../../../browser/aiCustomization/embeddedMarketplaceDetail.js';
 import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 
 suite('EmbeddedMarketplaceDetail', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function render(resource: ICustomizationMarketplaceResource) {
+	function render(resource: ICustomizationMarketplaceResource, loadPluginPreview?: IEmbeddedMarketplaceDetailOptions['loadPluginPreview']) {
 		const parent = DOM.append(document.body, DOM.$('.embedded-marketplace-detail-test'));
 		store.add({ dispose: () => parent.remove() });
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -31,12 +32,13 @@ suite('EmbeddedMarketplaceDetail', () => {
 			getSourceLabel: () => 'Marketplace',
 			install: async () => { },
 			openExternal: async () => { },
+			loadPluginPreview,
 		}));
 		detail.setInput(resource);
 		return { detail, parent };
 	}
 
-	test('renders skill metadata and semantic lists', () => {
+	test('renders ordered metadata and representative queries', () => {
 		const { detail, parent } = render({
 			sourceId: 'test',
 			identifier: 'review',
@@ -55,15 +57,17 @@ suite('EmbeddedMarketplaceDetail', () => {
 		assert.deepStrictEqual({
 			heading: parent.querySelector('h2')?.textContent,
 			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
-			sections: [...parent.querySelectorAll('section.marketplace-detail-section')].map(section => section.textContent),
+			queries: [...parent.querySelectorAll('.marketplace-detail-query-list li')].map(element => element.textContent),
+			links: [...parent.querySelectorAll('.embedded-detail-fact-link')].map(element => element.textContent),
 			actions: [...parent.querySelectorAll('.embedded-detail-title-actions .monaco-button')].map(element => element.textContent),
 			accessible: detail.getAccessibilityContent(),
 		}, {
 			heading: 'Repository review',
-			facts: ['Type', 'Skill', 'Source', 'Marketplace', 'Publisher', 'Example', 'Version', '1.2.0', 'Stars', '42'],
-			sections: ['Tagsreview', 'CapabilitiesFind risks', 'Representative queriesReview this change'],
-			actions: ['Install', 'Open Resource', 'Open Repository'],
-			accessible: 'Repository review\n\nSkill · Marketplace\n\nReviews pull requests.\n\nPublisher: Example\n\nVersion: 1.2.0\n\nStars: 42\n\nAvailable to install\n\nTags: review\n\nCapabilities: Find risks\n\nRepresentative queries: Review this change',
+			facts: ['Type', 'Skill', 'Publisher', 'Example', 'Version', '1.2.0', 'Source', 'Marketplace', 'Tags', 'review', 'Repository', 'example/review'],
+			queries: ['Review this change'],
+			links: ['Marketplace', 'example/review'],
+			actions: ['Install'],
+			accessible: 'Repository review\n\nAvailable to install\n\nReviews pull requests.\n\nTry this: Review this change\n\nType: Skill\n\nPublisher: Example\n\nVersion: 1.2.0\n\nSource: Marketplace\n\nTags: review\n\nRepository: example/review',
 		});
 	});
 
@@ -80,14 +84,45 @@ suite('EmbeddedMarketplaceDetail', () => {
 		});
 		assert.deepStrictEqual({
 			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
-			sections: parent.querySelectorAll('section.marketplace-detail-section').length,
+			queries: parent.querySelectorAll('.marketplace-detail-query-list li').length,
 			actions: [...parent.querySelectorAll('.embedded-detail-title-actions .monaco-button')].map(element => element.textContent),
 			accessible: detail.getAccessibilityContent(),
 		}, {
 			facts: ['Type', 'Skill', 'Source', 'Marketplace'],
-			sections: 0,
+			queries: 0,
 			actions: ['Install'],
-			accessible: 'Project notes\n\nSkill · Marketplace\n\nAvailable to install',
+			accessible: 'Project notes\n\nAvailable to install\n\nType: Skill\n\nSource: Marketplace',
+		});
+	});
+
+	test('renders plugin contains and README inline', async () => {
+		const { parent } = render({
+			sourceId: 'test',
+			identifier: 'frontend-design',
+			displayName: 'Frontend Design',
+			description: 'Design UI.',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: { kind: 'plugin', repository: 'example/frontend-design', ref: 'main', path: '' },
+		}, async () => ({
+			contributions: [
+				{ kind: 'skills', label: 'Skills', items: [{ name: 'frontend-design' }] },
+				{ kind: 'mcp', label: 'MCP Servers', items: [{ name: 'figma' }] },
+				{ kind: 'agents', label: 'Agents', items: [{ name: 'designer' }] },
+			],
+			readme: { content: '# Frontend Design\n\nUse the design system.', baseUri: URI.parse('https://example.com/README.md') },
+		}));
+
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			contains: [...parent.querySelectorAll('.plugin-detail-contribution-section')].map(section => section.textContent),
+			readme: parent.querySelector('.plugin-detail-readme-content')?.textContent,
+		}, {
+			contains: ['Skills1frontend-design', 'MCP Servers1figma'],
+			readme: 'Frontend Design\nUse the design system.',
 		});
 	});
 });
