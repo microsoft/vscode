@@ -97,8 +97,8 @@
 	--modern-ui-editor-tab-unfocused-inactive-background: var(--modern-ui-editor-tab-custom-unfocused-inactive-background, var(--modern-ui-connected-tab-strip-background, var(--vscode-editorGroupHeader-tabsBackground)));
 	--modern-ui-editor-tab-hover-background: var(--modern-ui-editor-tab-custom-hover-background, color-mix(in srgb, var(--vscode-foreground) 6%, var(--modern-ui-connected-tab-strip-background, var(--vscode-editorGroupHeader-tabsBackground))));
 	--modern-ui-editor-tab-unfocused-hover-background: var(--modern-ui-editor-tab-custom-unfocused-hover-background, color-mix(in srgb, var(--vscode-foreground) 6%, var(--modern-ui-connected-tab-strip-background, var(--vscode-editorGroupHeader-tabsBackground))));
-	--modern-ui-editor-tab-action-hover-background: var(--modern-ui-editor-tab-hover-background);
-	--modern-ui-editor-tab-action-unfocused-hover-background: var(--modern-ui-editor-tab-unfocused-hover-background);
+	--modern-ui-editor-tab-action-hover-background: var(--modern-ui-editor-tab-custom-action-hover-background, var(--modern-ui-editor-tab-hover-background));
+	--modern-ui-editor-tab-action-unfocused-hover-background: var(--modern-ui-editor-tab-custom-action-hover-background, var(--modern-ui-editor-tab-unfocused-hover-background));
 	--modern-ui-connected-tab-action-background: var(--modern-ui-editor-tab-inactive-background);
 	--modern-ui-connected-tab-radius: var(--vscode-cornerRadius-small);
 	--modern-ui-connected-tab-cap-radius: calc(var(--modern-ui-connected-tab-radius) + var(--vscode-strokeThickness));
@@ -399,10 +399,10 @@
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-actions {
 	--modern-ui-connected-tab-action-background: transparent;
-	--modern-ui-editor-tab-action-active-background: transparent;
-	--modern-ui-editor-tab-action-unfocused-active-background: transparent;
-	--modern-ui-editor-tab-action-active-hover-background: transparent;
-	--modern-ui-editor-tab-action-unfocused-active-hover-background: transparent;
+	--modern-ui-editor-tab-action-active-background: var(--modern-ui-editor-tab-custom-action-active-background, transparent);
+	--modern-ui-editor-tab-action-unfocused-active-background: var(--modern-ui-editor-tab-custom-action-active-background, transparent);
+	--modern-ui-editor-tab-action-active-hover-background: var(--modern-ui-editor-tab-custom-action-active-hover-background, transparent);
+	--modern-ui-editor-tab-action-unfocused-active-hover-background: var(--modern-ui-editor-tab-custom-action-active-hover-background, transparent);
 	border-radius: 0 var(--modern-ui-connected-tab-radius) 0 0;
 }
 

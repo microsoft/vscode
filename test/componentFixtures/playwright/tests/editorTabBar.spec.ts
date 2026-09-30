@@ -329,6 +329,66 @@ test('wrapped upper connected hover borders use focused and unfocused inset acce
 	});
 });
 
+test('connected tabs honor all modern editor tab customizations', async ({ page }) => {
+	await openFixture(page, 'editor/editorTabBar/editorTabBar/BorderOwnership/ConnectedModernEditorTokens/Dark', '.tabs-container > .tab.active');
+	const tabs = page.locator('.tabs-container');
+	const active = tabs.locator('> .tab.active');
+	const inactive = tabs.locator('> .tab:not(.active):not(.selected)').first();
+	const selected = tabs.locator('> .tab.selected:not(.active)').first();
+	const readTab = (tab: typeof active) => tab.evaluate(element => {
+		const fill = element.querySelector<HTMLElement>('.tab-fill');
+		const label = element.querySelector<HTMLElement>('.tab-label a');
+		const actions = element.querySelector<HTMLElement>('.tab-actions');
+		if (!fill || !label || !actions) {
+			throw new Error('Expected tab fill, label, and actions');
+		}
+		return {
+			background: getComputedStyle(fill).backgroundColor,
+			foreground: getComputedStyle(label).color,
+			actionBackground: getComputedStyle(actions).backgroundColor,
+		};
+	});
+
+	await page.locator('.editor-container').hover();
+	await active.locator('.action-label').focus();
+	expect(await readTab(active)).toEqual({
+		background: 'rgb(22, 78, 99)',
+		foreground: 'rgb(207, 250, 254)',
+		actionBackground: 'rgb(14, 55, 71)',
+	});
+
+	await active.hover();
+	expect(await readTab(active)).toEqual({
+		background: 'rgb(107, 33, 168)',
+		foreground: 'rgb(207, 250, 254)',
+		actionBackground: 'rgb(76, 22, 120)',
+	});
+
+	await inactive.hover();
+	expect(await readTab(inactive)).toEqual({
+		background: 'rgb(124, 45, 18)',
+		foreground: 'rgb(255, 237, 213)',
+		actionBackground: 'rgb(90, 31, 12)',
+	});
+
+	await selected.hover();
+	expect((await readTab(selected)).actionBackground).toBe('rgb(22, 101, 52)');
+
+	await page.locator('.editor-group-container').evaluate(group => group.classList.remove('active'));
+	await active.hover();
+	expect(await readTab(active)).toEqual({
+		background: 'rgb(107, 33, 168)',
+		foreground: 'rgb(207, 250, 254)',
+		actionBackground: 'rgb(76, 22, 120)',
+	});
+	await inactive.hover();
+	expect(await readTab(inactive)).toEqual({
+		background: 'rgb(124, 45, 18)',
+		foreground: 'rgb(255, 237, 213)',
+		actionBackground: 'rgb(90, 31, 12)',
+	});
+});
+
 for (const [fixture, expected] of [
 	['FirstActive', {
 		capLeft: 'rgba(0, 0, 0, 0)',

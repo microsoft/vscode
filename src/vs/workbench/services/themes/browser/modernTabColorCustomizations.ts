@@ -56,6 +56,9 @@ export function collectModernTabColorCustomizations(theme: ColorThemeData, colle
 	const hasModernActiveActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND);
 	const hasModernHoverActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND);
 	const hasModernActiveHoverActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND);
+	const explicitActiveActionBackground = hasModernActiveActionBackground ? theme.getColor(MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND) : undefined;
+	const explicitHoverActionBackground = hasModernHoverActionBackground ? theme.getColor(MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND) : undefined;
+	const explicitActiveHoverActionBackground = hasModernActiveHoverActionBackground ? theme.getColor(MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND) : undefined;
 	const explicitActiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND], TAB_ACTIVE_BACKGROUND);
 	const explicitUnfocusedActiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND], TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND);
 	const explicitInactiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_INACTIVE_BACKGROUND], TAB_INACTIVE_BACKGROUND);
@@ -97,6 +100,9 @@ export function collectModernTabColorCustomizations(theme: ColorThemeData, colle
 	addColorVariable(collector, '--modern-ui-editor-tab-custom-unfocused-hover-background', explicitUnfocusedHoverBackground);
 	addColorVariable(collector, '--modern-ui-editor-tab-custom-active-hover-background', explicitActiveHoverBackground);
 	addColorVariable(collector, '--modern-ui-editor-tab-custom-unfocused-active-hover-background', explicitUnfocusedActiveHoverBackground);
+	addColorVariable(collector, '--modern-ui-editor-tab-custom-action-active-background', explicitActiveActionBackground);
+	addColorVariable(collector, '--modern-ui-editor-tab-custom-action-hover-background', explicitHoverActionBackground);
+	addColorVariable(collector, '--modern-ui-editor-tab-custom-action-active-hover-background', explicitActiveHoverActionBackground);
 
 	if (activeBackground && !hasModernActiveActionBackground) {
 		addColorVariable(collector, '--modern-ui-editor-tab-action-active-background', flattenTabBackground(activeBackground, editorBackgroundColor));

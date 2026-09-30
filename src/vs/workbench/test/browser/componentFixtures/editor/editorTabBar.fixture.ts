@@ -874,6 +874,18 @@ function getLegacyEditorTabBorderCustomizations(): Readonly<Record<string, strin
 	};
 }
 
+function renderConnectedModernEditorTabCustomizations(): (ctx: ComponentFixtureContext) => void {
+	return ctx => render(true, {
+		editorTabStyle: ModernUIEditorTabStyle.Connected,
+		editors: [
+			{ resource: file('/project/alpha.ts'), pinned: true, selected: true },
+			{ resource: file('/project/beta.ts'), pinned: true, active: true, selected: true },
+			{ resource: file('/project/gamma.ts'), pinned: true },
+		],
+		colorCustomizations: getModernEditorTabColorCustomizations(ctx.theme),
+	})(ctx);
+}
+
 function renderConnectedLegacyBorders(active: boolean): (ctx: ComponentFixtureContext) => void {
 	return render(true, {
 		active,
@@ -1041,6 +1053,11 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			render: renderWrappedConnectedBorderOwnership(),
 			themes: ['dark'],
 			expectedVisualDescriptions: ['The active tab in the upper wrapped row retains rounded pill geometry. Its cyan top and inset pink bottom accents stop before the corners instead of drawing full-width straight indicators.'],
+		}),
+		ConnectedModernEditorTokens: defineComponentFixture({
+			render: renderConnectedModernEditorTabCustomizations(),
+			themes: ['dark'],
+			expectedVisualDescriptions: ['Connected tabs honor every explicitly customized modernEditorTab fill, label, and action color while retaining connected geometry.'],
 		}),
 	}),
 	ConnectedBorderContinuity: defineThemedFixtureGroup({
