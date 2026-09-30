@@ -1112,7 +1112,7 @@ suite('PromptsService', () => {
 					'powershell: "${PLUGIN_ROOT}/scripts/pre-tool.ps1"',
 				],
 			);
-			const quotedScript = (name: string) => `"${pluginUri.fsPath}/scripts/${name}"`;
+			const quotedScript = (name: string) => `'${pluginUri.fsPath}/scripts/${name}'`;
 
 			assert.deepStrictEqual(hooks, [{
 				type: 'command',

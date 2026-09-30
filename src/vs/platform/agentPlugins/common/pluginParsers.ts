@@ -6,6 +6,7 @@
 import { parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
@@ -553,37 +554,35 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 	return undefined;
 }
 
-/**
- * Characters in a file path that require shell quoting to prevent
- * word splitting or interpretation by common shells.
- */
-const shellUnsafeChars = /[\s&|<>()^;!`"']/;
+const posixShellSafePath = /^[a-zA-Z0-9_./:-]+$/;
+const powerShellSafePath = /^[a-zA-Z0-9_./\\:-]+$/;
 
 /**
  * Replaces a plugin-root token in a shell command string with the
  * given fsPath, shell-quoting if the path contains special characters.
  */
-export function shellQuotePluginRootInCommand(command: string, fsPath: string, token: string) {
+export function shellQuotePluginRootInCommand(command: string, fsPath: string, token: string, shell: 'posix' | 'powershell' = 'posix') {
 	if (!command.includes(token)) {
 		return command;
 	}
 
-	if (!shellUnsafeChars.test(fsPath)) {
+	const safePath = shell === 'powershell' ? powerShellSafePath : posixShellSafePath;
+	if (safePath.test(fsPath)) {
 		return command.replaceAll(token, fsPath);
 	}
 
 	const escapedToken = escapeRegExpCharacters(token);
 	const pattern = new RegExp(
-		`(["']?)` + escapedToken + `([\\w./\\\\~:-]*)`,
+		`(["']?)` + escapedToken + `([\\w./\\\\~:-]*)\\1`,
 		'g',
 	);
 
-	return command.replace(pattern, (_match, leadingQuote: string, suffix: string) => {
+	return command.replace(pattern, (_match, _leadingQuote: string, suffix: string) => {
 		const fullPath = fsPath + suffix;
-		if (leadingQuote) {
-			return leadingQuote + fullPath;
+		if (shell === 'powershell') {
+			return `'${fullPath.replace(/'/g, '\'\'')}'`;
 		}
-		return '"' + fullPath.replace(/"/g, '\\"') + '"';
+		return `'${fullPath.replace(/'/g, `'\\''`)}'`;
 	});
 }
 
@@ -600,7 +599,8 @@ function interpolateHookCommandRoot(hook: Record<string, unknown>, pluginUri: UR
 	const result = cloneAndChange(hook, value => typeof value === 'string' ? value.replaceAll(root.token, fsPath) : undefined) as Record<string, unknown>;
 	for (const field of ['command', 'windows', 'linux', 'osx', 'bash', 'powershell'] as const) {
 		if (typeof hook[field] === 'string') {
-			result[field] = shellQuotePluginRootInCommand(hook[field], fsPath, root.token);
+			const shell = field === 'windows' || field === 'powershell' || (field === 'command' && isWindows) ? 'powershell' : 'posix';
+			result[field] = shellQuotePluginRootInCommand(hook[field], fsPath, root.token, shell);
 		}
 	}
 	result.env = {
