@@ -1031,9 +1031,19 @@ export class AgentService extends Disposable implements IAgentService {
 				...options.catalogReconciliationOptions,
 				canSchedule: () => this._startupSettled.isOpen() && this._isSessionCatalogEnabled(),
 				isSourceAvailable: registered => !!this._providerService.getProvider(registered.provider),
-				onDidMarkSessionProvisional: session => {
-					this._provisionalSessionKeys.add(session);
+				onDidMarkSessionsProvisional: sessions => {
+					const readableProviders = new Set<AgentProvider>();
+					for (const session of sessions) {
+						this._provisionalSessionKeys.add(session);
+						const provider = AgentSession.provider(session);
+						if (provider && this._readableProviderCatalogs.has(provider)) {
+							readableProviders.add(provider);
+						}
+					}
 					this._invalidateSessionList();
+					for (const provider of readableProviders) {
+						this._queuePublishedSessionListRefresh(provider);
+					}
 				},
 			},
 		));
