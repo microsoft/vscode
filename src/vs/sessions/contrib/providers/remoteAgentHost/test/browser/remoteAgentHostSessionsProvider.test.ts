@@ -24,7 +24,7 @@ import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostCon
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
-import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -133,7 +133,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		return uri;
 	}
 
-	override async resolveSessionConfig(): Promise<ResolveSessionConfigResult> {
+	override async resolveSessionConfig(_request: Parameters<IAgentConnection['resolveSessionConfig']>[0]): Promise<ResolveSessionConfigResult> {
 		await Promise.resolve();
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
@@ -141,7 +141,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		return this.resolveSessionConfigResult;
 	}
 
-	override async sessionConfigCompletions() {
+	override async sessionConfigCompletions(_request: Parameters<IAgentConnection['sessionConfigCompletions']>[0]): Promise<SessionConfigCompletionsResult> {
 		return { items: [] };
 	}
 
@@ -748,6 +748,60 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			{ id: CopilotCLISessionType.id, label: 'Copilot' },
 			{ id: 'openai', label: 'OpenAI' },
 		]);
+	});
+
+	test('resolves worktree branches on the selected remote host for every agent', async () => {
+		const agentIds = ['copilotcli', 'claude', 'codex', 'custom'];
+		connection.setAgents(agentIds.map(provider => ({ provider, displayName: provider, description: '', models: [] })));
+		const provider = createProvider(disposables, connection);
+		const folderUri = URI.parse('vscode-agent-host://localhost__4321/home/user/project');
+		const resolveRequests: Parameters<IAgentConnection['resolveSessionConfig']>[0][] = [];
+		const completionRequests: Parameters<IAgentConnection['sessionConfigCompletions']>[0][] = [];
+		connection.resolveSessionConfig = async request => {
+			resolveRequests.push(request);
+			return {
+				schema: {
+					type: 'object',
+					properties: {
+						isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
+						branch: { type: 'string', title: 'Branch', enumDynamic: true },
+					},
+				},
+				values: { isolation: 'folder', branch: 'remote-head' },
+			};
+		};
+		connection.sessionConfigCompletions = async request => {
+			completionRequests.push(request);
+			return {
+				items: ['remote-head', 'release']
+					.filter(name => !request.query || name.includes(request.query))
+					.map(value => ({ value, label: value })),
+			};
+		};
+		const results = [];
+		for (const agentId of agentIds) {
+			const options = await provider.getWorktreeOptions(folderUri, agentId, CancellationToken.None);
+			results.push({
+				supportsWorktree: options?.supportsWorktree,
+				currentBranch: options?.currentBranch,
+				branches: options?.branches,
+				search: await options?.loadBranches?.('release', CancellationToken.None),
+			});
+		}
+
+		assert.deepStrictEqual({
+			capabilities: provider.sessionTypes.map(type => type.supportsWorktreeConfiguration),
+			results,
+			resolveRequests,
+			completionRequests,
+		}, {
+			capabilities: agentIds.map(() => true),
+			results: agentIds.map(() => ({ supportsWorktree: true, currentBranch: 'remote-head', branches: ['remote-head', 'release'], search: ['release'] })),
+			resolveRequests: agentIds.map(provider => ({ provider, workingDirectory: folderUri, config: { isolation: 'folder' } })),
+			completionRequests: agentIds.flatMap(provider => [undefined, 'release'].map(query => ({
+				provider, workingDirectory: folderUri, config: { isolation: 'folder', branch: 'remote-head' }, property: 'branch', query,
+			}))),
+		});
 	});
 
 	test('session-type labels omit host suffix on web', () => {
