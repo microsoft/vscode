@@ -23,6 +23,8 @@ import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../p
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -1067,6 +1069,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 	) {
 		super(fileService, pathService, logService, workspaceContextService);
 		this._installedPlugins = this._register(new CopilotCliInstalledPluginsStore(
@@ -1096,6 +1099,14 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 					uri: stat.resource,
 					fromMarketplace: undefined,
 					watchPluginContents: false,
+					remove: this._agentHostService.uninstallPlugin ? async () => {
+						await this._agentHostService.uninstallPlugin!(COPILOT_CLI_AGENT_PROVIDER_ID, {
+							name: installedPlugin.name,
+							marketplace: installedPlugin.marketplace,
+						});
+						this._enablementModel.remove(stat.resource.toString());
+						return true;
+					} : undefined,
 				});
 			} catch {
 				continue;

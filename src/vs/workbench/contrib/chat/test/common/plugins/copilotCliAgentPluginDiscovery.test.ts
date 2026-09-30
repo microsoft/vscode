@@ -19,6 +19,7 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { FileChangesEvent, FileChangeType } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IAgentHostService, type IAgentPluginUninstallRequest } from '../../../../../../platform/agentHost/common/agentService.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
@@ -45,6 +46,10 @@ class TestCopilotCliAgentPluginDiscovery extends CopilotCliAgentPluginDiscovery 
 		this.discoveryCount++;
 		return super._discoverPluginSources();
 	}
+
+	public setEnablementModel(enablementModel: IEnablementModel): void {
+		this._enablementModel = enablementModel;
+	}
 }
 
 suite('CopilotCliAgentPluginDiscovery', () => {
@@ -56,16 +61,20 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 	const installedPluginsRoot = joinPath(copilotHome, 'installed-plugins');
 	const marketplaceRoot = joinPath(installedPluginsRoot, 'copilot-plugins');
 	const workspaceRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+	const removedEnablement: string[] = [];
 	const enablementModel: IEnablementModel = {
 		readEnabled: () => ContributionEnablementState.EnabledProfile,
 		readProfileEnabled: () => true,
 		setEnabled: () => { },
-		remove: () => { },
+		remove: id => removedEnablement.push(id),
 	};
+	const uninstallCalls: Array<{ provider: string; request: IAgentPluginUninstallRequest }> = [];
 
 	let fileService: FileService;
 
 	setup(() => {
+		removedEnablement.length = 0;
+		uninstallCalls.length = 0;
 		fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 	});
@@ -74,8 +83,8 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		sinon.restore();
 	});
 
-	function createDiscovery(): TestCopilotCliAgentPluginDiscovery {
-		return store.add(new TestCopilotCliAgentPluginDiscovery(
+	function createDiscovery(uninstallSupported = true): TestCopilotCliAgentPluginDiscovery {
+		const discovery = store.add(new TestCopilotCliAgentPluginDiscovery(
 			fileService,
 			new class extends mock<IPathService>() {
 				override userHome(options: { preferLocal: true }): URI;
@@ -90,7 +99,14 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			},
 			logService,
 			new TestContextService(testWorkspace(workspaceRoot)),
+			uninstallSupported ? new class extends mock<IAgentHostService>() {
+				override async uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
+					uninstallCalls.push({ provider, request });
+				}
+			}() : new class extends mock<IAgentHostService>() { }(),
 		));
+		discovery.setEnablementModel(enablementModel);
+		return discovery;
 	}
 
 	async function writePlugin(uri: URI, name: string): Promise<void> {
@@ -121,7 +137,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		].join('\n')));
 	}
 
-	test('discovers only plugins committed to CLI state', async () => {
+	test('discovers committed plugins and delegates uninstall to the Agent Host', async () => {
 		const committedPlugin = joinPath(marketplaceRoot, 'spark');
 		const uncommittedPlugin = joinPath(marketplaceRoot, 'transaction-directory');
 		await writePlugin(committedPlugin, 'spark');
@@ -130,11 +146,37 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 
 		const sources = await createDiscovery().discoverPluginSources();
 
+		assert.ok(sources[0].remove);
+		const removed = await sources[0].remove();
+
+		assert.deepStrictEqual({
+			sources: sources.map(source => ({ uri: source.uri.toString(), removable: source.remove !== undefined })),
+			removed,
+			uninstallCalls,
+			removedEnablement,
+		}, {
+			sources: [{ uri: committedPlugin.toString(), removable: true }],
+			removed: true,
+			uninstallCalls: [{
+				provider: 'copilotcli',
+				request: { name: 'spark', marketplace: 'copilot-plugins' },
+			}],
+			removedEnablement: [committedPlugin.toString()],
+		});
+	});
+
+	test('does not expose uninstall without Agent Host management support', async () => {
+		const pluginUri = joinPath(marketplaceRoot, 'spark');
+		await writePlugin(pluginUri, 'spark');
+		await writeInstalledPlugins([{ name: 'spark', marketplace: 'copilot-plugins', uri: pluginUri }]);
+
+		const sources = await createDiscovery(false).discoverPluginSources();
+
 		assert.deepStrictEqual(sources.map(source => ({
 			uri: source.uri.toString(),
 			remove: source.remove,
 		})), [{
-			uri: committedPlugin.toString(),
+			uri: pluginUri.toString(),
 			remove: undefined,
 		}]);
 	});
