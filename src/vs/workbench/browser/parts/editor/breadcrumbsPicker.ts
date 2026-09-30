@@ -381,7 +381,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker<IWorkspace | URI, I
 			{
 				multipleSelectionSupport: false,
 				sorter: new FileSorter(),
-				filter: this._instantiationService.createInstance(FileFilter),
+				filter: this._disposables.add(this._instantiationService.createInstance(FileFilter)),
 				identityProvider: new FileIdentityProvider(),
 				keyboardNavigationLabelProvider: new FileNavigationLabelProvider(),
 				accessibilityProvider: this._instantiationService.createInstance(FileAccessibilityProvider),

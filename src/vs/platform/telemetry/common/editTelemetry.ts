@@ -16,10 +16,13 @@ export interface IEditSourcesDetailsTelemetryData {
 	extensionId: string | undefined;
 	extensionVersion: string | undefined;
 	modelId: string | undefined;
+	autoTier?: string;
 	trigger: EditTelemetryTrigger;
 	languageId: string | undefined;
 	statsUuid: string;
 	conversationId: string | undefined;
+	/** Hashed originating Agent Host chat ID, scoped under its session rather than globally; omitted when provenance is unknown. */
+	chatSessionId?: string;
 	requestId: string | undefined;
 	origin: string | undefined;
 	harness: string | undefined;
@@ -31,16 +34,18 @@ export interface IEditSourcesDetailsTelemetryData {
 type EditSourcesDetailsTelemetryClassification = {
 	copilotSku?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The raw Copilot entitlement SKU for the authenticated GitHub account.' };
 	owner: 'hediet';
-	comment: 'Provides detailed character count breakdown for individual edit sources (typing, paste, inline completions, NES, etc.) within a session. Reports the top 10-30 sources per session with granular metadata including extension IDs and model IDs for AI edits. Sessions are scoped to either 10-minute or 20-minute focus time windows for visible documents, or longer periods ending on branch changes, commits, or 10-hour intervals. Focus time is computed as the accumulated time where VS Code has focus and there was recent user activity (within the last minute). This event complements editSources.stats by providing source-specific details. @sentToGitHub';
+	comment: 'Provides detailed character count breakdown for individual edit sources (typing, paste, inline completions, NES, etc.) within a session. Reports the top 10-30 source groups per session, subdivided by up to five Auto tier values, with granular metadata including extension IDs and model IDs for AI edits. Sessions are scoped to either 10-minute or 20-minute focus time windows for visible documents, or longer periods ending on branch changes, commits, or 10-hour intervals. Focus time is computed as the accumulated time where VS Code has focus and there was recent user activity (within the last minute). This event complements editSources.stats by providing source-specific details. @sentToGitHub';
 	mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Describes the session mode. Is either longterm, 10minFocusWindow, or 20minFocusWindow.' };
 	sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A description of the source of the edit.' };
-	sourceKeyCleaned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit with some properties (such as extensionId, extensionVersion and modelId) removed.' };
+	sourceKeyCleaned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit with extensionId, extensionVersion, modelId and autoTier removed.' };
 	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
 	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The LLM id.' };
+	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The canonical Auto tier (efficiency, balance, intelligence or fast), when known for a Copilot Auto edit.' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
-	statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier of the session for which stats are reported. The sourceKey is unique in this session.' };
-	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat conversation identifier when the edit source comes from chat. Sourced from the chat edit session id.' };
+	statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier of the editing window for which stats are reported. Agent Host source rows are further separated by conversationId and chatSessionId.' };
+	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat edit session identifier. Agent Host sources retain the existing session/resource identifier for compatibility.' };
+	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hashed originating Agent Host chat identifier, scoped under its session rather than globally and matching core Agent Host telemetry. Omitted when chat provenance is unknown.' };
 	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat request identifier when the edit source comes from chat.' };
 	origin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The process or subsystem that observed the edit source.' };
 	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that produced the edit.' };

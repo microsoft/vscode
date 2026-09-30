@@ -38,7 +38,7 @@ suite('AgentHostLocalTurns', () => {
 		assert.deepStrictEqual(new Set(registry.getLocalTurnIds(chat)), new Set(['local-a', 'local-b']));
 
 		// Persisted to the database with the chat discriminator.
-		const persisted = await db.getLocalTurns();
+		const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 		assert.deepStrictEqual(persisted.map(r => ({ turnId: r.turnId, chatUri: r.chatUri, anchorTurnId: r.anchorTurnId })), [
 			{ turnId: 'local-a', chatUri: chat, anchorTurnId: 'real-1' },
 			{ turnId: 'local-b', chatUri: chat, anchorTurnId: undefined },
@@ -47,15 +47,15 @@ suite('AgentHostLocalTurns', () => {
 		// Delete removes from memory and the database.
 		registry.deleteLocals(session, ['local-a']);
 		assert.strictEqual(registry.isLocal(chat, 'local-a'), false);
-		assert.deepStrictEqual((await db.getLocalTurns()).map(r => r.turnId), ['local-b']);
+		assert.deepStrictEqual((await db.getPersistedTurns()).map(r => r.turnId), ['local-b']);
 	});
 
 	test('load re-populates the in-memory index from the database, scoped per chat', async () => {
 		const db = new TestSessionDatabase();
 		const chatA = 'ahp-chat://default/a';
 		const chatB = 'ahp-chat://peer/b';
-		await db.insertLocalTurn({ turnId: 'local-x', chatUri: chatA, anchorTurnId: 'real-9', seq: 3, payload: JSON.stringify(turn('local-x')) });
-		await db.insertLocalTurn({ turnId: 'local-y', chatUri: chatB, anchorTurnId: undefined, seq: 4, payload: JSON.stringify(turn('local-y')) });
+		await db.insertPersistedTurn({ kind: 'local', turnId: 'local-x', chatUri: chatA, anchorTurnId: 'real-9', seq: 3, payload: JSON.stringify(turn('local-x')) });
+		await db.insertPersistedTurn({ kind: 'local', turnId: 'local-y', chatUri: chatB, anchorTurnId: undefined, seq: 4, payload: JSON.stringify(turn('local-y')) });
 
 		const registry = new AgentHostLocalTurns(createSessionDataService(db), new NullLogService());
 		const recordsA = await registry.loadForChat(session, chatA);
@@ -66,5 +66,22 @@ suite('AgentHostLocalTurns', () => {
 		assert.strictEqual(registry.isLocal(chatA, 'local-x'), true);
 		assert.strictEqual(registry.resolveConcreteTurnId(chatA, 'local-x'), 'real-9');
 		assert.strictEqual(registry.isLocal(chatB, 'local-y'), true);
+	});
+
+	test('continues local ordering after persisted failed turns', async () => {
+		const db = new TestSessionDatabase();
+		const chat = 'ahp-chat://default/a';
+		await db.insertPersistedTurn({ kind: 'local', turnId: 'local-a', chatUri: chat, anchorTurnId: undefined, seq: 3, payload: JSON.stringify(turn('local-a')) });
+		await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-a', chatUri: chat, anchorTurnId: 'real-1', payload: JSON.stringify(turn('failed-a')) });
+
+		const registry = new AgentHostLocalTurns(createSessionDataService(db), new NullLogService());
+		await registry.loadForChat(session, chat);
+		registry.record(session, chat, turn('local-b'), 'real-1');
+
+		assert.deepStrictEqual((await db.getPersistedTurns()).map(record => ({ kind: record.kind, turnId: record.turnId, seq: record.seq })), [
+			{ kind: 'local', turnId: 'local-a', seq: 3 },
+			{ kind: 'failed', turnId: 'failed-a', seq: 4 },
+			{ kind: 'local', turnId: 'local-b', seq: 5 },
+		]);
 	});
 });

@@ -100,6 +100,7 @@ export interface IAgentHostDatabaseSessionV2 extends IAgentHostDatabaseSessionV2
 export interface IAgentHostDatabaseSessionChat {
 	readonly chat: string;
 	readonly order: number;
+	readonly archived?: boolean;
 	readonly providerData?: string;
 	readonly origin?: string;
 	readonly inheritedTurnId?: string;
@@ -218,7 +219,7 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Whether the current v2 registry contains no identities. */
 	isSessionV2RegistryEmpty(): Promise<boolean>;
 	getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined>;
-	listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]>;
+	listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]>;
 	/** Lists catalog receipts without materializing payloads, for startup scans. */
 	listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]>;
 	/** Marks one cached payload dirty and returns the marker repair must compare-and-set. */
@@ -277,6 +278,8 @@ const sessionChatCatalogSchemaSql = [
 	)`,
 ].join(';\n');
 
+const CHAT_ARCHIVE_MIGRATION_VERSION = 12;
+
 const migrations = [
 	{
 		version: 1,
@@ -319,9 +322,13 @@ const migrations = [
 			sessionChatCatalogSchemaSql,
 		].join(';\n'),
 	},
+	{
+		// Versions 6 through 11 were used by pre-release catalog schemas and are
+		// normalized above, so new migrations resume at 12.
+		version: CHAT_ARCHIVE_MIGRATION_VERSION,
+		sql: 'ALTER TABLE session_chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))',
+	},
 ] as const;
-
-const latestMigrationVersion = migrations[migrations.length - 1].version;
 
 async function normalizePreReleaseCatalogSchema(database: Database, currentVersion: number): Promise<number> {
 	if (currentVersion < 4 || currentVersion > 11 || !await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'sessions_v2'`, [])) {
@@ -329,7 +336,14 @@ async function normalizePreReleaseCatalogSchema(database: Database, currentVersi
 	}
 	const hasFinalCatalog = await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chat_catalogs'`, [])
 		&& await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chats'`, []);
-	const isPreReleaseVersion11 = currentVersion === 11 && latestMigrationVersion < 11;
+	if (hasFinalCatalog && currentVersion >= 5 && currentVersion < CHAT_ARCHIVE_MIGRATION_VERSION) {
+		const chatColumns = await all(database, 'PRAGMA table_info(session_chats)', []);
+		if (chatColumns.some(column => column.name === 'archived')) {
+			await exec(database, `PRAGMA user_version = ${CHAT_ARCHIVE_MIGRATION_VERSION}`);
+			return CHAT_ARCHIVE_MIGRATION_VERSION;
+		}
+	}
+	const isPreReleaseVersion11 = currentVersion === 11;
 	if (hasFinalCatalog && currentVersion >= 5 && !isPreReleaseVersion11) {
 		return currentVersion;
 	}
@@ -1165,12 +1179,16 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return row ? { ...this._toSessionV2Receipt(row), payload: row.payload as string } : undefined;
 	}
 
-	async listSessionsV2(): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+	async listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+		if (sessions?.length === 0) {
+			return [];
+		}
 		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2(
 			`sessions_v2.*, COALESCE(CAST((
 				SELECT value FROM metadata WHERE key = '${sessionsV2PayloadDirtyKeyPrefix}' || sessions_v2.session_uri
 			) AS INTEGER), 0) AS payload_dirty`,
-		), []);
+			sessions?.length,
+		), sessions ?? []);
 		return rows.map(row => ({ ...this._toSessionV2Receipt(row), payload: row.payload as string }));
 	}
 
@@ -1270,6 +1288,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				(SELECT value FROM metadata WHERE key = ?) AS legacy_mirrored_payload,
 				chat.chat_uri,
 				chat.chat_order,
+				chat.archived,
 				chat.provider_data,
 				chat.origin,
 				chat.inherited_turn_id
@@ -1288,6 +1307,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				chats: rows.filter(row => row.chat_uri !== null).map(row => ({
 					chat: row.chat_uri as string,
 					order: row.chat_order as number,
+					...(row.archived === 1 ? { archived: true } : {}),
 					...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
 					...(row.origin === null ? {} : { origin: row.origin as string }),
 					...(row.inherited_turn_id === null ? {} : { inheritedTurnId: row.inherited_turn_id as string }),
@@ -1335,11 +1355,12 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				for (let offset = 0; offset < chats.length; offset += SESSION_CHAT_INSERT_BATCH_SIZE) {
 					const batch = chats.slice(offset, offset + SESSION_CHAT_INSERT_BATCH_SIZE);
 					await run(database, `INSERT INTO session_chats (
-						session_uri, chat_uri, chat_order, provider_data, origin, inherited_turn_id
-					) VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}`, batch.flatMap(chat => [
+						session_uri, chat_uri, chat_order, archived, provider_data, origin, inherited_turn_id
+					) VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')}`, batch.flatMap(chat => [
 						session,
 						chat.chat,
 						chat.order,
+						chat.archived === true ? 1 : 0,
 						chat.providerData ?? null,
 						chat.origin ?? null,
 						chat.inheritedTurnId ?? null,
@@ -1577,10 +1598,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		}
 	}
 
-	private _selectVerifiedSessionsV2(columns: string): string {
+	private _selectVerifiedSessionsV2(columns: string, sessionCount?: number): string {
 		return `SELECT ${columns}
 			FROM sessions_v2
 			WHERE sessions_v2.verified = 1
+				${sessionCount === undefined ? '' : `AND sessions_v2.session_uri IN (${new Array(sessionCount).fill('?').join(',')})`}
 				AND NOT EXISTS (
 					SELECT 1 FROM metadata
 					WHERE key = 'sessionTombstone:' || sessions_v2.session_uri AND value = 'true'

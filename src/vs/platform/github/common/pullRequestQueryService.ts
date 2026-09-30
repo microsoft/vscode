@@ -22,6 +22,7 @@ import {
 import { GitHubHostCapabilities, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential } from './githubCredentialService.js';
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
+import { arrayProperty, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, objectProperty, optionalObjectProperty, requiredId, requiredString, stringProperty } from './githubResponse.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { PullRequestRequestPlanner } from './pullRequestRequestPlanner.js';
@@ -262,6 +263,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 
 	private async _fetchCore(ref: PullRequestRef, credential: GitHubCredential, signal: AbortSignal, priority: import('./githubTypes.js').GitHubRequestPriority): Promise<PullRequestCore> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+			caller: 'github.pullRequestQuery',
 			method: 'GET',
 			url: this._restUrl(ref, `pulls/${ref.number}`),
 			etag: true,
@@ -281,6 +283,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		let url: string | undefined = this._restUrl(ref, route);
 		for (let page = 0; url && page < maximumPaginationPages; page++) {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.pullRequestQuery',
 				method: 'GET',
 				url,
 				etag: true,
@@ -317,6 +320,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ owner: ref.owner, repo: ref.repo, number: ref.number, after },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
 			throwGraphQLErrors(response.errors);
 			const pullRequest = objectAt(response.data, 'repository', 'pullRequest');
@@ -360,6 +364,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ threadId: id, after: requiredCursor(after) },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
 			throwGraphQLErrors(response.errors);
 			const nextConnection = objectAt(response.data, 'node', 'comments');
@@ -472,6 +477,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ owner: ref.owner, repo: ref.repo, number: ref.number, after },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
 			throwGraphQLErrors(response.errors);
 			const pullRequest = objectAt(response.data, 'repository', 'pullRequest');
@@ -515,6 +521,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				{ owner: ref.owner, repo: ref.repo, headSha, after },
 				signal,
 				priority,
+				{ caller: 'github.pullRequestQuery' },
 			);
 			throwGraphQLErrors(response.errors);
 			const commit = objectAt(response.data, 'repository', 'object');
@@ -543,6 +550,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		let url: string | undefined = this._restUrl(ref, `commits/${encodeURIComponent(core.headSha)}/check-runs?per_page=100`);
 		for (let page = 0; url && page < maximumPaginationPages; page++) {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.pullRequestQuery',
 				method: 'GET',
 				url,
 				etag: true,
@@ -556,6 +564,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			throw new GitHubRequestError('GitHub check-run pagination exceeded its page limit', 'malformedResponse');
 		}
 		const statuses = await this._transport.rest<unknown>(credential.account, credential.token, {
+			caller: 'github.pullRequestQuery',
 			method: 'GET',
 			url: this._restUrl(ref, `commits/${encodeURIComponent(core.headSha)}/status?per_page=100`),
 			etag: true,
@@ -590,6 +599,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				: { owner: ref.owner, repo: ref.repo, number: ref.number },
 			signal,
 			priority,
+			{ caller: 'github.pullRequestQuery' },
 		);
 		throwGraphQLErrors(response.errors);
 		const repository = objectProperty(asObject(response.data, 'GitHub mergeability response was malformed'), 'repository');
@@ -631,6 +641,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		priority: import('./githubTypes.js').GitHubRequestPriority,
 	): Promise<PullRequestMergeability> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+			caller: 'github.pullRequestQuery',
 			method: 'GET',
 			url: this._restUrl(ref, `pulls/${ref.number}`),
 			unconditional: true,
@@ -927,19 +938,6 @@ function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 	);
 }
 
-function nextLink(link: string | undefined): string | undefined {
-	if (!link) {
-		return undefined;
-	}
-	for (const part of link.split(',')) {
-		const match = /^\s*<(?<url>[^>]+)>\s*;\s*rel="(?<rel>[^"]+)"/.exec(part);
-		if (match?.groups?.rel.split(/\s+/).includes('next')) {
-			return match.groups.url;
-		}
-	}
-	return undefined;
-}
-
 function pageInfoFrom(connection: object): { readonly hasNextPage: boolean; readonly endCursor?: string } {
 	const pageInfo = objectProperty(connection, 'pageInfo');
 	return {
@@ -955,90 +953,11 @@ function requiredCursor(cursor: string | undefined): string {
 	return cursor;
 }
 
-function objectAt(value: unknown, ...path: readonly string[]): object {
-	let current = asObject(value, 'GitHub response was malformed');
-	for (const part of path) {
-		current = objectProperty(current, part);
-	}
-	return current;
-}
-
 function firstObject(values: readonly unknown[], message: string): object {
 	if (values.length === 0) {
 		throw new GitHubRequestError(message, 'malformedResponse');
 	}
 	return asObject(values[0], message);
-}
-
-function asObject(value: unknown, message: string): object {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		throw new GitHubRequestError(message, 'malformedResponse');
-	}
-	return value;
-}
-
-function objectProperty(value: object, key: string): object {
-	return asObject(Reflect.get(value, key), `GitHub response property ${key} was malformed`);
-}
-
-function optionalObjectProperty(value: object, key: string): object | undefined {
-	const property = Reflect.get(value, key);
-	return property === null || property === undefined ? undefined : asObject(property, `GitHub response property ${key} was malformed`);
-}
-
-function arrayProperty(value: object, key: string): readonly unknown[] {
-	const property = Reflect.get(value, key);
-	if (!Array.isArray(property)) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not an array`, 'malformedResponse');
-	}
-	return property;
-}
-
-function requiredString(value: object, key: string): string {
-	const property = stringProperty(value, key);
-	if (property === undefined) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not a string`, 'malformedResponse');
-	}
-	return property;
-}
-
-function stringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' ? property : undefined;
-}
-
-function nullableStringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return property === null ? undefined : typeof property === 'string' ? property : undefined;
-}
-
-function normalizedEnumProperty(value: object, key: string): string | undefined {
-	return nullableStringProperty(value, key)?.toUpperCase();
-}
-
-function numberProperty(value: object, key: string): number | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'number' && Number.isFinite(property) ? property : undefined;
-}
-
-function booleanProperty(value: object, key: string): boolean | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'boolean' ? property : undefined;
-}
-
-function idProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' || typeof property === 'number' ? String(property) : undefined;
-}
-
-function requiredId(value: object, ...keys: readonly string[]): string {
-	for (const key of keys) {
-		const id = idProperty(value, key);
-		if (id) {
-			return id;
-		}
-	}
-	throw new GitHubRequestError(`GitHub response did not contain ${keys.join(' or ')}`, 'malformedResponse');
 }
 
 function enumProperty<T extends string>(value: object, key: string, allowed: readonly T[], fallback: T): T {

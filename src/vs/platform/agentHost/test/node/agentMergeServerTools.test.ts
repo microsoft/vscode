@@ -9,11 +9,12 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IGitHubService } from '../../../github/common/githubService.js';
+import { createTestGitHubService } from './testGitHubService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { AGENT_MERGE_TOOL_NAMES } from '../../common/agentMergePrompt.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -60,7 +61,7 @@ suite('Agent Merge server tools', () => {
 				return directory.toString() === workingDirectory.toString() ? 'feature' : 'feature-tools';
 			}
 		}();
-		const gitHubService = new class extends mock<IGitHubService>() { }();
+		const gitHubService = createTestGitHubService();
 		const controller = store.add(new AgentMergeController(
 			{ startTurn: () => false, cancelTurn: () => { }, postNotice: () => { } },
 			stateManager,
@@ -79,7 +80,6 @@ suite('Agent Merge server tools', () => {
 			() => controller.isEnabled(),
 			getTurnContext ?? (chat => controller.getTurnContext(chat)),
 			(chat, enabled, overrides) => controller.setEnabled(chat, enabled, overrides),
-			gitHubService,
 			logService,
 			stateManager,
 			configurationService,
@@ -109,6 +109,29 @@ suite('Agent Merge server tools', () => {
 			afterDisabling: [],
 			withoutAccessor: false,
 		});
+	});
+
+	test('defers every tool behind tool search while keeping the wire definitions unchanged', () => {
+		const { stateManager, host } = createHarness(true);
+		host.advertise(sessionUri);
+
+		assert.deepStrictEqual({
+			deferrals: host.getDefinitionsForSession(sessionUri).map(({ name, deferLoading }) => ({ name, deferLoading })),
+			advertisedCarriesDeferral: stateManager.getSessionState(sessionUri)?.serverTools?.some(tool => Object.keys(tool).includes('deferLoading')),
+		}, {
+			deferrals: toolNames.map(name => ({ name, deferLoading: true })),
+			advertisedCarriesDeferral: false,
+		});
+	});
+
+	test('repair prompt names the deferred tools it requires', () => {
+		const definitionNames = createAgentMergeServerToolGroup().definitions.map(definition => definition.name);
+		assert.deepStrictEqual(
+			AGENT_MERGE_TOOL_NAMES.filter(name => !definitionNames.includes(name)),
+			[],
+			'AGENT_MERGE_TOOL_NAMES in common/agentMergePrompt.ts must match the server tool definitions',
+		);
+		assert.deepStrictEqual([...AGENT_MERGE_TOOL_NAMES].sort(), [readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName].sort());
 	});
 
 	test('rejects enablement calls after the feature is disabled', async () => {

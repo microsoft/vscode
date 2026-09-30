@@ -13,7 +13,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsPick, IManagedSettingsService, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, hasRawManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
-import { IManagedSettingsFreshness, isManagedSettingsFreshnessBlocking } from '../../../../platform/policy/common/managedSettingsFreshness.js';
+import { IManagedSettingsFreshness, isManagedSettingsFreshnessBlocking, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
@@ -62,6 +62,17 @@ export interface IAccountPolicyGateService {
 	readonly _serviceBrand: undefined;
 	readonly gateInfo: IAccountPolicyGateInfo;
 	readonly onDidChangeGateInfo: Event<IAccountPolicyGateInfo>;
+	/** Completes after the gate and policy values incorporate the initialized account. */
+	whenInitialized(): Promise<void>;
+}
+
+/** Waits for authoritative policy, including settled fail-closed restrictions. */
+export async function whenAccountPolicySettled(gateService: IAccountPolicyGateService): Promise<void> {
+	await gateService.whenInitialized();
+	while (gateService.gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved
+		|| gateService.gateInfo.managedSettingsFreshness?.state === ManagedSettingsFreshnessState.Pending) {
+		await Event.toPromise(gateService.onDidChangeGateInfo);
+	}
 }
 
 interface IResolvedPolicyData {
@@ -92,6 +103,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	private readonly managedPolicyReader?: IPolicyService;
 	private readonly nativeManagedSettingsService?: INativeManagedSettingsService;
 	private readonly fileManagedSettingsService?: IFileManagedSettingsService;
+	private readonly initialization: Promise<void>;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -137,9 +149,17 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		// The initial account load sets `currentDefaultAccount` but does NOT fire
 		// `onDidChangeDefaultAccount`. Re-evaluate once the account has resolved
 		// so the gate doesn't stay stuck on `noAccount`.
-		this.defaultAccountService.getDefaultAccount().then(() => {
-			this._updatePolicyDefinitions(this.policyDefinitions);
-		});
+		this.initialization = this.initialize();
+		this.initialization.catch(error => this.logService.error('AccountPolicyService: Failed to initialize account policy', error));
+	}
+
+	whenInitialized(): Promise<void> {
+		return this.initialization;
+	}
+
+	private async initialize(): Promise<void> {
+		await this.defaultAccountService.getDefaultAccount();
+		await this._updatePolicyDefinitions(this.policyDefinitions);
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {

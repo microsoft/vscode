@@ -66,14 +66,13 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 			if (!content) {
 				return;
 			}
-			notification.onDidClose(() => accessibleViewService.next());
 			return new AccessibleContentProvider(
 				AccessibleViewProviderId.Notification,
 				{ type: AccessibleViewType.View },
 				() => content,
 				() => focusList(),
 				'accessibility.verbosity.notification',
-				undefined,
+				() => notification.onDidClose(() => accessibleViewService.next()),
 				getActionsFromNotification(notification, accessibilitySignalService),
 				() => {
 					if (!list) {
@@ -133,4 +132,3 @@ function getActionsFromNotification(notification: INotificationViewItem, accessi
 	}
 	return actions;
 }
-

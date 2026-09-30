@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { INativeEnvironmentService } from '../../../../environment/common/environment.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { ICompletedSpanData } from '../../../../otel/common/spanData.js';
+import { ChatUserInteractionSpanName, chatUserInteractionAttributes, IChatUserInteractionTiming } from '../../../../otel/common/chatUserInteraction.js';
 import { IOtlpExportTraceServiceRequest } from '../../../../otel/node/otlp/otlpJsonTypes.js';
 import { OTelSqliteStore } from '../../../../otel/node/sqlite/otelSqliteStore.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
@@ -103,6 +104,24 @@ suite('Agent Host timing OTel', () => {
 		await service.flush();
 		assert.strictEqual(service.diagnosticsEnabled, false);
 		await assert.rejects(readFile(outfile), { code: 'ENOENT' });
+	});
+
+	test('exports shared UI timing without content capture and drains it before acknowledging flush', async () => {
+		const service = createService({ COPILOT_OTEL_FILE_EXPORTER_PATH: outfile });
+		const timing: IChatUserInteractionTiming = {
+			schemaVersion: 1, rendererId: 'renderer', interactionOrdinal: 1, requestId: 'request-1',
+			result: 'success', requestPhase: 'first', firstProgressKind: 'tool',
+			timeToFirstProgress: 45.25, windowVisible: true, windowFocused: false,
+		};
+		service.emitUserInteraction(timing);
+		await service.flush();
+		const spans = await readSpans();
+		assert.strictEqual(spans.length, 1);
+		assert.strictEqual(spans[0].name, ChatUserInteractionSpanName);
+		for (const [key, value] of Object.entries(chatUserInteractionAttributes(timing))) {
+			assert.strictEqual(spans[0].attributes[key], value);
+		}
+		assert.strictEqual(spans[0].attributes['vscode.chat.user_interaction.timeToTermination'], undefined);
 	});
 
 	test('exports text measurements only when response text was observed', async () => {
@@ -221,12 +240,18 @@ suite('Agent Host timing OTel', () => {
 		const service = createService({ COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'true', COPILOT_OTEL_FILE_EXPORTER_PATH: outfile });
 		service.emitTurnTiming(host);
 		service.emitFirstResponse(renderer);
+		service.emitUserInteraction({
+			schemaVersion: 1, rendererId: 'renderer', interactionOrdinal: 1, requestId: 'request-1',
+			result: 'success', requestPhase: 'first', firstProgressKind: 'reasoning',
+			timeToFirstProgress: 123.25, windowVisible: true, windowFocused: false,
+		});
 		await service.flush();
 		const spans = await readSpans();
-		assert.strictEqual(spans.length, 2);
+		assert.strictEqual(spans.length, 3);
 		const reader = new OTelSqliteStore(service.getSpansDbPath()!.fsPath);
 		try {
-			assert.deepStrictEqual(spans.map(span => reader.getSpansByTraceId(span.traceId).length), [1, 1]);
+			assert.deepStrictEqual(spans.map(span => reader.getSpansByTraceId(span.traceId).length), [1, 1, 1]);
+			assert.strictEqual(reader.getSpanAttribute(spans[2].spanId, 'vscode.chat.user_interaction.timeToFirstProgress'), '123.25');
 			assert.deepStrictEqual({
 				zero: reader.getSpanAttribute(spans[0].spanId, `${prefix}sendStageWorkingDirectoryMs`),
 				boolean: reader.getSpanAttribute(spans[1].spanId, `${prefix}hasResponseText`),

@@ -7,9 +7,13 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IOpenSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
 
 suite('SessionsTitleBarWidget', () => {
@@ -18,6 +22,28 @@ suite('SessionsTitleBarWidget', () => {
 	const getCommandCenterTitle = Reflect.get(SessionsTitleBarWidget.prototype, '_getCommandCenterTitle') as (this: SessionsTitleBarWidget) => string | undefined;
 	const getCommandCenterTitles = Reflect.get(SessionsTitleBarWidget.prototype, '_getCommandCenterTitles') as (this: SessionsTitleBarWidget) => { sessionTitle: string | undefined; contextTitle: string | undefined };
 	const renderActiveSession = Reflect.get(SessionsTitleBarWidget.prototype, '_renderActiveSession') as (this: SessionsTitleBarWidget) => void;
+	const openBlockedSession = Reflect.get(SessionsTitleBarWidget.prototype, '_openBlockedSession') as (this: SessionsTitleBarWidget, resource: URI, preserveFocus: boolean, sideBySide: boolean) => void;
+
+	test('Alt-clicking a blocked session requests its main chat to the side', () => {
+		const widget = Object.create(SessionsTitleBarWidget.prototype) as SessionsTitleBarWidget;
+		const resource = URI.parse('test:///blocked');
+		const session = upcastPartial<ISession>({ sessionId: 'blocked', resource });
+		const options: IOpenSessionOptions[] = [];
+		Reflect.set(widget, 'sessionsManagementService', upcastPartial<ISessionsManagementService>({
+			getSession: () => session,
+		}));
+		Reflect.set(widget, 'sessionsService', upcastPartial<ISessionsService>({
+			openSessionToSide: async (_session, openOptions) => {
+				if (openOptions) {
+					options.push(openOptions);
+				}
+			},
+		}));
+
+		openBlockedSession.call(widget, resource, true, true);
+
+		assert.deepStrictEqual(options, [{ preserveFocus: true, source: 'sessionsList', forceMainChat: true }]);
+	});
 
 	test('prepends the active session title to the command-center context', () => {
 		const widget = Object.create(SessionsTitleBarWidget.prototype) as SessionsTitleBarWidget;

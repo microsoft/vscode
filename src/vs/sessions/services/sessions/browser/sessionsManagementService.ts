@@ -1271,9 +1271,29 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidArchiveSession.fire(session);
 	}
 
+	getSessionWorktreeDiskUsage(session: ISession): Promise<number | undefined> {
+		return this._getProvider(session)?.getSessionWorktreeDiskUsage?.(session.sessionId) ?? Promise.resolve(undefined);
+	}
+
 	async unarchiveSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.unarchiveSession(session.sessionId);
 		this._onDidUnarchiveSession.fire(session);
+	}
+
+	async archiveChat(session: ISession, chat: IChat): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider?.archiveChat) {
+			throw new Error(`Provider does not support archiving chats for session: ${session.sessionId}`);
+		}
+		await provider.archiveChat(session.sessionId, chat.resource);
+	}
+
+	async unarchiveChat(session: ISession, chat: IChat): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider?.unarchiveChat) {
+			throw new Error(`Provider does not support restoring chats for session: ${session.sessionId}`);
+		}
+		await provider.unarchiveChat(session.sessionId, chat.resource);
 	}
 
 	async setSessionReadState(session: ISession, isRead: boolean): Promise<void> {

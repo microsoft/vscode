@@ -6,6 +6,12 @@
 import { localize } from '../../../../../../../nls.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 
+export const organizationDefaultLabel = localize('chat.modelPicker.organizationDefault', "Org default");
+
+export function getOrganizationDefaultDescription(modelName: string): string {
+	return localize('chat.modelPicker.organizationDefaultDescription', "Your organization sets {0} as the default for new chats. You can choose another model for this chat.", modelName);
+}
+
 /** Color treatment for a model-row badge. */
 export const enum ModelBadgeTone {
 	/** Plain text, no fill. The default for descriptive labels like a provider name. */
@@ -30,8 +36,8 @@ export interface IModelBadgeContext {
 }
 
 /**
- * The single badge a model row shows. A row has one badge slot, so the states are
- * ranked by how much the user needs to know before picking.
+ * The primary model badge, ranked by how much the user needs to know before picking.
+ * An organization-default badge can appear alongside it.
  */
 export function getModelBadge(
 	model: ILanguageModelChatMetadataAndIdentifier,

@@ -701,6 +701,69 @@ suite('AsyncDataTree', function () {
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b', 'b.txt', 'c', 'c.txt']);
 	});
 
+	test('issues #145510, #149084 - autoExpandCompressedChildren only expands single children compressed with their parent', async () => {
+		const dataSource = new DataSource();
+		const compressionDelegate = new class implements ITreeCompressionDelegate<Element> {
+			isIncompressible(element: Element): boolean {
+				return !dataSource.hasChildren(element) || element.id === 'nest';
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'b', children: [{ id: 'b.txt' }] }]
+			}, {
+				id: 'n', children: [{ id: 'nest', children: [{ id: 'nest.txt' }] }]
+			}]
+		});
+
+		const expandAndRefresh = async (compressionEnabled: boolean) => {
+			const container = document.createElement('div');
+			const tree = store.add(new CompressibleAsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, { identityProvider: new IdentityProvider(), compressionEnabled, autoExpandCompressedChildren: true }));
+			tree.layout(200);
+
+			await tree.setInput(model.root);
+			await tree.expand(model.get('a'));
+			await tree.expand(model.get('n'));
+			await tree.updateChildren(model.root);
+			return Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent);
+		};
+
+		assert.deepStrictEqual({
+			compressed: await expandAndRefresh(true),
+			uncompressed: await expandAndRefresh(false),
+		}, {
+			compressed: ['a/b', 'b.txt', 'n', 'nest'],
+			uncompressed: ['a', 'b', 'n', 'nest'],
+		});
+	});
+
+	test('autoExpandSingleChildren expands single children that are not compressed', async () => {
+		const container = document.createElement('div');
+
+		const dataSource = new DataSource();
+		const compressionDelegate = new class implements ITreeCompressionDelegate<Element> {
+			isIncompressible(element: Element): boolean {
+				return true;
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'b', children: [{ id: 'b.txt' }] }]
+			}]
+		});
+
+		const tree = store.add(new CompressibleAsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, { identityProvider: new IdentityProvider(), autoExpandSingleChildren: true }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		await tree.expand(model.get('a'));
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b', 'b.txt']);
+	});
+
 	test('Tree Navigation: AsyncDataTree', async () => {
 		const container = document.createElement('div');
 

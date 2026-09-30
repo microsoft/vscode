@@ -235,8 +235,8 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override applySortChanges(_mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
 			sortChanges.push({ set: new Map(set), clear: [...clear] });
 		}
-		override getStatusIcon(status: SessionStatus, _isRead: boolean, _isArchived: boolean, completedStateIcon?: ThemeIcon) {
-			return status === SessionStatus.Error ? Codicon.error : completedStateIcon ?? Codicon.circleSmallFilled;
+		override getStatusIcon(status: SessionStatus, _isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon) {
+			return status === SessionStatus.Error ? Codicon.error : isArchived ? Codicon.passFilled : completedStateIcon ?? Codicon.circleSmallFilled;
 		}
 	});
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {

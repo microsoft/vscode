@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
@@ -73,6 +73,7 @@ interface ICodexGitHubMcpHarness {
 	_buildSessionMcpServers(session: {
 		readonly sessionId: string;
 		readonly workingDirectory: URI;
+		readonly agentMergeTurn?: boolean;
 	}): Record<string, ICodexMcpServerConfigJson>;
 }
 
@@ -399,6 +400,35 @@ suite('CodexAgent', () => {
 		});
 	});
 
+	test('Agent Merge turns omit only GitHub MCP servers', () => {
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_configurationService: {
+				getRootValue: () => ({
+					'component-explorer': { type: 'stdio', command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
+					corp: { type: 'http', url: 'https://api.githubcopilot.com/mcp/' },
+				}),
+			},
+			_sessionMcpDiscoveries: new Map(),
+			_enabledClientPlugins: () => [],
+			_mcpAuthTokens: new Map(),
+			_githubMcpServerEnabled: true,
+			_githubToken: 'token',
+			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.githubcopilot.com'),
+			_isMcpServerEnabledForSdk: () => true,
+		}) as ICodexGitHubMcpHarness;
+		const session = { sessionId: 'agent-merge', workingDirectory: URI.file('/work') };
+
+		assert.deepStrictEqual({
+			regularTurn: Object.keys(harness._buildSessionMcpServers(session)),
+			agentMergeTurn: harness._buildSessionMcpServers({ ...session, agentMergeTurn: true }),
+		}, {
+			regularTurn: ['component-explorer', 'corp'],
+			agentMergeTurn: {
+				'component-explorer': { command: 'npm', args: ['exec', '--', 'component-explorer', 'mcp'] },
+			},
+		});
+	});
+
 	test('clears GitHub MCP credentials when the GitHub endpoint changes', () => {
 		const proxyTokens: string[] = [];
 		let modelRefreshes = 0;
@@ -633,8 +663,9 @@ suite('CodexAgent', () => {
 		const listChatsToMigrate = (CodexAgent.prototype as unknown as {
 			listChatsToMigrate(this: {
 				_activated: boolean;
-				_isSdkResolvableWithoutDownload(): Promise<boolean>;
-				_listCodexChats(): Promise<typeof chats | undefined>;
+				_isCatalogSdkAvailable(): Promise<boolean>;
+				_markCatalogStartupContext(sdkAvailability: 'available' | 'unavailable' | 'unknown'): void;
+				_listCodexChats(kind: 'migration' | 'discovery'): Promise<typeof chats | undefined>;
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 				_logService: { info(message: string): void };
 			}): Promise<typeof chats | undefined | typeof AgentChatMigrationDeferred>;
@@ -645,7 +676,8 @@ suite('CodexAgent', () => {
 		const harness = {
 			_activated: true,
 			_logService: { info: () => { } },
-			_isSdkResolvableWithoutDownload: async () => sdkIsLocal,
+			_isCatalogSdkAvailable: async () => sdkIsLocal,
+			_markCatalogStartupContext: () => { },
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async (chat: (typeof chats)[number]) => {
 				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
@@ -689,10 +721,11 @@ suite('CodexAgent', () => {
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
 				_logService: { warn(message: string): void };
+				_recordFirstDiscoveryResult(chats: readonly IAgentDiscoveredChat[]): void;
 			}): Promise<boolean>;
 		})._emitCodexChats;
 
-		await emitCodexChats.call({
+		const result = await emitCodexChats.call({
 			_isShuttingDown: false,
 			_connectionGeneration: 0,
 			_discoveredCodexChats: new Map(),
@@ -704,12 +737,16 @@ suite('CodexAgent', () => {
 			},
 			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },
 			_logService: { warn: () => { } },
+			_recordFirstDiscoveryResult: () => { },
 		});
 
-		assert.deepStrictEqual(emitted, [
-			{ ...chats[0], external: false },
-			{ ...chats[1], external: false },
-			{ ...chats[2], external: true },
-		]);
+		assert.deepStrictEqual({ result, emitted }, {
+			result: true,
+			emitted: [
+				{ ...chats[0], external: false },
+				{ ...chats[1], external: false },
+				{ ...chats[2], external: true },
+			],
+		});
 	});
 });

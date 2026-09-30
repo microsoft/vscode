@@ -12,6 +12,10 @@
 	margin-bottom: 14px;
 }
 
+.chat-codeblock-pill-container > .chat-tool-call-icon {
+	display: none;
+}
+
 .chat-codeblock-pill-container {
 	display: flex;
 	align-items: center;

@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createMarkdownCommandLink, IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
-import { isToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 
 export function hasToolInvocationError(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
 	const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
@@ -23,8 +25,89 @@ export function hasToolInvocationError(toolInvocation: IChatToolInvocation | ICh
 	return false;
 }
 
+export function isActiveBackgroundTerminalToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	const terminal = toolInvocation.toolSpecificData;
+	return terminal?.kind === 'terminal'
+		&& !isLegacyChatTerminalToolInvocationData(terminal)
+		&& terminal.terminalCommandState?.exitCode === undefined
+		&& (terminal.isBackground === true || terminal.didContinueInBackground === true);
+}
 export function isMcpToolInvocation(toolInvocation: Pick<IChatToolInvocation | IChatToolInvocationSerialized, 'toolId' | 'source'>): boolean {
 	return toolInvocation.source?.type === 'mcp' || toolInvocation.toolId.toLowerCase().includes('mcp');
+}
+
+interface IToolInvocationIconData {
+	readonly icon?: ThemeIcon;
+	readonly source?: ToolDataSource;
+	readonly toolSpecificData?: IChatToolInvocation['toolSpecificData'];
+}
+
+/** Resolves the activity icon shared by standalone, grouped, and subagent tool rows. */
+export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIconData, resultText?: string): ThemeIcon {
+	if (isMcpToolInvocation({ toolId, source: data?.source })) {
+		return Codicon.mcp;
+	}
+
+	const lowerToolId = toolId.toLowerCase();
+	if ((lowerToolId === 'problems' || lowerToolId === 'get_errors' || lowerToolId === 'copilot_geterrors')
+		&& resultText?.toLowerCase().replace(/\s+/g, ' ').includes('no problems found')) {
+		return Codicon.search;
+	}
+
+	const toolSpecificData = data?.toolSpecificData;
+	if (toolSpecificData?.kind === 'search') {
+		return Codicon.search;
+	}
+	if (toolSpecificData?.kind === 'terminal') {
+		if (!isLegacyChatTerminalToolInvocationData(toolSpecificData)) {
+			const exitCode = toolSpecificData.terminalCommandState?.exitCode;
+			if (exitCode !== undefined && exitCode !== 0) {
+				return Codicon.error;
+			}
+			if (toolSpecificData.commandLine.isSandboxWrapped) {
+				return Codicon.terminalSecure;
+			}
+		}
+		return data?.icon ?? Codicon.terminal;
+	}
+
+	if (data?.icon) {
+		return data.icon;
+	}
+	if (lowerToolId.includes('comment')) {
+		return Codicon.comment;
+	}
+	if (
+		lowerToolId.includes('search') ||
+		lowerToolId.includes('grep') ||
+		lowerToolId.includes('find') ||
+		lowerToolId.includes('list') ||
+		lowerToolId.includes('semantic') ||
+		lowerToolId.includes('changes') ||
+		lowerToolId.includes('codebase') ||
+		lowerToolId.includes('checked')
+	) {
+		return Codicon.search;
+	}
+	if (
+		lowerToolId.includes('read') ||
+		lowerToolId.includes('get_file') ||
+		lowerToolId.includes('problems')
+	) {
+		return Codicon.book;
+	}
+	if (
+		lowerToolId.includes('edit') ||
+		lowerToolId.includes('create') ||
+		lowerToolId.includes('replace') ||
+		lowerToolId.includes('patch')
+	) {
+		return Codicon.pencil;
+	}
+	if (lowerToolId.includes('terminal')) {
+		return Codicon.terminal;
+	}
+	return Codicon.tools;
 }
 
 /**

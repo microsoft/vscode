@@ -146,6 +146,7 @@ export class BlockedSessionsList extends Disposable {
 			ciFixModel: options.ciFixModel,
 			approvalRowMaxLines: BLOCKED_LIST_APPROVAL_ROW_MAX_LINES,
 			toolbarMenuId: Menus.BlockedSessionsItem,
+			toolbarTelemetrySource: 'blockedSessionsList.row',
 			onToolbarAction: (action, session) => {
 				if (action.id !== IGNORE_INPUT_NEEDED_COMMAND_ID && action.id !== IGNORE_CI_FAILURE_COMMAND_ID) {
 					return false;

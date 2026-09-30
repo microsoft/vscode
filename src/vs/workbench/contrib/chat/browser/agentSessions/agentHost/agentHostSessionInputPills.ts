@@ -28,13 +28,14 @@ import { IClipboardService } from '../../../../../../platform/clipboard/common/c
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { GitHubIssue, GitHubIssueRef } from '../../../../../../platform/github/common/githubQueryService.js';
 import { PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
-import { IGitHubService } from '../../../../../../platform/github/common/githubService.js';
+import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { parseGitHubCommitTarget } from '../../../../../../platform/github/common/githubUrls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
@@ -51,7 +52,7 @@ import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPil
 import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { GitHubCommitResolver, parseGitHubCommitTarget } from '../../../../github/browser/githubCommitResolver.js';
+import { GitHubCommitResolver } from '../../../../github/browser/githubCommitResolver.js';
 import { createCommitResourceHover, createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
 
 const offeredPillKinds: readonly SessionChatPillKind[] = [
@@ -114,8 +115,10 @@ function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
 	return first === second || (first.size === second.size && [...first].every(value => second.has(value)));
 }
 
-function isPromotedGitHubReference(artifact: ISessionArtifact, type: SessionArtifactType): artifact is ISessionArtifact & { readonly link: string } {
-	return artifact.type === type
+/** Only artifacts are promoted into the dedicated pills; references stay in the references pill. */
+function isPromotedGitHubArtifact(artifact: ISessionArtifact, type: SessionArtifactType): artifact is ISessionArtifact & { readonly link: string } {
+	return artifact.isArtifact
+		&& artifact.type === type
 		&& artifact.isGitHub === true
 		&& typeof artifact.link === 'string'
 		&& isGitHubArtifactLink(artifact.link);
@@ -129,8 +132,8 @@ function isPromotedGitHubReference(artifact: ISessionArtifact, type: SessionArti
 export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined): IAgentHostSessionPillMetadata {
 	const entries = readSessionArtifactsNewestFirst(meta);
 	const github = readSessionGitHubState(meta, sessionWorkingDirectory);
-	const recordedPullRequests = distinct(entries.filter(entry => isPromotedGitHubReference(entry, SessionArtifactType.PullRequest)), entry => linkKey(entry.link));
-	const recordedIssues = distinct(entries.filter(entry => isPromotedGitHubReference(entry, SessionArtifactType.Issue)), entry => linkKey(entry.link));
+	const recordedPullRequests = distinct(entries.filter(entry => isPromotedGitHubArtifact(entry, SessionArtifactType.PullRequest)), entry => linkKey(entry.link));
+	const recordedIssues = distinct(entries.filter(entry => isPromotedGitHubArtifact(entry, SessionArtifactType.Issue)), entry => linkKey(entry.link));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
 	const pullRequestUrls = dedupeLinks(recordedPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
 	const pullRequestTitles = new Map(recordedPullRequests.filter(entry => entry.label).map(entry => [linkKey(entry.link), entry.label]));
@@ -139,7 +142,6 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	const issueTitles = new Map(recordedIssues.map(entry => [linkKey(entry.link), entry.label]));
 	const issueArtifacts = new Map(recordedIssues.map(entry => [linkKey(entry.link), entry]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
-	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
 	return {
 		pullRequestUrls,
 		pullRequestTitles,
@@ -147,8 +149,9 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 		issueUrls,
 		issueTitles,
 		issueArtifacts,
-		artifacts: remaining.filter(entry => entry.isArtifact),
-		references: remaining.filter(entry => !entry.isArtifact),
+		artifacts: entries.filter(entry => entry.isArtifact && (!entry.link || !promotedLinks.has(linkKey(entry.link)))),
+		// References always stay in the references pill, even for a pull request or issue the dedicated pills show.
+		references: entries.filter(entry => !entry.isArtifact),
 	};
 }
 
@@ -291,11 +294,11 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 	private readonly _pullRequests = new Map<string, IGitHubReferenceEntry<IPullRequestHoverDetails>>();
 
 	constructor(
-		@IGitHubService private readonly _gitHubService: IGitHubService,
+		@IWorkbenchGitHubService private readonly _gitHubService: IWorkbenchGitHubService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._register(this._gitHubService.credentials.onDidInvalidate(() => {
+		this._register(this._gitHubService.onDidChangeDefaultClient(() => {
 			for (const entry of this._issues.values()) {
 				this._initializeIssue(entry);
 			}
@@ -358,20 +361,27 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 		const generation = ++entry.generation;
 		const store = new DisposableStore();
 		entry.subscription.value = store;
+		entry.value.set(undefined, undefined);
 		const controller = new AbortController();
 		store.add(toDisposable(() => controller.abort()));
-		void this._gitHubService.credentials.getCredential(controller.signal).then(credential => {
+		void this._gitHubService.acquireDefaultAccountClient(controller.signal).then(async reference => {
+			if (store.isDisposed) {
+				reference.dispose();
+				return;
+			}
+			const client = store.add(reference).object;
+			const credential = await client.credentials.getCredential(controller.signal);
 			if (controller.signal.aborted || generation !== entry.generation) {
 				return;
 			}
 			const ref: GitHubIssueRef = { ...credential.account, ...entry.target };
-			const subscription = store.add(this._gitHubService.query.subscribeIssue(ref, { priority: 'visible' }));
+			const subscription = store.add(client.query.subscribeIssue(ref, { priority: 'visible' }));
 			store.add(autorun(reader => {
 				const issue = subscription.resource.state.read(reader).value;
 				entry.value.set(issue ? toIssueHoverModel(issue) : undefined, undefined);
 			}));
 			void subscription.refresh().catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub issue reference', error));
-		}, error => {
+		}).catch(error => {
 			if (!controller.signal.aborted && generation === entry.generation) {
 				this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for issue reference', error);
 				entry.subscription.clear();
@@ -383,14 +393,21 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 		const generation = ++entry.generation;
 		const store = new DisposableStore();
 		entry.subscription.value = store;
+		entry.value.set(undefined, undefined);
 		const controller = new AbortController();
 		store.add(toDisposable(() => controller.abort()));
-		void this._gitHubService.credentials.getCredential(controller.signal).then(credential => {
+		void this._gitHubService.acquireDefaultAccountClient(controller.signal).then(async reference => {
+			if (store.isDisposed) {
+				reference.dispose();
+				return;
+			}
+			const client = store.add(reference).object;
+			const credential = await client.credentials.getCredential(controller.signal);
 			if (controller.signal.aborted || generation !== entry.generation) {
 				return;
 			}
 			const ref: PullRequestRef = { ...credential.account, ...entry.target };
-			const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, {
+			const subscription = store.add(client.pullRequests.subscribePullRequest(ref, {
 				priority: 'visible',
 				core: true,
 				checks: { includeOptional: true },
@@ -405,7 +422,7 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 			}));
 			void subscription.refresh('core').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request reference', error));
 			void subscription.refresh('checks').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request checks', error));
-		}, error => {
+		}).catch(error => {
 			if (!controller.signal.aborted && generation === entry.generation) {
 				this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for pull request reference', error);
 				entry.subscription.clear();
@@ -1034,10 +1051,12 @@ export class AgentHostSessionInputPills extends Disposable {
 	private _createRemoveAction(artifact: ISessionArtifact, removeArtifact: (artifact: ISessionArtifact) => Promise<void>) {
 		return withChatPillHoverLabel(toAction({
 			id: `chat.agentHost.sessionPills.removeArtifact.${artifact.id}`,
-			label: localize('agentHostSessionPills.removeArtifact', "Remove {0} from Session", artifact.label),
+			label: artifact.isArtifact
+				? localize('agentHostSessionPills.removeArtifact', "Remove Artifact {0} from Session", artifact.label)
+				: localize('agentHostSessionPills.removeReference', "Remove Reference {0} from Session", artifact.label),
 			class: ThemeIcon.asClassName(Codicon.close),
 			run: () => removeArtifact(artifact),
-		}), chatPillRemoveReferenceHoverLabel);
+		}), artifact.isArtifact ? chatPillRemoveArtifactHoverLabel : chatPillRemoveReferenceHoverLabel);
 	}
 
 	private async _removeArtifact(resolution: IAgentHostSessionResolution, artifact: ISessionArtifact): Promise<void> {

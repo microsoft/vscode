@@ -82,6 +82,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate));
 		this._pickerWidget.setSelectedModel(delegate.currentModel.get());
 		this._pickerWidget.setCompact(pickerOptions.compact);
+		this._pickerWidget.setContextViewLayer(pickerOptions.contextViewLayer);
 		if (pickerOptions.minimal) {
 			this._pickerWidget.setMinimal(pickerOptions.minimal);
 		}
@@ -100,10 +101,12 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		this._container = container;
+		// Style the container before rendering, so the picker measures its name with
+		// the sizes it will be laid out at.
+		container.classList.add('chat-input-picker-item', 'model-picker-item');
 		this._pickerWidget.render(container);
 		this.element = this._pickerWidget.domNode;
 		this._updateTooltip();
-		container.classList.add('chat-input-picker-item', 'model-picker-item');
 		this._updateMinimumWidth(this._pickerWidget.minimumWidth);
 	}
 

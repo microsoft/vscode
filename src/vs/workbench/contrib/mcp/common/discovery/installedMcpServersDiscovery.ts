@@ -107,6 +107,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					},
 					devMode: config.dev,
 					version: config.version,
+					gallery: config.gallery,
 					presentation: {
 						order: mcpConfigPath?.order,
 						origin: mcpConfigPath?.locations.get(server.name)

@@ -49,6 +49,32 @@ export type CustomizationMigrationTargetFolders = ReadonlyMap<PromptsType, Reado
 
 export interface ICustomizationMigrationOptions {
 	readonly deleteOriginalFiles?: boolean;
+	/**
+	 * Resolves the target folder for a single customization. Used to keep workspace
+	 * customizations of a multi-root workspace inside their own workspace folder.
+	 * Falls back to the target folder of the customization type and storage.
+	 */
+	readonly resolveTargetFolder?: (customization: MigratableConfiguration, targetType: PromptsType) => ICustomizationSourceFolder | undefined;
+}
+
+/**
+ * Picks the corresponding target folder in the customization's workspace group.
+ */
+export function resolveWorkspaceMigrationTargetFolder(
+	workspaceGroupId: string | undefined,
+	targetFolder: ICustomizationSourceFolder,
+	availableFolders: readonly ICustomizationSourceFolder[],
+): ICustomizationSourceFolder {
+	if (!workspaceGroupId) {
+		return targetFolder;
+	}
+
+	const workspaceFolders = availableFolders.filter(folder => folder.workspaceGroupId === workspaceGroupId);
+	return workspaceFolders.find(folder => hasSameFolderLayout(folder.uri, targetFolder.uri)) ?? workspaceFolders[0] ?? targetFolder;
+}
+
+function hasSameFolderLayout(folder: URI, other: URI): boolean {
+	return basename(folder) === basename(other) && basename(dirname(folder)) === basename(dirname(other));
 }
 
 const retainedPromptHeaderKeys = new Set([
@@ -144,7 +170,7 @@ export async function migrateCustomizations(
 			for (const customization of sourceCustomizations) {
 				failureReason = FileCustomizationMigrationFailureReason.TargetResolutionFailed;
 				const targetType = getCustomizationMigrationTargetType(customization);
-				const targetFolder = targetFolders.get(targetType)?.get(customization.storage);
+				const targetFolder = options?.resolveTargetFolder?.(customization, targetType) ?? targetFolders.get(targetType)?.get(customization.storage);
 				if (!targetFolder) {
 					throw new Error(`No ${targetType} target folder is configured for ${customization.storage} customizations.`);
 				}

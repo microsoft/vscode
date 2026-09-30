@@ -560,7 +560,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				}
 				return true;
 			},
-			autoExpandSingleChildren: true,
+			autoExpandCompressedChildren: true,
 			expandOnlyOnTwistieClick: (e: unknown) => {
 				if (e instanceof ExplorerItem) {
 					if (e.hasNests) {

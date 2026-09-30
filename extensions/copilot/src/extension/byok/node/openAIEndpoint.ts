@@ -148,6 +148,12 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	 */
 	public readonly ownsAuthorization = true;
 
+	/**
+	 * BYOK gateways (e.g. LiteLLM) may not forward `prompt_cache_breakpoint` markers, so explicit
+	 * Responses API prompt caching stays off unless the user opts in.
+	 */
+	public readonly promptCacheBreakpointsRequireOptIn = true;
+
 	protected override getCompletionsCallback(): RawMessageConversionCallback {
 		const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
 		return (out, data) => {

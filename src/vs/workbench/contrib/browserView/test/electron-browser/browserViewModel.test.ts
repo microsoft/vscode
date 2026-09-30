@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { BrowserViewStorageScope, browserZoomDefaultIndex, IBrowserViewService, IBrowserViewState } from '../../../../../platform/browserView/common/browserView.js';
@@ -15,7 +16,7 @@ import { AgentNetworkFilterService } from '../../../../../platform/networkFilter
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { BrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BrowserViewModel, createBrowserViewEventEmitters, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
 
 suite('BrowserViewModel', () => {
@@ -28,20 +29,6 @@ suite('BrowserViewModel', () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
 		const browserViewService = upcastPartial<IBrowserViewService>({
-			onDynamicDidChangePermissions: () => Event.None,
-			onDynamicDidChangeDeviceEmulation: () => Event.None,
-			onDynamicDidNavigate: () => Event.None,
-			onDynamicDidChangeLoadingState: () => Event.None,
-			onDynamicDidChangeDevToolsState: () => Event.None,
-			onDynamicDidChangeTitle: () => Event.None,
-			onDynamicDidChangeFavicon: () => Event.None,
-			onDynamicDidChangeOwner: () => Event.None,
-			onDynamicDidChangeFocus: () => Event.None,
-			onDynamicDidChangeVisibility: () => Event.None,
-			onDynamicDidChangeElementSelectionState: () => Event.None,
-			onDynamicDidChangeAreaSelectionActive: () => Event.None,
-			onDynamicDidChangeRemoteStatus: () => Event.None,
-			onDynamicDidChangeAudiences: () => Event.None,
 			destroyBrowserView: async () => { },
 		});
 		const browserViewWorkbenchService = upcastPartial<IBrowserViewWorkbenchService>({
@@ -97,6 +84,7 @@ suite('BrowserViewModel', () => {
 				undefined,
 				{ ...initialState, url },
 				browserViewService,
+				createBrowserViewEventEmitters(disposables.add(new DisposableStore())),
 				browserViewWorkbenchService,
 				NullTelemetryService,
 				dialogService,

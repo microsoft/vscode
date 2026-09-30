@@ -25,6 +25,8 @@ import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatSetupSource, ChatSetupStrategy, IChatSetupRunOptions } from '../../../browser/chatSetup/chatSetup.js';
 import { ChatSetupController } from '../../../browser/chatSetup/chatSetupController.js';
 import { ChatSetup, ChatSetupDialog } from '../../../browser/chatSetup/chatSetupRunner.js';
+import { IChatMicrosoftSignInProbeService } from '../../../browser/chatSetup/chatSetupMicrosoftProbe.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 
 suite('Chat setup dialog external sign-in', () => {
 
@@ -97,6 +99,7 @@ suite('Chat setup dialog external sign-in', () => {
 			resolveGitHubUrl: path => `https://github.com/${path}`,
 		});
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatMicrosoftSignInProbeService, { offerMicrosoftSignIn: constObservable(false), notifySignInShown() { } });
 		instantiationService.stub(ILayoutService, {});
 		instantiationService.stubInstance(ChatSetupDialog, {
 			show: () => {

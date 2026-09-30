@@ -15,7 +15,7 @@ import { IAutomodeService, reportAutoModeRouting } from '../../../platform/endpo
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { ChatExtPerfMark, clearChatExtMarks, markChatExt } from '../../../util/common/performance';
-import { Disposable, DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { autorun } from '../../../util/vs/base/common/observableInternal';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -207,15 +207,18 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 	private getChatParticipantHandler(id: string, name: string, defaultIntentIdOrGetter: IntentOrGetter): vscode.ChatExtendedRequestHandler {
 		return async (request, context, stream, token): Promise<vscode.ChatResult> => {
 			markChatExt(request.sessionId, ChatExtPerfMark.WillHandleParticipant);
-			// Installed before anything resolves an endpoint, since that is what
-			// triggers Auto's first route. Inline chat has no room for the row.
-			const autoRouting = request.location2 === undefined && !isAutoExplainabilityHidden(this.experimentationService)
-				? reportAutoModeRouting(request, stream, this.automodeService)
-				: Disposable.None;
+			// Tier attribution is needed even when the routing row is hidden.
+			const autoRouting = reportAutoModeRouting(request, stream, this.automodeService, request.location2 === undefined && !isAutoExplainabilityHidden(this.experimentationService));
+			stream = autoRouting.stream;
 			try {
 				// If we need to switch to the base model, this function will handle it
 				// Otherwise it just returns the same request passed into it
-				request = await this.switchToBaseModel(request, stream);
+				const switched = await this.switchToBaseModel(request, stream);
+				if (switched !== request) {
+					// The turn no longer runs on Auto, so its edits are not Auto's to attribute.
+					autoRouting.clearTier();
+				}
+				request = switched;
 
 				// Handle switch-to-auto confirmation button clicks from rate limit errors
 				const switchToAutoConfirmation = getSwitchToAutoOnRateLimitConfirmation(request);

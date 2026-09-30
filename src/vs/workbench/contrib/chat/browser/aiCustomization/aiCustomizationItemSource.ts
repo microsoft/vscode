@@ -15,12 +15,14 @@ import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
 import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
@@ -31,6 +33,11 @@ import { sourceToIcon } from './aiCustomizationIcons.js';
 import { type AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 
 // #region Interfaces
+
+interface IAICustomizationMarketplaceMetadata {
+	readonly resource: ICustomizationMarketplaceResource;
+	readonly state: RecordedCustomizationMarketplaceInstallState;
+}
 
 /**
  * Represents an AI customization item in the list widget.
@@ -57,6 +64,8 @@ export interface IAICustomizationListItem {
 	readonly badgeTooltip?: string;
 	/** When set, overrides the default prompt-type icon. */
 	readonly typeIcon?: ThemeIcon;
+	/** Marketplace installation associated with this exact local item. */
+	readonly marketplace?: IAICustomizationMarketplaceMetadata;
 	/** True when item comes from the default chat extension (grouped under Built-in). */
 	readonly isBuiltin?: boolean;
 	/** Display name of the contributing extension (for non-built-in extension items). */

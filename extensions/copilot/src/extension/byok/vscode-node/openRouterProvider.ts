@@ -38,6 +38,10 @@ interface OpenRouterModelData {
 		/** Maximum tokens the primary provider will produce in a response. */
 		max_completion_tokens?: number;
 	};
+	reasoning?: {
+		supported_efforts?: string[] | null;
+		default_effort?: string;
+	};
 }
 
 /**
@@ -87,9 +91,14 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 		// OpenRouter reports reasoning support per model via `supported_parameters`. The unified `reasoning` parameter and
 		// the OpenAI-style `reasoning_effort` alias both indicate the model accepts an effort level.
 		// See https://openrouter.ai/docs/use-cases/reasoning-tokens
+		const supportedEfforts = openRouterModelData.reasoning?.supported_efforts ?? ['low', 'medium', 'high'];
 		const supportsReasoningEffort = supportedParameters.includes('reasoning') || supportedParameters.includes('reasoning_effort')
-			? ['low', 'medium', 'high']
+			? supportedEfforts
 			: undefined;
+
+		// Set OpenRouter model's default reasoning effort if it is reported.
+		const defaultReasoningEffort = openRouterModelData.reasoning?.default_effort;
+
 		// Prefer the model-level `context_length` (the real capability) over
 		// `top_provider.context_length`, which only reflects OpenRouter's
 		// highest-ranked provider and can be much smaller for multi-provider models.
@@ -105,7 +114,8 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 			vision: openRouterModelData.architecture?.input_modalities?.includes('image') ?? false,
 			maxInputTokens: contextWindow - maxOutputTokens,
 			maxOutputTokens,
-			supportsReasoningEffort
+			supportsReasoningEffort,
+			defaultReasoningEffort
 		};
 	}
 

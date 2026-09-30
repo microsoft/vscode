@@ -44,7 +44,15 @@ const secondStandaloneEndpoint = { type: 'standalone', pid: 333, instanceId: 'st
 suite('TunnelAgentHostService discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(getSessions: (provider: string) => readonly AuthenticationSession[], channel: IChannel = new class extends mock<IChannel>() { }()): TunnelAgentHostService {
+	function createService(
+		getSessions: (provider: string) => readonly AuthenticationSession[],
+		channel: IChannel = new class extends mock<IChannel>() { }(),
+		options?: {
+			onFactory: (factory: IRemoteAgentHostConnectionFactory) => void;
+			createSession: (provider: string) => Promise<AuthenticationSession>;
+			dialogService?: IDialogService;
+		},
+	): TunnelAgentHostService {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISharedProcessService, new class extends mock<ISharedProcessService>() {
 			override getChannel(): IChannel {
@@ -53,7 +61,8 @@ suite('TunnelAgentHostService discovery', () => {
 		}());
 		instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConnections = Event.None;
-			override registerConnectionFactory(_factory: IRemoteAgentHostConnectionFactory) {
+			override registerConnectionFactory(factory: IRemoteAgentHostConnectionFactory) {
+				options?.onFactory(factory);
 				return { dispose() { } };
 			}
 		}());
@@ -62,6 +71,12 @@ suite('TunnelAgentHostService discovery', () => {
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override async getSessions(provider: string): Promise<readonly AuthenticationSession[]> {
 				return getSessions(provider);
+			}
+			override async createSession(provider: string): Promise<AuthenticationSession> {
+				if (!options) {
+					throw new Error('Unexpected interactive authentication');
+				}
+				return options.createSession(provider);
 			}
 		}());
 		instantiationService.stub(IProductService, {
@@ -74,11 +89,87 @@ suite('TunnelAgentHostService discovery', () => {
 		});
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 		instantiationService.stub(IEnvironmentService, new class extends mock<IEnvironmentService>() { }());
-		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, new class extends mock<IRemoteAgentHostLocationPreferenceService>() { }());
-		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() { }());
+		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, new class extends mock<IRemoteAgentHostLocationPreferenceService>() {
+			override getPreference() { return undefined; }
+		}());
+		instantiationService.stub(IDialogService, options?.dialogService ?? new class extends mock<IDialogService>() { }());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
 		return store.add(instantiationService.createInstance(TunnelAgentHostService));
 	}
+
+	for (const authProvider of ['github', 'microsoft', undefined] as const) {
+		test(`cached prompt-mode tunnels do not authenticate interactively (${authProvider ?? 'automatic provider'})`, async () => {
+			let factory: IRemoteAgentHostConnectionFactory | undefined;
+			const interactiveProviders: string[] = [];
+			const service = createService(() => [], undefined, {
+				onFactory: value => { factory = value; },
+				createSession: async provider => {
+					interactiveProviders.push(provider);
+					return { id: provider, accessToken: 'token', scopes: ['tunnel'], account: { id: provider, label: provider } };
+				},
+			});
+			for (let i = 0; i < 9; i++) {
+				service.cacheTunnel({ tunnelId: `cached-${i}`, clusterId: 'cluster', name: 'Cached', tags: [], protocolVersion: 6, hostConnectionCount: 1 }, authProvider);
+			}
+			assert.ok(factory);
+			await Promise.all(factory.entries.get().map(entry => assert.rejects(
+				factory!.createConnection(entry, { userInitiated: false }),
+				/No cached authentication available/,
+			)));
+			assert.deepStrictEqual(interactiveProviders, []);
+		});
+	}
+
+	test('background connections still prompt for affinity when a cached token exists but no location preference is saved', async () => {
+		let factory: IRemoteAgentHostConnectionFactory | undefined;
+		const commands: string[] = [];
+		let prompts = 0;
+		const service = createService(
+			() => [{ id: 'github', accessToken: 'token', scopes: ['tunnel'], account: { id: 'github', label: 'GitHub' } }],
+			new class extends mock<IChannel>() {
+				override async call<T>(command: string): Promise<T> {
+					commands.push(command);
+					return (command === 'prepareSelection'
+						? { selectionId: 'selection', inventory: inventory([editorEndpoint]) }
+						: undefined) as T;
+				}
+			}(),
+			{
+				onFactory: value => { factory = value; },
+				createSession: async () => { throw new Error('Unexpected interactive authentication'); },
+				dialogService: new class extends mock<IDialogService>() {
+					override async prompt(): Promise<never> {
+						prompts++;
+						throw new Error('Affinity prompt shown');
+					}
+				}(),
+			},
+		);
+		service.cacheTunnel({ tunnelId: 'cached', clusterId: 'cluster', name: 'Cached', tags: [], protocolVersion: 6, hostConnectionCount: 1 }, 'github');
+		assert.ok(factory);
+		await assert.rejects(factory.createConnection(factory.entries.get()[0], { userInitiated: false }), /Affinity prompt shown/);
+		assert.deepStrictEqual({ commands, prompts }, { commands: ['prepareSelection'], prompts: 1 });
+	});
+
+	test('explicit tunnel connections can authenticate interactively', async () => {
+		let factory: IRemoteAgentHostConnectionFactory | undefined;
+		const interactiveProviders: string[] = [];
+		const service = createService(() => [], new class extends mock<IChannel>() {
+			override async call<T>(): Promise<T> {
+				throw new Error('Authenticated connection reached the gateway');
+			}
+		}(), {
+			onFactory: value => { factory = value; },
+			createSession: async provider => {
+				interactiveProviders.push(provider);
+				return { id: provider, accessToken: 'token', scopes: ['tunnel'], account: { id: provider, label: provider } };
+			},
+		});
+		service.cacheTunnel({ tunnelId: 'cached', clusterId: 'cluster', name: 'Cached', tags: [], protocolVersion: 6, hostConnectionCount: 1 }, 'github');
+		assert.ok(factory);
+		await assert.rejects(factory.createConnection(factory.entries.get()[0], { userInitiated: true }), /Authenticated connection reached the gateway/);
+		assert.deepStrictEqual(interactiveProviders, ['github']);
+	});
 
 	test('rejects silent discovery when authentication is unavailable', async () => {
 		const service = createService(() => []);

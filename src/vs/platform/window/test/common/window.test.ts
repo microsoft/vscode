@@ -27,7 +27,7 @@ suite('window', () => {
 		const parsed = parseExternalAgentsWindowNewSessionLinkUri(link, 'vscode-insiders');
 
 		assert.deepStrictEqual(parsed && {
-			workspace: parsed.workspaceUri.toString(),
+			workspace: parsed.workspaceUri?.toString(),
 			draft: parsed.draft,
 		}, {
 			workspace: 'file:///Users/example/project',
@@ -38,13 +38,25 @@ suite('window', () => {
 		});
 	});
 
+	test('parses an external Agents Window new-session link without a workspace', () => {
+		const parsed = parseExternalAgentsWindowNewSessionLinkUri('vscode-insiders://agents/new?prompt=Draft%20without%20a%20workspace', 'vscode-insiders');
+
+		assert.deepStrictEqual(parsed, {
+			workspaceUri: undefined,
+			draft: {
+				inputText: 'Draft without a workspace',
+				attachments: '[]',
+			},
+		});
+	});
+
 	test('rejects invalid external Agents Window new-session links', () => {
 		assert.deepStrictEqual([
 			parseExternalAgentsWindowNewSessionLinkUri('vscode://agents/new?workspace=file%3A%2F%2F%2Fproject&prompt=Fix', 'vscode-insiders'),
 			parseExternalAgentsWindowNewSessionLinkUri('vscode-insiders://extensions/new?workspace=file%3A%2F%2F%2Fproject&prompt=Fix', 'vscode-insiders'),
 			parseExternalAgentsWindowNewSessionLinkUri('vscode-insiders://agents/session?workspace=file%3A%2F%2F%2Fproject&prompt=Fix', 'vscode-insiders'),
-			parseExternalAgentsWindowNewSessionLinkUri('vscode-insiders://agents/new?prompt=Fix', 'vscode-insiders'),
 			parseExternalAgentsWindowNewSessionLinkUri('vscode-insiders://agents/new?workspace=file%3A%2F%2F%2Fproject', 'vscode-insiders'),
+			parseExternalAgentsWindowNewSessionLinkUri('vscode-insiders://agents/new?workspace=&prompt=Fix', 'vscode-insiders'),
 			parseExternalAgentsWindowNewSessionLinkUri('vscode-insiders://agents/new?workspace=project&prompt=Fix', 'vscode-insiders'),
 		], [undefined, undefined, undefined, undefined, undefined, undefined]);
 	});

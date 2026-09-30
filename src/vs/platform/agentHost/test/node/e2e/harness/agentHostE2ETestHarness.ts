@@ -904,7 +904,12 @@ export class AgentHostE2EServerLease {
 			claudeSdkRoot: startOptions.claudeSdkRoot,
 			codexSdkRoot: startOptions.codexSdkRoot,
 			...this._createDataDirectories(),
-			env: { [AgentHostSessionResidencyLimitEnvVar]: '0' },
+			env: {
+				[AgentHostSessionResidencyLimitEnvVar]: '0',
+				// Keep replay deterministic when tests run inside a Copilot app process
+				// that has local experimental CLI tools enabled.
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: '',
+			},
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
@@ -986,6 +991,8 @@ export class AgentHostE2EServerLease {
 		if (!server || !proxy || !capiReplay) {
 			throw new Error('[agent-host-e2e] no replay-backed server to restart');
 		}
+		// Provider discovery after a restart must not leak persisted conversations into the next test.
+		this._needsFreshDataDirectory = true;
 
 		if (crash) {
 			await killServer(server);
@@ -1054,6 +1061,7 @@ export class AgentHostE2EServerLease {
 			this._modelBackedTestsOnCurrentServer = 0;
 			this._testsOnCurrentServer = 0;
 		}
+		this._startOptions = { ...this._startOptions, ...this._createDataDirectories() };
 	}
 
 	get observedModelRequestBodies(): readonly string[] {
@@ -1187,7 +1195,7 @@ export class AgentHostE2EServerLease {
 		createdSessions.length = 0;
 		this._client = undefined;
 
-		const mustRestart = forceRestart || cleanupErrors.length > 0;
+		const mustRestart = forceRestart || cleanupErrors.length > 0 || this._needsFreshDataDirectory;
 		if (this._shared && !mustRestart) {
 			// Surface this test's strict replay failures but keep the server (and
 			// its cached SDK client) alive for the next test.

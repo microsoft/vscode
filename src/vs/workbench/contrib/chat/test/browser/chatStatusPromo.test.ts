@@ -15,7 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -57,7 +57,7 @@ suite('ChatStatusPromo', () => {
 
 	function fixture(options: {
 		metadata?: Partial<ILanguageModelChatMetadata>; configured?: ChatClosedPromoNotification;
-		treatment?: Promise<string | undefined>; visible?: boolean; chatVisible?: boolean; storedKey?: string;
+		treatment?: Promise<string | undefined>; visible?: boolean; chatVisible?: boolean; storedKey?: string; hoverService?: IHoverService;
 	} = {}, instantiation = store.add(new TestInstantiationService())) {
 		const model: ILanguageModelChatMetadata = {
 			extension: new ExtensionIdentifier('test'), id: 'gpt-5', name: 'GPT-5', vendor: 'copilot', version: '1',
@@ -99,6 +99,7 @@ suite('ChatStatusPromo', () => {
 		widgets.onDidAddWidget = widgetAdded.event;
 		sinon.stub(widgets, 'getAllWidgets').callsFake(() => state.widgets);
 		instantiation.stub(IChatWidgetService, widgets);
+		instantiation.stub(IHoverService, options.hoverService ?? new class extends mock<IHoverService>() { override hideHover() { } }());
 		const promo = store.add(instantiation.createInstance(ChatStatusPromo));
 		let entry: ReturnType<ChatStatusPromo['getEntryProps']>;
 		const update = () => { entry = promo.getEntryProps(state.visible); };
@@ -359,4 +360,40 @@ suite('ChatStatusPromo', () => {
 			hover.hideHover(true);
 		}));
 	}
+
+	test('Try closes the pinned offer instead of swapping in the dashboard', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const instantiation = store.add(workbenchInstantiationService(undefined, store));
+		instantiation.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
+				await CommandsRegistry.getCommand(id)!.handler(undefined!, ...args);
+				return undefined;
+			}
+		}());
+		const hover = store.add(instantiation.createInstance(HoverService));
+		const f = fixture({ configured: ChatClosedPromoNotification.CopilotIconPopup, hoverService: hover }, instantiation);
+		chatView(f, 'local');
+		// Like the real views service, reveal Chat synchronously before the first await.
+		sinon.stub(instantiation.get(IViewsService), 'openView').callsFake(async <T extends IView>() => {
+			f.state.chatVisible = true;
+			f.viewVisibility.fire({ id: ChatViewId, visible: true });
+			return f.state.view as T;
+		});
+		const container = dom.append(document.body, dom.$('.statusbar-item'));
+		store.add(toDisposable(() => container.remove()));
+		const delegate = store.add(instantiation.createInstance(WorkbenchHoverDelegate, 'element', { dynamicDelay: () => 500 }, (_options, focus) => ({
+			persistence: { hideOnKeyDown: true, sticky: focus },
+		})));
+		const props = () => ({ name: 'Copilot', text: '$(copilot)', ariaLabel: 'Copilot', tooltip: f.entry?.tooltip ?? 'Dashboard', command: ToggleTooltipCommand });
+		const item = store.add(instantiation.createInstance(StatusbarEntryItem, container, props(), delegate));
+		store.add(f.promo.onDidChange(() => item.update(props())));
+		item.labelContainer.click();
+		await timeout(0);
+		const offer = document.querySelector('.monaco-hover .html-hover-contents')?.textContent;
+		document.querySelector<HTMLElement>('.monaco-hover .action-container')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			offer, hover: document.querySelector('.monaco-hover')?.textContent, dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION),
+		}, { offer: ' Save 20%', hover: undefined, dismissed: '["sale"]' });
+		hover.hideHover(true);
+	}));
 });

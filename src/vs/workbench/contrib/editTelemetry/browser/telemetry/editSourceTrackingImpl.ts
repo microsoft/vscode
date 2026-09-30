@@ -5,6 +5,7 @@
 
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../../base/common/arrays.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
+import { groupByMap } from '../../../../../base/common/collections.js';
 import { toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange, autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -24,6 +25,12 @@ import { IRandomService } from '../randomService.js';
 import { AgentHostEditAttributionDeferredError, AgentHostEditAttributionUnknownOutcomeError, IAgentHostEditMarkerService, IPreparedAgentHostEditAttributionFlush } from './agentHostEditMarkerService.js';
 
 const FOCUS_CORRELATION_DRAIN_TIMEOUT = 1_000;
+
+function getDetailsGroupingKey(source: TextModelEditSource, sourceKey = source.toKey(1)): string {
+	return source.props.$origin === 'agentHost' && source.props.$$chatSessionId !== undefined
+		? JSON.stringify([sourceKey, source.props.$$sessionId, source.props.$$chatSessionId])
+		: sourceKey;
+}
 
 export type EditTelemetryCategory = 'nes' | 'inlineCompletionsCopilot' | 'inlineCompletionsNES' | 'inlineCompletionsOther' | 'otherAI' | 'agentHost' | 'user' | 'ide' | 'external' | 'unknown';
 
@@ -267,7 +274,7 @@ class TrackedDocumentInfo extends Disposable {
 		}>();
 		for (const internalKey of internalKeys) {
 			const representative = t.getRepresentative(internalKey)!;
-			const telemetryKey = representative.toKey(1);
+			const telemetryKey = getDetailsGroupingKey(representative);
 			const entry = telemetryKeys.get(telemetryKey) ?? {
 				representative,
 				modifiedCount: 0,
@@ -278,37 +285,42 @@ class TrackedDocumentInfo extends Disposable {
 		}
 		for (const range of ranges) {
 			const representative = t.getRepresentative(range.sourceKey)!;
-			const entry = telemetryKeys.get(representative.toKey(1));
+			const entry = telemetryKeys.get(getDetailsGroupingKey(representative));
 			if (entry) {
 				entry.modifiedCount += range.range.length;
 			}
 		}
-		const sums = Object.fromEntries(Array.from(telemetryKeys, ([key, value]) => [key, value.modifiedCount]));
-		const entries = Object.entries(sums)
-			.filter((entry): entry is [string, number] => entry[1] !== undefined)
-			.sort(reverseOrder(compareBy(([, value]) => value, numberComparator)))
-			.slice(0, mode === 'longterm' ? 30 : 10);
+		// Apply the source cap before subdividing by Auto tier so no selected source loses contributions.
+		const sourceGroups = groupByMap(Array.from(telemetryKeys), ([, entry]) => getDetailsGroupingKey(entry.representative, entry.representative.toKey(1, { $autoTier: false })));
+		const entries = Array.from(sourceGroups.values(), entries => ({
+			entries,
+			modifiedCount: sumBy(entries, ([, entry]) => entry.modifiedCount),
+		}))
+			.sort(reverseOrder(compareBy(group => group.modifiedCount, numberComparator)))
+			.slice(0, mode === 'longterm' ? 30 : 10)
+			.flatMap(group => group.entries);
 
-		for (const [key, value] of entries) {
-			const telemetryEntry = telemetryKeys.get(key)!;
+		for (const [, telemetryEntry] of entries) {
 			const repr = telemetryEntry.representative;
 			const deltaModifiedCount = telemetryEntry.deltaModifiedCount;
 
 			sendEditSourcesDetailsTelemetry(this._telemetryService, {
 				mode,
-				sourceKey: key,
-				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false }),
+				sourceKey: repr.toKey(1),
+				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false, $autoTier: false }),
 				extensionId: repr.props.$extensionId,
 				extensionVersion: repr.props.$extensionVersion,
 				modelId: repr.props.$modelId,
+				autoTier: repr.props.$autoTier,
 				trigger,
 				languageId: this._doc.document.languageId.get(),
 				statsUuid: statsUuid,
 				conversationId: repr.props.$$sessionId,
+				...(repr.props.$$chatSessionId !== undefined ? { chatSessionId: repr.props.$$chatSessionId } : {}),
 				requestId: repr.props.$$requestId,
 				origin: repr.props.$origin,
 				harness: repr.props.$harness,
-				modifiedCount: value,
+				modifiedCount: telemetryEntry.modifiedCount,
 				deltaModifiedCount: deltaModifiedCount,
 				totalModifiedCount,
 			});

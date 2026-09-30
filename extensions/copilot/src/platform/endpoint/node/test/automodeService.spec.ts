@@ -6,9 +6,12 @@
 import { RequestType } from '@vscode/copilot-api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatRequest } from 'vscode';
+import { SpyChatResponseStream } from '../../../../util/common/test/mockChatResponseStream';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { Emitter } from '../../../../util/vs/base/common/event';
+import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation } from '../../../../vscodeTypes';
+import { ChatLocation, ChatResponseAutoModeResolutionPart, ChatResponseTextEditPart, Uri } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { BaseConfig, ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
@@ -18,9 +21,9 @@ import { ILogService } from '../../../log/common/logService';
 import { IChatEndpoint } from '../../../networking/common/networking';
 import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
-import { defaultAutoModeTier } from '../../common/autoModeTiers';
+import { defaultAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers';
 import { ICAPIClientService } from '../../common/capiClient';
-import { AutomodeService } from '../automodeService';
+import { AutomodeService, reportAutoModeRouting } from '../automodeService';
 
 function createMockHeaders(entries: Record<string, string> = {}): { get(name: string): string | null } {
 	const lower: Record<string, string> = {};
@@ -31,6 +34,7 @@ function createMockHeaders(entries: Record<string, string> = {}): { get(name: st
 }
 
 describe('AutomodeService', () => {
+	const disposables = new DisposableStore();
 	let automodeService: AutomodeService;
 	let mockCAPIClientService: ICAPIClientService;
 	let mockAuthService: IAuthenticationService;
@@ -162,6 +166,8 @@ describe('AutomodeService', () => {
 	});
 
 	afterEach(() => {
+		automodeService?.dispose();
+		disposables.clear();
 		vi.useRealTimers();
 	});
 
@@ -572,6 +578,59 @@ describe('AutomodeService', () => {
 			} as unknown as ChatRequest, [textOnly, visionModel]);
 
 			expect({ first: first.model, second: second.model }).toEqual({ first: 'gpt-4o', second: 'gpt-4o-vision' });
+		});
+	});
+
+	describe('edit attribution', () => {
+		const request = { id: 'turn', prompt: 'edit', location: ChatLocation.Panel, sessionId: 'tier-session' } as ChatRequest;
+		const uri = Uri.parse('test:/file.ts');
+		const edit = (autoTier?: AutoModeTier) => Object.assign(new ChatResponseTextEditPart(uri, []), { autoTier });
+
+		it.each([true, false])('stamps the resolved tier on edits and clears it on failure or request (visible routing: %s)', async reportRouting => {
+			automodeService = createService();
+			const spies = [request.id, 'unrelated', undefined].map(() => new SpyChatResponseStream());
+			const [reporter] = spies.map((spy, i) => disposables.add(reportAutoModeRouting({ ...request, id: [request.id, 'unrelated', undefined][i] } as ChatRequest, spy, automodeService, reportRouting)));
+
+			await automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
+			reporter.stream.textEdit(uri, []);
+			await automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
+			reporter.stream.textEdit(uri, []);
+			await automodeService.resolveAutoModeEndpoint({ ...request, id: undefined }, [mockChatEndpoint]);
+			reporter.clearTier();
+			reporter.stream.textEdit(uri, []);
+			await automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
+			automodeService.invalidateRouterCache(request);
+			await configurationService.setConfig(ConfigKey.Shared.AutoModeTierOverride, 'intelligence');
+			mockAuto({ error: 'server_error' }, 500);
+			await expect(automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint])).rejects.toThrow();
+			reporter.stream.textEdit(uri, []);
+
+			expect(spies.map(spy => spy.items)).toEqual([[
+				...(reportRouting ? [new ChatResponseAutoModeResolutionPart(), new ChatResponseAutoModeResolutionPart({ id: mockChatEndpoint.model, name: mockChatEndpoint.name })] : []),
+				edit('balance'),
+				edit('balance'),
+				edit(undefined),
+				...(reportRouting ? [new ChatResponseAutoModeResolutionPart()] : []),
+				edit(undefined),
+			], [], []]);
+		});
+
+		it('disposes the routing listener while routing is in flight', async () => {
+			automodeService = createService();
+			const pending = new DeferredPromise<ReturnType<typeof makeAutoResponse>>();
+			vi.mocked(mockCAPIClientService.makeRequest).mockImplementationOnce(() => pending.p);
+			const spy = new SpyChatResponseStream();
+			const reporter = disposables.add(reportAutoModeRouting(request, spy, automodeService));
+
+			const result = automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
+			reporter.dispose();
+			await pending.complete(makeAutoResponse(autoResponse(mockChatEndpoint.model)));
+			await result;
+			automodeService.invalidateRouterCache(request);
+			await automodeService.resolveAutoModeEndpoint(request, [mockChatEndpoint]);
+			reporter.stream.textEdit(uri, []);
+
+			expect(spy.items).toEqual([new ChatResponseAutoModeResolutionPart(), edit(undefined)]);
 		});
 	});
 

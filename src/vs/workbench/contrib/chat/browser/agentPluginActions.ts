@@ -13,6 +13,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICustomizationMarketplaceInstallService } from '../common/customizationMarketplaceInstallService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { ContributionEnablementState, IEnablementModel, isContributionDisabled, isContributionEnabled } from '../common/enablement.js';
@@ -51,7 +52,7 @@ export class InstallPluginAction extends Action {
 }
 
 export class UninstallPluginAction extends Action {
-	constructor(private readonly plugin: IAgentPlugin & { remove(): Promise<boolean> }) {
+	constructor(private readonly removePlugin: () => Promise<boolean>) {
 		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', true);
 	}
 
@@ -60,7 +61,7 @@ export class UninstallPluginAction extends Action {
 	}
 
 	runAndGetResult(): Promise<boolean> {
-		return this.plugin.remove();
+		return this.removePlugin();
 	}
 }
 
@@ -68,10 +69,22 @@ function isRemovableAgentPlugin(plugin: IAgentPlugin): plugin is IAgentPlugin & 
 	return plugin.remove !== undefined;
 }
 
-export function createUninstallPluginAction(plugin: IAgentPlugin): UninstallPluginAction | undefined {
+export function createUninstallPluginAction(plugin: IAgentPlugin, removePlugin?: () => Promise<boolean>): UninstallPluginAction | undefined {
 	return isRemovableAgentPlugin(plugin) && getPluginPolicyEnablement(plugin) !== true
-		? new UninstallPluginAction(plugin)
+		? new UninstallPluginAction(removePlugin ?? (() => plugin.remove()))
 		: undefined;
+}
+
+export async function removePluginWithMarketplaceOwnership(
+	plugin: IAgentPlugin,
+	marketplaceInstallService: ICustomizationMarketplaceInstallService,
+): Promise<boolean> {
+	const marketplace = marketplaceInstallService.installations.get().findByTarget({ kind: 'plugin', uri: plugin.uri });
+	if (marketplace) {
+		await marketplaceInstallService.uninstall(marketplace.resource);
+		return true;
+	}
+	return await plugin.remove?.() ?? false;
 }
 
 export class OpenPluginFolderAction extends Action {
@@ -146,7 +159,7 @@ export function createPolicyManagedEnablementAction(plugin: IAgentPlugin, notifi
 /**
  * Builds the standard context menu action groups for an installed plugin.
  */
-export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, instantiationService: IInstantiationService): IAction[][] {
+export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, instantiationService: IInstantiationService, removePlugin?: () => Promise<boolean>): IAction[][] {
 	return instantiationService.invokeFunction(accessor => {
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const workspaceService = accessor.get(IWorkspaceContextService);
@@ -168,7 +181,7 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 			instantiationService.createInstance(OpenPluginFolderAction, plugin),
 			instantiationService.createInstance(OpenPluginReadmeAction, joinPath(plugin.uri, 'README.md')),
 		]);
-		const uninstallAction = createUninstallPluginAction(plugin);
+		const uninstallAction = createUninstallPluginAction(plugin, removePlugin);
 		if (uninstallAction) {
 			groups.push([uninstallAction]);
 		}

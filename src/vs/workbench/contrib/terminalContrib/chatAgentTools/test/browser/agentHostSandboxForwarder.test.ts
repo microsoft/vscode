@@ -23,7 +23,9 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import type { ActionEnvelope, IRootConfigChangedAction, INotification, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
+import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AgentHostSandboxForwarder } from '../../browser/agentHostSandboxForwarder.js';
 
 // ---- Mocks ------------------------------------------------------------------
@@ -190,6 +192,7 @@ function setup(disposables: DisposableStore, configValues: Record<string, unknow
 	instantiationService.stub(IRemoteAgentHostService, remote);
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IPathService, new TestPathService());
 	const connectionsService = disposables.add(instantiationService.createInstance(AgentHostConnectionsService));
 	instantiationService.stub(IAgentHostConnectionsService, connectionsService);
 

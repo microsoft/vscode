@@ -38,6 +38,7 @@ import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
@@ -49,9 +50,12 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
+import { ChatArchiveContribution } from '../../node/chatContributions/chatArchive/chatArchiveContribution.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
@@ -60,10 +64,9 @@ import { SessionTitleContribution } from '../../node/chatContributions/sessionTi
 import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
 import { TurnDelegationContribution } from '../../node/chatContributions/turnDelegation/turnDelegationContribution.js';
 import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
-import { ARTIFACT_TOOLS_INSTRUCTION } from '../../node/shared/artifactServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
-import { writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
-import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -128,6 +131,9 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
 
+	readonly pullRequestAttachments: { readonly sessionKey: string; readonly workingDirectory: string | undefined }[] = [];
+	readonly pendingPullRequestReconciliations: string[] = [];
+
 	constructor(private readonly _observed: string[] | undefined) { }
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
@@ -135,21 +141,31 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
-	async attachSessionGitHubPullRequest(_sessionKey: string, _workingDirectory?: URI): Promise<void> {
+	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI): Promise<void> {
+		this.pullRequestAttachments.push({ sessionKey, workingDirectory: workingDirectory?.toString() });
 		this._observed?.push('githubReferences');
+	}
+	async reconcilePendingRecordedPullRequests(chat: string): Promise<void> {
+		this.pendingPullRequestReconciliations.push(chat);
 	}
 }
 
 class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	readonly archiveCalls: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
+	readonly metadata = new Map<string, IWorktreeMetadata>();
 
 	constructor(private readonly _observed: string[] | undefined) {
 		super();
 	}
 
-	override async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
+	override async applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
 		this._observed?.push('worktreeAnnouncement');
-		return turns;
+		const metadata = this.metadata.get(sessionUri.toString());
+		return metadata ? prependAnnouncementToFirstTurn(turns, buildWorktreeAnnouncementText(metadata.branchName)) : turns;
+	}
+
+	override async readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined> {
+		return this.metadata.get(sessionUri.toString());
 	}
 
 	override async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void> {
@@ -857,18 +873,24 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		observed?.push('persistedTurnUsage');
 		return originalGetTurnUsages();
 	};
+	const originalGetPersistedTurns = usageDatabase.getPersistedTurns.bind(usageDatabase);
+	usageDatabase.getPersistedTurns = async () => {
+		observed?.push('persistedFailedTurns');
+		return originalGetPersistedTurns();
+	};
 	const agentConfigService = createConfigurationService(enableSendInstructions);
 	const sessionDataService = createSessionDataService(usageDatabase);
 	const worktree = new RecordingWorktreeIsolation(observed);
 	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionDataService, worktree);
 	const sessionRegistry = disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))));
+	const gitStateService = new RecordingGitStateService(observed);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostCheckpointService, checkpointService],
 		[IAgentHostChangesetService, changesets],
 		[IAgentConfigurationService, agentConfigService],
 		[IAgentHostStateManager, stateManager],
-		[IAgentHostGitStateService, new RecordingGitStateService(observed)],
+		[IAgentHostGitStateService, gitStateService],
 		[IAgentSessionRegistry, sessionRegistry],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
@@ -876,6 +898,10 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentHostWorktreeIsolation, worktree],
 		[IAdditionalWorktreeLifecycleService, additionalWorktreeLifecycle],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+		[IAgentHostPeerChatPersistenceService, {
+			_serviceBrand: undefined,
+			setArchived: async () => { },
+		}],
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
@@ -886,8 +912,11 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	});
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
 	const queueAgent = new MockAgent();
-	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => queueAgent));
-	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
+	const providerService = createTestAgentHostProviderService(() => queueAgent);
+	services.set(IAgentHostProviderService, providerService);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
+	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+	services.set(IAgentHostLocalTurns, localTurns);
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, service);
@@ -903,7 +932,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, localTurns };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -1072,6 +1101,53 @@ suite('AgentHostChatContributions', () => {
 		assert.strictEqual(first, firstAgain);
 		assert.deepStrictEqual([first.get(), second.get(), factoryCalls], [1, 2, 2]);
 		contributions.dispose();
+	});
+
+	test('chat archive contribution persists accepted peer chat actions and logs failures', async () => {
+		const session = 'agent-host-session://archive';
+		const peerChat = buildChatUri(session, 'peer');
+		const failingChat = buildChatUri(session, 'failing-peer');
+		const persisted: { session: string; chat: string; archived: boolean }[] = [];
+		const errors: string[] = [];
+		const logService = new class extends NullLogService {
+			override error(message: string | Error, ...args: unknown[]): void {
+				errors.push([message, ...args].map(value => String(value)).join(' '));
+			}
+		};
+		const peerChatPersistenceService: IAgentHostPeerChatPersistenceService = {
+			_serviceBrand: undefined,
+			setArchived: async (session: URI, chat: URI, archived: boolean) => {
+				if (chat.toString() === failingChat) {
+					throw new Error('write failed');
+				}
+				persisted.push({ session: session.toString(), chat: chat.toString(), archived });
+			},
+		};
+		const services = new ServiceCollection(
+			[ILogService, logService],
+			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+		disposables.add(contributions.registerContribution(ChatArchiveContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
+
+		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
+		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: false }));
+		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'rejected'));
+		contributions.didDispatchAction(dispatchedAction(buildDefaultChatUri(session), session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
+		contributions.didDispatchAction(dispatchedAction(failingChat, session, { type: ActionType.ChatIsArchivedChanged, isArchived: true }));
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			persisted,
+			errors,
+		}, {
+			persisted: [
+				{ session, chat: peerChat, archived: true },
+				{ session, chat: peerChat, archived: false },
+			],
+			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
+		});
 	});
 
 	test('deleteMemento drops a keyed entry so it is recreated from its factory', () => {
@@ -1490,6 +1566,43 @@ suite('AgentHostChatContributions', () => {
 		assert.strictEqual(observed.filter(entry => entry === 'githubReferences').length, 3);
 	});
 
+	test('reconciles the pull request of the folder the turn ran in', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const session = 'agent-host-session://folders';
+		const sessionFolder = 'file:///session';
+		const peerFolder = 'file:///peer';
+		contributions.stateManager.createSession({
+			resource: session,
+			provider: 'test',
+			title: 'Folders',
+			status: SessionStatus.IsRead,
+			createdAt: '2025-01-01T00:00:00.000Z',
+			modifiedAt: '2025-01-01T00:00:00.000Z',
+			workingDirectories: [sessionFolder],
+		});
+		const sessionFolderChat = buildChatUri(session, 'session-folder');
+		const peerFolderChat = buildChatUri(session, 'peer-folder');
+		contributions.stateManager.addChat(session, sessionFolderChat, { workingDirectories: [sessionFolder] });
+		contributions.stateManager.addChat(session, peerFolderChat, { workingDirectories: [peerFolder] });
+
+		for (const channel of [session, buildDefaultChatUri(session), sessionFolderChat, peerFolderChat]) {
+			contributions.service.turnEnd({ session, channel, turnId: channel, reason: { kind: 'success' } });
+		}
+
+		assert.deepStrictEqual({
+			attachments: contributions.gitStateService.pullRequestAttachments,
+			pending: contributions.gitStateService.pendingPullRequestReconciliations,
+		}, {
+			attachments: [
+				{ sessionKey: session, workingDirectory: sessionFolder },
+				{ sessionKey: session, workingDirectory: sessionFolder },
+				{ sessionKey: session, workingDirectory: sessionFolder },
+				{ sessionKey: peerFolderChat, workingDirectory: peerFolder },
+			],
+			pending: [],
+		});
+	});
+
 	test('resumable errors defer checkpoint capture until the logical turn ends', () => {
 		const observed: string[] = [];
 		const contributions = createBuiltInContributions(disposables, observed);
@@ -1644,9 +1757,6 @@ suite('AgentHostChatContributions', () => {
 			if (instruction.includes('<rich_plan_markdown>')) {
 				return 'markdownPlanRichLinks';
 			}
-			if (instruction === ARTIFACT_TOOLS_INSTRUCTION) {
-				return 'artifactTools';
-			}
 			if (instruction.includes('<terminal_chat>')) {
 				return 'chatSurface';
 			}
@@ -1657,7 +1767,7 @@ suite('AgentHostChatContributions', () => {
 				return 'sessionTitle';
 			}
 			return undefined;
-		}), ['markdownPlanRichLinks', 'artifactTools', 'chatSurface', 'remoteSessionOrigin', 'sessionTitle']);
+		}), ['markdownPlanRichLinks', 'chatSurface', 'remoteSessionOrigin', 'sessionTitle']);
 		assert.deepStrictEqual(result.message, { text: injectSideChatContext('built-in-send-order'), origin: { kind: MessageKind.User } });
 	});
 
@@ -1768,65 +1878,6 @@ suite('AgentHostChatContributions', () => {
 			message: { text: 'Continue', origin: { kind: MessageKind.User } },
 		});
 		assert.deepStrictEqual(observed, ['adopted', 'following']);
-	});
-
-	test('adds artifact guidance only to the first turn of a chat', async () => {
-		const contributions = createBuiltInContributions(disposables, undefined, true);
-		const defaultChat = buildDefaultChatUri(contributions.session);
-		const peerChat = buildChatUri(contributions.session, 'peer-artifacts');
-		const restoredChat = buildChatUri(contributions.session, 'restored-artifacts');
-		const emptyRestoredChat = buildChatUri(contributions.session, 'empty-restored-artifacts');
-		for (const [chat, title] of [[peerChat, 'Peer'], [restoredChat, 'Restored'], [emptyRestoredChat, 'Empty']] as const) {
-			contributions.stateManager.addChat(contributions.session, chat, {
-				title,
-				origin: { kind: ChatOriginKind.User },
-			});
-		}
-		await contributions.service.hydrateTurns({ session: contributions.session, chat: restoredChat }, [hydrationTurn('restored-turn')]);
-		await contributions.service.hydrateTurns({ session: contributions.session, chat: emptyRestoredChat }, []);
-		const getArtifactInstructions = async (chat: string, turnId: string) => {
-			const result = await contributions.service.outgoingTurn({
-				session: contributions.session,
-				chat,
-				message: { text: turnId, origin: { kind: MessageKind.User } },
-				turnId,
-			});
-			return result.instructions?.filter(instruction => instruction === ARTIFACT_TOOLS_INSTRUCTION) ?? [];
-		};
-		const expected = [ARTIFACT_TOOLS_INSTRUCTION];
-
-		assert.deepStrictEqual({
-			firstDefault: await getArtifactInstructions(defaultChat, 'default-1'),
-			secondDefault: await getArtifactInstructions(defaultChat, 'default-2'),
-			firstPeer: await getArtifactInstructions(peerChat, 'peer-1'),
-			secondPeer: await getArtifactInstructions(peerChat, 'peer-2'),
-			restored: await getArtifactInstructions(restoredChat, 'restored-2'),
-			firstEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-1'),
-			secondEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-2'),
-		}, {
-			firstDefault: expected,
-			secondDefault: [],
-			firstPeer: expected,
-			secondPeer: [],
-			restored: [],
-			firstEmptyRestored: expected,
-			secondEmptyRestored: [],
-		});
-	});
-
-	test('does not mention unavailable artifact tools', async () => {
-		const contributions = createBuiltInContributions(disposables);
-		const instructions = [];
-		for (const turnId of ['first', 'second']) {
-			const result = await contributions.service.outgoingTurn({
-				session: contributions.session,
-				chat: buildDefaultChatUri(contributions.session),
-				message: { text: turnId, origin: { kind: MessageKind.User } },
-				turnId,
-			});
-			instructions.push(result.instructions);
-		}
-		assert.deepStrictEqual(instructions, [undefined, undefined]);
 	});
 
 	test('title refinement receives terminal outcomes and preserves default-chat identity', () => {
@@ -2089,9 +2140,78 @@ suite('AgentHostChatContributions', () => {
 			{ ...hydrationTurn('built-in-hydration-order'), message: { text: injectSideChatContext('side question'), origin: { kind: MessageKind.User } } },
 		]);
 
-		assert.deepStrictEqual(observed, ['persistedTurnUsage']);
+		assert.deepStrictEqual(observed, ['persistedTurnUsage', 'persistedFailedTurns']);
 		assert.deepStrictEqual(calls, ['beforeSideChat:seed', 'afterSideChat:plain']);
 		assert.deepStrictEqual(turns.map(turn => [turn.id, turn.message.text]), [['built-in-hydration-order', 'side question']]);
+	});
+
+	test('shows the created worktree announcement in its owning peer chat', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const ownerChat = buildChatUri(contributions.session, 'worktree-owner');
+		const otherChat = buildChatUri(contributions.session, 'other-chat');
+		const worktreeDirectory = URI.file('/workspace/repository.worktrees/feature');
+		const handle = generateUuid();
+		const branchName = 'agents/feature';
+		for (const chat of [ownerChat, otherChat]) {
+			contributions.stateManager.addChat(contributions.session, chat, {
+				title: 'Peer Chat',
+				origin: { kind: ChatOriginKind.User },
+				workingDirectories: [worktreeDirectory.toString()],
+			});
+		}
+		await writeSessionAdditionalWorktrees(contributions.sessionDataService, URI.parse(contributions.session), [{
+			handle,
+			workingDirectory: worktreeDirectory.toString(),
+			repositoryRoot: URI.file('/workspace/repository').toString(),
+			chat: ownerChat,
+		}]);
+		contributions.worktree.metadata.set(detachedWorktreeRecordUri(handle).toString(), { branchName });
+
+		const liveParts: { channel: string; content: string }[] = [];
+		disposables.add(contributions.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatResponsePart && envelope.action.part.kind === ResponsePartKind.Markdown) {
+				liveParts.push({ channel: envelope.channel, content: envelope.action.part.content });
+			}
+		}));
+		contributions.stateManager.dispatchServerAction(ownerChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'owner-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'Fix it', origin: { kind: MessageKind.User } },
+		});
+		const outgoing = { session: contributions.session, chat: ownerChat, message: { text: 'Fix it', origin: { kind: MessageKind.User } }, turnId: 'owner-turn' } as const;
+		await contributions.service.outgoingTurn(outgoing);
+		await contributions.service.outgoingTurn(outgoing);
+		await contributions.service.outgoingTurn({ ...outgoing, chat: otherChat });
+
+		const restored = await contributions.service.hydrateTurns(
+			{ session: contributions.session, chat: ownerChat },
+			[hydrationTurn('restored-owner-turn')],
+		);
+		const otherRestored = await contributions.service.hydrateTurns(
+			{ session: contributions.session, chat: otherChat },
+			[hydrationTurn('restored-other-turn')],
+		);
+
+		assert.deepStrictEqual({
+			liveParts,
+			restored: restored[0].responseParts.map(part => part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind }),
+			otherRestored: otherRestored[0].responseParts,
+			rawOwnership: await contributions.database.getMetadata(ADDITIONAL_WORKTREES_METADATA_KEY),
+		}, {
+			liveParts: [{ channel: ownerChat, content: buildWorktreeAnnouncementText(branchName) }],
+			restored: [{
+				kind: ResponsePartKind.Markdown,
+				content: buildWorktreeAnnouncementText(branchName),
+			}],
+			otherRestored: [],
+			rawOwnership: JSON.stringify([{
+				handle,
+				workingDirectory: worktreeDirectory.toString(),
+				repositoryRoot: URI.file('/workspace/repository').toString(),
+				chat: ownerChat,
+			}]),
+		});
 	});
 
 	test('persists and restores agent-authored turn delegation through a provider turn id', async () => {
@@ -2388,12 +2508,17 @@ suite('AgentHostChatContributions', () => {
 
 	test('rejects incoming requests for archived sessions and read-only chats', () => {
 		const archived = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
+		const archivedChat = createBuiltInContributions(disposables);
+		const archivedPeerChat = buildChatUri(archivedChat.session, 'archived');
+		archivedChat.stateManager.addChat(archivedChat.session, archivedPeerChat, { title: 'Archived' });
+		archivedChat.stateManager.dispatchServerAction(archivedPeerChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
 		const readOnly = createBuiltInContributions(disposables);
 		const readOnlyChat = buildChatUri(readOnly.session, 'read-only');
 		readOnly.stateManager.addChat(readOnly.session, readOnlyChat, { title: 'Read-only', interactivity: ChatInteractivity.ReadOnly });
 
 		assert.deepStrictEqual({
 			archived: archived.service.incomingRequest(incomingRequest(archived.session)),
+			archivedChat: archivedChat.service.incomingRequest(incomingRequest(archivedChat.session, archivedPeerChat)),
 			readOnly: readOnly.service.incomingRequest(incomingRequest(readOnly.session, readOnlyChat)),
 		}, {
 			archived: {
@@ -2404,11 +2529,44 @@ suite('AgentHostChatContributions', () => {
 				},
 				stage: 'validation',
 			},
+			archivedChat: {
+				kind: 'reject',
+				error: {
+					errorType: 'archived',
+					message: 'This chat is archived and read-only. Restore the chat to continue the conversation.',
+				},
+				stage: 'validation',
+			},
 			readOnly: {
 				kind: 'reject',
 				error: {
 					errorType: 'readOnly',
 					message: 'This chat is read-only.',
+				},
+				stage: 'validation',
+			},
+		});
+	});
+
+	test('admits an unarchived session default chat with a stale archive flag', () => {
+		const contributions = createBuiltInContributions(disposables, undefined, false, SessionStatus.IsRead | SessionStatus.IsArchived);
+		const defaultChat = buildDefaultChatUri(contributions.session);
+		const archivedPeerChat = buildChatUri(contributions.session, 'archived');
+		contributions.stateManager.addChat(contributions.session, archivedPeerChat, { title: 'Archived' });
+		contributions.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		contributions.stateManager.dispatchServerAction(archivedPeerChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		contributions.stateManager.dispatchServerAction(contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: false });
+
+		assert.deepStrictEqual({
+			defaultChat: contributions.service.incomingRequest(incomingRequest(contributions.session, defaultChat)),
+			peerChat: contributions.service.incomingRequest(incomingRequest(contributions.session, archivedPeerChat)),
+		}, {
+			defaultChat: { kind: 'accept' },
+			peerChat: {
+				kind: 'reject',
+				error: {
+					errorType: 'archived',
+					message: 'This chat is archived and read-only. Restore the chat to continue the conversation.',
 				},
 				stage: 'validation',
 			},
@@ -2780,6 +2938,95 @@ suite('AgentHostChatContributions', () => {
 
 		assert.deepStrictEqual(calls, ['first:initial', 'second:initial,first']);
 		assert.deepStrictEqual(turns.map(turn => turn.id), ['initial', 'first', 'second']);
+	});
+
+	test('persists a terminal failed turn after its nearest non-local predecessor', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildDefaultChatUri(contributions.session);
+		const providerTurn = hydrationTurn('provider-turn');
+		const localTurn = {
+			...hydrationTurn('local-command'),
+			message: { text: '/rename Renamed', origin: { kind: MessageKind.User } },
+		};
+		contributions.stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: providerTurn.id,
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: providerTurn.message,
+		});
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: providerTurn.id, duration: 1 });
+		contributions.stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: localTurn.id,
+			startedAt: '2025-01-01T00:01:00.000Z',
+			message: localTurn.message,
+		});
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: localTurn.id, duration: 1 });
+		contributions.localTurns.record(contributions.session, chat, localTurn, providerTurn.id);
+		contributions.stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'failed-turn',
+			startedAt: '2025-01-01T00:02:00.000Z',
+			message: { text: 'failed prompt', origin: { kind: MessageKind.User } },
+		});
+		contributions.stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatError,
+			turnId: 'failed-turn',
+			duration: 1,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'requestFailed', message: 'failed' } },
+		});
+		contributions.service.turnEnd({
+			session: contributions.session,
+			channel: chat,
+			turnId: 'failed-turn',
+			reason: { kind: 'error', error: { errorType: 'requestFailed', message: 'failed' }, resumable: false },
+		});
+		await timeout(0);
+
+		const [record] = (await contributions.database.getPersistedTurns()).filter(candidate => candidate.kind === 'failed');
+		assert.ok(record);
+		const restored = await contributions.service.hydrateTurns({ session: contributions.session, chat }, [providerTurn]);
+
+		assert.deepStrictEqual({
+			anchor: record.anchorTurnId,
+			restored: restored.map(turn => turn.id),
+		}, {
+			anchor: providerTurn.id,
+			restored: [providerTurn.id, 'failed-turn'],
+		});
+	});
+
+	test('persists neither resumable failures nor failures that later complete successfully', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildDefaultChatUri(contributions.session);
+		const error = { errorType: 'requestFailed', message: 'failed' };
+		for (const turnId of ['resumable-turn', 'completed-turn']) {
+			contributions.stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: turnId, origin: { kind: MessageKind.User } },
+			});
+			contributions.stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatError,
+				turnId,
+				duration: 1,
+				part: { kind: ResponsePartKind.Error, error, ...(turnId === 'resumable-turn' ? { resumable: true } : {}) },
+			});
+			contributions.service.turnEnd({
+				session: contributions.session,
+				channel: chat,
+				turnId,
+				reason: { kind: 'error', error, resumable: turnId === 'resumable-turn' },
+			});
+		}
+		await timeout(0);
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnResume, turnId: 'completed-turn' });
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'completed-turn', duration: 1 });
+		contributions.service.turnEnd({ session: contributions.session, channel: chat, turnId: 'completed-turn', reason: { kind: 'success' } });
+		await timeout(0);
+
+		assert.deepStrictEqual((await contributions.database.getPersistedTurns()).filter(record => record.kind === 'failed'), []);
 	});
 
 	test('awaits asynchronous hydration contributions', async () => {

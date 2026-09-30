@@ -10,6 +10,8 @@ import { ChatConfiguration } from '../constants.js';
 
 export { extraKnownMarketplacesToConfigDict } from '../../../../../base/common/managedSettings.js';
 
+export const DEFAULT_PLUGIN_MARKETPLACE = 'github/awesome-copilot#marketplace';
+
 export const enum MarketplaceReferenceKind {
 	GitHubShorthand = 'githubShorthand',
 	GitUri = 'gitUri',

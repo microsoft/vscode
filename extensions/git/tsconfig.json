@@ -13,7 +13,6 @@
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.agentSessionsWorkspace.d.ts",
 		"../../src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts",
-		"../../src/vscode-dts/vscode.proposed.findFiles2.d.ts",
 		"../../src/vscode-dts/vscode.proposed.editSessionIdentityProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.envIsConnectionMetered.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickDiffProvider.d.ts",

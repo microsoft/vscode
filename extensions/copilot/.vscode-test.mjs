@@ -19,9 +19,15 @@ if (isSanity) {
 const packageJsonPath = resolve(__dirname, 'package.json');
 const raw = readFileSync(packageJsonPath, 'utf8');
 const pkg = JSON.parse(raw);
+// remove the date from the vscode engine version
 pkg.engines.vscode = pkg.engines.vscode.split('-')[0];
 
-// remove the date from the vscode engine version
+// The version bump on main lands before any Insiders build of the new version is
+// published, so the downloaded build can be one minor behind the engine requirement.
+if (!process.env.VSCODE_UNDER_TEST) {
+	pkg.engines.vscode = pkg.engines.vscode.replace(/^\^(\d+)\.(\d+)\.\d+$/, (match, major, minor) => minor === '0' ? match : `^${major}.${Number(minor) - 1}.0`);
+}
+
 writeFileSync(packageJsonPath, JSON.stringify(pkg, null, '\t'));
 
 // and revert it once done

@@ -5,7 +5,7 @@
 
 import { localize } from '../../../nls.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId, type IAgentSandboxFileSystemSetting } from '../../sandbox/common/settings.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 
 /**
@@ -44,9 +44,9 @@ export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue;
 	[AgentHostSandboxKey.AllowNetwork]: boolean;
 	[AgentHostSandboxKey.AllowUnsandboxedCommands]: boolean;
-	[AgentHostSandboxKey.LinuxFileSystem]: Record<string, unknown>;
-	[AgentHostSandboxKey.MacFileSystem]: Record<string, unknown>;
-	[AgentHostSandboxKey.WindowsFileSystem]: Record<string, unknown>;
+	[AgentHostSandboxKey.LinuxFileSystem]: IAgentSandboxFileSystemSetting;
+	[AgentHostSandboxKey.MacFileSystem]: IAgentSandboxFileSystemSetting;
+	[AgentHostSandboxKey.WindowsFileSystem]: IAgentSandboxFileSystemSetting;
 	[AgentHostSandboxKey.AdvancedRuntime]: Record<string, unknown>;
 	[AgentHostSandboxKey.AllowedNetworkDomains]: string[];
 	[AgentHostSandboxKey.DeniedNetworkDomains]: string[];

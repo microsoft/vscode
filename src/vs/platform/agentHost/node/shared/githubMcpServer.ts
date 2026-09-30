@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { gitHubMcpServerUrl } from '../../../github/common/githubEndpoints.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
-import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import type { ICopilotApiService } from './copilotApiService.js';
 import { findExecutable } from '../../../../base/node/processes.js';
 

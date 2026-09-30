@@ -178,6 +178,14 @@ interface IAutomationsFixtureOptions {
 	readonly showDropTarget?: boolean;
 }
 
+const UNAVAILABLE_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
+	{ id: 'remote-build-host', label: 'Remote build host', unavailableReasonCode: 'disconnected' },
+	{ id: 'remote-test-host', label: 'Remote test host', unavailableReasonCode: 'disconnected' },
+	{ id: 'windows-host', label: 'Windows host', unavailableReasonCode: 'disabled' },
+	{ id: 'linux-host', label: 'Linux host', unavailableReasonCode: 'unsupported' },
+	{ id: 'mac-host', label: 'Mac host', unavailableReasonCode: 'incompatible' },
+];
+
 export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	Populated: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -214,7 +222,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	Unavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: [{ id: 'remote-build-host', label: 'Remote build host' }] }),
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]] }),
+	}),
+	UnavailableMultipleReasons: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS }),
 	}),
 	NarrowUnavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -225,7 +237,17 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	}),
 	PartialUnavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: [{ id: 'remote-build-host', label: 'Remote build host' }] }),
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]] }),
+	}),
+	PartialUnavailableMultipleReasons: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, {
+			width: 1000,
+			height: 720,
+			populated: true,
+			catalogueState: 'unavailable',
+			unavailableProviders: UNAVAILABLE_PROVIDERS,
+		}),
 	}),
 	PartialError: defineComponentFixture({
 		labels: { kind: 'screenshot' },

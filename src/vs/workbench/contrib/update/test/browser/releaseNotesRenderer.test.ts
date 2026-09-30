@@ -60,6 +60,12 @@ Navigation End -->
 		await assertSnapshot(result.toString());
 	});
 
+	test('keeps shorthand as inline code without the tryout renderer', async () => {
+		const content = '`try(editor.smart-diff,Try Smart Diff Layout)`\n\n<!-- %IF TRYOUTS %\n`try(editor.smart-diff,Conditional Example)`\n%ENDIF % -->';
+		const result = await renderReleaseNotesMarkdown(content, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer));
+		assert.strictEqual(result.toString().trim(), '<p><code>try(editor.smart-diff,Try Smart Diff Layout)</code></p>');
+	});
+
 	test('Should render code settings', async () => {
 		// Stub preferences service with a known setting so the SimpleSettingRenderer treats it as valid
 		const testSettingId = 'editor.wordWrap';

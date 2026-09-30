@@ -30,6 +30,9 @@ export interface IChatInputPickerOptions {
 	readonly minimal?: IObservable<boolean>;
 
 	readonly listOptions?: IActionListOptions;
+
+	/** Context view layer used when the picker is hosted inside another context view. */
+	readonly contextViewLayer?: number;
 }
 
 export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {

@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -37,9 +38,11 @@ import { TestChatEntitlementService, TestContextService } from '../../../../../.
 import { OpenDelegationPickerAction } from '../../../../browser/actions/chatExecuteActions.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../browser/agentSessions/agentSessions.js';
 import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
+import { IChatHarnessSwitchFeedbackSurveyService } from '../../../../browser/feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { DelegationSessionPickerActionItem } from '../../../../browser/widget/input/delegationSessionPickerActionItem.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { CopilotHarnessIntroductionMode } from '../../../../common/constants.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
 
@@ -69,7 +72,9 @@ suite('DelegationSessionPickerActionItem', () => {
 
 	function createPicker(sessionType: AgentSessionTarget, isSessionsWindow = false, initialContributions = contributions) {
 		const instantiationService = store.add(new TestInstantiationService());
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({
+			'chat.copilotHarnessIntroduction.mode': CopilotHarnessIntroductionMode.AfterRequest,
+		});
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		const availabilityChanged = store.add(new Emitter<void>());
 		const activeProviderChanged = store.add(new Emitter<AgentSessionTarget>());
@@ -77,6 +82,7 @@ suite('DelegationSessionPickerActionItem', () => {
 		let activeProvider = sessionType;
 		let pendingTarget: AgentSessionTarget | undefined;
 		let showCount = 0;
+		const telemetryEvents: { readonly name: string; readonly data: unknown }[] = [];
 		let selectItem: (label: string) => void = () => assert.fail('Picker has not opened');
 
 		const chatSessionsService = new class extends mock<IChatSessionsService>() {
@@ -114,7 +120,14 @@ suite('DelegationSessionPickerActionItem', () => {
 		instantiationService.stub(IKeybindingService, new MockKeybindingService());
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
 		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() { }());
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2: (name?: string, data?: unknown) => {
+				if (name) {
+					telemetryEvents.push({ name, data });
+				}
+			},
+		});
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
@@ -130,6 +143,7 @@ suite('DelegationSessionPickerActionItem', () => {
 		instantiationService.stub(IAgentSdkSetupService, { setups: [] });
 		instantiationService.stub(ICodexAccountService, { account: { status: 'unknown' } });
 		instantiationService.stub(IGitService, new class extends mock<IGitService>() { }());
+		instantiationService.stub(IChatHarnessSwitchFeedbackSurveyService, { prompt: () => { } });
 
 		const action = instantiationService.createInstance(MenuItemAction, new OpenDelegationPickerAction().desc, undefined, undefined, undefined, undefined);
 		const compact = observableValue('compact', false);
@@ -138,7 +152,7 @@ suite('DelegationSessionPickerActionItem', () => {
 			getPendingDelegationTarget: () => pendingTarget,
 			setPendingDelegationTarget: target => { pendingTarget = target; },
 			onDidChangeActiveSessionProvider: activeProviderChanged.event,
-		}, { compact }));
+		}, { compact }, URI.parse('vscode-chat-input://input-1')));
 		const container = dom.append(document.body, dom.$('.action-item'));
 		store.add(toDisposable(() => container.remove()));
 		picker.render(container);
@@ -149,6 +163,7 @@ suite('DelegationSessionPickerActionItem', () => {
 			picker, element, container, compact, instantiationService,
 			getShowCount: () => showCount,
 			getPendingTarget: () => pendingTarget,
+			telemetryEvents,
 			selectItem: (label: string) => selectItem(label),
 			setActiveProvider: (provider: AgentSessionTarget) => {
 				activeProvider = provider;
@@ -264,5 +279,24 @@ suite('DelegationSessionPickerActionItem', () => {
 			tooltip: 'Delegate Session',
 			pendingTarget: AgentSessionProviders.AgentHostClaude,
 		});
+	});
+
+	test('reports post-request delegation into the Copilot harness', () => {
+		const { picker, selectItem, telemetryEvents } = createPicker(AgentSessionProviders.Local);
+		picker.show();
+		selectItem('Copilot');
+
+		assert.deepStrictEqual(telemetryEvents, [{
+			name: 'copilotHarnessTargetChanged',
+			data: {
+				mode: CopilotHarnessIntroductionMode.AfterRequest,
+				fromHarness: 'local',
+				toHarness: 'copilot',
+				surface: 'editor',
+				chatSessionId: undefined,
+				sessionType: undefined,
+				harness: undefined,
+			},
+		}]);
 	});
 });

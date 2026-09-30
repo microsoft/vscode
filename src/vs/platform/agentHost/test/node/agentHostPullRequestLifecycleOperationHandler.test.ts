@@ -9,7 +9,8 @@ import { Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IGitHubService } from '../../../github/common/githubService.js';
+import type { IGitHubClient } from '../../../github/common/githubService.js';
+import { createTestGitHubService } from './testGitHubService.js';
 import type { PullRequestMergeOptions, PullRequestMergePreparation } from '../../../github/common/githubPullRequestMutationService.js';
 import type { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { AgentMergeConfigKey } from '../../common/agentMerge.js';
@@ -103,7 +104,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			override async disableAutoMerge(): Promise<void> { recorded.calls.push('disableAutoMerge'); }
 		}();
 
-		const gitHubService = new class extends mock<IGitHubService>() {
+		const gitHubService = createTestGitHubService(new class extends mock<IGitHubClient>() {
 			override readonly mutations = mutations;
 			override readonly credentials = {
 				onDidInvalidate: Event.None,
@@ -113,7 +114,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 				async resolveCredential(): Promise<never> { throw new Error('not implemented'); },
 				handleRequestError() { },
 			};
-		}();
+		}());
 
 		const statusService: IAgentHostPullRequestStatusService = {
 			_serviceBrand: undefined,

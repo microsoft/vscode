@@ -198,6 +198,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		// nothing to migrate.
 		await this._customAgentsService.whenCustomizationsReady(sessionResource, token);
 		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
+		const clientWorkingDirectories = this._customAgentsService.getClientWorkingDirectoryUris(sessionResource);
 
 		const folders: ICustomizationSourceFolder[] = [];
 		for (const customization of this._customAgentsService.getCustomizations(sessionResource)) {
@@ -208,14 +209,22 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				continue;
 			}
 			const source = isUnderAnyRoot(workingDirectories, customization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			const workspaceFolderIndex = workingDirectories.findIndex(root => isParentOrEqual(root, customization.uri));
 			folders.push({
 				uri: this.toRemoteUri(customization.uri),
 				label: customization.name,
 				source,
 				destinationGroupId: dirname(this.toRemoteUri(customization.uri)).toString(),
+				workspaceGroupId: clientWorkingDirectories[workspaceFolderIndex]?.toString(),
 			});
 		}
 		return folders;
+	}
+
+	getWorkspaceGroupId(sessionResource: URI, resource: URI): string | undefined {
+		return this._customAgentsService.getClientWorkingDirectoryUris(sessionResource)
+			.find(root => extUriBiasedIgnorePathCase.isEqualOrParent(resource, root))
+			?.toString();
 	}
 
 	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomAgent[]> {

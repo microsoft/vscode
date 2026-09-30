@@ -501,6 +501,33 @@
 	margin-bottom: var(--modern-ui-floating-card-outer-margin);
 }
 
+/* Window-facing curves are concentric with the native frame, not the internal card corners. */
+.monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact) {
+	--modern-ui-window-corner-radius: max(0px, calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-floating-card-outer-margin)));
+
+	.part.activitybar.left,
+	.part.floating-part-outer-left.floating-part-outer-bottom,
+	.part.editor.floating-editor-outer-left.floating-editor-outer-bottom {
+		border-bottom-left-radius: var(--modern-ui-window-corner-radius);
+	}
+
+	.part.activitybar.right,
+	.part.floating-part-outer-right.floating-part-outer-bottom,
+	.part.editor.floating-editor-outer-right.floating-editor-outer-bottom {
+		border-bottom-right-radius: var(--modern-ui-window-corner-radius);
+	}
+
+	.part.editor.floating-editor-outer-left.floating-editor-outer-bottom > .content,
+	.webview-overlay-content.webview-overlay-outer-left.webview-overlay-outer-bottom:not(.webview-overlay-modal) {
+		border-bottom-left-radius: max(0px, calc(var(--modern-ui-window-corner-radius) - var(--vscode-strokeThickness)));
+	}
+
+	.part.editor.floating-editor-outer-right.floating-editor-outer-bottom > .content,
+	.webview-overlay-content.webview-overlay-outer-right.webview-overlay-outer-bottom:not(.webview-overlay-modal) {
+		border-bottom-right-radius: max(0px, calc(var(--modern-ui-window-corner-radius) - var(--vscode-strokeThickness)));
+	}
+}
+
 /*
  * Floating cards use the density-specific leading margin and no trailing margin, so
  * adjacent cards are separated by the configured gap.

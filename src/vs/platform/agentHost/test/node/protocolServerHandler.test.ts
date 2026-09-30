@@ -7,6 +7,7 @@ import assert from 'assert';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
+import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -19,17 +20,17 @@ import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { AgentCanvasAvailability, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
-import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
+import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
+import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
-import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type ChangesetState, type SessionSummary } from '../../common/state/sessionState.js';
-import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type ChangesetState, type ChatState, type SessionState, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionInputRequestKind, TerminalClaimKind } from '../../common/state/protocol/state.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -155,6 +156,7 @@ class MockAgentService implements IAgentService {
 	readonly handledActions: (SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction)[] = [];
 	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly handledClientContexts: (IAgentHostClientTelemetryContext | undefined)[] = [];
+	readonly createTerminalClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
 	readonly readErrors = new Map<string, Error>();
@@ -186,6 +188,9 @@ class MockAgentService implements IAgentService {
 	readonly onDidNotification = this._onDidNotification.event;
 	private readonly _onMcpNotification = new Emitter<import('../../common/agent.js').IMcpNotification>();
 	readonly onMcpNotification = this._onMcpNotification.event;
+	private readonly _onDidChangeCanvases = new Emitter<IAgentCanvasSnapshot>();
+	readonly onDidChangeCanvases = this._onDidChangeCanvases.event;
+	readonly resolveCanvasSourceCalls: { chat: string; instanceId: string; revision: number }[] = [];
 
 	private _stateManager!: AgentHostStateManager;
 
@@ -243,6 +248,11 @@ class MockAgentService implements IAgentService {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
 	}
+	async resolveCanvasSource(chat: URI, instanceId: string, revision: number): Promise<string> {
+		this.resolveCanvasSourceCalls.push({ chat: chat.toString(), instanceId, revision });
+		return 'https://example.test/canvas';
+	}
+	fireCanvasSnapshot(snapshot: IAgentCanvasSnapshot): void { this._onDidChangeCanvases.fire(snapshot); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		const result = [...this.listedSessions];
 		this.afterListSessionsSnapshot?.();
@@ -336,7 +346,9 @@ class MockAgentService implements IAgentService {
 		this.watchUnsubscribeCalls.push(channel);
 		return this.liveWatchDescriptors.has(channel);
 	}
-	async createTerminal(): Promise<void> { }
+	async createTerminal(_params: CreateTerminalParams, clientType?: AgentHostClientType): Promise<void> {
+		this.createTerminalClientTypes.push(clientType);
+	}
 	async disposeTerminal(): Promise<void> { }
 	async invokeChangesetOperation(): Promise<{}> { return {}; }
 	async handleMcpRequest(): Promise<unknown> { throw new Error('Method not found'); }
@@ -345,6 +357,7 @@ class MockAgentService implements IAgentService {
 		this._onDidAction.dispose();
 		this._onDidNotification.dispose();
 		this._onMcpNotification.dispose();
+		this._onDidChangeCanvases.dispose();
 	}
 }
 
@@ -421,8 +434,8 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
-	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>): MockProtocolTransport {
-		const transport = new MockProtocolTransport();
+	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>, transportKind = AgentHostTransportKind.Unknown): MockProtocolTransport {
+		const transport = new MockProtocolTransport(transportKind);
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
@@ -494,6 +507,125 @@ suite('ProtocolServerHandler', () => {
 				'vscode.devContainers': true,
 			},
 		});
+	});
+
+	test('canvas extension is local-only, publishes full snapshots, and fences source resolution', async () => {
+		const snapshot: IAgentCanvasSnapshot = {
+			chat: URI.parse(defaultChatUri),
+			canvases: [{
+				instanceId: 'preview-1',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				revision: 4,
+				availability: AgentCanvasAvailability.Ready,
+			}],
+		};
+		agentService.fireCanvasSnapshot(snapshot);
+		const remote = connectClient('canvas-remote', undefined, undefined, {
+			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
+		}, AgentHostTransportKind.WebSocket);
+		const local = connectClient('canvas-local', undefined, undefined, {
+			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
+		}, AgentHostTransportKind.MessagePort);
+		const remoteInitialize = findResponse(remote.sent, 1);
+		const localInitialize = findResponse(local.sent, 1);
+		assert.ok(remoteInitialize && hasKey(remoteInitialize, { result: true }));
+		assert.ok(localInitialize && hasKey(localInitialize, { result: true }));
+
+		const sourceResponse = waitForResponse(local, 2);
+		local.simulateMessage(request(2, ResolveAgentHostCanvasSourceExtensionMethod, {
+			chat: defaultChatUri,
+			instanceId: 'preview-1',
+			revision: 4,
+		}));
+		agentService.fireCanvasSnapshot(snapshot);
+		const remoteSourceResponse = waitForResponse(remote, 2);
+		remote.simulateMessage(request(2, ResolveAgentHostCanvasSourceExtensionMethod, {
+			chat: defaultChatUri,
+			instanceId: 'preview-1',
+			revision: 4,
+		}));
+
+		assert.deepStrictEqual({
+			capabilities: {
+				local: supportsAgentHostCanvases(localInitialize.result as InitializeResult),
+				remote: supportsAgentHostCanvases(remoteInitialize.result as InitializeResult),
+			},
+			localSnapshots: findNotifications(local.sent, AgentHostCanvasesChangedNotification).map(notification => notification.params),
+			remoteSnapshots: findNotifications(remote.sent, AgentHostCanvasesChangedNotification).length,
+			sourceResponse: await sourceResponse,
+			remoteSourceResponse: await remoteSourceResponse,
+			resolveCalls: agentService.resolveCanvasSourceCalls,
+		}, {
+			capabilities: { local: true, remote: false },
+			localSnapshots: [{ chat: defaultChatUri, canvases: snapshot.canvases }],
+			remoteSnapshots: 0,
+			sourceResponse: { jsonrpc: '2.0', id: 2, result: { url: 'https://example.test/canvas' } },
+			remoteSourceResponse: {
+				jsonrpc: '2.0',
+				id: 2,
+				error: { code: JsonRpcErrorCodes.MethodNotFound, message: `Method not found: ${ResolveAgentHostCanvasSourceExtensionMethod}` },
+			},
+			resolveCalls: [{ chat: defaultChatUri, instanceId: 'preview-1', revision: 4 }],
+		});
+	});
+
+	test('canvas reconnect replays current snapshots and clears snapshots removed while disconnected', async () => {
+		const removedChat = URI.parse(defaultChatUri);
+		const currentChat = URI.parse(buildChatUri('copilotcli:/session-1', 'peer-1'));
+		const removedSnapshot: IAgentCanvasSnapshot = {
+			chat: removedChat,
+			canvases: [{
+				instanceId: 'removed',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				revision: 1,
+				availability: AgentCanvasAvailability.Ready,
+			}],
+		};
+		const currentSnapshot: IAgentCanvasSnapshot = {
+			chat: currentChat,
+			canvases: [{
+				instanceId: 'current',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				revision: 1,
+				availability: AgentCanvasAvailability.Ready,
+			}],
+		};
+		agentService.fireCanvasSnapshot(removedSnapshot);
+		agentService.fireCanvasSnapshot(currentSnapshot);
+		const initial = connectClient('canvas-reconnect', undefined, undefined, {
+			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
+		}, AgentHostTransportKind.MessagePort);
+		initial.simulateClose();
+
+		agentService.fireCanvasSnapshot({ chat: removedChat, canvases: [] });
+		const updatedCurrentSnapshot: IAgentCanvasSnapshot = {
+			...currentSnapshot,
+			canvases: [{ ...currentSnapshot.canvases[0], revision: 2 }],
+		};
+		agentService.fireCanvasSnapshot(updatedCurrentSnapshot);
+
+		const reconnected = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
+		server.simulateConnection(reconnected);
+		const responsePromise = waitForResponse(reconnected, 2);
+		reconnected.simulateMessage(request(2, 'reconnect', {
+			clientId: 'canvas-reconnect',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local },
+		}));
+		await responsePromise;
+		await handler.whenIdle();
+
+		assert.deepStrictEqual(
+			findNotifications(reconnected.sent, AgentHostCanvasesChangedNotification).map(notification => notification.params),
+			[
+				{ chat: currentChat.toString(), canvases: updatedCurrentSnapshot.canvases },
+				{ chat: removedChat.toString(), canvases: [] },
+			],
+		);
 	});
 
 	test('Dev Containers enforce initiating transport trust, ownership, and disconnect cleanup', async () => {
@@ -750,6 +882,30 @@ suite('ProtocolServerHandler', () => {
 		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(result.snapshots.length, 1);
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
+	});
+
+	test('initial chat subscription includes input checks in both chat and session snapshots', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const barrier = new DeferredPromise<void>();
+		agentService.subscribeBarriers.set(defaultChatUri, barrier);
+		const transport = connectClient('input-client', [sessionUri, defaultChatUri]);
+		const response = waitForResponse(transport, 1);
+		const input = { kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'Locked' } } as const;
+		stateManager.setSessionMeta(sessionUri, withChatInputState({}, defaultChatUri, input));
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionChatUpdated, chat: defaultChatUri, changes: { interactivity: ChatInteractivity.ReadOnly } });
+		await barrier.complete();
+		const result = (await response as { result: InitializeResult }).result;
+		const chat = result.snapshots.find(snapshot => snapshot.resource === defaultChatUri)?.state as ChatState;
+		const session = result.snapshots.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState;
+		assert.deepStrictEqual({
+			subscribeCalls: agentService.subscribeCalls,
+			interactivity: chat.interactivity,
+			catalogInteractivity: session.chats[0].interactivity,
+			input: readChatInputState(session, defaultChatUri),
+		}, {
+			subscribeCalls: [{ resource: defaultChatUri, clientId: 'input-client' }],
+			interactivity: ChatInteractivity.ReadOnly, catalogInteractivity: ChatInteractivity.ReadOnly, input,
+		});
 	});
 
 	for (const cached of [false, true]) {
@@ -1066,6 +1222,37 @@ suite('ProtocolServerHandler', () => {
 		disabled.simulateMessage(request(2, 'vscode/reportAgentHostFirstResponse', diagnostic));
 		await ignored;
 		assert.deepStrictEqual(calls, [diagnostic]);
+	});
+
+	test('UI timing bridge allowlists payloads, rejects invalid durations and drains the exporter', async () => {
+		const calls: unknown[] = [];
+		let flushed = 0;
+		const localServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, localServer, { allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService,
+			{
+				...NullAgentHostOTelService, diagnosticsEnabled: true,
+				emitUserInteraction: timing => calls.push(timing), flush: async () => { flushed++; }
+			},
+		));
+		const transport = new MockProtocolTransport();
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'ui-timing' }));
+		const timing = {
+			schemaVersion: 1, rendererId: 'renderer', interactionOrdinal: 1,
+			result: 'hidden', requestPhase: 'unknown', timeToTermination: 0, windowVisible: false, windowFocused: false,
+		};
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'vscode/reportChatUserInteraction', { ...timing, prompt: 'private', path: 'private' }));
+		await response;
+		assert.deepStrictEqual(calls, [timing]);
+		assert.strictEqual(flushed, 1);
+		const invalid = waitForResponse(transport, 3);
+		transport.simulateMessage(request(3, 'vscode/reportChatUserInteraction', { ...timing, timeToTermination: -1 }));
+		assert.ok(hasKey(await invalid, { error: true }));
+		assert.strictEqual(calls.length, 1);
 	});
 
 	test('advertises and routes external session import', async () => {
@@ -1587,13 +1774,14 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('client action is dispatched and echoed', () => {
+	test('client action is dispatched and echoed', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		// Chat actions are emitted on the derived default-chat channel, so the
 		// client must subscribe to it (as the real UI bridge does) to see echoes.
 		const transport = connectClient('client-1', [sessionUri, defaultChatUri]);
+		await waitForResponse(transport, 1);
 		transport.sent.length = 0;
 
 		transport.simulateMessage(notification('dispatchAction', {
@@ -1698,7 +1886,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('unsupported chat actions are rejected, not dispatched', () => {
+	test('unsupported chat actions are rejected, not dispatched', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
@@ -1711,6 +1899,7 @@ suite('ProtocolServerHandler', () => {
 			const clientId = `unsupported-client-${index}`;
 			const clientSeq = 100 + index;
 			const transport = connectClient(clientId, [sessionUri, defaultChatUri]);
+			await waitForResponse(transport, 1);
 			transport.sent.length = 0;
 			agentService.handledActions.length = 0;
 
@@ -1749,6 +1938,21 @@ suite('ProtocolServerHandler', () => {
 		}));
 
 		assert.deepStrictEqual(agentService.handledActions.at(-1), { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+	});
+
+	test('createTerminal reaches the agent service with the requesting client type', async () => {
+		const vscodeClient = connectClient('vscode-terminal-client', undefined, editorWindowAgentHostClientInfo);
+		const otherClient = connectClient('other-terminal-client');
+		for (const [transport, clientId] of [[vscodeClient, 'vscode-terminal-client'], [otherClient, 'other-terminal-client']] as const) {
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createTerminal', {
+				channel: `agenthost-terminal://test/${clientId}`,
+				claim: { kind: TerminalClaimKind.Client, clientId },
+			}));
+			assert.ok(hasKey(await response, { result: true }));
+		}
+
+		assert.deepStrictEqual(agentService.createTerminalClientTypes, [AgentHostClientType.EditorWindow, AgentHostClientType.Unknown]);
 	});
 
 	test('session working-directory actions reach the agent service', () => {
@@ -2172,7 +2376,7 @@ suite('ProtocolServerHandler', () => {
 			summary: 'Session Summary',
 			chats: [
 				{ chat: defaultChat, kind: 'default', summary: 'Default Chat' },
-				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
 			],
 		});
 
@@ -2189,7 +2393,7 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			chats: [
 				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined },
-				{ resource: peerChat.toString(), title: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+				{ resource: peerChat.toString(), title: 'Peer Chat', archived: true, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
 			],
 			defaultChat: defaultChat.toString(),
 		});
@@ -2500,7 +2704,13 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(2, 'createChat', { channel: 'copilot:/missing', chat: buildChatUri('copilot:/missing', 'peer-1') }));
 			const resp = await responsePromise as { error?: { code: number } };
 
-			assert.strictEqual(resp.error?.code, AHP_SESSION_NOT_FOUND);
+			assert.deepStrictEqual({
+				code: resp.error?.code,
+				created: agentService.createdChats,
+			}, {
+				code: AHP_SESSION_NOT_FOUND,
+				created: [],
+			});
 		});
 
 		test('disposeChat forwards to the agent service and shrinks the catalog', async () => {

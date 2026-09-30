@@ -26,7 +26,7 @@ import * as convert from '../../common/extHostTypeConverters.js';
 import { Location, Position, Range, TestMessage, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from '../../common/extHostTypes.js';
 import { AnyCallRPCProtocol } from '../common/testRPCProtocol.js';
 import { TestId } from '../../../contrib/testing/common/testId.js';
-import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from '../../../contrib/testing/common/testTypes.js';
+import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff, TestsDiffOp } from '../../../contrib/testing/common/testTypes.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import type { TestController, TestItem, TestRunProfile, TestRunRequest } from 'vscode';
 
@@ -924,6 +924,60 @@ suite('ExtHost Testing', () => {
 				}),
 				new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService()),
 			));
+		});
+
+		test('disposing an observer stops its events while another observer remains live', async () => {
+			const retired = ds.add(ctrl.createTestObserver());
+			const live = ds.add(ctrl.createTestObserver());
+			let retiredChanges = 0;
+			let liveChanges = 0;
+			ds.add(retired.onDidChangeTest(() => retiredChanges++));
+			ds.add(live.onDidChangeTest(() => liveChanges++));
+			retired.dispose();
+			retired.dispose();
+
+			await single.expand(single.root.id, Infinity);
+			ctrl.$acceptDiff(single.collectDiff().map(TestsDiffOp.serialize));
+			assert.deepStrictEqual({ retiredChanges, liveChanges, roots: live.tests.map(test => test.label) }, { retiredChanges: 0, liveChanges: 1, roots: ['root'] });
+		});
+
+		test('subscribing to a disposed observer does not reattach its events', async () => {
+			const retired = ds.add(ctrl.createTestObserver());
+			const live = ds.add(ctrl.createTestObserver());
+			retired.dispose();
+			let changes = 0;
+			ds.add(retired.onDidChangeTest(() => changes++));
+			await single.expand(single.root.id, Infinity);
+			ctrl.$acceptDiff(single.collectDiff().map(TestsDiffOp.serialize));
+			assert.deepStrictEqual({ changes, roots: live.tests.map(test => test.label) }, { changes: 0, roots: ['root'] });
+		});
+
+		test('observer listeners can unsubscribe and subscribe again', async () => {
+			const observer = ds.add(ctrl.createTestObserver());
+			let removedChanges = 0;
+			const subscription = ds.add(observer.onDidChangeTest(() => removedChanges++));
+			subscription.dispose();
+			await single.expand(single.root.id, Infinity);
+			ctrl.$acceptDiff(single.collectDiff().map(TestsDiffOp.serialize));
+			let currentChanges = 0;
+			ds.add(observer.onDidChangeTest(() => currentChanges++));
+			single.root.label = 'Updated root';
+			ctrl.$acceptDiff(single.collectDiff().map(TestsDiffOp.serialize));
+			assert.deepStrictEqual({ removedChanges, currentChanges, roots: observer.tests.map(test => test.label) }, { removedChanges: 0, currentChanges: 1, roots: ['Updated root'] });
+		});
+
+		test('a new observer starts a fresh collection after the last observer closes', async () => {
+			const retired = ds.add(ctrl.createTestObserver());
+			await single.expand(single.root.id, Infinity);
+			const initialDiff = single.collectDiff().map(TestsDiffOp.serialize);
+			ctrl.$acceptDiff(initialDiff);
+			retired.dispose();
+			const replacement = ds.add(ctrl.createTestObserver());
+			const initialRoots = [...replacement.tests];
+			let changes = 0;
+			ds.add(replacement.onDidChangeTest(() => changes++));
+			ctrl.$acceptDiff(initialDiff);
+			assert.deepStrictEqual({ initialRoots, changes, roots: replacement.tests.map(test => test.label) }, { initialRoots: [], changes: 1, roots: ['root'] });
 		});
 
 		test('exposes active profiles correctly', async () => {

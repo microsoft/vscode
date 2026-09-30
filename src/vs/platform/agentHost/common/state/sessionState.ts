@@ -984,7 +984,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 /**
  * Derives the default-chat {@link ChatSummary} for a session from its
  * {@link SessionSummary}. The default chat inherits the session's title,
- * status, activity and working directory, and is marked as a
+ * activity status and activity, and is marked as a
  * {@link ChatOriginKind.User | user-originated} chat. Both the session and
  * chat `modifiedAt` are ISO-8601 strings, so it is carried over directly.
  */
@@ -992,7 +992,7 @@ export function createDefaultChatSummary(session: SessionSummary, chatUri: Proto
 	const summary: ChatSummary = {
 		resource: chatUri,
 		title: session.title,
-		status: session.status,
+		status: session.status & STATUS_ACTIVITY_MASK,
 		modifiedAt: session.modifiedAt,
 		origin: { kind: ChatOriginKind.User },
 	};

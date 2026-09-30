@@ -23,6 +23,8 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../../sess
 // eslint-disable-next-line local/code-import-patterns
 import { applySessionViewThemeColors } from '../../../../../sessions/browser/parts/sessionBarStyles.js';
 // eslint-disable-next-line local/code-import-patterns
+import { applyAgentsPartCardStyles } from '../../../../../sessions/browser/parts/agentsPartCard.js';
+// eslint-disable-next-line local/code-import-patterns
 import { Menus } from '../../../../../sessions/browser/menus.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -30,6 +32,12 @@ import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../../../sessions/browser/media/workbench.css';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../../../sessions/browser/parts/media/sessionsPart.css';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../../../sessions/browser/parts/media/chatGroupsView.css';
 
 // ============================================================================
 // Mock helpers
@@ -124,21 +132,32 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 	});
 
 	container.style.width = `${options.width ?? 360}px`;
-	container.classList.add('agent-sessions-workbench', 'modern-ui-tabs');
+	container.classList.add('agent-sessions-workbench', 'modern-ui-tabs', 'noeditorpane');
 	container.classList.toggle('modern-ui-connected-editor-tabs', options.connected !== false);
-	const sessionView = $('.session-view.modern-ui-editor-tab-group');
+	const card = $('.part.sessionspart.agents-part-card');
+	applyAgentsPartCardStyles(card, ctx.theme);
+	container.appendChild(card);
+	const cardContent = $('.content');
+	card.appendChild(cardContent);
+	const sessionView = $('.session-view.tabs-replace-header.modern-ui-editor-tab-group');
 	sessionView.classList.toggle('modern-ui-editor-tab-group-active', options.active !== false);
 	applySessionViewThemeColors(sessionView, ctx.theme, options.active !== false);
 	sessionView.style.backgroundColor = 'var(--session-view-background)';
-	container.appendChild(sessionView);
+	cardContent.appendChild(sessionView);
+	const groups = $('.chat-groups-view.single-group');
+	const group = $('.chat-group-view');
+	const barContainer = $('.chat-group-view-bar');
+	sessionView.appendChild(groups);
+	groups.appendChild(group);
+	group.appendChild(barContainer);
 
 	const session = createMockSession(chats, activeChat);
 	const bar = disposableStore.add(instantiationService.createInstance(ChatCompositeBar, undefined));
-	sessionView.appendChild(bar.element);
+	barContainer.appendChild(bar.element);
 	bar.setGroup(createMockDelegate(session, chats, activeChat));
 	const content = $('.chat-group-view-content.modern-ui-editor-tab-content');
 	content.style.height = '96px';
-	sessionView.appendChild(content);
+	group.appendChild(content);
 
 	if (options.startEditing) {
 		// Reveal the inline rename input on the active (non-main) tab by
@@ -153,6 +172,16 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 // ============================================================================
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+
+	FirstChatActive: defineComponentFixture({
+		additionalThemes: ['visualStudioDark', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The first selected tab and the chat card share one continuous outline, with no clipped corner or dangling left edge.'],
+		render: ctx => {
+			const main = createMockChat({ title: 'Extend README documentation' });
+			const second = createMockChat({ title: 'Add README examples' });
+			renderBar(ctx, [main, second], main);
+		},
+	}),
 
 	TwoChats: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

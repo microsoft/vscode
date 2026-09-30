@@ -1267,12 +1267,19 @@ class MultiTracker implements vscode.DebugAdapterTracker {
  */
 class DirectDebugAdapter extends AbstractDebugAdapter {
 
+	private readonly _messageListener: vscode.Disposable;
+
 	constructor(private implementation: vscode.DebugAdapter) {
 		super();
 
-		implementation.onDidSendMessage((message: vscode.DebugProtocolMessage) => {
+		this._messageListener = implementation.onDidSendMessage((message: vscode.DebugProtocolMessage) => {
 			this.acceptMessage(message as DebugProtocol.ProtocolMessage);
 		});
+	}
+
+	override dispose(): void {
+		this._messageListener.dispose();
+		super.dispose();
 	}
 
 	startSession(): Promise<void> {
@@ -1284,6 +1291,7 @@ class DirectDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	stopSession(): Promise<void> {
+		this.dispose();
 		this.implementation.dispose();
 		return Promise.resolve(undefined);
 	}

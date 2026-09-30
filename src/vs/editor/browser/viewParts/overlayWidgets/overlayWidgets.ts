@@ -69,6 +69,13 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	public override dispose(): void {
 		super.dispose();
+		// Widgets outlive the view, so detach their dom nodes to not keep this view's DOM alive (#146841)
+		for (const widgetData of Object.values(this._widgets)) {
+			const domNode = widgetData.domNode.domNode;
+			if (domNode.parentElement === this._domNode.domNode || domNode.parentElement === this.overflowingOverlayWidgetsDomNode.domNode) {
+				domNode.remove();
+			}
+		}
 		this._widgets = {};
 	}
 

@@ -194,6 +194,7 @@ export type ChatProviderInvokedEvent = ChatSessionModeEvent & {
 	settingDefaultToCopilotHarness: boolean;
 	settingPreferCopilotHarness: boolean;
 	settingLocalAgentEnabled: boolean;
+	settingCopilotHarnessIntroductionMode: string;
 };
 
 export type ChatProviderInvokedClassification = ChatSessionModeClassification & {
@@ -223,6 +224,7 @@ export type ChatProviderInvokedClassification = ChatSessionModeClassification & 
 	settingDefaultToCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.defaultToCopilotHarness setting when the request started.' };
 	settingPreferCopilotHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.preferCopilotHarness setting when the request started.' };
 	settingLocalAgentEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective value of the chat.editor.localAgent.enabled setting when the request started.' };
+	settingCopilotHarnessIntroductionMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective Copilot harness introduction experiment mode when the request started.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -351,6 +353,7 @@ export class ChatRequestTelemetry {
 		settingDefaultToCopilotHarness: boolean;
 		settingPreferCopilotHarness: boolean;
 		settingLocalAgentEnabled: boolean;
+		settingCopilotHarnessIntroductionMode: string;
 	},
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
@@ -398,6 +401,7 @@ export class ChatRequestTelemetry {
 			settingDefaultToCopilotHarness: this.opts.settingDefaultToCopilotHarness,
 			settingPreferCopilotHarness: this.opts.settingPreferCopilotHarness,
 			settingLocalAgentEnabled: this.opts.settingLocalAgentEnabled,
+			settingCopilotHarnessIntroductionMode: this.opts.settingCopilotHarnessIntroductionMode,
 		});
 	}
 

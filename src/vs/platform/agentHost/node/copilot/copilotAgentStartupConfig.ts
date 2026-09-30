@@ -20,6 +20,7 @@ export class CopilotAgentStartupConfig {
 		readonly enterpriseHost: string | undefined,
 		readonly systemProxy: boolean,
 		readonly githubMcpServer: boolean,
+		readonly copilotConnectors: boolean,
 		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
 	) { }
 

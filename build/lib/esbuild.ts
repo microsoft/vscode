@@ -13,7 +13,7 @@ export type BuildTarget = 'desktop' | 'server' | 'server-web' | 'web';
 export function getBootstrapEntryPointsForTarget(target: BuildTarget): string[] {
 	switch (target) {
 		case 'desktop':
-			return ['main', 'cli', 'bootstrap-fork'];
+			return ['main', 'mainImpl', 'cli', 'bootstrap-fork'];
 		case 'server':
 		case 'server-web':
 			return ['server-main', 'server-cli', 'bootstrap-fork'];

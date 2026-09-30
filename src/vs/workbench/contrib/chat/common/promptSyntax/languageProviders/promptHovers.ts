@@ -151,9 +151,6 @@ export class PromptHoverProvider implements HoverProvider {
 	}
 
 	private getModelHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target): Hover | undefined {
-		if (target === Target.GitHubCopilot) {
-			return this.createHover(baseMessage + '\n\n' + localize('promptHeader.agent.model.githubCopilot', 'Note: This attribute is not used when target is github-copilot.'), node.range);
-		}
 		const modelHoverContent = (modelName: string): Hover | undefined => {
 			const lines: string[] = [];
 			lines.push(baseMessage + '\n');

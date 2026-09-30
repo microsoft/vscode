@@ -11,6 +11,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -32,7 +33,7 @@ class ShowSessionDetailsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const contents = formatSessionDetails(accessor.get(ISessionsManagementService).getSessions());
+		const contents = formatSessionDetails(accessor.get(ISessionsManagementService).getSessions(), accessor.get(ILabelService));
 		const resource = URI.from({
 			scheme: Schemas.untitled,
 			path: localize('sessions.details.editorTitle', "Session Details"),
@@ -49,7 +50,7 @@ class ShowSessionDetailsAction extends Action2 {
 
 registerAction2(ShowSessionDetailsAction);
 
-export function formatSessionDetails(allSessions: readonly ISession[]): string {
+export function formatSessionDetails(allSessions: readonly ISession[], labelService: ILabelService): string {
 	const sessions = allSessions.filter(session => !session.isArchived.get() && !(session.isAutomation?.get() ?? false));
 	const lines = ['Session Details', ''];
 
@@ -60,7 +61,7 @@ export function formatSessionDetails(allSessions: readonly ISession[]): string {
 
 	for (const [index, session] of sessions.entries()) {
 		const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
-		const workingDirectories = session.workspace.get()?.folders.map(folder => formatWorkingDirectory(folder.workingDirectory)) ?? [];
+		const workingDirectories = session.workspace.get()?.folders.map(folder => formatWorkingDirectory(folder.workingDirectory, labelService)) ?? [];
 
 		lines.push(`Session: ${title.replace(/\r\n?|\n/g, ' ')}`);
 		if (workingDirectories.length === 0) {
@@ -79,6 +80,6 @@ export function formatSessionDetails(allSessions: readonly ISession[]): string {
 	return `${lines.join('\n')}\n`;
 }
 
-function formatWorkingDirectory(resource: URI): string {
-	return resource.scheme === Schemas.file ? resource.fsPath : resource.toString(true);
+function formatWorkingDirectory(resource: URI, labelService: ILabelService): string {
+	return resource.scheme === Schemas.file ? resource.fsPath : labelService.getUriLabel(resource);
 }

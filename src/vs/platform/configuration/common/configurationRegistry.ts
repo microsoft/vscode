@@ -347,6 +347,14 @@ export interface IConfigurationNode {
 
 export type ConfigurationDefaultSource = IExtensionInfo | string;
 
+/**
+ * The treatment through which an experiment assigns the default value of an
+ * experiment-controlled setting, see {@link IConfigurationPropertySchema.experiment}.
+ */
+export function getConfigurationExperimentName(key: string, experiment: { readonly name?: string } | undefined): string {
+	return experiment?.name ?? `config.${key}`;
+}
+
 export function isConfigurationDefaultSourceEquals(a: ConfigurationDefaultSource | undefined, b: ConfigurationDefaultSource | undefined): boolean {
 	if (a === b) {
 		return true;

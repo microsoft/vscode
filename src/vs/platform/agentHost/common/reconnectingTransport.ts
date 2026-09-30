@@ -37,6 +37,9 @@ export class ReconnectingTransport extends Disposable implements IClientTranspor
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	readonly onDidReceiveData = this._onDidReceiveData.event;
+
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
@@ -87,6 +90,9 @@ export class ReconnectingTransport extends Disposable implements IClientTranspor
 		transportStore.add(toDisposable(() => void this._disposeEstablishedTransport(establishedTransport)));
 		try {
 			transportStore.add(establishedTransport.transport.onMessage(message => this._onMessage.fire(message)));
+			if (establishedTransport.transport.onDidReceiveData) {
+				transportStore.add(establishedTransport.transport.onDidReceiveData(() => this._onDidReceiveData.fire()));
+			}
 			transportStore.add(establishedTransport.transport.onClose(() => this._onClose.fire()));
 			if (establishedTransport.transport.onDidCloseDetails) {
 				transportStore.add(establishedTransport.transport.onDidCloseDetails(details => this._onDidCloseDetails.fire(details)));

@@ -240,10 +240,16 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 				if (envelope.serverSeq > _fromSeq) {
 					const isOwnAction = envelope.origin?.clientId === this._clientId;
 					this._reconcile(envelope, isOwnAction);
+				} else if (envelope.origin?.clientId === this._clientId) {
+					// The snapshot already includes this action. Retire its optimistic
+					// copy without replaying an older draft over newer server state.
+					this._acknowledgeSnapshotAction(envelope.origin.clientSeq);
 				}
 			}
 		}
 	}
+
+	protected _acknowledgeSnapshotAction(_clientSeq: number): void { }
 
 	/**
 	 * Default reconciliation: apply to confirmed, fire change event.
@@ -420,6 +426,10 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, channel: this._sessionUri }));
 	}
 
+	protected override _acknowledgeSnapshotAction(clientSeq: number): void {
+		this.dropPendingByClientSeq(clientSeq);
+	}
+
 	/**
 	 * Drop the pending entry whose `clientSeq` matches the supplied value.
 	 * Used during reconnect to evict actions the server already echoed back
@@ -491,11 +501,17 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 	}
 
 	protected override _applyReducer(state: ChatState, action: StateAction): ChatState {
+		if (action.type === ActionType.SessionChatUpdated && action.chat === this._chatUri) {
+			const { resource: _resource, ...changes } = action.changes;
+			return { ...state, ...changes };
+		}
 		return chatReducer(state, action as IProtocolChatAction, this._log);
 	}
 
 	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
-		return isChatAction(envelope.action) && envelope.channel === this._chatUri;
+		// Host-advertised chat URIs are opaque; the update identifies its target.
+		return isChatAction(envelope.action) && envelope.channel === this._chatUri
+			|| envelope.action.type === ActionType.SessionChatUpdated && envelope.action.chat === this._chatUri;
 	}
 
 	protected override _onSnapshotApplied(fromSeq: number): void {
@@ -586,6 +602,10 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 
 	getPendingActions(): IPendingDispatchAction[] {
 		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, channel: this._chatUri }));
+	}
+
+	protected override _acknowledgeSnapshotAction(clientSeq: number): void {
+		this.dropPendingByClientSeq(clientSeq);
 	}
 
 	dropPendingByClientSeq(clientSeq: number): boolean {
@@ -886,6 +906,10 @@ export class AnnotationsStateSubscription extends BaseAgentSubscription<Annotati
 		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action, channel: this._annotationsUri }));
 	}
 
+	protected override _acknowledgeSnapshotAction(clientSeq: number): void {
+		this.dropPendingByClientSeq(clientSeq);
+	}
+
 	dropPendingByClientSeq(clientSeq: number): boolean {
 		const index = this._pendingActions.findIndex(p => p.clientSeq === clientSeq);
 		if (index === -1) {
@@ -896,7 +920,7 @@ export class AnnotationsStateSubscription extends BaseAgentSubscription<Annotati
 	}
 }
 
-type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string> };
+type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string>; refresh?: Promise<void>; snapshotVersion: number };
 
 // --- Subscription Manager ----------------------------------------------------
 
@@ -961,6 +985,36 @@ export class AgentSubscriptionManager extends Disposable {
 		return entry?.sub as IAgentSubscription<T> | undefined;
 	}
 
+	/** Re-read a held channel without unsubscribing or discarding pending local actions. */
+	refreshSubscription(resource: URI): Promise<void> {
+		const entry = this._subscriptions.get(resource);
+		if (!entry) {
+			return Promise.reject(new Error(`Subscription not found: ${resource}`));
+		}
+		if (entry.refresh) {
+			return entry.refresh;
+		}
+		const snapshotVersion = ++entry.snapshotVersion;
+		entry.sub.beginSnapshotRefresh();
+		const refresh = (async () => {
+			try {
+				const snapshot = await this._subscribe(resource);
+				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
+					entry.sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+				}
+			} catch (error) {
+				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
+					entry.sub.cancelSnapshotRefresh();
+				}
+				throw error;
+			} finally {
+				entry.refresh = undefined;
+			}
+		})();
+		entry.refresh = refresh;
+		return refresh;
+	}
+
 	/**
 	 * Returns the in-flight `createSession` Promise for this URI, or `undefined` if no create is pending. Used by
 	 * callers that need to gate their own work on a still-running eager `createSession` (e.g. the chat handler awaits
@@ -1016,13 +1070,14 @@ export class AgentSubscriptionManager extends Disposable {
 		// Create new subscription based on caller-specified kind
 		const key = resource.toString();
 		const sub = this._createSubscription(kind, key);
-		const entry: ManagedSubscriptionEntry = { sub, kind, refCount: 1, holders: new Map() };
+		const entry: ManagedSubscriptionEntry = { sub, kind, refCount: 1, holders: new Map(), snapshotVersion: 0 };
 		this._subscriptions.set(resource, entry);
 
 		// Kick off server subscription asynchronously.
 		// Capture the entry reference so we can validate it hasn't been
 		// replaced by a new subscription for the same key (race guard).
-		void (async () => {
+		const snapshotVersion = ++entry.snapshotVersion;
+		entry.refresh = (async () => {
 			const inflight = this._inflightCreates.get(resource);
 			if (inflight) {
 				try {
@@ -1035,15 +1090,19 @@ export class AgentSubscriptionManager extends Disposable {
 			}
 			try {
 				const snapshot = await this._subscribe(resource);
-				if (this._subscriptions.get(resource) === entry) {
+				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
 					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
 				}
 			} catch (err) {
-				if (this._subscriptions.get(resource) === entry) {
+				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
 					sub.setError(err instanceof Error ? err : new Error(String(err)));
 				}
+				throw err;
 			}
-		})();
+		})().finally(() => { entry.refresh = undefined; });
+		// Initial errors are reported on the subscription. An explicit refresh
+		// joining this request must still receive its rejection.
+		void entry.refresh.catch(() => { });
 
 		return this._acquireReference<T>(resource, entry, owner);
 	}
@@ -1216,6 +1275,9 @@ export class AgentSubscriptionManager extends Disposable {
 		if (!entry) {
 			return;
 		}
+		// Reconnect owns the new baseline. An older in-flight refresh must not
+		// overwrite it or cancel buffering for its replacement.
+		entry.snapshotVersion++;
 		// Clear any pending optimistic actions before reseating confirmed
 		// state \u2014 they were predicated on the pre-disconnect confirmed
 		// state and won't reconcile correctly against a fresh snapshot.
@@ -1231,7 +1293,11 @@ export class AgentSubscriptionManager extends Disposable {
 	 * {@link BaseAgentSubscription.beginSnapshotRefresh}.
 	 */
 	beginSnapshotRefresh(resource: URI): void {
-		this._subscriptions.get(resource)?.sub.beginSnapshotRefresh();
+		const entry = this._subscriptions.get(resource);
+		if (entry) {
+			entry.snapshotVersion++;
+			entry.sub.beginSnapshotRefresh();
+		}
 	}
 
 	/** Abandon a refresh started by {@link beginSnapshotRefresh}. */

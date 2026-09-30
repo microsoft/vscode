@@ -16,8 +16,8 @@ import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 
-function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): IPromptPath {
-	return { uri, type, storage } as IPromptPath;
+function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage, sessionTypes?: readonly string[]): IPromptPath {
+	return { uri, type, storage, sessionTypes } as IPromptPath;
 }
 
 function makePromptsService(
@@ -79,6 +79,37 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		assert.deepStrictEqual(result.map((e: { uri: URI; type: PromptsType; source: unknown; disabled: boolean }) => ({ uri: e.uri.toString(), type: e.type, source: e.source, disabled: e.disabled })), [
 			{ uri: extensionAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.extension, disabled: false },
 			{ uri: builtinSkill.toString(), type: PromptsType.skill, source: AICustomizationSources.builtin, disabled: false },
+		]);
+	});
+
+	test('matches logical harness types for local and remote agent-host resource schemes', async () => {
+		const copilotSkill = URI.file('/extension/skills/copilot/SKILL.md');
+		const claudeSkill = URI.file('/extension/skills/claude/SKILL.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.skill}/${PromptsStorage.extension}`, [
+				makePromptPath(copilotSkill, PromptsType.skill, PromptsStorage.extension, [SessionType.CopilotCLI]),
+				makePromptPath(claudeSkill, PromptsType.skill, PromptsStorage.extension, ['claude']),
+			]],
+		]));
+
+		const sessionTypes = [
+			SessionType.CopilotCLI,
+			SessionType.AgentHostCopilot,
+			'remote-devbox-copilotcli',
+			'agent-host-claude',
+			'remote-devbox-claude',
+		];
+		const results = await Promise.all(sessionTypes.map(async sessionType =>
+			(await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), sessionType, CancellationToken.None, undefined))
+				.map(item => item.uri.toString())
+		));
+
+		assert.deepStrictEqual(results, [
+			[copilotSkill.toString()],
+			[copilotSkill.toString()],
+			[copilotSkill.toString()],
+			[claudeSkill.toString()],
+			[claudeSkill.toString()],
 		]);
 	});
 

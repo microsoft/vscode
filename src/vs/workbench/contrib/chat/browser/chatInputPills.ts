@@ -8,6 +8,7 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import type { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, Separator, SubmenuAction, toAction, type IAction, type IActionRunner } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../base/common/layout.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import type { ThemeIcon } from '../../../../base/common/themables.js';
@@ -131,7 +132,11 @@ export class StandardChatInputPillSources extends Disposable {
 				return;
 			}
 			const action = this._register(new Action(`chatInputPills.${kind}`, getSessionChatPillLabel(kind)));
-			const pillSource = createChatSectionPillSource(kind, action, source.sections, source.icon ? { ...options, icon: source.icon } : options, resourceLabels, instantiationService);
+			const pillSource = createChatSectionPillSource(kind, action, source.sections, {
+				...options,
+				...(source.icon ? { icon: source.icon } : {}),
+				preferredAnchorPosition: AnchorPosition.ABOVE,
+			}, resourceLabels, instantiationService);
 			sources.push({
 				...pillSource,
 				hasData: source.hasData ?? pillSource.hasData,

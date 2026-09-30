@@ -30,8 +30,8 @@ class TestCodeWindow extends mock<ICodeWindow>() {
 
 suite('OnboardingTryoutHandoff', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const request: IOnboardingTryoutWindowRequest = { requestId: '01234567-89ab-4cde-8fab-0123456789ab', tryoutId: 'test.agentsExample' };
-	const newerRequest: IOnboardingTryoutWindowRequest = { requestId: '11234567-89ab-4cde-8fab-0123456789ab', tryoutId: 'test.newerExample' };
+	const request: IOnboardingTryoutWindowRequest = { requestId: '01234567-89ab-4cde-8fab-0123456789ab', tryoutId: 'test.agentsExample', source: 'releaseNotes' };
+	const newerRequest: IOnboardingTryoutWindowRequest = { requestId: '11234567-89ab-4cde-8fab-0123456789ab', tryoutId: 'test.newerExample', source: 'externalLink' };
 
 	function createHandoff(openAgentsWindow: IWindowsMainService['openAgentsWindow']) {
 		return store.add(new OnboardingTryoutHandoff(

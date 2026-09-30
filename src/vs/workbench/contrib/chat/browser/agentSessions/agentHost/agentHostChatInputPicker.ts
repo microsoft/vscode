@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableSignal } from '../../../../../../base/common/observable.js';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isWeb, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -30,6 +30,8 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { getAgentHostOperatingSystem } from '../../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
+import { readSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -64,6 +66,7 @@ import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -323,6 +326,7 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.WorktreeBranchTrack,
 	SessionConfigKey.WorktreeCreateNewBranch,
 	SessionConfigKey.WorktreeIncludeFiles,
+	SessionConfigKey.WorktreeSymlinkFolders,
 	SessionConfigKey.ShellInitScripts,
 	SessionConfigKey.SandboxEnabled,
 	ClaudeSessionConfigKey.PermissionMode,
@@ -415,6 +419,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -922,9 +927,11 @@ export class AgentHostChatInputPicker extends Disposable {
 		);
 		combinedTrigger?.setAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, 'true');
 		if (permissions) {
-			const allowsBypass = this._agentHostEnablementService.managedSandboxAllowsBypass.get();
+			const allowsBypass = this._readSandboxToggleState().allowsBypass;
 			this._pickerDisposables.add(autorun(reader => {
-				if (allowsBypass !== this._agentHostEnablementService.managedSandboxAllowsBypass.read(reader)) {
+				this._agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
+				this._sandboxConfigChanged.read(reader);
+				if (allowsBypass !== this._readSandboxToggleState().allowsBypass) {
 					this._hidePicker();
 				}
 			}));
@@ -1008,12 +1015,17 @@ export class AgentHostChatInputPicker extends Disposable {
 		const context = this._readContext(SessionConfigKey.SandboxEnabled);
 		const value = context?.value;
 		const settingId = this._getSandboxSettingId();
+		const state = this._subRef.value?.sub.value;
+		const policy = readSessionSandboxPolicy(state instanceof Error ? undefined : state);
+		const useLocalPolicy = !policy && !isWeb && !this._environmentService.remoteAuthority
+			&& context?.connection === this._agentHostService;
 		return {
-			provider: context?.backendSession.scheme,
-			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : undefined,
+			provider: context?.provider,
+			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : readSessionSandboxState(state instanceof Error ? undefined : state)?.enabled,
+			confirmedEnabled: readSessionSandboxState(state instanceof Error ? undefined : state)?.enabled,
 			globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
-			managedEnabled: this._agentHostEnablementService.managedSandboxEnforced.get(),
-			allowsBypass: this._agentHostEnablementService.managedSandboxAllowsBypass.get(),
+			managedEnabled: policy ? policy.enabled && !policy.failClosed : useLocalPolicy && this._agentHostEnablementService.managedSandboxEnforced.get(),
+			allowsBypass: policy ? policy.allowBypass === true : useLocalPolicy && this._agentHostEnablementService.managedSandboxAllowsBypass.get(),
 		};
 	}
 

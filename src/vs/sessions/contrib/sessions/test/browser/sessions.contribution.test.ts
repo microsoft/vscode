@@ -64,17 +64,19 @@ suite('Sessions Contribution', () => {
 		});
 	});
 
-	test('shows chats as tabs by default', () => {
+	test('shows chats as tabs by default with automatic experiments', () => {
 		assert.deepStrictEqual({
 			type: showChatTabsProperty.type,
 			enum: showChatTabsProperty.enum,
 			default: showChatTabsProperty.default,
 			scope: showChatTabsProperty.scope,
+			experiment: showChatTabsProperty.experiment,
 		}, {
 			type: 'string',
 			enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single],
 			default: SESSIONS_CHAT_TABS_DEFAULT,
 			scope: ConfigurationScope.WINDOW,
+			experiment: { mode: 'auto' },
 		});
 	});
 

@@ -118,7 +118,7 @@ export function isAgentsWindowDraft(value: unknown): value is IAgentsWindowDraft
 }
 
 export interface IAgentsWindowNewSessionLink {
-	readonly workspaceUri: URI;
+	readonly workspaceUri?: URI;
 	readonly draft: IAgentsWindowDraft;
 }
 
@@ -131,14 +131,13 @@ export function parseExternalAgentsWindowNewSessionLinkUri(uri: URI | string, pr
 	const params = new URLSearchParams(parsed.query);
 	const workspace = params.get('workspace');
 	const prompt = params.get('prompt');
-	if (!workspace || !prompt) {
+	if (!prompt || workspace === '') {
 		return undefined;
 	}
 
 	try {
-		const workspaceUri = URI.parse(workspace, true);
 		return {
-			workspaceUri,
+			workspaceUri: workspace === null ? undefined : URI.parse(workspace, true),
 			draft: { inputText: prompt, attachments: '[]' },
 		};
 	} catch {

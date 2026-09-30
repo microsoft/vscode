@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createRequire } from 'module';
+import * as net from 'net';
 import * as os from 'os';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -301,6 +303,8 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	private readonly _relayMessageCallbacks: Array<(data: string) => void> = [];
 	/** Stored onClose callbacks from relays, most recent last. */
 	private readonly _relayCloseCallbacks: Array<() => void> = [];
+	/** Stored onActivity callbacks from relays, most recent last. */
+	private readonly _relayActivityCallbacks: Array<() => void> = [];
 	/** Stored relay result objects, most recent last (for makePreviousRelaySyncClose). */
 	private readonly _relayResults: Array<{ send: (data: string) => void; close: () => void }> = [];
 
@@ -327,11 +331,12 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 		_relayInstanceId: string,
 		_relayUserDataPath: string,
 		_connectionToken: string | undefined,
-		onMessage: (data: string) => void, onClose: () => void,
+		onMessage: (data: string) => void, onClose: () => void, onActivity: () => void,
 	) {
 		this.relayCalled++;
 		this._relayMessageCallbacks.push(onMessage);
 		this._relayCloseCallbacks.push(onClose);
+		this._relayActivityCallbacks.push(onActivity);
 		if (this.hangRelayCreationOnCall === this.relayCalled) {
 			// Simulate forwardOut hanging — never resolve. The wrapper in
 			// `connect()` should still surface a timeout error instead of
@@ -400,6 +405,12 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	simulateRelayMessage(data: string, relayIndex?: number): void {
 		const idx = relayIndex ?? this._relayMessageCallbacks.length - 1;
 		this._relayMessageCallbacks[idx]?.(data);
+	}
+
+	/** Simulate a relay receiving part of a message (0-indexed). Defaults to the most recent relay. */
+	simulateRelayActivity(relayIndex?: number): void {
+		const idx = relayIndex ?? this._relayActivityCallbacks.length - 1;
+		this._relayActivityCallbacks[idx]?.();
 	}
 
 	/**
@@ -1090,6 +1101,20 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.deepStrictEqual(closes, [result.connectionId]);
 	});
 
+	test('relay activity fires onDidRelayActivity for the initial and replacement relays', async () => {
+		service.execResponses = discoveryResponses([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]);
+		const result = await service.connect(makeConfig({ sshConfigHost: 'myalias' }));
+
+		const activity: string[] = [];
+		disposables.add(service.onDidRelayActivity(id => activity.push(id)));
+
+		service.simulateRelayActivity();
+		await service.reconnect('myalias', 'test-agent');
+		service.simulateRelayActivity();
+
+		assert.deepStrictEqual(activity, [result.connectionId, result.connectionId]);
+	});
+
 	test('relaySend delivers data to the correct connection', async () => {
 		const sentData: string[] = [];
 		service.relayResult = {
@@ -1753,6 +1778,84 @@ suite('SSHRemoteAgentHostMainService - resolveSSHConfig', () => {
 			reusedHosts: ['myhost', 'otherhost', 'failing', 'failing'],
 			expiredHosts: ['myhost', 'myhost'],
 		});
+	});
+});
+
+suite('SSHRemoteAgentHostMainService - WebSocket relay', () => {
+
+	const disposables = new DisposableStore();
+
+	teardown(() => disposables.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Runs the real relay over a loopback TCP socket standing in for the forwarded SSH channel. */
+	class RelayTestService extends SSHRemoteAgentHostMainService {
+		protected override async _getNativeRequire(): Promise<NodeJS.Require> {
+			return createRequire(import.meta.url);
+		}
+
+		createRelay(port: number, onMessage: (data: string) => void, onClose: () => void, onActivity: () => void): Promise<{ send: (data: string) => void; close: () => void }> {
+			const client = {
+				forwardOut: (_srcIP: string, _srcPort: number, _dstIP: string, _dstPort: number, callback: (err: Error | undefined, channel: net.Socket) => void) => {
+					const channel = net.createConnection({ host: '127.0.0.1', port }, () => callback(undefined, channel));
+				},
+			};
+			return this._createWebSocketRelay(client as never, { type: 'tcp', host: '127.0.0.1', port }, '', '', '', '', undefined, onMessage, onClose, onActivity);
+		}
+	}
+
+	/** Opens a relay to a loopback `ws` server and returns the agent host's raw end of the channel. */
+	async function openRelay(onMessage: (data: string) => void, onClose: () => void, onActivity: () => void): Promise<{ relay: { send: (data: string) => void; close: () => void }; host: net.Socket }> {
+		const { WebSocketServer } = await import('ws');
+		const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+		disposables.add(toDisposable(() => server.close()));
+		await new Promise<void>(resolve => server.once('listening', resolve));
+		const hostSocket = new Promise<net.Socket>(resolve => server.once('connection', (_webSocket, request) => resolve(request.socket)));
+
+		const service = disposables.add(new RelayTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		const relay = await service.createRelay((server.address() as net.AddressInfo).port, onMessage, onClose, onActivity);
+		disposables.add(toDisposable(() => relay.close()));
+		const host = await hostSocket;
+		disposables.add(toDisposable(() => host.destroy()));
+		return { relay, host };
+	}
+
+	/** Encodes the header of one unmasked text frame, as the agent host sends it. */
+	function textFrameHeader(payloadLength: number): Buffer {
+		const header = Buffer.alloc(10);
+		header[0] = 0x81; // FIN, text frame
+		header[1] = 127; // 64-bit payload length follows
+		header.writeBigUInt64BE(BigInt(payloadLength), 2);
+		return header;
+	}
+
+	test('reports activity while a large message is still arriving over the channel', async () => {
+		const activity = new DeferredPromise<void>();
+		const message = new DeferredPromise<string>();
+		const { host } = await openRelay(data => message.complete(data), () => { }, () => activity.complete());
+
+		// One text frame, delivered in two halves as a slow link would.
+		const payload = Buffer.alloc(100_000, 'x');
+		host.write(Buffer.concat([textFrameHeader(payload.length), payload.subarray(0, payload.length / 2)]));
+		await activity.p;
+		const completedBeforeLastHalf = message.isSettled;
+		host.write(payload.subarray(payload.length / 2));
+
+		assert.deepStrictEqual({ completedBeforeLastHalf, messageLength: (await message.p).length }, { completedBeforeLastHalf: false, messageLength: payload.length });
+	});
+
+	test('stops reporting activity once the relay is closed', async () => {
+		let activityReports = 0;
+		const closed = new DeferredPromise<void>();
+		const { relay, host } = await openRelay(() => { }, () => closed.complete(), () => activityReports++);
+
+		// The host keeps sending until it sees the close frame, so these bytes arrive mid-handshake.
+		relay.close();
+		host.write(Buffer.concat([textFrameHeader(100_000), Buffer.alloc(50_000, 'x')]));
+		await closed.p;
+
+		assert.strictEqual(activityReports, 0);
 	});
 });
 

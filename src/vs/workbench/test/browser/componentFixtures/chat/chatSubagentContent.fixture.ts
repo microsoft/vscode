@@ -40,7 +40,7 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
 
 type FusionFixtureState = 'fusion-routing' | 'fusion-single' | 'fusion-cascade' | 'fusion-critique' | 'fusion-failed' | 'fusion-cancelled' | 'fusion-permission';
 
-async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete' | FusionFixtureState, readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
+async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete' | 'inline' | 'inline-expanded' | FusionFixtureState, readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
 	const { container, disposableStore } = context;
 	const width = 620;
 	const instantiationService = createEditorServices(disposableStore, {
@@ -63,7 +63,6 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 	});
 	instantiationService.stub(ILanguageModelToolsService, instantiationService.get(ILanguageModelToolsService), 'getTool', () => undefined);
 	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, true);
 	configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 	configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', state === 'thinking' ? CollapsedToolsDisplayMode.Always : CollapsedToolsDisplayMode.Off);
 	if (state === 'thinking') {
@@ -89,7 +88,7 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 	const model = disposableStore.add(instantiationService.createInstance(ChatModel, undefined, {
 		initialLocation: ChatAgentLocation.Chat,
 		canUseTools: true,
-		resource: URI.parse('agent-host-copilotcli:/session'),
+		resource: state.startsWith('inline') ? undefined : URI.parse('agent-host-copilotcli:/session'),
 	}));
 	const request = model.addRequest({
 		text: 'Review',
@@ -199,6 +198,30 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		)]);
 		return;
 	}
+	if (state === 'inline' || state === 'inline-expanded') {
+		publisher.publish([new ChatToolInvocation(
+			{
+				invocationMessage: 'Reviewing child chat lifecycle',
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Review child chat lifecycle',
+					agentName: 'Explore',
+					prompt: 'Review the subagent lifecycle and find missing cleanup.',
+					modelName: 'Claude Sonnet 4.6',
+				},
+			},
+			{ id: 'runSubagent', displayName: 'Run subagent', modelDescription: 'Run subagent', source: ToolDataSource.Internal },
+			'inline-review', undefined, {},
+		), new ChatToolInvocation(
+			{ invocationMessage: 'Search for subagent lifecycle handlers' },
+			{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+			'inline-search', 'inline-review', {},
+		)]);
+		if (state === 'inline-expanded') {
+			template.value.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+		}
+		return;
+	}
 	publisher.publish([{ kind: 'markdownContent', content: new MarkdownString('Starting two read-only reviews. Other work can continue while they initialize.') }]);
 	const launches: ChatToolInvocation[] = [];
 	for (const [index, description] of ['Review child chat lifecycle', 'Review state and history'].entries()) {
@@ -292,10 +315,12 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	FusionCritique: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-critique') }),
 	FusionFailed: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-failed') }),
 	FusionCancelled: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-cancelled') }),
-	FusionPermission: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-permission') }),
+	FusionPermission: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'fusion-permission') }),
 	Pending: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'pending') }),
 	Initializing: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'initializing') }),
 	Running: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'running') }),
+	Inline: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'inline') }),
+	InlineExpanded: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'inline-expanded') }),
 	StartedAfterParentComplete: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'parent-complete') }),
 	CompletionNotices: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderCompletionNotices }),
 	ThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking') }),

@@ -7,8 +7,10 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { mainWindow } from '../../../base/browser/window.js';
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 import type { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from './editorPartSizing.js';
+import { isPhoneLayout } from './mobile/mobileLayout.js';
 
 export class MainEditorPart extends MainEditorPartBase {
 	static readonly MARGIN_TOP = 0;
@@ -34,7 +36,11 @@ export class MainEditorPart extends MainEditorPartBase {
 			return;
 		}
 
-		const adjustedWidth = width - MainEditorPart.MARGIN_RIGHT - MainEditorPart.MARGIN_LEFT - 2 /* border width */;
+		const marginLeft = !isPhoneLayout(this.layoutService)
+			&& !this.layoutService.isVisible(Parts.SIDEBAR_PART)
+			&& !this.layoutService.isVisible(Parts.SESSIONS_PART)
+			? AGENTS_FLOATING_PANEL_GAP : MainEditorPart.MARGIN_LEFT;
+		const adjustedWidth = width - MainEditorPart.MARGIN_RIGHT - marginLeft - 2 /* border width */;
 		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - MainEditorPart.MARGIN_BOTTOM - 2 /* border width */;
 
 		super.layout(adjustedWidth, adjustedHeight, top, left);

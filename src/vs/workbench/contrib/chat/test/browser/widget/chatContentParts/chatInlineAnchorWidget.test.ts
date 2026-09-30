@@ -18,6 +18,9 @@ import { ChatQueryTitlePart } from '../../../../browser/widget/chatContentParts/
 import { getChatMarkdownRenderOptions } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../browser/chatPetService.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
@@ -214,20 +217,49 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		assert.deepStrictEqual(attemptedUnlocks, []);
 	});
 
-	test('renders widget for empty vscode-agent-host link in chat query title', () => {
-		const container = mainWindow.document.createElement('div');
-		const titlePart = disposables.add(instantiationService.createInstance(
-			ChatQueryTitlePart,
-			container,
-			new MarkdownString('Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0), lines 1 to 2'),
-			undefined,
-		));
-		titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
+	for (const href of [
+		'file:///path/to/foo.ts',
+		'vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0',
+	]) {
+		test(`renders empty ${URI.parse(href).scheme} links in chat query titles without conflicting native hovers`, () => {
+			const hoverTitles: (string | null)[] = [];
+			const hoverContents: Parameters<IHoverService['setupManagedHover']>[2][] = [];
+			instantiationService.stub(IHoverService, {
+				...NullHoverService,
+				setupManagedHover: (...args: Parameters<IHoverService['setupManagedHover']>) => {
+					hoverTitles.push(args[1].getAttribute('title'));
+					hoverContents.push(args[2]);
+					return NullHoverService.setupManagedHover(...args);
+				},
+			});
 
-		const widget = container.querySelector('.chat-inline-anchor-widget');
-		assert.ok(widget, 'Widget should be rendered for empty vscode-agent-host link in chat query title');
-		assert.strictEqual(widget.querySelector('.icon-label')?.textContent, 'foo.ts');
-	});
+			const container = mainWindow.document.createElement('div');
+			const titlePart = disposables.add(instantiationService.createInstance(
+				ChatQueryTitlePart,
+				container,
+				new MarkdownString(`Read [](${href}), lines 1 to 2`),
+				undefined,
+			));
+			titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
+			titlePart.title = new MarkdownString(`Read [](${href}), lines 3 to 4`);
+
+			const widget = container.querySelector('.chat-inline-anchor-widget');
+			const hoverLabel = instantiationService.get(ILabelService).getUriLabel(URI.parse(href), { relative: true });
+			assert.deepStrictEqual({
+				label: widget?.querySelector('.icon-label')?.textContent,
+				title: widget?.getAttribute('title'),
+				href: widget?.getAttribute('data-href'),
+				hoverTitles,
+				hoverContents,
+			}, {
+				label: 'foo.ts',
+				title: null,
+				href,
+				hoverTitles: [null, null],
+				hoverContents: [hoverLabel, hoverLabel],
+			});
+		});
+	}
 
 	test('renders widget for vscodeLinkType=file', () => {
 		const element = createTestElement('document.txt', 'file:///path/to/document.txt?vscodeLinkType=file');
@@ -239,10 +271,17 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 
 	test('does not render widget for link without vscodeLinkType query parameter', () => {
 		const element = createTestElement('regular link text', 'file:///test.txt');
+		const anchor = element.querySelector('a')!;
+		anchor.title = 'Regular link tooltip';
 		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
 
-		const widget = element.querySelector('.chat-inline-anchor-widget');
-		assert.ok(!widget, 'Widget should not be rendered for link without vscodeLinkType query parameter');
+		assert.deepStrictEqual({
+			widget: element.querySelector('.chat-inline-anchor-widget'),
+			title: anchor.getAttribute('title'),
+		}, {
+			widget: null,
+			title: 'Regular link tooltip',
+		});
 	});
 
 	test('does not render widget when URI scheme is missing', () => {

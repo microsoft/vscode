@@ -11,6 +11,7 @@ import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, CO
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
+	AgentHostAgentOrchestrationLimitsSettingId,
 	AgentHostAutoAttachPullRequestsSettingId,
 	AgentHostByokModelsEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
@@ -35,19 +36,19 @@ import {
 	AgentHostSystemProxyEnabledSettingId,
 } from './agentService.js';
 import {
-	AgentHostClaudeMultiRootEnabledConfigKey,
+	AgentHostAgentOrchestrationLimitsConfigKey,
 	AgentHostAutoAttachPullRequestsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
-	AgentHostGitHubMcpServerEnabledConfigKey,
+	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
 	AgentHostCopilotMultiRootEnabledConfigKey,
+	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostSystemProxyEnabledConfigKey,
 } from './agentHostSchema.js';
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
-import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -181,7 +182,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.ReplyAttribution },
 		},
-		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',
@@ -200,6 +200,19 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostMarkdownPlanRichLinksEnabledConfigKey },
+		},
+		[AgentHostAgentOrchestrationLimitsSettingId]: {
+			type: 'string',
+			enum: ['on', 'off'],
+			enumDescriptions: [
+				nls.localize('chat.agentHost.agentOrchestrationLimits.on', "Enforce the limits."),
+				nls.localize('chat.agentHost.agentOrchestrationLimits.off', "Do not enforce the limits."),
+			],
+			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls process-wide limits on sessions and chats created, messages sent, and recursive session spawning by Agent Host session tools. Confirmation requirements and input validation are unchanged."),
+			default: 'on',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			agentHost: { key: AgentHostAgentOrchestrationLimitsConfigKey },
 		},
 		[AgentHostSystemProxyEnabledSettingId]: {
 			type: 'boolean',

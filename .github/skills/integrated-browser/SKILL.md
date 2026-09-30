@@ -25,7 +25,7 @@ It's a heavyweight, security-sensitive, multi-process primitive, and **almost ev
 | **Shared** | `platform/browserView/node` | Playwright + remote/group automation services. Keeps a heavy dependency out of main (stability) and renderer (lifecycle). |
 | **Renderer** | `workbench/contrib/browserView` + `platform/browserView/electron-browser` | Editor pane, UI feature contributions, agent tools, page preload script. Holds only lightweight proxies. |
 
-**Layer rule:** `platform` must not import `workbench`; the agent host can't import `workbench`; shared types belong in `platform/common`. The renderer reaches main/shared only through `ProxyChannel` IPC, never by importing implementations. Channels are registered in `electron-main/app.ts` and `electron-utility/sharedProcess/sharedProcessMain.ts`. Split: **page ops/state → main; agent automation → shared; CDP plumbing is its own channel both renderer and shared use to reach main.**
+**Layer rule:** `platform` must not import `workbench`; the agent host can't import `workbench`; shared types belong in `platform/common`. The renderer reaches main/shared through `ProxyChannel` IPC, never by importing implementations. Browser events share one eager, host-window-scoped catch-all subscription; the workbench applies its initial snapshot before routing live changes to model-local events. Buffers travel as tuple/array elements alongside event metadata, not nested inside JSON objects. Channels are registered in `electron-main/app.ts` and `electron-utility/sharedProcess/sharedProcessMain.ts`. Split: **page ops/state → main; agent automation → shared; CDP plumbing is its own channel both renderer and shared use to reach main.**
 
 ## The renderer holds a mirror, not the truth
 
@@ -39,7 +39,7 @@ renderer feature ──command──▶ model ──IPC──▶ main BrowserVie
 
 To *do* something, call a method (round-trips to main); to *react*, listen to a model event. Never **compute** page state in the renderer — it has no access to the web contents.
 
-- **New state** (url/title/loading/zoom/…): make it authoritative in the main `BrowserView`, emit a change event, then mirror the field + event on the renderer model and forward it over the channel.
+- **New state** (url/title/loading/zoom/…): make it authoritative in the main `BrowserView`, emit a change event, then mirror the field + event on the renderer model and add it to the typed forwarding map in `BrowserViewMainService`. Forwarding must be installed before navigation; do not add per-browser IPC subscriptions. Each window subscription starts with its current snapshot, which defines workbench readiness without a separate initialization RPC. The workbench owns each browser's emitter map, passes it into the model, and dispatches directly by browser ID and event name; models only consume events.
 - **New operation** (navigate/reload/focus/…): define it in main, expose a thin proxy method on the renderer model that round-trips the channel.
 
 Wanting the renderer to "just read" something off the page is the signal you need new mirrored state + an event from main.

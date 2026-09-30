@@ -53,6 +53,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		this._sessionListStore = this._register(instantiationService.createInstance(AgentHostSessionListStore, {
 			onDidNotification: this._notifications.event,
 			listSessions: () => this._requireConnection().listSessions(),
+			disposeChat: chat => this._requireConnection().disposeChat(chat),
 			disposeSession: session => this._requireConnection().disposeSession(session),
 			dispatch: (channel, action) => this._requireConnection().dispatch(channel, action),
 		}, {

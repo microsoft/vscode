@@ -48,6 +48,7 @@ async function main(buildDir?: string) {
 	const asarRelativePath = path.join('Contents', 'Resources', 'app', 'node_modules.asar');
 	const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
 	const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
+	crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join('Contents', 'Resources', 'app', 'node-compile-cache'));
 
 	// Copilot SDK ships platform-specific native binaries that npm only installs
 	// for the host architecture. The universal app merger requires both builds to

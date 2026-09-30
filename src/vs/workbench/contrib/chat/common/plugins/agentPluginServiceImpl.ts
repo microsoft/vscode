@@ -19,7 +19,7 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -54,6 +54,7 @@ import { HookType } from '../promptSyntax/hookTypes.js';
 import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService } from './agentPluginService.js';
+import { IPluginInstallService } from './pluginInstallService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
 // Re-export shared helpers so existing consumers (including tests) continue to work.
@@ -448,6 +449,11 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		// was already populated above before constructing the observable.
 		const readManifest = async () => {
 			try {
+				const stat = await this._fileService.resolve(uri);
+				if (!stat.isDirectory) {
+					await this._refreshPlugins();
+					return;
+				}
 				const latestFormat = await detectPluginFormat(uri, this._fileService);
 				if (latestFormat.format !== format.format) {
 					await this._refreshPlugins();
@@ -455,6 +461,10 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				}
 				manifest.set(await readPluginManifest(uri, format, this._fileService), undefined);
 			} catch (error) {
+				if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+					await this._refreshPlugins();
+					return;
+				}
 				manifest.set(undefined, undefined);
 				this._logService.warn(`[AgentPluginDiscovery] Rejected updated plugin '${uri.toString()}': ${error instanceof Error ? error.message : String(error)}`);
 			}
@@ -776,6 +786,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 
 	constructor(
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
+		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
 		@IAgentPluginRepositoryService private readonly _pluginRepositoryService: IAgentPluginRepositoryService,
 		@IFileService fileService: IFileService,
 		@IPathService pathService: IPathService,
@@ -789,7 +800,21 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 		this._enablementModel = enablementModel;
 		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
 		this._register(autorun(reader => {
-			this._pluginMarketplaceService.installedPlugins.read(reader);
+			const installed = this._pluginMarketplaceService.installedPlugins.read(reader);
+			const watchedParents: URI[] = [];
+			for (const entry of installed) {
+				const parent = dirname(entry.pluginUri);
+				if (watchedParents.some(candidate => isEqual(candidate, parent))) {
+					continue;
+				}
+				watchedParents.push(parent);
+				const watcher = reader.store.add(this._fileService.createWatcher(parent, { recursive: false, excludes: [] }));
+				reader.store.add(watcher.onDidChange(change => {
+					if (installed.some(candidate => isEqual(dirname(candidate.pluginUri), parent) && change.affects(candidate.pluginUri))) {
+						scheduler.schedule();
+					}
+				}));
+			}
 			scheduler.schedule();
 		}));
 		scheduler.schedule();
@@ -821,18 +846,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				repositoryUri,
 				remove: async () => {
 					this._enablementModel.remove(stat.resource.toString());
-					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
-
-					// Pass remaining installed descriptors so the repository service
-					// can skip deletion when other plugins share the same cache dir.
-					const remaining = this._pluginMarketplaceService.installedPlugins.get();
-					this._pluginRepositoryService.cleanupPluginSource(
-						entry.plugin,
-						remaining.map(e => e.plugin.sourceDescriptor),
-					).catch(error => {
-						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);
-					});
-					return true;
+					return this._pluginInstallService.uninstallPlugin(entry.pluginUri);
 				},
 			});
 		}

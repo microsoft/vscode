@@ -23,6 +23,8 @@ export const enum CompletionTriggerCharacter {
 	Hash = '#',
 	/** Leading slash command or skill reference. */
 	Slash = '/',
+	/** Slash command argument separator. */
+	Space = ' ',
 }
 
 /**

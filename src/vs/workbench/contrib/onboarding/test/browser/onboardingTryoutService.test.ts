@@ -5,28 +5,54 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isUUID } from '../../../../../base/common/uuid.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryService } from '../../../../../platform/telemetry/common/telemetryService.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { OnboardingTryoutService } from '../../browser/onboardingTryoutService.js';
 import { IOnboardingPresentation, onboardingPresentationRegistry } from '../../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../../common/onboardingRegistry.js';
 import { OnboardingDismissReason, OnboardingOutcome } from '../../common/onboardingScenario.js';
-import { AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND, createOnboardingTryoutUri, IOnboardingTryout, IOnboardingTryoutRunContext, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutPreparation, parseOnboardingTryoutArguments, parseOnboardingTryoutUri, registerOnboardingTryout, registerOnboardingTryoutPresentation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../common/onboardingTryout.js';
+import { AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND, createOnboardingTryoutUri, IOnboardingTryout, IOnboardingTryoutRunContext, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutPreparation, OnboardingTryoutResult, parseOnboardingTryoutArguments, parseOnboardingTryoutUri, registerOnboardingTryout, registerOnboardingTryoutPresentation, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../common/onboardingTryout.js';
+
+class CapturingTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data?: ITelemetryData }[] = [];
+
+	override publicLog2(name?: string, data?: ITelemetryData): void {
+		if (name) {
+			this.events.push({ name, data });
+		}
+	}
+
+	get snapshot() {
+		return this.events.map(({ name, data }) => ({
+			name,
+			data: {
+				...data,
+				runId: typeof data?.runId === 'string' && isUUID(data.runId),
+				...(data?.durationMs !== undefined ? { durationMs: typeof data.durationMs === 'number' && Number.isInteger(data.durationMs) && data.durationMs >= 0 } : {}),
+			},
+		}));
+	}
+}
 
 suite('OnboardingTryoutService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(agents = true) {
+	function createService(agents = true, telemetryService?: ITelemetryService) {
 		const config = new TestConfigurationService();
 		const context = store.add(new ContextKeyService(upcastPartial<IConfigurationService>(config)));
 		const sentiment: IChatSentiment = { completed: true, installed: true };
@@ -40,8 +66,9 @@ suite('OnboardingTryoutService', () => {
 			onDidChangeEntitlement: Event.None,
 			onDidChangeAnonymous: Event.None,
 		});
-		const service = store.add(new OnboardingTryoutService(context, chat, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: agents })));
-		return { service, context, sentiment, changed };
+		const telemetry = new CapturingTelemetryService();
+		const service = store.add(new OnboardingTryoutService(context, chat, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: agents }), telemetryService ?? telemetry));
+		return { service, context, sentiment, changed, telemetry };
 	}
 
 	function registerTryout(overrides: Partial<IOnboardingTryout<undefined>> = {}) {
@@ -78,6 +105,179 @@ suite('OnboardingTryoutService', () => {
 				},
 			}),
 		}));
+	}
+
+	for (const kind of ['opened', 'executed', 'prepared'] as const) {
+		test(`reports a cohort marker and outcome for a ${kind} example`, async () => {
+			const { service, telemetry } = createService();
+			registerTryout();
+			registerPresentation(async () => ({ kind: 'ready', run: async () => ({ kind }) }));
+
+			await service.run('test.tryout', CancellationToken.None, { source: 'releaseNotes' });
+
+			assert.deepStrictEqual({
+				events: telemetry.snapshot,
+				sameRun: telemetry.events[0].data?.runId === telemetry.events[1].data?.runId,
+			}, {
+				events: [
+					{ name: 'onboarding.tryoutStarted', data: { tryoutId: 'test.tryout', source: 'releaseNotes', runId: true } },
+					{ name: 'onboarding.tryoutOutcome', data: { tryoutId: 'test.tryout', source: 'releaseNotes', runId: true, result: kind, launchResult: kind, guidanceOutcome: undefined, dismissReason: undefined, durationMs: true } },
+				],
+				sameRun: true,
+			});
+		});
+	}
+
+	test('reports a launch before guidance finishes without duplicating it at completion', async () => {
+		const { service, telemetry } = createService();
+		const launched = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const runId = '01234567-89ab-4cde-8fab-0123456789ab';
+		registerTryout();
+		registerPresentation(async context => ({
+			kind: 'ready',
+			run: async () => {
+				context.onDidLaunch?.('opened');
+				launched.complete();
+				await finish.p;
+				context.onDidFinishGuidance?.({ outcome: OnboardingOutcome.Skipped, shown: true, dismissReason: OnboardingDismissReason.EscapeKey, lastStepIndex: 0, stepCount: 2 });
+				return { kind: 'opened' };
+			},
+		}));
+
+		const pending = service.run('test.tryout', CancellationToken.None, { source: 'externalLink', runId });
+		await launched.p;
+		const beforeFinishing = telemetry.events.map(event => event.name);
+		finish.complete();
+		await pending;
+
+		assert.deepStrictEqual({
+			beforeFinishing,
+			runIds: telemetry.events.map(event => event.data?.runId),
+			events: telemetry.snapshot,
+		}, {
+			beforeFinishing: ['onboarding.tryoutStarted'],
+			runIds: [runId, runId],
+			events: [
+				{ name: 'onboarding.tryoutStarted', data: { tryoutId: 'test.tryout', source: 'externalLink', runId: true } },
+				{ name: 'onboarding.tryoutOutcome', data: { tryoutId: 'test.tryout', source: 'externalLink', runId: true, result: 'opened', launchResult: 'opened', guidanceOutcome: 'skipped', dismissReason: 'escapeKey', durationMs: true } },
+			],
+		});
+	});
+
+	test('does not report starts or sensitive details for failed and unavailable attempts', async () => {
+		const { service, telemetry } = createService();
+		registerTryout();
+		const failed = registerPresentation(async () => { throw new Error('sensitive failure detail'); });
+		await assert.rejects(service.run('test.tryout'), /sensitive failure detail/);
+		failed.dispose();
+		registerPresentation(async () => ({ kind: 'unavailable', message: 'sensitive availability detail' }));
+		await service.run('test.tryout');
+
+		assert.deepStrictEqual(telemetry.snapshot, ['error', 'unavailable'].map(result => ({
+			name: 'onboarding.tryoutOutcome',
+			data: { tryoutId: 'test.tryout', source: 'direct', runId: true, result, launchResult: 'none', guidanceOutcome: undefined, dismissReason: undefined, durationMs: true },
+		})));
+	});
+
+	test('ignores late lifecycle callbacks after cancellation', async () => {
+		const { service, telemetry } = createService();
+		const cancellation = store.add(new CancellationTokenSource());
+		const launched = new DeferredPromise<IOnboardingTryoutRunContext>();
+		const finish = new DeferredPromise<OnboardingTryoutResult>();
+		registerTryout();
+		registerPresentation(async context => ({
+			kind: 'ready',
+			run: async () => {
+				context.onDidLaunch?.('prepared');
+				launched.complete(context);
+				return finish.p;
+			},
+		}));
+
+		const pending = service.run('test.tryout', cancellation.token);
+		const context = await launched.p;
+		cancellation.cancel();
+		await pending;
+		context.onDidLaunch?.('opened');
+		context.onDidFinishGuidance?.({ outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 1, stepCount: 2 });
+		finish.complete({ kind: 'opened' });
+
+		assert.deepStrictEqual(telemetry.snapshot, [
+			{ name: 'onboarding.tryoutStarted', data: { tryoutId: 'test.tryout', source: 'direct', runId: true } },
+			{ name: 'onboarding.tryoutOutcome', data: { tryoutId: 'test.tryout', source: 'direct', runId: true, result: 'cancelled', launchResult: 'prepared', guidanceOutcome: undefined, dismissReason: undefined, durationMs: true } },
+		]);
+	});
+
+	for (const eventName of ['onboarding.tryoutStarted', 'onboarding.tryoutOutcome']) {
+		test(`cleans up and allows another run when ${eventName} telemetry throws`, async () => {
+			const error = new Error('Telemetry appender failed');
+			let shouldThrow = true;
+			const telemetry = store.add(TelemetryService.createWithLevel({
+				telemetryLevel: TelemetryLevel.USAGE,
+				appenders: [{
+					log: name => {
+						if (shouldThrow && name === eventName) {
+							shouldThrow = false;
+							throw error;
+						}
+					},
+					flush: async () => { },
+				}],
+			}, upcastPartial<IProductService>({ enabledTelemetryLevels: { usage: true, error: true } })));
+			const { service } = createService(true, telemetry);
+			const contexts: IOnboardingTryoutRunContext[] = [];
+			let disposed = 0;
+			registerTryout();
+			registerPresentation(async context => {
+				contexts.push(context);
+				context.store.add(toDisposable(() => disposed++));
+				return { kind: 'ready', run: async () => ({ kind: 'executed' }) };
+			});
+
+			await assert.rejects(service.run('test.tryout'), candidate => candidate === error);
+			const afterFailure = { disposed, cancelled: contexts[0].token.isCancellationRequested };
+			const result = await service.run('test.tryout');
+
+			assert.deepStrictEqual({ afterFailure, result, attempts: contexts.length, disposed }, {
+				afterFailure: { disposed: 1, cancelled: true },
+				result: { kind: 'executed' },
+				attempts: 2,
+				disposed: 2,
+			});
+		});
+	}
+
+	test('does not report a launch when preparation is cancelled', async () => {
+		const { service, telemetry } = createService();
+		registerTryout();
+		registerPresentation(async () => ({ kind: 'cancelled' }));
+		await service.run('test.tryout');
+
+		assert.deepStrictEqual(telemetry.snapshot, [
+			{ name: 'onboarding.tryoutOutcome', data: { tryoutId: 'test.tryout', source: 'direct', runId: true, result: 'cancelled', launchResult: 'none', guidanceOutcome: undefined, dismissReason: undefined, durationMs: true } },
+		]);
+	});
+
+	for (const { level, usageEnabled } of [
+		{ level: TelemetryLevel.NONE, usageEnabled: true },
+		{ level: TelemetryLevel.ERROR, usageEnabled: true },
+		{ level: TelemetryLevel.USAGE, usageEnabled: false },
+		{ level: TelemetryLevel.USAGE, usageEnabled: true },
+	]) {
+		test(`respects telemetry level ${level} with product usage telemetry ${usageEnabled}`, async () => {
+			const events: string[] = [];
+			const telemetry = store.add(TelemetryService.createWithLevel({
+				telemetryLevel: level,
+				appenders: [{ log: name => events.push(name), flush: async () => { } }],
+			}, upcastPartial<IProductService>({ enabledTelemetryLevels: { usage: usageEnabled, error: true } })));
+			const { service } = createService(true, telemetry);
+			registerTryout();
+			registerPresentation(async () => ({ kind: 'ready', run: async () => ({ kind: 'opened' }) }));
+			await service.run('test.tryout');
+
+			assert.deepStrictEqual(events, level === TelemetryLevel.USAGE && usageEnabled ? ['onboarding.tryoutStarted', 'onboarding.tryoutOutcome'] : []);
+		});
 	}
 
 	test('registering and reading an example do not prepare or run it', () => {
@@ -152,7 +352,7 @@ suite('OnboardingTryoutService', () => {
 	});
 
 	test('joins concurrent invocations while preparation is pending', async () => {
-		const { service } = createService();
+		const { service, telemetry } = createService();
 		const started = new DeferredPromise<void>();
 		const finish = new DeferredPromise<OnboardingTryoutPreparation>();
 		let preparations = 0;
@@ -163,7 +363,7 @@ suite('OnboardingTryoutService', () => {
 			started.complete();
 			return finish.p;
 		});
-		const first = service.run('test.tryout');
+		const first = service.run('test.tryout', CancellationToken.None, { source: 'releaseNotes' });
 		await started.p;
 		const second = service.run('test.tryout');
 		finish.complete({
@@ -175,10 +375,11 @@ suite('OnboardingTryoutService', () => {
 		});
 
 		const results = await Promise.all([first, second]);
-		assert.deepStrictEqual({ results, preparations, executions }, {
+		assert.deepStrictEqual({ results, preparations, executions, events: telemetry.events.map(event => [event.name, event.data?.source]) }, {
 			results: [{ kind: 'executed' }, { kind: 'executed' }],
 			preparations: 1,
 			executions: 1,
+			events: [['onboarding.tryoutStarted', 'releaseNotes'], ['onboarding.tryoutOutcome', 'releaseNotes']],
 		});
 	});
 
@@ -344,13 +545,13 @@ suite('OnboardingTryoutService', () => {
 	});
 
 	test('routes a known Agents example before evaluating destination-only requirements', async () => {
-		const { service } = createService(false);
+		const { service, telemetry } = createService(false);
 		const routed: string[] = [];
 		registerTryout({ targetWindow: 'agents', when: ContextKeyExpr.has('onlyDefinedInAgents') });
 		registerWindowOpener(async id => { routed.push(id); });
 
 		const result = await service.run('test.tryout');
-		assert.deepStrictEqual({ result, routed }, { result: { kind: 'routed' }, routed: ['test.tryout'] });
+		assert.deepStrictEqual({ result, routed, telemetry: telemetry.events }, { result: { kind: 'routed' }, routed: ['test.tryout'], telemetry: [] });
 	});
 
 	test('offers setup without executing it during availability checks', async () => {
@@ -361,7 +562,7 @@ suite('OnboardingTryoutService', () => {
 	});
 
 	test('rejects unknown and non-opted-in scenarios', async () => {
-		const { service } = createService();
+		const { service, telemetry } = createService();
 		store.add(onboardingScenarioRegistry.register({
 			id: 'test.privateTour',
 			trigger: { kind: 'command', commandId: 'test.privateTour' },
@@ -369,6 +570,7 @@ suite('OnboardingTryoutService', () => {
 		}));
 		await assert.rejects(service.run('test.unknown'), /not available/);
 		await assert.rejects(service.run('test.privateTour'), /not available/);
+		assert.deepStrictEqual(telemetry.events, []);
 	});
 
 	test('propagates preparation and execution failures instead of claiming success', async () => {

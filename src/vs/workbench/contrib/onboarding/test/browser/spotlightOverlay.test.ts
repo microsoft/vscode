@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -316,6 +316,40 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	test('Escape in external target UI skips without consuming the native dismissal', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 0, 0, 50, 50);
+		const popup = $('div.test-spotlight-external-ui');
+		mainWindow.document.body.appendChild(popup);
+		disposables.add({ dispose: () => popup.remove() });
+		const skipReasons: OnboardingDismissReason[] = [];
+		let nativeDismissals = 0;
+		disposables.add(overlay.onDidSkip(reason => skipReasons.push(reason)));
+		disposables.add(addDisposableListener(popup, EventType.KEY_DOWN, event => {
+			if (event.key === 'Escape') {
+				nativeDismissals++;
+				popup.remove();
+			}
+		}));
+
+		overlay.show(target, content(), { targetOverlayVisible: true });
+		const event = new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true });
+		popup.dispatchEvent(event);
+
+		assert.deepStrictEqual({
+			skipReasons,
+			nativeDismissals,
+			popupConnected: popup.isConnected,
+			defaultPrevented: event.defaultPrevented,
+		}, {
+			skipReasons: [OnboardingDismissReason.EscapeKey],
+			nativeDismissals: 1,
+			popupConnected: false,
+			defaultPrevented: false,
+		});
+	});
+
 	test('custom label and hidden End Tour reset between shows', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
@@ -414,6 +448,54 @@ suite('SpotlightOverlay', () => {
 
 		assert.deepStrictEqual(observers.length === 1 ? observers[0].observed.includes(target) && observers[0].observed.includes(container) : false, true);
 	});
+
+	test('follows position-only shifts without a resize or workbench layout event', async () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 300, 300, 120, 30);
+		overlay.show(target, content(), { placement: 'above' });
+		const hole = container.querySelector<HTMLElement>('.spotlight-hole')!;
+		const callout = container.querySelector<HTMLElement>('.spotlight-callout')!;
+		const pointer = container.querySelector<HTMLElement>('.spotlight-callout-pointer')!;
+		const before = [hole, callout, pointer].map(element => element.offsetTop);
+
+		target.style.top = '280px';
+		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+		await Promise.all(hole.getAnimations().map(animation => animation.finished));
+		const shifts = [hole, callout, pointer].map((element, index) => element.offsetTop - before[index]);
+		overlay.hide();
+		target.style.top = '260px';
+		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+
+		assert.deepStrictEqual({ shifts, hiddenHoleTop: hole.style.top }, {
+			shifts: [-20, -20, -20],
+			hiddenHoleTop: '274px',
+		});
+	});
+
+	for (const removal of ['detach', 'hide']) {
+		test(`hides rather than highlighting the origin when the target disappears (${removal})`, async () => {
+			const container = createContainer();
+			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+			const target = createTarget(container, 100, 100, 120, 30);
+			let lost = 0;
+			disposables.add(overlay.onDidLoseTarget(() => lost++));
+			overlay.show(target, content());
+			if (removal === 'detach') {
+				target.remove();
+			} else {
+				target.style.display = 'none';
+			}
+			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+			overlay.layout();
+
+			assert.deepStrictEqual({
+				display: container.querySelector<HTMLElement>('.spotlight-overlay')!.style.display,
+				holeTop: container.querySelector<HTMLElement>('.spotlight-hole')!.style.top,
+				lost,
+			}, { display: 'none', holeTop: '94px', lost: 1 });
+		});
+	}
 
 	test('focus trap includes links rendered in a markdown description', () => {
 		const container = createContainer();

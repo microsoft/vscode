@@ -165,13 +165,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
-		}, async (_prompt, _progress, _history, _location, sessionResource) => {
-			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
-				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
-			} else {
-				await commandService.executeCommand(OpenModePickerAction.ID);
-			}
+			sessionTypes: [SessionType.Local],
+		}, async () => {
+			await commandService.executeCommand(OpenModePickerAction.ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'skills',
@@ -180,13 +176,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
-		}, async (_prompt, _progress, _history, _location, sessionResource) => {
-			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
-				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Skills);
-			} else {
-				await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
-			}
+			sessionTypes: [SessionType.Local],
+		}, async () => {
+			await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'instructions',
@@ -195,13 +187,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
-		}, async (_prompt, _progress, _history, _location, sessionResource) => {
-			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
-				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Instructions);
-			} else {
-				await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
-			}
+			sessionTypes: [SessionType.Local],
+		}, async () => {
+			await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'prompts',

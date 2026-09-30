@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
+import { assert } from '../../../base/common/assert.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
@@ -15,6 +15,7 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
@@ -33,30 +34,39 @@ import { ChatInteractivity, IChat, ISessionCapabilities, SessionStatus } from '.
 import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
 import { SessionInputPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
 
 export class TestChatView extends AbstractChatView {
 	readonly inputPickerVisibility = this._register(new SessionInputPickerVisibility());
 	override readonly pickerVisibility = this.inputPickerVisibility.visibility;
 	disposed = false;
+	disposeCount = 0;
+	visible = true;
+	chat: IChat | undefined;
+	readonly input = document.createElement('textarea');
 
 	constructor(
 		readonly kind: ChatViewKind,
 		@IContextKeyService public readonly contextKeyService: IContextKeyService,
 	) {
 		super();
+		this.element.appendChild(this.input);
 	}
 
+	override setChat(chat: IChat): void { this.chat = chat; }
+	override setVisible(visible: boolean): void { this.visible = visible; }
 	protected override doLayout(): void { }
 	override toJSON(): object { return {}; }
-	override focus(): void { }
+	override focus(): void { this.input.focus(); }
 	override dispose(): void {
 		this.disposed = true;
+		this.disposeCount++;
 		super.dispose();
 	}
 }
 
-export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'>) {
-	const instantiationService = workbenchInstantiationService(undefined, store);
+export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'>, instantiationService = workbenchInstantiationService(undefined, store)) {
 	const configurationService = new TestConfigurationService({ [SESSIONS_CHAT_TABS_SETTING]: SessionsChatTabsMode.Multiple });
 	const contextKeyService = store.add(new ContextKeyService(configurationService));
 	const chatViews: TestChatView[] = [];
@@ -67,7 +77,7 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 		override readonly partOptions = DEFAULT_EDITOR_PART_OPTIONS;
 	}());
 	const createChatView = (kind: ChatViewKind, scopedInstantiationService?: IInstantiationService) => {
-		assert.ok(scopedInstantiationService);
+		assert(scopedInstantiationService !== undefined);
 		const view = scopedInstantiationService.createInstance(TestChatView, kind);
 		chatViews.push(view);
 		return view;
@@ -103,21 +113,28 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 	return { instantiationService, configurationService, contextKeyService, chatViews };
 }
 
-export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'>) {
-	const services = createSessionViewTestServices(store);
-	services.instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'>, mobile = false, options?: { container?: HTMLElement; instantiationService?: TestInstantiationService; layoutService?: IAgentWorkbenchLayoutService }) {
+	const services = createSessionViewTestServices(store, options?.instantiationService);
+	const container = options?.container ?? document.createElement('div');
+	container.classList.toggle('phone-layout', mobile);
+	services.instantiationService.stub(IAgentWorkbenchLayoutService, options?.layoutService ?? new class extends mock<IAgentWorkbenchLayoutService>() {
 		override registerPart() { return Disposable.None; }
+		override readonly mainContainer = container;
+		override readonly mainContainerDimension = { width: 1200, height: 800 };
+		override isVisible(part: Parts) { return part === Parts.SESSIONS_PART || part === Parts.SIDEBAR_PART; }
+		override isEditorPaneVisible() { return false; }
 	}());
 	services.instantiationService.stub(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
 		override readonly onDidChangeBackground = Event.None;
 		override getBackground() { return undefined; }
 	}());
-	const container = document.createElement('div');
-	document.body.appendChild(container);
-	store.add(toDisposable(() => container.remove()));
-	const part = store.add(services.instantiationService.createInstance(SessionsPart));
+	if (!options?.container) {
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+	}
+	const part = store.add(services.instantiationService.createInstance(mobile ? MobileSessionsPart : SessionsPart));
 	part.create(container);
-	return { ...services, part };
+	return { ...services, part, container };
 }
 
 export function createTestActiveSession(sessionId: string, isCreated = true) {
@@ -128,7 +145,7 @@ export function createTestActiveSession(sessionId: string, isCreated = true) {
 		override readonly status = constObservable(SessionStatus.Completed);
 		override readonly isRead = constObservable(true);
 		override readonly interactivity = constObservable(ChatInteractivity.Full);
-		override readonly capabilities = constObservable({ canRename: true, canDelete: false });
+		override readonly capabilities = constObservable({ canRename: true, canArchive: false, canDelete: false });
 		override readonly changes = constObservable([]);
 		override readonly changesets = constObservable([]);
 	}();

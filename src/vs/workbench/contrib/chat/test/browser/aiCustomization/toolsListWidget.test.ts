@@ -5,10 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationToggle } from '../../../browser/aiCustomization/customizationToggle.js';
 import { isToolsTreeKeyboardTarget } from '../../../browser/aiCustomization/toolsListWidget.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 
 suite('toolsListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,26 +25,20 @@ suite('toolsListWidget', () => {
 		});
 	});
 
-	test('uses the configured customization toggle style', () => {
-		const checkbox = disposables.add(new CustomizationToggle(
-			{ ariaLabel: 'Checkbox', checked: true },
-			new TestConfigurationService({ [ChatConfiguration.ChatCustomizationsToggleStyle]: 'checkbox' }),
-		));
-		const toggle = disposables.add(new CustomizationToggle(
-			{ ariaLabel: 'Switch', checked: true },
-			new TestConfigurationService({ [ChatConfiguration.ChatCustomizationsToggleStyle]: 'switch' }),
-		));
+	test('uses switches for customization enablement', () => {
+		const enabledToggle = disposables.add(new CustomizationToggle({ ariaLabel: 'Enabled', checked: true }));
+		const mixedToggle = disposables.add(new CustomizationToggle({ ariaLabel: 'Mixed', checked: 'mixed' }));
 
 		assert.deepStrictEqual({
-			checkboxRole: checkbox.domNode.firstElementChild?.getAttribute('role'),
-			switchRole: toggle.domNode.firstElementChild?.getAttribute('role'),
-			checkboxChecked: checkbox.checked,
-			switchChecked: toggle.checked,
+			enabledRole: enabledToggle.domNode.firstElementChild?.getAttribute('role'),
+			enabledChecked: enabledToggle.domNode.firstElementChild?.getAttribute('aria-checked'),
+			mixedRole: mixedToggle.domNode.firstElementChild?.getAttribute('role'),
+			mixedChecked: mixedToggle.domNode.firstElementChild?.getAttribute('aria-checked'),
 		}, {
-			checkboxRole: 'checkbox',
-			switchRole: 'switch',
-			checkboxChecked: true,
-			switchChecked: true,
+			enabledRole: 'switch',
+			enabledChecked: 'true',
+			mixedRole: 'switch',
+			mixedChecked: 'mixed',
 		});
 	});
 });

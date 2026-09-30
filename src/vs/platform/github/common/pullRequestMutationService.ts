@@ -41,8 +41,9 @@ import {
 	PullRequestSnapshot,
 	PullRequestSubscription,
 } from './githubPullRequestService.js';
-import { IGitHubEndpointProvider } from './githubTypes.js';
+import { GitHubRequestTimeoutError, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
+import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, optionalObjectProperty, requiredId, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { IPullRequestResources } from './pullRequestResourceService.js';
@@ -138,6 +139,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		return this._serializeRepository(ref, 'createPullRequest', async () => {
 			const created = await this._withCredential(ref, signal, async (credential, combinedSignal) => {
 				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+					caller: 'github.mutations',
 					method: 'POST',
 					url: this._restUrl(ref, 'pulls'),
 					body: {
@@ -177,6 +179,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 					{ pullRequestId: options.pullRequestId, mergeMethod: options.method },
 					combinedSignal,
 					'mutation',
+					{ caller: 'github.mutations' },
 				);
 				throwGraphQLErrors(response.errors);
 			});
@@ -293,6 +296,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, signal: AbortSignal): Promise<GitHubWorkflowLog> {
 		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
 			const response = await this._transport.download(credential.account, credential.token, {
+				caller: 'github.mutations',
 				url: this._restUrl(ref, `actions/jobs/${encodeURIComponent(jobId)}/logs`),
 				maximumBytes: maximumWorkflowLogBytes,
 				timeout: workflowLogTimeout,
@@ -334,6 +338,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			try {
 				await this._withCredential(ref, signal, async (credential, combinedSignal) => {
 					await this._transport.rest(credential.account, credential.token, {
+						caller: 'github.mutations',
 						method: 'POST',
 						url: this._restUrl(
 							ref,
@@ -370,6 +375,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			}
 			await this._withCredential(ref, signal, async (credential, combinedSignal) => {
 				await this._transport.rest(credential.account, credential.token, {
+					caller: 'github.mutations',
 					method: 'PUT',
 					url: this._restUrl(ref, `pulls/${ref.number}/update-branch`),
 					body: { expected_head_sha: options.expectedHeadSha },
@@ -462,6 +468,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				try {
 					const result = await this._withCredential(preparation.ref, signal, async (credential, combinedSignal) => {
 						const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+							caller: 'github.mutations',
 							method: 'PUT',
 							url: this._restUrl(preparation.ref, `pulls/${preparation.ref.number}/merge`),
 							body: {
@@ -639,6 +646,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	private _postComment(ref: PullRequestRef, body: string, signal: AbortSignal): Promise<PullRequestComment> {
 		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.mutations',
 				method: 'POST',
 				url: this._restUrl(ref, `issues/${ref.number}/comments`),
 				body: { body },
@@ -658,6 +666,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ threadId, body },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 			return toGraphQLComment(objectAt(response.data, 'addPullRequestReviewThreadReply', 'comment'));
@@ -674,6 +683,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ threadId },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 			const thread = objectAt(response.data, 'resolveReviewThread', 'thread');
@@ -728,6 +738,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	private async _getWorkflowRun(ref: PullRequestRef, runId: string, signal: AbortSignal): Promise<GitHubWorkflowRun> {
 		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.mutations',
 				method: 'GET',
 				url: this._restUrl(ref, `actions/runs/${encodeURIComponent(runId)}`),
 				etag: false,
@@ -761,6 +772,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ pullRequestId, expectedHeadOid },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 			return requiredString(objectAt(response.data, 'enqueuePullRequest', 'mergeQueueEntry'), 'id');
@@ -778,6 +790,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		let url: string | undefined = this._restUrl(ref, route);
 		for (let page = 0; url && page < maximumPaginationPages; page++) {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.mutations',
 				method: 'GET',
 				url,
 				etag: true,
@@ -813,6 +826,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ pullRequestId: options.pullRequestId },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 		});
@@ -996,7 +1010,11 @@ function rerunProvenAbsent(run: GitHubWorkflowRun, expectedRunAttempt: number): 
 }
 
 function isAmbiguousMutationError(error: unknown): boolean {
-	return error instanceof GitHubRequestError && (error.kind === 'network' || error.kind === 'server');
+	return error instanceof GitHubRequestError && (
+		error.kind === 'network' || error.kind === 'server'
+		|| error.kind === 'timeout' && (!(error instanceof GitHubRequestTimeoutError) || error.requestDispatched)
+		|| error.kind === 'responseTooLarge' && (error.statusCode === undefined || error.statusCode < 400 || error.statusCode >= 500)
+	);
 }
 
 function sameAccount(
@@ -1182,105 +1200,6 @@ function toFragmentError(error: unknown): GitHubFragmentError {
 		return { message: error.message, kind: error.kind, statusCode: error.statusCode };
 	}
 	return { message: error instanceof Error ? error.message : String(error), kind: 'unknown' };
-}
-
-function nextLink(link: string | undefined): string | undefined {
-	if (!link) {
-		return undefined;
-	}
-	for (const part of link.split(',')) {
-		const match = /^\s*<(?<url>[^>]+)>\s*;\s*rel="(?<rel>[^"]+)"/.exec(part);
-		if (match?.groups?.rel.split(/\s+/).includes('next')) {
-			return match.groups.url;
-		}
-	}
-	return undefined;
-}
-
-function objectAt(value: unknown, ...path: readonly string[]): object {
-	let current = asObject(value, 'GitHub response was malformed');
-	for (const part of path) {
-		current = asObject(Reflect.get(current, part), `GitHub response property ${part} was malformed`);
-	}
-	return current;
-}
-
-function asObject(value: unknown, message: string): object {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		throw new GitHubRequestError(message, 'malformedResponse');
-	}
-	return value;
-}
-
-function asArray(value: unknown, message: string): readonly unknown[] {
-	if (!Array.isArray(value)) {
-		throw new GitHubRequestError(message, 'malformedResponse');
-	}
-	return value;
-}
-
-function arrayProperty(value: object, key: string): readonly unknown[] {
-	return asArray(Reflect.get(value, key), `GitHub response property ${key} was not an array`);
-}
-
-function optionalObjectProperty(value: object, key: string): object | undefined {
-	const property = Reflect.get(value, key);
-	return property === null || property === undefined ? undefined : asObject(property, `GitHub response property ${key} was malformed`);
-}
-
-function requiredString(value: object, key: string): string {
-	const property = stringProperty(value, key);
-	if (property === undefined) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not a string`, 'malformedResponse');
-	}
-	return property;
-}
-
-function stringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' ? property : undefined;
-}
-
-function nullableStringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return property === null ? undefined : typeof property === 'string' ? property : undefined;
-}
-
-function normalizedEnumProperty(value: object, key: string): string | undefined {
-	return nullableStringProperty(value, key)?.toUpperCase();
-}
-
-function numberProperty(value: object, key: string): number | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'number' && Number.isFinite(property) ? property : undefined;
-}
-
-function booleanProperty(value: object, key: string): boolean | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'boolean' ? property : undefined;
-}
-
-function idProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' || typeof property === 'number' ? String(property) : undefined;
-}
-
-function requiredId(value: object, ...keys: readonly string[]): string {
-	for (const key of keys) {
-		const id = idProperty(value, key);
-		if (id) {
-			return id;
-		}
-	}
-	throw new GitHubRequestError(`GitHub response did not contain ${keys.join(' or ')}`, 'malformedResponse');
-}
-
-function requiredNumber(value: object, key: string): number {
-	const property = numberProperty(value, key);
-	if (property === undefined) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not a number`, 'malformedResponse');
-	}
-	return property;
 }
 
 function toActor(value: object | undefined): { readonly id?: string; readonly login: string } | undefined {

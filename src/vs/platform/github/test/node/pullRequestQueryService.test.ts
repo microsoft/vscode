@@ -713,6 +713,86 @@ suite('PullRequestQueryService', () => {
 			);
 			server.assertSatisfied();
 		});
+
+	});
+
+	test('REST mergeability fallback stays incomplete and never grants merge permissions', async () => {
+		await withServer(async server => {
+			const responses = [
+				{ mergeable: true, mergeable_state: 'clean', auto_merge: {} },
+				{ mergeable: false, mergeable_state: 'dirty', auto_merge: null },
+				{ mergeable: null, mergeable_state: 'unknown', auto_merge: null },
+			];
+			server.enqueue(...responses.map(body => gitHubRestStep({
+				method: 'GET',
+				path: '/repos/octo/repo/pulls/7',
+				assert: request => assert.strictEqual(request.headers['if-none-match'], undefined),
+				response: gitHubJsonResponse(body, { etag: '"mergeability"' }),
+			})));
+			const { query, ref, credential } = setup(server, { ...availableCapabilities, graphql: false });
+			const results = [];
+			for (let index = 0; index < responses.length; index++) {
+				results.push(await query.fetch('mergeability', ref, core('head-1'), {
+					priority: 'interactive', mergeability: true,
+				}, credential, new AbortController().signal));
+			}
+			assert.deepStrictEqual(results, ['MERGEABLE', 'CONFLICTING', 'UNKNOWN'].map((mergeable, index) => ({
+				fragment: 'mergeability',
+				complete: false,
+				headSha: 'head-1',
+				value: {
+					headSha: 'head-1', baseSha: 'base', mergeable, mergeStateStatus: responses[index].mergeable_state,
+					viewerCanUpdate: false, viewerCanMerge: false, viewerCanEnableAutoMerge: false, allowedMergeMethods: [],
+					autoMergeEnabled: index === 0, mergeQueueRequired: false, queueRequirementKnown: false,
+				},
+			})));
+			server.assertSatisfied();
+		});
+	});
+
+	test('paginates participants and merges duplicate actors and their roles', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo/issues/7/timeline',
+					query: { per_page: 100 },
+					response: gitHubJsonResponse([
+						{ actor: { id: 1, login: 'author' } },
+						{ user: { id: 2, login: 'commenter' } },
+						{ actor: { id: 3, login: 'reviewer' }, requested_reviewer: { id: 3, login: 'reviewer' } },
+						{ requested_reviewer: { id: 4, login: 'only-reviewer' } },
+					], { link: `<${server.apiBaseUrl}/repos/octo/repo/issues/7/timeline?per_page=100&page=2>; rel="next"` }),
+				}),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo/issues/7/timeline',
+					query: { per_page: 100, page: 2 },
+					response: gitHubJsonResponse([
+						{ actor: { id: 2, login: 'commenter' } },
+						{ requested_reviewer: { id: 1, login: 'author' } },
+						{},
+					]),
+				}),
+			);
+			const { query, ref, credential } = setup(server);
+			const result = await query.fetch('participants', ref, core('head-1'), {
+				priority: 'visible', participants: true,
+			}, credential, new AbortController().signal);
+			assert.deepStrictEqual(result, {
+				fragment: 'participants',
+				complete: true,
+				value: {
+					participants: [
+						{ id: '1', login: 'author', roles: ['author', 'commenter', 'reviewer'] },
+						{ id: '2', login: 'commenter', roles: ['commenter'] },
+						{ id: '4', login: 'only-reviewer', roles: ['reviewer'] },
+						{ id: '3', login: 'reviewer', roles: ['commenter', 'reviewer'] },
+					],
+				},
+			});
+			server.assertSatisfied();
+		});
 	});
 });
 

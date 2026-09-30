@@ -95,6 +95,7 @@ class TestGitService implements IAgentHostGitService {
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(): Promise<void> { }
 	async copyWorktreeIncludeFiles(): Promise<void> { }
+	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
 	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(_repositoryRoot: URI, branchName: string): Promise<boolean> {
@@ -123,6 +124,7 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push('hasUpstream');
 		return this.upstream;
 	}
+	async fetch(): Promise<void> { }
 	async pull(): Promise<void> { }
 	async push(_workingDirectory: URI, options: IPushOptions): Promise<void> {
 		this.onMutation?.('push');
@@ -222,6 +224,7 @@ function createAuthenticationService(withCopilotToken = false): IAgentHostAuthen
 	return {
 		_serviceBrand: undefined,
 		onDidChangeAuthToken: Event.None,
+		getAuthAccount: () => undefined,
 		getAuthToken: resource => {
 			if (resource.resource === GITHUB_REPO_PROTECTED_RESOURCE.resource) {
 				return 'gh-token';

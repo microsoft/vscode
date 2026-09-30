@@ -135,14 +135,14 @@ class MockDefaultAccountService extends mock<IDefaultAccountService>() {
 	override readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
 
 	public enterprise = false;
-	public gitHubBaseUrl = 'https://github.com';
+	public gitHubBaseUrl: string | undefined = 'https://github.com';
 
 	override getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
 		return { id: 'github', name: 'GitHub', enterprise: this.enterprise };
 	}
 
-	override resolveGitHubUrl(path: string): string {
-		return `${this.gitHubBaseUrl}/${path}`;
+	override resolveGitHubUrl(path: string): string | undefined {
+		return this.gitHubBaseUrl ? `${this.gitHubBaseUrl}/${path}` : undefined;
 	}
 
 	fireChange(): void {
@@ -539,4 +539,41 @@ suite('AgentHostTerminalContribution', () => {
 			[AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com',
 		});
 	});
+
+	test('forwards the selected second host and clears it when switching to github.com', async () => {
+		const { agentHostService, defaultAccountService } = setup(disposables);
+		defaultAccountService.enterprise = true;
+		defaultAccountService.gitHubBaseUrl = 'https://second.ghe.com';
+		agentHostService.setRootState(rootStateWithGithubEnterpriseUriKey());
+		await flush();
+
+		defaultAccountService.gitHubBaseUrl = 'https://first.ghe.com';
+		defaultAccountService.fireChange();
+		await flush();
+		defaultAccountService.enterprise = false;
+		defaultAccountService.gitHubBaseUrl = 'https://github.com';
+		defaultAccountService.fireChange();
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config), [
+			{ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://second.ghe.com' },
+			{ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://first.ghe.com' },
+			{ [AgentHostConfigKey.GithubEnterpriseUri]: '' },
+		]);
+	});
+
+	test('an unresolved enterprise account does not forward github.com as its enterprise host', async () => {
+		const { agentHostService, defaultAccountService } = setup(disposables);
+		defaultAccountService.enterprise = true;
+		defaultAccountService.gitHubBaseUrl = undefined;
+		const rootState = rootStateWithGithubEnterpriseUriKey();
+		rootState.config!.values[AgentHostConfigKey.GithubEnterpriseUri] = 'https://previous.ghe.com';
+		agentHostService.setRootState(rootState);
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config), [
+			{ [AgentHostConfigKey.GithubEnterpriseUri]: '' },
+		]);
+	});
+
 });

@@ -12,6 +12,7 @@ import { basename, dirname } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
@@ -34,6 +35,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IProductService private readonly productService: IProductService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		this.onDidChange = Event.any(
 			this.promptsService.onDidChangeCustomAgents,
@@ -73,7 +75,12 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 			label: (folder.source !== undefined ? getSourceDescription(folder.source) : undefined) ?? this.promptsService.getPromptLocationLabel(folder),
 			source: folder.storage,
 			destinationGroupId: dirname(folder.uri).toString(),
+			workspaceGroupId: this.getWorkspaceGroupId(_sessionResource, folder.uri),
 		}));
+	}
+
+	getWorkspaceGroupId(_sessionResource: URI, resource: URI): string | undefined {
+		return this.workspaceContextService.getWorkspaceFolder(resource)?.uri.toString();
 	}
 
 	private async provideCustomizations(promptType: PromptsType, token: CancellationToken = CancellationToken.None): Promise<readonly ICustomizationItem[]> {

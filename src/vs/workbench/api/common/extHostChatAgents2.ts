@@ -704,7 +704,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	createChatAgent(extension: IExtensionDescription, id: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);
+		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler, () => this._disposeAgent(handle));
 		this._agents.set(handle, agent);
 
 		this._proxy.$registerAgent(handle, extension.identifier, id, {}, undefined);
@@ -713,11 +713,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	createDynamicChatAgent(extension: IExtensionDescription, id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);
+		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler, () => this._disposeAgent(handle));
 		this._agents.set(handle, agent);
 
 		this._proxy.$registerAgent(handle, extension.identifier, id, { isSticky: true } satisfies IExtensionChatAgentMetadata, dynamicProps);
 		return agent.apiAgent;
+	}
+
+	private _disposeAgent(handle: number): void {
+		this._agents.delete(handle);
+		this._completionDisposables.deleteAndDispose(handle);
 	}
 
 	registerChatParticipantDetectionProvider(extension: IExtensionDescription, provider: vscode.ChatParticipantDetectionProvider): vscode.Disposable {
@@ -1149,7 +1154,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			const editedFileEvents = isProposedApiEnabled(extension, 'chatParticipantPrivate') ? h.request.editedFileEvents : undefined;
 			const modeInstructions2 = isProposedApiEnabled(extension, 'chatParticipantPrivate') && h.request.modeInstructions ? typeConvert.ChatRequestModeInstructions.to(h.request.modeInstructions) : undefined;
-			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences, editedFileEvents, h.request.requestId, undefined, modeInstructions2);
+			const isSystemInitiated = isProposedApiEnabled(extension, 'chatParticipantPrivate') ? h.request.isSystemInitiated : undefined;
+			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences, editedFileEvents, h.request.requestId, undefined, modeInstructions2, isSystemInitiated);
 			res.push(turn);
 
 			// RESPONSE turn
@@ -1277,6 +1283,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		const items = await agent.invokeCompletionProvider(query, token);
+		if (!this._agents.has(handle)) {
+			return [];
+		}
 
 		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this._commands.converter, disposables));
 	}
@@ -1332,6 +1341,7 @@ class ExtHostChatAgent {
 		private readonly _proxy: MainThreadChatAgentsShape2,
 		private readonly _handle: number,
 		private _requestHandler: vscode.ChatExtendedRequestHandler,
+		private readonly _onDispose: () => void,
 	) { }
 
 	acceptFeedback(feedback: vscode.ChatResultFeedback) {
@@ -1525,7 +1535,15 @@ class ExtHostChatAgent {
 				: this._onDidPerformAction.event
 			,
 			dispose() {
+				if (disposed) {
+					return;
+				}
 				disposed = true;
+				that._onDispose();
+				if (that._agentVariableProvider) {
+					that._agentVariableProvider = undefined;
+					that._proxy.$unregisterAgentCompletionsProvider(that._handle, that.id);
+				}
 				that._followupProvider = undefined;
 				that._onDidReceiveFeedback.dispose();
 				that._onDidPerformAction.dispose();

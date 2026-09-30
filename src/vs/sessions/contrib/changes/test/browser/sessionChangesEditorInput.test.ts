@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
@@ -34,6 +34,12 @@ suite('SessionChangesEditorInput', () => {
 	};
 	const emptySessionChangesService = new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+	};
+	const sessionChangesServiceWithResource = new class extends mock<ISessionChangesService>() {
+		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+		override getSessionResource(): URI | undefined {
+			return URI.parse('agent-host-copilotcli:/session');
+		}
 	};
 
 	test('releases resolved multi-diff models without disposing restorable input state', async () => {
@@ -210,6 +216,91 @@ suite('SessionChangesEditorInput', () => {
 		await editor.setInput(input, undefined, {}, operation.token);
 
 		assert.deepStrictEqual(input.viewModelRequested, false);
+	});
+
+	test('resolves a hidden editor input once the editor area is shown, even after the open operation ended', async () => {
+		class TestSessionChangesEditorInput extends SessionChangesEditorInput {
+			viewModelRequests = 0;
+
+			override async getViewModel(): Promise<MultiDiffEditorViewModel> {
+				this.viewModelRequests++;
+				return new class extends mock<MultiDiffEditorViewModel>() {
+					override readonly items = constObservable<readonly DocumentDiffItemViewModel[]>([]);
+				}();
+			}
+		}
+
+		let editorVisible = false;
+		const onDidChangePartVisibility = disposables.add(new Emitter<IPartVisibilityChangeEvent>());
+		const layoutService = {
+			onDidChangePartVisibility: onDidChangePartVisibility.event,
+			isVisible: (part: Parts) => part === Parts.EDITOR_PART && editorVisible,
+		};
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IChangesViewService, emptyChangesViewService);
+		instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+		instantiationService.stub(ISessionChangesService, sessionChangesServiceWithResource);
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+
+		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		const input = disposables.add(instantiationService.createInstance(
+			TestSessionChangesEditorInput,
+			URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/session"}'),
+		));
+		const operation = disposables.add(new CancellationTokenSource());
+
+		await editor.setInput(input, undefined, {}, operation.token);
+		const requestsWhileHidden = input.viewModelRequests;
+		operation.cancel();
+
+		editorVisible = true;
+		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			requestsWhileHidden,
+			requestsAfterShown: input.viewModelRequests,
+			hasViewModel: editor.hasViewModel,
+		}, {
+			requestsWhileHidden: 0,
+			requestsAfterShown: 1,
+			hasViewModel: true,
+		});
+	});
+
+	test('drops a deferred resolve when the input is cleared before the editor area is shown', async () => {
+		class TestSessionChangesEditorInput extends SessionChangesEditorInput {
+			viewModelRequests = 0;
+
+			override async getViewModel(): Promise<MultiDiffEditorViewModel> {
+				this.viewModelRequests++;
+				return new class extends mock<MultiDiffEditorViewModel>() { }();
+			}
+		}
+
+		const onDidChangePartVisibility = disposables.add(new Emitter<IPartVisibilityChangeEvent>());
+		const layoutService = {
+			onDidChangePartVisibility: onDidChangePartVisibility.event,
+			isVisible: () => false,
+		};
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IChangesViewService, emptyChangesViewService);
+		instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+		instantiationService.stub(ISessionChangesService, sessionChangesServiceWithResource);
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+
+		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		const input = disposables.add(instantiationService.createInstance(
+			TestSessionChangesEditorInput,
+			URI.parse('changes-multi-diff-source:?{"sessionResource":"agent-host-copilotcli:/session"}'),
+		));
+
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		editor.clearInput();
+		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(input.viewModelRequests, 0);
 	});
 
 	test('updates managed Changes editor capabilities with editor area visibility', () => {

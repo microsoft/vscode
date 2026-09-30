@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../nls.js';
+
 import './media/sessionView.css';
 import { $, isAncestorOfActiveElement, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
@@ -17,7 +19,7 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../services/sessions/common/session.js';
-import { AbstractChatView, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
+import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
@@ -105,6 +107,12 @@ export class SessionView extends Disposable implements ISerializableView {
 		@ISessionChangesStatsCache private readonly _changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
+
+		this.element.setAttribute('role', 'region');
+		this._register(autorun(reader => {
+			const session = this._sessionObs.read(reader);
+			this.element.setAttribute('aria-label', session ? localize('sessionPane', "Session: {0}", session.title.read(reader)) : localize('newSessionPane', "New Session"));
+		}));
 
 		// Scoped context key service so toolbars hosted within can react to
 		// session-specific context keys (e.g. sessionIsCreated, sessionIsSticky).
@@ -372,9 +380,9 @@ export class SessionView extends Disposable implements ISerializableView {
 		return this._standaloneView.get()?.applyDraft(draft, folderUri, options, token) ?? Promise.resolve('notReady');
 	}
 
-	selectNoWorkspace(): void {
+	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
 		const standaloneView = this._visibleStandaloneView;
-		standaloneView ? standaloneView.selectNoWorkspace() : this._groupsView.selectNoWorkspace();
+		standaloneView ? standaloneView.selectNoWorkspace(options) : this._groupsView.selectNoWorkspace(options);
 	}
 
 	/** Opens the given chat beside a reference chat, or the active group ("open to the side"). */

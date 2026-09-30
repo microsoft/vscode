@@ -63,7 +63,7 @@ export class NativeOnboardingTryoutContribution extends Disposable implements IW
 			prepare: async (scenario, context) => ({
 				kind: 'ready',
 				run: async () => {
-					await coordinator.value.open(scenario.id, context.token);
+					await coordinator.value.open(scenario.id, context.token, context.options);
 					return { kind: 'routed' };
 				},
 			}),

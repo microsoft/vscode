@@ -403,6 +403,12 @@
 	justify-content: flex-end;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-metric-row[tabindex="0"]:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-usage-value {
 	font-weight: var(--vscode-fontWeight-semiBold);
 }

@@ -36,7 +36,7 @@ export interface IBuildModelPickerItemsOptions {
 	readonly actions: {
 		readonly onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 		readonly onTogglePin: ((modelIdentifier: string, pinned: boolean) => void) | undefined;
-		readonly onConfigure: ((model: ILanguageModelChatMetadataAndIdentifier, group: string) => void) | undefined;
+		readonly onConfigure: ((model: ILanguageModelChatMetadataAndIdentifier, group: string, fromKeyboard: boolean) => void) | undefined;
 		readonly onRequestTrust: (() => void) | undefined;
 		readonly onRequestSetup: (() => void) | undefined;
 	};

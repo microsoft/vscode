@@ -26,6 +26,7 @@ suite('CustomizationMarketplaceIpc', () => {
 			id: 'agentFinder',
 			displayName: 'GitHub Feed',
 			enablementSetting: 'chat.customizations.marketplace.sources.publicFeed.enabled',
+			requiresMarketplaceVisibility: true,
 		});
 	});
 
@@ -93,6 +94,35 @@ suite('CustomizationMarketplaceIpc', () => {
 
 	test('uses the source-neutral marketplace channel name', () => {
 		assert.strictEqual(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, 'customizationMarketplace');
+	});
+
+	test('the native public-feed client never forwards authenticated connector source IDs', async () => {
+		const requests: ICustomizationMarketplaceRequest[] = [];
+		const server = new CustomizationMarketplaceChannel(() => ({
+			async query(options) {
+				requests.push(options);
+				return { items: [] };
+			},
+		}));
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		});
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const client = new CustomizationMarketplaceChannelClient({
+			call: (command, options, token) => server.call('test', command, options, token),
+			listen: () => Event.None,
+		}, configuration);
+		await assert.rejects(client.query({}, CancellationToken.None), isCancellationError);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		await client.query({}, CancellationToken.None);
+		assert.deepStrictEqual({
+			sources: client.sources,
+			requests,
+		}, {
+			sources: [CustomizationMarketplaceSources.AgentFinderPublicFeed],
+			requests: [{ sourceIds: ['agentFinder'] }],
+		});
 	});
 
 	test('forwards only the selected enabled source', async () => {
@@ -254,6 +284,40 @@ suite('CustomizationMarketplaceIpc', () => {
 		});
 	});
 
+	test('revives light and dark icon URI bundles', async () => {
+		const page: ICustomizationMarketplacePage = {
+			items: [{
+				sourceId: 'testSource',
+				identifier: 'themed',
+				displayName: 'Themed',
+				description: '',
+				mediaType: CustomizationMarketplaceMediaType.McpServer,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				icon: {
+					light: URI.parse('https://example.com/light.png'),
+					dark: URI.parse('https://example.com/dark.png'),
+				},
+			}],
+		};
+		const client = createClient({ query: async () => page });
+		const result = await client.query({}, CancellationToken.None);
+		const icon = result.items[0].icon;
+
+		assert.deepStrictEqual(URI.isUri(icon) ? undefined : {
+			light: icon?.light instanceof URI,
+			dark: icon?.dark instanceof URI,
+			lightUri: icon?.light.toString(),
+			darkUri: icon?.dark.toString(),
+		}, {
+			light: true,
+			dark: true,
+			lightUri: 'https://example.com/light.png',
+			darkUri: 'https://example.com/dark.png',
+		});
+	});
+
 	test('does not fabricate absent URI fields or a search total', async () => {
 		const page: ICustomizationMarketplacePage = {
 			items: [{
@@ -309,6 +373,7 @@ suite('CustomizationMarketplaceIpc', () => {
 		const installations: CustomizationMarketplaceInstallation[] = [
 			{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release/next', path: 'skills/a11y-debugging' },
 			{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'v1.2.3', path: '' },
+			{ kind: 'configuredPlugin' },
 			{ kind: 'mcp', name: 'ai.bittlebits/bittlebits', version: '1.0.0' },
 		];
 		const page: ICustomizationMarketplacePage = {

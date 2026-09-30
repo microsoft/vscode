@@ -313,6 +313,8 @@ function annotationToFeedback(annotation: Annotation, sessionResource: URI, conn
 }
 
 interface ITrackedChannel {
+	readonly provider: IAgentHostSessionsProvider;
+	readonly sessionId: string;
 	readonly connection: IAgentConnection;
 	readonly annotationsUri: URI;
 	readonly subscription: IAgentSubscription<AnnotationsState>;
@@ -587,7 +589,12 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		const key = sessionResource.toString();
 		const existing = this._channelBySession.get(key);
 		if (existing) {
-			return existing;
+			// A remote host can reconnect as a new client, leaving the old connection dead.
+			const current = existing.provider.getFeedbackAnnotationsChannel(existing.sessionId);
+			if (!current || current.connection === existing.connection) {
+				return existing;
+			}
+			this._releaseChannel(sessionResource);
 		}
 
 		const session = this._sessionsManagementService.getSession(sessionResource);
@@ -606,6 +613,8 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		const store = new DisposableStore();
 		const ref = store.add(resolved.connection.getSubscription(StateComponents.Annotations, resolved.annotationsUri, AnnotationsAgentFeedbackItemsBackend.OWNER));
 		const channel: ITrackedChannel = {
+			provider,
+			sessionId: session.sessionId,
 			connection: resolved.connection,
 			annotationsUri: resolved.annotationsUri,
 			subscription: ref.object,

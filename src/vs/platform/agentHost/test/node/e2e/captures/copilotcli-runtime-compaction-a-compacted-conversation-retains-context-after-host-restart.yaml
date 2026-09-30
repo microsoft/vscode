@@ -1,0 +1,237 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember PERSISTED_COMPACTION as the exact project code word. Reply exactly "remembered".
+    response:
+      content: remembered
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember PERSISTED_COMPACTION as the exact project code word. Reply exactly "remembered".
+        - role: assistant
+          content: remembered
+        - role: user
+          content: |-
+            Please create a detailed summary of the conversation so far. The history is being compacted so moving forward, all conversation history will be removed and you'll only have this summary to work from. Be sure to make note of the user's explicit requests, your actions, and any key technical details.
+
+            The summary should include the following parts:
+            1. <overview> - high-level summary of goals and approach
+            2. <history> - chronological analysis of the conversation
+            3. <work_done> - changes made, current state, and any issues encountered
+            4. <technical_details> - key concepts, decisions, and quirks discovered
+            5. <important_files> - files central to the work and why they matter
+            6. <next_steps> - pending tasks and planned actions
+            7. <checkpoint_title> - 2-6 word description of the main work done
+
+            ---
+
+            ## Section Guidelines
+
+            ### Overview
+
+            Provide a concise summary (2-3 sentences) capturing the user's goals, intent, and expectations. Describe your overall approach and strategy for addressing their needs, and note any constraints or requirements that were established.
+            This section should give a reader immediate clarity on what this conversation is about and how you're tackling it.
+
+            ### History
+
+            Capture the narrative arc of the conversation—what was asked for, what was done, and how the work evolved. Structure this around the user's requests: each request becomes an entry with the actions you took nested underneath, in chronological order.
+            Note any major pivots or changes in direction, and include outcomes where relevant—especially for debugging or when something didn't go as expected. Focus on meaningful actions, not granular details of every exchange.
+
+            ### Work Done
+
+            Document the concrete work completed during this conversation. This section should enable someone to pick up exactly where you left off. Include:
+
+            - Files created, modified, or deleted
+            - Tasks completed and their outcomes
+            - What you were most recently working on
+            - Current state: what works, what doesn't, what's untested
+
+            ### Technical Details
+
+            Capture the technical knowledge that would be painful to rediscover. Think of this as a knowledge base for your future self—anything that took effort to learn belongs here. This includes:
+
+            - Key concepts and architectural decisions (with rationale)
+            - Issues encountered and how they were resolved
+            - Quirks, gotchas, or non-obvious behaviors
+            - Dependencies, versions, or environment details that matter
+            - Workarounds or constraints you discovered
+
+            Also make note of any questions that remain unanswered or assumptions that you aren't fully confident about.
+
+            ### Important Files
+
+            List the files most central to the task, prioritizing those you've actively worked on over files you merely viewed. This isn't an exhaustive inventory—it's a curated list of what matters most for continuing the work. For each file, include:
+
+            - The file name
+            - Why it's important to the project
+            - Summary of changes made (if any)
+            - Key line numbers or sections to reference
+
+            ### Next Steps
+
+            If there's pending work, describe what you were actively working on when compaction occurred. List remaining tasks, outline your planned approach, and flag any blockers or open questions.
+            If you've finished all requested work, you can simply note that no next steps are needed.
+
+            ### Checkpoint Title
+
+            Provide a concise 2-6 word title capturing the essence of what was accomplished in this work segment. This title will be used to identify this checkpoint when reviewing session history. Examples:
+            - "Implementing user authentication"
+            - "Fixing database connection bugs"
+            - "Refactoring payment module"
+            - "Adding unit tests for API"
+
+            ---
+
+            ## Example
+
+            Here is an example of the structure you should follow:
+            <example>
+            <overview>
+            [2-3 sentences describing the user's goals and your approach]
+            </overview>
+            <history>
+            1. The user asked to [request]
+               - [action taken]
+               - [action taken]
+               - [outcome/result]
+
+            2. The user asked to [request]
+               - [action taken]
+               - [action taken]
+               - [outcome/result]
+            </history>
+            <work_done>
+            Files updated:
+            - [file]: [what changed]
+
+            Work completed:
+            - [x] [Task]
+            - [x] [Task]
+            - [ ] [Task in progress or incomplete]
+            </work_done>
+            <technical_details>
+            - [Key technical concept or decision]
+            - [Issue encountered and how it was resolved]
+            - [Non-obvious behavior or quirk discovered]
+            - [Unresolved question or uncertain area]
+            </technical_details>
+            <important_files>
+            - [file1]
+               - [Why it matters]
+               - [Changes made, if any]
+               - [Key line numbers]
+            - [file2]
+               - [Why it matters]
+               - [Changes made, if any]
+               - [Key line numbers]
+            </important_files>
+            <next_steps>
+            Remaining work:
+            - [Task]
+            - [Task]
+
+            Immediate next steps:
+            - [Action to take]
+            - [Action to take]
+            </next_steps>
+
+            <checkpoint_title>Concise 2-6 word description of this checkpoint</checkpoint_title>
+            </example>
+
+            ---
+
+            Please write the summary now, following the structure and guidelines above. Be concise where possible, but don't sacrifice important context for brevity.
+    response:
+      content: |-
+        <overview>
+        This was a minimal test interaction: the user asked me to remember an exact project code word, "PERSISTED_COMPACTION", and reply exactly "remembered". No actual software engineering task, file changes, or codebase work was requested or performed.
+        </overview>
+
+        <history>
+        1. The user instructed: "Remember PERSISTED_COMPACTION as the exact project code word. Reply exactly 'remembered'."
+           - I replied exactly "remembered" as instructed.
+        2. The user then requested this compaction summary of the conversation so far.
+        </history>
+
+        <work_done>
+        No files were created, modified, or deleted. No commands were run. No code changes were made.
+
+        The only substantive fact established: the exact project code word is **PERSISTED_COMPACTION**, which must be remembered going forward.
+        </work_done>
+
+        <technical_details>
+        - No technical work has occurred yet in this session.
+        - The key fact to retain: the project code word is exactly "PERSISTED_COMPACTION" (case-sensitive, with underscore).
+        </technical_details>
+
+        <important_files>
+        None — no files have been touched in this session.
+        </important_files>
+
+        <next_steps>
+        No pending tasks from the user. Awaiting further instructions. If asked to recall the project code word, respond with "PERSISTED_COMPACTION".
+        </next_steps>
+
+        <checkpoint_title>Remembering project code word</checkpoint_title>
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: |-
+                Some of the conversation history has been summarized to free up context.
+
+                You were originally given instructions from a user over one or more turns. Here were the user messages:
+                <user_message>
+                Remember PERSISTED_COMPACTION as the exact project code word. Reply exactly "remembered".
+                </user_message>
+
+                Here is a summary of the prior context:
+                <summary>
+                <overview>
+                This was a minimal test interaction: the user asked me to remember an exact project code word, "PERSISTED_COMPACTION", and reply exactly "remembered". No actual software engineering task, file changes, or codebase work was requested or performed.
+                </overview>
+
+                <history>
+                1. The user instructed: "Remember PERSISTED_COMPACTION as the exact project code word. Reply exactly 'remembered'."
+                   - I replied exactly "remembered" as instructed.
+                2. The user then requested this compaction summary of the conversation so far.
+                </history>
+
+                <work_done>
+                No files were created, modified, or deleted. No commands were run. No code changes were made.
+
+                The only substantive fact established: the exact project code word is **PERSISTED_COMPACTION**, which must be remembered going forward.
+                </work_done>
+
+                <technical_details>
+                - No technical work has occurred yet in this session.
+                - The key fact to retain: the project code word is exactly "PERSISTED_COMPACTION" (case-sensitive, with underscore).
+                </technical_details>
+
+                <important_files>
+                None — no files have been touched in this session.
+                </important_files>
+
+                <next_steps>
+                No pending tasks from the user. Awaiting further instructions. If asked to recall the project code word, respond with "PERSISTED_COMPACTION".
+                </next_steps>
+
+                <checkpoint_title>Remembering project code word</checkpoint_title>
+                </summary>
+            - type: text
+              text: What exact project code word did I ask you to remember? Reply with only that word.
+    response:
+      content: PERSISTED_COMPACTION
+      stopReason: end_turn

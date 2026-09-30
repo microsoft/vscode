@@ -11,7 +11,11 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -62,6 +66,7 @@ function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	return instantiationService;
 }
 
@@ -252,6 +257,19 @@ suite('AgentHostAuthTokenCache', () => {
 			results: [true, false],
 			authenticateCalls: 1,
 		});
+	});
+
+	test('forwards changed account provenance even when the token is unchanged', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		let calls = 0;
+		const send = async () => { calls++; };
+		const results = [
+			await cache.authenticate('resource', ['repo'], 'token', send),
+			await cache.authenticate('resource', ['repo'], 'token', send, 'account-a'),
+			await cache.authenticate('resource', ['repo'], 'token', send, 'account-a'),
+			await cache.authenticate('resource', ['repo'], 'token', send, 'account-b'),
+		];
+		assert.deepStrictEqual({ results, calls }, { results: [true, true, false, true], calls: 3 });
 	});
 
 	test('different tokens are serialized for the same resource and scopes', async () => {
@@ -1616,6 +1634,145 @@ suite('authenticateProtectedResources', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('forwards selected account provenance without changing the host resource', async () => {
+		const resource = { ...protectedResource, resource: 'https://other-host.example/custom/repository-resource' };
+		const account = { id: 'provider-account', label: 'Private account label' };
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'provider',
+			getSessions: async () => [{ id: 'session', scopes: ['read'], accessToken: 'token', account }],
+		});
+		const instantiation = createAuthInstantiationService(disposables, authentication);
+		const agents = [new class extends mock<AgentInfo>() { override readonly protectedResources = [resource]; }()];
+		const requests: { resource: string; account: ReturnType<typeof readAuthenticationAccount>; metadata: Record<string, unknown> | undefined }[] = [];
+		await instantiation.invokeFunction(authenticateProtectedResources, agents, {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push({ resource: request.resource, account: readAuthenticationAccount(request), metadata: request._meta });
+			},
+		});
+		assert.deepStrictEqual(requests, [{
+			resource: resource.resource,
+			account: { providerId: 'provider', accountId: 'provider-account' },
+			metadata: { 'vscode.authentication.account': { providerId: 'provider', accountId: 'provider-account' } },
+		}]);
+	});
+
+	for (const enabled of [undefined, false, true]) {
+		test(`connector-scoped authentication preference is experiment gated: ${enabled}`, async () => {
+			const account = { id: 'active-account', label: 'Active' };
+			const scopes = ['read:user', 'user:email'];
+			const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes };
+			const authorized: AuthenticationSession = {
+				id: 'authorized', accessToken: 'authorized-token', account, scopes: [...scopes, 'write:plugin_gateway_connections'],
+			};
+			const lookups: { scopes: string[] | undefined; accountId: string | undefined; silent: boolean | undefined }[] = [];
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async (_providerId, requested, options: IAuthenticationProviderSessionOptions) => {
+					lookups.push({ scopes: requested, accountId: options.account?.id, silent: options.silent });
+					return requested ? [current] : [
+						{ ...authorized, id: 'another-account', accessToken: 'another-token', account: { id: 'other', label: 'Other' } },
+						{ ...authorized, id: 'broader', accessToken: 'broader-token', scopes: [...authorized.scopes, 'repo'] },
+						authorized,
+						current,
+					];
+				},
+			});
+			const commandService = new TestCommandService();
+			const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: enabled,
+			}));
+			const agents = [new class extends mock<AgentInfo>() {
+				override readonly protectedResources = [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], scopes_supported: scopes }];
+			}()];
+			const tokens: string[] = [];
+			await instantiationService.invokeFunction(authenticateProtectedResources, agents, {
+				logPrefix: '[AgentHost]',
+				authenticate: async request => { tokens.push(request.token); },
+			});
+			assert.deepStrictEqual({ tokens, lookups, prompts: commandService.calls }, {
+				tokens: [enabled ? 'authorized-token' : 'current-token'],
+				lookups: [
+					{ scopes, accountId: undefined, silent: undefined },
+					...(enabled ? [{ scopes: undefined, accountId: account.id, silent: true }] : []),
+				],
+				prompts: [],
+			});
+		});
+	}
+
+	test('a connector authorization upgrade replaces the token forwarded to a running agent host', async () => {
+		const account = { id: 'active-account', label: 'Active' };
+		const scopes = ['read:user', 'user:email'];
+		const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes };
+		const authorized: AuthenticationSession = {
+			id: 'authorized', accessToken: 'authorized-token', account, scopes: [...scopes, 'write:plugin_gateway_connections'],
+		};
+		let sessions: readonly AuthenticationSession[] = [current];
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, requested) => requested ? [current] : sessions,
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		}));
+		const agents = [new class extends mock<AgentInfo>() {
+			override readonly protectedResources = [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], scopes_supported: scopes }];
+		}()];
+		const tokens: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { tokens.push(request.token); },
+		};
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		sessions = [current, authorized];
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		assert.deepStrictEqual(tokens, ['current-token', 'authorized-token']);
+	});
+
+	for (const alternative of ['other-account', 'missing-base-scope', 'rejected', 'lookup-failed']) {
+		test(`connector preference retains usable Copilot authentication for ${alternative}`, async () => {
+			const account = { id: 'active-account', label: 'Active' };
+			const scopes = ['read:user', 'user:email'];
+			const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes };
+			const authorized: AuthenticationSession = {
+				id: 'authorized', accessToken: 'authorized-token',
+				account: alternative === 'other-account' ? { id: 'other', label: 'Other' } : account,
+				scopes: [...(alternative === 'missing-base-scope' ? [] : scopes), 'write:plugin_gateway_connections'],
+			};
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async (_providerId, requested) => {
+					if (!requested && alternative === 'lookup-failed') {
+						throw new Error('Provider unavailable');
+					}
+					return requested ? [current] : [current, authorized];
+				},
+			});
+			const commandService = new TestCommandService();
+			const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+			}));
+			const resource = { resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], scopes_supported: scopes };
+			const agents = [new class extends mock<AgentInfo>() { override readonly protectedResources = [resource]; }()];
+			const cache = new AgentHostAuthTokenCache();
+			if (alternative === 'rejected') {
+				cache.rejectSession(resource.resource, scopes, authorized);
+			}
+			const tokens: string[] = [];
+			await instantiationService.invokeFunction(authenticateProtectedResources, agents, {
+				authTokenCache: cache, logPrefix: '[AgentHost]',
+				authenticate: async request => { tokens.push(request.token); },
+			});
+			assert.deepStrictEqual({ tokens, prompts: commandService.calls }, { tokens: ['current-token'], prompts: [] });
+		});
+	}
+
 	test('skips authenticate when the cached token is unchanged', async () => {
 		const authService = createMockAuthService({
 			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
@@ -2005,7 +2162,10 @@ suite('resolveAuthenticationInteractively', () => {
 		assert.deepStrictEqual({ success, commandCalls: commandService.calls.length, requests }, {
 			success: true,
 			commandCalls: 0,
-			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: 'fresh-token' }],
+			requests: [{
+				resource: protectedResource.resource, scopes: ['read'], token: 'fresh-token',
+				_meta: authenticationAccountMeta({ providerId: 'provider-1', accountId: 'account-1' }),
+			}],
 		});
 	});
 

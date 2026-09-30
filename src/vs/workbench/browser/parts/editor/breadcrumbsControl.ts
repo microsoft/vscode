@@ -619,7 +619,8 @@ export class BreadcrumbsControl {
 		}
 
 		const { element } = event.item as FileItem | OutlineItem;
-		this._editorGroup.focus();
+		// Activate the owning group without letting delayed webview focus steal focus from the picker.
+		this._editorGroup.groupsView.activateGroup(this._editorGroup);
 
 		const group = this._getEditorGroup(event.payload);
 		if (group !== undefined) {
@@ -730,6 +731,7 @@ export class BreadcrumbsControl {
 
 		if (element instanceof FileElement) {
 			if (element.kind === FileKind.FILE) {
+				this._editorGroup.focus();
 				await this._editorService.openEditor({ resource: element.uri, options: { pinned } }, group);
 			} else {
 				// show next picker
@@ -739,6 +741,7 @@ export class BreadcrumbsControl {
 				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 			}
 		} else {
+			this._editorGroup.focus();
 			element.outline.reveal(element, { pinned }, group === SIDE_GROUP, false);
 		}
 	}

@@ -11,7 +11,7 @@ import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IOnboardingTryoutHandoffService, IOnboardingTryoutWindowRequest } from '../../../../platform/onboarding/common/onboardingTryoutHandoff.js';
+import { IOnboardingTryoutHandoffService, IOnboardingTryoutRunOptions, IOnboardingTryoutWindowRequest, isOnboardingTryoutSource } from '../../../../platform/onboarding/common/onboardingTryoutHandoff.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IOnboardingTryoutService, parseOnboardingTryoutArguments } from '../common/onboardingTryout.js';
@@ -45,11 +45,11 @@ export class NativeOnboardingTryoutWindow extends Disposable {
 		super();
 	}
 
-	async open(id: string, token: CancellationToken): Promise<void> {
+	async open(id: string, token: CancellationToken, options?: IOnboardingTryoutRunOptions): Promise<void> {
 		if (token.isCancellationRequested || this._store.isDisposed) {
 			throw new CancellationError();
 		}
-		const requestId = generateUuid();
+		const requestId = options?.runId ?? generateUuid();
 		const cancellation = token.onCancellationRequested(() => {
 			void this.handoffService.cancel(requestId).catch(error => this.logService.error('[OnboardingTryout] Native cancellation failed', error));
 		});
@@ -57,6 +57,7 @@ export class NativeOnboardingTryoutWindow extends Disposable {
 			const result = await this.handoffService.open({
 				requestId,
 				tryoutId: this.getAgentsTryoutId(id),
+				source: options?.source ?? 'direct',
 			});
 			if (token.isCancellationRequested || result === 'cancelled' || result === 'superseded') {
 				throw new CancellationError();
@@ -115,12 +116,13 @@ export class NativeOnboardingTryoutWindow extends Disposable {
 			throw new Error(localize('onboarding.tryout.invalidNativeRequest', "The feature example request is invalid."));
 		}
 		const candidate = args[0] as Partial<IOnboardingTryoutWindowRequest>;
-		if (Object.keys(candidate).length !== 2
+		if (Object.keys(candidate).length !== 3
 			|| typeof candidate.requestId !== 'string' || !isUUID(candidate.requestId)
-			|| typeof candidate.tryoutId !== 'string') {
+			|| typeof candidate.tryoutId !== 'string'
+			|| !isOnboardingTryoutSource(candidate.source)) {
 			throw new Error(localize('onboarding.tryout.invalidNativeRequest', "The feature example request is invalid."));
 		}
-		return { requestId: candidate.requestId, tryoutId: candidate.tryoutId };
+		return { requestId: candidate.requestId, tryoutId: candidate.tryoutId, source: candidate.source };
 	}
 
 	private getRequestId(args: readonly unknown[]): string | undefined {
@@ -158,6 +160,7 @@ export class NativeOnboardingTryoutWindow extends Disposable {
 				this.commandService,
 				this.notificationService,
 				this.logService,
+				{ source: active.request.source, runId: active.request.requestId },
 			);
 		} finally {
 			if (this.activeRequest.value === active) {

@@ -85,6 +85,7 @@ export namespace ChatContextKeys {
 	 * e.g. an observable worker chat. Read-only chats hide the composer and do not offer
 	 * mutating actions such as Start Over or Restore Checkpoint.
 	 */
+	export const inputBlocked = new RawContextKey<boolean>('chatInputBlocked', false, { type: 'boolean', description: localize('chatInputBlocked', "True when sending to the current chat is temporarily blocked.") });
 	export const readOnly = new RawContextKey<boolean>('chatIsReadonly', false, { type: 'boolean', description: localize('chatIsReadonly', "True when the chat shown in the widget is read-only (non-interactive).") });
 	/**
 	 * Widget-scoped: true when this chat widget is locked to an Agent Host-backed chat session.
@@ -171,7 +172,9 @@ export namespace ChatContextKeys {
 	export const agentSessionsViewerOrientation = new RawContextKey<number>('agentSessionsViewerOrientation', undefined, { type: 'number', description: localize('agentSessionsViewerOrientation', "Orientation of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerPosition = new RawContextKey<number>('agentSessionsViewerPosition', undefined, { type: 'number', description: localize('agentSessionsViewerPosition', "Position of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerVisible = new RawContextKey<boolean>('agentSessionsViewerVisible', undefined, { type: 'boolean', description: localize('agentSessionsViewerVisible', "Visibility of the agent sessions view in the chat view.") });
+	export const hasCreatedSessionInAgentsWindow = new RawContextKey<boolean>('chatHasCreatedSessionInAgentsWindow', false, { type: 'boolean', description: localize('chatHasCreatedSessionInAgentsWindow', "True when the user has created at least one session in the Agents Window.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
+	export const isAgentSessionChild = new RawContextKey<boolean>('agentSessionIsChild', false, { type: 'boolean', description: localize('agentSessionIsChild', "True when the current agent session item is a child chat.") });
 	/**
 	 * Whether the agent session item has an associated pull request. Tri-state, so gate with
 	 * `chatSessionPullRequest != 'none'` to keep contributions visible when the state is unknown.

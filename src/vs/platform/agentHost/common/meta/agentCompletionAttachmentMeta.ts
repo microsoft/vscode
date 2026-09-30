@@ -51,6 +51,10 @@ export interface ICommandCompletionAttachmentMeta {
 	 * inline placeholder (ghost text) after an accepted command completion.
 	 */
 	readonly argumentHint?: string;
+	/** Whether accepting the completion should immediately request the next completion level. */
+	readonly retriggerSuggestions?: true;
+	/** Whether accepting the completion should immediately submit the completed command. */
+	readonly submitOnAccept?: true;
 	/**
 	 * Optional client-side action to run when the completion is accepted (e.g. a
 	 * permission/mode session-config toggle). See {@link IAgentHostCompletionAction}.
@@ -101,6 +105,8 @@ export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment
 			...(meta['isSkill'] === true ? { isSkill: true } : {}),
 			...(typeof meta['description'] === 'string' ? { description: meta['description'] } : {}),
 			...(typeof meta['argumentHint'] === 'string' ? { argumentHint: meta['argumentHint'] } : {}),
+			...(meta['retriggerSuggestions'] === true ? { retriggerSuggestions: true } : {}),
+			...(meta['submitOnAccept'] === true ? { submitOnAccept: true } : {}),
 			...(action ? { action } : {}),
 		};
 	}
@@ -132,6 +138,12 @@ export function toCommandCompletionAttachmentMeta(meta: ICommandCompletionAttach
 	}
 	if (meta.argumentHint !== undefined) {
 		result['argumentHint'] = meta.argumentHint;
+	}
+	if (meta.retriggerSuggestions === true) {
+		result['retriggerSuggestions'] = true;
+	}
+	if (meta.submitOnAccept === true) {
+		result['submitOnAccept'] = true;
 	}
 	const action = toCompletionActionMeta(meta.action);
 	if (action !== undefined) {

@@ -3,6 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from '../../../../../base/browser/dom.js';
+import { assert } from '../../../../../base/common/assert.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { AgentChatInputState } from '../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { AgentHostChatInputState, RETRY_CHAT_PREPARATION_COMMAND } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatInputState.js';
+import { IChatInputNotification, IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { renderChatInput } from '../../../../../workbench/test/browser/componentFixtures/chat/renderChatInput.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -33,6 +44,64 @@ function sessionsWindowContext(context: ComponentFixtureContext, withBackground 
 	chatView.classList.add('chat-view');
 	sessionsPart.appendChild(chatView);
 	return { ...context, container: chatView };
+}
+
+/** Drives the real input-state controller and notification widget without a provider process. */
+async function renderCodexWriterLock(context: ComponentFixtureContext, width: number, checking = false): Promise<void> {
+	const resource = URI.parse('agent-host-codex:/writer-lock-fixture');
+	const changed = context.disposableStore.add(new Emitter<void>());
+	let notification: IChatInputNotification | undefined;
+	const notifications = new class extends mock<IChatInputNotificationService>() {
+		override readonly onDidChange = changed.event;
+		override setNotification(value: IChatInputNotification): void { notification = value; changed.fire(); }
+		override deleteNotification(): void { notification = undefined; changed.fire(); }
+		override getActiveNotification(filter?: (value: IChatInputNotification) => boolean): IChatInputNotification | undefined {
+			return notification && (!filter || filter(notification)) ? notification : undefined;
+		}
+		override announceRendered(): void { }
+	}();
+	const state: AgentChatInputState = checking ? { kind: 'checking' } : {
+		kind: 'blocked',
+		error: { errorType: 'CodexThreadInUse', message: 'thread fixture already has an active writer' },
+	};
+	// Retrying leaves this fixture locked, so it is safe to explore repeatedly.
+	const inputState = context.disposableStore.add(new AgentHostChatInputState(resource, constObservable(state), async () => { }, notifications));
+	await renderChatInput(sessionsWindowContext(context), {
+		isSessionsWindow: true,
+		sessionResource: resource,
+		width,
+		value: 'Continue working on this conversation.',
+		models: [{
+			identifier: 'agent-host-codex:gpt-5.3-codex',
+			metadata: {
+				...responsiveModel.metadata,
+				id: 'gpt-5.3-codex',
+				name: 'GPT-5.3-Codex',
+				targetChatSessionType: SessionType.AgentHostCodex,
+				configurationSchema: undefined,
+			},
+		}],
+		sendEnabled: !inputState.isInputBlocked.get(),
+		additionalServices: registration => {
+			registration.defineInstance(IChatInputNotificationService, notifications);
+			registration.defineInstance(ICommandService, new class extends mock<ICommandService>() {
+				override readonly onWillExecuteCommand = Event.None;
+				override readonly onDidExecuteCommand = Event.None;
+				override async executeCommand<T>(id: string): Promise<T> {
+					if (id === RETRY_CHAT_PREPARATION_COMMAND) {
+						await inputState.retry();
+					}
+					return undefined as T;
+				}
+			}());
+		},
+	});
+	const input = context.container.querySelector<HTMLElement>('.chat-input-container');
+	const editor = input?.querySelector<HTMLElement>('.monaco-editor-background');
+	assert(!!input && !!editor, 'The chat input and editor must be visible.');
+	const targetWindow = getWindow(input);
+	assert(targetWindow.getComputedStyle(input).backgroundColor === targetWindow.getComputedStyle(editor).backgroundColor,
+		'The editor and composer must use the same input background.');
 }
 
 const responsiveModel: ILanguageModelChatMetadataAndIdentifier = {
@@ -72,6 +141,21 @@ const responsiveResizeCycles = [
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
+	CodexWriterLock: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A lock icon precedes the title This chat is open in another app above the Agents chat input. The body first explains that the other app has locked the chat and must release it before continuing here. On a separate line it reads Quit the other app (e.g. ChatGPT, Codex CLI), then retry. There is one Retry button, no dismiss action, an editable draft, and a disabled Send button. The text area and the rest of the composer have the same background color.'],
+		render: context => renderCodexWriterLock(context, 680),
+	}),
+	CodexWriterLockNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In a narrow chat input, the lock icon and This chat is open in another app title fit within the banner. The lock explanation wraps without clipping, with the quit instructions starting on their own line. Retry remains visible and Send is disabled while the draft remains visible. The text area and the rest of the composer have the same background color.'],
+		render: context => renderCodexWriterLock(context, 360),
+	}),
+	CodexWriterLockChecking: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A Checking Conversation banner with a lock icon above the input explains that availability is being checked. Retry and dismiss actions are absent, the draft is retained, and Send is disabled.'],
+		render: context => renderCodexWriterLock(context, 680, true),
+	}),
 	SessionsWindow: defineComponentFixture({
 		render: context => renderChatInput(sessionsWindowContext(context), {
 			isSessionsWindow: true,

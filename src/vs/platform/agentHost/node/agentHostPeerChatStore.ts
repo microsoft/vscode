@@ -6,6 +6,7 @@
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Limiter } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
@@ -23,8 +24,16 @@ export const CHAT_WORKING_DIRECTORIES_METADATA_KEY = 'agentHost.chatWorkingDirec
 const CHAT_METADATA_CONCURRENCY = 4;
 const IMPORTED_PEER_CHAT_LIMIT = AGENT_HOST_CATALOG_CHILD_LIMIT - 1;
 
+export const IAgentHostPeerChatPersistenceService = createDecorator<IAgentHostPeerChatPersistenceService>('agentHostPeerChatPersistenceService');
+
+export interface IAgentHostPeerChatPersistenceService {
+	readonly _serviceBrand: undefined;
+	setArchived(session: URI, chat: URI, archived: boolean): Promise<void>;
+}
+
 export interface IPersistedPeerChat {
 	readonly uri: string;
+	readonly archived?: boolean;
 	readonly providerData?: string;
 	readonly origin?: ChatOrigin;
 	readonly inheritedTurnId?: string;
@@ -38,7 +47,9 @@ interface IReplaceCentralOptions {
 	readonly legacyMergeBase?: readonly IPersistedPeerChat[];
 }
 
-export class AgentHostPeerChatStore {
+export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceService {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _writes = new Map<string, Promise<void>>();
 	private readonly _deletingSessions = new Map<string, number>();
@@ -208,6 +219,7 @@ export class AgentHostPeerChatStore {
 			const next = entries.filter(entry => entry.uri !== chatUri);
 			next.push({
 				uri: chatUri,
+				...(existing?.archived ? { archived: true } : {}),
 				...(providerData !== undefined ? { providerData } : {}),
 				...(effectiveOrigin !== undefined ? { origin: effectiveOrigin } : {}),
 				...(effectiveInheritedTurnId !== undefined ? { inheritedTurnId: effectiveInheritedTurnId } : {}),
@@ -224,6 +236,7 @@ export class AgentHostPeerChatStore {
 			const next = entries.filter(entry => entry.uri !== chatUri);
 			next.push({
 				uri: chatUri,
+				...(existing?.archived ? { archived: true } : {}),
 				...(existing?.providerData !== undefined ? { providerData: existing.providerData } : {}),
 				...(existing?.origin !== undefined ? { origin: existing.origin } : {}),
 				...(existing?.inheritedTurnId !== undefined ? { inheritedTurnId: existing.inheritedTurnId } : {}),
@@ -231,6 +244,14 @@ export class AgentHostPeerChatStore {
 			});
 			return next;
 		});
+	}
+
+	setArchived(session: URI, chat: URI, archived: boolean): Promise<void> {
+		const chatUri = chat.toString();
+		return this._enqueueWrite(session, entries => entries.map(entry =>
+			entry.uri === chatUri
+				? { ...entry, archived: archived || undefined }
+				: entry));
 	}
 
 	remove(session: URI, chat: URI): Promise<void> {
@@ -366,6 +387,7 @@ export class AgentHostPeerChatStore {
 	private _catalogRows(entries: readonly IPersistedPeerChat[]): Array<{
 		readonly chat: string;
 		readonly order: number;
+		readonly archived?: boolean;
 		readonly providerData?: string;
 		readonly origin?: string;
 		readonly inheritedTurnId?: string;
@@ -373,6 +395,7 @@ export class AgentHostPeerChatStore {
 		return entries.map((entry, order) => ({
 			chat: entry.uri,
 			order,
+			...(entry.archived === true ? { archived: true } : {}),
 			...(entry.providerData !== undefined ? { providerData: entry.providerData } : {}),
 			...(entry.origin !== undefined ? { origin: this._stringifyOrigin(entry.origin) } : {}),
 			...(entry.inheritedTurnId !== undefined ? { inheritedTurnId: entry.inheritedTurnId } : {}),
@@ -636,9 +659,11 @@ export class AgentHostPeerChatStore {
 		readonly providerData?: string;
 		readonly origin?: string;
 		readonly inheritedTurnId?: string;
+		readonly archived?: boolean;
 	}[]): IPersistedPeerChat[] {
 		return chats.map(chat => ({
 			uri: chat.chat,
+			...(chat.archived ? { archived: true } : {}),
 			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 			...(chat.origin !== undefined ? { origin: this._parseOrigin(chat.origin) } : {}),
 			...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
@@ -690,6 +715,10 @@ export class AgentHostPeerChatStore {
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid working directories`);
 				continue;
 			}
+			if (value.archived !== undefined && typeof value.archived !== 'boolean') {
+				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid archived state`);
+				continue;
+			}
 			const originValue = toSerializableJsonValue(value.origin);
 			const origin = fromCatalogChatOrigin(originValue);
 			if (value.origin !== undefined && !origin) {
@@ -698,6 +727,7 @@ export class AgentHostPeerChatStore {
 			seen.add(value.uri);
 			result.push({
 				uri: value.uri,
+				...(value.archived === true ? { archived: true } : {}),
 				...(typeof value.providerData === 'string' ? { providerData: value.providerData } : {}),
 				...(origin ? { origin } : {}),
 				...(typeof value.inheritedTurnId === 'string' ? { inheritedTurnId: value.inheritedTurnId } : {}),

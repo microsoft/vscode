@@ -30,7 +30,7 @@ suite('Session GitHub References', () => {
 	}
 
 	for (const isArtifact of [true, false]) {
-		test(`resolves an issue-only ${isArtifact ? 'artifact' : 'reference'} without a workspace or repository`, () => {
+		test(`${isArtifact ? 'resolves' : 'leaves out'} an issue-only ${isArtifact ? 'artifact' : 'reference'} without a workspace or repository`, () => {
 			const uri = URI.parse('https://github.com/microsoft/vscode/issues/337297');
 			const session = createSession([{
 				id: 'issue', kind: SessionArtifactKind.Issue, label: 'Workspace picker', isArtifact, isGitHub: true, link: uri,
@@ -38,7 +38,7 @@ suite('Session GitHub References', () => {
 
 			assert.deepStrictEqual(getSessionGitHubReferences(session, undefined), {
 				pullRequests: [],
-				issues: [{ owner: 'microsoft', repo: 'vscode', number: 337297, uri, title: 'Workspace picker', recordedReferenceId: 'issue' }],
+				issues: isArtifact ? [{ owner: 'microsoft', repo: 'vscode', number: 337297, uri, title: 'Workspace picker', recordedReferenceId: 'issue' }] : [],
 			});
 		});
 	}
@@ -49,7 +49,7 @@ suite('Session GitHub References', () => {
 		const discovered = { owner: 'owner', repo: 'repo', number: 3, uri: URI.parse('https://github.com/owner/repo/pull/3') };
 		const session = createSession([
 			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'Recorded PR', isArtifact: true, isGitHub: true, link: pullRequest },
-			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Recorded issue', isArtifact: false, isGitHub: true, link: issue },
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Recorded issue', isArtifact: true, isGitHub: true, link: issue },
 		], { owner: 'owner', repo: 'repo', pullRequest: discovered });
 
 		const references = getSessionGitHubReferences(session, undefined);
@@ -62,26 +62,40 @@ suite('Session GitHub References', () => {
 		});
 	});
 
-	test('preserves recorded IDs and live presentation when merging duplicate associations', () => {
-		const uri = URI.parse('https://github.com/OWNER/REPO/pull/1/');
-		const associated = { owner: 'owner', repo: 'repo', number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1') };
+	test('leaves recorded references and their echoed associations out, keeping a referenced PR the session produced', () => {
+		const link = (path: string) => URI.parse(`https://github.com/owner/repo/${path}`);
+		const association = (number: number) => ({ owner: 'owner', repo: 'repo', number, uri: link(`pull/${number}`) });
 		const session = createSession([
-			{ id: 'reference', kind: SessionArtifactKind.PullRequest, label: 'Reference', isArtifact: false, isGitHub: true, link: uri },
-			{ id: 'artifact', kind: SessionArtifactKind.PullRequest, label: 'Artifact', isArtifact: true, isGitHub: true, link: uri },
+			{ id: 'artifact', kind: SessionArtifactKind.PullRequest, label: 'Artifact', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/OWNER/REPO/pull/1/') },
+			{ id: 'duplicate-reference', kind: SessionArtifactKind.PullRequest, label: 'Duplicate', isArtifact: false, isGitHub: true, link: link('pull/1') },
+			{ id: 'reference', kind: SessionArtifactKind.PullRequest, label: 'Reference', isArtifact: false, isGitHub: true, link: link('pull/2') },
+			{ id: 'produced-reference', kind: SessionArtifactKind.PullRequest, label: 'Produced', isArtifact: false, isGitHub: true, link: link('pull/3') },
+			{ id: 'issue-reference', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: false, isGitHub: true, link: link('issues/4') },
 		], {
 			owner: 'owner', repo: 'repo',
 			pullRequests: [
-				{ ...associated, recordedReferenceId: 'artifact', createdByThisSession: true },
-				{ ...associated, recordedReferenceId: 'reference', createdByThisSession: true, state: 'merged', icon: Codicon.gitMerge, title: 'Live title' },
+				{ ...association(1), recordedReferenceId: 'artifact', createdByThisSession: true, state: 'merged', icon: Codicon.gitMerge, title: 'Live title' },
+				{ ...association(1), recordedReferenceId: 'duplicate-reference', createdByThisSession: false },
+				{ ...association(2), recordedReferenceId: 'reference', createdByThisSession: false },
+				// The provider also discovered this referenced PR from the session's own git state.
+				{ ...association(3), recordedReferenceId: 'produced-reference', createdByThisSession: true },
 			],
+			issues: [{ owner: 'owner', repo: 'repo', number: 4, uri: link('issues/4'), recordedReferenceId: 'issue-reference' }],
 		});
+
 		const references = getSessionGitHubReferences(session, undefined);
-		assert.deepStrictEqual(references.pullRequests.map(ref => ({
-			id: ref.recordedReferenceId, title: ref.title, owned: ref.createdByThisSession, state: ref.state, icon: ref.icon, uri: ref.uri,
-		})), [
-			{ id: 'reference', title: 'Live title', owned: true, state: 'merged', icon: Codicon.gitMerge, uri },
-			{ id: 'artifact', title: 'Artifact', owned: true, state: undefined, icon: undefined, uri },
-		]);
+		assert.deepStrictEqual({
+			pullRequests: references.pullRequests.map(ref => ({
+				number: ref.number, id: ref.recordedReferenceId, title: ref.title, owned: ref.createdByThisSession, state: ref.state, icon: ref.icon,
+			})),
+			issues: references.issues,
+		}, {
+			pullRequests: [
+				{ number: 1, id: 'artifact', title: 'Live title', owned: true, state: 'merged', icon: Codicon.gitMerge },
+				{ number: 3, id: undefined, title: undefined, owned: true, state: undefined, icon: undefined },
+			],
+			issues: [],
+		});
 	});
 
 	test('keeps an independently discovered PR after its recorded duplicate is removed', () => {

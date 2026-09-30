@@ -221,10 +221,14 @@ export interface IAutomationService extends IAutomationStore {
 	canCreateAutomation(providerId: string | undefined): boolean;
 }
 
+export type AutomationUnavailableReasonCode = 'disconnected' | 'initializing' | 'disabled' | 'unsupported' | 'incompatible';
+
 /** Identity and optional unavailability explanation of a concrete Automation provider. */
 export interface IAutomationProviderDescriptor {
 	readonly id: string;
 	readonly label: string;
+	/** Optional category for grouping providers without interpreting localized explanations. */
+	readonly unavailableReasonCode?: AutomationUnavailableReasonCode;
 	/** A provider-specific explanation, absent when none applies. */
 	readonly unavailableReason?: string;
 }

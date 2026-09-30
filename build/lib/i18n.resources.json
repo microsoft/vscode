@@ -435,6 +435,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/github",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/history",
 			"project": "vscode-workbench"
 		},
@@ -698,6 +702,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/changes",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/canvases",
 			"project": "vscode-sessions"
 		},
 		{

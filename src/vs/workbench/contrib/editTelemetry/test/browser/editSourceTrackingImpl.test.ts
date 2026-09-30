@@ -127,6 +127,70 @@ suite('Edit Source Tracking Windows', () => {
 		context.disposables.dispose();
 	}));
 
+	test('Chat.applyEdits reports generated and retained characters by Auto tier', () => runWithFakedTimers({}, async () => {
+		const context = setup();
+		try {
+			await timeout(10);
+			const edits = [
+				{ text: 'aaaaaa', autoTier: 'efficiency' },
+				{ text: 'bbb', autoTier: 'efficiency' },
+				{ text: 'ccccc', autoTier: 'balance' },
+				{ text: 'dddd', autoTier: 'intelligence' },
+				{ text: 'ee', autoTier: 'fast' },
+				{ text: 'fff', autoTier: undefined },
+				{ text: 'hh', autoTier: undefined, modelId: 'copilot/gpt-5' },
+			];
+			for (const [index, edit] of edits.entries()) {
+				context.document.applyEdit(StringEditWithReason.replace(
+					OffsetRange.emptyAt(context.document.value.get().value.length),
+					edit.text,
+					EditSources.chatApplyEdits({
+						modelId: edit.modelId ?? 'copilot/auto',
+						autoTier: edit.autoTier,
+						sessionId: 'session',
+						requestId: `request-${index}`,
+						languageId: 'typescript',
+						mode: 'agent',
+						extensionId: { extensionId: 'github.copilot-chat', version: '1.0.0' },
+						codeBlockSuggestionId: undefined,
+					}),
+				));
+				await timeout(1500);
+			}
+			for (const text of ['aaa', 'ccccc']) {
+				context.document.applyEdit(StringEditWithReason.replace(context.document.findRange(text), '', EditSources.cursor({ kind: 'type' })));
+				await timeout(10);
+			}
+			context.document.dispose();
+			await timeout(10);
+
+			assert.deepStrictEqual(context.allDetails.filter(event => event.mode === 'longterm' && event.sourceKey.startsWith('source:Chat.applyEdits')).map(event => ({
+				sourceKey: event.sourceKey,
+				sourceKeyCleaned: event.sourceKeyCleaned,
+				modelId: event.modelId,
+				autoTier: event.autoTier,
+				modifiedCount: event.modifiedCount,
+				deltaModifiedCount: event.deltaModifiedCount,
+				totalModifiedCount: event.totalModifiedCount,
+			})), [
+				{ autoTier: 'efficiency', modifiedCount: 6, deltaModifiedCount: 9 },
+				{ autoTier: 'balance', modifiedCount: 0, deltaModifiedCount: 5 },
+				{ autoTier: 'intelligence', modifiedCount: 4, deltaModifiedCount: 4 },
+				{ autoTier: 'fast', modifiedCount: 2, deltaModifiedCount: 2 },
+				{ autoTier: undefined, modifiedCount: 3, deltaModifiedCount: 3 },
+				{ autoTier: undefined, modifiedCount: 2, deltaModifiedCount: 2, modelId: 'copilot|gpt-5' },
+			].map(entry => ({
+				...entry,
+				modelId: entry.modelId ?? 'copilot|auto',
+				sourceKey: `source:Chat.applyEdits-$modelId:${entry.modelId ?? 'copilot|auto'}${entry.autoTier ? `-$autoTier:${entry.autoTier}` : ''}-$extensionId:github.copilot-chat-$extensionVersion:1.0.0`,
+				sourceKeyCleaned: 'source:Chat.applyEdits',
+				totalModifiedCount: 17,
+			})));
+		} finally {
+			context.disposables.dispose();
+		}
+	}));
+
 	test('starts after first visibility and keeps only the long-term tracker while hidden', () => runWithFakedTimers({}, async () => {
 		const visible = observableValue('visible', false);
 		const context = setup(visible);
@@ -300,6 +364,71 @@ suite('Edit Source Tracking Windows', () => {
 			{ mode: '20minFocusWindow', harness: 'claude', requestId: 'turn-late' },
 		]);
 
+		context.disposables.dispose();
+	}));
+
+	test('caps known chat scopes and preserves legacy unknown-chat grouping in both focus windows', () => runWithFakedTimers({}, async () => {
+		const visible = observableValue('visible', true);
+		const sources = new Map<string, TextModelEditSource>();
+		const correlation: IExternalEditCorrelation = {
+			onDidSuppress: Event.None,
+			onDidInvalidate: Event.None,
+			register: (_before, after) => after,
+			isSuppressed: id => sources.has(id),
+			getResolution: id => sources.has(id) ? { id, source: sources.get(id) } : undefined,
+			release: () => { },
+		};
+		const context = setup(visible, {
+			createCorrelation: () => correlation,
+			prepareFlush: async () => undefined,
+		});
+		await timeout(10);
+		const chatSessionIds = [...Array.from({ length: 12 }, (_, i) => `hashed-chat-${i + 1}`), undefined, undefined];
+		let content = 'hello';
+		for (const [index, chatSessionId] of chatSessionIds.entries()) {
+			const newText = 'x'.repeat(index + 1);
+			content += newText;
+			sources.set(content, EditSources.agentHostChatApplyEdits({
+				modelId: 'model',
+				sessionId: chatSessionId !== undefined ? 'session-1' : `session-${index}`,
+				chatSessionId,
+				requestId: `turn-${index}`,
+				harness: 'copilotcli',
+			}));
+			context.document.applyEdit(StringEditWithReason.replace(
+				OffsetRange.emptyAt(context.document.value.get().value.length),
+				newText,
+				EditSources.reloadFromDisk(),
+			));
+			await timeout(1500);
+		}
+		visible.set(false, undefined);
+		await timeout(10);
+
+		const project = (mode: string) => context.allDetails
+			.filter(event => event.mode === mode)
+			.sort((a, b) => a.modifiedCount - b.modifiedCount)
+			.map(event => ({
+				sourceKey: event.sourceKey,
+				conversationId: event.conversationId,
+				chatSessionId: event.chatSessionId,
+				hasChatSessionId: Object.hasOwn(event, 'chatSessionId'),
+				modifiedCount: event.modifiedCount,
+				deltaModifiedCount: event.deltaModifiedCount,
+			}));
+		// The legacy group retains 13 + 14 characters, so the top ten exclude the three smallest known chats.
+		const expected = chatSessionIds.slice(3, -1).map((chatSessionId, index) => ({
+			sourceKey: 'source:Chat.applyEdits-$modelId:model-$harness:copilotcli-$origin:agentHost',
+			conversationId: chatSessionId !== undefined ? 'session-1' : 'session-12',
+			chatSessionId,
+			hasChatSessionId: chatSessionId !== undefined,
+			modifiedCount: chatSessionId !== undefined ? index + 4 : 27,
+			deltaModifiedCount: chatSessionId !== undefined ? index + 4 : 27,
+		}));
+		assert.deepStrictEqual({
+			short: project('10minFocusWindow'),
+			long: project('20minFocusWindow'),
+		}, { short: expected, long: expected });
 		context.disposables.dispose();
 	}));
 
@@ -865,7 +994,9 @@ function setup(
 		origin: string | undefined;
 		harness: string | undefined;
 		modelId: string | undefined;
+		autoTier?: string;
 		conversationId: string | undefined;
+		chatSessionId?: string;
 		requestId: string | undefined;
 		statsUuid: string;
 		modifiedCount: number;

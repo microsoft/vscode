@@ -29,6 +29,7 @@ import type { ICustomizationSyncProvider } from '../../../common/customizationHa
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { RenameToolId } from '../../tools/renameTool.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -392,7 +393,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 						}
 					}
 				}
-				return coalesce(tools.filter(tool => enabledToolIds.has(tool.id) || (semanticSearchEnabled && tool === semanticSearchTool)).map(tool => {
+				return coalesce(tools.filter(tool => tool.id !== RenameToolId && (enabledToolIds.has(tool.id) || (semanticSearchEnabled && tool === semanticSearchTool))).map(tool => {
 					if (!isCopilotSession) {
 						return toolDataToDefinition(tool);
 					}

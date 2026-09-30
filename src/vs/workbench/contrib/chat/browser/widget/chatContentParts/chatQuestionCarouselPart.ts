@@ -52,6 +52,13 @@ const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
 const NEXT_QUESTION_ACTION_ID = 'workbench.action.chat.nextQuestion';
 export interface IChatQuestionCarouselOptions {
 	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => void;
+	onDidDismiss?: (answers: ReadonlyMap<string, IChatQuestionAnswerValue>) => void;
+	dismissLabel?: string;
+	submissionAcknowledgement?: {
+		readonly message: string;
+		readonly dismissLabel: string;
+		readonly onDidDismiss: () => void;
+	};
 	shouldAutoFocus?: boolean;
 }
 
@@ -163,7 +170,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	constructor(
 		public readonly carousel: IChatQuestionCarousel,
-		private readonly _context: IChatContentPartRenderContext,
+		private readonly _context: IChatContentPartRenderContext | undefined,
 		private readonly _options: IChatQuestionCarouselOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -226,7 +233,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// If carousel was already used OR the response is complete, show summary of answers
 		// When response is complete, the carousel can no longer be interacted with
-		const responseIsComplete = isResponseVM(this._context.element) && this._context.element.isComplete;
+		const responseIsComplete = !!this._context && isResponseVM(this._context.element) && this._context.element.isComplete;
 		if (carousel.isUsed || responseIsComplete) {
 			this._isSkipped = true;
 			this.domNode.classList.add('chat-question-carousel-used');
@@ -253,7 +260,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Close/skip button (X) - placed in header row, only shown when allowSkip is true
 		if (carousel.allowSkip) {
 			this._closeButtonContainer = dom.$('.chat-question-close-container');
-			const skipAllTitle = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
+			const skipAllTitle = this._options.dismissLabel ?? localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
 			const skipAllButton = createChatCardIconButton(interactiveStore, this._closeButtonContainer, this._hoverService, {
 				icon: Codicon.closeSmall,
 				ariaLabel: skipAllTitle,
@@ -490,8 +497,45 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		dom.clearNode(this.domNode);
 
 		// Render summary
-		this.renderSummary();
+		if (this._options.submissionAcknowledgement) {
+			this.renderSubmissionAcknowledgement(this._options.submissionAcknowledgement);
+		} else {
+			this.renderSummary();
+		}
 		this._onDidChangeHeight.fire();
+	}
+
+	private renderSubmissionAcknowledgement(acknowledgement: NonNullable<IChatQuestionCarouselOptions['submissionAcknowledgement']>): void {
+		const acknowledgementStore = new DisposableStore();
+		this._interactiveUIStore.value = acknowledgementStore;
+
+		const titleRow = dom.$(`.chat-question-title-row.${CHAT_CARD_HEADER_CLASS}`);
+		const title = dom.$(`.chat-question-title.${CHAT_CARD_TITLE_CLASS}`);
+		title.textContent = acknowledgement.message;
+		titleRow.appendChild(title);
+
+		const actions = dom.$('.chat-question-header-actions');
+		const closeButton = createChatCardIconButton(acknowledgementStore, actions, this._hoverService, {
+			icon: Codicon.closeSmall,
+			ariaLabel: acknowledgement.dismissLabel,
+			hoverContent: acknowledgement.dismissLabel,
+		});
+		closeButton.element.classList.add('chat-question-close');
+		acknowledgementStore.add(closeButton.onDidClick(() => acknowledgement.onDidDismiss()));
+		titleRow.appendChild(actions);
+		this.domNode.appendChild(titleRow);
+		this.domNode.setAttribute('aria-label', acknowledgement.message);
+		this._accessibilityService.status(acknowledgement.message);
+		closeButton.focus();
+
+		acknowledgementStore.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.keyCode === KeyCode.Escape) {
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+				acknowledgement.onDidDismiss();
+			}
+		}));
 	}
 
 	/**
@@ -616,6 +660,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
+		this.saveCurrentAnswer();
+		this._options.onDidDismiss?.(new Map(this._answers));
 		this._isSkipped = true;
 
 		this._options.onSubmit(undefined);
@@ -1697,6 +1743,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderConversationSummary(options?: { answerFallback?: string; answerIcon?: ThemeIcon; hideAnswerPrefix?: boolean }): void {
+		if (!this._context) {
+			return;
+		}
+
 		const summaryStore = new DisposableStore();
 		this._interactiveUIStore.value = summaryStore;
 		const summaryContainer = dom.$('.chat-question-carousel-summary.chat-question-carousel-conversation-summary');

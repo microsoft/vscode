@@ -158,8 +158,12 @@ export interface IChatWorkingProgress {
 	kind: 'working';
 	content?: IMarkdownString;
 	isActive?: boolean;
-	/** Whether a change to this content is worth announcing to screen readers, e.g. a blocking state rather than a rotating phrase. */
-	announce?: boolean;
+	/** Announces changed content immediately for blocking states, or politely for background activity. */
+	announce?: boolean | 'polite';
+	/** Changes when new response activity should be reflected in the generic working phrase. */
+	progressStep?: number;
+	/** Whether prolonged response inactivity should replace the current phrase with the delayed-progress message. */
+	showDelayedProgressMessage?: boolean;
 }
 
 

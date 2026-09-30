@@ -8,7 +8,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { ActionType, type IResponsePartAction, type ITurnStartedAction, type ITitleChangedAction } from '../../../common/state/sessionActions.js';
 import type { ListSessionsResult } from '../../../common/state/sessionProtocol.js';
-import { MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
+import { buildChatUri, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ChatState, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import { MOCK_AUTO_TITLE } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
@@ -31,7 +31,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 	suiteSetup(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
-		server = await startServer();
+		server = await startServer({ env: { VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS: '1' } });
 	});
 
 	suiteTeardown(async function () {
@@ -158,6 +158,83 @@ suite('Protocol WebSocket — Session Features', function () {
 		}
 		assert.ok(session, 'session should appear in listSessions');
 		assert.strictEqual(session.title, 'Persisted Title');
+	});
+
+	test('chat archive action rejects the default chat without changing state', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-default-chat-archive');
+		const channel = defaultChatChannel(sessionUri);
+		client.notify('dispatchAction', {
+			channel,
+			clientSeq: 1,
+			action: {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			},
+		});
+
+		const notification = await client.waitForNotification(n => isActionNotification(n, ActionType.ChatIsArchivedChanged));
+		const envelope = getActionEnvelope(notification);
+		const state = await fetchSessionWithChat(client, sessionUri);
+
+		assert.deepStrictEqual({
+			rejectionReason: envelope.rejectionReason,
+			chatArchived: (state.status & SessionStatus.IsArchived) !== 0,
+		}, {
+			rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+			chatArchived: false,
+		});
+	});
+
+	test('chat archive action independently archives and restores a peer chat', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-peer-chat-archive');
+		const peerChat = buildChatUri(sessionUri, 'peer-chat-archive');
+		await client.call('createChat', { channel: sessionUri, chat: peerChat, title: 'Peer Chat' });
+		await client.call<SubscribeResult>('subscribe', { channel: peerChat });
+		client.clearReceived();
+
+		client.notify('dispatchAction', {
+			channel: peerChat,
+			clientSeq: 1,
+			action: {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			},
+		});
+		const archiveNotification = await client.waitForNotification(n => isActionNotification(n, ActionType.ChatIsArchivedChanged));
+		const archivedPeer = await client.call<SubscribeResult>('subscribe', { channel: peerChat });
+		const archivedParent = await fetchSessionWithChat(client, sessionUri);
+		const archivedDefaultChat = await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
+
+		client.notify('dispatchAction', {
+			channel: peerChat,
+			clientSeq: 2,
+			action: {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: false,
+			},
+		});
+		const restoreNotification = await client.waitForNotification(n => isActionNotification(n, ActionType.ChatIsArchivedChanged));
+		const restoredPeer = await client.call<SubscribeResult>('subscribe', { channel: peerChat });
+
+		assert.deepStrictEqual({
+			archiveRejection: getActionEnvelope(archiveNotification).rejectionReason,
+			peerArchived: (((archivedPeer.snapshot?.state as ChatState).status ?? 0) & SessionStatus.IsArchived) !== 0,
+			parentArchived: (archivedParent.status & SessionStatus.IsArchived) !== 0,
+			defaultChatArchived: ((((archivedDefaultChat.snapshot?.state as ChatState).status ?? 0) & SessionStatus.IsArchived) !== 0),
+			restoreRejection: getActionEnvelope(restoreNotification).rejectionReason,
+			peerRestored: (((restoredPeer.snapshot?.state as ChatState).status ?? 0) & SessionStatus.IsArchived) === 0,
+		}, {
+			archiveRejection: undefined,
+			peerArchived: true,
+			parentArchived: false,
+			defaultChatArchived: false,
+			restoreRejection: undefined,
+			peerRestored: true,
+		});
 	});
 
 	// ---- Session model --------------------------------------------------------

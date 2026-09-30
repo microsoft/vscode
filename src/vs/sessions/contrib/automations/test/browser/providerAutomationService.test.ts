@@ -12,7 +12,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, AutomationUnavailableReasonCode, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ProviderAutomationService } from '../../browser/providerAutomationService.js';
@@ -35,6 +35,7 @@ class TestAuthority extends mock<ISessionsProviderAutomations>() {
 	override readonly catalogueState = observableValue<AutomationCatalogueState>(this, 'ready');
 	override readonly canCreateAutomation = this.catalogueState.map(state => state === 'ready');
 	override readonly unavailableReason = observableValue<string | undefined>(this, undefined);
+	override readonly unavailableReasonCode = observableValue<AutomationUnavailableReasonCode | undefined>(this, undefined);
 	override readonly automations;
 	override readonly runs = observableValue<readonly IAutomationRun[]>(this, []);
 	readonly calls: string[] = [];
@@ -159,10 +160,25 @@ suite('ProviderAutomationService', () => {
 		const host = new TestAuthority('remote');
 		host.catalogueState.set('unavailable', undefined);
 		host.unavailableReason.set('Update the remote Agent Host.', undefined);
+		host.unavailableReasonCode.set('incompatible', undefined);
 		const { service } = setup([provider(host)]);
 		assert.deepStrictEqual(service.unavailableProviders.get(), [{
-			id: 'remote', label: 'remote', unavailableReason: 'Update the remote Agent Host.',
+			id: 'remote', label: 'remote', unavailableReason: 'Update the remote Agent Host.', unavailableReasonCode: 'incompatible',
 		}]);
+	});
+
+	test('updates reason codes independently and excludes initializing providers', () => {
+		const host = new TestAuthority('remote');
+		host.catalogueState.set('unavailable', undefined);
+		host.unavailableReasonCode.set('disconnected', undefined);
+		const { service } = setup([provider(host)]);
+		const reasons: (AutomationUnavailableReasonCode | undefined)[][] = [];
+		disposables.add(autorun(reader => reasons.push(service.unavailableProviders.read(reader).map(provider => provider.unavailableReasonCode))));
+		host.unavailableReasonCode.set('unsupported', undefined);
+		host.catalogueState.set('loading', undefined);
+		host.unavailableReasonCode.set('initializing', undefined);
+
+		assert.deepStrictEqual(reasons, [['disconnected'], ['unsupported'], []]);
 	});
 
 	test('catalogue errors and loading are not hidden by ready providers', () => {

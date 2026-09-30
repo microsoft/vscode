@@ -27,7 +27,6 @@
     "contribViewsWelcome",
     "editSessionIdentityProvider",
     "envIsConnectionMetered",
-    "findFiles2",
     "quickDiffProvider",
     "quickPickSortByLabel",
     "scmActionButton",
@@ -3739,6 +3738,18 @@
           },
           "default": [],
           "markdownDescription": "%config.worktreeIncludeFiles%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "git.worktreeSymlinkFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "%config.worktreeSymlinkFolders%",
           "scope": "resource",
           "tags": [
             "experimental"

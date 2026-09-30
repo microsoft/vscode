@@ -118,7 +118,7 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 	},
 	[PromptHeaderAttributes.model]: {
 		type: 'scalar | sequence',
-		description: localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.'),
+		description: localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. This is supported by the GitHub Copilot harness. You can also provide an ordered list of model preferences; the first available model will be used.'),
 	},
 	[PromptHeaderAttributes.reasoningEffort]: {
 		type: 'scalar',
@@ -229,7 +229,7 @@ const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.skill]: Object.keys(skillAttributes),
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
-const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, GithubPromptHeaderAttributes.github, PromptHeaderAttributes.infer];
+const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, GithubPromptHeaderAttributes.github, PromptHeaderAttributes.infer];
 const recommendedAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.instructions]: allAttributeNames[PromptsType.instructions].filter(name => !isNonRecommendedAttribute(name)),

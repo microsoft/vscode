@@ -225,6 +225,23 @@ suite('PolicyConfiguration', () => {
 		assert.deepStrictEqual(acutal.getValue('policy.objectSetting'), expected);
 	});
 
+	test('initialize: with object type policy preserves __proto__ as own data', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyObjectSetting': '{ "__proto__": { "polluted": true } }' })));
+
+		await testObject.initialize();
+		const value = testObject.configurationModel.getValue<Record<string, unknown>>('policy.objectSetting')!;
+
+		assert.deepStrictEqual({
+			prototype: Object.getPrototypeOf(value),
+			hasOwnProto: Object.hasOwn(value, '__proto__'),
+			polluted: value.polluted,
+		}, {
+			prototype: Object.prototype,
+			hasOwnProto: true,
+			polluted: undefined,
+		});
+	});
+
 	test('initialize: with array type policy', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyArraySetting': JSON.stringify([1]) })));
 

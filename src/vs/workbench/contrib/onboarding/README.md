@@ -275,17 +275,44 @@ Tryout presentations receive a cancellation token and per-run `DisposableStore`.
 - Cross-window requests remain cancellable until the destination accepts them.
 - Never report success when preparation, target resolution, or destination acceptance failed.
 
+## Telemetry
+
+Tryouts report two usage events through the normal telemetry service:
+
+- `onboarding.tryoutStarted`: the registered example actually opened, executed, or prepared. For guided examples, this is reported before guidance finishes.
+- `onboarding.tryoutOutcome`: the observed terminal `result`, the `launchResult` (or `none`), optional `guidanceOutcome` and `dismissReason`, and the attempt's `durationMs`. Guide completion, skipping, and cancellation are not interchangeable with launching or adopting the feature.
+
+Both events include the registered `tryoutId`, an ephemeral `runId`, and `source` (`releaseNotes`, `externalLink`, or `direct`). Native handoff preserves these values; only the execution window reports lifecycle events, not the source router. Routing failures, unconfirmed external links, setup actions, impressions, and clicks are not measured by these events. Unknown identifiers and raw URLs, arguments, paths, prompts, and error messages are never included.
+
+Concurrent invocations that join an active run share its attribution and produce no duplicate launch/outcome pair. A missing outcome can indicate shutdown or telemetry delivery loss; it must not be treated as completion. A cancelled guide may have no guidance result if cancellation finished the attempt before the guide returned.
+
+Run resources are disposed even if telemetry logging fails.
+
+Use the started event to identify a cohort, then join existing usage events by their common device/session properties and timestamps. These are device-level observations, not verified people or evidence that a tryout caused later usage. An external link does not establish a website origin. Opening a sample or preparing a draft is exposure, not independent feature adoption.
+
+The events respect existing usage-telemetry settings and policies. Register their GDPR schemas in the telemetry catalog and verify ingestion before relying on production queries.
+
 ## Release-note markup
 
-Release notes use standard conditional comments and command links:
+Release-note tryout links use a backtick-wrapped inline-code shorthand, without conditional comments:
 
 ```md
-<!-- %IF TRYOUTS %
-[Try My Feature](command:workbench.action.onboarding.tryFeature?%5B%22myFeature.guide%22%5D)
-%ENDIF % -->
+`try(myFeature.guide,Try My Feature)`
 ```
 
-Only the stable ID belongs in Markdown. Use **Developer: Copy Feature Example Link** to produce the encoded link. For manual validation, add the link to [releaseNotesTryouts.md](test/browser/fixtures/releaseNotesTryouts.md), open that file, and run **Developer: Open Current File as Release Notes**.
+The syntax is `try(<tryout-id>,<link-text>)`. The first argument is a stable registered tryout ID, not a command ID. The required link text is presentation only; all executable behavior and availability checks remain in installed code. Surrounding argument whitespace is trimmed. The first comma separates the ID from the label, and the final closing parenthesis ends the token, so labels can contain commas and parentheses. Labels are literal text, not Markdown or HTML.
+
+Only a complete inline-code token is recognized. Bare text, code blocks, and code inside links or raw HTML remain noninteractive. Malformed shorthand stays literal code; a valid but unknown ID shows the existing unavailable-example explanation. Renderers without tryout support display the shorthand as literal inline code.
+
+Use **Developer: Copy Feature Example Link** to produce the shorthand with the installed title as its initial label. The command chooses a longer backtick delimiter when the title contains backticks. Authors may edit the label without changing the registered behavior.
+
+Existing encoded command links remain supported and retain their product-generated `Try This: <title>` labels:
+
+```md
+[Try My Feature](command:workbench.action.onboarding.tryFeature?%5B%22myFeature.guide%22%5D)
+```
+
+For manual validation, add the shorthand to [releaseNotesTryouts.md](test/browser/fixtures/releaseNotesTryouts.md), open that file, and run **Developer: Open Current File as Release Notes**.
 
 ## Choosing the interaction level
 

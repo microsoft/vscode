@@ -48,6 +48,21 @@ suite('FakeGitHubScheduler', () => {
 		], [7, 1, 5, 1, 2, 0]);
 	});
 
+	test('wall-clock jumps do not advance timer deadlines', () => {
+		const scheduler = disposables.add(new FakeGitHubScheduler());
+		const calls: number[] = [];
+		disposables.add(scheduler.schedule(() => calls.push(scheduler.now()), 100));
+		scheduler.advanceBy(10);
+		scheduler.advanceWallClockBy(1_000);
+		const afterJump = { now: scheduler.now(), next: scheduler.nextDueTime, calls: [...calls] };
+		scheduler.advanceBy(89);
+		const beforeTimer = [...calls];
+		scheduler.advanceBy(1);
+		assert.deepStrictEqual({ afterJump, beforeTimer, calls, pending: scheduler.pendingCount }, {
+			afterJump: { now: 1_010, next: 1_100, calls: [] }, beforeTimer: [], calls: [1_100], pending: 0,
+		});
+	});
+
 	test('schedulerDelay resolves only after time advances and honors abort', async () => {
 		const scheduler = new FakeGitHubScheduler({ now: 1_000 });
 		const controller = new AbortController();

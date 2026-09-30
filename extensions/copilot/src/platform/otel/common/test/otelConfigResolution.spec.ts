@@ -105,6 +105,21 @@ describe('OTel config resolution', () => {
 		expect(resolve(settings).hasEnterpriseSettings).toBe(false);
 	});
 
+	it('does not claim policy provenance for the unconfigured shared endpoint policy slot', () => {
+		const settings = new TestOTelSettings();
+		settings.policySlotDefaults.otlpEndpoint = '';
+		expect(resolve(settings)).toMatchObject({
+			hasEnterpriseSettings: false,
+			defaultValues: { otlpEndpoint: OTEL_SETTING_DEFAULTS.otlpEndpoint },
+			config: { enabled: false, otlpEndpoint: '' },
+		});
+		settings.policy = { enabled: true, otlpEndpoint: 'https://managed.example' };
+		expect(resolve(settings)).toMatchObject({
+			hasEnterpriseSettings: true,
+			config: { enabled: true, otlpEndpoint: 'https://managed.example/' },
+		});
+	});
+
 	it('preserves existing effective-setting resolution and env precedence', () => {
 		const settings = new TestOTelSettings();
 		settings.policy = { enabled: true, otlpEndpoint: 'https://managed.example', headers: { managed: '1' } };

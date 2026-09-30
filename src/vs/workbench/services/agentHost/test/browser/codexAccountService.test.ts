@@ -175,6 +175,52 @@ suite('CodexAccountService', () => {
 		assert.strictEqual(invalidDataUri, undefined);
 	});
 
+	test('rebinds account state when the Agent Host starts', () => {
+		const initialState: RootState = { agents: [] };
+		const connectedState: RootState = {
+			agents: [],
+			_meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'signedIn', email: 'person@example.com' } },
+		};
+		const initialStateEmitter = disposables.add(new Emitter<RootState>());
+		const connectedStateEmitter = disposables.add(new Emitter<RootState>());
+		const hostStartEmitter = disposables.add(new Emitter<void>());
+		const initialRootState: IAgentSubscription<RootState> = {
+			value: initialState,
+			verifiedValue: initialState,
+			onDidChange: initialStateEmitter.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		const connectedRootState: IAgentSubscription<RootState> = {
+			value: connectedState,
+			verifiedValue: connectedState,
+			onDidChange: connectedStateEmitter.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		let rootState = initialRootState;
+		const agentHostService = new class extends NullAgentHostService {
+			override readonly onAgentHostStart = hostStartEmitter.event;
+
+			override get rootState(): IAgentSubscription<RootState> {
+				return rootState;
+			}
+		}();
+		const accountService = disposables.add(new CodexAccountService(agentHostService, NullOpenerService));
+
+		rootState = connectedRootState;
+		hostStartEmitter.fire();
+		initialStateEmitter.fire({ agents: [], _meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'signedOut' } } });
+
+		assert.deepStrictEqual({
+			status: accountService.account.status,
+			email: accountService.account.email,
+		}, {
+			status: 'signedIn',
+			email: 'person@example.com',
+		});
+	});
+
 	test('retries a failed profile-image read for the same reference', async () => {
 		const nonce = 'a'.repeat(64);
 		const reference = {

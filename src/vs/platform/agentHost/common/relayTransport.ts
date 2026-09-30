@@ -30,6 +30,8 @@ export interface IRelayMessage {
  */
 export interface IRelayChannel {
 	readonly onDidRelayMessage: Event<IRelayMessage>;
+	/** Fires with a connection ID while that relay receives part of a message. Local relays use {@link Event.None}. */
+	readonly onDidRelayActivity: Event<string /* connectionId */>;
 	readonly onDidRelayClose: Event<string /* connectionId */>;
 	relaySend(connectionId: string, message: string): Promise<void>;
 }
@@ -56,6 +58,9 @@ export class RelayTransport extends Disposable implements IProtocolTransport {
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
+
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	readonly onDidReceiveData = this._onDidReceiveData.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
@@ -98,6 +103,12 @@ export class RelayTransport extends Disposable implements IProtocolTransport {
 				}
 				this._ahpLogger?.log(parsed, 's2c', getAhpLogByteLength(msg.data));
 				this._onMessage.fire(parsed);
+			}
+		}));
+
+		this._register(this._channel.onDidRelayActivity((activeId: string) => {
+			if (this._connectionId !== undefined && activeId === this._connectionId) {
+				this._onDidReceiveData.fire();
 			}
 		}));
 

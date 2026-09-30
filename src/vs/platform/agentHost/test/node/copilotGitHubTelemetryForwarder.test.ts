@@ -92,6 +92,95 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}]);
 	});
 
+	test('forwards HydraFusion route, failure, phase, and turn events', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const notification = (kind: string, properties: Record<string, string>, metrics: Record<string, number> = {}): GitHubTelemetryNotification => ({
+			sessionId: 'fusion-session',
+			restricted: false,
+			event: { kind, properties, metrics },
+		});
+
+		forwarder.forward(notification('hydrafusion_route', {
+			fusion_id: 'fusion-1',
+			synthetic_model: 'hydrafusion',
+			pattern: 'critique',
+			primary_model: 'gpt-5.6-sol',
+		}, {
+			routing_latency_ms: 12,
+			reasoning_score: 0.75,
+		}));
+		forwarder.forward(notification('hydrafusion_route_failed', {
+			synthetic_model: 'hydrafusion',
+			reason: 'route_unavailable',
+			fallback_model: 'claude-opus-5',
+		}));
+		forwarder.forward(notification('hydrafusion_phase', {
+			fusion_id: 'fusion-1',
+			phase_id: 'phase-1',
+			phase_kind: 'primary',
+			status: 'succeeded',
+			model: 'gpt-5.6-sol',
+		}, {
+			duration_ms: 100,
+			request_count: 1,
+			total_nano_aiu: 2_000_000_000,
+		}));
+		forwarder.forward(notification('hydrafusion_turn', {
+			fusion_id: 'fusion-1',
+			synthetic_model: 'hydrafusion',
+			pattern: 'critique',
+			outcome: 'succeeded',
+			final_source_model: 'gpt-5.6-sol',
+		}, {
+			duration_ms: 120,
+			phase_count: 1,
+			total_nano_aiu: 2_000_000_000,
+		}));
+
+		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
+			eventName,
+			sessionId: data?.sdk_session_id,
+			fusionId: data?.fusion_id,
+			syntheticModel: data?.synthetic_model,
+			durationMs: data?.duration_ms,
+			totalNanoAiu: data?.total_nano_aiu,
+		})), [
+			{
+				eventName: 'copilotSdk/hydrafusion_route',
+				sessionId: 'fusion-session',
+				fusionId: 'fusion-1',
+				syntheticModel: 'hydrafusion',
+				durationMs: undefined,
+				totalNanoAiu: undefined,
+			},
+			{
+				eventName: 'copilotSdk/hydrafusion_route_failed',
+				sessionId: 'fusion-session',
+				fusionId: undefined,
+				syntheticModel: 'hydrafusion',
+				durationMs: undefined,
+				totalNanoAiu: undefined,
+			},
+			{
+				eventName: 'copilotSdk/hydrafusion_phase',
+				sessionId: 'fusion-session',
+				fusionId: 'fusion-1',
+				syntheticModel: undefined,
+				durationMs: 100,
+				totalNanoAiu: 2_000_000_000,
+			},
+			{
+				eventName: 'copilotSdk/hydrafusion_turn',
+				sessionId: 'fusion-session',
+				fusionId: 'fusion-1',
+				syntheticModel: 'hydrafusion',
+				durationMs: 120,
+				totalNanoAiu: 2_000_000_000,
+			},
+		]);
+	});
+
 	test('gates restricted events on the restricted telemetry option', () => {
 		const telemetryService = new TestTelemetryService();
 		let restrictedTelemetryEnabled = false;

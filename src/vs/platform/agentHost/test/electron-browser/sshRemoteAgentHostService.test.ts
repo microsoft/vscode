@@ -64,6 +64,9 @@ class MockSSHMainService {
 	private readonly _onDidRelayMessage = new Emitter<IRelayMessage>();
 	readonly onDidRelayMessage = this._onDidRelayMessage.event;
 
+	private readonly _onDidRelayActivity = new Emitter<string>();
+	readonly onDidRelayActivity = this._onDidRelayActivity.event;
+
 	private readonly _onDidRelayClose = new Emitter<string>();
 	readonly onDidRelayClose = this._onDidRelayClose.event;
 
@@ -207,6 +210,7 @@ class MockSSHMainService {
 		this._onDidCloseConnection.dispose();
 		this._onDidReportConnectProgress.dispose();
 		this._onDidRelayMessage.dispose();
+		this._onDidRelayActivity.dispose();
 		this._onDidRelayClose.dispose();
 		this._onDidRequestKeyboardInteractive.dispose();
 		this._onDidCancelKeyboardInteractive.dispose();

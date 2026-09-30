@@ -32,7 +32,10 @@ export class SessionArtifacts {
 	}
 
 	/** Serializes collection reads, durable writes and publication across tools and user requests. */
-	mutate<T extends { readonly artifacts: readonly ISessionArtifact[] }>(mutation: (collection: SessionArtifactCollection) => T): Promise<T> {
+	mutate<T extends { readonly artifacts: readonly ISessionArtifact[] }>(
+		mutation: (collection: SessionArtifactCollection) => T,
+		afterMutation?: (result: T) => void | Promise<void>,
+	): Promise<T> {
 		let sequencer = SessionArtifacts._mutations.get(this._stateManager);
 		if (!sequencer) {
 			sequencer = new SequencerByKey<string>();
@@ -46,14 +49,19 @@ export class SessionArtifacts {
 				const meta = this._getState()._meta;
 				this._stateManager.setSessionMeta(this._session, withSessionArtifacts(meta, result.artifacts));
 			}
+			await afterMutation?.(result);
 			return result;
 		});
 	}
 
-	async remove(artifactId: string): Promise<void> {
+	async remove(artifactId: string, onRemoved?: (artifact: ISessionArtifact) => void | Promise<void>): Promise<void> {
 		if (!artifactId.trim()) {
 			throw new Error('artifactId must be a non-empty string');
 		}
-		await this.mutate(collection => collection.remove(artifactId));
+		await this.mutate(collection => collection.remove(artifactId), async result => {
+			if (result.removed) {
+				await onRemoved?.(result.removed);
+			}
+		});
 	}
 }

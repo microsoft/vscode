@@ -14,7 +14,9 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import type { IChatUserInteractionTiming } from '../../../../platform/otel/common/chatUserInteraction.js';
 import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
@@ -32,7 +34,7 @@ import type { InitializeResult } from '../../../../platform/agentHost/common/sta
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { agentHostAuthority, fromAgentHostUri, identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, agentHostLabelFormatter, fromAgentHostUri, identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostFileSystemService } from '../common/agentHostFileSystemService.js';
 import { EditorRemoteAgentHostTransport } from '../common/editorRemoteAgentHostTransport.js';
 
@@ -50,6 +52,13 @@ const LOG_PREFIX = '[AgentHost:remote]';
 export class EditorRemoteAgentHostServiceClient extends Disposable implements IAgentHostService {
 	declare readonly _serviceBrand: undefined;
 
+	async reportUserInteraction(timing: IChatUserInteractionTiming): Promise<void> {
+		if (!this._protocolClient) {
+			throw new Error('Remote Agent Host is not connected; user interaction telemetry was not exported');
+		}
+		await this._protocolClient.reportUserInteraction(timing);
+	}
+
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
 	readonly onAgentHostExit: Event<number> = this._onAgentHostExit.event;
 
@@ -61,6 +70,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private _authenticationSettled = false;
 
 	private readonly _protocolClient: AgentHostProtocolClient | undefined;
+	private readonly _connectionAuthority: string | undefined;
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
@@ -78,10 +88,12 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		@ILogService private readonly _logService: ILogService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostFileSystemService agentHostFileSystemService: IAgentHostFileSystemService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 
 		const connection = this._remoteAgentService.getConnection();
+		this._connectionAuthority = connection ? agentHostAuthority(`vscode-remote://${connection.remoteAuthority}`) : undefined;
 		this._logService.info(`${LOG_PREFIX} Initializing (remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
 
 		if (!connection) {
@@ -128,7 +140,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		}
 		this._connectStarted = true;
 		this._logService.info(`${LOG_PREFIX} Connecting to remote agent host...`);
-		await this._remoteAgentService.getRawEnvironment();
+		const remoteEnvironment = await this._remoteAgentService.getRawEnvironment();
+		if (remoteEnvironment && this._connectionAuthority) {
+			this._register(this._labelService.registerFormatter(agentHostLabelFormatter(this._connectionAuthority, remoteEnvironment.os)));
+		}
 		await this._protocolClient.connect();
 	}
 
@@ -291,6 +306,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._requireClient().createChat(session, chat, options);
+	}
+
+	refreshSubscription(resource: URI): Promise<void> {
+		return this._requireClient().refreshSubscription(resource);
 	}
 
 	disposeChat(chat: URI): Promise<void> {

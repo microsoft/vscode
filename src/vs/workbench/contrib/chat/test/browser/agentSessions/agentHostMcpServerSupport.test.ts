@@ -20,8 +20,8 @@ import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatform
 import { McpResourceFormat } from '../../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { StorageScope } from '../../../../../../platform/storage/common/storage.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment, resolveMcpServersForAgentHostDelivery } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
-import { AgentHostMcpServerSupportScope, createCustomizationMcpServerCompatibilityScope, IAgentHostMcpServerSupportScope } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupportScope.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID, IAgentHostInstalledMcpServer, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment, resolveMcpServersForAgentHostDelivery } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerSupportScope, createCustomizationMcpServerCompatibilityScope, getMcpCompatibilityDetail, IAgentHostMcpServerSupportScope } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupportScope.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
@@ -49,6 +49,16 @@ class TestMcpSupportConfigurationService extends TestConfigurationService {
 
 suite('agentHostMcpServerSupport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('describes gallery and version metadata as non-portable', () => {
+		assert.deepStrictEqual({
+			gallery: getMcpCompatibilityDetail(AgentHostMcpSupportReason.GalleryMetadataNotPortable),
+			version: getMcpCompatibilityDetail(AgentHostMcpSupportReason.ServerVersionNotPortable),
+		}, {
+			gallery: 'Gallery metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the gallery property.',
+			version: 'Server version metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the version property.',
+		});
+	});
 
 	test('projects applicable support into the harness compatibility contract', () => {
 		const base = {
@@ -457,7 +467,7 @@ suite('agentHostMcpServerSupport', () => {
 		});
 	});
 
-	test('reports SSE transport and version metadata as partially supported', async () => {
+	test('reports SSE transport and gallery or version metadata as partially supported', async () => {
 		const result = await assess([
 			makeMcpServer({
 				id: 'mcp.config.ws0.sse',
@@ -472,9 +482,24 @@ suite('agentHostMcpServerSupport', () => {
 				collectionOrigin: URI.file('/workspace/.vscode/mcp.json'),
 			}),
 			makeMcpServer({
+				id: 'mcp.config.ws0.gallery',
+				collectionId: 'mcp.config.ws0',
+				provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
+				gallery: true,
+				collectionOrigin: URI.file('/workspace/.vscode/mcp.json'),
+			}),
+			makeMcpServer({
 				id: 'mcp.config.ws0.version',
 				collectionId: 'mcp.config.ws0',
 				provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
+				version: '1.0.0',
+				collectionOrigin: URI.file('/workspace/.vscode/mcp.json'),
+			}),
+			makeMcpServer({
+				id: 'mcp.config.ws0.gallery-version',
+				collectionId: 'mcp.config.ws0',
+				provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
+				gallery: 'https://registry.example',
 				version: '1.0.0',
 				collectionOrigin: URI.file('/workspace/.vscode/mcp.json'),
 			}),
@@ -487,7 +512,18 @@ suite('agentHostMcpServerSupport', () => {
 			},
 			{
 				kind: 'partiallySupported',
+				reasons: [AgentHostMcpSupportReason.GalleryMetadataNotPortable],
+			},
+			{
+				kind: 'partiallySupported',
 				reasons: [AgentHostMcpSupportReason.ServerVersionNotPortable],
+			},
+			{
+				kind: 'partiallySupported',
+				reasons: [
+					AgentHostMcpSupportReason.GalleryMetadataNotPortable,
+					AgentHostMcpSupportReason.ServerVersionNotPortable,
+				],
 			},
 		]);
 	});
@@ -588,6 +624,49 @@ suite('agentHostMcpServerSupport', () => {
 				compatibility: { kind: 'supported' },
 			}],
 		});
+	});
+
+	test('reports gallery and version metadata for installed-only servers', async () => {
+		const configPath: IMcpConfigPath = {
+			id: 'usrlocal',
+			key: 'userLocalValue',
+			label: 'User',
+			scope: StorageScope.PROFILE,
+			target: ConfigurationTarget.USER,
+			order: 0,
+			uri: undefined,
+		};
+		const installed = (name: string, configuration: IAgentHostInstalledMcpServer['configuration']): IAgentHostInstalledMcpServer => ({
+			id: `mcp.config.usrlocal.${name}`,
+			name,
+			label: name,
+			configuration,
+			configPath,
+			sandbox: undefined,
+			runtimeState: McpServerEnablementState.DisabledByAccess,
+		});
+		const result = await mergeInstalledMcpServersIntoAgentHostSupportAssessment(
+			await assess([], []),
+			[
+				installed('gallery', { type: McpServerType.LOCAL, command: 'server', gallery: true }),
+				installed('version', { type: McpServerType.LOCAL, command: 'server', version: '1.0.0' }),
+				installed('gallery-version', { type: McpServerType.LOCAL, command: 'server', gallery: 'https://registry.example', version: '1.0.0' }),
+			],
+			makeConfigurationResolverService(),
+			[],
+		);
+
+		assert.deepStrictEqual(result.servers.map(server => server.compatibility), [
+			{ kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.GalleryMetadataNotPortable] },
+			{ kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.ServerVersionNotPortable] },
+			{
+				kind: 'partiallySupported',
+				reasons: [
+					AgentHostMcpSupportReason.GalleryMetadataNotPortable,
+					AgentHostMcpSupportReason.ServerVersionNotPortable,
+				],
+			},
+		]);
 	});
 
 	test('uses the same compatibility assessment for registered and access-disabled installed servers', async () => {
@@ -1080,6 +1159,7 @@ function makeMcpServer(options: {
 	readonly launch?: McpServerLaunch;
 	readonly sandboxEnabled?: boolean;
 	readonly devMode?: McpServerDefinition['devMode'];
+	readonly gallery?: McpServerDefinition['gallery'];
 	readonly version?: string;
 	readonly enablement?: ContributionEnablementState;
 	readonly enablementObservable?: ISettableObservable<ContributionEnablementState>;
@@ -1096,6 +1176,7 @@ function makeMcpServer(options: {
 		launch = stdioLaunch(),
 		sandboxEnabled,
 		devMode,
+		gallery,
 		version,
 		enablement = ContributionEnablementState.EnabledProfile,
 		enablementObservable,
@@ -1121,6 +1202,7 @@ function makeMcpServer(options: {
 		cacheNonce: id,
 		sandboxEnabled,
 		devMode,
+		gallery,
 		version,
 	};
 	const definitions = observableValue('definitions', { server: definition, collection });

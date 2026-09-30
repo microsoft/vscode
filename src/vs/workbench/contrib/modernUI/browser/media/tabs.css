@@ -401,8 +401,8 @@
 	top: var(--vscode-spacing-size20);
 }
 
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title:not(.tab-actions-reserve-space) .tabs-container > .tab:not(.dirty):not(.sticky):not(.close-action-off):hover > .tab-actions::before,
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title:not(.tab-actions-reserve-space) .tabs-container > .tab:not(.dirty):not(.sticky):not(.close-action-off) > .tab-actions:focus-within::before {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title:not(.tab-actions-reserve-space, .connected-tabs-labels) .tabs-container > .tab:not(.dirty):not(.sticky):not(.close-action-off):hover > .tab-actions::before,
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title:not(.tab-actions-reserve-space, .connected-tabs-labels) .tabs-container > .tab:not(.dirty):not(.sticky):not(.close-action-off) > .tab-actions:focus-within::before {
 	content: '';
 	position: absolute;
 	top: 0;

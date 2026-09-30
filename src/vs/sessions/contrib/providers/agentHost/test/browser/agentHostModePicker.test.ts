@@ -6,7 +6,8 @@
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -36,6 +37,7 @@ import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/ch
 import { resetShownWarnings } from '../../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { IOpenSettingsOptions, IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
@@ -53,7 +55,7 @@ suite('AgentHostModePicker', () => {
 
 	teardown(() => resetShownWarnings());
 
-	function setup(enabled = true, confirmPermissions = true, policyRestricted = false) {
+	function setup(enabled = true, confirmPermissions = true, policyRestricted = false, publishSandboxPolicy = true, hostOS = 'linux') {
 		const config: ResolveSessionConfigResult = {
 			schema: {
 				type: 'object',
@@ -68,10 +70,17 @@ suite('AgentHostModePicker', () => {
 		const configChanged = store.add(new Emitter<string>());
 		const resolving = observableValue('resolving', false);
 		const writes: { session: string; property: string; value: unknown }[] = [];
+		const devContainer = observableValue('devContainer', false);
+		store.add(autorun(reader => {
+			devContainer.read(reader);
+			configChanged.fire('test-session');
+		}));
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = 'local-agent-host';
 			override readonly onDidChangeSessionConfig = configChanged.event;
 			override getSessionConfig() { return config; }
+			override getSessionSandboxPolicy() { return publishSandboxPolicy ? { enabled: managedSandboxEnforced.get() } : undefined; }
+			override isDevContainerRequested() { return devContainer.get(); }
 			override isSessionConfigResolving() { return resolving; }
 			override async setSessionConfigValue(session: string, property: string, value: unknown): Promise<void> {
 				writes.push({ session, property, value });
@@ -89,6 +98,10 @@ suite('AgentHostModePicker', () => {
 		}());
 		const phone = observableValue('phone', false);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
+		store.add(autorun(reader => {
+			managedSandboxEnforced.read(reader);
+			configChanged.fire('test-session');
+		}));
 		const configuration = new class extends TestConfigurationService {
 			policyRestricted = policyRestricted;
 			override inspect<T>(key: string): IConfigurationValue<T> {
@@ -138,7 +151,7 @@ suite('AgentHostModePicker', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const connection = new class extends mock<IAgentConnection>() {
 			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
-				return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
+				return { version: '1', os: hostOS, arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
 			}
 		}();
 		instantiationService.stub(IAgentHostConnectionsService, {
@@ -174,6 +187,7 @@ suite('AgentHostModePicker', () => {
 		});
 		instantiationService.stub(IChatPetService, { unlockAchievement: () => false });
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: phone });
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined });
 		instantiationService.stub(IAgentHostEnablementService, { enabled: constObservable(true), managedSandboxEnforced, managedSandboxAllowsBypass: constObservable(false) });
 
 		const picker = store.add(instantiationService.createInstance(AgentHostModePicker, session));
@@ -181,8 +195,36 @@ suite('AgentHostModePicker', () => {
 		const container = dom.append(document.body, dom.$('div'));
 		store.add({ dispose: () => container.remove() });
 		const trigger = picker.render(container);
-		return { picker, trigger, config, configChanged, configuration, actionWidget, writes, session, phone, resolving, permissionDelegate, managedSandboxEnforced, settingsRequests, hoverTargets };
+		return { picker, trigger, config, configChanged, configuration, actionWidget, writes, session, phone, resolving, permissionDelegate, managedSandboxEnforced, settingsRequests, hoverTargets, devContainer };
 	}
+
+	test('updates the sandbox toggle, icon, and accessible label while Dev Container availability is pending', async () => {
+		const { trigger, configuration, actionWidget, devContainer, config, writes } = setup(true, true, false, true, 'win32');
+		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), 'on');
+		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(true), 'off');
+		await timeout(0);
+		const read = () => {
+			trigger.click();
+			const result = {
+				checked: actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle?.checked,
+				icon: !!trigger.querySelector('.agent-host-mode-sandbox-icon'),
+				ariaLabel: trigger.querySelector('.agent-host-permissions-button')?.getAttribute('aria-label'),
+			};
+			actionWidget.hide();
+			return result;
+		};
+		const source = read();
+		devContainer.set(true, undefined);
+		const container = read();
+		devContainer.set(false, undefined);
+		assert.deepStrictEqual({ source, container, restored: read(), selection: config.values[SessionConfigKey.SandboxEnabled], writes }, {
+			source: { checked: false, icon: false, ariaLabel: 'Pick Permissions, Manual permissions' },
+			container: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions, terminal sandboxed' },
+			restored: { checked: false, icon: false, ariaLabel: 'Pick Permissions, Manual permissions' },
+			selection: undefined,
+			writes: [],
+		});
+	});
 
 	test('uses one shared tooltip for the combined label', () => {
 		const { trigger, hoverTargets } = setup();
@@ -618,6 +660,26 @@ suite('AgentHostModePicker', () => {
 		const reopenedToggle = actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle;
 		assert.deepStrictEqual({ closedOnPolicyChange, writes, updates: actionWidget.updateCount, checked: reopenedToggle?.checked, disabled: reopenedToggle?.disabled }, {
 			closedOnPolicyChange: true, writes: [], updates: 0, checked: true, disabled: true,
+		});
+	});
+
+	test('locks the combined sandbox menu from local settings only on desktop before host policy publication', async () => {
+		const { trigger, actionWidget, config, managedSandboxEnforced, writes } = setup(true, true, false, false);
+		config.values[SessionConfigKey.SandboxEnabled] = 'off';
+		await timeout(0);
+		trigger.click();
+		const staleToggle = actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle;
+		assert.ok(staleToggle);
+		managedSandboxEnforced.set(true, undefined);
+		const closedOnPolicyChange = !actionWidget.isVisible;
+		staleToggle.onChange(true);
+		trigger.click();
+		const toggle = actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle;
+		assert.deepStrictEqual({ closedOnPolicyChange, checked: toggle?.checked, disabled: toggle?.disabled, writes }, {
+			closedOnPolicyChange: !isWeb,
+			checked: true,
+			disabled: !isWeb,
+			writes: isWeb ? [{ session: 'test-session', property: SessionConfigKey.SandboxEnabled, value: 'on' }] : [],
 		});
 	});
 

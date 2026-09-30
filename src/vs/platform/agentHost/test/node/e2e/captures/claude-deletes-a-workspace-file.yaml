@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -14,22 +14,21 @@ exchanges:
           name: Bash
           input:
             command: node -e "require('fs').unlinkSync('delete-me.txt')"
-            description: Delete delete-me.txt via node
+            description: Delete delete-me.txt using Node
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').unlinkSync(''delete-me.txt'')"`. Do not run any other command or tool. Then reply with exactly "deleted".'
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: Bash
               input:
                 command: node -e "require('fs').unlinkSync('delete-me.txt')"
-                description: Delete delete-me.txt via node
+                description: Delete delete-me.txt using Node
         - role: user
           content:
             - type: tool_result

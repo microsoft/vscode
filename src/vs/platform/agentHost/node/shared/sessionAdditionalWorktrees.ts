@@ -13,6 +13,7 @@ export interface ISessionAdditionalWorktree {
 	readonly handle: string;
 	readonly workingDirectory: string;
 	readonly repositoryRoot: string;
+	readonly chat?: string;
 }
 
 /** Reads the additional repository worktrees owned by a multi-folder session. */
@@ -80,7 +81,8 @@ function isSessionAdditionalWorktree(value: unknown): value is ISessionAdditiona
 	return typeof candidate.handle === 'string'
 		&& isAgentDevContainerWorktreeHandle(candidate.handle)
 		&& isUriString(candidate.workingDirectory)
-		&& isUriString(candidate.repositoryRoot);
+		&& isUriString(candidate.repositoryRoot)
+		&& (candidate.chat === undefined || isUriString(candidate.chat));
 }
 
 function isUriString(value: unknown): value is string {

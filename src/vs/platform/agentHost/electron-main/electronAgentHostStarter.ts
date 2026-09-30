@@ -23,7 +23,7 @@ import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProces
 import { AgentHostStartError, IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest, isFatalAgentHostStartError, toFatalAgentHostStartError } from '../common/agent.js';
 import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostOTelPolicyState, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHostStarter.config.contribution.js';
 
@@ -47,7 +47,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	 * the connection that lazily spawns the host. Used as the `policySettings` of
 	 * `buildAgentHostOTelEnv` in `start()`, falling back to main-process policy when absent.
 	 */
-	private _otelPolicyFromRenderer: IAgentHostOTelSettings | undefined = undefined;
+	private readonly _otelPolicyState = new AgentHostOTelPolicyState();
 
 	constructor(
 		private readonly _telemetryIds: IAgentHostForwardedTelemetryIds,
@@ -70,8 +70,12 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 
 		// Capture the enterprise OTel policy the renderer forwards before it requests a
 		// connection (FIFO per sender ensures this lands before the spawn in `start()`).
-		const onOTelPolicy = (_e: IpcMainEvent, policy: unknown) => {
-			this._otelPolicyFromRenderer = sanitizeAgentHostOTelPolicySettings(policy);
+		const onOTelPolicy = (_e: IpcMainEvent, policy: unknown, ready: unknown) => {
+			if (this._otelPolicyState.update(policy, this.utilityProcess !== undefined, ready === true)) {
+				this._logService.info('Agent Host enterprise OTel policy changed; restarting the Agent Host');
+				this._notifyWindowsWillRestart();
+				this._onRequestRestart.fire();
+			}
 		};
 		validatedIpcMain.on(AgentHostOTelPolicyIpcChannel, onOTelPolicy);
 		this._register(toDisposable(() => {
@@ -137,7 +141,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		// process cannot see); fall back to the main-process policy for the keys it
 		// can resolve (e.g. native MDM via the policy channel).
 		const policyValue = <T>(key: string): T | undefined => this._configurationService.inspect<T>(key).policyValue;
-		const policySettings: IAgentHostOTelSettings = this._otelPolicyFromRenderer ?? {
+		const policySettings: IAgentHostOTelSettings = this._otelPolicyState.policy ?? {
 			enabled: policyValue<boolean>(AgentHostOTelEnabledSettingId),
 			exporterType: policyValue<string>(AgentHostOTelExporterTypeSettingId),
 			otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
@@ -147,6 +151,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
 			resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
 		};
+		this._otelPolicyState.didStart();
 		const otelEnv = buildAgentHostOTelEnv({
 			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
 			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),

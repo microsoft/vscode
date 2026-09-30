@@ -1201,7 +1201,11 @@ export function registerChatActions() {
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const openerService = accessor.get(IOpenerService);
 			const defaultAccountService = accessor.get(IDefaultAccountService);
-			openerService.open(URI.parse(defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings)));
+			const settingsUrl = defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
+			if (!settingsUrl) {
+				throw new Error(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."));
+			}
+			openerService.open(URI.parse(settingsUrl));
 		}
 	});
 

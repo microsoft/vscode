@@ -163,9 +163,10 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		toolbar.style.padding = '0';
 		toolbar.style.setProperty('--session-view-background', 'var(--vscode-editor-background)');
 	}
-	const secondaryToolbar = dom.append(toolbar, dom.$(newChat ? '.new-chat-bottom-container' : '.chat-secondary-toolbar'));
-	const inputToolbar = dom.append(secondaryToolbar, dom.$(newChat ? '.new-chat-session-controls' : '.chat-secondary-input-toolbar'));
-	const actionBar = dom.append(inputToolbar, dom.$('.monaco-action-bar'));
+	const secondaryToolbar = dom.append(toolbar, dom.$(newChat ? '.new-chat-input-container' : '.chat-secondary-toolbar'));
+	const inputToolbar = dom.append(secondaryToolbar, dom.$(newChat ? '.sessions-chat-toolbar' : '.chat-secondary-input-toolbar'));
+	const controls = newChat ? dom.append(inputToolbar, dom.$('.sessions-chat-config-toolbar.new-chat-session-controls')) : inputToolbar;
+	const actionBar = dom.append(controls, dom.$('.monaco-action-bar'));
 	const actions = dom.append(actionBar, dom.$('ul.actions-container'));
 	const actionItem = dom.append(actions, dom.$('li.action-item'));
 	const permissionActionItem = combined ? actionItem : dom.append(actions, dom.$('li.action-item'));

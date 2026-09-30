@@ -873,8 +873,6 @@ interface IPosition {
 
 class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 
-	private static COUNTER = 1;
-
 	private readonly _onWillClose = this._register(new Emitter<void>());
 	readonly onWillClose = this._onWillClose.event;
 
@@ -936,8 +934,8 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		@IHostService hostService: IHostService,
 		@IContextKeyService private readonly modalContextKeyService: IContextKeyService,
 	) {
-		const id = ModalEditorPartImpl.COUNTER++;
-		super(editorPartsView, `workbench.parts.modalEditor.${id}`, localize('modalEditorPart', "Modal Editor Area"), windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, modalContextKeyService);
+		// Keep a stable component ID so recreating the modal does not grow the global memento cache.
+		super(editorPartsView, 'workbench.parts.modalEditor', localize('modalEditorPart', "Modal Editor Area"), windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, modalContextKeyService);
 
 		this._maximized = options?.maximized ?? false;
 		this._size = options?.size;

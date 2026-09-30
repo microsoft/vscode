@@ -20,20 +20,31 @@ function nextAnimationFrame(node: Node): Promise<void> {
 	return new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(node), resolve));
 }
 
-function stubSelection(store: DisposableStore, anchorNode: Node, focusNode: Node, text: string, focusOffset?: number): void {
-	const doc = anchorNode.ownerDocument!;
+function stubSelection(
+	store: DisposableStore,
+	startNode: Node,
+	endNode: Node,
+	text: string,
+	options?: { startOffset?: number; endOffset?: number; direction?: 'forward' | 'backward' },
+): void {
+	const doc = startNode.ownerDocument!;
+	const startOffset = options?.startOffset ?? 0;
+	const endOffset = options?.endOffset ?? (endNode.nodeType === Node.TEXT_NODE ? (endNode as Text).data.length : endNode.childNodes.length);
 	const range = doc.createRange();
-	range.setStart(anchorNode, 0);
-	range.setEnd(focusNode, focusOffset ?? (focusNode.nodeType === Node.TEXT_NODE ? (focusNode as Text).data.length : focusNode.childNodes.length));
+	range.setStart(startNode, startOffset);
+	range.setEnd(endNode, endOffset);
 
-	const targetWindow = dom.getWindow(anchorNode);
+	const direction = options?.direction ?? 'forward';
+	const targetWindow = dom.getWindow(startNode);
 	const original = targetWindow.getSelection.bind(targetWindow);
 	const mutableWindow = targetWindow as typeof targetWindow & { getSelection: () => Selection | null };
 	mutableWindow.getSelection = () => upcastPartial<Selection>({
 		toString: () => text,
 		isCollapsed: text.length === 0,
-		anchorNode,
-		focusNode,
+		anchorNode: direction === 'forward' ? startNode : endNode,
+		anchorOffset: direction === 'forward' ? startOffset : endOffset,
+		focusNode: direction === 'forward' ? endNode : startNode,
+		focusOffset: direction === 'forward' ? endOffset : startOffset,
 		rangeCount: 1,
 		getRangeAt: () => range,
 	});
@@ -69,8 +80,190 @@ suite('resolveResponseSelection', () => {
 
 		const resolved = resolveResponseSelection(widget);
 		assert.ok(resolved);
-		assert.strictEqual(resolved!.response, response);
-		assert.strictEqual(resolved!.text, 'hello world');
+		assert.deepStrictEqual({
+			response: resolved.response,
+			text: resolved.text,
+			direction: resolved.direction,
+			focusContainer: resolved.focusRange.startContainer,
+			focusStartOffset: resolved.focusRange.startOffset,
+			focusEndOffset: resolved.focusRange.endOffset,
+			focusEdge: resolved.focusEdge,
+		}, {
+			response,
+			text: 'hello world',
+			direction: 'forward',
+			focusContainer: textNode,
+			focusStartOffset: textNode.data.length - 1,
+			focusEndOffset: textNode.data.length,
+			focusEdge: 'right',
+		});
+	});
+
+	test('captures a partial forward same-node selection focus character', () => {
+		const { store, doc, widgetDomNode } = setup();
+		const markdown = doc.createElement('div');
+		markdown.classList.add('chat-markdown-part');
+		const textNode = doc.createTextNode('hello world');
+		markdown.appendChild(textNode);
+		widgetDomNode.appendChild(markdown);
+
+		stubSelection(store, textNode, textNode, 'hello', {
+			endOffset: 5,
+		});
+		const response = makeResponse('turn-1');
+		const widget = upcastPartial<IChatWidget>({
+			domNode: widgetDomNode,
+			getElementFromNode: () => response,
+		});
+
+		const resolved = resolveResponseSelection(widget);
+		assert.ok(resolved);
+		assert.deepStrictEqual({
+			direction: resolved.direction,
+			focusContainer: resolved.focusRange.startContainer,
+			focusStartOffset: resolved.focusRange.startOffset,
+			focusEndOffset: resolved.focusRange.endOffset,
+			focusEdge: resolved.focusEdge,
+		}, {
+			direction: 'forward',
+			focusContainer: textNode,
+			focusStartOffset: 4,
+			focusEndOffset: 5,
+			focusEdge: 'right',
+		});
+	});
+
+	test('captures a backward same-node selection focus endpoint', () => {
+		const { store, doc, widgetDomNode } = setup();
+		const markdown = doc.createElement('div');
+		markdown.classList.add('chat-markdown-part');
+		const textNode = doc.createTextNode('hello world');
+		markdown.appendChild(textNode);
+		widgetDomNode.appendChild(markdown);
+
+		stubSelection(store, textNode, textNode, 'ello worl', {
+			startOffset: 1,
+			endOffset: 10,
+			direction: 'backward',
+		});
+		const response = makeResponse('turn-1');
+		const widget = upcastPartial<IChatWidget>({
+			domNode: widgetDomNode,
+			getElementFromNode: () => response,
+		});
+
+		const resolved = resolveResponseSelection(widget);
+		assert.ok(resolved);
+		assert.deepStrictEqual({
+			direction: resolved.direction,
+			focusContainer: resolved.focusRange.startContainer,
+			focusStartOffset: resolved.focusRange.startOffset,
+			focusEndOffset: resolved.focusRange.endOffset,
+			focusEdge: resolved.focusEdge,
+		}, {
+			direction: 'backward',
+			focusContainer: textNode,
+			focusStartOffset: 1,
+			focusEndOffset: 2,
+			focusEdge: 'left',
+		});
+	});
+
+	test('captures the first contributing character for a backward element-boundary selection', () => {
+		const { store, doc, widgetDomNode } = setup();
+		const markdown = doc.createElement('div');
+		markdown.classList.add('chat-markdown-part');
+		const prefix = doc.createElement('span');
+		const prefixText = doc.createTextNode('prefix');
+		prefix.appendChild(prefixText);
+		const selected = doc.createElement('span');
+		const selectedText = doc.createTextNode(' selected');
+		selected.appendChild(selectedText);
+		markdown.append(prefix, selected);
+		widgetDomNode.appendChild(markdown);
+
+		stubSelection(store, markdown, selectedText, ' selected', {
+			startOffset: 1,
+			endOffset: selectedText.data.length,
+			direction: 'backward',
+		});
+		const response = makeResponse('turn-1');
+		const widget = upcastPartial<IChatWidget>({
+			domNode: widgetDomNode,
+			getElementFromNode: () => response,
+		});
+
+		const resolved = resolveResponseSelection(widget);
+		assert.ok(resolved);
+		assert.deepStrictEqual({
+			direction: resolved.direction,
+			focusContainer: resolved.focusRange.startContainer,
+			focusStartOffset: resolved.focusRange.startOffset,
+			focusEndOffset: resolved.focusRange.endOffset,
+			focusEdge: resolved.focusEdge,
+		}, {
+			direction: 'backward',
+			focusContainer: selectedText,
+			focusStartOffset: 1,
+			focusEndOffset: 2,
+			focusEdge: 'left',
+		});
+	});
+
+	test('skips a trailing bidi control when choosing the focus character', () => {
+		const { store, doc, widgetDomNode } = setup();
+		const markdown = doc.createElement('div');
+		markdown.classList.add('chat-markdown-part');
+		const textNode = doc.createTextNode('hello\u200F');
+		markdown.appendChild(textNode);
+		widgetDomNode.appendChild(markdown);
+
+		stubSelection(store, textNode, textNode, textNode.data);
+		const response = makeResponse('turn-1');
+		const widget = upcastPartial<IChatWidget>({
+			domNode: widgetDomNode,
+			getElementFromNode: () => response,
+		});
+
+		const resolved = resolveResponseSelection(widget);
+		assert.ok(resolved);
+		assert.deepStrictEqual({
+			text: resolved.text,
+			focusStartOffset: resolved.focusRange.startOffset,
+			focusEndOffset: resolved.focusRange.endOffset,
+			focusEdge: resolved.focusEdge,
+		}, {
+			text: 'hello\u200F',
+			focusStartOffset: 4,
+			focusEndOffset: 5,
+			focusEdge: 'right',
+		});
+	});
+
+	test('finds endpoint characters across a long interior whitespace run', () => {
+		const { store, doc, widgetDomNode } = setup();
+		const markdown = doc.createElement('div');
+		markdown.classList.add('chat-markdown-part');
+		const textNode = doc.createTextNode(`a${' '.repeat(20_000)}b`);
+		markdown.appendChild(textNode);
+		widgetDomNode.appendChild(markdown);
+
+		stubSelection(store, textNode, textNode, textNode.data);
+		const response = makeResponse('turn-1');
+		const widget = upcastPartial<IChatWidget>({
+			domNode: widgetDomNode,
+			getElementFromNode: () => response,
+		});
+
+		const resolved = resolveResponseSelection(widget);
+		assert.ok(resolved);
+		assert.deepStrictEqual({
+			focusStartOffset: resolved.focusRange.startOffset,
+			focusEndOffset: resolved.focusRange.endOffset,
+		}, {
+			focusStartOffset: textNode.data.length - 1,
+			focusEndOffset: textNode.data.length,
+		});
 	});
 
 	test('preserves leading whitespace while dropping the trailing newline artifact', () => {
@@ -111,7 +304,7 @@ suite('resolveResponseSelection', () => {
 		widgetDomNode.appendChild(footer);
 
 		const response = makeResponse('turn-1');
-		stubSelection(store, textNode, footer, 'hello world\n', 0);
+		stubSelection(store, textNode, footer, 'hello world\n', { endOffset: 0 });
 		await nextAnimationFrame(widgetDomNode);
 		const widget = upcastPartial<IChatWidget>({
 			domNode: widgetDomNode,
@@ -120,8 +313,23 @@ suite('resolveResponseSelection', () => {
 
 		const resolved = resolveResponseSelection(widget);
 		assert.ok(resolved);
-		assert.strictEqual(resolved!.response, response);
-		assert.strictEqual(resolved!.text, 'hello world');
+		assert.deepStrictEqual({
+			response: resolved.response,
+			text: resolved.text,
+			direction: resolved.direction,
+			focusContainer: resolved.focusRange.startContainer,
+			focusStartOffset: resolved.focusRange.startOffset,
+			focusEndOffset: resolved.focusRange.endOffset,
+			focusEdge: resolved.focusEdge,
+		}, {
+			response,
+			text: 'hello world',
+			direction: 'forward',
+			focusContainer: textNode,
+			focusStartOffset: textNode.data.length - 1,
+			focusEndOffset: textNode.data.length,
+			focusEdge: 'right',
+		});
 	});
 
 	test('rejects a selection that genuinely extends into content after the markdown', () => {
@@ -283,7 +491,7 @@ suite('resolveResponseSelection', () => {
 		widgetDomNode.appendChild(footer);
 
 		const response = makeResponse('turn-1');
-		stubSelection(store, textNode, footer, 'hello world\n', 0);
+		stubSelection(store, textNode, footer, 'hello world\n', { endOffset: 0 });
 		await nextAnimationFrame(widgetDomNode);
 		const widget = upcastPartial<IChatWidget>({
 			domNode: widgetDomNode,

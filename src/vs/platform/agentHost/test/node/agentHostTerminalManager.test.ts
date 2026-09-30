@@ -361,6 +361,39 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
 	});
 
+	test('sets VS Code terminal identity only when requested', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode', version: '1.2.3-test' } as IProductService;
+
+		async function createTestTerminal(id: string, vscodeTerminalIdentity: boolean | undefined) {
+			const pty = new TestPty();
+			const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+			const createTerminal = manager.createTerminal({
+				channel: `agenthost-terminal://test/${id}`,
+				claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+				cwd: process.cwd(),
+			}, { shell: '/test/unsupported-shell', vscodeTerminalIdentity });
+			await pty.dataListenerRegistered.p;
+			pty.fireData('prompt');
+			await createTerminal;
+			const env = manager.spawnOptions?.env;
+			return { name: env?.TERM_PROGRAM, version: env?.TERM_PROGRAM_VERSION };
+		}
+
+		const inherited = { name: process.env['TERM_PROGRAM'], version: process.env['TERM_PROGRAM_VERSION'] };
+		assert.deepStrictEqual({
+			requested: await createTestTerminal('vscode-identity', true),
+			notRequested: await createTestTerminal('inherited-identity', undefined),
+			parent: { name: process.env['TERM_PROGRAM'], version: process.env['TERM_PROGRAM_VERSION'] },
+		}, {
+			requested: { name: 'vscode', version: '1.2.3-test' },
+			notRequested: inherited,
+			parent: inherited,
+		});
+	});
+
 	test('sets zsh agent fixups only for session zsh terminals', async () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));

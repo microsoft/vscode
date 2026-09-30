@@ -50,4 +50,22 @@ suite('McpCopilotConfiguration', () => {
 			getCopilotGlobalMcpConfigurationResource({ homedir, copilotHome: URI.file('/custom') }).path,
 		], ['/home/me/.copilot/mcp-config.json', '/custom/mcp-config.json']);
 	});
+
+	test('preserves the remote discovery scheme and authority for default and custom Copilot homes', () => {
+		const resources = ['/home/remote', '/c:/Users/remote'].flatMap(path => {
+			const homedir = URI.parse(`vscode-remote://ssh-remote+test${path}`);
+			const copilotHome = URI.parse('vscode-remote://ssh-remote+test/custom/copilot');
+			return [
+				getCopilotGlobalMcpConfigurationResource({ homedir }).toString(),
+				getCopilotGlobalMcpConfigurationResource({ homedir, copilotHome }).toString(),
+			];
+		});
+
+		assert.deepStrictEqual(resources, [
+			URI.parse('vscode-remote://ssh-remote+test/home/remote/.copilot/mcp-config.json').toString(),
+			URI.parse('vscode-remote://ssh-remote+test/custom/copilot/mcp-config.json').toString(),
+			URI.parse('vscode-remote://ssh-remote+test/c:/Users/remote/.copilot/mcp-config.json').toString(),
+			URI.parse('vscode-remote://ssh-remote+test/custom/copilot/mcp-config.json').toString(),
+		]);
+	});
 });

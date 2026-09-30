@@ -31,7 +31,7 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Panel | Terminal and other panel views |
 | Custom View Grid | Full-surface contributed views that replace session content |
 
-The Sessions Part contains its own horizontal grid. Its leaves are not workbench editor groups.
+The Sessions Part contains its own nested two-dimensional split grid. Its leaves are not workbench editor groups, nor the chat groups inside an individual session.
 
 ## Grid behavior
 
@@ -56,9 +56,13 @@ In the side-by-side single-chat presentation, pinning a chat header keeps that c
 - which chat is active in each session;
 - restoration of the visible arrangement.
 
-The Sessions Part renders that model. It does not create a second active-session store.
+The Sessions Part renders that model. It does not create a second active-session store. Stable slot identities belong to the visible-session model; ordinary replacement transfers the slot to the new session. Retained sessions keep their views and live chat widgets across movement, reordering, and arrangement changes.
 
-Multiple visible sessions share the available Sessions Part width. Opening, closing, and reordering views operate through `ISessionsService`.
+Opening, closing, and directional insertion or movement operate through `ISessionsService`. The part owns the canonical split geometry and user sash sizes, using the shared grid primitive. Maximization and phone presentation project a single live view without changing that geometry. Ordinary structural edits preserve unaffected branches and sizes. Balanced tiling is an explicit arrangement operation over this grid, not a persistent mode or a comparison-specific layout.
+
+`ISessionsService` persists a versioned geometry snapshot separately from per-session chat state. Saved leaf bindings restore created sessions, the empty composer, active selection, pins, and maximization; untitled provider drafts are not recreated. Legacy ordered-session state remains readable. Restoration projects the saved topology onto available sessions and retains existing views when delayed providers arrive. Explicit navigation or grid interaction supersedes pending restoration.
+
+Session geometry does not determine Editor, Details, or other side-pane visibility policy. That policy remains with the layout controllers.
 
 ## Editor presentation
 
