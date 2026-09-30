@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CanGoBackContext, CanGoForwardContext } from '../../../common/contextkeys.js';
+import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService, IActiveSession } from '../common/sessionsManagement.js';
 import { IRecencyEntry, SessionsRecencyHistory } from './sessionsRecencyHistory.js';
@@ -28,6 +29,21 @@ export interface ISessionOpener {
 }
 
 /**
+ * A custom view (e.g. Automations) visited between two history entries. It is
+ * not part of the recency history; navigation only keeps the most recent one,
+ * anchored to its neighbouring entries.
+ */
+interface ICustomViewStop {
+	readonly viewId: string;
+	/** Entry that was current when the custom view was shown. */
+	readonly beforeKey: string | undefined;
+	/** Entry opened when leaving the custom view, once recorded. */
+	readonly afterKey: string | undefined;
+	/** Where navigation currently is relative to the custom view. */
+	readonly position: 'before' | 'on' | 'after';
+}
+
+/**
  * Provides Back/Forward navigation over the shared session recency history
  * ({@link SessionsRecencyHistory}). Created and owned by
  * the `SessionsService` (view).
@@ -43,6 +59,10 @@ export interface ISessionOpener {
  * Because the history is MRU-ordered and not truncated, going somewhere new
  * after a Back does not discard the previously-newer entries; they remain
  * reachable as older entries (Alt+Tab-style rather than browser-style).
+ *
+ * Custom views (e.g. Automations) are tracked as a single {@link ICustomViewStop}
+ * next to the cursor, so leaving a custom view by opening a session and then
+ * going Back returns to the custom view. Any other explicit navigation drops it.
  */
 export class SessionsNavigation extends Disposable {
 
@@ -59,10 +79,28 @@ export class SessionsNavigation extends Disposable {
 	 */
 	private readonly _beyondHistory = observableValue<boolean>(this, false);
 
+	private readonly _customViewStop = observableValue<ICustomViewStop | undefined>(this, undefined);
+
+	/**
+	 * True between an explicit navigation that leaves the custom view and the
+	 * first entry it records, which becomes the stop's {@link ICustomViewStop.afterKey}.
+	 */
+	private _awaitingCustomViewExit = false;
+
 	private readonly _canGoBackCtx: IContextKey<boolean>;
 	private readonly _canGoForwardCtx: IContextKey<boolean>;
 
 	private readonly _canGoBack: IObservable<boolean> = derived(this, reader => {
+		const stop = this._customViewStop.read(reader);
+		const currentKey = this._currentKey.read(reader);
+		if (stop?.position === 'on') {
+			const target = stop.beforeKey ?? currentKey;
+			this._recency.version.read(reader);
+			return target !== undefined && this._indexOf(target) >= 0;
+		}
+		if (stop?.position === 'after' && stop.afterKey !== undefined && stop.afterKey === currentKey) {
+			return true;
+		}
 		const idx = this._indexOfCurrent(reader);
 		const entries = this._recency.entries;
 		const beyond = this._beyondHistory.read(reader);
@@ -70,6 +108,15 @@ export class SessionsNavigation extends Disposable {
 	});
 
 	private readonly _canGoForward: IObservable<boolean> = derived(this, reader => {
+		const stop = this._customViewStop.read(reader);
+		const currentKey = this._currentKey.read(reader);
+		if (stop?.position === 'on') {
+			this._recency.version.read(reader);
+			return stop.afterKey !== undefined && this._indexOf(stop.afterKey) >= 0;
+		}
+		if (stop?.position === 'before' && stop.beforeKey !== undefined && stop.beforeKey === currentKey) {
+			return true;
+		}
 		if (this._beyondHistory.read(reader)) {
 			return false;
 		}
@@ -81,6 +128,7 @@ export class SessionsNavigation extends Disposable {
 		private readonly _activeSession: IObservable<IActiveSession | undefined>,
 		private readonly _sessionsManagementService: ISessionsManagementService,
 		private readonly _recency: SessionsRecencyHistory,
+		private readonly _customViewService: ICustomViewService,
 		contextKeyService: IContextKeyService,
 		private readonly _logService: ILogService,
 	) {
@@ -109,6 +157,9 @@ export class SessionsNavigation extends Disposable {
 				if (this._recency.entries.length > 0) {
 					this._beyondHistory.set(true, undefined);
 				}
+				if (this._customViewStop.read(undefined)?.position !== 'on') {
+					this._clearCustomViewStop();
+				}
 				return;
 			}
 
@@ -116,10 +167,37 @@ export class SessionsNavigation extends Disposable {
 			const chatResource = activeChat && chatStatus !== SessionStatus.Untitled
 				? activeChat.resource
 				: undefined;
+			const key = entryKey(activeSession.resource, chatResource);
 
 			this._beyondHistory.set(false, undefined);
 			this._recency.markOpened(activeSession.resource, chatResource);
-			this._currentKey.set(entryKey(activeSession.resource, chatResource), undefined);
+			this._currentKey.set(key, undefined);
+
+			if (this._awaitingCustomViewExit) {
+				this._awaitingCustomViewExit = false;
+				const stop = this._customViewStop.read(undefined);
+				if (stop?.position === 'after') {
+					this._customViewStop.set({ ...stop, afterKey: key }, undefined);
+				}
+			}
+		}));
+
+		// Track custom views shown or hidden outside of Back/Forward.
+		this._register(autorun(reader => {
+			const customView = this._customViewService.activeCustomView.read(reader);
+			if (this._navigating) {
+				return;
+			}
+			const stop = this._customViewStop.read(undefined);
+			if (customView) {
+				if (stop?.position !== 'on' || stop.viewId !== customView.id) {
+					this._awaitingCustomViewExit = false;
+					this._customViewStop.set({ viewId: customView.id, beforeKey: this._currentKey.read(undefined), afterKey: undefined, position: 'on' }, undefined);
+				}
+			} else if (stop?.position === 'on') {
+				// Hidden without opening a session (e.g. the view was disabled).
+				this._clearCustomViewStop();
+			}
 		}));
 
 		// Reconcile the cursor when entries are removed externally (e.g. a
@@ -151,7 +229,45 @@ export class SessionsNavigation extends Disposable {
 		this._recency.remove(entry => removedUris.has(entry.sessionResource.toString()));
 	}
 
+	/**
+	 * Called by the view service before an explicit (non Back/Forward)
+	 * navigation. Leaving a shown custom view this way keeps it reachable via
+	 * Back from the entry that gets opened; any other explicit navigation drops it.
+	 */
+	onWillNavigateExplicitly(): void {
+		if (this._navigating) {
+			return;
+		}
+		const stop = this._customViewStop.get();
+		if (stop?.position === 'on' && this._customViewService.activeCustomView.get()?.id === stop.viewId) {
+			this._awaitingCustomViewExit = true;
+			this._customViewStop.set({ ...stop, afterKey: undefined, position: 'after' }, undefined);
+		} else {
+			this._clearCustomViewStop();
+		}
+	}
+
 	async goBack(): Promise<void> {
+		this._awaitingCustomViewExit = false;
+		const stop = this._customViewStop.get();
+		if (stop?.position === 'on') {
+			const targetKey = stop.beforeKey ?? this._currentKey.get();
+			const targetIdx = targetKey !== undefined ? this._indexOf(targetKey) : -1;
+			if (targetIdx < 0) {
+				return;
+			}
+			this._beyondHistory.set(false, undefined);
+			this._customViewStop.set({ ...stop, beforeKey: targetKey, position: 'before' }, undefined);
+			await this._navigateTo(targetIdx);
+			return;
+		}
+		if (stop?.position === 'after' && stop.afterKey !== undefined && stop.afterKey === this._currentKey.get()) {
+			if (this._showCustomView(stop.viewId)) {
+				this._customViewStop.set({ ...stop, position: 'on' }, undefined);
+				return;
+			}
+			this._clearCustomViewStop();
+		}
 		if (this._beyondHistory.get()) {
 			// User is on new-session view — go back to the last real session
 			this._beyondHistory.set(false, undefined);
@@ -167,11 +283,46 @@ export class SessionsNavigation extends Disposable {
 	}
 
 	async goForward(): Promise<void> {
+		this._awaitingCustomViewExit = false;
+		const stop = this._customViewStop.get();
+		if (stop?.position === 'on') {
+			const targetIdx = stop.afterKey !== undefined ? this._indexOf(stop.afterKey) : -1;
+			if (targetIdx < 0) {
+				return;
+			}
+			this._customViewStop.set({ ...stop, position: 'after' }, undefined);
+			await this._navigateTo(targetIdx);
+			return;
+		}
+		if (stop?.position === 'before' && stop.beforeKey !== undefined && stop.beforeKey === this._currentKey.get()) {
+			if (this._showCustomView(stop.viewId)) {
+				this._customViewStop.set({ ...stop, position: 'on' }, undefined);
+				return;
+			}
+			this._clearCustomViewStop();
+		}
 		const idx = this._indexOfCurrent();
 		if (idx <= 0) {
 			return;
 		}
 		await this._navigateTo(idx - 1);
+	}
+
+	/** Shows the custom view as part of Back/Forward and reports whether it is now shown. */
+	private _showCustomView(viewId: string): boolean {
+		this._logService.trace(`[SessionNavigation] navigating to custom view ${viewId}`);
+		this._navigating = true;
+		try {
+			this._customViewService.showCustomView(viewId);
+		} finally {
+			this._navigating = false;
+		}
+		return this._customViewService.activeCustomView.get()?.id === viewId;
+	}
+
+	private _clearCustomViewStop(): void {
+		this._awaitingCustomViewExit = false;
+		this._customViewStop.set(undefined, undefined);
 	}
 
 	/** Index of the current cursor entry in the recency history, or -1. */
