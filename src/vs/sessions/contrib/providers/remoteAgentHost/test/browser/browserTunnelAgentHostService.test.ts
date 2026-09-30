@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import type { IConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { type ITunnelApplicationConfig } from '../../../../../../base/common/product.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -27,6 +27,7 @@ import { type AuthenticationSession, IAuthenticationService } from '../../../../
 import { TestProductService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import {
 	BrowserTunnelAgentHostService,
+	BrowserTunnelConnectionTransport,
 	BrowserTunnelRelayClientFactory,
 	connectThroughTunnelGateway,
 	filterBrowserTunnelInfos,
@@ -68,6 +69,8 @@ class FakeSocket {
 
 class FakeConnector implements ITunnelAgentHostConnector {
 	readonly onDidRelayMessage = Event.None;
+	readonly relayActivity = new Emitter<string>();
+	readonly onDidRelayActivity = this.relayActivity.event;
 	readonly onDidRelayClose = Event.None;
 	readonly socket = new FakeSocket();
 	readonly completeCalls: { selectionId: string; selection: ITunnelGatewaySelection }[] = [];
@@ -320,6 +323,18 @@ suite('BrowserTunnelAgentHostService', () => {
 			completeCalls: [{ selectionId: 'selection-id', selection: { instanceId: 'editor-id' } }],
 			cancelCalls: [],
 		});
+	});
+
+	test('forwards relay activity for its own connection as received data', () => {
+		const connector = new FakeConnector(undefined);
+		const transport = store.add(new BrowserTunnelConnectionTransport('connection-id', connector, new NullLogService()));
+		let dataEvents = 0;
+		store.add(transport.onDidReceiveData(() => dataEvents++));
+
+		connector.relayActivity.fire('connection-id');
+		connector.relayActivity.fire('other-connection');
+
+		assert.strictEqual(dataEvents, 1);
 	});
 
 	test('cancels the pending gateway selection when the browser picker is dismissed', async () => {

@@ -20,7 +20,7 @@ use hyper_util::server::conn::auto::Builder as ServerBuilder;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
+use tokio::sync::{oneshot, Mutex};
 use tokio_tungstenite::tungstenite::protocol::Role;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
@@ -104,10 +104,18 @@ pub struct AgentHostConfig {
 	pub connection_token_file: Option<String>,
 }
 
-/// State of the running VS Code server process.
+/// State of the running VS Code server process. The process itself is
+/// owned by `AgentHostManager::run_server` for its whole life, which also
+/// performs kills: only it reaps the process, so it can kill it before its
+/// PID is released and possibly reused.
 struct RunningServer {
-	child: tokio::process::Child,
 	commit: String,
+	/// Opens once the server process has exited.
+	exited: Barrier<()>,
+	/// Asks the task that owns the process to kill its process tree,
+	/// escalating to a forced kill if it hasn't exited within the given
+	/// duration.
+	kill: oneshot::Sender<Duration>,
 }
 
 /// Manages the VS Code server lifecycle: on-demand start, auto-restart
@@ -137,6 +145,13 @@ pub struct AgentHostManager {
 	/// other. Set once download completes and the kill is scheduled;
 	/// cleared by the spawned task once the restart attempt finishes.
 	upgrade_in_progress: AtomicBool,
+	/// Reports each server process as `--idle-timeout` activity for as long
+	/// as it runs, or `None` when idle-timeout is disabled. The server is
+	/// started with `--enable-remote-auto-shutdown` and only exits on its
+	/// own once no agent session has a turn in progress and no client is
+	/// connected, so this keeps the supervisor from killing in-flight
+	/// sessions after the last client disconnects.
+	activity: Option<idle_timeout::ActivityTracker>,
 }
 
 impl AgentHostManager {
@@ -146,6 +161,7 @@ impl AgentHostManager {
 		cache: DownloadCache,
 		http: BoxedHttp,
 		config: AgentHostConfig,
+		activity: Option<idle_timeout::ActivityTracker>,
 	) -> Arc<Self> {
 		Arc::new(Self {
 			update_service: UpdateService::new(log.clone(), http),
@@ -159,6 +175,7 @@ impl AgentHostManager {
 			management_socket_path: get_socket_name(),
 			management_listener_started: AtomicBool::new(false),
 			upgrade_in_progress: AtomicBool::new(false),
+			activity,
 		})
 	}
 
@@ -228,7 +245,9 @@ impl AgentHostManager {
 			.map_err(CodeError::ServerDownloadError)
 	}
 
-	/// Runs the server process to completion, handling readiness signaling.
+	/// Runs the server process to completion: signals readiness through
+	/// `opener`, then waits for the process to exit, carrying out kill
+	/// requests from [`Self::kill_running_server`].
 	async fn run_server(
 		self: &Arc<Self>,
 		release: Release,
@@ -285,6 +304,9 @@ impl AgentHostManager {
 			}
 		};
 
+		// Held until this server process ends; see `AgentHostManager::activity`.
+		let activity_guard = self.activity.as_ref().map(|a| a.client_connected());
+
 		let commit_prefix = &release.commit[..release.commit.len().min(7)];
 		let (mut stdout, mut stderr) = (
 			BufReader::new(child.stdout.take().unwrap()).lines(),
@@ -338,42 +360,81 @@ impl AgentHostManager {
 		}
 
 		// Store the running server state
+		let (exited, exited_opener) = new_barrier::<()>();
+		let (kill, mut kill_rx) = oneshot::channel::<Duration>();
 		{
 			let mut running = self.running.lock().await;
 			*running = Some(RunningServer {
-				child,
 				commit: release.commit.clone(),
+				exited,
+				kill,
 			});
 		}
 
 		info!(self.log, "[{}]: Server ready", commit_prefix);
 
-		// Continue reading output until the process exits
+		// Keep logging output until the pipes close. Descendants of the server
+		// can inherit the pipes and keep them open after it exits, so this is
+		// not used to detect the exit; the process is waited on below.
 		let log = self.log.clone();
-		let commit_prefix = commit_prefix.to_string();
-		let self_clone = self.clone();
+		let output_prefix = commit_prefix.to_string();
 		tokio::spawn(async move {
 			loop {
 				tokio::select! {
 					Ok(Some(l)) = stdout.next_line() => {
-						debug!(log, "[{} stdout]: {}", commit_prefix, l);
+						debug!(log, "[{} stdout]: {}", output_prefix, l);
 					}
 					Ok(Some(l)) = stderr.next_line() => {
-						debug!(log, "[{} stderr]: {}", commit_prefix, l);
+						debug!(log, "[{} stderr]: {}", output_prefix, l);
 					}
 					else => break,
 				}
 			}
+		});
 
-			// Server process has exited (auto-shutdown or crash)
-			info!(log, "[{}]: Server process ended", commit_prefix);
-			let mut running = self_clone.running.lock().await;
-			if let Some(r) = &*running {
-				if r.commit == commit_prefix || r.commit.starts_with(&commit_prefix) {
-					*running = None;
+		// Either the process exits on its own and is reaped here, or a kill
+		// request arrives first and is carried out before the process is
+		// reaped, so `kill_tree` never signals a PID the OS could reuse.
+		let status = tokio::select! {
+			status = child.wait() => status,
+			Ok(reap_timeout) = &mut kill_rx => {
+				if let Some(pid) = child.id() {
+					let _ = kill_tree(pid).await;
+				}
+				// Bound the wait so a process that ignores SIGTERM can't
+				// wedge the supervisor's shutdown or upgrade path.
+				match tokio::time::timeout(reap_timeout, child.wait()).await {
+					Ok(status) => status,
+					Err(_) => {
+						warning!(
+							self.log,
+							"Server did not exit within {:?} after kill_tree; escalating to SIGKILL",
+							reap_timeout
+						);
+						let _ = child.start_kill();
+						child.wait().await
+					}
 				}
 			}
-		});
+		};
+
+		// Server process has exited (auto-shutdown, crash, or kill)
+		info!(
+			self.log,
+			"[{}]: Server process exited: {:?}", commit_prefix, status
+		);
+		// Open before locking `running`: `kill_running_server` holds that
+		// lock while it waits for this barrier.
+		exited_opener.open(());
+		{
+			// Clear the slot unless a newer server that is still running
+			// has already replaced this one.
+			let mut running = self.running.lock().await;
+			if running.as_ref().is_some_and(|r| r.exited.is_open()) {
+				*running = None;
+			}
+		}
+		drop(activity_guard);
 	}
 
 	/// Returns a release and its local directory. Prefers the latest known
@@ -582,29 +643,26 @@ impl AgentHostManager {
 	/// `child.kill()` only terminates the shim and reparents the node child to
 	/// PID 1, leaking it. `kill_tree` signals the shim and its descendants so
 	/// the node process is reaped along with the launcher. See issue #319516.
+	/// The kill is carried out by the task that owns the process, before it
+	/// is reaped, so it can't target a PID the OS has already reused.
 	pub async fn kill_running_server(&self) {
+		self.kill_running_server_within(Duration::from_secs(5))
+			.await
+	}
+
+	/// [`Self::kill_running_server`], escalating to a forced kill if the
+	/// server hasn't exited within `reap_timeout`. Tests pass a short timeout
+	/// so they don't have to wait out the default.
+	async fn kill_running_server_within(&self, reap_timeout: Duration) {
 		let mut running = self.running.lock().await;
-		if let Some(mut server) = running.take() {
-			if let Some(pid) = server.child.id() {
-				let _ = kill_tree(pid).await;
-			}
-			// Reap the child so we don't leave a zombie. Bound the wait so a
-			// process that ignores SIGTERM can't wedge the supervisor's
-			// shutdown or upgrade path; escalate to SIGKILL via Child::kill if
-			// the graceful shutdown doesn't land in time.
-			const REAP_TIMEOUT: Duration = Duration::from_secs(5);
-			if tokio::time::timeout(REAP_TIMEOUT, server.child.wait())
-				.await
-				.is_err()
-			{
-				warning!(
-					self.log,
-					"Server did not exit within {}s after kill_tree; escalating to SIGKILL",
-					REAP_TIMEOUT.as_secs()
-				);
-				let _ = server.child.kill().await;
-				let _ = server.child.wait().await;
-			}
+		if let Some(RunningServer {
+			kill, mut exited, ..
+		}) = running.take()
+		{
+			// Ignored if the process already exited on its own; either way
+			// `exited` opens once the owning task has reaped it.
+			let _ = kill.send(reap_timeout);
+			let _ = exited.wait().await;
 		}
 	}
 
@@ -2253,6 +2311,13 @@ mod tests {
 	use std::path::Path;
 
 	fn make_test_manager(cache_dir: &Path) -> Arc<AgentHostManager> {
+		make_test_manager_with_activity(cache_dir, None)
+	}
+
+	fn make_test_manager_with_activity(
+		cache_dir: &Path,
+		activity: Option<idle_timeout::ActivityTracker>,
+	) -> Arc<AgentHostManager> {
 		AgentHostManager::new(
 			log::Logger::test(),
 			Platform::LinuxX64,
@@ -2265,7 +2330,137 @@ mod tests {
 				connection_token: None,
 				connection_token_file: None,
 			},
+			activity,
 		)
+	}
+
+	/// Installs a fake server release under `dir` whose entrypoint reports
+	/// readiness and then runs `body`, and starts it the way `start_server`
+	/// does: `run_server` owns the process until it exits, so it is spawned
+	/// and only its readiness is awaited here. The returned handle completes
+	/// once the process has exited.
+	#[cfg(unix)]
+	async fn start_fake_server(
+		manager: &Arc<AgentHostManager>,
+		dir: &Path,
+		body: &str,
+	) -> tokio::task::JoinHandle<()> {
+		use std::os::unix::fs::PermissionsExt;
+
+		let release = Release {
+			name: String::new(),
+			commit: "0123456789abcdef".to_string(),
+			platform: Platform::LinuxX64,
+			target: TargetKind::Server,
+			quality: Quality::Insiders,
+		};
+		let server_dir = dir.join("server-install");
+		let bin_dir = server_dir.join(SERVER_FOLDER_NAME).join("bin");
+		std::fs::create_dir_all(&bin_dir).unwrap();
+		let script = bin_dir.join(release.quality.server_entrypoint());
+		std::fs::write(
+			&script,
+			format!("#!/bin/sh\necho 'Agent host server listening on test'\n{body}\n"),
+		)
+		.unwrap();
+		std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+		let (mut ready, opener) = new_barrier::<Result<PathBuf, String>>();
+		let manager = manager.clone();
+		let server =
+			tokio::spawn(async move { manager.run_server(release, server_dir, opener).await });
+		assert!(ready.wait().await.unwrap().is_ok());
+		server
+	}
+
+	/// Regression test for managed agent hosts losing in-flight sessions
+	/// 300s after the last client disconnects: `--idle-timeout` only
+	/// counted connected clients, so it killed the server even while a
+	/// turn was still running. The server process must count as activity
+	/// until it exits on its own (it stays up while any turn is active),
+	/// and no longer once it has, even if a descendant still holds its
+	/// output pipes open.
+	#[cfg(unix)]
+	#[tokio::test]
+	async fn run_server_reports_activity_until_server_exits() {
+		let dir = tempfile::tempdir().unwrap();
+		let (tracker, mut activity_rx) = idle_timeout::new_activity_channel();
+		let manager = make_test_manager_with_activity(dir.path(), Some(tracker));
+
+		// Leaves behind a child holding the server's stdout/stderr, then keeps
+		// running until the test creates `stop_file`. Both are bounded so a
+		// failed test can't leak them.
+		let stop_file = dir.path().join("stop");
+		let lingering_pid_file = dir.path().join("lingering.pid");
+		let server = start_fake_server(
+			&manager,
+			dir.path(),
+			&format!(
+				"sleep 30 &\necho $! > '{}'\ni=0\nwhile [ ! -e '{}' ] && [ $i -lt 600 ]; do sleep 0.05; i=$((i+1)); done",
+				lingering_pid_file.display(),
+				stop_file.display()
+			),
+		)
+		.await;
+
+		let connected = tokio::time::timeout(Duration::from_secs(5), activity_rx.recv())
+			.await
+			.expect("did not observe a Connected activity event in time");
+		assert_eq!(connected, Some(idle_timeout::ActivityEvent::Connected));
+		assert!(
+			activity_rx.try_recv().is_err(),
+			"server activity must not end while the server is still running"
+		);
+
+		std::fs::write(&stop_file, b"").unwrap();
+
+		let disconnected = tokio::time::timeout(Duration::from_secs(10), activity_rx.recv()).await;
+		if let Ok(pid) = std::fs::read_to_string(&lingering_pid_file) {
+			let _ = std::process::Command::new("kill").arg(pid.trim()).status();
+		}
+		assert_eq!(
+			disconnected.expect("did not observe a Disconnected activity event in time"),
+			Some(idle_timeout::ActivityEvent::Disconnected)
+		);
+		assert!(manager.running.lock().await.is_none());
+		server.await.unwrap();
+	}
+
+	/// `kill_running_server` must end a server that ignores SIGTERM by
+	/// escalating to a forced kill, and its activity must end with it.
+	#[cfg(unix)]
+	#[tokio::test]
+	async fn kill_running_server_escalates_when_server_ignores_sigterm() {
+		let dir = tempfile::tempdir().unwrap();
+		let (tracker, mut activity_rx) = idle_timeout::new_activity_channel();
+		let manager = make_test_manager_with_activity(dir.path(), Some(tracker));
+		let server = start_fake_server(
+			&manager,
+			dir.path(),
+			"trap '' TERM\ni=0\nwhile [ $i -lt 600 ]; do sleep 0.05; i=$((i+1)); done",
+		)
+		.await;
+		assert_eq!(
+			activity_rx.recv().await,
+			Some(idle_timeout::ActivityEvent::Connected)
+		);
+
+		tokio::time::timeout(
+			Duration::from_secs(10),
+			manager.kill_running_server_within(Duration::from_millis(200)),
+		)
+		.await
+		.expect("kill_running_server did not finish");
+		assert!(manager.running.lock().await.is_none());
+
+		let disconnected = tokio::time::timeout(Duration::from_secs(5), activity_rx.recv())
+			.await
+			.expect("did not observe a Disconnected activity event in time");
+		assert_eq!(
+			disconnected,
+			Some(idle_timeout::ActivityEvent::Disconnected)
+		);
+		server.await.unwrap();
 	}
 
 	#[tokio::test]

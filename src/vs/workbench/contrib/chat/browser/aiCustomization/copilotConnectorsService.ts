@@ -775,7 +775,7 @@ function parseConnectors(value: unknown, scoped: boolean): readonly ICopilotConn
 			name,
 			displayName,
 			description,
-			icon: parseHttpsUri(metadata?.iconUrl ?? metadata?.icon),
+			icon: parseHttpsUri(metadata?.iconUrl ?? metadata?.icon ?? plugin.logo),
 			documentation: parseHttpsUri(metadata?.documentationUrl ?? metadata?.documentation),
 			homepage: parseHttpsUri(metadata?.homepage),
 			version: text(metadata?.version, 512),

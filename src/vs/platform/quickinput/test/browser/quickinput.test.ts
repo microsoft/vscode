@@ -17,7 +17,7 @@ import { unthemedProgressBarOptions } from '../../../../base/browser/ui/progress
 import { QuickInputController } from '../../browser/quickInputController.js';
 import { TestThemeService } from '../../../theme/test/common/testThemeService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { backButton, QuickPick } from '../../browser/quickInput.js';
 import { IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
@@ -163,6 +163,120 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			{ display: '', closing: false, inert: false, visible: true },
 			{ display: 'none', closing: false, inert: false, visible: false },
 		]);
+	});
+
+	for (const action of ['accept', 'cancel'] as const) {
+		test(`hides immediately on ${action} when CSS suppresses close motion`, async () => {
+			fixture.classList.add('modern-ui', 'monaco-enable-motion');
+			const quickpick = store.add(controller.createQuickPick());
+			quickpick.items = [{ label: 'item' }];
+			store.add(quickpick.onDidAccept(() => quickpick.hide()));
+			const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+			widget.style.animation = 'none';
+
+			quickpick.show();
+			await controller[action]();
+
+			assert.deepStrictEqual({
+				display: widget.style.display,
+				closing: widget.classList.contains('quick-input-widget-closing'),
+				inert: widget.inert,
+				visible: controller.isVisible(),
+			}, {
+				display: 'none',
+				closing: false,
+				inert: false,
+				visible: false,
+			});
+		});
+	}
+
+	test('finishes closing when the close animation finishes', async () => {
+		sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		fixture.classList.add('modern-ui', 'monaco-enable-motion');
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.show();
+		quickpick.hide();
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const [animation] = widget.getAnimations();
+		assert.ok(animation);
+		const finished = Event.toPromise(Event.fromDOMEventEmitter(animation, 'finish'), store.add(new DisposableStore()));
+		animation.finish();
+		await finished;
+
+		assert.deepStrictEqual({
+			display: widget.style.display,
+			closing: widget.classList.contains('quick-input-widget-closing'),
+			inert: widget.inert,
+		}, {
+			display: 'none',
+			closing: false,
+			inert: false,
+		});
+	});
+
+	test('finishes closing when reduced motion cancels the animation', async () => {
+		sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		fixture.classList.add('modern-ui', 'monaco-enable-motion');
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.show();
+		quickpick.hide();
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const [animation] = widget.getAnimations();
+		assert.ok(animation);
+		const cancelled = Event.toPromise(Event.fromDOMEventEmitter(animation, 'cancel'), store.add(new DisposableStore()));
+		fixture.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
+		const animationCount = widget.getAnimations().length;
+		await cancelled;
+
+		assert.deepStrictEqual({
+			animationCount,
+			display: widget.style.display,
+			closing: widget.classList.contains('quick-input-widget-closing'),
+			inert: widget.inert,
+		}, {
+			animationCount: 0,
+			display: 'none',
+			closing: false,
+			inert: false,
+		});
+	});
+
+	test('reopening discards the previous close animation callbacks and timeout', () => {
+		const clock = sinon.useFakeTimers();
+		fixture.classList.add('modern-ui', 'monaco-enable-motion');
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.show();
+		quickpick.hide();
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const [animation] = widget.getAnimations();
+		assert.ok(animation);
+
+		quickpick.show();
+		clock.tick(150);
+		const reopened = {
+			display: widget.style.display,
+			closing: widget.classList.contains('quick-input-widget-closing'),
+			inert: widget.inert,
+			visible: controller.isVisible(),
+		};
+		quickpick.hide();
+		animation.dispatchEvent(new mainWindow.Event('finish'));
+		animation.dispatchEvent(new mainWindow.Event('cancel'));
+
+		assert.deepStrictEqual({
+			reopened,
+			closingAgain: {
+				display: widget.style.display,
+				closing: widget.classList.contains('quick-input-widget-closing'),
+				inert: widget.inert,
+				visible: controller.isVisible(),
+			},
+		}, {
+			reopened: { display: '', closing: false, inert: false, visible: true },
+			closingAgain: { display: '', closing: true, inert: true, visible: false },
+		});
+		clock.tick(150);
 	});
 
 	test('title bar is hidden when empty', () => {

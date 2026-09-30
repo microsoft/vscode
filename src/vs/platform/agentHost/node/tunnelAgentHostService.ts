@@ -103,19 +103,26 @@ class NodeTunnelMessageSocket extends Disposable implements ITunnelMessageSocket
 	private readonly _onDidReceiveMessage = this._register(new Emitter<string>());
 	readonly onDidReceiveMessage: Event<string> = this._onDidReceiveMessage.event;
 
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	readonly onDidReceiveData: Event<void> = this._onDidReceiveData.event;
+
 	private readonly _onDidClose = this._register(new Emitter<ITunnelSocketCloseEvent>());
 	readonly onDidClose: Event<ITunnelSocketCloseEvent> = this._onDidClose.event;
 
-	constructor(private readonly _socket: WebSocket) {
+	constructor(private readonly _socket: WebSocket, stream: ITunnelDuplexStream) {
 		super();
 		const onMessage = (data: WebSocket.RawData) => this._onDidReceiveMessage.fire(rawGatewayDataToString(data));
+		const onData = () => this._onDidReceiveData.fire();
 		const onClose = (code: number, reason: Buffer) => this._onDidClose.fire({ code, reason: reason?.toString() || undefined });
 		const onError = (error: Error) => this._onDidClose.fire({ error });
 		this._socket.on('message', onMessage);
+		// ws subscribed to 'data' before emitting 'open', so this runs after it fires any message the chunk completes.
+		stream.on('data', onData);
 		this._socket.on('close', onClose);
 		this._socket.on('error', onError);
 		this._register(toDisposable(() => {
 			this._socket.off('message', onMessage);
+			stream.removeListener('data', onData);
 			this._socket.off('close', onClose);
 			this._socket.off('error', onError);
 		}));
@@ -136,7 +143,8 @@ class NodeTunnelMessageSocket extends Disposable implements ITunnelMessageSocket
 	}
 }
 
-class NodeTunnelSocketFactory implements ITunnelSocketFactory {
+/** Opens `ws` WebSockets over dev tunnel relay streams. Exported for tests. */
+export class NodeTunnelSocketFactory implements ITunnelSocketFactory {
 	async open(stream: ITunnelDuplexStream, path: string): Promise<ITunnelMessageSocket> {
 		const WS = await import('ws');
 		return new Promise((resolve, reject) => {
@@ -149,7 +157,7 @@ class NodeTunnelSocketFactory implements ITunnelSocketFactory {
 			};
 			const onOpen = () => {
 				socket.off('error', onError);
-				resolve(new NodeTunnelMessageSocket(socket));
+				resolve(new NodeTunnelMessageSocket(socket, stream));
 			};
 			socket.once('open', onOpen);
 			socket.once('error', onError);
@@ -172,6 +180,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 	private readonly _connector: TunnelAgentHostConnector;
 
 	readonly onDidRelayMessage: Event<ITunnelRelayMessage>;
+	readonly onDidRelayActivity: Event<string>;
 	readonly onDidRelayClose: Event<string>;
 
 	constructor(
@@ -184,6 +193,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 			this._logService,
 		));
 		this.onDidRelayMessage = this._connector.onDidRelayMessage;
+		this.onDidRelayActivity = this._connector.onDidRelayActivity;
 		this.onDidRelayClose = this._connector.onDidRelayClose;
 	}
 

@@ -228,8 +228,10 @@ the private `_workbench.whenAccountPolicySettled` command before reading the cur
 The command waits for the gate's own post-account initialization update, including native
 managed-settings processing, even when that update does not change the gate state.
 Pending refreshes defer the check; settled blocked refreshes are authoritative restrictions,
-not placeholders. The wait resumes on gate changes even if the effective settings are unchanged,
-so a failed refresh still surfaces required reloads.
+not placeholders. While the gate blocks AI, Local OTel does not offer a reload that would only
+repeat the required refresh. The wait resumes on gate changes even if the effective settings are
+unchanged. If policy recovery changes the running exporter, the normal reload flow then applies;
+if it restores the same exporter, no stale reload action remains.
 Automatic recovery is limited to one attempt per editor
 session. A reload guard is saved only when the user chooses **Reload Window**, not when a prompt
 is shown or dismissed. Its configuration fingerprint excludes `vscode.env.sessionId` and carries

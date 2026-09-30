@@ -12,6 +12,7 @@ import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { SessionCanvasInput } from '../../../canvases/common/sessionCanvas.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 
@@ -55,6 +56,7 @@ export function isFileEditorInput(editor: EditorInput): boolean {
 /** Whether `editor` owns its full presentation and must hide the docked Details panel. */
 export function isEditorWithoutDockedDetails(editor: EditorInput): boolean {
 	return editor instanceof BrowserEditorInput
+		|| editor instanceof SessionCanvasInput
 		|| (editor instanceof CustomEditorInput && editor.resource?.scheme !== Schemas.untitled)
 		|| (editor instanceof WebviewInput
 			&& (editor.viewType === PULL_REQUEST_OVERVIEW_VIEW_TYPE

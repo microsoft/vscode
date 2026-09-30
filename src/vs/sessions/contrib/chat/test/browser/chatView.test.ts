@@ -15,6 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -554,6 +555,7 @@ suite('Sessions - Chat View', () => {
 		}();
 		disposables.add(new NewChatInSessionWidget(
 			{},
+			new TestConfigurationService(),
 			instantiationService,
 			new class extends mock<ILogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),

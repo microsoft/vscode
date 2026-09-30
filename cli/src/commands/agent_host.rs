@@ -283,6 +283,18 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		}
 	}
 
+	// `--idle-timeout` is opt-in: only build the activity-tracking channel
+	// when requested, so a manually started local host (the default) never
+	// pays for/depends on this bookkeeping and never self-terminates.
+	let idle_timeout_duration = args.idle_timeout.map(Duration::from_secs);
+	let (activity, activity_rx) = match idle_timeout_duration {
+		Some(_) => {
+			let (tracker, rx) = idle_timeout::new_activity_channel();
+			(Some(tracker), Some(rx))
+		}
+		None => (None, None),
+	};
+
 	let manager = AgentHostManager::new(
 		ctx.log.clone(),
 		platform,
@@ -304,6 +316,10 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 			connection_token: None,
 			connection_token_file: None,
 		},
+		// The backend counts as activity while it runs, so the idle timeout
+		// can't kill agent sessions that are still working after the last
+		// client disconnects.
+		activity.clone(),
 	);
 
 	// Eagerly resolve the latest version so the first connection is fast,
@@ -350,18 +366,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	let loopback_auth = match args.connection_token.as_deref() {
 		Some(t) => LoopbackAuth::Token(t.to_string()),
 		None => LoopbackAuth::Disabled,
-	};
-
-	// `--idle-timeout` is opt-in: only build the activity-tracking channel
-	// when requested, so a manually started local host (the default) never
-	// pays for/depends on this bookkeeping and never self-terminates.
-	let idle_timeout_duration = args.idle_timeout.map(Duration::from_secs);
-	let (activity, activity_rx) = match idle_timeout_duration {
-		Some(_) => {
-			let (tracker, rx) = idle_timeout::new_activity_channel();
-			(Some(tracker), Some(rx))
-		}
-		None => (None, None),
 	};
 
 	let sidecar = AgentHostSidecar::bind_tcp(

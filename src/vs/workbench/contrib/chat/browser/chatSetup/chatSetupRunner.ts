@@ -17,8 +17,6 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ChatMicrosoftAuthenticationEnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -40,6 +38,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
+import { IChatMicrosoftSignInProbeService } from './chatSetupMicrosoftProbe.js';
 
 type ChatSetupDialogShownEvent = {
 	source: ChatSetupSource;
@@ -250,20 +249,15 @@ export async function showChatSetupDialogWithCancellation(
 	}
 }
 
-/**
- * Whether the sign-in dialog should offer "Continue with Microsoft". The dialog treats it as one
- * more provider button, exactly like Google and Apple: it goes to whichever host the default
- * account provider points at, and a host that cannot broker a Microsoft identity refuses it in the
- * authentication extension rather than here.
- */
-export function shouldShowMicrosoftProvider(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(ChatMicrosoftAuthenticationEnabledSettingId) === true;
+/** Whether the setup dialog offers the provider sign-in buttons rather than only setup. */
+function offersProviderSignIn(entitlement: ChatEntitlement, options: IChatSetupRunOptions | undefined): boolean {
+	return !options?.forceAnonymous && (entitlement === ChatEntitlement.Unknown || !!options?.forceSignInDialog);
 }
 
 export function getChatSetupDialogButtons(entitlement: ChatEntitlement, options: IChatSetupRunOptions | undefined, enterpriseAuthentication: boolean, showMicrosoftProvider: boolean, providers: IChatSetupDialogProviders = defaultChat.provider): IChatSetupDialogButton[] {
 	const button = (label: string, strategy: ChatSetupStrategy, ...classes: string[]): IChatSetupDialogButton => ({ label, strategy, classes });
 
-	if (!options?.forceAnonymous && (entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog)) {
+	if (offersProviderSignIn(entitlement, options)) {
 		const defaultProviderButton = button(localize('continueWith', "Continue with {0}", providers.default.name), ChatSetupStrategy.SetupWithoutEnterpriseProvider, 'continue-button', 'default');
 		const defaultProviderLink = button(defaultProviderButton.label, defaultProviderButton.strategy, 'link-button');
 		const enterpriseProviderButton = button(localize('continueWith', "Continue with {0}", providers.enterprise.name), ChatSetupStrategy.SetupWithEnterpriseProvider, 'continue-button', 'default');
@@ -335,7 +329,7 @@ export class ChatSetup {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatMicrosoftSignInProbeService private readonly microsoftSignInProbeService: IChatMicrosoftSignInProbeService,
 	) { }
 
 	skipDialog(): void {
@@ -512,8 +506,12 @@ export class ChatSetup {
 			return ChatSetupStrategy.Canceled;
 		}
 		const enterpriseAuthentication = this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise;
-		const showMicrosoftProvider = shouldShowMicrosoftProvider(this.configurationService);
 		const entitlement = this.context.state.entitlement;
+		let showMicrosoftProvider = false;
+		if (offersProviderSignIn(entitlement, options)) {
+			this.microsoftSignInProbeService.notifySignInShown();
+			showMicrosoftProvider = this.microsoftSignInProbeService.offerMicrosoftSignIn.get();
+		}
 		const buttons = getChatSetupDialogButtons(entitlement, options, enterpriseAuthentication, showMicrosoftProvider);
 		const dialog = this.instantiationService.createInstance(ChatSetupDialog, this.layoutService.activeContainer, {
 			title: this.getDialogTitle(options),

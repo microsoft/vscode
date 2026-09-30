@@ -145,6 +145,13 @@ suite('NewSessionViewTourTrigger', () => {
 		});
 	});
 
+	test('remains eligible at the one-session threshold', () => {
+		const { open, chatViews, signals } = createHarness({ requestsSent: 1 });
+		open([undefined], undefined);
+		chatViews[0].inputPickerVisibility.setVisible('workspace', true);
+		assert.deepStrictEqual(signals(), [true, true]);
+	});
+
 	for (const options of [{ entitlement: ChatEntitlement.Unknown }, { requestsSent: 2 }, { shown: true }]) {
 		test(`preserves eligibility guards with scoped picker state: ${JSON.stringify(options)}`, () => {
 			const { open, chatViews, signals } = createHarness(options);

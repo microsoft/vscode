@@ -65,10 +65,6 @@
 	gap: 6px;
 }
 
-.new-chat-in-session .new-chat-controls-container {
-	gap: 10px;
-}
-
 /* Input toolbar spacing */
 .new-chat-in-session .sessions-chat-toolbar {
 	margin-top: 4px;

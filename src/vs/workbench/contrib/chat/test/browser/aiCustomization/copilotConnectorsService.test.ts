@@ -214,6 +214,29 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
+	test('uses the top-level catalog logo when icon metadata is absent', async () => {
+		const fixture = createFixture([{
+			body: {
+				plugins: [{
+					name: 'kusto',
+					logo: 'https://static.powerapps.com/kusto/icon.png',
+					metadata: { displayName: 'Azure Data Explorer' },
+				}],
+			},
+		}]);
+		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
+		const page = await source.query({}, CancellationToken.None);
+		const marketplaceIcon = page.items[0]?.icon;
+
+		assert.deepStrictEqual({
+			connectorIcon: fixture.service.connectors[0]?.icon?.toString(),
+			marketplaceIcon: URI.isUri(marketplaceIcon) ? marketplaceIcon.toString() : undefined,
+		}, {
+			connectorIcon: 'https://static.powerapps.com/kusto/icon.png',
+			marketplaceIcon: 'https://static.powerapps.com/kusto/icon.png',
+		});
+	});
+
 	test('ranks keywords and representative queries locally using the cached authenticated catalog', async () => {
 		const fixture = createFixture([{
 			body: {

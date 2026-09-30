@@ -112,6 +112,10 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	/** Fires for each host chunk of a message that is still being reassembled. */
+	readonly onDidReceiveData = this._onDidReceiveData.event;
+
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
@@ -329,6 +333,9 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			const payload = result.payload as ProtocolMessage;
 			this._options.ahpLogger?.log(payload, 's2c', getAhpLogByteLength(JSON.stringify(payload)));
 			this._onMessage.fire(payload);
+		} else if (result.kind === 'pending') {
+			// Only host chunks count: relay acks and system frames arrive even when the host is dead.
+			this._onDidReceiveData.fire();
 		}
 	}
 

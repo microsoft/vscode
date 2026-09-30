@@ -11,7 +11,7 @@ import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceIcon, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -52,6 +52,7 @@ import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSec
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
+import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
@@ -570,12 +571,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private editorActionButtonInProgress = false;
 	private editorDisplayMode: 'preview' | 'raw' = 'preview';
 	private currentCustomizationDetail = false;
+	private editorItemMarketplaceIcon: CustomizationMarketplaceIcon | undefined;
+	private editorItemIconElement!: HTMLElement;
 	private editorItemNameElement!: HTMLElement;
 	private editorItemDescriptionElement!: HTMLElement;
 	private editorItemPathElement!: HTMLAnchorElement;
 	private editorSaveIndicator!: HTMLElement;
 	private readonly editorModelChangeDisposables = this._register(new DisposableStore());
 	private readonly editorPreviewDisposables = this._register(new DisposableStore());
+	private readonly editorItemIconDisposables = this._register(new DisposableStore());
 	private readonly editorPreviewRenderScheduler = this._register(new RunOnceScheduler(() => {
 		if (this.viewMode === 'editor' && this.editorDisplayMode === 'preview') {
 			this.renderCurrentEditorPreview();
@@ -748,6 +752,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(contextKeyService);
 		this.harnessContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS.bindTo(contextKeyService);
 		this.updateTargetLabelPresentation();
+		this._register(this.themeService.onDidColorThemeChange(() => this.renderEditorItemIcon()));
 
 		// Track workspace changes for embedded editor
 		this._register(autorun(reader => {
@@ -4264,6 +4269,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			});
 		}));
 
+		this.editorItemIconElement = DOM.append(editorHeader, $('.editor-item-icon'));
 		const itemInfo = DOM.append(editorHeader, $('.editor-item-info'));
 		this.editorItemNameElement = DOM.append(itemInfo, $('.editor-item-name'));
 		this.editorItemDescriptionElement = DOM.append(itemInfo, $('.editor-item-description'));
@@ -4347,16 +4353,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const source = item.source;
 		const isWorkspaceFile = source === AICustomizationSources.local;
 		const isReadOnly = !source || source === AICustomizationSources.extension || source === AICustomizationSources.plugin || source === AICustomizationSources.builtin;
-		await this.showCustomizationDetail(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly, origin);
+		await this.showCustomizationDetail(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly, origin, item.marketplace);
 	}
 
-	private async showCustomizationDetail(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean, origin: CustomizationDetailOrigin): Promise<void> {
+	private async showCustomizationDetail(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean, origin: CustomizationDetailOrigin, marketplace?: IAICustomizationListItem['marketplace']): Promise<void> {
 		if (!hasReadableCustomizationContent(uri)) {
 			return;
 		}
 
 		this.customizationDetailOrigin = origin;
-		this.prepareCustomizationView(uri, displayName, promptType, source, isWorkspaceFile, isReadOnly, true);
+		this.prepareCustomizationView(uri, displayName, promptType, source, isWorkspaceFile, isReadOnly, true, marketplace);
 
 		try {
 			if (!await this.loadCustomizationEditorModel(uri, promptType, source, isReadOnly)) {
@@ -4446,7 +4452,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return true;
 	}
 
-	private prepareCustomizationView(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean, customizationDetail: boolean): void {
+	private prepareCustomizationView(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile: boolean, isReadOnly: boolean, customizationDetail: boolean, marketplace?: IAICustomizationListItem['marketplace']): void {
 		this.editorReturnViewMode = this.viewMode === 'migration' ? 'migration' : 'list';
 		this.currentModelRef?.dispose();
 		this.currentModelRef = undefined;
@@ -4463,6 +4469,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.viewMode = 'editor';
 		this.editorContentContainer?.classList.toggle('customization-detail-mode', customizationDetail);
 
+		this.editorItemMarketplaceIcon = marketplace?.resource.icon;
+		this.renderEditorItemIcon();
 		this.editorItemNameElement.textContent = displayName;
 		this.editorItemDescriptionElement.textContent = '';
 		this.editorItemDescriptionElement.style.display = 'none';
@@ -4518,6 +4526,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentEditingPromptType = undefined;
 		this.currentEditingReadOnly = false;
 		this.currentCustomizationDetail = false;
+		this.editorItemMarketplaceIcon = undefined;
+		this.editorItemIconDisposables.clear();
+		this.editorItemIconElement.style.display = 'none';
 		this.editorContentContainer?.classList.remove('customization-detail-mode');
 		this.editorDisplayMode = 'preview';
 		this._editorContentChanged = false;
@@ -4557,6 +4568,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 				console.error('Failed to save customization changes on exit:', error);
 				this.notificationService.warn(localize('saveCustomizationOnExitFailed', "Could not save changes to {0}.", basename(saveRequest.fileUri)));
 			});
+		}
+	}
+
+	private renderEditorItemIcon(): void {
+		if (!this.editorItemIconElement) {
+			return;
+		}
+		const icon = this.editorItemMarketplaceIcon;
+		this.editorItemIconDisposables.clear();
+		this.editorItemIconElement.style.display = icon ? '' : 'none';
+		if (icon) {
+			renderCustomizationMarketplaceIcon(this.editorItemIconElement, skillIcon, icon, this.themeService.getColorTheme().type, this.editorItemIconDisposables);
 		}
 	}
 

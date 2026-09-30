@@ -325,10 +325,11 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const activeChangesStateObs = derivedObservableWithCache<IActiveChangesState>(this, (reader, lastValue) => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
 			if (!changeset) {
+				const activeSession = this.sessionsService.activeSession.read(reader);
 				return {
 					changeset: undefined,
 					changes: [],
-					isLoading: false,
+					isLoading: !!activeSession && this.activeSessionChangesetsLoadingObs.read(reader),
 					preservingEquivalentChangeset: false,
 				};
 			}
@@ -350,7 +351,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 			return {
 				changeset,
-				changes: changeset.changes.read(reader),
+				changes: isLoading
+					? []
+					: changeset.changes.read(reader),
 				isLoading,
 				preservingEquivalentChangeset: false,
 			};
@@ -387,11 +390,10 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const activeSessionChangesetsLoading = this.activeSessionChangesetsLoadingObs.read(reader);
 			const activeSessionChangeset = this.activeSessionChangesetObs.read(reader);
 			const activeSessionChangesetLoading = this.activeSessionChangesetLoadingObs.read(reader);
-			const activeSessionHasChanges = this.activeSessionChangesObs.read(reader).length > 0;
 
 			return activeSessionLoading
 				|| (activeSessionChangesetsLoading && !activeSessionChangeset)
-				|| (activeSessionChangesetLoading && !activeSessionHasChanges);
+				|| activeSessionChangesetLoading;
 		});
 
 		const activeSessionChangesSummaryObs = derivedObservableWithCache<ISessionChangesSummary | undefined>(this, (reader, lastValue) => {

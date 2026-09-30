@@ -33,6 +33,7 @@ import { applyAgentHostSessionConfigChange } from '../../../agentSessions/agentH
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostInputCompletionsBase } from './agentHostInputCompletionsBase.js';
+import { getPromptSlashCommandFilterText } from './chatInputCompletionUtils.js';
 /**
  * Completion provider that delegates `@`-mention (and other server-defined)
  * completions to the agent host for AHP-backed chat sessions.
@@ -232,7 +233,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				return {
 					label: { label, description: attachment.description },
 					insertText: item.insertText,
-					filterText: item.insertText,
+					filterText: label.startsWith('/') ? getPromptSlashCommandFilterText(label.slice(1)) ?? item.insertText : item.insertText,
 					range: replaceRange,
 					kind: CompletionItemKind.Text,
 					detail: attachment.description,

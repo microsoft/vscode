@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import './media/openInAgents.css';
-import { $, append } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { disposableLongTimeout } from '../../../../../base/common/async.js';
@@ -44,7 +45,7 @@ import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationAction, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS, getCopilotHarnessIntroductionMode } from '../../common/constants.js';
+import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS, getCopilotHarnessIntroductionMode } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
@@ -64,6 +65,7 @@ import { IAgentSessionsService } from '../../browser/agentSessions/agentSessions
 import { AgentSessionStatus, IAgentSession, isAgentHostAgentSessionItem } from '../../browser/agentSessions/agentSessionsModel.js';
 import { CopilotHarnessIntroductionButtonVariant, copilotHarnessIntroductionButtonVariants, CopilotHarnessIntroductionCopyVariant, copilotHarnessIntroductionCopyVariants, copilotHarnessIntroductionFeedbackCommandId, copilotHarnessIntroductionLearnMoreCommandId, getCopilotHarnessIntroductionContent } from '../../browser/agentSessions/copilotHarnessIntroduction.js';
 import { isNewConversation } from '../../browser/widget/input/chatInputModelUtils.js';
+import { AgentsWindowUsage } from '../../common/agentsWindowUsage.js';
 
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
@@ -409,31 +411,109 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
  */
 class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 
+	private static readonly LABEL_TREATMENT = 'chatOpenInAgentsTitleBarLabel';
+	private static readonly EXPAND_ON_HOVER_TREATMENT = 'chatOpenInAgentsTitleBarExpandOnHover';
+	private readonly treatments = this._register(new MutableDisposable());
+	private readonly usage: AgentsWindowUsage;
+	private labelElement: HTMLElement | undefined;
+	private hover: IManagedHover | undefined;
+	private treatmentLabel: string | undefined;
+	private treatmentsResolved = false;
+	private expansionTreatmentResolved = false;
+	private isHovered = false;
+
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(undefined, action, options);
+		this.usage = new AgentsWindowUsage(storageService);
+		this._register(this.usage.onDidChangeCreatedSessionCount(this._store)(() => {
+			if (!this.isEligible) {
+				this.treatments.clear();
+			}
+			this.updateLabel();
+		}));
+	}
+
+	private get isEligible(): boolean {
+		return this.usage.createdSessionCount === 0;
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
 
-		container.classList.add('open-in-agents-titlebar-widget');
+		container.classList.add('open-in-agents-titlebar-widget', 'expand-on-hover');
 		container.setAttribute('role', 'button');
+		this._register(addDisposableListener(container, EventType.MOUSE_ENTER, () => {
+			this.isHovered = true;
+			this.logExpansionExperimentTrigger();
+		}));
+		this._register(addDisposableListener(container, EventType.MOUSE_LEAVE, () => {
+			this.isHovered = false;
+		}));
+		this._register(registerAgentsWindowTreatments<boolean>(
+			[OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT],
+			'OpenWorkspaceInAgentsTitleBarWidget',
+			([expandOnHover]) => {
+				this.expansionTreatmentResolved = true;
+				this.logExpansionExperimentTrigger();
+				container.classList.toggle('expand-on-hover', expandOnHover ?? true);
+			},
+			this.assignmentService,
+			this.logService,
+			value => typeof value === 'boolean',
+		));
 
-		const label = this.action.label;
 		const hoverText = this.keybindingService.appendKeybinding(localize('openInAgentsHover', "Open in Agents Window"), OPEN_AGENTS_WINDOW_COMMAND_ID);
 		container.setAttribute('aria-label', hoverText);
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, hoverText));
+		this.hover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, hoverText));
 
 		const icon = append(container, $('span.open-in-agents-titlebar-widget-icon'));
 		icon.setAttribute('aria-hidden', 'true');
 
-		const labelEl = append(container, $('span.open-in-agents-titlebar-widget-label'));
-		labelEl.textContent = label;
+		this.labelElement = append(container, $('span.open-in-agents-titlebar-widget-label'));
+		this.updateLabel();
+		if (this.isEligible) {
+			this.treatments.value = registerAgentsWindowTreatments(
+				[OpenWorkspaceInAgentsTitleBarWidget.LABEL_TREATMENT],
+				'OpenWorkspaceInAgentsTitleBarWidget',
+				([label]) => {
+					this.treatmentLabel = label;
+					this.treatmentsResolved = true;
+					this.updateLabel();
+				},
+				this.assignmentService,
+				this.logService,
+			);
+		}
+	}
+
+	private logExpansionExperimentTrigger(): void {
+		if (this.isHovered && this.expansionTreatmentResolved) {
+			logExperimentTrigger(this.telemetryService, OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT);
+		}
+	}
+
+	protected override updateLabel(): void {
+		if (!this.element || !this.labelElement) {
+			return;
+		}
+		const eligible = this.isEligible;
+		if (eligible && this.treatmentsResolved) {
+			logExperimentTrigger(this.telemetryService, OpenWorkspaceInAgentsTitleBarWidget.LABEL_TREATMENT);
+		}
+		const treatmentLabel = eligible ? this.treatmentLabel : undefined;
+		this.labelElement.textContent = treatmentLabel ?? this.action.label;
+		const hoverText = this.keybindingService.appendKeybinding(treatmentLabel ?? localize('openInAgentsHover', "Open in Agents Window"), OPEN_AGENTS_WINDOW_COMMAND_ID);
+		this.element.setAttribute('aria-label', hoverText);
+		this.hover?.update(hoverText);
 	}
 }
 
@@ -449,10 +529,11 @@ export class OpenWorkspaceInAgentsContribution extends Disposable implements IWo
 		@IStorageService storageService: IStorageService,
 	) {
 		super();
+		const usage = new AgentsWindowUsage(storageService);
 		const hasCreatedSession = ChatContextKeys.hasCreatedSessionInAgentsWindow.bindTo(contextKeyService);
-		const updateHasCreatedSession = () => hasCreatedSession.set(storageService.getNumber(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, StorageScope.APPLICATION, 0) > 0);
+		const updateHasCreatedSession = () => hasCreatedSession.set(usage.createdSessionCount > 0);
 		updateHasCreatedSession();
-		this._register(storageService.onDidChangeValue(StorageScope.APPLICATION, AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, this._store)(updateHasCreatedSession));
+		this._register(usage.onDidChangeCreatedSessionCount(this._store)(updateHasCreatedSession));
 
 		this._register(actionViewItemService.register(MenuId.TitleBarAdjacentCenter, OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID, (action, options) => {
 			return instantiationService.createInstance(OpenWorkspaceInAgentsTitleBarWidget, action, options);
@@ -460,18 +541,19 @@ export class OpenWorkspaceInAgentsContribution extends Disposable implements IWo
 	}
 }
 
-function registerAgentsWindowTreatments(
+function registerAgentsWindowTreatments<T extends string | number | boolean = string>(
 	treatments: readonly string[],
 	logPrefix: string,
-	onChange: (values: readonly (string | undefined)[]) => void,
+	onChange: (values: readonly (T | undefined)[]) => void,
 	assignmentService: IWorkbenchAssignmentService,
 	logService: ILogService,
+	isValid: (value: T) => boolean = value => typeof value === 'string' && value.trim().length > 0,
 ): IDisposable {
 	const store = new DisposableStore();
 	let treatmentRequest = 0;
 	let hasResolved = false;
-	const getTreatmentText = (name: string, value: string | undefined): string | undefined => {
-		if (value === undefined || (typeof value === 'string' && value.trim())) {
+	const getTreatmentValue = (name: string, value: T | undefined): T | undefined => {
+		if (value === undefined || isValid(value)) {
 			return value;
 		}
 		logService.warn(`[${logPrefix}] Ignoring invalid ${name} treatment`);
@@ -479,15 +561,15 @@ function registerAgentsWindowTreatments(
 	};
 	const update = async (): Promise<void> => {
 		const request = ++treatmentRequest;
-		let values: (string | undefined)[];
+		let values: (T | undefined)[];
 		try {
-			values = await Promise.all(treatments.map(name => assignmentService.getTreatment<string>(name)));
+			values = await Promise.all(treatments.map(name => assignmentService.getTreatment<T>(name)));
 		} catch (error) {
 			if (store.isDisposed || request !== treatmentRequest) {
 				return;
 			}
 			if (!isCancellationError(error)) {
-				logService.warn(`[${logPrefix}] Failed to resolve banner treatments`, error);
+				logService.warn(`[${logPrefix}] Failed to resolve treatments`, error);
 			}
 			if (hasResolved) {
 				return;
@@ -498,7 +580,7 @@ function registerAgentsWindowTreatments(
 			return;
 		}
 		hasResolved = true;
-		onChange(values.map((value, index) => getTreatmentText(treatments[index], value)));
+		onChange(values.map((value, index) => getTreatmentValue(treatments[index], value)));
 	};
 	store.add(assignmentService.onDidRefetchAssignments(() => void update()));
 	void update();

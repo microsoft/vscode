@@ -87,6 +87,10 @@ function expectedSandboxConfig(options?: {
 	return {
 		enabled: true,
 		allowBypass: options?.allowBypass ?? false,
+		auth: {
+			git: true,
+			gh: true,
+		},
 		userPolicy: {
 			filesystem: {
 				...(options?.deniedPaths?.length ? { deniedPaths: options.deniedPaths } : {}),

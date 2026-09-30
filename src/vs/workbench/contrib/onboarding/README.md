@@ -294,15 +294,25 @@ The events respect existing usage-telemetry settings and policies. Register thei
 
 ## Release-note markup
 
-Release notes use standard conditional comments and command links:
+Release-note tryout links use a backtick-wrapped inline-code shorthand, without conditional comments:
 
 ```md
-<!-- %IF TRYOUTS %
-[Try My Feature](command:workbench.action.onboarding.tryFeature?%5B%22myFeature.guide%22%5D)
-%ENDIF % -->
+`try(myFeature.guide,Try My Feature)`
 ```
 
-Only the stable ID belongs in Markdown. Use **Developer: Copy Feature Example Link** to produce the encoded link. For manual validation, add the link to [releaseNotesTryouts.md](test/browser/fixtures/releaseNotesTryouts.md), open that file, and run **Developer: Open Current File as Release Notes**.
+The syntax is `try(<tryout-id>,<link-text>)`. The first argument is a stable registered tryout ID, not a command ID. The required link text is presentation only; all executable behavior and availability checks remain in installed code. Surrounding argument whitespace is trimmed. The first comma separates the ID from the label, and the final closing parenthesis ends the token, so labels can contain commas and parentheses. Labels are literal text, not Markdown or HTML.
+
+Only a complete inline-code token is recognized. Bare text, code blocks, and code inside links or raw HTML remain noninteractive. Malformed shorthand stays literal code; a valid but unknown ID shows the existing unavailable-example explanation. Renderers without tryout support display the shorthand as literal inline code.
+
+Use **Developer: Copy Feature Example Link** to produce the shorthand with the installed title as its initial label. The command chooses a longer backtick delimiter when the title contains backticks. Authors may edit the label without changing the registered behavior.
+
+Existing encoded command links remain supported and retain their product-generated `Try This: <title>` labels:
+
+```md
+[Try My Feature](command:workbench.action.onboarding.tryFeature?%5B%22myFeature.guide%22%5D)
+```
+
+For manual validation, add the shorthand to [releaseNotesTryouts.md](test/browser/fixtures/releaseNotesTryouts.md), open that file, and run **Developer: Open Current File as Release Notes**.
 
 ## Choosing the interaction level
 

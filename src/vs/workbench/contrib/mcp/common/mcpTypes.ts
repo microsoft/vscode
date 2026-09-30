@@ -214,6 +214,8 @@ export interface McpServerDefinition {
 	readonly devMode?: IMcpDevModeConfig;
 	/** Optional server version metadata from the source configuration. */
 	readonly version?: string;
+	/** Optional gallery metadata from the source configuration. */
+	readonly gallery?: boolean | string;
 	/** Static description of server tools/data, used to hydrate the cache. */
 	readonly staticMetadata?: McpServerStaticMetadata;
 	/** Indicates if the sandbox is enabled for this server. */
@@ -300,6 +302,7 @@ export namespace McpServerDefinition {
 		readonly staticMetadata?: McpServerStaticMetadata;
 		readonly sandboxEnabled?: boolean;
 		readonly version?: string;
+		readonly gallery?: boolean | string;
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
@@ -316,6 +319,7 @@ export namespace McpServerDefinition {
 			defaultCwd: def.defaultCwd ? URI.revive(def.defaultCwd) : undefined,
 			sandboxEnabled: def.sandboxEnabled,
 			version: def.version,
+			gallery: def.gallery,
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
 	}
@@ -331,6 +335,7 @@ export namespace McpServerDefinition {
 			&& objectsEqualWithUris(a.variableReplacement, b.variableReplacement)
 			&& objectsEqual(a.devMode, b.devMode)
 			&& a.version === b.version
+			&& a.gallery === b.gallery
 			&& a.sandboxEnabled === b.sandboxEnabled;
 
 	}

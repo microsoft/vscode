@@ -26,6 +26,7 @@ export class FakeGitHubScheduler implements IGitHubScheduler, IDisposable {
 	private readonly _jitterValues: readonly number[];
 	private readonly _tasks: IFakeGitHubSchedulerTask[] = [];
 	private _now: number;
+	private _wallClockOffset = 0;
 	private _nextTaskId = 0;
 	private _jitterIndex = 0;
 	private _isDisposed = false;
@@ -40,11 +41,17 @@ export class FakeGitHubScheduler implements IGitHubScheduler, IDisposable {
 	}
 
 	get nextDueTime(): number | undefined {
-		return this._tasks[0]?.dueTime;
+		const task = this._tasks[0];
+		return task ? task.dueTime + this._wallClockOffset : undefined;
 	}
 
 	now(): number {
-		return this._now;
+		return this._now + this._wallClockOffset;
+	}
+
+	/** Advances wall time without advancing timers, as when the clocks diverge during suspend. */
+	advanceWallClockBy(delay: number): void {
+		this._wallClockOffset += delay;
 	}
 
 	schedule(callback: () => void, delay: number): IDisposable {
@@ -88,17 +95,18 @@ export class FakeGitHubScheduler implements IGitHubScheduler, IDisposable {
 		if (delay < 0) {
 			throw new Error('FakeGitHubScheduler cannot advance by a negative delay');
 		}
-		this.advanceTo(this._now + delay);
+		this.advanceTo(this.now() + delay);
 	}
 
 	advanceTo(targetTime: number): void {
-		if (targetTime < this._now) {
+		if (targetTime < this.now()) {
 			throw new Error('FakeGitHubScheduler cannot move backwards in time');
 		}
+		const timerTarget = targetTime - this._wallClockOffset;
 
 		while (true) {
 			const next = this._tasks[0];
-			if (!next || next.dueTime > targetTime) {
+			if (!next || next.dueTime > timerTarget) {
 				break;
 			}
 
@@ -112,16 +120,16 @@ export class FakeGitHubScheduler implements IGitHubScheduler, IDisposable {
 			this._sortTasks();
 		}
 
-		this._now = targetTime;
+		this._now = timerTarget;
 	}
 
 	flushDue(): void {
-		this.advanceTo(this._now);
+		this.advanceTo(this.now());
 	}
 
 	flushAll(): void {
 		while (this._tasks.length > 0) {
-			this.advanceTo(this._tasks[0].dueTime);
+			this.advanceTo(this._tasks[0].dueTime + this._wallClockOffset);
 		}
 	}
 

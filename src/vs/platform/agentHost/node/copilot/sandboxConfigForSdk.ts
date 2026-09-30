@@ -161,6 +161,10 @@ export function buildSandboxConfigForSdk(
 	const sandboxConfig: SandboxConfig = {
 		enabled: true,
 		allowBypass,
+		auth: {
+			git: true,
+			gh: true,
+		},
 		userPolicy: {
 			filesystem: {
 				...(denied.size ? { deniedPaths: [...denied] } : {}),

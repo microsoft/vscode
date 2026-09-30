@@ -66,16 +66,16 @@
 	outline: none;
 }
 
-.monaco-workbench .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-label,
+.monaco-workbench .open-in-agents-titlebar-widget.expand-on-hover:hover > .open-in-agents-titlebar-widget-label,
 .monaco-workbench .open-in-agents-titlebar-widget:focus-visible > .open-in-agents-titlebar-widget-label {
 	max-width: 200px;
 	opacity: 1;
 	margin-left: 6px;
 }
 
-.monaco-enable-motion .monaco-workbench .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-label,
+.monaco-enable-motion .monaco-workbench .open-in-agents-titlebar-widget.expand-on-hover:hover > .open-in-agents-titlebar-widget-label,
 .monaco-enable-motion .monaco-workbench .open-in-agents-titlebar-widget:focus-visible > .open-in-agents-titlebar-widget-label,
-.monaco-workbench.monaco-enable-motion .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-label,
+.monaco-workbench.monaco-enable-motion .open-in-agents-titlebar-widget.expand-on-hover:hover > .open-in-agents-titlebar-widget-label,
 .monaco-workbench.monaco-enable-motion .open-in-agents-titlebar-widget:focus-visible > .open-in-agents-titlebar-widget-label {
 	transition-delay: 0ms;
 }

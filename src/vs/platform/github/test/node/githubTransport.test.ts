@@ -8,7 +8,6 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { GitHubAccountHandle } from '../../common/githubTypes.js';
-import { GitHubRequestQueue } from '../../common/githubRequestQueue.js';
 import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
@@ -515,7 +514,7 @@ suite('GitHubTransport', () => {
 				const startedAt = scheduler.now();
 				const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${after}` }, signal());
 				await Promise.resolve();
-				scheduler.flushAll();
+				scheduler.advanceBy(60_000);
 				await pending;
 				observed.push(scheduler.now() - startedAt);
 			}
@@ -555,7 +554,7 @@ suite('GitHubTransport', () => {
 				const startedAt = scheduler.now();
 				const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${after}` }, signal());
 				await Promise.resolve();
-				scheduler.flushAll();
+				scheduler.advanceBy(transport.rateLimits.getDelay(accountA, 'core'));
 				await pending;
 				observed.push(scheduler.now() - startedAt);
 			}
@@ -773,7 +772,7 @@ suite('GitHubTransport', () => {
 			const reason = new Error('cancelled by caller');
 			const rejected = assert.rejects(pending, error => abortMode === 'cancel'
 				? error === reason
-				: error instanceof GitHubRequestError && error.kind === 'network' && error.message === 'GitHub download timed out');
+				: error instanceof GitHubRequestError && error.kind === 'timeout');
 			await readStarted.p;
 			if (abortMode === 'cancel') {
 				controller.abort(reason);
@@ -929,7 +928,7 @@ suite('GitHubTransport', () => {
 	test('discards download error bodies without exposing signed URLs or credentials', async () => {
 		let cancelled = false;
 		const transport = disposables.add(new GitHubTransport(async () => new Response(new ReadableStream<Uint8Array>({
-			start(controller) { controller.enqueue(new TextEncoder().encode('private-token https://storage.example.test/log?sig=private')); },
+			start(controller) { controller.enqueue(new TextEncoder().encode('private-token https://storage.example.test/log?sig=private'.repeat(1024))); },
 			cancel() { cancelled = true; },
 		}), { status: 403, statusText: 'private details' })));
 		await assert.rejects(() => transport.download(accountA, 'token-a', {
@@ -1013,24 +1012,4 @@ suite('GitHubTransport', () => {
 		}, controller.signal), error => error === reason);
 	});
 
-	test('runs higher-priority queued work before older background work', async () => {
-		const queue = disposables.add(new GitHubRequestQueue());
-		const firstRelease = new DeferredPromise<void>();
-		const order: string[] = [];
-		const first = queue.enqueue(accountA, 'background', signal(), async () => {
-			order.push('first');
-			await firstRelease.p;
-		});
-		const background = queue.enqueue(accountA, 'background', signal(), async () => {
-			order.push('background');
-		});
-		const interactive = queue.enqueue(accountA, 'interactive', signal(), async () => {
-			order.push('interactive');
-		});
-
-		await firstRelease.complete();
-		await Promise.all([first, background, interactive]);
-
-		assert.deepStrictEqual(order, ['first', 'interactive', 'background']);
-	});
 });

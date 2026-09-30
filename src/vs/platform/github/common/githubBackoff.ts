@@ -106,8 +106,8 @@ export class GitHubBackoffGate extends Disposable {
 		return waited;
 	}
 
-	/** Records a failure for `key`, so the next attempt for it waits longer. */
-	fail(key: string): void {
+	/** Records a failure for `key`, respecting any server-required minimum delay. */
+	fail(key: string, minimumDelay = 0): void {
 		const now = this._scheduler.now();
 		const state = this._state;
 		// A subject that has gone quiet for a whole decay window is treated as
@@ -116,7 +116,7 @@ export class GitHubBackoffGate extends Disposable {
 			&& state.key === key
 			&& now - state.recordedAt <= (this._policy.decay ?? Number.POSITIVE_INFINITY);
 		const attempts = (continues ? state.attempts : 0) + 1;
-		const delay = gitHubBackoffDelay(this._policy, this._scheduler, attempts);
+		const delay = gitHubBackoffDelay(this._policy, this._scheduler, attempts, minimumDelay);
 		this._set({ key, attempts, recordedAt: now, blockedUntil: now + delay });
 		if (delay > 0) {
 			this._logService?.warn(`[GitHubBackoffGate] Backing off ${this._label} by ${delay}ms after ${attempts} consecutive failure(s)`);

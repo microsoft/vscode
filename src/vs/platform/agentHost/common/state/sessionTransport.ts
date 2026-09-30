@@ -50,6 +50,13 @@ export interface IProtocolTransport extends IDisposable {
 	/** Fires when a message is received from the remote end. */
 	readonly onMessage: Event<ProtocolMessage>;
 
+	/**
+	 * Fires, possibly throttled, while part of a message is still arriving, so
+	 * liveness checks don't mistake a slow download for silence. Omitted by
+	 * transports that only see whole messages.
+	 */
+	readonly onDidReceiveData?: Event<void>;
+
 	/** Fires when the transport connection closes. */
 	readonly onClose: Event<void>;
 

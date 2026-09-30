@@ -25,7 +25,8 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatCustomizationMigrationNotice, IChatCustomizationMigrationNoticeContext } from '../../../browser/aiCustomization/chatCustomizationMigrationNotice.js';
 import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
-import { CustomizationMigrationType, getCustomizationMigrationEnablementSetting, ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 
 class TestMigrationService extends mock<ICustomizationMigrationService>() {
@@ -68,7 +69,7 @@ suite('ChatCustomizationMigrationNotice', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const changed = store.add(new Emitter<void>());
 		const configuration = new TestConfigurationService({
-			[getCustomizationMigrationEnablementSetting(CustomizationMigrationType.PromptFiles)]: true,
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		});
 		const migrations = new TestMigrationService(changed);
 		const hint: ICustomizationMigrationHint = {

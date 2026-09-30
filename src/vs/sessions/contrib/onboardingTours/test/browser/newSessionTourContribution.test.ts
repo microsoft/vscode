@@ -13,7 +13,8 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { markOnboardingTarget, ONBOARDING_TARGET_PULSE_CLASS } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
@@ -26,8 +27,13 @@ import { NEW_SESSION_TOUR_ID } from '../../browser/tours/newSessionTour.js';
 suite('NewSessionTourContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const allowed of [false, true]) {
-		test(`pulse follows onboarding eligibility (${allowed}) after the visibility delay`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	for (const { allowed, sessionCount } of [
+		{ allowed: false, sessionCount: 0 },
+		{ allowed: true, sessionCount: 0 },
+		{ allowed: true, sessionCount: 3 },
+		{ allowed: true, sessionCount: 4 },
+	]) {
+		test(`pulse follows onboarding eligibility (${allowed}, ${sessionCount} sessions) after the visibility delay`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const button = mainWindow.document.createElement('button');
 			button.textContent = 'New Session';
 			mainWindow.document.body.appendChild(button);
@@ -46,6 +52,8 @@ suite('NewSessionTourContribution', () => {
 					return allowed;
 				}
 			}();
+			const storage = disposables.add(new InMemoryStorageService());
+			storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, sessionCount, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			disposables.add(new NewSessionTourContribution(
 				new class extends mock<ISessionsManagementService>() {
 					override readonly onWillSendRequest = requests.event;
@@ -54,7 +62,7 @@ suite('NewSessionTourContribution', () => {
 				new class extends mock<ISessionsService>() {
 					override readonly visibleSessions = visibleSessions;
 				}(),
-				disposables.add(new InMemoryStorageService()),
+				storage,
 				new TestConfigurationService(),
 			));
 			const isPulsing = () => button.classList.contains(ONBOARDING_TARGET_PULSE_CLASS);
@@ -81,10 +89,10 @@ suite('NewSessionTourContribution', () => {
 			}, {
 				hidden: { pulsing: false, checks: 0 },
 				beforeDelay: { pulsing: false, checks: 0 },
-				afterDelay: allowed,
-				nudgeChecks: [NEW_SESSION_TOUR_ID],
+				afterDelay: allowed && sessionCount <= 3,
+				nudgeChecks: sessionCount <= 3 ? [NEW_SESSION_TOUR_ID] : [],
 				afterClick: false,
-				triggered: allowed,
+				triggered: allowed && sessionCount <= 3,
 			});
 		}));
 	}

@@ -16,9 +16,9 @@ import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ActionListItemKind, IActionListCloseAnimation, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListItemInlineToggle, IActionListOptions } from './actionList.js';
 import { IActionWidgetService } from './actionWidget.js';
+import { ACTION_WIDGET_DROPDOWN_MOTION_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS } from './actionWidgetMotion.js';
 
-export const ACTION_WIDGET_DROPDOWN_MOTION_CLASS = 'action-widget-dropdown';
-export const ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS = 'action-widget-dropdown-closing';
+export { ACTION_WIDGET_DROPDOWN_MOTION_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS } from './actionWidgetMotion.js';
 
 export const actionWidgetDropdownCloseAnimation: IActionListCloseAnimation = {
 	className: ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS,

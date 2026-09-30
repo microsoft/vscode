@@ -122,6 +122,24 @@ suite('LanguageModelsConfiguration', () => {
 		assert.strictEqual(result[0].vendor, 'vendor');
 	});
 
+	test('parseLanguageModelsConfiguration - __proto__ is an own data property', () => {
+		const model = testDisposables.add(createTextModel('[{ "name": "group", "__proto__": { "vendor": "polluted" } }]'));
+		const result = parseLanguageModelsProviderGroups(model);
+		const group = result[0] as typeof result[0] & { __proto__: { vendor: string } };
+
+		assert.deepStrictEqual({
+			prototype: Object.getPrototypeOf(group),
+			hasOwnProto: Object.hasOwn(group, '__proto__'),
+			protoVendor: group.__proto__.vendor,
+			vendor: group.vendor,
+		}, {
+			prototype: Object.prototype,
+			hasOwnProto: true,
+			protoVendor: 'polluted',
+			vendor: undefined,
+		});
+	});
+
 	test('parseLanguageModelsConfiguration - ranges', () => {
 		const content = `[
 	{

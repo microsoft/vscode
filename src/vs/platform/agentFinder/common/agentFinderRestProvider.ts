@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellationError } from '../../../base/common/async.js';
+import { disposableTimeout, Limiter, raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -14,6 +14,8 @@ import { localize } from '../../../nls.js';
 import { agentFinderMcpRegistryManifest, getAgentFinderMcpServerUrl, isValidAgentFinderMcpIdentity } from './agentFinderMcpRegistry.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../customizationMarketplace/common/customizationMarketplaceSources.js';
+import { ILogService } from '../../log/common/log.js';
+import { IMcpGalleryService } from '../../mcp/common/mcpManagement.js';
 import { IRequestService, readBoundedResponse } from '../../request/common/request.js';
 
 const endpoint = 'https://agentfinder.github.com/api/v1';
@@ -32,6 +34,8 @@ const maxMetadataEntries = 32;
 const maxMetadataTextLength = 512;
 const maxSourcePathLength = 4096;
 const maxGitRefLength = 1024;
+const maxConcurrentMcpIconRequests = 4;
+const mcpIconRequestTimeout = 5_000;
 
 class AgentFinderError extends Error { }
 
@@ -40,6 +44,8 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
+		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
+		@ILogService private readonly logService: ILogService,
 	) { }
 
 	async query(options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
@@ -60,7 +66,7 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
 		let timedOut = false;
-		disposableTimeout(() => {
+		const requestTimeoutDisposable = disposableTimeout(() => {
 			timedOut = true;
 			cancellation.cancel();
 		}, requestTimeout, store);
@@ -86,7 +92,12 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 				const page = parsePage(response, pageSize, query ? { kind: 'search', pageToken } : { kind: 'browse', offset });
 				const items = page.items.filter(item => item.mediaType !== CustomizationMarketplaceMediaType.CursorPlugin);
 				if (items.length || !page.nextCursor) {
-					return { ...page, items, total: options.mediaType !== undefined && items.length === page.items.length ? page.total : undefined };
+					requestTimeoutDisposable.dispose();
+					return await this.resolveMcpIcons({
+						...page,
+						items,
+						total: options.mediaType !== undefined && items.length === page.items.length ? page.total : undefined,
+					}, token);
 				}
 				if (unsupportedOnlyPages >= maxUnsupportedOnlyPages) {
 					throw new AgentFinderError(localize('agentFinder.unsupportedPages', "The customization catalog returned too many unsupported entries. Try a different search."));
@@ -107,6 +118,60 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 		} finally {
 			cancellation.cancel();
 			store.dispose();
+		}
+	}
+
+	private async resolveMcpIcons(page: ICustomizationMarketplaceSourcePage, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
+		if (!page.items.some(item => !item.icon && item.installation?.kind === 'mcp' && item.externalUrl)) {
+			return page;
+		}
+
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource(token));
+		const limiter = store.add(new Limiter<ICustomizationMarketplaceEntry>(maxConcurrentMcpIconRequests));
+		let timedOut = false;
+		disposableTimeout(() => {
+			timedOut = true;
+			cancellation.cancel();
+		}, mcpIconRequestTimeout, store);
+
+		try {
+			const items = await Promise.all(page.items.map(item =>
+				!item.icon && item.installation?.kind === 'mcp' && item.externalUrl
+					? limiter.queue(() => this.resolveMcpIcon(item, token, cancellation.token))
+					: item
+			));
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (timedOut) {
+				this.logService.warn('[AgentFinderRestProvider] Timed out resolving MCP catalog icons.');
+			}
+			return { ...page, items };
+		} finally {
+			cancellation.cancel();
+			store.dispose();
+		}
+	}
+
+	private async resolveMcpIcon(item: ICustomizationMarketplaceEntry, queryToken: CancellationToken, iconToken: CancellationToken): Promise<ICustomizationMarketplaceEntry> {
+		const installation = item.installation;
+		if (installation?.kind !== 'mcp' || !item.externalUrl || queryToken.isCancellationRequested || iconToken.isCancellationRequested) {
+			return item;
+		}
+
+		try {
+			const server = await raceCancellationError(this.mcpGalleryService.getMcpServer(item.externalUrl, agentFinderMcpRegistryManifest, iconToken), iconToken);
+			const icon = parseHttpUri(server?.icon?.light);
+			if (server?.icon?.light && !icon) {
+				this.logService.warn(`[AgentFinderRestProvider] Ignoring an invalid MCP catalog icon for '${installation.name}'.`);
+			}
+			return icon ? { ...item, icon } : item;
+		} catch (error) {
+			if (!queryToken.isCancellationRequested && !iconToken.isCancellationRequested) {
+				this.logService.warn(`[AgentFinderRestProvider] Failed to resolve the MCP catalog icon for '${installation.name}'.`, error);
+			}
+			return item;
 		}
 	}
 
@@ -275,6 +340,9 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 		: mediaType === CustomizationMarketplaceMediaType.CopilotPlugin ? 'plugin.json'
 			: mediaType === CustomizationMarketplaceMediaType.ClaudePlugin ? '.claude-plugin/plugin.json'
 				: undefined;
+	const marketplaceManifest = mediaType === CustomizationMarketplaceMediaType.CopilotPlugin ? '.github/plugin/marketplace.json'
+		: mediaType === CustomizationMarketplaceMediaType.ClaudePlugin ? '.claude-plugin/marketplace.json'
+			: undefined;
 	const sourceSet = metadata.sourceSet;
 	const repoPath = metadata.repoPath;
 	if (!manifest || url.authority.toLowerCase() !== 'github.com' || /%2f|%5c/i.test(externalUrl) ||
@@ -282,12 +350,20 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 		return undefined;
 	}
 	const repository = githubRepository(parseHttpUri(`https://github.com/${sourceSet}`), true);
-	if (repository?.path !== `/${sourceSet}` || (repoPath !== manifest && !repoPath.endsWith(`/${manifest}`))) {
+	const isMarketplacePlugin = kind === 'plugin' && repoPath === marketplaceManifest;
+	if (repository?.path !== `/${sourceSet}` || (!isMarketplacePlugin && repoPath !== manifest && !repoPath.endsWith(`/${manifest}`))) {
 		return undefined;
 	}
 	const [, owner, name, view, ...parts] = url.path.split('/');
 	if (`${owner}/${name}`.toLowerCase() !== sourceSet.toLowerCase() || (view !== 'blob' && view !== 'tree')) {
 		return undefined;
+	}
+	if (isMarketplacePlugin) {
+		const [ref, ...pathSegments] = parts;
+		const path = pathSegments.join('/');
+		return ref !== undefined && isSupportedMarketplaceRef(ref) && isSafeSourcePath(path)
+			? { kind: 'plugin', repository: sourceSet, ref, path }
+			: undefined;
 	}
 	const path = repoPath === manifest ? '' : repoPath.slice(0, -manifest.length - 1);
 	if (mediaType === CustomizationMarketplaceMediaType.CopilotPlugin && ['.claude-plugin', '.cursor-plugin', '.plugin'].includes(path.split('/').at(-1) ?? '')) {
@@ -314,6 +390,10 @@ function isSafeSourcePath(path: string): boolean {
 function isSafeGitRef(ref: string): boolean {
 	return ref.length <= maxGitRefLength && isSafeSourcePath(ref) && !ref.includes('..') &&
 		ref.split('/').every(part => !part.startsWith('.') && !part.toLowerCase().endsWith('.lock'));
+}
+
+function isSupportedMarketplaceRef(ref: string): boolean {
+	return ref === 'main' || ref === 'master' || /^[0-9a-f]{40}$/i.test(ref);
 }
 
 function parseHttpUri(value: unknown): URI | undefined {

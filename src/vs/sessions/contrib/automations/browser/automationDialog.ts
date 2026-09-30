@@ -10,7 +10,6 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -38,7 +37,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch } from '../../chat/browser/branchPicker.js';
@@ -1048,6 +1047,7 @@ export function renderForm(
 		revalidate();
 	}));
 
+	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const scheduleRow = DOM.append(formContent, $('.automation-form-row.automation-form-schedule-row'));
 	const useCustomDrawn = !hasNativeContextMenu(configurationService);
 
@@ -1245,7 +1245,6 @@ export function renderForm(
 		revalidate();
 	}));
 
-	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const targetRow = DOM.append(sessionSection, $('.automation-form-row.automation-target-row'));
 	const targetContainer = DOM.append(targetRow, $('.automation-target-toolbar', {
 		role: 'group',
@@ -1453,23 +1452,6 @@ export function renderForm(
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
 
-	const enabledRow = DOM.append(formContent, $('.automation-form-row.automation-form-checkbox-row'));
-	const enabledLabelText = localize('automation.form.enabled', "Enabled");
-	const enabledCheckbox = disposables.add(new Checkbox(enabledLabelText, state.enabled, defaultCheckboxStyles));
-	DOM.append(enabledRow, enabledCheckbox.domNode);
-	const enabledLabel = DOM.append(enabledRow, $('span.automation-form-checkbox-label', undefined, enabledLabelText));
-	const setEnabled = (value: boolean) => {
-		if (enabledCheckbox.checked !== value) {
-			enabledCheckbox.checked = value;
-		}
-		state.enabled = value;
-	};
-	disposables.add(enabledCheckbox.onChange(() => {
-		state.enabled = enabledCheckbox.checked;
-	}));
-	disposables.add(DOM.addStandardDisposableListener(enabledLabel, 'click', () => {
-		setEnabled(!enabledCheckbox.checked);
-	}));
 	const saveStatus = DOM.append(form, $('span.automation-form-save-status', {
 		role: 'status',
 		'aria-atomic': 'true',

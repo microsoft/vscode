@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as net from 'net';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -13,6 +15,7 @@ import { isTunnelGatewaySelectionRejectedError, TUNNEL_GATEWAY_SELECTION_REJECTE
 import type { ITunnelRelayClient } from '../../common/tunnelAgentHostConnector.js';
 import type { ITunnelMessageSocket } from '../../common/tunnelMessageSocket.js';
 import {
+	NodeTunnelSocketFactory,
 	PendingGatewaySelection,
 	deletePendingGatewaySelectionForTests,
 	setPendingGatewaySelectionForTests,
@@ -312,5 +315,43 @@ suite('PendingGatewaySelection', () => {
 		pending.dispose();
 		assert.strictEqual(ws.closeCalls, 1);
 		assert.strictEqual(relayClient.disposeCalls, 1);
+	});
+});
+
+suite('NodeTunnelSocketFactory', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports data while a message is still arriving over the tunnel stream', async () => {
+		const { WebSocketServer } = await import('ws');
+		const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+		store.add(toDisposable(() => server.close()));
+		await new Promise<void>(resolve => server.once('listening', resolve));
+		const hostSocket = new Promise<net.Socket>(resolve => server.once('connection', (_webSocket, request) => resolve(request.socket)));
+
+		// A loopback socket stands in for the relay's forwarded-port stream.
+		const stream = net.createConnection({ host: '127.0.0.1', port: (server.address() as net.AddressInfo).port });
+		store.add(toDisposable(() => stream.destroy()));
+		await new Promise<void>(resolve => stream.once('connect', resolve));
+		const socket = store.add(await new NodeTunnelSocketFactory().open(stream, '/'));
+		const host = await hostSocket;
+		store.add(toDisposable(() => host.destroy()));
+		assert.ok(socket.onDidReceiveData);
+		const data = new DeferredPromise<void>();
+		const message = new DeferredPromise<string>();
+		store.add(socket.onDidReceiveData(() => data.complete()));
+		store.add(socket.onDidReceiveMessage(text => message.complete(text)));
+
+		// One unmasked text frame, delivered in two halves as a slow link would.
+		const payload = Buffer.alloc(100_000, 'x');
+		const header = Buffer.alloc(10);
+		header[0] = 0x81; // FIN, text frame
+		header[1] = 127; // 64-bit payload length follows
+		header.writeBigUInt64BE(BigInt(payload.length), 2);
+		host.write(Buffer.concat([header, payload.subarray(0, payload.length / 2)]));
+		await data.p;
+		const completedBeforeLastHalf = message.isSettled;
+		host.write(payload.subarray(payload.length / 2));
+
+		assert.deepStrictEqual({ completedBeforeLastHalf, messageLength: (await message.p).length }, { completedBeforeLastHalf: false, messageLength: payload.length });
 	});
 });

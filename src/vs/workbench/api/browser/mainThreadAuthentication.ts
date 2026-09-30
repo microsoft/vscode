@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, getDynamicAuthenticationProviderId, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest, withoutWorkbenchOnlySessionOptions } from '../../services/authentication/common/authentication.js';
 import { AuthenticationGetSessionOptions, AuthenticationInteractiveOptions, ExtHostAuthenticationShape, ExtHostContext, IRegisterAuthenticationProviderDetails, IRegisterDynamicAuthenticationProviderDetails, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
@@ -45,7 +45,8 @@ export function reviveAuthenticationSession(session: Dto<AuthenticationSession>)
 }
 
 function prepareSessionRequest(options: AuthenticationGetSessionOptions) {
-	const { clearSessionPreference, createIfNone, forceNewSession, silent, ...requestOptions } = options;
+	// Workbench-only options must never be settable by an extension.
+	const { clearSessionPreference, createIfNone, forceNewSession, silent, ...requestOptions } = withoutWorkbenchOnlySessionOptions(options);
 	if (forceNewSession && createIfNone) {
 		throw new Error('Invalid combination of options. Please remove one of the following: forceNewSession, createIfNone');
 	}

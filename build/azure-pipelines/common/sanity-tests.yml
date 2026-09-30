@@ -33,6 +33,9 @@ jobs:
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
+      ${{ if eq(parameters.os, 'macOS') }}:
+        demands:
+          - ImageOverride -equals ACES_VM_SharedPool_Sequoia
     timeoutInMinutes: 30
     templateContext:
       outputs:

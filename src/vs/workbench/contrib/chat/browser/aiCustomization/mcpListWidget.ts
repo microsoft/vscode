@@ -22,7 +22,9 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceIcon } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IQueryOptions, mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, IMcpService, IMcpServer, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
@@ -30,6 +32,7 @@ import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ContributionEnablementState, isContributionDisabled, isContributionEnabled } from '../../common/enablement.js';
+import { ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../common/customizationMarketplaceInstallService.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -57,7 +60,7 @@ import { CustomizationEnablementKind, McpServerStatus } from '../../../../../pla
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getCustomizationDisabledReason, getCustomizationEnablementDecision, getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
-import { createAgentHostEnablePluginAction } from '../agentPluginActions.js';
+import { createAgentHostEnablePluginAction, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -76,6 +79,7 @@ import { ICopilotConnector, ICopilotConnectorsService, IConnectedCopilotConnecto
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
+import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 
 export type { AgentHostMcpServer } from './mcpServerCount.js';
 
@@ -84,6 +88,28 @@ const $ = DOM.$;
 const PLUGIN_COLLECTION_PREFIX = MCP_PLUGIN_COLLECTION_ID_PREFIX;
 const MCP_INSTALLED_ITEM_HEIGHT = 44;
 const MCP_MARKETPLACE_ITEM_HEIGHT = 58;
+const MCP_UNINSTALL_ACTION_ID = 'extensions.uninstall';
+
+export function getMarketplaceMcpManagementAction(
+	action: IAction,
+	serverId: string,
+	marketplaceInstallService: ICustomizationMarketplaceInstallService,
+): IAction {
+	const marketplace = marketplaceInstallService.installations.get().findByTarget({ kind: 'mcp', id: serverId });
+	if (!marketplace || action.id !== MCP_UNINSTALL_ACTION_ID) {
+		return action;
+	}
+	const marketplaceUninstall = new Action(
+		action.id,
+		action.label,
+		action.class,
+		action.enabled,
+		() => marketplaceInstallService.uninstall(marketplace.resource),
+	);
+	marketplaceUninstall.tooltip = action.tooltip;
+	marketplaceUninstall.checked = action.checked;
+	return marketplaceUninstall;
+}
 
 const COPILOT_EXTENSION_IDS = ['github.copilot', 'github.copilot-chat'];
 
@@ -119,6 +145,7 @@ interface IMcpServerItemEntry {
 	 * already installed, so installed and not-installed results look consistent.
 	 */
 	readonly marketplace?: boolean;
+	readonly marketplaceRecord?: IRecordedCustomizationMarketplaceResource;
 }
 
 interface IMcpSessionServerItemEntry {
@@ -150,6 +177,21 @@ export function isMcpServerCollectionVisible(collectionId: string, hiddenCollect
 }
 
 export type IMcpInstalledEntry = IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry;
+
+function hasMcpInstalledEntryIcon(entry: IMcpInstalledEntry): boolean {
+	return entry.type === 'server-item' && (!!entry.marketplaceRecord?.resource.icon || !!entry.server.icon);
+}
+
+function getMcpInstalledEntryIcon(entry: IMcpInstalledEntry): CustomizationMarketplaceIcon | undefined {
+	if (entry.type !== 'server-item') {
+		return undefined;
+	}
+	if (entry.marketplaceRecord?.resource.icon) {
+		return entry.marketplaceRecord.resource.icon;
+	}
+	const icon = entry.server.icon;
+	return icon ? { light: URI.parse(icon.light), dark: URI.parse(icon.dark) } : undefined;
+}
 
 interface IMcpMarketplaceEntry {
 	readonly type: 'marketplace-item';
@@ -220,6 +262,8 @@ export function getToggledMcpEnablementState(state: ContributionEnablementState)
 
 interface IMcpServerItemTemplateData {
 	readonly container: HTMLElement;
+	readonly icon: HTMLElement;
+	readonly iconDisposables: DisposableStore;
 	readonly name: HTMLElement;
 	readonly secondaryLine: HTMLElement;
 	readonly compatibilityMessage: HTMLElement;
@@ -269,13 +313,25 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-	) { super(); }
+		@IThemeService private readonly themeService: IThemeService,
+	) {
+		super();
+		this._register(this.themeService.onDidColorThemeChange(() => {
+			for (const template of this._templates) {
+				if (template.currentElement) {
+					this.renderIcon(template.currentElement, template);
+				}
+			}
+		}));
+	}
 
 	renderTemplate(container: HTMLElement): IMcpServerItemTemplateData {
 		const templateDisposables = new DisposableStore();
 		container.classList.add('mcp-server-item');
 		container.style.minHeight = `${MCP_INSTALLED_ITEM_HEIGHT}px`;
 
+		const icon = DOM.append(container, $('.mcp-server-icon'));
+		const iconDisposables = templateDisposables.add(new DisposableStore());
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
 		const name = DOM.append(nameRow, $('.mcp-server-name'));
@@ -294,6 +350,8 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 
 		const template: IMcpServerItemTemplateData = {
 			container,
+			icon,
+			iconDisposables,
 			name,
 			secondaryLine,
 			compatibilityMessage,
@@ -317,6 +375,17 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		this.renderEntry(element, templateData);
 	}
 
+	private renderIcon(element: IMcpInstalledEntry, templateData: IMcpServerItemTemplateData): void {
+		templateData.iconDisposables.clear();
+		renderCustomizationMarketplaceIcon(
+			templateData.icon,
+			mcpServerIcon,
+			getMcpInstalledEntryIcon(element),
+			this.themeService.getColorTheme().type,
+			templateData.iconDisposables,
+		);
+	}
+
 	private renderEntry(element: IMcpInstalledEntry, templateData: IMcpServerItemTemplateData): void {
 		templateData.currentElement = element;
 		// Tearing down the actions is what makes a click land on a node that is about to be
@@ -331,6 +400,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		}
 		// Always re-created: these capture `element`, which is a fresh object on every refresh.
 		templateData.elementDisposables.clear();
+		this.renderIcon(element, templateData);
 		const source = getMcpEntrySource(element, this.labelService, this.agentPluginService, this.extensionsWorkbenchService, this._openPlugin);
 		if (source?.open) {
 			templateData.sourcePath.textContent = source.label;
@@ -1530,8 +1600,10 @@ function isConnectorMcpEntry(entry: IMcpInstalledEntry): entry is IMcpBuiltinIte
 
 export function createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry, error?: IObservable<string | undefined>): IMcpServerDetailInput {
 	if (entry.type === 'server-item') {
+		const input = createWorkbenchMcpServerDetailInput(entry.server);
 		return {
-			...createWorkbenchMcpServerDetailInput(entry.server),
+			...input,
+			icon: entry.marketplaceRecord?.resource.icon ?? input.icon,
 			compatibilityId: entry.localServer?.definition.id ?? entry.server.id,
 			error,
 		};
@@ -1670,6 +1742,7 @@ export class McpListWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
+		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IMcpRegistry private readonly mcpRegistry: IMcpRegistry,
 		@ICopilotConnectorsService private readonly connectorsService: ICopilotConnectorsService,
@@ -1694,6 +1767,10 @@ export class McpListWidget extends Disposable {
 		this.agentHostCustomizationsChanged = observableSignalFromEvent(this, this.agentHostCustomizationService.onDidChangeCustomizations);
 		this.element = $('.mcp-list-widget.plugin-list-widget');
 		this.create();
+		this._register(autorun(reader => {
+			this.marketplaceInstallService.installations.read(reader);
+			this.filterServers();
+		}));
 		const resizeObserver = this._register(new DOM.DisposableResizeObserver(
 			'McpListWidget',
 			() => this.updateResponsiveLayout(this.element.offsetWidth),
@@ -1750,7 +1827,7 @@ export class McpListWidget extends Disposable {
 					this.filterServers();
 				}
 			}
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled)) {
 				this.updateMcpServerCompatibilityScope();
 			}
 		}));
@@ -2062,7 +2139,7 @@ export class McpListWidget extends Disposable {
 		if (!this.visible) {
 			return;
 		}
-		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled) !== true) {
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMigrationEnabled) !== true) {
 			return;
 		}
 		const descriptor = this.customizationHarnessService.getActiveDescriptor();
@@ -2860,6 +2937,7 @@ export class McpListWidget extends Disposable {
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const activeSessionMatcher = new ActiveSessionMcpServerMatcher(this.agentHostCustomizationService.getMcpServers(activeSessionResource));
 		const localServerMatcher = new LocalMcpServerMatcher(this.mcpService.servers.get());
+		const marketplaceInstallations = this.marketplaceInstallService.installations.get();
 
 		if (query) {
 			this.filteredServers = this.mcpWorkbenchService.local.filter(server =>
@@ -2887,6 +2965,7 @@ export class McpListWidget extends Disposable {
 			const entry: IMcpServerItemEntry = {
 				type: 'server-item',
 				server,
+				marketplaceRecord: marketplaceInstallations.findByTarget({ kind: 'mcp', id: server.id }),
 				activeSessionServer: activeSessionMatcher.take(getWorkbenchServerMatchKeys(server)),
 				localServer: localServerMatcher.find(getWorkbenchServerMatchKeys(server)),
 			};
@@ -2942,6 +3021,7 @@ export class McpListWidget extends Disposable {
 			...activeSessionBuiltinEntries.map(entry => ({ entry })),
 		];
 		this.installedEntries = preserveMcpEntryOrder(this.installedEntries, this.installedEntryOrder);
+		this.element.classList.toggle('show-mcp-item-icons', this.installedEntries.some(({ entry }) => hasMcpInstalledEntryIcon(entry)));
 
 		this._onDidChangeItemCount.fire(this.itemCount);
 		if (render) {
@@ -3201,7 +3281,7 @@ export class McpListWidget extends Disposable {
 							type: 'question',
 						});
 						if (result.confirmed) {
-							await plugin.remove?.();
+							await removePluginWithMarketplaceOwnership(plugin, this.marketplaceInstallService);
 						}
 					}
 				)));
@@ -3218,8 +3298,14 @@ export class McpListWidget extends Disposable {
 			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, ['workspace', 'session'])
 			: [];
 		for (const menuActions of groups) {
-			for (const menuAction of menuActions) {
-				if (isDisposable(menuAction)) {
+			for (let index = 0; index < menuActions.length; index++) {
+				const originalMenuAction = menuActions[index];
+				if (isDisposable(originalMenuAction)) {
+					disposables.add(originalMenuAction);
+				}
+				const menuAction = getMarketplaceMcpManagementAction(originalMenuAction, mcpServer.id, this.marketplaceInstallService);
+				menuActions[index] = menuAction;
+				if (menuAction !== originalMenuAction && isDisposable(menuAction)) {
 					disposables.add(menuAction);
 				}
 			}

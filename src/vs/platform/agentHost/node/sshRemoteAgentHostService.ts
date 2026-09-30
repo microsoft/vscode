@@ -47,6 +47,7 @@ import {
 } from './sshKnownHosts.js';
 import type { RemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
+import { RelayActivityReporter } from '../common/relayActivity.js';
 import { AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import {
@@ -532,6 +533,7 @@ function createWebSocketOverChannel(
 	logService: ILogService,
 	onMessage: (data: string) => void,
 	onClose: () => void,
+	onActivity: () => void,
 ): Promise<{ send: (data: string) => void; close: () => void }> {
 	return new Promise((resolve, reject) => {
 		const WS = nativeRequire('ws') as typeof WebSocket;
@@ -544,20 +546,31 @@ function createWebSocketOverChannel(
 		// with ws's createConnection, but our minimal SSHChannel interface
 		// doesn't carry the full Node Duplex shape.
 		const ws = new WS(url, { createConnection: (() => channel) as unknown as WebSocket.ClientOptions['createConnection'] });
+		const activity = new RelayActivityReporter(onActivity);
 
 		ws.on('open', () => {
 			logService.info(`${LOG_PREFIX} WebSocket relay connected to remote agent host`);
+			// ws subscribed to 'data' before emitting 'open', so this runs after it relays any message the chunk completes.
+			const onChannelData = () => activity.dataReceived();
+			const stopReportingActivity = () => channel.removeListener('data', onChannelData);
+			channel.on('data', onChannelData);
+			ws.once('close', stopReportingActivity);
 			resolve({
 				send: (data: string) => {
 					if (ws.readyState === ws.OPEN) {
 						ws.send(data);
 					}
 				},
-				close: () => ws.close(),
+				close: () => {
+					// Stop now: bytes arrive until the close handshake ends, and a replacement relay reuses this connection ID.
+					stopReportingActivity();
+					ws.close();
+				},
 			});
 		});
 
 		ws.on('message', (data: WebSocket.RawData) => {
+			activity.messageReceived();
 			if (Array.isArray(data)) {
 				onMessage(Buffer.concat(data).toString());
 			} else if (data instanceof ArrayBuffer) {
@@ -595,6 +608,7 @@ async function createWebSocketRelayForEndpoint(
 	logService: ILogService,
 	onMessage: (data: string) => void,
 	onClose: () => void,
+	onActivity: () => void,
 ): Promise<{ send: (data: string) => void; close: () => void }> {
 	let channel: SSHChannel;
 	let urlHost: string;
@@ -614,7 +628,7 @@ async function createWebSocketRelayForEndpoint(
 		urlHost = '127.0.0.1';
 		urlPort = 1;
 	}
-	return createWebSocketOverChannel(nativeRequire, channel, urlHost, urlPort, connectionToken, logService, onMessage, onClose);
+	return createWebSocketOverChannel(nativeRequire, channel, urlHost, urlPort, connectionToken, logService, onMessage, onClose, onActivity);
 }
 
 function sanitizeConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfigSanitized {
@@ -725,6 +739,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage: Event<IRelayMessage> = this._onDidRelayMessage.event;
 
+	private readonly _onDidRelayActivity = this._register(new Emitter<string>());
+	readonly onDidRelayActivity: Event<string> = this._onDidRelayActivity.event;
+
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
 
@@ -811,7 +828,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * the import, avoiding issues with Electron's ESM loader which cannot
 	 * resolve `node:` specifiers.
 	 */
-	private async _getNativeRequire(): Promise<NodeJS.Require> {
+	protected async _getNativeRequire(): Promise<NodeJS.Require> {
 		if (!this._nativeRequire) {
 			const nodeModule = await import('node:module');
 			this._nativeRequire = nodeModule.createRequire(import.meta.url);
@@ -857,6 +874,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 							sshClient, endpoint, cliBin, cliDataDir, instanceId, userDataPath, connectionToken,
 							(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
 							() => { conn?.dispose(); },
+							() => this._onDidRelayActivity.fire(connectionId),
 						),
 						timeoutMs,
 					);
@@ -1109,6 +1127,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					sshClient, endpoint, cliBin, cliDataDir, instanceId, userDataPath, connectionToken,
 					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
 					() => { conn?.dispose(); },
+					() => this._onDidRelayActivity.fire(connectionId),
 				);
 			} catch (relayErr) {
 				// Never silently promote a different candidate, nor kill/replace
@@ -2153,10 +2172,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		relayInstanceId: string,
 		relayUserDataPath: string,
 		connectionToken: string | undefined,
-		onMessage: (data: string) => void, onClose: () => void,
+		onMessage: (data: string) => void, onClose: () => void, onActivity: () => void,
 	): Promise<{ send: (data: string) => void; close: () => void }> {
 		const nativeRequire = await this._getNativeRequire();
-		return createWebSocketRelayForEndpoint(nativeRequire, client, endpoint, relayCliBin, relayCliDataDir, relayInstanceId, relayUserDataPath, connectionToken, this._logService, onMessage, onClose);
+		return createWebSocketRelayForEndpoint(nativeRequire, client, endpoint, relayCliBin, relayCliDataDir, relayInstanceId, relayUserDataPath, connectionToken, this._logService, onMessage, onClose, onActivity);
 	}
 
 

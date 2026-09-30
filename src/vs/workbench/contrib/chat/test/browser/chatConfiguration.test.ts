@@ -81,8 +81,8 @@ suite('Chat configuration', () => {
 
 	test('migrates removed progress animations to Draw', async () => {
 		assert.deepStrictEqual(await Promise.all(
-			['weave', 'orbit', 'accordion', 'dial'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
-		), Array.from({ length: 4 }, () => ({ value: 'draw' })));
+			['weave', 'orbit', 'accordion', 'dial', 'ribbon'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
+		), Array.from({ length: 5 }, () => ({ value: 'draw' })));
 	});
 
 	test('preserves current progress styles and absent settings during migration', async () => {

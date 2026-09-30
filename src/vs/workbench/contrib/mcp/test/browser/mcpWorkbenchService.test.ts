@@ -1257,8 +1257,12 @@ suite('McpWorkbenchService', () => {
 		]);
 	});
 
-	test('installed discovery publishes legacy and never republishes its same-name root copy', async () => {
-		const legacy = { ...createLocal('same', LocalMcpServerScope.Workspace), id: 'mcp.config.ws0.same', mcpResource: URI.file('/workspace/.vscode/mcp.json') };
+	test('installed discovery publishes legacy metadata and never republishes its same-name root copy', async () => {
+		const legacy = {
+			...createLocal('same', LocalMcpServerScope.Workspace, { type: McpServerType.LOCAL, command: 'node', gallery: false, version: '1.0.0' }),
+			id: 'mcp.config.ws0.same',
+			mcpResource: URI.file('/workspace/.vscode/mcp.json'),
+		};
 		const root = { ...legacy, id: 'workspace-dot-mcp.0.same', mcpResource: URI.file('/workspace/.mcp.json'), format: McpResourceFormat.WorkspaceRoot };
 		const { service, workspaceService, logService } = await createFixture([legacy, root], McpAccessValue.All);
 		workspaceService.setWorkspace({ id: 'test', folders: [toWorkspaceFolder(URI.file('/workspace'))] });
@@ -1275,7 +1279,7 @@ suite('McpWorkbenchService', () => {
 		const collection = await registered.p;
 		assert.deepStrictEqual({
 			collectionId: collection.id,
-			servers: collection.serverDefinitions.get().map(server => server.id),
-		}, { collectionId: 'mcp.config.ws0', servers: [legacy.id] });
+			servers: collection.serverDefinitions.get().map(server => ({ id: server.id, gallery: server.gallery, version: server.version })),
+		}, { collectionId: 'mcp.config.ws0', servers: [{ id: legacy.id, gallery: false, version: '1.0.0' }] });
 	});
 });

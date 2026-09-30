@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import { GitHubSessionEngine, UriEventHandler } from './github';
+import { getEnterpriseStorageKey, getEnterpriseUriKey, migrateEnterpriseStorage } from './common/enterpriseStorage';
 
 interface EnterpriseHost {
 	readonly uri: vscode.Uri;
-	readonly storageKey: string;
 	readonly engine: GitHubSessionEngine;
 	readonly listener: vscode.Disposable;
 	readonly initialChanges: Map<string, vscode.AuthenticationSession | undefined>;
@@ -72,11 +72,17 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 
 	private async applyConfiguration(uri: vscode.Uri | undefined, error: string | undefined): Promise<void> {
 		this.throwIfDisposed();
+		const key = uri && getEnterpriseUriKey(uri);
+		const currentKey = this._host && getEnterpriseUriKey(this._host.uri);
 		this._configurationError = error ?? vscode.l10n.t('Configure github-enterprise.uri before signing in to GitHub Enterprise.');
-		if (this._registration && this._host?.uri.toString() === uri?.toString()) {
+		if (this._registration && currentKey === key) {
 			return;
 		}
-		const next = uri && this.createHost(uri, `${uri.authority}${uri.path}.ghes.auth`);
+		if (uri) {
+			await migrateEnterpriseStorage(this._context, uri);
+		}
+		this.throwIfDisposed();
+		const next = key ? this.createHost(vscode.Uri.parse(key)) : undefined;
 		const cancellation = this._disposeCancellation.token.onCancellationRequested(() => disposeHost(next));
 		try {
 			const initialSessions = next ? await next.engine.getSessions(undefined, {}) : [];
@@ -99,12 +105,11 @@ export class GitHubEnterpriseAuthenticationProvider implements vscode.Authentica
 		}
 	}
 
-	private createHost(uri: vscode.Uri, storageKey: string): EnterpriseHost {
-		const engine = new GitHubSessionEngine(this._context, this._uriHandler, uri, storageKey);
+	private createHost(uri: vscode.Uri): EnterpriseHost {
+		const engine = new GitHubSessionEngine(this._context, this._uriHandler, uri, getEnterpriseStorageKey(uri));
 		const initialChanges = new Map<string, vscode.AuthenticationSession | undefined>();
 		return {
 			uri,
-			storageKey,
 			engine,
 			initialChanges,
 			listener: engine.onDidChangeSessions(event => {

@@ -73,7 +73,7 @@ class FixtureChatView extends AbstractChatView {
 }
 
 /** Cloud sessions keep the production chrome independent of local tasks, authentication, and network access. */
-async function renderSessionsGrid(context: ComponentFixtureContext, options: { maximized?: boolean; multipleChats?: boolean } = {}): Promise<void> {
+async function renderSessionsGrid(context: ComponentFixtureContext, options: { maximized?: boolean; multipleChats?: boolean; sideBySide?: boolean } = {}): Promise<void> {
 	const workspace = constObservable<ISessionWorkspace>({
 		uri: URI.parse('https://github.com/microsoft/vscode'),
 		label: 'microsoft/vscode',
@@ -82,7 +82,8 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { m
 		requiresWorkspaceTrust: false,
 		isVirtualWorkspace: true,
 	});
-	const sessions = ['Grid layout', 'Session lifecycle', 'Keyboard navigation'].map((title, index) => {
+	const titles = ['Grid layout', 'Session lifecycle', 'Keyboard navigation'];
+	const sessions = (options.sideBySide ? titles.slice(0, 2) : titles).map((title, index) => {
 		const session = createTestActiveSession(`fixture-${index}`);
 		const chat: IChat = { ...session.mainChat.get(), workspace, title: constObservable(title) };
 		const sessionChats = options.multipleChats && index === 0
@@ -144,15 +145,17 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { m
 	const slots = [
 		{ id: left.sessionId },
 		{ id: top.sessionId },
-		{ id: bottom.sessionId, placement: { reference: top.sessionId, direction: Direction.Down } },
+		...(bottom ? [{ id: bottom.sessionId, placement: { reference: top.sessionId, direction: Direction.Down } }] : []),
 	];
 	context.disposableStore.add(autorun(reader => {
 		const visible = sessionsService.visibleSessions.read(reader);
 		part.updateVisibleSessions(visible, sessionsService.activeSession.read(reader), slots.filter(slot => visible.some(session => session.sessionId === slot.id)));
 	}));
 	layout();
-	part.resizeSession(left.sessionId, options.multipleChats ? Direction.Right : Direction.Left, options.multipleChats ? 180 : 120);
-	part.resizeSession(top.sessionId, Direction.Down, 40);
+	if (bottom) {
+		part.resizeSession(left.sessionId, options.multipleChats ? Direction.Right : Direction.Left, options.multipleChats ? 180 : 120);
+		part.resizeSession(top.sessionId, Direction.Down, 40);
+	}
 	if (options.multipleChats) {
 		part.getSessionView(left.sessionId)!.splitChatToSide(left.chats.get()[1].resource);
 	}
@@ -169,6 +172,8 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { m
 		const allocation = grid.getViewSize(part);
 		const contentSize = getAgentsPartCardContentSize(allocation.width, allocation.height, false, false, false);
 		assert(sizes[0].width === contentSize.width && sizes[0].height === contentSize.height && sizes.slice(1).every(size => size.width === 0 && size.height === 0), 'Expected only the maximized pane to be visible');
+	} else if (options.sideBySide) {
+		assert(sizes.length === 2 && sizes.every(size => size.width > 0 && size.height === sizes[0].height), 'Expected two full-height side-by-side sessions');
 	} else {
 		assert(options.multipleChats ? sizes[0].width > sizes[1].width : sizes[0].width < sizes[1].width, 'Expected the intended session widths');
 		assert(sizes[0].height === sizes[1].height + sizes[2].height && sizes[1].height > sizes[2].height, 'Expected unequal nested splits');
@@ -180,6 +185,12 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { m
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
+	SideBySide: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Two full-height sessions sit side by side within one floating Sessions card. Each has a session header, a completed conversation, and a chat input. The shared outer card styling is unchanged. A subtle divider remains visible at rest between the sessions in dark and light themes, while high-contrast themes retain a full-strength contrast border.'],
+		render: context => renderSessionsGrid(context, { sideBySide: true }),
+	}),
 	NestedSplits: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },

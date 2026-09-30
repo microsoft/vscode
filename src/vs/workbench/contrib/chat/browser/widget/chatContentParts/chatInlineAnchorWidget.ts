@@ -294,6 +294,7 @@ export class InlineAnchorWidget extends Disposable {
 
 		// Hover
 		const relativeLabel = labelService.getUriLabel(location.uri, { relative: true });
+		element.removeAttribute('title');
 		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, relativeLabel));
 
 		// Drag and drop

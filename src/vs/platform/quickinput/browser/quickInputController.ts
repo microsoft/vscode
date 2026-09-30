@@ -837,7 +837,18 @@ export class QuickInputController extends Disposable {
 			if (!container.classList.contains(QUICK_INPUT_OVERLAY_CLASS) && dom.hasParentWithClass(container, QUICK_INPUT_MOTION_ANCESTOR_CLASSES)) {
 				container.inert = true;
 				container.classList.add(QUICK_INPUT_MOTION_CLOSING_CLASS);
-				this.closeAnimation.value = disposableTimeout(() => this.completeCloseAnimation(), QUICK_INPUT_CLOSE_ANIMATION_DURATION);
+				const animationDisposables = new DisposableStore();
+				this.closeAnimation.value = animationDisposables;
+				// CSS can suppress motion independently of the workbench classes.
+				const [animation] = container.getAnimations();
+				if (animation) {
+					for (const event of ['finish', 'cancel']) {
+						animationDisposables.add(dom.addDisposableListener(animation, event, () => this.completeCloseAnimation()));
+					}
+					animationDisposables.add(disposableTimeout(() => this.completeCloseAnimation(), QUICK_INPUT_CLOSE_ANIMATION_DURATION));
+				} else {
+					this.completeCloseAnimation();
+				}
 			} else {
 				container.style.display = 'none';
 			}

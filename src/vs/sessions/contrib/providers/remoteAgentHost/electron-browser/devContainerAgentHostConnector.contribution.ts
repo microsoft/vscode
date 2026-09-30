@@ -143,6 +143,8 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 	declare readonly _serviceBrand: undefined;
 	private readonly _messages = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage = this._messages.event;
+	private readonly _relayActivity = this._register(new Emitter<string>());
+	readonly onDidRelayActivity = this._relayActivity.event;
 	private readonly _relayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose = this._relayClose.event;
 	private readonly _close = this._register(new Emitter<string>());
@@ -183,6 +185,7 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 			}
 			entry.service = service;
 			store.add(Event.filter(service.onDidRelayMessage, event => event.connectionId === config.connectionId)(event => this._messages.fire(event)));
+			store.add(Event.filter(service.onDidRelayActivity, id => id === config.connectionId)(id => this._relayActivity.fire(id)));
 			store.add(Event.filter(service.onDidRelayClose, id => id === config.connectionId)(id => this._relayClose.fire(id)));
 			store.add(Event.filter(service.onDidCloseConnection, id => id === config.connectionId)(id => this._close.fire(id)));
 			store.add(Event.filter(service.onDidOutput, event => event.connectionId === config.connectionId)(event => this._output.fire(event)));

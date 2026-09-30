@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -29,7 +30,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 		starsCount: 42,
 		webUrl: 'https://registry.test/servers/io.github.owner%2Fserver',
 		repositoryUrl: 'https://github.com/owner/server',
-		icon: { light: 'javascript:alert(1)', dark: 'https://registry.test/icon.png' },
+		icon: { light: 'https://registry.test/icon-light.png', dark: 'https://registry.test/icon-dark.png' },
 		configuration: { packages: [] },
 	};
 	const customUrl = 'https://registry.test';
@@ -62,6 +63,10 @@ suite('McpGalleryMarketplaceProvider', () => {
 			first,
 			lastCursor: last.nextCursor,
 			entryFields: Object.keys(first.items[0]),
+			iconUris: URI.isUri(first.items[0].icon) ? undefined : {
+				light: first.items[0].icon?.light.toString(),
+				dark: first.items[0].icon?.dark.toString(),
+			},
 		}, {
 			requests: [
 				{ text: 'server', pageSize: 2, cursor: undefined },
@@ -75,13 +80,18 @@ suite('McpGalleryMarketplaceProvider', () => {
 					tags: ['database'], capabilities: [], representativeQueries: [],
 					url: first.items[0].url, externalUrl: server.webUrl,
 					repository: first.items[0].repository,
+					icon: first.items[0].icon,
 					publisher: 'Owner', version: '1.0.0', stars: 42, priority: 1,
 					installation: { kind: 'mcpGallery', name: server.name, registry: 'custom', registryUrl: customUrl },
 				}],
 				total: 2, nextCursor: 'opaque+/=',
 			},
 			lastCursor: undefined,
-			entryFields: ['identifier', 'displayName', 'description', 'mediaType', 'tags', 'capabilities', 'representativeQueries', 'url', 'externalUrl', 'repository', 'publisher', 'version', 'stars', 'priority', 'installation'],
+			entryFields: ['identifier', 'displayName', 'description', 'mediaType', 'tags', 'capabilities', 'representativeQueries', 'url', 'externalUrl', 'repository', 'icon', 'publisher', 'version', 'stars', 'priority', 'installation'],
+			iconUris: {
+				light: 'https://registry.test/icon-light.png',
+				dark: 'https://registry.test/icon-dark.png',
+			},
 		});
 	});
 

@@ -849,7 +849,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				: undefined;
 			if (!requirement.effective) {
 				this.setManagedSettingsFreshness(MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED);
-			} else if ((!scope || !isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope) || options?.forceRefresh) && this.canRequestManagedSettings(options, scope)) {
+			} else if ((!scope || !isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope)) && this.canRequestManagedSettings(options, scope)) {
 				this.setManagedSettingsFreshness({
 					state: ManagedSettingsFreshnessState.Pending,
 					source: requirement.source,
@@ -1195,7 +1195,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 
 		const lastAttemptAt = Date.now();
-		if (requirement.effective) {
+		// Keep the accepted policy active during a same-scope refresh; failures below still close the gate.
+		if (requirement.effective && !freshnessSatisfied) {
 			this.setManagedSettingsFreshness({
 				state: ManagedSettingsFreshnessState.Pending,
 				source: requirement.source,

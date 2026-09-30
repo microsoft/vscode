@@ -130,12 +130,12 @@ test('sessions grid gallery mounts all variants without shared-registration conf
 		}
 	});
 	try {
-		await gallery.setViewportSize({ width: 3400, height: 4600 });
+		await gallery.setViewportSize({ width: 3400, height: 6400 });
 		await gallery.goto(`${getBaseURL()}/___explorer?fixture=sessions%2Fgrid%2FsessionsGrid`, { waitUntil: 'networkidle' });
-		await expect(gallery.locator('.part.titlebar')).toHaveCount(8);
-		await expect(gallery.locator('.session-view:visible')).toHaveCount(20);
-		await expect(gallery.locator('.part.titlebar').getByRole('button', { name: 'New Session', exact: true })).toHaveCount(8);
-		await expect(gallery.locator('.sessions-account-titlebar-widget')).toHaveCount(8);
+		await expect(gallery.locator('.part.titlebar')).toHaveCount(12, { timeout: 20_000 });
+		await expect(gallery.locator('.session-view:visible')).toHaveCount(28);
+		await expect(gallery.locator('.part.titlebar').getByRole('button', { name: 'New Session', exact: true })).toHaveCount(12);
+		await expect(gallery.locator('.sessions-account-titlebar-widget')).toHaveCount(12);
 		expect(errors).toEqual([]);
 	} finally {
 		await gallery.close();

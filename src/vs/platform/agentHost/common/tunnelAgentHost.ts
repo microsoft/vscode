@@ -369,6 +369,9 @@ export interface ITunnelAgentHostMainService {
 	/** Fires when a message is received from a remote agent host via the tunnel relay. */
 	readonly onDidRelayMessage: Event<ITunnelRelayMessage>;
 
+	/** Fires with a connection ID while that tunnel relay receives part of a message. */
+	readonly onDidRelayActivity: Event<string /* connectionId */>;
+
 	/** Fires when a relay connection to a remote agent host closes. */
 	readonly onDidRelayClose: Event<string /* connectionId */>;
 

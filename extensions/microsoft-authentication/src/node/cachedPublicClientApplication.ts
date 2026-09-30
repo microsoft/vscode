@@ -13,6 +13,21 @@ import { ICachedPublicClientApplication } from '../common/publicClientCache';
 import { IAccountAccess } from '../common/accountAccess';
 import { MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 
+/** The native broker, when this environment has one and the user has not turned it off. */
+export function getNativeBrokerOptions(clientId: string, logger: LogOutputChannel): BrokerOptions | undefined {
+	if (env.uiKind === UIKind.Web) {
+		logger.info(`[${clientId}] Native Broker is not available in web UI`);
+		return undefined;
+	}
+	if (workspace.getConfiguration('microsoft-authentication').get<'msal' | 'msal-no-broker'>('implementation') === 'msal-no-broker') {
+		logger.info(`[${clientId}] Native Broker disabled via settings`);
+		return undefined;
+	}
+	const nativeBrokerPlugin = new NativeBrokerPlugin();
+	logger.info(`[${clientId}] Native Broker enabled: ${nativeBrokerPlugin.isBrokerAvailable}`);
+	return nativeBrokerPlugin.isBrokerAvailable ? { nativeBrokerPlugin } : undefined;
+}
+
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	// Core properties
 	private _pca: PublicClientApplication;
@@ -50,19 +65,8 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		);
 
 		const loggerOptions = new MsalLoggerOptions(_logger, telemetryReporter);
-		let broker: BrokerOptions | undefined;
-		if (env.uiKind === UIKind.Web) {
-			this._logger.info(`[${this._clientId}] Native Broker is not available in web UI`);
-		} else if (workspace.getConfiguration('microsoft-authentication').get<'msal' | 'msal-no-broker'>('implementation') === 'msal-no-broker') {
-			this._logger.info(`[${this._clientId}] Native Broker disabled via settings`);
-		} else {
-			const nativeBrokerPlugin = new NativeBrokerPlugin();
-			this.isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
-			this._logger.info(`[${this._clientId}] Native Broker enabled: ${this.isBrokerAvailable}`);
-			if (this.isBrokerAvailable) {
-				broker = { nativeBrokerPlugin };
-			}
-		}
+		const broker = getNativeBrokerOptions(_clientId, _logger);
+		this.isBrokerAvailable = !!broker;
 		this._pca = new PublicClientApplication({
 			auth: { clientId: _clientId },
 			system: {

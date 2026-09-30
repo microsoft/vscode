@@ -299,10 +299,10 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			if (Array.isArray(currentParent)) {
 				currentParent.push(value);
 			} else if (currentProperty !== null) {
-				if (currentParent[currentProperty] !== undefined) {
+				if (Object.hasOwn(currentParent, currentProperty)) {
 					throw new Error(`Duplicate property found: ${currentProperty}`);
 				}
-				currentParent[currentProperty] = value;
+				json.setObjectProperty(currentParent, currentProperty, value);
 			}
 		}
 

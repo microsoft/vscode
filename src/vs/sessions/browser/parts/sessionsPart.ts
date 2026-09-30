@@ -433,7 +433,7 @@ export class SessionsPart extends Part {
 	}
 
 	private get _gridSeparatorBorder(): Color {
-		return this.theme.getColor(agentsPanelBorder) || this.theme.getColor(contrastBorder) || Color.transparent;
+		return this.theme.getColor(contrastBorder) || this.theme.getColor(agentsPanelBorder)?.transparent(0.5) || Color.transparent;
 	}
 
 	override updateStyles(): void {

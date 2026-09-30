@@ -105,6 +105,23 @@ suite('connectWebSocketOverDuplex', () => {
 		assert.ok(messages.length === 1 && messages[0] === payload);
 	});
 
+	test('reports each received chunk after delivering the message it completes', async () => {
+		const stream = new FakeDuplexStream();
+		const socketPromise = connect(stream);
+		stream.push(await createUpgradeResponse(stream.request));
+		const socket = store.add(await socketPromise);
+		assert.ok(socket.onDidReceiveData);
+		const events: string[] = [];
+		store.add(socket.onDidReceiveMessage(message => events.push(`message(${message.length})`)));
+		store.add(socket.onDidReceiveData(() => events.push('data')));
+		const frame = createFrame('x'.repeat(1000));
+
+		stream.push(frame.subarray(0, 500));
+		stream.push(frame.subarray(500));
+
+		assert.deepStrictEqual(events, ['data', 'message(1000)', 'data']);
+	});
+
 	test('masks outgoing text frames', async () => {
 		const stream = new FakeDuplexStream();
 		const socketPromise = connect(stream);

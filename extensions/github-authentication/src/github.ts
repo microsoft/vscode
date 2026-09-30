@@ -45,6 +45,19 @@ interface ITransientSession {
 
 const TOKEN_RENEWAL_WINDOW_MS = 60 * 60 * 1000;
 
+/**
+ * A session option only the workbench can set: VS Code strips every `_workbench` option from
+ * extension requests before they reach a provider. Its value, `{ subjectTokens: string[] }`, carries
+ * Microsoft Entra access tokens for the GitHub audience, and asks whether GitHub links any of those
+ * identities to a GitHub account. The workbench uses it to decide whether to offer "Continue with
+ * Microsoft". Must match `ENTRA_EXCHANGE_PROBE_OPTION` in `chatSetupMicrosoftProbe.ts`.
+ */
+const WORKBENCH_ENTRA_EXCHANGE_PROBE = '_workbenchEntraExchangeProbe';
+
+interface IWorkbenchProbeOptions {
+	readonly [WORKBENCH_ENTRA_EXCHANGE_PROBE]?: unknown;
+}
+
 export enum AuthProviderType {
 	github = 'github',
 	githubEnterprise = 'github-enterprise'
@@ -280,6 +293,11 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 	}
 
 	async getSessions(scopes: string[] | undefined, options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
+		const probe = (options as IWorkbenchProbeOptions | undefined)?.[WORKBENCH_ENTRA_EXCHANGE_PROBE];
+		if (probe !== undefined) {
+			return await this.probeMicrosoftLink(probe);
+		}
+
 		// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 		const sortedScopes = scopes?.sort() || [];
 		const describedScopes = sortedScopes.length ? sortedScopes.join(',') : 'all scopes';
@@ -296,6 +314,36 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 		const restored = await this.restore(sortedScopes, options?.account, finalSessions);
 		this._logger.info(`Got ${finalSessions.length + restored.length} sessions for ${describedScopes}...`);
 		return [...finalSessions, ...restored];
+	}
+
+	/**
+	 * Answers a `getSessions` call from the workbench that set {@link WORKBENCH_ENTRA_EXCHANGE_PROBE}.
+	 *
+	 * Tries each Microsoft token in turn and stops at the first one GitHub links to an account, so
+	 * that as few GitHub tokens as possible are minted. The returned session only describes that
+	 * account: it has no access token, and it is never persisted, published or announced through
+	 * {@link onDidChangeSessions}.
+	 */
+	private async probeMicrosoftLink(probe: unknown): Promise<vscode.AuthenticationSession[]> {
+		const subjectTokens = (probe as { subjectTokens?: unknown } | null)?.subjectTokens;
+		if (!Array.isArray(subjectTokens) || !subjectTokens.every(token => typeof token === 'string' && token)) {
+			throw new Error('The Microsoft link probe requires a list of subject tokens.');
+		}
+		this._logger.info(`Checking whether any of ${subjectTokens.length} Microsoft identities is linked to a GitHub account...`);
+		for (const subjectToken of subjectTokens) {
+			const account = await this._githubServer.probeMicrosoftLink(subjectToken);
+			if (account) {
+				return [{
+					id: account.id,
+					// Deliberately empty. This session only says which account is linked; it is not a
+					// sign-in, and the token minted to find out never leaves this extension.
+					accessToken: '',
+					account: { id: account.id, label: account.accountName },
+					scopes: []
+				}];
+			}
+		}
+		return [];
 	}
 
 	/**
