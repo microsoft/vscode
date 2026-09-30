@@ -19,17 +19,12 @@ import { Emitter } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import * as path from '../../../../util/vs/base/common/path';
 
-// Mock fs operations to avoid real filesystem access during tests
-const { mockRm, mockStat } = vi.hoisted(() => ({
-	mockRm: vi.fn(async () => { }),
-	mockStat: vi.fn(async () => ({ isFile: () => true })),
+const { mockPrepareShim } = vi.hoisted(() => ({
+	mockPrepareShim: vi.fn<() => Promise<string | undefined>>(),
 }));
 
-vi.mock('fs', () => ({
-	promises: {
-		rm: mockRm,
-		stat: mockStat,
-	}
+vi.mock('../copilotCLINativeShim', () => ({
+	prepareCopilotCLINativeShim: mockPrepareShim,
 }));
 
 // Mock Python terminal service to avoid extension dependency
@@ -57,9 +52,9 @@ vi.mock('../../../../platform/workspace/common/workspaceService', () => ({
 
 import type { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { PythonTerminalService } from '../copilotCLIPythonTerminalService';
-import { CopilotCLITerminalIntegration, getNativeCopilotShimPath } from '../copilotCLITerminalIntegration';
+import { CopilotCLITerminalIntegration } from '../copilotCLITerminalIntegration';
 
-const expectedShimPath = getNativeCopilotShimPath(process.platform, process.execPath, '');
+const expectedShimPath = path.join('/tmp/test-global-storage', 'copilotCli', process.platform === 'win32' ? 'copilot.exe' : 'copilot');
 
 /**
  * Mirrors how the integration quotes a command for POSIX shells.
@@ -238,6 +233,7 @@ describe('CopilotCLITerminalIntegration', () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
+		mockPrepareShim.mockResolvedValue(expectedShimPath);
 
 		terminalService = disposables.add(new TestTerminalService());
 		telemetryService = new TestTelemetryService();
@@ -427,8 +423,27 @@ describe('CopilotCLITerminalIntegration', () => {
 			expect(callArgs.shellArgs).toEqual(['/c', expectedShimPath, '--resume', 'sess-1']);
 		});
 
+		it.runIf(process.platform === 'win32')('should launch a stored native shim with spaces through Git Bash', async () => {
+			envService.shell = 'C:\\Program Files\\Git\\bin\\bash.exe';
+			mockPrepareShim.mockResolvedValueOnce('C:\\global storage\\copilotCli\\copilot.exe');
+			const bashIntegration = await createIntegration();
+			await bashIntegration.openTerminal('Git Bash', ['--resume', 'session-1']);
+			const options = terminalService.createTerminalSpy.mock.calls[0][0] as TerminalOptions;
+			expect(options.shellArgs).toEqual(['-ic', '"/c/global storage/copilotCli/copilot.exe" --resume session-1']);
+		});
+
+		it('should launch a stored native shim with spaces through PowerShell', async () => {
+			envService.shell = 'pwsh';
+			const storedPath = '/global storage/copilotCli/copilot';
+			mockPrepareShim.mockResolvedValueOnce(storedPath);
+			const powershellIntegration = await createIntegration();
+			await powershellIntegration.openTerminal('PowerShell', ['--resume', 'session 1']);
+			const options = terminalService.createTerminalSpy.mock.calls[0][0] as TerminalOptions;
+			expect(options.shellArgs).toEqual(['-Command', `& '${storedPath}' '--resume' 'session 1'`]);
+		});
+
 		it('should run copilot from PATH when the native shim is missing', async () => {
-			mockStat.mockRejectedValueOnce(new Error('ENOENT'));
+			mockPrepareShim.mockResolvedValueOnce(undefined);
 			const pathIntegration = await createIntegration();
 
 			await pathIntegration.openTerminal('Path Terminal', ['--resume', 'sess-1']);
@@ -446,13 +461,13 @@ describe('CopilotCLITerminalIntegration', () => {
 				'copilot-cli',
 				path.dirname(expectedShimPath),
 				{ command: 'copilot' },
-				undefined,
+				true,
 			);
 		});
 
 		it('should not contribute to the terminal PATH when the native shim is missing', async () => {
 			terminalService.contributePathSpy.mockClear();
-			mockStat.mockRejectedValueOnce(new Error('ENOENT'));
+			mockPrepareShim.mockResolvedValueOnce(undefined);
 			await createIntegration();
 
 			expect(terminalService.contributePathSpy).not.toHaveBeenCalled();
@@ -475,12 +490,12 @@ describe('CopilotCLITerminalIntegration', () => {
 					['-ci', `${escapeForPosixShell(expectedShimPath)} --resume sess-1`],
 				],
 				removed: [['copilot-cli']],
-				contributed: [['copilot-cli', path.dirname(expectedShimPath), { command: 'copilot' }, undefined]],
+				contributed: [['copilot-cli', path.dirname(expectedShimPath), { command: 'copilot' }, true]],
 			});
 		});
 
-		it('should remove the legacy script shims', async () => {
-			expect(mockRm).toHaveBeenCalledWith(path.join('/tmp/test-global-storage', 'copilotCli'), { recursive: true, force: true });
+		it('should prepare the native shim in extension global storage', async () => {
+			expect(mockPrepareShim).toHaveBeenCalledWith('/tmp/test-global-storage', expect.objectContaining({ warn: expect.any(Function) }));
 		});
 
 		it('should register a terminal profile provider', async () => {
@@ -488,20 +503,6 @@ describe('CopilotCLITerminalIntegration', () => {
 				'copilot-cli',
 				expect.objectContaining({ provideTerminalProfile: expect.any(Function) }),
 			);
-		});
-	});
-
-	describe('getNativeCopilotShimPath', () => {
-		it('should resolve the shim next to the code command on each platform', () => {
-			expect({
-				win32: getNativeCopilotShimPath('win32', 'C:\\Program Files\\Microsoft VS Code\\Code.exe', 'C:\\Program Files\\Microsoft VS Code\\1a2b3c4d5e\\resources\\app'),
-				darwin: getNativeCopilotShimPath('darwin', '/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin)', '/Applications/Visual Studio Code.app/Contents/Resources/app'),
-				linux: getNativeCopilotShimPath('linux', '/usr/share/code/code', '/usr/share/code/resources/app'),
-			}).toEqual({
-				win32: 'C:\\Program Files\\Microsoft VS Code\\bin\\copilot-shim\\copilot.exe',
-				darwin: '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/copilot',
-				linux: '/usr/share/code/bin/copilot-shim/copilot',
-			});
 		});
 	});
 

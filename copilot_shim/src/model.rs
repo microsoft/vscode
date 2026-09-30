@@ -76,11 +76,16 @@ pub(crate) enum CommandArguments {
 pub(crate) struct CommandSpec {
 	program: OsString,
 	arguments: CommandArguments,
+	path: Option<OsString>,
 }
 
 impl CommandSpec {
 	pub(crate) fn new(program: OsString, arguments: CommandArguments) -> Self {
-		Self { program, arguments }
+		Self {
+			program,
+			arguments,
+			path: None,
+		}
 	}
 
 	pub(crate) fn program(&self) -> &OsStr {
@@ -89,6 +94,15 @@ impl CommandSpec {
 
 	pub(crate) fn arguments(&self) -> &CommandArguments {
 		&self.arguments
+	}
+
+	pub(crate) fn with_path(mut self, path: Option<OsString>) -> Self {
+		self.path = path;
+		self
+	}
+
+	pub(crate) fn path(&self) -> Option<&std::ffi::OsStr> {
+		self.path.as_deref()
 	}
 }
 
