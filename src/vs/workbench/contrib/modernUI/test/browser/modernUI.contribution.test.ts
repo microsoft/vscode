@@ -1355,31 +1355,53 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('keeps the first colored status bar item hover surface flush with its background', () => {
+	test('keeps colored edge item hover surfaces flush without changing their content offset', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
-		root.style.cssText = '--vscode-spacing-size40: 4px; --vscode-spacing-size80: 8px;';
+		root.style.cssText = '--vscode-spacing-sizeNone: 0px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px;';
 		store.add(toDisposable(() => root.remove()));
 		const statusbar = appendElement(root, 'part statusbar');
 		const items = appendElement(statusbar, 'left-items items-container');
-		const item = appendElement(items, 'statusbar-item left first-visible-item has-background-color');
-		const label = appendElement(item, 'statusbar-item-label');
 
-		const measure = (compact: boolean) => {
+		const measure = (compact: boolean, alignment: 'left' | 'right', colored: boolean) => {
 			root.classList.toggle('modern-ui-compact', compact);
+			const edgeClass = alignment === 'left' ? 'first-visible-item' : 'last-visible-item';
+			const item = appendElement(items, `statusbar-item ${alignment} ${edgeClass}${colored ? ' has-background-color' : ''}`);
+			const label = appendElement(item, 'statusbar-item-label');
 			const itemStyle = getWindow(item).getComputedStyle(item);
 			const labelStyle = getWindow(label).getComputedStyle(label);
-			return {
+			const geometry = {
 				itemPaddingLeft: itemStyle.paddingLeft,
+				itemPaddingRight: itemStyle.paddingRight,
 				labelPaddingLeft: labelStyle.paddingLeft,
+				labelPaddingRight: labelStyle.paddingRight,
 			};
+			item.remove();
+			return geometry;
 		};
 
 		assert.deepStrictEqual({
-			defaultDensity: measure(false),
-			compactDensity: measure(true),
+			defaultDensity: {
+				standardLeftLeadingPadding: (() => {
+					const geometry = measure(false, 'left', false);
+					return [geometry.itemPaddingLeft, geometry.labelPaddingLeft];
+				})(),
+				coloredLeft: measure(false, 'left', true),
+				coloredRight: measure(false, 'right', true),
+			},
+			compactDensity: {
+				coloredLeft: measure(true, 'left', true),
+				coloredRight: measure(true, 'right', true),
+			},
 		}, {
-			defaultDensity: { itemPaddingLeft: '0px', labelPaddingLeft: '8px' },
-			compactDensity: { itemPaddingLeft: '0px', labelPaddingLeft: '0px' },
+			defaultDensity: {
+				standardLeftLeadingPadding: ['4px', '4px'],
+				coloredLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '8px', labelPaddingRight: '6px' },
+				coloredRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '6px', labelPaddingRight: '8px' },
+			},
+			compactDensity: {
+				coloredLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '4px' },
+				coloredRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '6px' },
+			},
 		});
 	});
 
