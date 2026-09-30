@@ -51,7 +51,7 @@ suite('SessionStorageCleanupNotice', () => {
 		}, undefined);
 		const buttons = [...notice.domNode.querySelectorAll<HTMLElement>('.monaco-button')];
 		const allActionsKeyboardFocusable = buttons.every(button => button.tabIndex === 0);
-		buttons.find(button => button.textContent === 'Clean Up Agent Worktrees')?.click();
+		buttons.find(button => button.textContent === 'Clean Up Agent Worktrees...')?.click();
 		buttons.find(button => button.textContent === 'Don\'t Show Again')?.click();
 		notice.domNode.querySelector<HTMLElement>('.agent-sessions-storage-cleanup-notice-dismiss')?.click();
 		notice.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));

@@ -53,7 +53,7 @@ export class SessionStorageCleanupNotice extends Disposable {
 
 		const actions = DOM.append(this.domNode, DOM.$('.agent-sessions-storage-cleanup-notice-actions'));
 		const manageButton = this._register(new Button(actions, defaultButtonStyles));
-		manageButton.label = localize('sessionStorageCleanupNotice.manage', "Clean Up Agent Worktrees");
+		manageButton.label = localize('sessionStorageCleanupNotice.manage', "Clean Up Agent Worktrees...");
 		this._register(manageButton.onDidClick(() => {
 			void this.suggestion?.manage().catch(error => this.notificationService.error(error));
 		}));
