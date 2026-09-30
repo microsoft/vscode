@@ -33,7 +33,7 @@ When writing Kusto queries, follow these best practices:
 	- Default to a rolling 28-day window (standard practice in VS Code telemetry)
    - Use full day boundaries to avoid partial day data
    - Follow the time filtering patterns from the telemetry documentation
-- **Correctly map names and keys.** EventName is the prefix (`monacoworkbench/` for vscode) and lowercase event name. Properties/Measures keys are lowercase. Any properties marked `isMeasurement` land in the `Measures` column.
+- **Correctly map names and keys.** EventName is the prefix (`monacoworkbench/` for vscode) and lowercase event name. Properties/Measures keys are lowercase. Runtime numbers and booleans land in `Measures`; strings land in `Properties`. The GDPR `isMeasurement` metadata must describe that placement but does not control it, so a missing flag can make the declaration disagree with the stored data.
 - **Parallelize queries when possible.** Run multiple independent queries as parallel tool calls to speed up analysis.
 
 # Output Format

@@ -6,6 +6,19 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly MCP_READY. Do not call tools.
+    response:
+      content: MCP_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_READY. Do not call tools.
+        - role: assistant
+          content: MCP_READY
+        - role: user
           content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
     response:
       content:
@@ -19,6 +32,10 @@ exchanges:
       model: claude-sonnet-5
       system: ${system}
       messages:
+        - role: user
+          content: Reply exactly MCP_READY. Do not call tools.
+        - role: assistant
+          content: MCP_READY
         - role: user
           content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
         - role: assistant
@@ -39,6 +56,10 @@ exchanges:
       model: claude-sonnet-5
       system: ${system}
       messages:
+        - role: user
+          content: Reply exactly MCP_READY. Do not call tools.
+        - role: assistant
+          content: MCP_READY
         - role: user
           content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
         - role: assistant
@@ -82,6 +103,10 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Reply exactly MCP_READY. Do not call tools.
+        - role: assistant
+          content: MCP_READY
+        - role: user
           content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
         - role: assistant
           content:
@@ -120,6 +145,10 @@ exchanges:
       model: claude-sonnet-5
       system: ${system}
       messages:
+        - role: user
+          content: Reply exactly MCP_READY. Do not call tools.
+        - role: assistant
+          content: MCP_READY
         - role: user
           content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
         - role: assistant
@@ -168,6 +197,10 @@ exchanges:
       model: claude-sonnet-5
       system: ${system}
       messages:
+        - role: user
+          content: Reply exactly MCP_READY. Do not call tools.
+        - role: assistant
+          content: MCP_READY
         - role: user
           content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
         - role: assistant

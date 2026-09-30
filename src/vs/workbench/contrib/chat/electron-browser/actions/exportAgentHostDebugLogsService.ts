@@ -10,13 +10,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES } from '../../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService, type INativeZipFile } from '../../../../../platform/native/common/native.js';
-import { createHostArtifactStream, IAgentHostDebugLogFile, IAgentHostDebugLogsExportService, type IAgentHostDebugLogsHostArtifact } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { createHostArtifactStream, IAgentHostDebugLogFile, IAgentHostDebugLogsExportService, resolveAgentHostDebugLogsExportDirectory, type IAgentHostDebugLogsHostArtifact } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
 class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
 	declare readonly _serviceBrand: undefined;
@@ -25,13 +26,15 @@ class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExport
 	constructor(
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILogService private readonly logService: ILogService,
 	) { }
 
 	async selectDestination(exportName: string): Promise<URI | undefined> {
-		const defaultUri = joinPath(await this.fileDialogService.preferredHome(Schemas.file), `${exportName}.zip`);
+		const defaultDirectory = await resolveAgentHostDebugLogsExportDirectory(this.configurationService, this.fileDialogService, this.fileService, this.logService);
+		const defaultUri = joinPath(defaultDirectory, `${exportName}.zip`);
 		return this.fileDialogService.showSaveDialog({
 			title: localize('exportDebugLogs.saveDialogTitle', "Export Agent Host Debug Logs"),
 			defaultUri,

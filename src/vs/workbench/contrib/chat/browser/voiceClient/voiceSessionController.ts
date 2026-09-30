@@ -59,7 +59,7 @@ import {
 	VoiceReconnectClassification, VoiceReconnectEvent,
 	VoiceLatencyClassification, VoiceLatencyEvent,
 	VoiceNarrationDeferredClassification, VoiceNarrationDeferredEvent,
-	VoiceNarrationDroppedClassification, VoiceNarrationDroppedEvent,
+	VoiceNarrationDroppedClassification, VoiceNarrationDroppedEvent, toVoiceNarrationRejectionReason,
 } from './voiceTelemetry.js';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
@@ -4634,7 +4634,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this.logService.trace(`[voice] narration_ack ${e.disposition} id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; dropping`);
 			this._clearDeferred(key);
 			if (solicited) {
-				this.telemetryService.publicLog2<VoiceNarrationDroppedEvent, VoiceNarrationDroppedClassification>('voiceNarrationDropped', { kind: solicited.kind, reason: e.disposition });
+				this.telemetryService.publicLog2<VoiceNarrationDroppedEvent, VoiceNarrationDroppedClassification>('voiceNarrationDropped', {
+					kind: solicited.kind,
+					reason: e.disposition,
+					...(e.disposition === 'invalid' && solicited.kind === 'confirmation' ? { rejectionReason: toVoiceNarrationRejectionReason(e.reason) } : {}),
+				});
 			}
 			return;
 		}

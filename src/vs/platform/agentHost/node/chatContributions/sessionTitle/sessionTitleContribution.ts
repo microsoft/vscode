@@ -9,9 +9,10 @@ import { ILogService } from '../../../../log/common/log.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IAppliedClientAction, type IOutgoingTurn, type IRestoredChat, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, isDefaultChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../shared/persistSessionMetadata.js';
 
 /** Coordinates automatic and user-defined session and chat titles. */
@@ -25,20 +26,22 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
+		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
-		if (turn.reason.kind !== 'success') {
+		if (turn.reason.kind === 'localCommand') {
 			return;
 		}
-		const chat = isAhpChatChannel(turn.channel) && !isDefaultChatUri(turn.channel) ? turn.channel : undefined;
-		this._titleController.refineTitleFromFirstTurn(turn.session, chat);
+		const chat = isAhpChatChannel(turn.channel) ? turn.channel : undefined;
+		this._titleController.refineTitleFromFirstTurn(turn.session, chat, turn.reason.kind === 'success');
 	}
 
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
+		this._turnTracker.setTitleGenerationStrategy(turn.chat, turn.turnId, this._titleController.getAutomaticTitleGenerationStrategy(turn.session));
 		const instruction = await this._titleController.prepareInstructionForAgent(turn.session, turn.chat);
 		return instruction ? { instructions: [instruction] } : undefined;
 	}
@@ -67,6 +70,25 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_KEY, observed.action.title);
 		this._persistSessionMetadata(observed.channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
 		this._titleController.markTitleRenamed(observed.channel);
+		this._retitleSoleDefaultChat(observed.channel, observed.action.title);
+	}
+
+	/**
+	 * Carries a session rename down onto the default chat of a single-chat session, whose
+	 * own title metadata would otherwise keep a stale value and be restored over the rename.
+	 * Sessions with peer chats are skipped: their default chat is independently titled.
+	 */
+	private _retitleSoleDefaultChat(session: string, title: string): void {
+		const state = this._stateManager.getSessionState(session);
+		if (!state || state.chats.length > 1) {
+			return;
+		}
+		const defaultChat = state.defaultChat ?? buildDefaultChatUri(session);
+		this._stateManager.updateChatTitle(session, defaultChat, title);
+		this._persistSessionMetadata(defaultChat, SESSION_CUSTOM_TITLE_KEY, title);
+		this._persistSessionMetadata(defaultChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+		this._persistSessionMetadata(session, customChatTitleMetadataKey(defaultChat), title);
+		this._persistSessionMetadata(session, customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_USER);
 	}
 
 	/**
@@ -74,6 +96,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 	 * catalog-registration time so a restored peer chat shows its title before its turns load.
 	 */
 	async onHydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
+		await this._titleController.restoreTitleGenerationStrategy(context.session, context.chat);
 		if (restored.title !== undefined) {
 			return restored;
 		}

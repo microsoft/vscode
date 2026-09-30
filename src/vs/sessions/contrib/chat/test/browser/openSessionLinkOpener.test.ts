@@ -275,7 +275,6 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			isQuickChat: observableValue('isQuickChat', false),
 			workspace: observableValue('workspace', undefined),
 			worktreePending: observableValue('worktreePending', false),
-			changes: observableValue('changes', []),
 		});
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] {

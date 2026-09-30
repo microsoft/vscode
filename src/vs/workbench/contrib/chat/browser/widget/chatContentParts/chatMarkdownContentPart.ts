@@ -104,6 +104,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	 * The data includes the total stats and current resources across all edit pills.
 	 */
 	readonly onDidChangeDiff: Event<IChatContentPartDiffData> = this._onDidChangeDiff.event;
+	private _diffData: IChatContentPartDiffData | undefined;
+	/** The latest aggregated edit-pill diff, available even when it was emitted during construction. */
+	get diffData(): IChatContentPartDiffData | undefined { return this._diffData; }
 
 	private readonly _onDidFinishRendering = this._register(new Emitter<void>());
 	readonly onDidFinishRendering: Event<void> = this._onDidFinishRendering.event;
@@ -524,7 +527,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				});
 			}
 		}
-		this._onDidChangeDiff.fire({ added: totalAdded, removed: totalRemoved, resources });
+		this._diffData = { added: totalAdded, removed: totalRemoved, resources };
+		this._onDidChangeDiff.fire(this._diffData);
 	}
 
 	private renderCodeBlock(data: ICodeBlockData, currentWidth: number): IDisposableReference<CodeBlockPart> {

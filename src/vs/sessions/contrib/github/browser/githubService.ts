@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGitHubChangedFile, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage } from '../common/types.js';
+import { IGitHubChangedFile, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage, IGitHubRepository } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
 import { GitHubRepositoryModel, GitHubRepositoryModelReferenceCollection } from './models/githubRepositoryModel.js';
 import { GitHubPullRequestModel, GitHubPullRequestModelReferenceCollection } from './models/githubPullRequestModel.js';
@@ -19,11 +19,13 @@ import { GitHubPRFetcher } from './fetchers/githubPRFetcher.js';
 import { GitHubRecentUserWorkFetcher, IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentPullRequestReviewThread } from './fetchers/githubRecentUserWorkFetcher.js';
 import { GitHubPullRequestsFetcher } from './fetchers/githubPullRequestsFetcher.js';
 import { GitHubPullRequestContextFetcher } from './fetchers/githubPullRequestContextFetcher.js';
+import { GitHubRepositoryFetcher } from './fetchers/githubRepositoryFetcher.js';
 import { getPullRequestKey } from '../common/utils.js';
 import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
 
 /**
  * Shared trace prefix for the pull-request polling/fetching pipeline that feeds
@@ -39,6 +41,12 @@ export interface IGitHubService {
 	activeSessionPullRequestObs: IObservable<GitHubPullRequestModel | undefined>;
 	activeSessionPullRequestCIObs: IObservable<GitHubPullRequestCIModel | undefined>;
 	activeSessionPullRequestReviewThreadsObs: IObservable<GitHubPullRequestReviewThreadsModel | undefined>;
+
+	/** Obtain repository access before opening the repository picker. */
+	authenticateForRepositoryAccess(token: CancellationToken): Promise<void>;
+
+	/** Silently search up to 100 repositories, or list the user's most recently updated accessible repositories for an empty query. */
+	getRepositories(query: string, token: CancellationToken): Promise<readonly IGitHubRepository[]>;
 
 	/**
 	 * Get a reference to a reactive model for a GitHub repository.
@@ -64,6 +72,7 @@ export interface IGitHubService {
 	 * Get a reference to a reactive model for a GitHub issue.
 	 */
 	createIssueModelReference(owner: string, repo: string, issueNumber: number): IReference<GitHubIssueModel>;
+	getCommit(owner: string, repo: string, sha: string, token: CancellationToken): Promise<GitHubCommit>;
 
 	/**
 	 * List files changed between two refs using the GitHub compare API.
@@ -110,6 +119,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 	private readonly _pullRequestsFetcher: GitHubPullRequestsFetcher;
 	private readonly _pullRequestFetcher: GitHubPRFetcher;
 	private readonly _pullRequestContextFetcher: GitHubPullRequestContextFetcher;
+	private readonly _repositoryFetcher: GitHubRepositoryFetcher;
 	private readonly _repositoryReferences: GitHubRepositoryModelReferenceCollection;
 	private readonly _pullRequestReferences: GitHubPullRequestModelReferenceCollection;
 	private readonly _pullRequestReviewThreadsReferences: GitHubPullRequestReviewThreadsModelReferenceCollection;
@@ -145,6 +155,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._pullRequestsFetcher = new GitHubPullRequestsFetcher(apiClient);
 		this._pullRequestFetcher = new GitHubPRFetcher(apiClient);
 		this._pullRequestContextFetcher = new GitHubPullRequestContextFetcher(apiClient);
+		this._repositoryFetcher = new GitHubRepositoryFetcher(apiClient);
 
 		this._repositoryReferences = instantiationService.createInstance(GitHubRepositoryModelReferenceCollection, apiClient);
 		this._pullRequestReferences = instantiationService.createInstance(GitHubPullRequestModelReferenceCollection, apiClient);
@@ -221,6 +232,14 @@ export class GitHubService extends Disposable implements IGitHubService {
 		});
 	}
 
+	authenticateForRepositoryAccess(token: CancellationToken): Promise<void> {
+		return this._apiClient.authenticate(['repo'], token);
+	}
+
+	getRepositories(query: string, token: CancellationToken): Promise<readonly IGitHubRepository[]> {
+		return this._repositoryFetcher.getRepositories(query, token);
+	}
+
 	createRepositoryModelReference(owner: string, repo: string): IReference<GitHubRepositoryModel> {
 		return this._repositoryReferences.acquire(`${owner}/${repo}`, owner, repo);
 	}
@@ -239,6 +258,29 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	createIssueModelReference(owner: string, repo: string, issueNumber: number): IReference<GitHubIssueModel> {
 		return this._issueReferences.acquire(`${owner}/${repo}/issues/${issueNumber}`, owner, repo, issueNumber);
+	}
+
+	async getCommit(owner: string, repo: string, sha: string, token: CancellationToken): Promise<GitHubCommit> {
+		const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}`;
+		const response = await this._apiClient.request<{
+			readonly sha: string;
+			readonly html_url: string;
+			readonly author?: { readonly login?: string };
+			readonly commit: {
+				readonly message: string;
+				readonly author: { readonly name: string; readonly date: string };
+			};
+		}>('GET', path, 'GitHubService.getCommit', { token, createAuthenticationSession: false });
+		if (!response.data) {
+			throw new Error(`GitHub commit ${owner}/${repo}@${sha} returned no data`);
+		}
+		return {
+			sha: response.data.sha,
+			message: response.data.commit.message,
+			url: response.data.html_url,
+			author: { login: response.data.author?.login ?? response.data.commit.author.name },
+			committedAt: response.data.commit.author.date,
+		};
 	}
 
 	getRecentAssignedIssues(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentIssue[]> {

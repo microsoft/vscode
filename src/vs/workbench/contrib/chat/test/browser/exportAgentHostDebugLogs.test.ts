@@ -10,17 +10,22 @@ import { isDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AhpJsonlLogger, isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import type { IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { IFileService, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
-import { collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, notifyAgentHostDebugLogsExported, prepareAgentHostDebugLogsExport, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { BrowserAgentHostDebugLogsExportService, collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, notifyAgentHostDebugLogsExported, prepareAgentHostDebugLogsExport, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -116,6 +121,61 @@ suite('prepareAgentHostDebugLogsExport', () => {
 			collectionStatus: 'fulfilled',
 			destinationStatus: 'fulfilled',
 			destination: URI.file('/exports/ah-logs.zip').fsPath,
+		});
+	});
+});
+
+suite('BrowserAgentHostDebugLogsExportService', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the configured local folder and falls back when it is unavailable', async () => {
+		const configuredDirectory = URI.file('/configured');
+		const missingDirectory = URI.file('/missing');
+		const fallbackDirectory = URI.file('/fallback');
+		const statUris: string[] = [];
+		const fileService = upcastPartial<IFileService>({
+			stat: async resource => {
+				statUris.push(resource.toString());
+				if (resource.toString() === configuredDirectory.toString()) {
+					return upcastPartial<IFileStatWithPartialMetadata>({ isDirectory: true });
+				}
+				throw new Error('Folder not found');
+			},
+		});
+
+		const defaultUris: Array<string | undefined> = [];
+		let preferredHomeCalls = 0;
+		const fileDialogService = upcastPartial<IFileDialogService>({
+			preferredHome: async () => {
+				preferredHomeCalls++;
+				return fallbackDirectory;
+			},
+			showOpenDialog: async (options: IOpenDialogOptions) => {
+				defaultUris.push(options.defaultUri?.toString());
+				return options.defaultUri ? [options.defaultUri] : undefined;
+			},
+		});
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.AgentHostDebugLogsDefaultExportLocation]: configuredDirectory.fsPath,
+		});
+		const service = new BrowserAgentHostDebugLogsExportService(fileDialogService, fileService, configurationService, new NullLogService());
+
+		const configuredDestination = await service.selectDestination('configured-export');
+		await configurationService.setUserConfiguration(ChatConfiguration.AgentHostDebugLogsDefaultExportLocation, missingDirectory.fsPath);
+		const fallbackDestination = await service.selectDestination('fallback-export');
+
+		assert.deepStrictEqual({
+			defaultUris,
+			configuredDestination: configuredDestination?.toString(),
+			fallbackDestination: fallbackDestination?.toString(),
+			preferredHomeCalls,
+			statUris,
+		}, {
+			defaultUris: [configuredDirectory.toString(), fallbackDirectory.toString()],
+			configuredDestination: URI.joinPath(configuredDirectory, 'configured-export').toString(),
+			fallbackDestination: URI.joinPath(fallbackDirectory, 'fallback-export').toString(),
+			preferredHomeCalls: 1,
+			statUris: [configuredDirectory.toString(), missingDirectory.toString()],
 		});
 	});
 });

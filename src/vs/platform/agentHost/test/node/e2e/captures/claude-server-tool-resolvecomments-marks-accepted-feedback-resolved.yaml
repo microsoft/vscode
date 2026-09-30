@@ -2,39 +2,33 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Call resolveComments exactly once with commentIds ["resolve-me"], then reply exactly "resolved".
     response:
       content:
-        - type: text
-          text: I'll resolve that comment.
         - type: tool_use
           id: toolcall_0
           name: mcp__host__resolveComments
           input:
             commentIds:
               - resolve-me
-            resolved: true
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Call resolveComments exactly once with commentIds ["resolve-me"], then reply exactly "resolved".
         - role: assistant
           content:
-            - type: text
-              text: I'll resolve that comment.
             - type: tool_use
               name: mcp__host__resolveComments
               input:
                 commentIds:
                   - resolve-me
-                resolved: true
         - role: user
           content:
             - type: tool_result

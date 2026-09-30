@@ -26,7 +26,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IOutputChannel, IOutputService } from '../../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../common/workspaceSelection.js';
 import { ISessionFolder, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -39,6 +39,7 @@ suite('Dev Container Agent Host Connector', () => {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	// Capture these before configuration registry tests clear global registrations.
 	const devContainerAgentHostEnabledProperty = configurationRegistry.getConfigurationProperties()[DevContainerAgentHostEnabledSettingId];
+	const devContainerIdleTimeoutProperty = configurationRegistry.getConfigurationProperties()[DevContainerIdleTimeoutSettingId];
 	const devContainerWorktreeEnabledProperty = configurationRegistry.getExcludedConfigurationProperties()[DevContainerWorktreeEnabledSettingId];
 
 	test('requires Docker and a default Dev Container configuration', async () => {
@@ -204,14 +205,19 @@ suite('Dev Container Agent Host Connector', () => {
 	for (const entry of [
 		{ name: 'SSH Host', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:server', hostName: 'server' } },
 		{ name: 'Tunnel Host', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'server', clusterId: 'region' } },
+		{ name: 'WSL Host', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } },
 	] satisfies IRemoteAgentHostEntry[]) {
 		test(`checks Docker and starts containers on the ${entry.name}, not the desktop`, async () => {
 			const workspaceUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(getEntryAddress(entry)), path: '/remote/project' });
 			const configs: IDevContainerAgentHostConfig[] = [];
 			const disconnected: string[] = [];
+			const lifecycleOperations: string[] = [];
 			const outputs = store.add(new Emitter<{ connectionId: string; data: string }>());
 			const output: string[] = [];
+			const writtenChannels: string[] = [];
+			const shownChannels: string[] = [];
 			let dockerChecks = 0;
+			let dockerAvailable = true;
 			let supported = true;
 			const remoteService = new class extends mock<IDevContainerAgentHostMainService>() {
 				override readonly onDidOutput = outputs.event;
@@ -220,7 +226,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override readonly onDidCloseConnection = Event.None;
 				override async isDockerAvailable(): Promise<boolean> {
 					dockerChecks++;
-					return true;
+					return dockerAvailable;
 				}
 				override async connect(config: IDevContainerAgentHostConfig) {
 					configs.push(config);
@@ -229,6 +235,14 @@ suite('Dev Container Agent Host Connector', () => {
 				}
 				override async disconnect(id: string): Promise<void> {
 					disconnected.push(id);
+				}
+				override async stopContainer(path: string): Promise<boolean> {
+					lifecycleOperations.push(`stop:${path}`);
+					return true;
+				}
+				override async removeContainer(path: string): Promise<boolean> {
+					lifecycleOperations.push(`remove:${path}`);
+					return true;
 				}
 			}();
 			const connection = new class extends mock<IAgentConnection>() {
@@ -250,10 +264,14 @@ suite('Dev Container Agent Host Connector', () => {
 				new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true }),
 				new class extends mock<IEnvironmentService>() { }(),
 				new class extends mock<IOutputService>() {
-					override getChannel(): IOutputChannel {
+					override getChannel(id: string): IOutputChannel {
+						writtenChannels.push(id);
 						return new class extends mock<IOutputChannel>() {
 							override append(value: string): void { output.push(value); }
 						}();
+					}
+					override async showChannel(id: string): Promise<void> {
+						shownChannels.push(id);
 					}
 				}(),
 				new class extends mock<IFileService>() {
@@ -272,21 +290,31 @@ suite('Dev Container Agent Host Connector', () => {
 			supported = false;
 			const oldHostAvailable = await connector.isAvailable(workspaceUri);
 			supported = true;
+			dockerAvailable = false;
+			const withoutDocker = await connector.isAvailable(workspaceUri);
+			dockerAvailable = true;
+			await connector.showLog(workspaceUri);
 			const target = await connector.createConnection(workspaceUri, 'devcontainer:test', CancellationToken.None);
+			await connector.showLog(workspaceUri);
+			assert.deepStrictEqual(shownChannels, [writtenChannels[0], writtenChannels[0]]);
 			target.transportDisposable?.dispose();
 			await Promise.resolve();
+			await connector.stopContainer(workspaceUri);
+			await connector.removeContainer(workspaceUri);
 			assert.deepStrictEqual({
-				available, oldHostAvailable, dockerChecks,
+				available, oldHostAvailable, withoutDocker, dockerChecks,
 				workspaces: configs.map(config => config.workspaceFolder),
 				output: output.filter(value => value === 'remote container output'),
 				workspace: target.workspaceUri,
 				disconnected: disconnected.length,
+				lifecycleOperations,
 			}, {
-				available: true, oldHostAvailable: false, dockerChecks: 1,
+				available: true, oldHostAvailable: false, withoutDocker: false, dockerChecks: 2,
 				workspaces: ['/remote/project'],
 				output: ['remote container output'],
 				workspace: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority('devcontainer:test'), path: '/workspaces/project' }),
 				disconnected: 1,
+				lifecycleOperations: ['stop:/remote/project', 'remove:/remote/project'],
 			});
 		});
 	}
@@ -393,6 +421,20 @@ suite('Dev Container Agent Host Connector', () => {
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['onExP'],
 			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('registers a five-minute Dev Container idle timeout in seconds', () => {
+		assert.deepStrictEqual({
+			type: devContainerIdleTimeoutProperty.type,
+			default: devContainerIdleTimeoutProperty.default,
+			minimum: devContainerIdleTimeoutProperty.minimum,
+			scope: devContainerIdleTimeoutProperty.scope,
+		}, {
+			type: 'integer',
+			default: 300,
+			minimum: 0,
+			scope: ConfigurationScope.APPLICATION,
 		});
 	});
 

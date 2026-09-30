@@ -20,7 +20,7 @@ import { CHAT_SETUP_ACTION_ID } from '../../../../../workbench/contrib/chat/brow
 import { ChatPetAccessoryId, ChatPetAccessoryIds, ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { ChatPetVariant, IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../browser/menus.js';
-import { shouldShowAccountPanelSummary } from '../../browser/account.contribution.js';
+import { getChatGPTRateLimitResetHover, shouldShowAccountPanelSummary } from '../../browser/account.contribution.js';
 import { getSessionsChatPetAchievementBadges, SessionsChatPetAchievementBadges } from '../../browser/chatPetAchievementBadges.js';
 
 suite('Sessions - Account Menu', () => {
@@ -62,6 +62,18 @@ suite('Sessions - Account Menu', () => {
 			signedOut: false,
 			unavailable: true,
 			loading: false,
+		});
+	});
+
+	test('formats exact ChatGPT rate-limit reset hovers', () => {
+		const weeklyReset = new Date(2026, 9, 5, 16, 59);
+		const fiveHourReset = new Date(2026, 9, 5, 15, 6);
+		assert.deepStrictEqual({
+			weekly: getChatGPTRateLimitResetHover({ usedPercent: 1, windowDurationMins: 7 * 24 * 60, resetsAt: weeklyReset.getTime() / 1000 }),
+			fiveHour: getChatGPTRateLimitResetHover({ usedPercent: 3, windowDurationMins: 5 * 60, resetsAt: fiveHourReset.getTime() / 1000 }),
+		}, {
+			weekly: 'Resets on Oct 5, 2026 at 4:59 PM',
+			fiveHour: 'Resets at 3:06 PM',
 		});
 	});
 

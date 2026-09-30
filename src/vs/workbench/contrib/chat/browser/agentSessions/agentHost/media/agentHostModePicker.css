@@ -59,6 +59,32 @@
 	flex: 1 1 auto;
 }
 
+.action-widget .monaco-list-row.action.agent-host-assisted-permissions .title {
+	flex: 0 1 auto;
+	min-width: 0;
+}
+
+.action-widget .monaco-list-row.action.agent-host-assisted-permissions .action-item-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	align-self: center;
+	order: 1;
+	margin-left: auto;
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size160);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: normal;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	color: var(--vscode-descriptionForeground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
+}
+
+.action-widget .monaco-list-row.action.agent-host-assisted-permissions.focused .action-item-badge,
+.action-widget .monaco-list-row.action.agent-host-assisted-permissions.option-disabled .action-item-badge {
+	color: inherit;
+}
+
 .action-widget .monaco-list .monaco-list-row.agent-host-mode-section .description,
 .action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions .description {
 	order: 2;

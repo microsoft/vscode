@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { win32 } from '../../../base/common/path.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IWindowsMxcConfig, IWindowsMxcPolicyContainment, IWindowsMxcSandboxPolicy } from './sandboxHelperService.js';
+import { normalizeSandboxFileSystemPath } from './settings.js';
 
 export interface IWindowsMxcConfigOptions {
 	command: string;
@@ -117,7 +119,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 	}
 
 	private _normalizeWindowsPath(path: string): string {
-		return path.replace(/\//g, '\\');
+		return normalizeSandboxFileSystemPath(path, OperatingSystem.Windows);
 	}
 
 	private _createNetworkPolicy(allowNetwork: boolean): NonNullable<IWindowsMxcSandboxPolicy['network']> {
