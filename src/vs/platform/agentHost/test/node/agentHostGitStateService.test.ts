@@ -1037,6 +1037,62 @@ suite('AgentHostGitStateService', () => {
 		});
 	}));
 
+	test('reports the invoking chat association when another chat PR resolves first', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness({ autoAttachPullRequests: false });
+		const defaultChat = buildDefaultChatUri(SESSION);
+		const peer = buildChatUri(SESSION, 'peer');
+		const urls = [pullRequestArtifact(1).link, pullRequestArtifact(2).link];
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			artifacts: [pullRequestArtifactForChat(1, defaultChat), pullRequestArtifactForChat(2, peer)],
+		});
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [WORKING_DIRECTORY] });
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
+		await h.db.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([
+			{
+				chat: defaultChat,
+				folderKey: getWorkingDirectoryKey(WORKING_DIRECTORY),
+				workingDirectory: WORKING_DIRECTORY,
+				url: urls[0],
+				owner: 'microsoft',
+				repo: 'vscode',
+				branchName: 'feature',
+			},
+			{
+				chat: peer,
+				folderKey: getWorkingDirectoryKey(WORKING_DIRECTORY),
+				workingDirectory: WORKING_DIRECTORY,
+				url: urls[1],
+				owner: 'microsoft',
+				repo: 'vscode',
+				branchName: 'feature',
+			},
+		]));
+		let lookup = 0;
+		h.setOnPullRequestLookup(async () => {
+			const number = ++lookup;
+			h.setPullRequest('feature', { url: urls[number - 1], number });
+		});
+
+		const result = await h.service.associateRecordedPullRequests(peer, [urls[1]]);
+
+		assert.deepStrictEqual({
+			result,
+			folderState: h.service.getGitHubState(peer),
+			pending: await h.db.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
+		}, {
+			result: { associated: urls[1], pending: [], unmatched: [] },
+			folderState: {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrls: [urls[1], urls[0]],
+				pullRequestBranchName: 'feature',
+				associatedPullRequestUrls: [urls[1], urls[0]],
+			},
+			pending: undefined,
+		});
+	}));
+
 	test('keeps duplicate pending PR URLs independent across chats sharing a folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness({ autoAttachPullRequests: false });
 		const defaultChat = buildDefaultChatUri(SESSION);

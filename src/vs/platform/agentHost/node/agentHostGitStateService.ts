@@ -548,7 +548,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			}
 			return entries;
 		});
-		const associated = await this._reconcilePendingPullRequestsForFolder(folder.sessionUri, folderKey);
+		const associated = await this._reconcilePendingPullRequestsForFolder(folder.sessionUri, folderKey, chat);
 		const stillPending = new Set((await this._readPendingPullRequests(folder.sessionUri))
 			.filter(entry => entry.folderKey === folderKey && entry.chat === chat).map(entry => getSessionPullRequestUrlKey(entry.url)));
 		return {
@@ -574,7 +574,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 	}
 
-	private async _reconcilePendingPullRequestsForFolder(session: string, folderKey: string): Promise<string | undefined> {
+	private async _reconcilePendingPullRequestsForFolder(session: string, folderKey: string, requestedChat?: string): Promise<string | undefined> {
 		return this._pullRequestSequencer.queue(`${session}#${folderKey}`, async () => {
 			const state = this._stateManager.getSessionState(session);
 			if (state?.lifecycle !== SessionLifecycle.Ready) {
@@ -620,7 +620,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				if (alreadyAssociated) {
 					await this._updatePendingPullRequests(session, current => current.filter(entry =>
 						entry.folderKey !== folderKey || entry.chat !== chat || getSessionPullRequestUrlKey(entry.url) !== getSessionPullRequestUrlKey(alreadyAssociated.url)));
-					associated ??= alreadyAssociated.url;
+					if (chat === requestedChat) {
+						associated = alreadyAssociated.url;
+					}
 					continue;
 				}
 				const authToken = this._getGitHubAuthToken();
@@ -669,7 +671,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				});
 				await this._updatePendingPullRequests(session, current => current.filter(entry =>
 					entry.folderKey !== folderKey || entry.chat !== chat || getSessionPullRequestUrlKey(entry.url) !== getSessionPullRequestUrlKey(pullRequest.url)));
-				associated ??= pullRequest.url;
+				if (chat === requestedChat) {
+					associated = pullRequest.url;
+				}
 			}
 			return associated;
 		});
