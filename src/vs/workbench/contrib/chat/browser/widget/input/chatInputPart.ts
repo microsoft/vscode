@@ -879,7 +879,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private cachedExecuteToolbarWidth: number | undefined;
 	private cachedInputToolbarWidth: number | undefined;
 
-	readonly inputUri: URI = this.options.inputEditorState?.model.uri ?? URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
+	readonly inputUri: URI;
 	private readonly inputEditorState = this._register(new MutableDisposable<ChatInputEditorState>());
 
 	captureInputEditorState(): ChatInputEditorState {
@@ -1018,6 +1018,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 	) {
 		super();
+		this.inputUri = options.inputEditorState?.model.uri ?? URI.parse(`${Schemas.vscodeChatInput}:input-${ChatInputPart._counter++}`);
 		this._modelSelectionDiagnostics = new ChatModelSelectionDiagnostics(this.logService, this.storageService, () => ({
 			surface: 'workbench',
 			location: this.location,

@@ -136,7 +136,7 @@ import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.
 import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
 import { IChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
-import { readNewChatDraftState, writeNewChatDraftState } from '../common/newChatDraftState.js';
+import { readNewChatDraftState, writeNewChatDraftState } from '../../../services/sessions/common/newChatDraftState.js';
 import { ChatInputEditorState } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputEditorState.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 
@@ -1958,7 +1958,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	saveState(): void {
 		if (this._draftState && (!this.options.draftKey || this._draftKey !== undefined)) {
-			writeNewChatDraftState(this.storageService, this._draftState, this._draftKey);
+			writeNewChatDraftState(this.storageService, this._draftState, this._draftKey, this._draftKey ? this.options.session.get()?.resource : undefined);
 		}
 	}
 

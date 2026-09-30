@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IReference, RefCountedDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, RefCountedDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ICodeEditorViewState } from '../../../../../../editor/common/editorCommon.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel } from '../../../../../../editor/common/services/resolverService.js';
@@ -21,20 +21,32 @@ export class ChatInputEditorState extends Disposable {
 	}
 
 	static create(model: ITextModel, reference: Promise<IReference<IResolvedTextEditorModel>>, ownsModel = true): ChatInputEditorState {
-		const disposeModel = () => {
+		const lifetime = new DisposableStore();
+		let settled = false;
+		let released = false;
+		const completeAcquisition = (ref?: IReference<IResolvedTextEditorModel>) => {
+			if (ref) {
+				lifetime.add(ref);
+			}
 			if (ownsModel) {
-				model.dispose();
+				lifetime.add(model);
+			}
+			settled = true;
+			if (released) {
+				lifetime.dispose();
 			}
 		};
+		void reference.then(ref => completeAcquisition(ref), () => completeAcquisition());
 		return new ChatInputEditorState(model, new RefCountedDisposable(toDisposable(() => {
-			void reference.then(ref => {
-				ref.dispose();
-				disposeModel();
-			}, disposeModel);
+			released = true;
+			if (settled) {
+				lifetime.dispose();
+			}
 		})), null);
 	}
 
 	acquire(viewState = this.viewState): ChatInputEditorState {
+		this._store.assertNotDisposed();
 		return new ChatInputEditorState(this.model, this.ownership.acquire(), viewState);
 	}
 }

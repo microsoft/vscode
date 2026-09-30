@@ -33,7 +33,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../bro
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
+import { writeNewChatDraftState } from '../../../../services/sessions/common/newChatDraftState.js';
 
 suite('Agents Window workspace handoff', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

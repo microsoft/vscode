@@ -24,7 +24,7 @@ import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachm
 import { NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
 import { INewSessionComposerPicker } from '../../browser/newSessionComposerService.js';
 import { constObservable } from '../../../../../base/common/observable.js';
-import { readNewChatDraftState, writeNewChatDraftState } from '../../common/newChatDraftState.js';
+import { readNewChatDraftState, writeNewChatDraftState } from '../../../../services/sessions/common/newChatDraftState.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 
 const getDraftState = Reflect.get(NewChatInputWidget.prototype, '_getDraftState') as (this: IDraftStateHarness) => { inputText: string; attachments: readonly IChatRequestVariableEntry[] } | undefined;
@@ -47,6 +47,7 @@ interface IDraftStateHarness {
 	readonly storageService: {
 		get(key: string, scope: unknown): string | undefined;
 		store(key: string, value: string, scope: unknown, target: unknown): void;
+		remove(key: string, scope: unknown): void;
 	};
 	_draftState?: { inputText: string; attachments: readonly IChatRequestVariableEntry[] };
 }
@@ -168,7 +169,7 @@ suite('NewChatInputWidget', () => {
 			newSession: readNewChatDraftState(storage)?.inputText,
 			a: readNewChatDraftState(storage, 'test:/a')?.inputText,
 			b: readNewChatDraftState(storage, 'test:/b')?.inputText,
-		}, { newSession: 'new session', a: '', b: 'peer B' });
+		}, { newSession: 'new session', a: undefined, b: 'peer B' });
 	});
 
 	test('exposes the scoped model control', () => {
@@ -374,6 +375,7 @@ suite('NewChatInputWidget', () => {
 		const storageService: IDraftStateHarness['storageService'] = {
 			get: () => stored,
 			store: (_key, value) => stored = value,
+			remove: () => stored = undefined,
 		};
 		const folder = URI.file('/workspace/docs');
 		const repositoryRoot = URI.parse('vscode-vfs://github/microsoft/typescript/HEAD');
@@ -434,6 +436,7 @@ suite('NewChatInputWidget', () => {
 		const storageService: IDraftStateHarness['storageService'] = {
 			get: () => stored,
 			store: (_key, value) => stored = value,
+			remove: () => stored = undefined,
 		};
 		const harness: IUpdateAndSaveDraftStateHarness = {
 			options: {},
@@ -464,6 +467,7 @@ suite('NewChatInputWidget', () => {
 		const storageService: IDraftStateHarness['storageService'] = {
 			get: () => stored,
 			store: (_key, value) => stored = value,
+			remove: () => stored = undefined,
 		};
 		const harness: IUpdateAndSaveDraftStateHarness = {
 			options: {},
@@ -484,10 +488,7 @@ suite('NewChatInputWidget', () => {
 		editorValue = '';
 		updateDraftState.call(harness);
 
-		assert.deepStrictEqual(getDraftState.call({ storageService, options: {} }), {
-			inputText: '',
-			attachments: [],
-		});
+		assert.strictEqual(getDraftState.call({ storageService, options: {} }), undefined);
 	});
 
 	test('orders native attachment picks before provider context actions', () => {

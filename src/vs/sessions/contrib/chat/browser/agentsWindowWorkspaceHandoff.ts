@@ -26,7 +26,7 @@ import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessi
 import { INewSessionComposerService } from './newSessionComposerService.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { readNewChatDraftState } from '../common/newChatDraftState.js';
+import { readNewChatDraftState } from '../../../services/sessions/common/newChatDraftState.js';
 
 export const WORKSPACE_HANDOFF_TIMEOUT_MS = 15_000;
 

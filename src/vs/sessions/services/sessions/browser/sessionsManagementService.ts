@@ -32,6 +32,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
+import { removeChatDraftState, removeSessionChatDraftStates } from '../common/newChatDraftState.js';
 
 /** Storage key for the last session type used to create a quick chat. */
 const LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY = 'sessions.quickChat.lastUsedSessionType';
@@ -209,6 +210,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// The view service reacts to this event to drop removed sessions from
 		// the grid and pick a fallback active session.
 		this._onDidChangeSessions.fire(e);
+		for (const session of e.removed) {
+			removeSessionChatDraftStates(this.storageService, session.resource, session.chats.get().map(chat => chat.resource), this.logService);
+		}
 	}
 
 	/**
@@ -1335,9 +1339,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async deleteSession(session: ISession): Promise<void> {
+		const chatResources = session.chats.get().map(chat => chat.resource);
 		await this._getProvider(session)?.deleteSession(session.sessionId);
 		this._explicitlyMarkedUnreadSessions.delete(session.resource);
 		this._onDidDeleteSession.fire(session);
+		removeSessionChatDraftStates(this.storageService, session.resource, chatResources, this.logService);
 	}
 
 	async deleteSessions(sessions: readonly ISession[]): Promise<void> {
@@ -1357,11 +1363,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		let firstError: unknown;
 		for (const [provider, providerSessions] of byProvider) {
+			const chatResources = providerSessions.map(session => session.chats.get().map(chat => chat.resource));
 			try {
 				await provider.deleteSessions(providerSessions.map(session => session.sessionId));
-				for (const session of providerSessions) {
+				for (const [index, session] of providerSessions.entries()) {
 					this._explicitlyMarkedUnreadSessions.delete(session.resource);
 					this._onDidDeleteSession.fire(session);
+					removeSessionChatDraftStates(this.storageService, session.resource, chatResources[index], this.logService);
 				}
 			} catch (error) {
 				firstError ??= error;
@@ -1377,6 +1385,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options) ?? false;
 		if (deleted) {
 			this._onDidDeleteChat.fire(session);
+			removeChatDraftState(this.storageService, chatUri);
 		}
 		return deleted;
 	}

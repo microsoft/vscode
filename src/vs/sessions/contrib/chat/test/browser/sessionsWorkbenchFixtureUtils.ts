@@ -42,6 +42,7 @@ import { CanGoBackContext, MultipleSessionsVisibleContext, SessionWorkspaceIsVir
 import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionContext, SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { createSessionViewTestServices } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AccountWidgetContribution } from '../../../accountMenu/browser/account.contribution.js';
@@ -122,6 +123,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
 	instantiationService.stub(ISessionsService, sessionsService);
+	instantiationService.stub(ISessionContext, new SessionContext(sessionsService.activeSession));
 	instantiationService.stub(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
 		override readonly onDidChangeBackground = Event.None;
 		override getBackground() { return undefined; }

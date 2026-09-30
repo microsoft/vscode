@@ -8,7 +8,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { getActiveWindow, getClientArea, getWindow, getWindowId, onWillUnregisterWindow } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { SessionsPart } from './sessionsPart.js';
+import { bindSessionsPartContextKeys, SessionsPart } from './sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
 import { SessionView } from './sessionView.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
@@ -20,13 +20,14 @@ import { IAuxiliaryWindowOpenOptions } from '../../../workbench/services/auxilia
 import { ILifecycleService } from '../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { SessionsAuxiliaryWindowsSupportedContext } from '../../common/contextkeys.js';
+import { SessionsAuxiliaryWindowFocusedContext, SessionsAuxiliaryWindowsSupportedContext } from '../../common/contextkeys.js';
 import { IChatGroupsTransferState } from './chatGroupsView.js';
 import { SessionDragController } from './sessionDragController.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { AuxiliarySessionsPart } from './auxiliarySessionsPart.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { autorun, derived, observableSignal, observableValue, transaction } from '../../../base/common/observable.js';
 
 /** Registers Sessions parts and coordinates presentation handoffs; membership belongs to SessionsService. */
 export class SessionsParts extends Disposable implements ISessionsPartService {
@@ -39,6 +40,8 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	private _closeHandler: ((partId: string) => void) | undefined;
 	private readonly _dragController = this._register(new MutableDisposable<SessionDragController>());
 	private readonly _windowOrder: number[] = [mainWindow.vscodeWindowId];
+	private readonly _activeWindowId = observableValue(this, getActiveWindow().vscodeWindowId);
+	private readonly _partsChanged = observableSignal(this);
 	private readonly _onDidFocusSession = this._register(new Emitter<string | undefined>());
 	readonly onDidFocusSession = this._onDidFocusSession.event;
 	private readonly _onDidInteractWithGrid = this._register(new Emitter<string>());
@@ -63,11 +66,27 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		const phone = width < 640;
 
 		this._mainPart = this._register(instantiationService.createInstance(phone ? MobileSessionsPart : SessionsPart, MAIN_SESSIONS_PART));
+		const activePart = derived(this, reader => {
+			this._partsChanged.read(reader);
+			return this.getPartForWindowId(this._activeWindowId.read(reader));
+		});
+		this._register(bindSessionsPartContextKeys(contextKeyService, derived(this, reader => activePart.read(reader)?.context.read(reader))));
+		const auxiliaryFocused = SessionsAuxiliaryWindowFocusedContext.bindTo(contextKeyService);
+		this._register(toDisposable(() => auxiliaryFocused.reset()));
+		this._register(autorun(reader => auxiliaryFocused.set(activePart.read(reader)?.isMain === false)));
 		this._register(this._mainPart.onDidFocusSession(id => this._onDidFocusSession.fire(id)));
 		this._register(this._mainPart.onDidInteractWithGrid(() => this._onDidInteractWithGrid.fire(MAIN_SESSIONS_PART)));
 		this._register(lifecycleService.onBeforeShutdown(() => this.flushState()));
 		this._register(Event.once(lifecycleService.onDidShutdown)(() => this._auxiliaryDisposables.clearAndDisposeAll()));
 		this._register(hostService.onDidChangeActiveWindow(windowId => {
+			this._activeWindowId.set(windowId, undefined);
+			const part = this.getPartForWindowId(windowId);
+			const focusedView = part?.getFocusedSessionView();
+			if (focusedView) {
+				this._onDidFocusSession.fire(focusedView.getSession()?.sessionId);
+			} else if (part && !part.isMain && part.activeSession.get()) {
+				this._onDidFocusSession.fire(part.activeSession.get()!.sessionId);
+			}
 			const index = this._windowOrder.indexOf(windowId);
 			if (index >= 0) {
 				this._windowOrder.splice(index, 1);
@@ -97,7 +116,11 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	}
 
 	getPartForWindow(targetWindow: Window): SessionsPart | undefined {
-		return targetWindow === mainWindow ? this._mainPart : [...this._auxiliaryParts.values()].find(entry => entry.window?.window.vscodeWindowId === getWindowId(targetWindow))?.part;
+		return this.getPartForWindowId(getWindowId(targetWindow));
+	}
+
+	private getPartForWindowId(windowId: number): SessionsPart | undefined {
+		return windowId === mainWindow.vscodeWindowId ? this._mainPart : [...this._auxiliaryParts.values()].find(entry => entry.window?.window.vscodeWindowId === windowId)?.part;
 	}
 
 	setAuxiliaryWindowCloseHandler(handler: (partId: string) => void): void {
@@ -141,6 +164,12 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 			this._auxiliaryParts.set(partId, host);
 			disposables.add(toDisposable(() => {
 				this._auxiliaryParts.delete(partId);
+				transaction(tx => {
+					if (this._activeWindowId.get() === host.window?.window.vscodeWindowId) {
+						this._activeWindowId.set(getActiveWindow().vscodeWindowId === host.window.window.vscodeWindowId ? mainWindow.vscodeWindowId : getActiveWindow().vscodeWindowId, tx);
+					}
+					this._partsChanged.trigger(tx);
+				});
 			}));
 			disposables.add(host.onDidFocusSession(id => this._onDidFocusSession.fire(id)));
 			disposables.add(host.onDidInteractWithGrid(() => this._onDidInteractWithGrid.fire(partId)));
@@ -148,7 +177,9 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 				this._auxiliaryDisposables.deleteAndDispose(partId);
 				this._onDidCloseAuxiliaryPart.fire(event);
 			}));
-			return await host.create(options);
+			const part = await host.create(options);
+			this._partsChanged.trigger(undefined);
+			return part;
 		} catch (error) {
 			this._auxiliaryDisposables.deleteAndDispose(partId);
 			throw error;

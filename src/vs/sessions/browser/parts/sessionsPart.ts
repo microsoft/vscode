@@ -5,7 +5,7 @@
 
 import './media/sessionsPart.css';
 import { triggerConfettiAnimation } from '../../../base/browser/ui/animations/animations.js';
-import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -18,12 +18,12 @@ import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { Direction, ISerializedGrid, ISerializedNode } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
-import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, isHTMLElement, trackFocus } from '../../../base/browser/dom.js';
+import { ActiveSessionsContext, IsNewChatSessionContext, MultipleSessionsVisibleContext, SessionIsMaximizedContext, SessionsFocusContext, SessionsVisibleContext } from '../../common/contextkeys.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isHTMLElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
-import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../base/common/observable.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Color } from '../../../base/common/color.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
@@ -37,12 +37,49 @@ import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agent
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
-import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
+import { ISessionPickerVisibility, noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { ISessionGridPlacement, ISessionGridSlot, MAIN_SESSIONS_PART, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { SessionGridLayout } from './sessionGridLayout.js';
 import { IChatGroupsTransferState } from './chatGroupsView.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
 import { isSessionGridLeafData } from '../../services/sessions/browser/sessionGridState.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
+
+interface ISessionsPartContext {
+	readonly focused: boolean;
+	readonly visible: boolean;
+	readonly multiple: boolean;
+	readonly maximized: boolean;
+	readonly pickers: ISessionPickerVisibility;
+}
+
+/** Projects one grid's view state into a local scope or the active window's global fallback. */
+export function bindSessionsPartContextKeys(contextKeyService: IContextKeyService, context: IObservable<ISessionsPartContext | undefined>): IDisposable {
+	const store = new DisposableStore();
+	const focused = SessionsFocusContext.bindTo(contextKeyService);
+	const visible = SessionsVisibleContext.bindTo(contextKeyService);
+	const multiple = MultipleSessionsVisibleContext.bindTo(contextKeyService);
+	const maximized = SessionIsMaximizedContext.bindTo(contextKeyService);
+	const pickers = store.add(new SessionPickerVisibilityContextKeys(contextKeyService));
+	store.add(toDisposable(() => contextKeyService.bufferChangeEvents(() => {
+		focused.reset();
+		visible.reset();
+		multiple.reset();
+		maximized.reset();
+	})));
+	store.add(autorun(reader => {
+		const state = context.read(reader);
+		contextKeyService.bufferChangeEvents(() => {
+			focused.set(state?.focused ?? false);
+			visible.set(state?.visible ?? false);
+			multiple.set(state?.multiple ?? false);
+			maximized.set(state?.maximized ?? false);
+			pickers.set(state?.pickers ?? noSessionPickerVisibility);
+		});
+	}));
+	return store;
+}
 
 interface IGridSlot {
 	readonly id: string;
@@ -93,10 +130,28 @@ export class SessionsPart extends Part {
 
 	protected _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
-	private readonly _multipleSessionsVisibleKey: IContextKey<boolean>;
-	private readonly _sessionsFocusKey: IContextKey<boolean>;
-	private readonly _pickerVisibilityContextKeys: SessionPickerVisibilityContextKeys;
+	private readonly _hasFocus = observableValue(this, false);
+	private readonly _visible = observableValue(this, true);
+	private readonly _multipleVisible = observableValue(this, false);
+	private readonly _maximized = observableValue(this, false);
+	private readonly _pickerVisibility = observableValue<ISessionPickerVisibility>(this, noSessionPickerVisibility);
+	readonly context = derived<ISessionsPartContext>(this, reader => {
+		const visible = this._visible.read(reader);
+		return {
+			visible,
+			focused: visible && this._hasFocus.read(reader),
+			multiple: this._multipleVisible.read(reader),
+			maximized: this._maximized.read(reader),
+			pickers: this._pickerVisibility.read(reader),
+		};
+	});
 	private readonly _activeViewPickerVisibility = this._register(new MutableDisposable());
+	private _scopedContextKeyService: IContextKeyService | undefined;
+	private _scopedInstantiationService: IInstantiationService | undefined;
+
+	get scopedContextKeyService(): IContextKeyService {
+		return assertReturnsDefined(this._scopedContextKeyService);
+	}
 
 	/**
 	 * Whether the part itself is visible in the workbench grid. Starts `true`
@@ -122,11 +177,12 @@ export class SessionsPart extends Part {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IAgentWorkbenchLayoutService private readonly agentWorkbenchLayoutService: IAgentWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super(
 			partId === MAIN_SESSIONS_PART ? Parts.SESSIONS_PART : `workbench.parts.sessions.${partId}`,
@@ -136,19 +192,25 @@ export class SessionsPart extends Part {
 			agentWorkbenchLayoutService
 		);
 
-		// Bind context keys for compatibility with existing when-clauses
-		ActiveSessionsContext.bindTo(contextKeyService);
-		this._sessionsFocusKey = SessionsFocusContext.bindTo(contextKeyService);
-		this._multipleSessionsVisibleKey = MultipleSessionsVisibleContext.bindTo(contextKeyService);
-		this._pickerVisibilityContextKeys = this._register(new SessionPickerVisibilityContextKeys(contextKeyService));
-		if (!this.isMain) {
-			this._register(autorun(reader => setActiveSessionContextKeys(this.activeSession.read(reader), contextKeyService, reader)));
-		}
 	}
 
 	override create(parent: HTMLElement): void {
 		this.element = parent;
 		parent.classList.add('sessionspart');
+		const scopedContext = this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
+		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
+		ActiveSessionsContext.bindTo(scopedContext);
+		this._register(bindSessionsPartContextKeys(scopedContext, this.context));
+		const newSession = IsNewChatSessionContext.bindTo(scopedContext);
+		this._register(autorun(reader => {
+			const session = this.activeSession.read(reader);
+			scopedContext.bufferChangeEvents(() => {
+				setActiveSessionContextKeys(session, scopedContext, reader, this.changesStatsCache);
+				if (!this.isMain && !session) {
+					newSession.set(false);
+				}
+			});
+		}));
 
 		super.create(parent);
 	}
@@ -166,8 +228,8 @@ export class SessionsPart extends Part {
 		// Track keyboard focus within the sessions content so the `sessionsFocus`
 		// context key reflects whether a session (its chat view) currently has focus.
 		const focusTracker = this._register(trackFocus(contentArea));
-		this._register(focusTracker.onDidFocus(() => this._sessionsFocusKey.set(true)));
-		this._register(focusTracker.onDidBlur(() => this._sessionsFocusKey.set(false)));
+		this._register(focusTracker.onDidFocus(() => this._hasFocus.set(true, undefined)));
+		this._register(focusTracker.onDidBlur(() => this._hasFocus.set(false, undefined)));
 
 		// Progress bar pinned to the top of the content area (see sessionsPart.css
 		// rule `.part.sessionspart > .content > .monaco-progress-container`).
@@ -197,7 +259,7 @@ export class SessionsPart extends Part {
 			partId: this.partId,
 			findTargetView: (child: HTMLElement) => this.findDropTarget(child),
 		};
-		this._register(this.instantiationService.createInstance(SessionDropTarget, contentArea, dropDelegate));
+		this._register(assertReturnsDefined(this._scopedInstantiationService).createInstance(SessionDropTarget, contentArea, dropDelegate));
 
 		return contentArea;
 	}
@@ -225,6 +287,10 @@ export class SessionsPart extends Part {
 	}
 
 	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, gridSlots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
+		transaction(() => this.reconcileVisibleSessions(visible, active, gridSlots, request));
+	}
+
+	private reconcileVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, gridSlots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
 		if (!this._gridWidget) {
 			return;
 		}
@@ -288,9 +354,9 @@ export class SessionsPart extends Part {
 			this.layout(width, height, top, left);
 		}
 
-		this._updateContextKeys(visible);
+		this._multipleVisible.set(visible.length > 1, undefined);
 		this._activeViewPickerVisibility.value = autorun(reader => {
-			this._pickerVisibilityContextKeys.set(activeSlot?.view.pickerVisibility.read(reader) ?? noSessionPickerVisibility);
+			this._pickerVisibility.set(activeSlot?.view.pickerVisibility.read(reader) ?? noSessionPickerVisibility, undefined);
 		});
 	}
 
@@ -359,10 +425,6 @@ export class SessionsPart extends Part {
 		return undefined;
 	}
 
-	private _updateContextKeys(visible: readonly (IActiveSession | undefined)[]): void {
-		this._multipleSessionsVisibleKey.set(visible.length > 1);
-	}
-
 	/**
 	 * Pushes the grid's current maximized state into each {@link SessionView} so
 	 * its scoped `sessionIsMaximized` context key (used by toolbar actions) is
@@ -372,6 +434,7 @@ export class SessionsPart extends Part {
 		if (!this._gridWidget) {
 			return;
 		}
+		this._maximized.set(this._gridWidget.maximized !== undefined, undefined);
 		for (const slot of this._slots) {
 			slot.view.setMaximized(this._gridWidget.maximized === slot.id);
 		}
@@ -443,7 +506,9 @@ export class SessionsPart extends Part {
 	}
 
 	getFocusedSessionView(): SessionView | undefined {
-		return this._slots.find(slot => isAncestorOfActiveElement(slot.view.element))?.view;
+		return this._sessionViewsVisible
+			? this._slots.find(slot => isAncestor(slot.view.element.ownerDocument.activeElement, slot.view.element))?.view
+			: undefined;
 	}
 
 	/**
@@ -512,7 +577,7 @@ export class SessionsPart extends Part {
 
 	private _createSlot(id: string): IGridSlot {
 		const disposables = new DisposableStore();
-		const view = disposables.add(this.instantiationService.createInstance(SessionView, assertReturnsDefined(this._gridWidget).element));
+		const view = disposables.add(assertReturnsDefined(this._scopedInstantiationService).createInstance(SessionView, assertReturnsDefined(this._gridWidget).element));
 		view.setPartVisible(this._sessionViewsVisible);
 		const slot: IGridSlot = { id, view, disposables, boundSessionId: undefined };
 		// Pointer-down also activates non-focusable chrome and the empty new-session slot.
@@ -558,9 +623,12 @@ export class SessionsPart extends Part {
 
 	private _updateSessionViewsVisibility(): void {
 		const visible = this._sessionViewsVisible;
-		for (const slot of this._slots) {
-			slot.view.setPartVisible(visible);
-		}
+		transaction(tx => {
+			this._visible.set(visible, tx);
+			for (const slot of this._slots) {
+				slot.view.setPartVisible(visible);
+			}
+		});
 	}
 
 	override setVisible(visible: boolean): void {
@@ -600,6 +668,13 @@ export class SessionsPart extends Part {
 
 	override dispose(): void {
 		this._activeViewPickerVisibility.clear();
+		transaction(tx => {
+			this._hasFocus.set(false, tx);
+			this._visible.set(false, tx);
+			this._multipleVisible.set(false, tx);
+			this._maximized.set(false, tx);
+			this._pickerVisibility.set(noSessionPickerVisibility, tx);
+		});
 		for (const slot of this._slots) {
 			slot.disposables.dispose();
 		}

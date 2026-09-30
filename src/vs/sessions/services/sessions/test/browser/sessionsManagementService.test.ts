@@ -23,7 +23,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { INotificationService, IPromptChoice, NoOpNotification, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -58,6 +58,10 @@ import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
 import { createSessionsPartTestHarness } from '../../../../test/browser/sessionViewTestUtils.js';
 import { createSessionWindowsTestHarness } from '../../../../test/browser/sessionWindowsTestUtils.js';
+import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatViewOptions, IChatViewTransferState } from '../../../../browser/parts/chatView.js';
+import { readNewChatDraftState, writeNewChatDraftState } from '../../common/newChatDraftState.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -416,11 +420,65 @@ suite('SessionsManagementService', () => {
 				}(sessions[0]);
 				const services = createSessionsManagementService(sessions[0], disposables, provider, undefined, undefined, undefined, undefined, storage);
 				services.view.dispose();
+				const recoveryChoices: IPromptChoice[] = [];
+				services.instantiationService.stub(INotificationService, {
+					error: message => services.notifications.push(message),
+					prompt: (_severity, message, choices) => {
+						services.notifications.push(message);
+						recoveryChoices.push(...choices);
+						return new NoOpNotification();
+					},
+				});
 				const view = createView(services.instantiationService, services.service, disposables, services.customViewService, ui.parts);
 				ui.instantiationService.stub(ISessionsService, view);
 				ui.renderMain();
-				return { ...ui, ...services, view, sessionsChanged };
+				return { ...ui, ...services, view, sessionsChanged, recoveryChoices, uiInstantiationService: ui.instantiationService };
 			}
+
+			test('failed return on native close unregisters the dead part and persists retryable recovery', async () => {
+				const [a, b] = ['a', 'b'].map(created);
+				const storage = disposables.add(new InMemoryStorageService());
+				const h = windowsHarness([a, b], undefined, storage);
+				await h.view.openSessionsInGrid([a, b]);
+				await h.view.moveSessionsToNewWindow([b]);
+				h.view.toggleSessionStickiness(b);
+				const partId = h.view.getSessionPartId(b);
+				const mainView = h.main.getSessionView(a.sessionId);
+				const factory = h.uiInstantiationService.get(IChatViewFactory);
+				h.uiInstantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+					override createChatView(parent: HTMLElement, instantiationService?: IInstantiationService, state?: IChatViewTransferState) {
+						if (parent.ownerDocument === h.main.getContainer()!.ownerDocument && state) {
+							throw new Error('Destination renderer failed');
+						}
+						return factory.createChatView(parent, instantiationService, state);
+					}
+					override createNewChatView(parent: HTMLElement, peer: boolean, options: IChatViewOptions, instantiationService?: IInstantiationService, state?: IChatViewTransferState) {
+						return factory.createNewChatView(parent, peer, options, instantiationService, state);
+					}
+				}());
+				h.parts.closeAuxiliaryPart(partId);
+				await storage.flush();
+				const saved: unknown = JSON.parse(storage.get('agentSessions.gridState', StorageScope.WORKSPACE)!);
+				assert(isSessionWindowsState(saved));
+				const afterClose = {
+					closed: h.windows[0].window.closed,
+					parts: h.parts.getParts().map(part => part.partId),
+					visible: h.view.visibleSessions.get().map(session => session?.sessionId),
+					mainUnchanged: h.main.getSessionView(a.sessionId) === mainView,
+					recovery: saved.parts.find(part => part.id === partId)?.layout.sessions.map(binding => ({ resource: binding.resource, sticky: binding.sticky })),
+					offeredRetry: h.recoveryChoices.length,
+				};
+				h.uiInstantiationService.stub(IChatViewFactory, factory);
+				await h.recoveryChoices[0].run();
+				assert.deepStrictEqual({
+					afterClose,
+					recoveredPart: h.view.getSessionPartId(b),
+					mounted: !!h.parts.getPart(partId)?.getSessionView(b.sessionId),
+				}, {
+					afterClose: { closed: true, parts: ['main'], visible: ['a'], mainUnchanged: true, recovery: [{ resource: b.resource.toString(), sticky: true }], offeredRetry: 1 },
+					recoveredPart: partId, mounted: true,
+				});
+			});
 
 			test('moving and returning sessions preserves wrappers, drafts, local selection and pins', async () => {
 				const [a, b, c] = ['a', 'b', 'c'].map(created);
@@ -5400,6 +5458,87 @@ suite('SessionsManagementService', () => {
 		// `from` matches the active session: active is replaced with `to`.
 		onDidReplaceSession.fire({ from: a, to: b });
 		assert.strictEqual(view.activeSession.get()?.sessionId, 'b');
+	});
+
+	suite('peer draft cleanup', () => {
+		function harness() {
+			const storage = disposables.add(new InMemoryStorageService());
+			const peer = { ...stubChat, resource: URI.parse('test:/peer') };
+			const chats = observableValue<readonly IChat[]>('chats', [stubChat, peer]);
+			const session = stubSession({ sessionId: 'with-drafts', providerId: 'test', chats });
+			const other = stubSession({ sessionId: 'other', providerId: 'test' });
+			const removed = disposables.add(new Emitter<ISessionChangeEvent>());
+			let allowDelete = true;
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidChangeSessions = removed.event;
+				override getSessions() { return [session, other]; }
+				override async deleteChat(): Promise<boolean> {
+					if (allowDelete) {
+						chats.set([stubChat], undefined);
+					}
+					return allowDelete;
+				}
+				override async deleteSession(): Promise<void> {
+					if (!allowDelete) {
+						throw new Error('Delete failed');
+					}
+					chats.set([], undefined);
+				}
+				override async deleteSessions(): Promise<void> { await this.deleteSession(); }
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider, undefined, undefined, undefined, undefined, storage);
+			const draft = { inputText: 'Unsent draft', attachments: [] };
+			writeNewChatDraftState(storage, draft);
+			writeNewChatDraftState(storage, draft, peer.resource.toString(), session.resource);
+			writeNewChatDraftState(storage, draft, 'test:/unloaded-peer', session.resource);
+			writeNewChatDraftState(storage, draft, 'test:/other-peer', other.resource);
+			return {
+				storage, service, session, peer, removed, draft,
+				setDeleteAllowed: (allowed: boolean) => allowDelete = allowed,
+				snapshot: () => ({
+					mainComposer: !!readNewChatDraftState(storage),
+					peer: !!readNewChatDraftState(storage, peer.resource.toString()),
+					unloaded: !!readNewChatDraftState(storage, 'test:/unloaded-peer'),
+					other: !!readNewChatDraftState(storage, 'test:/other-peer'),
+					keys: storage.keys(StorageScope.WORKSPACE, StorageTarget.MACHINE).filter(key => key.startsWith('sessions.draftState')).length,
+				}),
+			};
+		}
+
+		test('canceled chat deletion retains the draft; permanent deletion clears it after view disposal writes', async () => {
+			const h = harness();
+			h.setDeleteAllowed(false);
+			await h.service.deleteChat(h.session, h.peer.resource);
+			const canceled = h.snapshot();
+			h.setDeleteAllowed(true);
+			disposables.add(h.service.onDidDeleteChat(() => writeNewChatDraftState(h.storage, h.draft, h.peer.resource.toString(), h.session.resource)));
+			await h.service.deleteChat(h.session, h.peer.resource);
+			assert.deepStrictEqual({ canceled, deleted: h.snapshot() }, {
+				canceled: { mainComposer: true, peer: true, unloaded: true, other: true, keys: 4 },
+				deleted: { mainComposer: true, peer: false, unloaded: true, other: true, keys: 3 },
+			});
+		});
+
+		for (const operation of ['single', 'batch', 'provider'] as const) {
+			test(`${operation} session deletion removes loaded and unloaded peer drafts without deleting unrelated composers`, async () => {
+				const h = harness();
+				if (operation === 'provider') {
+					h.removed.fire({ added: [], changed: [], removed: [h.session] });
+				} else if (operation === 'batch') {
+					await h.service.deleteSessions([h.session]);
+				} else {
+					await h.service.deleteSession(h.session);
+				}
+				assert.deepStrictEqual(h.snapshot(), { mainComposer: true, peer: false, unloaded: false, other: true, keys: 2 });
+			});
+		}
+
+		test('failed permanent deletion leaves every saved draft intact', async () => {
+			const h = harness();
+			h.setDeleteAllowed(false);
+			await assert.rejects(h.service.deleteSession(h.session), /Delete failed/);
+			assert.deepStrictEqual(h.snapshot(), { mainComposer: true, peer: true, unloaded: true, other: true, keys: 4 });
+		});
 	});
 
 	suite('deleteSessions', () => {

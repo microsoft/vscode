@@ -29,7 +29,7 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../common/contextkeys.js';
+import { IsNewChatSessionContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHasWorkspaceContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionWorkspaceIsVirtualContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
@@ -37,9 +37,11 @@ import { ISessionsProvidersService } from '../../services/sessions/browser/sessi
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
+import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
+import { Codicon } from '../../../base/common/codicons.js';
 
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');
@@ -104,6 +106,9 @@ class TestChat extends mock<IChat>() {
 	override readonly status: ISettableObservable<SessionStatus>;
 	override readonly isRead: IObservable<boolean> = constObservable(true);
 	override readonly interactivity: ISettableObservable<ChatInteractivity>;
+	override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(undefined);
+	override readonly changes = constObservable([]);
+	override readonly changesets = constObservable([]);
 
 	constructor(id: string, status = SessionStatus.Completed, parentChat?: URI, originKind = ChatOriginKind.Tool) {
 		super();
@@ -136,6 +141,8 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly isCreated: IObservable<boolean>;
 	override readonly status = constObservable(SessionStatus.Completed);
 	override readonly isRead = constObservable(true);
+	override readonly workspace = constObservable(undefined);
+	override readonly sticky = constObservable(false);
 	override readonly isNewSessionRequestInProgress = observableValue(this, false);
 	override readonly isArchived = observableValue(this, false);
 	override readonly loading: ISettableObservable<boolean>;
@@ -280,6 +287,10 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	}());
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
 	instantiationService.stub(ISessionsProvidersService, sessionsProvidersService);
+	instantiationService.stub(ISessionChangesStatsCache, new class extends mock<ISessionChangesStatsCache>() {
+		override get() { return undefined; }
+		override set(): void { }
+	}());
 
 	const view = store.add(instantiationService.createInstance(ChatGroupsView));
 	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
@@ -318,6 +329,49 @@ function readRemoteHostUnavailableState(view: ChatGroupsView): { readonly visibl
 
 suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('each group publishes its own chat capabilities and workspace instead of the session active chat', async () => {
+		const { view, sessionsService, instantiationService } = createHarness(disposables);
+		const workspace: ISessionWorkspace = {
+			uri: URI.file('/workspace'),
+			label: 'Workspace',
+			icon: Codicon.folder,
+			folders: [],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const main = new class extends TestChat {
+			override readonly workspace = constObservable(workspace);
+		}('main');
+		const peer = createChat('peer');
+		const session = new TestActiveSession([main, peer]);
+		view.setSession(session, {});
+		await view.openChatInNewGroup(peer.resource);
+		const keys = instantiationService.get(IContextKeyService);
+		const snapshot = () => [...view.element.querySelectorAll<HTMLElement>('.chat-group-view')].map(group => {
+			const context = keys.getContext(group);
+			return {
+				chat: context.getValue<string>(SessionActiveChatResourceContext.key),
+				closable: context.getValue<boolean>(SessionActiveChatIsClosableContext.key),
+				deletable: context.getValue<boolean>(SessionActiveChatIsDeletableContext.key),
+				hasWorkspace: context.getValue<boolean>(SessionHasWorkspaceContext.key),
+				virtual: context.getValue<boolean>(SessionWorkspaceIsVirtualContext.key),
+				newSession: context.getValue<boolean>(IsNewChatSessionContext.key),
+			};
+		});
+		const peerActive = snapshot();
+		await sessionsService.openChat(session, main.resource);
+		assert.deepStrictEqual({ peerActive, mainActive: snapshot() }, {
+			peerActive: [
+				{ chat: main.resource.toString(), closable: false, deletable: false, hasWorkspace: true, virtual: false, newSession: false },
+				{ chat: peer.resource.toString(), closable: true, deletable: true, hasWorkspace: false, virtual: true, newSession: false },
+			],
+			mainActive: [
+				{ chat: main.resource.toString(), closable: false, deletable: false, hasWorkspace: true, virtual: false, newSession: false },
+				{ chat: peer.resource.toString(), closable: true, deletable: true, hasWorkspace: false, virtual: true, newSession: false },
+			],
+		});
+	});
 	const options = {};
 
 	test('aligns transcript overlays with full-width split chats', () => {

@@ -14,6 +14,8 @@ import { SessionHeader } from '../../../../../sessions/browser/parts/sessionHead
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionsPartService } from '../../../../../sessions/services/sessions/browser/sessionsPartService.js';
+// eslint-disable-next-line local/code-import-patterns
 import { IChat, ISessionCapabilities, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
@@ -85,6 +87,9 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, wit
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
+			reg.defineInstance(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override startSessionDrag(): void { }
+			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
 				override async renameChat() { }

@@ -14,15 +14,17 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { hasCustomTitlebar } from '../../../platform/window/common/window.js';
-import { IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
+import { AuxiliaryBarFocusContext, AuxiliaryBarVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsAuxiliaryWindowContext, PanelFocusContext, PanelVisibleContext, SecondarySideBarVisibleContext, SideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ILifecycleService } from '../../../workbench/services/lifecycle/common/lifecycle.js';
-import { CustomViewVisibleContext, IsNewChatSessionContext, IsPhoneLayoutContext, SessionsAuxiliaryWindowContext } from '../../common/contextkeys.js';
+import { CustomViewVisibleContext, IsNewChatSessionContext, IsPhoneLayoutContext, SessionsAuxiliaryWindowContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
 import { ISessionPartCloseEvent } from '../../services/sessions/browser/sessionsPartService.js';
 import { AGENTS_PART_CARD_CLASS } from './agentsPartCard.js';
-import { SessionsPart } from './sessionsPart.js';
+import { bindSessionsPartContextKeys, SessionsPart } from './sessionsPart.js';
 import { ISessionsTitleService } from './titlebarPart.js';
+import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
+import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
 
 /** Owns one auxiliary document's chrome, scoped services and Sessions rendering lifetime. */
 export class AuxiliarySessionsPart extends Disposable {
@@ -46,6 +48,7 @@ export class AuxiliarySessionsPart extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionChangesStatsCache private readonly changesStatsCache: ISessionChangesStatsCache,
 	) {
 		super();
 	}
@@ -73,8 +76,17 @@ export class AuxiliarySessionsPart extends Disposable {
 		SessionsAuxiliaryWindowContext.bindTo(scopedContext).set(true);
 		IsAuxiliaryWindowContext.bindTo(scopedContext).set(true);
 		IsPhoneLayoutContext.bindTo(scopedContext).set(false);
-		IsNewChatSessionContext.bindTo(scopedContext).set(false);
+		const newSession = IsNewChatSessionContext.bindTo(scopedContext);
 		CustomViewVisibleContext.bindTo(scopedContext).set(false);
+		SessionsWelcomeVisibleContext.bindTo(scopedContext).set(false);
+		SideBarVisibleContext.bindTo(scopedContext).set(false);
+		PanelVisibleContext.bindTo(scopedContext).set(false);
+		AuxiliaryBarVisibleContext.bindTo(scopedContext).set(false);
+		SecondarySideBarVisibleContext.bindTo(scopedContext).set(false);
+		EditorAreaFocusContext.bindTo(scopedContext).set(false);
+		PanelFocusContext.bindTo(scopedContext).set(false);
+		AuxiliaryBarFocusContext.bindTo(scopedContext).set(false);
+		FocusedViewContext.bindTo(scopedContext).set('');
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
 		const container = $('.part.sessionspart.basepanel.right', { role: 'main' });
 		container.classList.add(AGENTS_PART_CARD_CLASS);
@@ -82,8 +94,14 @@ export class AuxiliarySessionsPart extends Disposable {
 		window.container.appendChild(container);
 		const part = this._part = this._register(scopedInstantiationService.createInstance(SessionsPart, this.partId));
 		part.create(container);
+		this._register(bindSessionsPartContextKeys(scopedContext, part.context));
 		this._register(autorun(reader => {
-			window.window.document.title = part.activeSession.read(reader)?.title.read(reader) ?? localize('sessionsWindowTitle', "Sessions");
+			const session = part.activeSession.read(reader);
+			scopedContext.bufferChangeEvents(() => {
+				setActiveSessionContextKeys(session, scopedContext, reader, this.changesStatsCache);
+				newSession.set(false);
+			});
+			window.window.document.title = session?.title.read(reader) ?? localize('sessionsWindowTitle', "Sessions");
 		}));
 		this._register(part.onDidFocusSession(id => this._onDidFocusSession.fire(id)));
 		this._register(part.onDidInteractWithGrid(() => this._onDidInteractWithGrid.fire()));
@@ -117,10 +135,13 @@ export class AuxiliarySessionsPart extends Disposable {
 		}));
 		this._register(Event.once(window.onUnload)(() => {
 			if (!this._store.isDisposed) {
-				if (!this.lifecycleService.willShutdown) {
-					this.onWillClose();
+				try {
+					if (!this.lifecycleService.willShutdown) {
+						this.onWillClose();
+					}
+				} finally {
+					this._onDidClose.fire({ partId: this.partId, shutdown: this.lifecycleService.willShutdown });
 				}
-				this._onDidClose.fire({ partId: this.partId, shutdown: this.lifecycleService.willShutdown });
 			}
 		}));
 		await window.whenStylesHaveLoaded;

@@ -26,10 +26,9 @@ import { ClosedItemHistory } from './closedItemHistory.js';
 import { SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService, MAIN_SESSIONS_PART, SessionGridRequest } from './sessionsPartService.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
-import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
@@ -403,8 +402,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _navigationRequest = observableValue<ISessionNavigationRequest | undefined>(this, undefined);
 	readonly navigationRequest: IObservable<ISessionNavigationRequest | undefined> = this._navigationRequest;
 
-	private readonly _isNewChatSessionContext: IContextKey<boolean>;
-
 	/** Cancelled on every navigation action so in-flight async opens bail out. */
 	private readonly _openSessionCts = this._register(new DisposableMap<string, CancellationTokenSource>());
 	/**
@@ -471,7 +468,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this.visibleSessions = this._visibility.visibleSessions;
 		this.mainVisibleSessions = derived(this, reader => this.visibleSessions.read(reader).filter(session => this.getSessionPartId(session) === MAIN_SESSIONS_PART));
 		this.activeSession = this._visibility.activeSession;
-		this.sessionsPartService.setAuxiliaryWindowCloseHandler(partId => this.returnSessionsToMainWindow(partId));
+		this.sessionsPartService.setAuxiliaryWindowCloseHandler(partId => this.returnClosingSessionsToMainWindow(partId));
 		this.sessionsPartService.setSessionDragHandlers({
 			drop: (sessions, target) => this.openSessionsAt(sessions, target.referenceSessionId, target.direction, { partId: target.partId }),
 			openWindow: (sessions, bounds) => this.moveSessionsToNewWindow(sessions, { bounds }),
@@ -487,11 +484,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._visibility,
 			(session, chatResource) => this.openChat(session, chatResource),
 		));
-
-		// Bind active-session context keys. These reflect the visible active
-		// slot (the view's `activeSession`); `isNewChatSession` also consults
-		// the model's in-progress draft (`newSession`).
-		this._isNewChatSessionContext = IsNewChatSessionContext.bindTo(this.contextKeyService);
 
 		// Save on shutdown
 		this._register(this.storageService.onWillSaveState(() => this._saveSessionStates()));
@@ -515,18 +507,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => this._navigation.onDidRemoveSessions(e)));
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => this._recencyHistory.remove(entry => entry.sessionResource.toString() === session.resource.toString())));
 
-		// Keep the active-session context keys in sync with the visible active
-		// slot and the model's in-progress draft. The helper reads the session's
-		// observable properties via `reader`, so this autorun re-applies the keys
-		// whenever any of them change.
+		// Global session keys follow explicit activation, not a background window's local selection.
 		this._register(autorun(reader => {
 			const activeSession = this.activeSession.read(reader);
-			const newSession = this.sessionsManagementService.newSession.read(reader);
-			// `isNewChatSession` is true when no active session exists, OR when the
-			// active session is still the in-progress new session (created but not yet
-			// sent for the first time). Scoping to the active session avoids flipping
-			// into "new chat" mode while viewing a different established session.
-			this._isNewChatSessionContext.set(activeSession === undefined || activeSession.sessionId === newSession?.sessionId);
 			setActiveSessionContextKeys(activeSession, this.contextKeyService, reader, this.changesStatsCache);
 		}));
 
@@ -782,6 +765,34 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this.sessionsPartService.focusSession(this.activeSession.get());
 		}
 		status(localize('sessions.returnedToMain', "Returned sessions to the main window."));
+	}
+
+	private returnClosingSessionsToMainWindow(partId: string): void {
+		const layout = this._restoringWindows.get(partId)?.layout ?? this.snapshotGrid(partId);
+		const window = this.sessionsPartService.getAuxiliaryWindowState(partId);
+		const pendingMain = this._restoringGridState;
+		this._saveSessionStates();
+		try {
+			this.returnSessionsToMainWindow(partId);
+		} catch (error) {
+			this.logService.error('[SessionsView] Failed to return sessions from a closing window', error);
+			this._restoringGridState = pendingMain;
+			const state: ISessionWindowState | undefined = layout ? { id: partId, layout, window } : undefined;
+			if (state) {
+				this._restoringWindows.set(partId, state);
+			}
+			const sessions = this._visibility.getVisibleSessions(partId);
+			this._visibility.removeMany(sessions.map(session => session?.sessionId));
+			this._visibility.forgetPart(partId);
+			if (!state) {
+				this.notificationService.error(error);
+				return;
+			}
+			this.notificationService.prompt(Severity.Error, localize('sessions.returnWindowFailed', "The window closed, but its sessions could not be returned to the main window. Their saved layout and drafts have been kept. Retry to reopen them."), [{
+				label: localize('sessions.retryWindow', "Retry"),
+				run: () => this.restoreAuxiliaryPart(state, true),
+			}]);
+		}
 	}
 
 	private resumeMainRestore(state: ISessionGridState, activate: boolean, preserveSelection = false): void {

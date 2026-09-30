@@ -32,7 +32,6 @@ suite('ChatInputEditorState', () => {
 		await target.model.undo();
 		const restored = { sameModel: target.model === model, text: target.model.getValue(), releases };
 		target.dispose();
-		await Promise.resolve();
 		assert.deepStrictEqual({ restored, disposed: model.isDisposed(), releases }, {
 			restored: { sameModel: true, text: 'draft', releases: 0 },
 			disposed: true,

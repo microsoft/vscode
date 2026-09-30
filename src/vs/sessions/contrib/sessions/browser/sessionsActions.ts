@@ -36,7 +36,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionsAuxiliaryWindowContext, SessionsAuxiliaryWindowsSupportedContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionsAuxiliaryWindowContext, SessionsAuxiliaryWindowFocusedContext, SessionsAuxiliaryWindowsSupportedContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID, MOVE_SESSION_TO_NEW_WINDOW_COMMAND_ID, MOVE_SESSION_TO_WINDOW_COMMAND_ID, RETURN_SESSIONS_TO_MAIN_WINDOW_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -1947,6 +1947,14 @@ registerAction2(class CloseSessionAction extends Action2 {
 const sessionGridWhen = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), MultipleSessionsVisibleContext);
 const sessionWindowWhen = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), SessionIsCreatedContext, SessionsAuxiliaryWindowsSupportedContext);
 
+function getGridActionSession(accessor: ServicesAccessor, session: IActiveSession | undefined): IActiveSession | undefined {
+	if (session) {
+		return session;
+	}
+	const part = accessor.get(ISessionsPartService).getPartForWindow(getActiveWindow());
+	return part ? part.activeSession.get() : accessor.get(ISessionsService).activeSession.get();
+}
+
 registerAction2(class MoveSessionToNewWindowAction extends Action2 {
 	constructor() {
 		super({
@@ -2019,7 +2027,7 @@ registerAction2(class ReturnSessionsToMainWindowAction extends Action2 {
 			title: localize2('returnSessionsToMainWindow', "Return All Sessions to Main Window"),
 			category: SessionsCategories.Sessions,
 			f1: true,
-			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionsAuxiliaryWindowContext),
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.or(SessionsAuxiliaryWindowContext, SessionsAuxiliaryWindowFocusedContext)),
 			menu: { id: Menus.SessionHeaderContext, group: '1_view', order: 6, when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionsAuxiliaryWindowContext) },
 		});
 	}
@@ -2090,7 +2098,7 @@ for (const item of [
 			}
 			run(accessor: ServicesAccessor, session?: IActiveSession): void {
 				const service = accessor.get(ISessionsService);
-				session ??= service.activeSession.get();
+				session = getGridActionSession(accessor, session);
 				if (operation === 'focus') {
 					service.focusSessionInDirection(session, item.direction);
 				} else if (operation === 'move') {
@@ -2127,7 +2135,7 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		session ??= accessor.get(ISessionsService).activeSession.get();
+		session = getGridActionSession(accessor, session);
 		accessor.get(ISessionsService).setActive(session);
 		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
 	}

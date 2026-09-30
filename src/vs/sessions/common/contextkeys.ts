@@ -9,7 +9,7 @@ import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbenc
 
 //#region < --- Active Session --- >
 
-export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
+export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true, localize('isNewChatSession', "Whether the session in scope is a new-session composer"));
 export const NewSessionOnboardingHandoffContext = new RawContextKey<boolean>('newSessionOnboardingHandoff', false);
 export const SessionIdContext = new RawContextKey<string>('sessionId', '', localize('sessionId', "The identifier of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
 export const SessionProviderIdContext = new RawContextKey<string>('sessionProviderId', '', localize('sessionProviderId', "The provider ID of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
@@ -26,6 +26,7 @@ export const SessionItemIsMultiSelectionContext = new RawContextKey<boolean>('se
 //#region < --- Session View --- >
 
 export const SessionsAuxiliaryWindowContext = new RawContextKey<boolean>('sessionsAuxiliaryWindow', false, localize('sessionsAuxiliaryWindow', "Whether the Sessions grid is in an auxiliary window"));
+export const SessionsAuxiliaryWindowFocusedContext = new RawContextKey<boolean>('sessionsAuxiliaryWindowFocused', false, localize('sessionsAuxiliaryWindowFocused', "Whether the focused window hosts an auxiliary Sessions grid"));
 export const SessionsAuxiliaryWindowsSupportedContext = new RawContextKey<boolean>('sessionsAuxiliaryWindowsSupported', false, localize('sessionsAuxiliaryWindowsSupported', "Whether the Sessions workbench can host auxiliary grids"));
 export const SessionIsCreatedContext = new RawContextKey<boolean>('sessionIsCreated', false, localize('sessionIsCreated', "Whether the session view's session has been created (chat view shown, not new-session view)"));
 export const SessionIsStickyContext = new RawContextKey<boolean>('sessionIsSticky', false, localize('sessionIsSticky', "Whether the session view's session is sticky in the grid"));

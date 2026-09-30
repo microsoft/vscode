@@ -73,6 +73,8 @@ Auxiliary windows contain a titlebar and Sessions grid. The new-session composer
 
 Closing an auxiliary returns its content to main as a subtree without balancing unrelated panes or stopping requests. Empty auxiliaries close after committed removals, but opening and restoring windows are not treated as empty. Parent shutdown flushes view state, saves the separate arrangements, and closes auxiliary hosts without merging them. Multiwindow snapshots store part IDs, canonical grids, selections, pins, active-part identity, and native window state; single-grid snapshots remain readable. Failed and timed-out restores retain unresolved bindings; late provider discovery retries without taking activation from another window. Closing a partially restored window retains its unresolved bindings in the returned main layout.
 
+If destination rendering fails after native close is irreversible, the closed part is unregistered and removed from live membership. Its flushed draft state and saved window descriptor remain available for explicit retry rather than leaving sessions assigned to a closed document.
+
 Session geometry does not determine Editor, Details, or other side-pane visibility policy. That policy remains with the layout controllers.
 
 ## Editor presentation

@@ -18,6 +18,8 @@ import { ISessionsPartService } from '../../services/sessions/browser/sessionsPa
 import { createSessionsPartTestServices } from './sessionViewTestUtils.js';
 import { ILifecycleService } from '../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../workbench/test/common/workbenchTestServices.js';
+import { IHostService } from '../../../workbench/services/host/browser/host.js';
+import { TestHostService } from '../../../workbench/test/browser/workbenchTestServices.js';
 
 let windowId = 1000;
 
@@ -77,6 +79,8 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 
 export function createSessionWindowsTestHarness(store: DisposableStore, createMain = true) {
 	const services = createSessionsPartTestServices(store);
+	const hostService = services.instantiationService.get(IHostService);
+	assert(hostService instanceof TestHostService);
 	const windows: TestAuxiliaryWindow[] = [];
 	let openFailure: Error | undefined;
 	const shutdown = store.add(new Emitter<void>());
@@ -116,5 +120,5 @@ export function createSessionWindowsTestHarness(store: DisposableStore, createMa
 	if (createMain) {
 		renderMain();
 	}
-	return { ...services, parts, main, windows, renderMain, lifecycle, shutdown, failOpen: (error: Error) => openFailure = error };
+	return { ...services, parts, main, windows, renderMain, lifecycle, shutdown, hostService, failOpen: (error: Error) => openFailure = error };
 }

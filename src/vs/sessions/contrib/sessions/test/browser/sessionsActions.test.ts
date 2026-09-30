@@ -47,17 +47,75 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RETURN_SESSIONS_TO_MAIN_WINDOW_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { createSessionWindowsTestHarness } from '../../../../test/browser/sessionWindowsTestUtils.js';
+import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 suite('Sessions - Actions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('global Command Palette enablement follows the active Sessions window rather than the main grid', async () => {
+		const h = createSessionWindowsTestHarness(disposables.add(new DisposableStore()));
+		IsSessionsWindowContext.bindTo(h.contextKeyService).set(true);
+		const chatEnabled = ChatContextKeys.enabled.bindTo(h.contextKeyService);
+		chatEnabled.set(true);
+		const a = createTestActiveSession('a');
+		const b = createTestActiveSession('b');
+		const c = createTestActiveSession('c');
+		h.parts.updateVisibleSessions([a], a);
+		const auxiliary = await h.parts.createAuxiliaryPart();
+		h.parts.updateVisibleSessions([b, c], b, undefined, undefined, auxiliary.partId);
+		const palette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem);
+		const arrange = palette.find(item => item.command.id === ARRANGE_SESSIONS_COMMAND_ID)!;
+		const returnToMain = palette.find(item => item.command.id === RETURN_SESSIONS_TO_MAIN_WINDOW_COMMAND_ID)!;
+		assert(arrange && returnToMain);
+		const enabled = () => [arrange, returnToMain].map(item => (!item.when || h.contextKeyService.contextMatchesRules(item.when))
+			&& (!item.command.precondition || h.contextKeyService.contextMatchesRules(item.command.precondition)));
+		const main = enabled();
+		h.hostService.setActiveWindow(h.windows[0].window.vscodeWindowId);
+		const aux = enabled();
+		chatEnabled.set(false);
+		const disabled = enabled();
+		chatEnabled.set(true);
+		h.hostService.setActiveWindow(mainWindow.vscodeWindowId);
+		assert.deepStrictEqual({ main, aux, disabled, returned: enabled() }, {
+			main: [false, false], aux: [true, true], disabled: [false, false], returned: [false, false],
+		});
+	});
+
+	test('grid commands resolve the same window selection as their context keys and honor explicit targets', async () => {
+		const h = createSessionWindowsTestHarness(disposables.add(new DisposableStore()));
+		const a = createTestActiveSession('local-session');
+		const global = createTestActiveSession('global-session');
+		h.parts.updateVisibleSessions([a, undefined], a);
+		const calls: [string, string | undefined][] = [];
+		h.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(global);
+			override focusSessionInDirection(session: IActiveSession | undefined): void { calls.push(['focus', session?.sessionId]); }
+			override moveSessionInDirection(session: IActiveSession | undefined): void { calls.push(['move', session?.sessionId]); }
+			override resizeSession(session: IActiveSession | undefined): void { calls.push(['resize', session?.sessionId]); }
+		}());
+		const invoke = (command: string, session?: IActiveSession) => h.instantiationService.invokeFunction(CommandsRegistry.getCommand(command)!.handler, session);
+		await invoke('sessions.focusSessionLeft');
+		await invoke('sessions.moveSessionDown');
+		await invoke('sessions.widenSession');
+		await invoke('sessions.widenSession', global);
+		h.parts.updateVisibleSessions([a, undefined], undefined);
+		await invoke('sessions.focusSessionLeft');
+		assert.deepStrictEqual(calls, [
+			['focus', a.sessionId], ['move', a.sessionId], ['resize', a.sessionId], ['resize', global.sessionId], ['focus', undefined],
+		]);
+	});
 
 	test('contributes New Chat to the session header overflow', () => {
 		const action = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)

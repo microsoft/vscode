@@ -35,8 +35,9 @@ import {
 	SessionActiveChatHasSideChatsContext,
 	SessionActiveChatResourceContext,
 	SessionHasGitRepositoryContext,
+	IsNewChatSessionContext,
 } from '../../../common/contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession } from './sessionsManagement.js';
 
@@ -72,6 +73,7 @@ interface ISessionContextKeys {
 	readonly activeChatIsDeletable: IContextKey<boolean>;
 	readonly activeChatResource: IContextKey<string>;
 	readonly activeChatHasSideChats: IContextKey<boolean>;
+	readonly isNewChat: IContextKey<boolean>;
 }
 
 /**
@@ -116,6 +118,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			activeChatIsDeletable: SessionActiveChatIsDeletableContext.bindTo(contextKeyService),
 			activeChatResource: SessionActiveChatResourceContext.bindTo(contextKeyService),
 			activeChatHasSideChats: SessionActiveChatHasSideChatsContext.bindTo(contextKeyService),
+			isNewChat: IsNewChatSessionContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -153,6 +156,7 @@ function setSessionContextKeysUnbuffered(session: ISession | undefined, contextK
 	keys.isArchived.set(session?.isArchived.read(reader) ?? false);
 	keys.isActive.set(session ? isActiveSessionStatus(session.status.read(reader)) : false);
 	keys.isRead.set(session?.isRead.read(reader) ?? true);
+	keys.isNewChat.set(!session || session.status.read(reader) === SessionStatus.Untitled);
 	const capabilities = session?.capabilities.read(reader);
 	keys.supportsMultipleChats.set(capabilities?.supportsMultipleChats ?? false);
 	keys.supportsFork.set(capabilities?.supportsFork ?? false);
@@ -197,13 +201,14 @@ function setSessionContextKeysUnbuffered(session: ISession | undefined, contextK
  *
  * See {@link setSessionContextKeys} for the `reader` and `undefined` semantics.
  */
-export function setActiveSessionContextKeys(session: IActiveSession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
+export function setActiveSessionContextKeys(session: IActiveSession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache, chatContext?: { readonly chat: IChat | undefined }): void {
 	contextKeyService.bufferChangeEvents(() => {
 		setSessionContextKeysUnbuffered(session, contextKeyService, reader, changesStatsCache);
 		const keys = getBoundKeys(contextKeyService);
 		keys.isCreated.set(session?.isCreated.read(reader) ?? false);
+		keys.isNewChat.set(!session || !session.isCreated.read(reader));
 		keys.sticky.set(session?.sticky.read(reader) ?? false);
-		const focusedChat = session?.activeChat.read(reader);
+		const focusedChat = chatContext ? chatContext.chat : session?.activeChat.read(reader);
 		const activeChatStats = focusedChat ? readChatChangesStats(focusedChat, reader) : undefined;
 		const worktreePending = session?.worktreePending?.read(reader) ?? false;
 		keys.hasChanges.set(!worktreePending && !!activeChatStats && (activeChatStats.insertions > 0 || activeChatStats.deletions > 0));
@@ -232,7 +237,7 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 		// The active chat can be closed (hidden) from the tab strip when it is a
 		// non-main chat — including read-only subagent chats, which surface as
 		// closeable tabs. The main chat lives and dies with its session.
-		const activeChat = session?.activeChat.read(reader);
+		const activeChat = focusedChat;
 		const mainResource = session?.mainChat.read(reader).resource;
 		keys.activeChatResource.set(activeChat?.resource.toString() ?? '');
 		const isNonMainChat = !!activeChat && !!mainResource && !isEqual(mainResource, activeChat.resource);
