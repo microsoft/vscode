@@ -5,13 +5,14 @@
 
 import assert from 'assert';
 import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { IFileService, IFileStat } from '../../../../../platform/files/common/files.js';
+import { IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -108,6 +109,24 @@ suite('Sessions Download Remote File action', () => {
 		}), [['2_download'], ['2_download'], ['navigation'], [], [], [], []]);
 	});
 
+	function createFileStat(resource: URI): IFileStatWithMetadata {
+		return {
+			resource,
+			name: basename(resource),
+			isFile: true,
+			isDirectory: false,
+			isSymbolicLink: false,
+			children: undefined,
+			mtime: 0,
+			ctime: 0,
+			etag: 'test',
+			size: 0,
+			readonly: false,
+			locked: false,
+			executable: false,
+		};
+	}
+
 	function createServices(editors: EditorInput[], activeEditor: EditorInput) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const group = new class extends mock<IEditorGroup>() {
@@ -133,9 +152,7 @@ suite('Sessions Download Remote File action', () => {
 		instantiationService.stub(IEditorService, { findEditors: () => [{ editor: remote, groupId: 1 }] });
 		const downloaded: URI[] = [];
 		instantiationService.stub(IFileService, {
-			resolve: async resource => ({
-				resource, name: resource.path, isFile: true, isDirectory: false, isSymbolicLink: false, children: undefined
-			}),
+			resolve: async resource => createFileStat(resource),
 		});
 		instantiationService.stub(INotificationService, {});
 		instantiationService.stubInstance(FileDownload, {
@@ -159,7 +176,7 @@ suite('Sessions Download Remote File action', () => {
 					if (failure === 'resolve') {
 						throw error;
 					}
-					return { resource, name: 'index.html', isFile: true, isDirectory: false, isSymbolicLink: false, children: undefined } satisfies IFileStat;
+					return createFileStat(resource);
 				},
 			});
 			instantiationService.stub(INotificationService, { error: error => { notifications.push(error); } });
