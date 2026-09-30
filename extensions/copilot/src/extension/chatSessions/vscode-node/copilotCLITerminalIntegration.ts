@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises as fs } from 'fs';
 import { Terminal, TerminalLocation, TerminalOptions, TerminalProfile, ThemeIcon, Uri, ViewColumn, window, workspace } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -24,12 +25,33 @@ import { prepareCopilotCLINativeShim } from './copilotCLINativeShim';
 import { CopilotCLITerminalLinkProvider, SessionDirResolver } from './copilotCLITerminalLinkProvider';
 
 const COPILOT_CLI_COMMAND = 'copilot';
+const COPILOT_SHIM_DIRECTORY = 'copilot-shim';
 const COPILOT_ICON = new ThemeIcon('copilot');
 
 /**
  * Core setting, controlled by the `CopilotCliCommand` policy, that turns off the native shim in terminals.
  */
 const COPILOT_CLI_COMMAND_ENABLED_SETTING = 'chat.copilotCliCommand.enabled';
+
+/**
+ * Directory in global storage where earlier versions wrote script shims, and where a local development build of the
+ * shim is published when this build doesn't ship one.
+ */
+const STORED_SHIM_DIRECTORY = 'copilotCli';
+
+/**
+ * Returns where the native `copilot` shim ships: a `copilot-shim` folder in the `bin` folder that contains the `code`
+ * command. On macOS the `bin` folder is under the app root; elsewhere it is next to the application executable.
+ */
+export function getNativeCopilotShimPath(platform: NodeJS.Platform, execPath: string, appRoot: string): string {
+	if (platform === 'win32') {
+		return path.win32.join(path.win32.dirname(execPath), 'bin', COPILOT_SHIM_DIRECTORY, `${COPILOT_CLI_COMMAND}.exe`);
+	}
+	if (platform === 'darwin') {
+		return path.posix.join(appRoot, 'bin', COPILOT_SHIM_DIRECTORY, COPILOT_CLI_COMMAND);
+	}
+	return path.posix.join(path.posix.dirname(execPath), 'bin', COPILOT_SHIM_DIRECTORY, COPILOT_CLI_COMMAND);
+}
 
 export type TerminalOpenLocation = 'panel' | 'editor' | 'editorBeside';
 
@@ -65,11 +87,11 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 	declare _serviceBrand: undefined;
 	private readonly initialization: Promise<void>;
 	/**
-	 * The stored native shim when available and enabled; otherwise `copilot`, resolved from PATH.
+	 * The native shim when available and enabled; otherwise `copilot`, resolved from PATH.
 	 */
 	private copilotCommand: string = COPILOT_CLI_COMMAND;
 	/**
-	 * The native shim published in extension global storage.
+	 * The native shim that ships with this build, or a local development build published in global storage.
 	 */
 	private nativeShimPath: string | undefined;
 	private readonly pythonTerminalService: PythonTerminalService;
@@ -95,11 +117,7 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 	}
 
 	private async initialize(): Promise<void> {
-		if (this.context.globalStorageUri) {
-			this.nativeShimPath = await prepareCopilotCLINativeShim(this.context.globalStorageUri.fsPath, this.logService);
-		} else {
-			this.logService.info('[CopilotCLITerminalIntegration] Global storage is unavailable; terminals run copilot from PATH.');
-		}
+		this.nativeShimPath = await this.findNativeShim();
 		this.updateCopilotCommand();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(COPILOT_CLI_COMMAND_ENABLED_SETTING)) {
@@ -148,6 +166,43 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 		this.terminalService.removePathContribution('copilot-cli');
 		if (!enabled && this.nativeShimPath) {
 			this.logService.info(`[CopilotCLITerminalIntegration] ${COPILOT_CLI_COMMAND_ENABLED_SETTING} is off; terminals run copilot from PATH.`);
+		}
+	}
+
+	/**
+	 * Returns the shim that ships next to the `code` command. A build from source doesn't ship one; it can use a local
+	 * development build instead (see `copilotCLINativeShim.ts`).
+	 */
+	private async findNativeShim(): Promise<string | undefined> {
+		const shippedPath = getNativeCopilotShimPath(process.platform, process.execPath, this.envService.appRoot);
+		if (await isFile(shippedPath)) {
+			await this.removeStoredShims();
+			return shippedPath;
+		}
+
+		const globalStorageUri = this.context.globalStorageUri;
+		if (!globalStorageUri) {
+			// globalStorageUri is not available in extension tests
+			this.logService.info(`[CopilotCLITerminalIntegration] The native copilot shim was not found at ${shippedPath}; terminals run copilot from PATH.`);
+			return undefined;
+		}
+		return prepareCopilotCLINativeShim(globalStorageUri.fsPath, this.logService);
+	}
+
+	/**
+	 * Removes the script shims that earlier versions wrote to global storage, which terminals restored with their old
+	 * PATH could still run, and any local development build published there.
+	 */
+	private async removeStoredShims(): Promise<void> {
+		const globalStorageUri = this.context.globalStorageUri;
+		if (!globalStorageUri) {
+			return;
+		}
+
+		try {
+			await fs.rm(path.join(globalStorageUri.fsPath, STORED_SHIM_DIRECTORY), { recursive: true, force: true });
+		} catch (error) {
+			this.logService.warn(`[CopilotCLITerminalIntegration] Failed to remove the stored copilot shims: ${error}`);
 		}
 	}
 
@@ -402,6 +457,14 @@ function quoteArgsForShell(shellScript: string, args: string[]): string {
 function quoteArgsForPowerShell(command: string, args: string[]): string {
 	const quote = (value: string) => `'${value.replace(/'/g, `''`)}'`;
 	return ['&', quote(command), ...args.map(quote)].join(' ');
+}
+
+async function isFile(filePath: string): Promise<boolean> {
+	try {
+		return (await fs.stat(filePath)).isFile();
+	} catch {
+		return false;
+	}
 }
 
 async function getCommonTerminalOptions(name: string, authenticationService: IAuthenticationService, otelService: IOTelService, location: TerminalOpenLocation = 'editor'): Promise<TerminalOptions> {

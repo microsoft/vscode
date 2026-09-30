@@ -19,8 +19,18 @@ import { Emitter } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import * as path from '../../../../util/vs/base/common/path';
 
-const { mockPrepareShim } = vi.hoisted(() => ({
+// Mock fs operations to avoid real filesystem access during tests
+const { mockRm, mockStat, mockPrepareShim } = vi.hoisted(() => ({
+	mockRm: vi.fn(async () => { }),
+	mockStat: vi.fn(async () => ({ isFile: () => true })),
 	mockPrepareShim: vi.fn<() => Promise<string | undefined>>(),
+}));
+
+vi.mock('fs', () => ({
+	promises: {
+		rm: mockRm,
+		stat: mockStat,
+	}
 }));
 
 vi.mock('../copilotCLINativeShim', () => ({
@@ -52,9 +62,10 @@ vi.mock('../../../../platform/workspace/common/workspaceService', () => ({
 
 import type { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { PythonTerminalService } from '../copilotCLIPythonTerminalService';
-import { CopilotCLITerminalIntegration } from '../copilotCLITerminalIntegration';
+import { CopilotCLITerminalIntegration, getNativeCopilotShimPath } from '../copilotCLITerminalIntegration';
 
-const expectedShimPath = path.join('/tmp/test-global-storage', 'copilotCli', process.platform === 'win32' ? 'copilot.exe' : 'copilot');
+const expectedShimPath = getNativeCopilotShimPath(process.platform, process.execPath, '');
+const storedShimPath = path.join('/tmp/test-global-storage', 'copilotCli', process.platform === 'win32' ? 'copilot.exe' : 'copilot');
 
 /**
  * Mirrors how the integration quotes a command for POSIX shells.
@@ -233,7 +244,7 @@ describe('CopilotCLITerminalIntegration', () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
-		mockPrepareShim.mockResolvedValue(expectedShimPath);
+		mockPrepareShim.mockResolvedValue(storedShimPath);
 
 		terminalService = disposables.add(new TestTerminalService());
 		telemetryService = new TestTelemetryService();
@@ -425,6 +436,7 @@ describe('CopilotCLITerminalIntegration', () => {
 
 		it.runIf(process.platform === 'win32')('should launch a stored native shim with spaces through Git Bash', async () => {
 			envService.shell = 'C:\\Program Files\\Git\\bin\\bash.exe';
+			mockStat.mockRejectedValueOnce(new Error('ENOENT'));
 			mockPrepareShim.mockResolvedValueOnce('C:\\global storage\\copilotCli\\copilot.exe');
 			const bashIntegration = await createIntegration();
 			await bashIntegration.openTerminal('Git Bash', ['--resume', 'session-1']);
@@ -435,6 +447,7 @@ describe('CopilotCLITerminalIntegration', () => {
 		it('should launch a stored native shim with spaces through PowerShell', async () => {
 			envService.shell = 'pwsh';
 			const storedPath = '/global storage/copilotCli/copilot';
+			mockStat.mockRejectedValueOnce(new Error('ENOENT'));
 			mockPrepareShim.mockResolvedValueOnce(storedPath);
 			const powershellIntegration = await createIntegration();
 			await powershellIntegration.openTerminal('PowerShell', ['--resume', 'session 1']);
@@ -443,6 +456,7 @@ describe('CopilotCLITerminalIntegration', () => {
 		});
 
 		it('should run copilot from PATH when the native shim is missing', async () => {
+			mockStat.mockRejectedValueOnce(new Error('ENOENT'));
 			mockPrepareShim.mockResolvedValueOnce(undefined);
 			const pathIntegration = await createIntegration();
 
@@ -467,6 +481,7 @@ describe('CopilotCLITerminalIntegration', () => {
 
 		it('should not contribute to the terminal PATH when the native shim is missing', async () => {
 			terminalService.contributePathSpy.mockClear();
+			mockStat.mockRejectedValueOnce(new Error('ENOENT'));
 			mockPrepareShim.mockResolvedValueOnce(undefined);
 			await createIntegration();
 
@@ -494,8 +509,33 @@ describe('CopilotCLITerminalIntegration', () => {
 			});
 		});
 
-		it('should prepare the native shim in extension global storage', async () => {
-			expect(mockPrepareShim).toHaveBeenCalledWith('/tmp/test-global-storage', expect.objectContaining({ warn: expect.any(Function) }));
+		it('should use the shipped shim and remove the shims stored in global storage', async () => {
+			expect({
+				checked: mockStat.mock.calls,
+				removed: mockRm.mock.calls,
+				prepared: mockPrepareShim.mock.calls.length,
+			}).toEqual({
+				checked: [[expectedShimPath]],
+				removed: [[path.join('/tmp/test-global-storage', 'copilotCli'), { recursive: true, force: true }]],
+				prepared: 0,
+			});
+		});
+
+		it('should use a local development build when this build does not ship the shim', async () => {
+			terminalService.contributePathSpy.mockClear();
+			mockRm.mockClear();
+			mockStat.mockRejectedValueOnce(new Error('ENOENT'));
+			await createIntegration();
+
+			expect({
+				prepared: mockPrepareShim.mock.calls,
+				removed: mockRm.mock.calls,
+				contributed: terminalService.contributePathSpy.mock.calls.map(call => call.slice(0, 3)),
+			}).toEqual({
+				prepared: [['/tmp/test-global-storage', expect.objectContaining({ warn: expect.any(Function) })]],
+				removed: [],
+				contributed: [['copilot-cli', path.dirname(storedShimPath), { command: 'copilot' }]],
+			});
 		});
 
 		it('should register a terminal profile provider', async () => {
@@ -503,6 +543,20 @@ describe('CopilotCLITerminalIntegration', () => {
 				'copilot-cli',
 				expect.objectContaining({ provideTerminalProfile: expect.any(Function) }),
 			);
+		});
+	});
+
+	describe('getNativeCopilotShimPath', () => {
+		it('should resolve the shim next to the code command on each platform', () => {
+			expect({
+				win32: getNativeCopilotShimPath('win32', 'C:\\Program Files\\Microsoft VS Code\\Code.exe', 'C:\\Program Files\\Microsoft VS Code\\1a2b3c4d5e\\resources\\app'),
+				darwin: getNativeCopilotShimPath('darwin', '/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin)', '/Applications/Visual Studio Code.app/Contents/Resources/app'),
+				linux: getNativeCopilotShimPath('linux', '/usr/share/code/code', '/usr/share/code/resources/app'),
+			}).toEqual({
+				win32: 'C:\\Program Files\\Microsoft VS Code\\bin\\copilot-shim\\copilot.exe',
+				darwin: '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/copilot',
+				linux: '/usr/share/code/bin/copilot-shim/copilot',
+			});
 		});
 	});
 
