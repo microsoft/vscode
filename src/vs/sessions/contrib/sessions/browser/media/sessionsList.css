@@ -896,6 +896,11 @@
 			text-overflow: ellipsis;
 			white-space: nowrap;
 		}
+
+		.session-chat-separator,
+		.session-chat-time {
+			flex-shrink: 0;
+		}
 	}
 
 	.session-chat-icon {

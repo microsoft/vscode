@@ -140,6 +140,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 	const status = observableValue(`status-${resourceId}`, options.status ?? SessionStatus.Completed);
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = resource.with({ fragment: 'main' });
+		override readonly updatedAt = constObservable(now);
 		override readonly status = status;
 		override readonly changes = constObservable([]);
 		override readonly changesets = constObservable([]);

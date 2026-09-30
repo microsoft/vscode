@@ -260,6 +260,7 @@ suite('Sessions list context menus', () => {
 
 		const mainChat = upcastPartial<IChat>({
 			resource: URI.parse('test-chat:/main'),
+			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
 			isArchived: constObservable(false),
