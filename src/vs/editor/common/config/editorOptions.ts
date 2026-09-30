@@ -453,11 +453,6 @@ export interface IEditorOptions {
 	 */
 	columnSelection?: boolean;
 	/**
-	 * Paste copied column selections as a block into a single selection, padding short destination lines with spaces, or using normal text pasting.
-	 * Defaults to 'text'.
-	 */
-	columnSelectionPaste?: 'block' | 'text';
-	/**
 	 * The modifier to be used to add multiple cursors with the mouse.
 	 * Defaults to 'alt'
 	 */
@@ -468,7 +463,7 @@ export interface IEditorOptions {
 	 */
 	multiCursorMergeOverlapping?: boolean;
 	/**
-	 * Configure the behaviour when pasting a text with the line count equal to the cursor count.
+	 * Configure the behaviour when pasting text with a line count equal to the cursor count, or a copied column selection into a single cursor.
 	 * Defaults to 'spread'.
 	 */
 	multiCursorPaste?: 'spread' | 'full';
@@ -5873,7 +5868,6 @@ export const enum EditorOption {
 	colorDecorators,
 	colorDecoratorsLimit,
 	columnSelection,
-	columnSelectionPaste,
 	comments,
 	contextmenu,
 	copyWithSyntaxHighlighting,
@@ -6239,18 +6233,6 @@ export const EditorOptions = {
 		EditorOption.columnSelection, 'columnSelection', false,
 		{ description: nls.localize('columnSelection', "Enable that the selection with the mouse and keys is doing column selection.") }
 	)),
-	columnSelectionPaste: register(new EditorStringEnumOption(
-		EditorOption.columnSelectionPaste, 'columnSelectionPaste',
-		'text' as 'block' | 'text',
-		['block', 'text'] as const,
-		{
-			enumDescriptions: [
-				nls.localize('columnSelectionPaste.block', "Paste rows of the column selection on successive destination lines of the single cursor, padding short lines with spaces to align with the cursor."),
-				nls.localize('columnSelectionPaste.text', "Paste rows of the column selection at the cursor position.")
-			],
-			markdownDescription: nls.localize('columnSelectionPaste', "Controls pasting of column selection rows into a single selection. Multi-cursor pasting is controlled by `#editor.multiCursorPaste#`.")
-		}
-	)),
 	comments: register(new EditorComments()),
 	contextmenu: register(new EditorBooleanOption(
 		EditorOption.contextmenu, 'contextmenu', true,
@@ -6550,10 +6532,10 @@ export const EditorOptions = {
 		['spread', 'full'] as const,
 		{
 			markdownEnumDescriptions: [
-				nls.localize('multiCursorPaste.spread', "Each cursor pastes a single line of the text."),
-				nls.localize('multiCursorPaste.full', "Each cursor pastes the full text.")
+				nls.localize('multiCursorPaste.spread', "Each cursor pastes a single line of the text. When pasting a copied column selection into a single cursor, each line is pasted on a successive destination line."),
+				nls.localize('multiCursorPaste.full', "Each cursor pastes the full text. When pasting a copied column selection into a single cursor, the full text is pasted at the cursor position.")
 			],
-			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count.")
+			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count, or when pasting a copied column selection into a single cursor.")
 		}
 	)),
 	multiCursorLimit: register(new EditorIntOption(

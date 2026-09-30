@@ -51,7 +51,7 @@ suite('Column selection paste', () => {
 		options?: IEditorOptions;
 		payload?: Partial<PastePayload>;
 	}): void {
-		withTestCodeEditor(scenario.text, { columnSelectionPaste: 'block', ...scenario.options }, editor => {
+		withTestCodeEditor(scenario.text, { multiCursorPaste: 'spread', ...scenario.options }, editor => {
 			editor.getModel().updateOptions({ tabSize: scenario.tabSize ?? 4 });
 			editor.setSelections(scenario.selections);
 			paste(editor, scenario.pastedText ?? block, scenario.payload);
@@ -293,20 +293,20 @@ suite('Column selection paste', () => {
 		});
 	});
 
-	test('text mode retains single-cursor multiline pasting', () => {
+	test('full mode retains single-cursor multiline pasting', () => {
 		assertPaste({
 			text: ['left--right', 'last'],
 			selections: [new Selection(1, 5, 1, 5)],
-			options: { columnSelectionPaste: 'text' },
+			options: { multiCursorPaste: 'full' },
 			expected: ['leftA', 'BC', 'D--right', 'last']
 		});
 	});
 
-	test('text mode retains existing multi-cursor metadata distribution', () => {
+	test('full mode retains existing multi-cursor metadata distribution', () => {
 		assertPaste({
 			text: ['xx', 'yy', 'zz'],
 			selections: [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)],
-			options: { columnSelectionPaste: 'text', multiCursorPaste: 'full' },
+			options: { multiCursorPaste: 'full' },
 			expected: ['xAx', 'yBCy', 'zDz']
 		});
 	});
@@ -360,7 +360,7 @@ suite('Column selection paste', () => {
 
 	test('preserves multi-cursor distribution through undo and redo in block mode', () => {
 		const text = ['xx', 'yy', 'zz'];
-		withTestCodeEditor(text, { columnSelectionPaste: 'block' }, editor => {
+		withTestCodeEditor(text, { multiCursorPaste: 'spread' }, editor => {
 			const model = editor.getModel();
 			const selections = [new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)];
 			editor.setSelections(selections);
@@ -383,7 +383,7 @@ suite('Column selection paste', () => {
 
 	test('replaces a multiline selection and aligns later rows through undo and redo', () => {
 		const text = ['\tfirst', 'middle', 'last--suffix', 'x', ''];
-		withTestCodeEditor(text, { columnSelectionPaste: 'block' }, editor => {
+		withTestCodeEditor(text, { multiCursorPaste: 'spread' }, editor => {
 			const model = editor.getModel();
 			model.updateOptions({ tabSize: 4 });
 			const selection = new Selection(3, 7, 1, 2);
@@ -406,7 +406,7 @@ suite('Column selection paste', () => {
 	});
 
 	test('preserves CRLF line endings', () => {
-		withTestCodeEditor(['left', 'x'], { columnSelectionPaste: 'block' }, editor => {
+		withTestCodeEditor(['left', 'x'], { multiCursorPaste: 'spread' }, editor => {
 			editor.getModel().setEOL(EndOfLineSequence.CRLF);
 			editor.setPosition(new Position(1, 5));
 			paste(editor, 'A\r\nBC\r\nD');
@@ -415,7 +415,7 @@ suite('Column selection paste', () => {
 	});
 
 	test('leaves the cursor on an empty trailing pasted row', () => {
-		withTestCodeEditor(['left', 'left', 'left'], { columnSelectionPaste: 'block' }, editor => {
+		withTestCodeEditor(['left', 'left', 'left'], { multiCursorPaste: 'spread' }, editor => {
 			editor.setPosition(new Position(1, 5));
 			paste(editor, 'A\nBC\n');
 			assert.deepStrictEqual({ text: editor.getModel().getLinesContent(), selections: editor.getSelections() }, {
@@ -426,7 +426,7 @@ suite('Column selection paste', () => {
 	});
 
 	test('leaves the cursor after padding on an empty trailing pasted row', () => {
-		withTestCodeEditor(['left', 'x', ''], { columnSelectionPaste: 'block' }, editor => {
+		withTestCodeEditor(['left', 'x', ''], { multiCursorPaste: 'spread' }, editor => {
 			editor.setPosition(new Position(1, 5));
 			paste(editor, 'A\nBC\n');
 			assert.deepStrictEqual({ text: editor.getModel().getLinesContent(), selections: editor.getSelections() }, {
@@ -437,7 +437,7 @@ suite('Column selection paste', () => {
 	});
 
 	test('leaves the cursor after padding on an appended empty row', () => {
-		withTestCodeEditor(['left'], { columnSelectionPaste: 'block' }, editor => {
+		withTestCodeEditor(['left'], { multiCursorPaste: 'spread' }, editor => {
 			editor.setPosition(new Position(1, 5));
 			paste(editor, 'A\nBC\n');
 			assert.deepStrictEqual({ text: editor.getModel().getLinesContent(), selections: editor.getSelections() }, {
@@ -448,7 +448,7 @@ suite('Column selection paste', () => {
 	});
 
 	test('undo and redo preserve text and the original single selection', () => {
-		withTestCodeEditor(['left--right', 'x'], { columnSelectionPaste: 'block' }, editor => {
+		withTestCodeEditor(['left--right', 'x'], { multiCursorPaste: 'spread' }, editor => {
 			const model = editor.getModel();
 			const selection = new Selection(1, 7, 1, 5);
 			editor.setSelection(selection);
@@ -466,7 +466,7 @@ suite('Column selection paste', () => {
 	});
 
 	test('changes only the row ranges in one content change', () => {
-		withTestCodeEditor(['left--right', 'x', ''], { columnSelectionPaste: 'block' }, editor => {
+		withTestCodeEditor(['left--right', 'x', ''], { multiCursorPaste: 'spread' }, editor => {
 			const changes: { range: Range; text: string }[][] = [];
 			editor.registerDisposable(editor.onDidChangeModelContent(e => changes.push(e.changes.map(change => ({ range: Range.lift(change.range), text: change.text })))));
 			editor.setPosition(new Position(1, 5));
@@ -480,7 +480,7 @@ suite('Column selection paste', () => {
 	});
 
 	test('reports pasted ranges for cursors and multiline destination selections', () => {
-		withTestCodeEditor(['left--right', 'left--right', 'left--right'], { columnSelectionPaste: 'block' }, editor => {
+		withTestCodeEditor(['left--right', 'left--right', 'left--right'], { multiCursorPaste: 'spread' }, editor => {
 			const events: Pick<IPasteEvent, 'range'>[] = [];
 			editor.registerDisposable(editor.onDidPaste(e => events.push({ range: e.range })));
 			editor.setSelection(new Selection(1, 5, 1, 5));
@@ -495,20 +495,20 @@ suite('Column selection paste', () => {
 		});
 	});
 
-	test('responds to block, text, and block configuration transitions', () => {
+	test('responds to spread, full, and spread configuration transitions', () => {
 		withTestCodeEditor(['left', 'x', ''], {}, editor => {
 			const results: string[][] = [];
-			const defaultValue = editor.getOption(EditorOption.columnSelectionPaste);
-			for (const columnSelectionPaste of ['block', 'text', 'block'] as const) {
-				editor.updateOptions({ columnSelectionPaste });
+			const defaultValue = editor.getOption(EditorOption.multiCursorPaste);
+			for (const multiCursorPaste of ['spread', 'full', 'spread'] as const) {
+				editor.updateOptions({ multiCursorPaste });
 				editor.setPosition(new Position(1, 5));
 				paste(editor);
 				results.push(editor.getModel().getLinesContent());
 				editor.getModel().undo();
 			}
-			assert.deepStrictEqual({ defaultValue, invalidValue: EditorOptions.columnSelectionPaste.validate('invalid'), results }, {
-				defaultValue: 'text',
-				invalidValue: 'text',
+			assert.deepStrictEqual({ defaultValue, invalidValue: EditorOptions.multiCursorPaste.validate('invalid'), results }, {
+				defaultValue: 'spread',
+				invalidValue: 'spread',
 				results: [
 					['leftA', 'x   BC', '    D'],
 					['leftA', 'BC', 'D', 'x', ''],
@@ -522,7 +522,7 @@ suite('Column selection paste', () => {
 		const previousInputMode = InputMode.getInputMode();
 		try {
 			InputMode.setInputMode('overtype');
-			withTestCodeEditor(['left--right', 'left--right', 'x', ''], { columnSelectionPaste: 'block', overtypeOnPaste: true }, editor => {
+			withTestCodeEditor(['left--right', 'left--right', 'x', ''], { multiCursorPaste: 'spread', overtypeOnPaste: true }, editor => {
 				editor.setPosition(new Position(1, 5));
 				paste(editor, 'A\nBC\nD\nE');
 				assert.deepStrictEqual(editor.getModel().getLinesContent(), ['leftA-right', 'leftBCright', 'x   D', '    E']);
@@ -647,7 +647,7 @@ suite('Column selection paste', () => {
 				selectColumn(viewModel, new Position(1, 2), new Position(3, 4));
 				const clipboardData = copy(viewModel);
 				InMemoryClipboardMetadataManager.INSTANCE.get('');
-				withTestCodeEditor(['left--right', 'left--right', 'left--right'], { columnSelectionPaste: 'block' }, target => {
+				withTestCodeEditor(['left--right', 'left--right', 'left--right'], { multiCursorPaste: 'spread' }, target => {
 					target.setPosition(new Position(1, 5));
 					const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData }));
 					paste(target, event.text, { isBlock: event.metadata?.isBlock === true, multicursorText: event.metadata?.multicursorText ?? null });
