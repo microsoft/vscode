@@ -1041,6 +1041,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			tools: entry.tools,
 			isResolved: entry.isResolved,
 			whenResolved: () => entry.whenResolved,
+			getSyncedUri: () => undefined,
 			activeClient: (clientId: string) => derived(reader => {
 				entry.customAgents.read(reader);
 				return { clientId, tools: [...entry.tools.read(reader)], customizations: [...entry.customizations.read(reader)] };
