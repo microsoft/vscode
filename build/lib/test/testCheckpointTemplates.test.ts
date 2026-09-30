@@ -288,11 +288,6 @@ suite('Product test checkpoint templates', () => {
 
 	test('Windows x64 CI assigns every test ID to one job', () => {
 		const steps = readTemplate(windowsTestFile).steps;
-		const selectedTests = (parameter: string, value: string) => steps.flatMap(step =>
-			Object.entries(step)
-				.filter(([key]) => key.startsWith('${{ if ') && key.includes(`eq(parameters.${parameter}, ${value})`))
-				.flatMap(([, branch]) => calls(branch).map(call => call.testId))
-		);
 		const selectedIds = selectedTestIds(windowsTestFile);
 		const ci = readTemplate('win32/product-build-win32-ci.yml');
 		const job = records(ci).find(record => record.job === 'Windows${{ parameters.VSCODE_JOB_NAME }}');
@@ -342,10 +337,9 @@ suite('Product test checkpoint templates', () => {
 			selectedIds: selectedIds.map(selection => selection.selectedId).sort(),
 			selectionsMatchTests: selectedIds.every(selection => selection.selectedId === selection.testId),
 			copilotCheckpoints,
-			productTests: ['ELECTRON', 'BROWSER', 'REMOTE'].map(environment => ({
-				environment,
-				tests: selectedTests(`VSCODE_RUN_${environment}_TESTS`, 'true'),
-			})),
+			// Tests are only selected by test ID
+			testEnvironmentParameters: [compileTemplate, setup, readTemplate(windowsTestFile)].flatMap(template => template.parameters ?? [])
+				.map(parameter => parameter.name).filter(name => /^VSCODE_RUN_\w+_TESTS$/.test(name)),
 		}, {
 			testIdsType: 'object',
 			jobDisplayName: '${{ parameters.VSCODE_JOB_DISPLAY_NAME }}',
@@ -373,17 +367,13 @@ suite('Product test checkpoint templates', () => {
 				[{ arch: 'x64', jobs }, { arch: 'arm64', jobs: undefined }],
 				[{ arch: 'x64', jobs }, { arch: 'arm64', jobs: undefined }],
 			],
-			copilotSetup: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'copilot\'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}'],
-			copilotTests: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'copilot\'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}'],
+			copilotSetup: ['${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}'],
+			copilotTests: ['${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}'],
 			agentHostSmoke: ['${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'))) }}'],
 			selectedIds: availableIds,
 			selectionsMatchTests: true,
 			copilotCheckpoints: ['copilot-extension', 'copilot-completions-core', 'copilot-sanity'],
-			productTests: [
-				{ environment: 'ELECTRON', tests: ['unit-electron', 'unit-node', 'integration-electron', 'smoke-electron'] },
-				{ environment: 'BROWSER', tests: ['unit-browser-chromium', 'integration-browser-firefox', 'smoke-browser-chromium'] },
-				{ environment: 'REMOTE', tests: ['integration-remote', 'smoke-remote'] },
-			],
+			testEnvironmentParameters: [],
 		});
 	});
 
@@ -574,7 +564,9 @@ suite('Product test checkpoint templates', () => {
 			noProductTestSelection: true,
 			defaultTestIds: [],
 			packagedHostGuards: [`\${{ if and(eq(parameters.VSCODE_ARCH, '${platform === 'darwin' ? 'arm64' : 'x64'}'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'))) }}`],
-			productTestGuards: ['${{ if or(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}'],
+			productTestGuards: [platform === 'win32'
+				? '${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}'
+				: '${{ if or(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}'],
 			repeatedTestJobs: 3,
 		})));
 	});
@@ -614,7 +606,7 @@ suite('Product test checkpoint templates', () => {
 	test('the WSL Dev Container setup is skipped together with the Electron smoke tests', () => {
 		const smoke = readTemplate(windowsTestFile).steps.flatMap(step =>
 			Object.entries(step)
-				.filter(([key]) => key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\')') && key.includes('eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)'))
+				.filter(([key]) => key === '${{ if containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\') }}')
 				.flatMap(([, branch]) => branch as ScriptStep[])
 		);
 		const wsl = smoke.flatMap(step => (step['${{ if eq(parameters.VSCODE_ARCH, \'x64\') }}'] ?? []) as ScriptStep[]);
