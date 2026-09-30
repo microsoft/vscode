@@ -5,15 +5,18 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -74,21 +77,97 @@ class InstallFromSourceAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const pluginInstallService = accessor.get(IPluginInstallService);
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const fileDialogService = accessor.get(IFileDialogService);
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
+		const pickFolderButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.folder),
+			tooltip: localize('pickPluginFolder', "Pick Folder"),
+		};
 		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo, git URL, or local folder path");
 		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository, git URL, or local folder path to install a plugin from");
+		inputBox.buttons = [pickFolderButton];
 		inputBox.ignoreFocusOut = true;
 		inputBox.show();
 
+		let installing = false;
+		let installed = false;
+		const submit = async () => {
+			const source = inputBox.value.trim();
+			if (!source) {
+				return;
+			}
+
+			// Quick format validation keeps the input box open for correction.
+			const validationError = pluginInstallService.validatePluginSource(source);
+			if (validationError) {
+				inputBox.validationMessage = validationError;
+				return;
+			}
+
+			// Show busy state and prevent concurrent installs.
+			inputBox.busy = true;
+			inputBox.enabled = false;
+			installing = true;
+			try {
+				// Hide the input box so it doesn't conflict with trust/progress dialogs.
+				inputBox.hide();
+
+				const result = await pluginInstallService.installPluginFromSource(source);
+				if (!result.success) {
+					if (result.message) {
+						// Re-open with the error so the user can correct their input.
+						inputBox.validationMessage = result.message;
+					}
+					inputBox.show();
+				} else {
+					installed = true;
+					if (!options?.skipReveal) {
+						const ref = parseMarketplaceReference(source);
+						if (ref) {
+							extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
+						}
+					}
+					store.dispose();
+				}
+			} catch (e) {
+				// An unexpected failure (e.g. cancelled trust prompt) would otherwise
+				// leave the hidden input box and awaited promise stuck. Re-show it with
+				// the error so the user can retry or cancel.
+				const detail = e instanceof Error ? e.message : String(e);
+				inputBox.validationMessage = localize('installFromSourceFailed', "Failed to install plugin: {0}", detail);
+				inputBox.show();
+			} finally {
+				installing = false;
+				if (!store.isDisposed) {
+					inputBox.busy = false;
+					inputBox.enabled = true;
+				}
+			}
+		};
 		store.add(inputBox.onDidChangeValue(() => {
 			inputBox.validationMessage = undefined;
 		}));
+		store.add(inputBox.onDidTriggerButton(async button => {
+			if (button !== pickFolderButton || installing) {
+				return;
+			}
 
+			const folder = (await fileDialogService.showOpenDialog({
+				title: localize('pickPluginFolderTitle', "Select Plugin Folder"),
+				openLabel: localize('selectPluginFolder', "Select Folder"),
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				availableFileSystems: [Schemas.file],
+			}))?.[0];
+			if (folder) {
+				inputBox.value = folder.fsPath;
+				await submit();
+			}
+		}));
 		return new Promise<boolean>(resolve => {
-			let installing = false;
-			let installed = false;
 			store.add(toDisposable(() => resolve(installed)));
 
 			store.add(inputBox.onDidHide(() => {
@@ -97,59 +176,7 @@ class InstallFromSourceAction extends Action2 {
 				}
 			}));
 
-			store.add(inputBox.onDidAccept(async () => {
-				const source = inputBox.value.trim();
-				if (!source) {
-					return;
-				}
-
-				// Quick format validation keeps the input box open for correction.
-				const validationError = pluginInstallService.validatePluginSource(source);
-				if (validationError) {
-					inputBox.validationMessage = validationError;
-					return;
-				}
-
-				// Show busy state and prevent concurrent installs.
-				inputBox.busy = true;
-				inputBox.enabled = false;
-				installing = true;
-				try {
-					// Hide the input box so it doesn't conflict with trust/progress dialogs.
-					inputBox.hide();
-
-					const result = await pluginInstallService.installPluginFromSource(source);
-					if (!result.success) {
-						if (result.message) {
-							// Re-open with the error so the user can correct their input.
-							inputBox.validationMessage = result.message;
-						}
-						inputBox.show();
-					} else {
-						installed = true;
-						if (!options?.skipReveal) {
-							const ref = parseMarketplaceReference(source);
-							if (ref) {
-								extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
-							}
-						}
-						store.dispose();
-					}
-				} catch (e) {
-					// An unexpected failure (e.g. cancelled trust prompt) would otherwise
-					// leave the hidden input box and awaited promise stuck. Re-show it with
-					// the error so the user can retry or cancel.
-					const detail = e instanceof Error ? e.message : String(e);
-					inputBox.validationMessage = localize('installFromSourceFailed', "Failed to install plugin: {0}", detail);
-					inputBox.show();
-				} finally {
-					installing = false;
-					if (!store.isDisposed) {
-						inputBox.busy = false;
-						inputBox.enabled = true;
-					}
-				}
-			}));
+			store.add(inputBox.onDidAccept(submit));
 		});
 	}
 }

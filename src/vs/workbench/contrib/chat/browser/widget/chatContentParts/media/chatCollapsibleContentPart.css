@@ -36,7 +36,7 @@
 			visibility 0s linear 180ms;
 	}
 
-	&.chat-used-context-collapsed .chat-used-context-list {
+	&.chat-used-context-collapsed > .chat-collapsible-content-animation .chat-used-context-list {
 		display: block;
 	}
 }
@@ -56,7 +56,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.chat-collapsible-content-animation {
+	.chat-collapsible-content-animation:not(.monaco-enable-motion *) {
 		transition: none !important;
 	}
 }

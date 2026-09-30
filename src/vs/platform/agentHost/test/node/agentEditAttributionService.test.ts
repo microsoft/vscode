@@ -16,6 +16,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { AgentSession } from '../../common/agent.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { createFileEditContentDigest } from '../../common/fileEditAttribution.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
@@ -208,6 +210,116 @@ suite('Agent Edit Attribution Service', () => {
 			{ modelId: 'model', conversationId: 'session-1', requestId: 'turn-2', harness: 'copilotcli' },
 		]);
 	});
+
+	for (const flushMode of ['standalone', 'coordinated', 'combinedChatResources', 'legacyNoChat'] as const) {
+		test(`preserves originating chat identity and unknown provenance in ${flushMode} details`, async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+			const resource = URI.file('/workspace/chat-edits.ts');
+			const sessionUri = 'copilotcli:/session-1';
+			const chats = flushMode === 'legacyNoChat' ? [undefined, undefined, undefined] : [buildDefaultChatUri(sessionUri), buildChatUri(sessionUri, 'side'), undefined];
+			const sessionUris = chats.map((chat, index) => flushMode === 'legacyNoChat'
+				? `copilotcli:/session-${index + 1}`
+				: flushMode === 'combinedChatResources' ? chat ?? sessionUri : sessionUri);
+			const details: Record<string, string | number | undefined>[] = [];
+			const githubDetails: Record<string, string | number | undefined>[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IDiffComputeService, {
+				computeDiffCounts: async (original, modified, timeoutMs) => computeDiffCounts(original, modified, timeoutMs ?? 5_000),
+			});
+			instantiationService.stub(ILogService, new NullLogService());
+			const telemetryService: Partial<IAgentHostTelemetryService> = {
+				telemetryLevel: TelemetryLevel.USAGE,
+				publicLog2(eventName, data) {
+					if (eventName === 'editTelemetry.editSources.details') {
+						details.push(data as Record<string, string | number | undefined>);
+					}
+				},
+				sendGHTelemetryEvent(eventName, properties, measurements) {
+					if (eventName === 'vscode.editTelemetry.editSources.details') {
+						githubDetails.push({ ...properties, ...measurements });
+					}
+				},
+			};
+			instantiationService.stub(ITelemetryService, telemetryService);
+			const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+			const markers = [];
+			let beforeText = '';
+			for (const [index, chatUri] of chats.entries()) {
+				const newText = `${String(index).repeat(index + 1)}\n`;
+				const afterText = beforeText + newText;
+				await fileService.writeFile(resource, VSBuffer.fromString(afterText));
+				const marker = await service.recordEdit({
+					sessionUri: sessionUris[index],
+					chatUri,
+					turnId: `turn-${index}`,
+					toolCallId: `tool-${index}`,
+					filePath: resource.fsPath,
+					beforeText,
+					afterText,
+					changes: [{ startOffset: beforeText.length, endOffsetExclusive: beforeText.length, newText }],
+					modelId: 'model',
+					toolName: 'edit',
+				});
+				markers.push(marker?.status !== 'skipped' ? marker?.source : undefined);
+				beforeText = afterText;
+			}
+			if (flushMode === 'standalone') {
+				await service.flushSession(sessionUri);
+			} else {
+				await service.prepareFlush({
+					resource,
+					trigger: 'closed',
+					statsUuid: 'stats-chat-edits',
+					isDirty: false,
+					flushToken: 'flush-chat-edits',
+					languageId: 'typescript',
+				});
+				await service.commitFlush({ flushToken: 'flush-chat-edits', totalModifiedCount: 9 });
+			}
+			const project = (data: Record<string, string | number | undefined>) => ({
+				sourceKey: data.sourceKey,
+				conversationId: data.conversationId,
+				chatSessionId: data.chatSessionId,
+				hasChatSessionId: Object.hasOwn(data, 'chatSessionId'),
+				requestId: data.requestId,
+				modifiedCount: data.modifiedCount,
+				deltaModifiedCount: data.deltaModifiedCount,
+				totalModifiedCount: data.totalModifiedCount,
+			});
+			const expected = chats.map((chat, index) => ({
+				sourceKey: 'source:Chat.applyEdits-$modelId:model-$harness:copilotcli-$origin:agentHost',
+				conversationId: AgentSession.id(sessionUris[index]),
+				chatSessionId: chat === undefined ? undefined : getTelemetryChatSessionId(chat),
+				hasChatSessionId: chat !== undefined,
+				requestId: `turn-${index}`,
+				modifiedCount: index + 2,
+				deltaModifiedCount: index + 2,
+				totalModifiedCount: 9,
+			}));
+			const expectedDetails = flushMode === 'legacyNoChat'
+				? [{ ...expected[0], modifiedCount: 9, deltaModifiedCount: 9 }]
+				: expected;
+			assert.deepStrictEqual({
+				distinctChats: expected[0].chatSessionId !== expected[1].chatSessionId,
+				details: details.toSorted((a, b) => Number(a.modifiedCount) - Number(b.modifiedCount)).map(project),
+				githubDetails: githubDetails.toSorted((a, b) => Number(a.modifiedCount) - Number(b.modifiedCount)).map(project),
+				markers,
+			}, {
+				distinctChats: flushMode !== 'legacyNoChat',
+				details: expectedDetails,
+				githubDetails: expectedDetails,
+				markers: expected.map(data => ({
+					modelId: 'model',
+					conversationId: data.conversationId,
+					...(data.hasChatSessionId ? { chatSessionId: data.chatSessionId } : {}),
+					requestId: data.requestId,
+					harness: 'copilotcli',
+				})),
+			});
+		});
+	}
 
 	test('normalizes ahp chat harness without coalescing chat resources', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));

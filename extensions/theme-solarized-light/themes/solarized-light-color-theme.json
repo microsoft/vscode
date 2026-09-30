@@ -510,7 +510,7 @@
 		// modern ui
 		"surface.border": "#ddd6c1",
 		"modernActivityBarItem.activeBackground": "#DFCA88",
-		"modernActivityBar.background": "#00000000",
+		"modernActivityBar.background": "#EEE8D5",
 	},
 	"semanticHighlighting": true
 }

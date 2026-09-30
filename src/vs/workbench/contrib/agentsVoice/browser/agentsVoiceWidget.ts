@@ -812,9 +812,10 @@ export class AgentsVoiceWidget extends Disposable {
 		// Mute microphone button — visible when connected, keeps the session alive
 		const muted = this._isMuted.read(reader);
 		this._inputBoxMuteBtn!.style.display = showConnected ? '' : 'none';
-		this._inputBoxMuteBtn!.classList.toggle('codicon-mic', muted);
-		this._inputBoxMuteBtn!.classList.toggle('codicon-mic-off', !muted);
-		const muteColor = muted ? 'var(--vscode-editorError-foreground)' : 'var(--vscode-descriptionForeground)';
+		// Reflect the current mic state: muted shows the crossed-out mic, active shows the open mic.
+		this._inputBoxMuteBtn!.classList.toggle('codicon-mic-off', muted);
+		this._inputBoxMuteBtn!.classList.toggle('codicon-mic', !muted);
+		const muteColor = 'var(--vscode-descriptionForeground)';
 		this._inputBoxMuteBtn!.style.color = muteColor;
 		const muteLabel = muted
 			? localize('agentsVoice.unmuteMic', "Unmute Microphone")

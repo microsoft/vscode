@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { localize } from '../../../../nls.js';
 import { deriveGitHubEndpoints } from '../../../../platform/agentHost/common/githubEndpoints.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { GitHubService, IGitHubService } from '../../../../platform/github/common/githubService.js';
+import { GitHubRequestError } from '../../../../platform/github/common/githubTransport.js';
 import { IGitHubEndpointProvider, IGitHubTokenProvider } from '../../../../platform/github/common/githubTypes.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -31,6 +33,9 @@ class WorkbenchGitHubEndpointProvider implements IGitHubEndpointProvider {
 	private _getEndpoints() {
 		const authenticationProvider = this._defaultAccountService.getDefaultAccountAuthenticationProvider();
 		const enterpriseUri = authenticationProvider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
+		if (authenticationProvider.enterprise && !enterpriseUri) {
+			throw new GitHubRequestError(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."), 'authentication');
+		}
 		return deriveGitHubEndpoints(enterpriseUri);
 	}
 }
