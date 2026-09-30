@@ -14,6 +14,21 @@
 	height: 100%;
 	min-height: 0;
 
+	/*
+	 * Row geometry. Layouts set where a row's status icon starts and how big it
+	 * is; the twistie, the hierarchy guides and nested chat content derive from
+	 * them, so changing the icon start moves a session and its chats together.
+	 */
+	--session-row-inset: var(--vscode-spacing-size40);
+	--session-row-icon-start: var(--vscode-spacing-size120);
+	--session-row-icon-size: var(--vscode-spacing-size160);
+
+	/* Derived per row, so a row that moves its icon moves its guides too. */
+	.monaco-list-row {
+		--session-hierarchy-guide-x: calc(var(--session-row-icon-start) + var(--session-row-icon-size) / 2);
+		--session-chat-content-start: calc(var(--session-hierarchy-guide-x) + var(--vscode-spacing-size160));
+	}
+
 	.monaco-tree-sticky-container {
 		--vscode-sideBar-background: var(--vscode-agents-background);
 	}
@@ -53,8 +68,8 @@
 	}
 
 	&.session-list-row-spacing .monaco-list-row:not(.sessions-list-header-row) {
-		left: var(--vscode-spacing-size40);
-		right: var(--vscode-spacing-size40);
+		left: var(--session-row-inset);
+		right: var(--session-row-inset);
 		width: auto;
 		border-radius: var(--vscode-cornerRadius-small);
 
@@ -121,9 +136,9 @@
 	.monaco-list-row .session-chat-twistie {
 		position: absolute;
 		top: var(--vscode-spacing-size80);
-		left: var(--vscode-spacing-size120);
-		width: var(--vscode-spacing-size160);
-		height: var(--vscode-spacing-size160);
+		left: var(--session-row-icon-start);
+		width: var(--session-row-icon-size);
+		height: var(--session-row-icon-size);
 		padding-right: 0;
 		font-size: var(--vscode-codiconFontSize);
 		opacity: 0;
@@ -247,7 +262,7 @@
 	position: relative;
 	overflow: visible;
 	min-width: 0;
-	padding: 8px 6px 8px 12px;
+	padding: 8px 6px 8px var(--session-row-icon-start);
 
 	&.archived {
 		color: var(--vscode-descriptionForeground);
@@ -272,7 +287,7 @@
 	 * the row taller — a row-level vertical-center would instead center the
 	 * whole (now multi-line) content block, throwing the title off the icon. */
 	&.quick-chat {
-		padding: 6px 6px 6px 12px;
+		padding: 6px 6px 6px var(--session-row-icon-start);
 
 		.session-icon {
 			line-height: 16px;
@@ -308,6 +323,8 @@
 		> .codicon {
 			flex-shrink: 0;
 			font-size: var(--vscode-codiconFontSize, 16px);
+			/* The declared icon box, so the glyph centers where the twistie and guides expect it. */
+			width: var(--session-row-icon-size);
 			height: 16px;
 			display: flex;
 			align-items: center;
@@ -509,7 +526,7 @@
 	}
 
 	.session-item:not(.quick-chat) {
-		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--session-row-icon-start);
 
 		.session-main {
 			display: grid;
@@ -669,7 +686,7 @@
 	position: absolute;
 	top: var(--vscode-spacing-size280);
 	bottom: calc(-1 * var(--vscode-spacing-size20));
-	left: var(--vscode-spacing-size200);
+	left: var(--session-hierarchy-guide-x);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 	opacity: 0;
 }
@@ -688,7 +705,7 @@
 	position: relative;
 	overflow: visible;
 	min-width: 0;
-	padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
+	padding: 0 var(--vscode-spacing-size120) 0 var(--session-chat-content-start);
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-regular);
@@ -698,7 +715,7 @@
 		position: absolute;
 		top: 0;
 		bottom: calc(-1 * var(--vscode-spacing-size20));
-		left: var(--vscode-spacing-size200);
+		left: var(--session-hierarchy-guide-x);
 		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		opacity: 0;
 	}
@@ -709,8 +726,8 @@
 		box-sizing: border-box;
 		top: 0;
 		height: calc(var(--session-chat-base-height) / 2);
-		left: var(--vscode-spacing-size200);
-		width: var(--vscode-spacing-size120);
+		left: var(--session-hierarchy-guide-x);
+		width: calc(var(--session-chat-content-start) - var(--session-hierarchy-guide-x) - var(--vscode-spacing-size40));
 		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		border-bottom-left-radius: var(--vscode-cornerRadius-small);
@@ -881,8 +898,8 @@
 .session-placeholder {
 	display: flex;
 	align-items: center;
-	/* Match .session-item: left padding (12px) + status icon (16px) + .session-main padding (6px). */
-	padding: 0 12px;
+	/* Match .session-item: icon start + status icon (16px) + .session-main padding (6px). */
+	padding: 0 12px 0 var(--session-row-icon-start);
 	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	min-height: var(--vscode-spacing-size280);
@@ -1310,14 +1327,9 @@
 	border-bottom-right-radius: var(--vscode-cornerRadius-xSmall, 2px);
 }
 
-.sessions-list-control .session-item.session-in-colored-group,
-.sessions-list-control.compact .session-item.session-in-colored-group:not(.quick-chat),
-.sessions-list-control .session-placeholder.session-in-colored-group {
-	padding-left: var(--vscode-spacing-size160);
-}
-
-.sessions-list-control .monaco-list-row:has(.session-item.session-in-colored-group) .session-chat-twistie {
-	left: var(--vscode-spacing-size160);
+/* Colored rows start their icon after the rail; everything else in the row follows. */
+.sessions-list-control .monaco-list-row:has(> .monaco-tl-row .session-in-colored-group) {
+	--session-row-icon-start: var(--vscode-spacing-size160);
 }
 
 .hc-black .session-group-rail,
@@ -1328,11 +1340,14 @@
 /*
  * Rail and Dot: rows beside a rail start one gutter further right, so hover and
  * selection highlight the row but not the rail, which is drawn in the gutter.
- * Content shifts back by the same amount to stay aligned with other rows.
+ * The icon start gives the gutter back, so content stays where it was.
  */
 .sessions-list-control:is([data-group-style="rail"], [data-group-style="dot"]).session-list-row-spacing {
+	--session-rail-gutter: var(--vscode-spacing-size80);
+
 	.monaco-list-row:has(> .monaco-tl-row .session-in-colored-group) {
-		left: var(--vscode-spacing-size120);
+		--session-row-icon-start: calc(var(--vscode-spacing-size160) - var(--session-rail-gutter));
+		left: calc(var(--session-row-inset) + var(--session-rail-gutter));
 		overflow: visible;
 
 		> .monaco-tl-row > .monaco-tl-contents {
@@ -1342,40 +1357,16 @@
 	}
 
 	.session-group-rail {
-		left: calc(-1 * var(--vscode-spacing-size60));
-	}
-
-	.session-item.session-in-colored-group,
-	&.compact .session-item.session-in-colored-group:not(.quick-chat),
-	.session-placeholder.session-in-colored-group {
-		padding-left: var(--vscode-spacing-size80);
-	}
-
-	/* Keep the parent's hierarchy guide on the nested chats' guides. */
-	.session-item.session-in-colored-group::after {
-		left: var(--vscode-spacing-size120);
-	}
-
-	.monaco-list-row:has(.session-item.session-in-colored-group) .session-chat-twistie {
-		left: var(--vscode-spacing-size80);
-	}
-
-	.session-chat-item.session-in-colored-group {
-		padding-left: var(--vscode-spacing-size280);
-
-		&::before,
-		&::after {
-			left: var(--vscode-spacing-size120);
-		}
+		left: calc(var(--vscode-spacing-size20) - var(--session-rail-gutter));
 	}
 
 	.session-show-more.session-in-colored-group {
-		padding-left: var(--vscode-spacing-size120);
+		padding-left: calc(var(--vscode-spacing-size200) - var(--session-rail-gutter));
 	}
 }
 
 .sessions-list-control[data-group-style="dot"].session-list-row-spacing .session-group-rail {
-	left: calc(1px - var(--vscode-spacing-size60));
+	left: calc(var(--vscode-spacing-size20) + 1px - var(--session-rail-gutter));
 }
 
 /* Dot: a quiet header with a colored dot, and a thinner rail. */
@@ -1607,8 +1598,11 @@
  * keep these rules in sync if paddings/font sizes change here.
  */
 .agent-sessions-workbench.phone-layout .sessions-list-control {
+	--session-row-icon-start: var(--vscode-spacing-size100);
+	--session-row-icon-size: var(--vscode-spacing-size200);
+
 	.session-item {
-		padding: 10px 10px;
+		padding: var(--vscode-spacing-size100) var(--vscode-spacing-size100) var(--vscode-spacing-size100) var(--session-row-icon-start);
 		/* Vertically center the icon + main column inside the fixed phone row height. */
 		align-items: center;
 		/* Anchor for the absolutely positioned title toolbar (kept out
@@ -1632,9 +1626,6 @@
 		opacity: 1;
 		pointer-events: auto;
 		top: var(--vscode-spacing-size100);
-		left: var(--vscode-spacing-size100);
-		width: var(--vscode-spacing-size200);
-		height: var(--vscode-spacing-size200);
 	}
 
 	.monaco-list-row[aria-expanded] .session-item .session-icon {
@@ -1643,7 +1634,6 @@
 
 	.session-chat-item {
 		--session-chat-base-height: 44px;
-		padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 		font-size: var(--vscode-fontSize-body1);
 	}
 
