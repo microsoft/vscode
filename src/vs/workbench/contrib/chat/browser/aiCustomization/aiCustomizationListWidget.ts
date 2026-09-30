@@ -28,6 +28,7 @@ import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_C
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
@@ -47,6 +48,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
 import { getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
+import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -131,6 +133,7 @@ interface IAICustomizationItemTemplateData {
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
+	readonly iconDisposables: DisposableStore;
 	currentItemId: string | undefined;
 }
 
@@ -258,6 +261,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@IThemeService private readonly themeService: IThemeService,
 	) { }
 
 	/**
@@ -275,6 +279,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
 		const disposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
+		const iconDisposables = disposables.add(new DisposableStore());
 
 		container.classList.add('ai-customization-list-item');
 
@@ -311,6 +316,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			description,
 			disposables,
 			elementDisposables,
+			iconDisposables,
 			currentItemId: undefined,
 		};
 		this.templates.add(template);
@@ -325,7 +331,18 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 		// Type icon: use per-item override or fall back to prompt type
 		templateData.typeIcon.className = 'item-type-icon';
-		templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(element.typeIcon ?? promptTypeToIcon(element.promptType)));
+		const renderIcon = () => {
+			templateData.iconDisposables.clear();
+			renderCustomizationMarketplaceIcon(
+				templateData.typeIcon,
+				element.typeIcon ?? promptTypeToIcon(element.promptType),
+				element.marketplace?.resource.icon,
+				this.themeService.getColorTheme().type,
+				templateData.iconDisposables,
+			);
+		};
+		renderIcon();
+		templateData.elementDisposables.add(this.themeService.onDidColorThemeChange(renderIcon));
 
 		// Hover tooltip: name + source + badge context + plugin source
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
@@ -1003,6 +1020,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.sectionLoading = false;
 			this.currentSectionSubscription.clear();
 			this.allItems = [];
+			this.element.classList.remove('show-item-type-icons');
 			const matchCount = this.filterItems();
 			this._onDidChangeItemCount.fire(0);
 			this.updateAddButton();
@@ -1015,6 +1033,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.currentSectionSubscription.value = autorun(reader => {
 			const items = observable.read(reader);
 			this.allItems = items;
+			this.element.classList.toggle('show-item-type-icons', items.some(item => !!item.marketplace?.resource.icon));
 			const matchCount = this.filterItems();
 			this._onDidChangeItemCount.fire(items.length);
 			if (!this.sectionLoading) {

@@ -23,7 +23,7 @@ export const chatProgressConfigurationProperties = {
 		],
 		enumDescriptions: [
 			localize('chat.progressAnimation.off', "Keep the original thinking, tool, and working progress rendering without a persistent indicator or VS Code logo."),
-			localize('chat.progressAnimation.draw', "Draw the right-slanting ribbon, right edge, and left-slanting ribbon in sequence, then erase them in the same counterclockwise direction and order."),
+			localize('chat.progressAnimation.draw', "Tie the VS Code mark with fast parabolic ribbon motion, hold it, then unravel it before a brief rest."),
 			localize('chat.progressAnimation.drawMonochrome', "Use the Draw animation with the same grayscale treatment as the VS Code icon in the Agents window. High contrast themes retain their contrast color."),
 			localize('chat.progressAnimation.drawMonochromeNoIcon', "Keep the same persistent progress text and tool rendering as Draw (Monochrome), but hide the VS Code icon."),
 		],
@@ -51,7 +51,7 @@ export const chatProgressConfigurationProperties = {
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([{
 	key: ChatConfiguration.PersistentProgress,
-	migrateFn: value => ['weave', 'orbit', 'accordion', 'dial'].includes(value) ? { value: ChatProgressAnimation.Draw } : [],
+	migrateFn: value => ['weave', 'orbit', 'accordion', 'dial', 'ribbon'].includes(value) ? { value: ChatProgressAnimation.Draw } : [],
 }, {
 	key: ChatConfiguration.PersistentProgressVerbosity,
 	migrateFn: value => value === 'notVerbose' ? { value: ChatProgressVerbosity.Compact } : [],

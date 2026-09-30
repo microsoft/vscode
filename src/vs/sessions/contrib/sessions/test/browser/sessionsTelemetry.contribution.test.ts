@@ -35,6 +35,8 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { SessionsTelemetryContribution } from '../../browser/sessionsTelemetry.contribution.js';
 import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { TestChatEntitlementService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 
 interface IRequestSentTelemetry {
 	readonly isNewSession: boolean;
@@ -70,6 +72,7 @@ function isRequestSentTelemetry(data: unknown): data is IRequestSentTelemetry & 
 }
 
 class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { name: string; copilotSku: unknown }[] = [];
 	readonly requestSentEvents: IRequestSentTelemetry[] = [];
 	readonly requestSentPayloads: unknown[] = [];
 	readonly sessionCounts: ISessionCountsTelemetry[] = [];
@@ -82,6 +85,9 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 	}
 
 	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName && typeof data === 'object' && data !== null) {
+			this.events.push({ name: eventName, copilotSku: Reflect.get(data, 'copilotSku') });
+		}
 		if (eventName === 'agents/sessionSummary') {
 			this.sessionSummaries.push(data);
 		}
@@ -191,7 +197,7 @@ class TestFileCountSearchService extends mock<ISearchService>() {
 suite('SessionsTelemetryContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(sessions: readonly ISession[], activeSession?: IObservable<IActiveSession | undefined>, visibleSessions: readonly (IActiveSession | undefined)[] = [], options: { searchService?: ISearchService; telemetryLevel?: TelemetryLevel } = {}): { telemetryService: TestTelemetryService; storageService: InMemoryStorageService; onWillSendRequest: Emitter<ISession>; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel> } {
+	function setup(sessions: readonly ISession[], activeSession?: IObservable<IActiveSession | undefined>, visibleSessions: readonly (IActiveSession | undefined)[] = [], options: { searchService?: ISearchService; telemetryLevel?: TelemetryLevel; chatEntitlementService?: IChatEntitlementService } = {}): { telemetryService: TestTelemetryService; storageService: InMemoryStorageService; onWillSendRequest: Emitter<ISession>; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel> } {
 		const onWillSendRequest = disposables.add(new Emitter<ISession>());
 		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const onDidArchiveSession = disposables.add(new Emitter<ISession>());
@@ -263,10 +269,39 @@ suite('SessionsTelemetryContribution', () => {
 				override readonly hadPriorWindowOpen = false;
 				override readonly windowOpenCount = 1;
 			}(),
+			options.chatEntitlementService ?? new TestChatEntitlementService(),
 		));
 
 		return { telemetryService, storageService, onWillSendRequest, onDidSendRequest, onDidArchiveSession, onModelAdded };
 	}
+
+	test('adds the action-time SKU to requests and the current SKU to lifecycle actions and summaries', async () => {
+		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+			override entitlement = ChatEntitlement.Pro;
+			override sku = 'copilot_for_individual_user';
+		};
+		const { telemetryService, onDidSendRequest, onDidArchiveSession } = setup([session], undefined, [], { chatEntitlementService });
+
+		onDidSendRequest.fire({ session, chat, isNewSession: true, isNewChat: true, options: { query: 'new session' } });
+		chatEntitlementService.sku = 'copilot_for_individual_user_pro';
+		await timeout(0);
+		onDidArchiveSession.fire(session);
+		await timeout(0);
+		chatEntitlementService.entitlement = ChatEntitlement.Unknown;
+		onDidSendRequest.fire({ session, chat, isNewSession: false, isNewChat: false, options: { query: 'signed out' } });
+		await timeout(0);
+		chatEntitlementService.entitlement = ChatEntitlement.Unresolved;
+		onDidSendRequest.fire({ session, chat, isNewSession: false, isNewChat: false, options: { query: 'resolving' } });
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'agents/requestSent', copilotSku: 'copilot_for_individual_user' },
+			{ name: 'agents/sessionSummary', copilotSku: 'copilot_for_individual_user_pro' },
+			{ name: 'agents/sessionArchived', copilotSku: 'copilot_for_individual_user_pro' },
+			{ name: 'agents/requestSent', copilotSku: 'signedOut' },
+			{ name: 'agents/requestSent', copilotSku: 'unknown' },
+		]);
+	});
 
 	test('logs requestSent for new sessions, new chats, and follow-up messages', async () => {
 		const { telemetryService, onDidSendRequest } = setup([session]);
@@ -289,6 +324,30 @@ suite('SessionsTelemetryContribution', () => {
 			{ isNewSession: true, isNewChat: true, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 0, attachmentKinds: '{}' },
 			{ isNewSession: false, isNewChat: true, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 0, attachmentKinds: '{}' },
 			{ isNewSession: false, isNewChat: false, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 1, attachmentKinds: '{"generic":1}' },
+		]);
+	});
+
+	test('preserves the anonymous SKU on requests, lifecycle actions, and summaries', async () => {
+		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+			override entitlement = ChatEntitlement.Unknown;
+			override anonymous = true;
+			override sku = 'no_auth_limited_copilot';
+		};
+		const { telemetryService, onDidSendRequest, onDidArchiveSession } = setup([session], undefined, [], { chatEntitlementService });
+
+		onDidSendRequest.fire({ session, chat, isNewSession: true, isNewChat: true, options: { query: 'anonymous session' } });
+		await timeout(0);
+		onDidArchiveSession.fire(session);
+		await timeout(0);
+		chatEntitlementService.anonymous = false;
+		onDidSendRequest.fire({ session, chat, isNewSession: false, isNewChat: false, options: { query: 'signed out' } });
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'agents/requestSent', copilotSku: 'no_auth_limited_copilot' },
+			{ name: 'agents/sessionSummary', copilotSku: 'no_auth_limited_copilot' },
+			{ name: 'agents/sessionArchived', copilotSku: 'no_auth_limited_copilot' },
+			{ name: 'agents/requestSent', copilotSku: 'signedOut' },
 		]);
 	});
 

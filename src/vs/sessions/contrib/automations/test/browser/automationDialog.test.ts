@@ -252,7 +252,7 @@ suite('Automation dialog creation', () => {
 suite('Automation dialog layout', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders a single workspace picker before the prompt in DOM and keyboard order', () => {
+	test('renders target and prompt controls before the schedule in DOM and keyboard order', () => {
 		const configurationService = new TestConfigurationService();
 		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 		const instantiationService = workbenchInstantiationService({
@@ -345,7 +345,10 @@ suite('Automation dialog layout', () => {
 		const promptSection = form.querySelector('.automation-prompt-section')!;
 		const inputContainer = form.querySelector('.chat-input-container')!;
 		const sessionControls = form.querySelector('.automation-session-configuration')!;
+		const scheduleRow = form.querySelector('.automation-form-schedule-row')!;
 		assert.deepStrictEqual({
+			formSections: Array.from(form.querySelector('.automation-form-content')!.children, element => element.className),
+			enabledCheckbox: form.querySelector('[role="checkbox"][aria-label="Enabled"]'),
 			targetLabel: targetRow.querySelector('.automation-target-toolbar')?.getAttribute('aria-label'),
 			targetContainsWorkspace: targetRow.contains(workspaceButton),
 			targetBeforePrompt: !!(targetRow.compareDocumentPosition(promptSection) & Node.DOCUMENT_POSITION_FOLLOWING),
@@ -357,6 +360,7 @@ suite('Automation dialog layout', () => {
 			configurationInsideInput: inputContainer.contains(inputToolbar),
 			controlsInsideInput: inputContainer.contains(sessionControls),
 			controlsAfterInput: !!(inputContainer.compareDocumentPosition(sessionControls) & Node.DOCUMENT_POSITION_FOLLOWING),
+			scheduleAfterControls: !!(sessionControls.compareDocumentPosition(scheduleRow) & Node.DOCUMENT_POSITION_FOLLOWING),
 			configurationHeader: form.querySelector('#automation-session-configuration-label'),
 			inputToolbarWrapperRole: inputToolbar.getAttribute('role'),
 			inputToolbarLabel: inputToolbar.querySelector('[role="toolbar"]')?.getAttribute('aria-label'),
@@ -366,6 +370,12 @@ suite('Automation dialog layout', () => {
 			controlsLabelCount: form.querySelectorAll('[aria-label="Session controls"]').length,
 			inputToolbarHidden: inputToolbar.style.display === 'none',
 		}, {
+			formSections: [
+				'automation-form-row',
+				'automation-session-section',
+				'automation-form-row automation-form-schedule-row',
+			],
+			enabledCheckbox: null,
 			targetLabel: 'Target',
 			targetContainsWorkspace: true,
 			targetBeforePrompt: true,
@@ -377,6 +387,7 @@ suite('Automation dialog layout', () => {
 			configurationInsideInput: true,
 			controlsInsideInput: false,
 			controlsAfterInput: true,
+			scheduleAfterControls: true,
 			configurationHeader: null,
 			inputToolbarWrapperRole: null,
 			inputToolbarLabel: 'Session configuration options',
@@ -385,6 +396,18 @@ suite('Automation dialog layout', () => {
 			controlsLabel: 'Session controls',
 			controlsLabelCount: 1,
 			inputToolbarHidden: true,
+		});
+
+		dispatchKey(promptInput, 'keydown', 'Tab');
+		const scheduleInput = scheduleRow.querySelector<HTMLElement>('[aria-label="Schedule"]')!;
+		const scheduleFocused = document.activeElement === scheduleInput;
+		dispatchKey(scheduleInput, 'keydown', 'Tab', true);
+		assert.deepStrictEqual({
+			scheduleFocused,
+			promptFocusedOnShiftTab: document.activeElement === promptInput,
+		}, {
+			scheduleFocused: true,
+			promptFocusedOnShiftTab: true,
 		});
 
 		assert.ok(targetModel);
