@@ -9,7 +9,7 @@ import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, Sequencer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../base/common/lifecycle.js';
@@ -79,7 +79,8 @@ export class QuickInputController extends Disposable {
 
 	private controller: IQuickInput | null = null;
 	get currentQuickInput() { return this.controller ?? undefined; }
-	private readonly quickInputAnchorScopes: { readonly anchor: IQuickInput['anchor']; readonly anchorPosition: IQuickInput['anchorPosition']; consumed: boolean }[] = [];
+	private readonly quickInputAnchorSequencer = new Sequencer();
+	private quickInputAnchorScope: { readonly anchor: IQuickInput['anchor']; readonly anchorPosition: IQuickInput['anchorPosition']; consumed: boolean } | undefined;
 
 	private _container: HTMLElement;
 	get container() { return this._container; }
@@ -677,16 +678,17 @@ export class QuickInputController extends Disposable {
 	}
 
 	async withQuickInputAnchor<T>(anchor: IQuickInput['anchor'], anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T> {
-		const scope = { anchor, anchorPosition, consumed: false };
-		this.quickInputAnchorScopes.push(scope);
-		try {
-			return await operation();
-		} finally {
-			const index = this.quickInputAnchorScopes.indexOf(scope);
-			if (index !== -1) {
-				this.quickInputAnchorScopes.splice(index, 1);
+		return this.quickInputAnchorSequencer.queue(async () => {
+			const scope = { anchor, anchorPosition, consumed: false };
+			this.quickInputAnchorScope = scope;
+			try {
+				return await operation();
+			} finally {
+				if (this.quickInputAnchorScope === scope) {
+					this.quickInputAnchorScope = undefined;
+				}
 			}
-		}
+		});
 	}
 
 	createInputBox(): IInputBox {
@@ -713,16 +715,11 @@ export class QuickInputController extends Disposable {
 
 	private show(controller: IQuickInput) {
 		this.completeCloseAnimation();
-		if (controller.anchor === undefined) {
-			for (let index = this.quickInputAnchorScopes.length - 1; index >= 0; index--) {
-				const scope = this.quickInputAnchorScopes[index];
-				if (!scope.consumed) {
-					scope.consumed = true;
-					controller.anchor = scope.anchor;
-					controller.anchorPosition = scope.anchorPosition;
-					break;
-				}
-			}
+		const anchorScope = this.quickInputAnchorScope;
+		if (controller.type === QuickInputType.QuickPick && controller.anchor === undefined && anchorScope && !anchorScope.consumed) {
+			anchorScope.consumed = true;
+			controller.anchor = anchorScope.anchor;
+			controller.anchorPosition = anchorScope.anchorPosition;
 		}
 		const ui = this.getUI(true);
 		const oldController = this.controller;

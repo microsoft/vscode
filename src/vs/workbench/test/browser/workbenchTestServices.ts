@@ -91,7 +91,7 @@ import { TestNotificationService } from '../../../platform/notification/test/com
 import product from '../../../platform/product/common/product.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressIndicator, IProgressNotificationOptions, IProgressOptions, IProgressService, IProgressStep, IProgressWindowOptions, Progress } from '../../../platform/progress/common/progress.js';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickInputAlignment, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickInputAlignment, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';

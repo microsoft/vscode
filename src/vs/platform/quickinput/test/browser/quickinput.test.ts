@@ -10,7 +10,7 @@ import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.
 import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Event } from '../../../../base/common/event.js';
-import { raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { unthemedCountStyles } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { unthemedKeybindingLabelOptions } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { unthemedProgressBarOptions } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -391,35 +391,84 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		const explicitAnchor = document.createElement('div');
 		fixture.appendChild(anchor);
 		fixture.appendChild(explicitAnchor);
-		let explicit;
-		let inherited;
+		let explicitState = { anchor: false, position: undefined as string | undefined };
+		let inheritedState = { anchor: false, position: undefined as string | undefined };
 		await controller.withQuickInputAnchor(anchor, 'below', async () => {
-			explicit = store.add(controller.createQuickPick());
+			const input = store.add(controller.createInputBox());
+			input.show();
+			input.hide();
+			const explicit = store.add(controller.createQuickPick());
 			explicit.anchor = explicitAnchor;
 			explicit.anchorPosition = 'above';
 			explicit.show();
+			explicitState = { anchor: explicit.anchor === explicitAnchor, position: explicit.anchorPosition };
 			explicit.hide();
-			inherited = store.add(controller.createQuickPick());
+			const inherited = store.add(controller.createQuickPick());
 			inherited.show();
+			inheritedState = { anchor: inherited.anchor === anchor, position: inherited.anchorPosition };
+			inherited.hide();
 		});
-		inherited?.hide();
 		const subsequent = store.add(controller.createQuickPick());
 		subsequent.show();
 
 		assert.deepStrictEqual({
-			explicitAnchor: explicit?.anchor === explicitAnchor,
-			explicitPosition: explicit?.anchorPosition,
-			inheritedAnchor: inherited?.anchor === anchor,
-			inheritedPosition: inherited?.anchorPosition,
+			explicitState,
+			inheritedState,
 			subsequentAnchor: subsequent.anchor,
 			subsequentPosition: subsequent.anchorPosition,
 		}, {
-			explicitAnchor: true,
-			explicitPosition: 'above',
-			inheritedAnchor: true,
-			inheritedPosition: 'below',
+			explicitState: { anchor: true, position: 'above' },
+			inheritedState: { anchor: true, position: 'below' },
 			subsequentAnchor: undefined,
 			subsequentPosition: undefined,
+		});
+	});
+
+	test('serializes scoped anchor operations', async () => {
+		const firstAnchor = document.createElement('div');
+		const secondAnchor = document.createElement('div');
+		fixture.appendChild(firstAnchor);
+		fixture.appendChild(secondAnchor);
+		const firstStarted = new DeferredPromise<void>();
+		const releaseFirst = new DeferredPromise<void>();
+		const order: string[] = [];
+		let firstPickerAnchored = false;
+		let secondPickerAnchored = false;
+
+		const first = controller.withQuickInputAnchor(firstAnchor, 'below', async () => {
+			order.push('first:start');
+			firstStarted.complete();
+			await releaseFirst.p;
+			const picker = store.add(controller.createQuickPick());
+			picker.show();
+			firstPickerAnchored = picker.anchor === firstAnchor;
+			picker.hide();
+			order.push('first:end');
+		});
+		await firstStarted.p;
+		const second = controller.withQuickInputAnchor(secondAnchor, 'above', async () => {
+			order.push('second:start');
+			const picker = store.add(controller.createQuickPick());
+			picker.show();
+			secondPickerAnchored = picker.anchor === secondAnchor;
+			picker.hide();
+			order.push('second:end');
+		});
+		await Promise.resolve();
+		const orderWhileFirstIsPending = order.slice();
+		releaseFirst.complete();
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			orderWhileFirstIsPending,
+			order,
+			firstPickerAnchored,
+			secondPickerAnchored,
+		}, {
+			orderWhileFirstIsPending: ['first:start'],
+			order: ['first:start', 'first:end', 'second:start', 'second:end'],
+			firstPickerAnchored: true,
+			secondPickerAnchored: true,
 		});
 	});
 
