@@ -184,8 +184,9 @@ const COPILOT_FORMAT: IPluginFormatConfig = {
 	hookConfigPath: 'hooks.json',
 	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
 	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
-	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
-		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
+	hookPluginRoot: PLUGIN_ROOT,
+	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, PLUGIN_ROOT);
 	},
 };
 
@@ -586,7 +587,7 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
 }
 
 /**
- * Applies the plugin-root convention for a Claude or Open Plugin hook command.
+ * Applies the plugin format's root convention to a hook command.
  */
 export function interpolateHookCommandPluginRoot(hook: Record<string, unknown>, pluginUri: URI, format: PluginFormat): Record<string, unknown> {
 	const root = PLUGIN_FORMAT_CONFIGS[format].hookPluginRoot;

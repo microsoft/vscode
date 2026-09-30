@@ -6756,13 +6756,13 @@ class PluginController extends Disposable {
 		};
 	}
 
-	public async resolveSyncedCustomization(item: ISyncedCustomization, clientId: string, input: ClientPluginCustomization | undefined): Promise<IResolvedCustomization> {
+	public async resolveSyncedCustomization(item: ISyncedCustomization, clientId: string, input: ClientPluginCustomization | undefined, workspaceRoot?: URI): Promise<IResolvedCustomization> {
 		const baseCustomization: PluginCustomization = { ...item.customization, clientId };
 		if (!item.pluginDir) {
 			return { customization: baseCustomization, input };
 		}
 
-		const parsed = await this.tryParsePlugin(item.pluginDir);
+		const parsed = await this.tryParsePlugin(item.pluginDir, workspaceRoot);
 		if (!parsed) {
 			return {
 				customization: {
@@ -7152,7 +7152,7 @@ class SessionPluginController extends Disposable {
 				});
 			});
 
-			const resolved = await Promise.all(result.map(item => this._parent.resolveSyncedCustomization(item, clientId, inputByUri.get(item.customization.uri))));
+			const resolved = await Promise.all(result.map(item => this._parent.resolveSyncedCustomization(item, clientId, inputByUri.get(item.customization.uri), this._directory)));
 			if (revision === client.revision) {
 				client.customizations = resolved;
 				for (const item of resolved) {

@@ -29,6 +29,7 @@ import {
 	resolveComponentDirs,
 	normalizeMcpServerConfiguration,
 	shellQuotePluginRootInCommand,
+	interpolateHookCommandPluginRoot,
 	interpolateMcpPluginRoot,
 	convertBareEnvVarsToVsCodeSyntax,
 	toParsedAgent,
@@ -297,6 +298,22 @@ suite('pluginParsers', () => {
 				'${PLUGIN_ROOT}'
 			);
 			assert.ok(!result.includes('""'), 'should not double-quote');
+		});
+	});
+
+	suite('interpolateHookCommandPluginRoot', () => {
+
+		test('preserves the Copilot plugin root command and environment', () => {
+			assert.deepStrictEqual(interpolateHookCommandPluginRoot({
+				command: '"${PLUGIN_ROOT}/record-hook.cjs"',
+				env: { EXISTING: 'value' },
+			}, URI.file('/plugin with spaces'), PluginFormat.Copilot), {
+				command: '"/plugin with spaces/record-hook.cjs"',
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: '/plugin with spaces',
+				},
+			});
 		});
 	});
 

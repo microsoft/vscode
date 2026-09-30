@@ -313,6 +313,7 @@ A user can run a failing command through Copilot's custom terminal tool and expe
 A user can contribute lifecycle hooks through a client-pushed or runtime-installed Copilot plugin to observe session creation, submitted prompts, tool calls, results, and session disposal. On Windows, the plugin's other contributions work, but none of its hook commands write their expected output, so hook-driven automation never runs.
 
 - Tests:
+  - `VS Code-managed agent plugin reaches the runtime and runs plugin hooks`
   - `SDK-installed plugin reaches the client and runs plugin hooks`
   - `plugin SessionStart hook runs when the provider materializes`
   - `plugin UserPromptSubmit hook receives the submitted prompt`

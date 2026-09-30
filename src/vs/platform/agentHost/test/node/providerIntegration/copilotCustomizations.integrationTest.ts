@@ -224,7 +224,14 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	});
 
 	// The SDK-owned runtime does not invoke plugin hook callbacks on Windows.
-	(isWindows ? test.skip : test)('SDK-installed plugin reaches the client and runs plugin hooks', async function () {
+	const pluginHookTest = isWindows ? test.skip : test;
+
+	pluginHookTest('VS Code-managed agent plugin reaches the runtime and runs plugin hooks', async function () {
+		this.timeout(TEST_TIMEOUT_MS);
+		await runManagedAgentPluginHooksTest();
+	});
+
+	pluginHookTest('SDK-installed plugin reaches the client and runs plugin hooks', async function () {
 		this.timeout(TEST_TIMEOUT_MS);
 		await runSdkInstalledPluginCustomizationsTest();
 	});
@@ -687,6 +694,89 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		].sort((a, b) => a.uri.localeCompare(b.uri));
 
 		assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
+	}
+
+	async function runManagedAgentPluginHooksTest(): Promise<void> {
+		const workspaceDir = await createWorkspace('ahp-customizations-managed-plugin-workspace-mock-');
+		const pluginSourceDir = await createWorkspace('ahp-customizations-managed-plugin-source-mock-', false);
+		const hookLog = join(workspaceDir, 'managed-plugin-hook.log');
+		const hookScript = join(pluginSourceDir, 'record-hook.cjs');
+		const pluginUri = URI.file(pluginSourceDir).toString();
+		await Promise.all([
+			mkdir(join(pluginSourceDir, 'agents'), { recursive: true }),
+			mkdir(join(pluginSourceDir, 'skills', 'managed-skill'), { recursive: true }),
+		]);
+		const hookCommand = `${quoteShellArgument(process.execPath)} "\${PLUGIN_ROOT}/record-hook.cjs" ${quoteShellArgument(hookLog)}`;
+		await Promise.all([
+			writeFile(join(pluginSourceDir, 'plugin.json'), JSON.stringify({ name: 'VS Code Managed Agent Plugin', version: '1.0.0' }, undefined, 2)),
+			writeFile(join(pluginSourceDir, 'agents', 'managed.agent.md'), [
+				'---',
+				'name: Managed Agent',
+				'description: Agent from a VS Code-managed plugin',
+				'---',
+				'You are managed by VS Code.',
+			].join('\n')),
+			writeFile(join(pluginSourceDir, 'skills', 'managed-skill', 'SKILL.md'), [
+				'---',
+				'name: managed-skill',
+				'description: Skill from a VS Code-managed plugin',
+				'---',
+				'Use the managed skill.',
+			].join('\n')),
+			writeFile(hookScript, [
+				'const fs = require("fs");',
+				'const [log] = process.argv.slice(2);',
+				'let input = "";',
+				'process.stdin.setEncoding("utf8");',
+				'process.stdin.on("data", chunk => input += chunk);',
+				'process.stdin.on("end", () => fs.appendFileSync(log, `${JSON.stringify({ input: JSON.parse(input), cwd: process.cwd(), pluginRoot: process.env.PLUGIN_ROOT, scriptDirectory: __dirname })}\\n`));',
+			].join('\n')),
+			writeFile(join(pluginSourceDir, 'hooks.json'), JSON.stringify({
+				version: 1,
+				hooks: {
+					userPromptSubmitted: [{
+						type: 'command',
+						command: hookCommand,
+						env: { ELECTRON_RUN_AS_NODE: '1' },
+					}],
+				},
+			})),
+		]);
+
+		const clientId = 'real-sdk-customizations-managed-plugin-client-mock';
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workspaceDir));
+		const session = await setupSession(sessionUri, clientId, 'turn-customizations-managed-plugin-mock', [{ uri: pluginUri, displayName: 'VS Code Managed Agent Plugin' }]);
+		const managedPlugin = session.customizations
+			?.filter((customization): customization is PluginCustomization => customization.type === CustomizationType.Plugin)
+			.find(customization => customization.uri === pluginUri);
+		assert.ok(managedPlugin);
+		assert.deepStrictEqual((managedPlugin.children ?? [])
+			.map(child => ({ type: child.type, name: child.name }))
+			.sort((a, b) => a.name.localeCompare(b.name)), [
+				{ type: CustomizationType.Agent, name: 'Managed Agent' },
+				{ type: CustomizationType.Hook, name: 'hooks.json' },
+				{ type: CustomizationType.Skill, name: 'managed-skill' },
+			].sort((a, b) => a.name.localeCompare(b.name)));
+
+		const hookInvocations = (await readFile(hookLog, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as {
+			input?: { prompt?: string };
+			cwd?: string;
+			pluginRoot?: string;
+			scriptDirectory?: string;
+		});
+		assert.deepStrictEqual({
+			count: hookInvocations.length,
+			prompts: hookInvocations.map(invocation => invocation.input?.prompt),
+			workingDirectories: hookInvocations.map(invocation => invocation.cwd),
+			pluginRootsMatchScripts: hookInvocations.every(invocation => invocation.pluginRoot === invocation.scriptDirectory),
+			usesMaterializedPlugin: hookInvocations.every(invocation => invocation.scriptDirectory !== pluginSourceDir && invocation.scriptDirectory?.includes('agentPlugins')),
+		}, {
+			count: 1,
+			prompts: ['hello'],
+			workingDirectories: [workspaceDir],
+			pluginRootsMatchScripts: true,
+			usesMaterializedPlugin: true,
+		});
 	}
 
 	/**
