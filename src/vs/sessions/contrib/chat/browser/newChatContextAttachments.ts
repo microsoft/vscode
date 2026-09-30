@@ -260,8 +260,12 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 
 	// --- Picker ---
 
+	isPickerVisibleAt(anchor: HTMLElement): boolean {
+		return this.quickInputService.currentQuickInput?.anchor === anchor;
+	}
+
 	showPicker(folderUri?: URI, contextActions: readonly IWorkspacePickerContextAction[] = [], anchor?: HTMLElement): void {
-		if (anchor && this.quickInputService.currentQuickInput?.anchor === anchor) {
+		if (anchor && this.isPickerVisibleAt(anchor)) {
 			void this.quickInputService.cancel();
 			return;
 		}

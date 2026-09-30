@@ -990,7 +990,8 @@ export class QuickInputController extends Disposable {
 
 				// Beware:
 				// We need to add some extra pixels to the height to account for the input and padding.
-				const containerHeight = Math.floor(listHeight) + verticalPadding;
+				const anchorGap = this.controller.anchorPosition === 'overlay' ? 0 : 4;
+				const containerHeight = Math.floor(listHeight) + verticalPadding + anchorGap;
 				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: preferredAnchorPosition });
 
 				if (anchorAlignment === AnchorAlignment.RIGHT) {
@@ -1002,10 +1003,10 @@ export class QuickInputController extends Disposable {
 				}
 
 				if (anchorPosition === AnchorPosition.ABOVE) {
-					style.bottom = `${bottom}px`;
+					style.bottom = `${bottom + anchorGap}px`;
 					style.top = 'initial';
 				} else {
-					style.top = `${top}px`;
+					style.top = `${top + anchorGap}px`;
 					style.bottom = 'initial';
 				}
 

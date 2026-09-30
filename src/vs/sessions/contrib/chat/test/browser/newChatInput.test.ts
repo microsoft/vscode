@@ -157,6 +157,7 @@ interface IAttachmentPickerHarness {
 		readonly currentQuickInput: { readonly anchor?: unknown } | undefined;
 		cancel(): Promise<void>;
 	};
+	isPickerVisibleAt(anchor: HTMLElement): boolean;
 }
 
 interface IAttachmentRenderingHarness {
@@ -320,11 +321,13 @@ suite('NewChatInputWidget', () => {
 	test('hides the anchored context picker when its button is activated again', () => {
 		const attachButton = document.createElement('div');
 		let cancelCount = 0;
+		const quickInputService = {
+			currentQuickInput: { anchor: attachButton },
+			cancel: async () => { cancelCount++; },
+		};
 		const harness: IAttachmentPickerHarness = {
-			quickInputService: {
-				currentQuickInput: { anchor: attachButton },
-				cancel: async () => { cancelCount++; },
-			},
+			quickInputService,
+			isPickerVisibleAt: anchor => quickInputService.currentQuickInput.anchor === anchor,
 		};
 
 		showAttachmentPicker.call(harness, undefined, [], attachButton);

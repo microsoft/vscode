@@ -1309,6 +1309,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			appearance: { showPointer: true }
 		}));
 		dom.append(attachButton, renderIcon(Codicon.addCompact));
+		this._register(dom.addDisposableListener(attachButton, dom.EventType.MOUSE_DOWN, event => {
+			if (this._contextAttachments.isPickerVisibleAt(attachButton)) {
+				dom.EventHelper.stop(event, true);
+			}
+		}));
 		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
 			this._showContextPicker();
 		}));

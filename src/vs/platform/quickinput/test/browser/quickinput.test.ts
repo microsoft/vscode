@@ -379,10 +379,10 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
 		assert.deepStrictEqual({
 			top: widget.getBoundingClientRect().top,
-			anchorBottom: anchor.getBoundingClientRect().bottom,
+			anchorBottomWithGap: anchor.getBoundingClientRect().bottom + 4,
 		}, {
-			top: anchor.getBoundingClientRect().bottom,
-			anchorBottom: anchor.getBoundingClientRect().bottom,
+			top: anchor.getBoundingClientRect().bottom + 4,
+			anchorBottomWithGap: anchor.getBoundingClientRect().bottom + 4,
 		});
 	});
 
