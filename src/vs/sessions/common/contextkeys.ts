@@ -181,3 +181,9 @@ export const IsPhoneLayoutContext = new RawContextKey<boolean>('sessionsIsPhoneL
 export const KeyboardVisibleContext = new RawContextKey<boolean>('sessionsKeyboardVisible', false, localize('sessionsKeyboardVisible', "Whether the virtual keyboard is visible"));
 
 //#endregion
+
+//#region < --- Sessions List Collections --- >
+
+export const SessionsHasMultipleCollectionsContext = new RawContextKey<boolean>('sessionsHasMultipleCollections', false, localize('sessionsHasMultipleCollections', "Whether the sessions list has more than one collection"));
+
+//#endregion

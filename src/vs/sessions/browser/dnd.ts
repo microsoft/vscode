@@ -31,6 +31,23 @@ export class DraggedSessionIdentifier {
 }
 
 /**
+ * Identifier used to track a sessions list header (a custom group or a
+ * workspace section) being dragged via {@link LocalSelectionTransfer}, so
+ * that targets outside the list, such as the collection switcher, can accept
+ * it. `sessionResources` are the header's sessions visible in the list.
+ */
+export class DraggedSessionListHeaderIdentifier {
+
+	constructor(
+		readonly kind: 'group' | 'workspace',
+		/** The group id, or the workspace section id (`workspace:<label>`). */
+		readonly id: string,
+		readonly label: string,
+		readonly sessionResources: readonly URI[],
+	) { }
+}
+
+/**
  * The group-placement payload carried on a chat drag via the
  * {@link SessionsDataTransfers.CHAT} `dataTransfer` mime. Used to move/split a
  * visible chat between groups or open a hidden chat in a group within a session.
