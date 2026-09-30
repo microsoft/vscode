@@ -170,9 +170,13 @@
 .sessions-chat-toolbar {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size40);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60) var(--vscode-spacing-size60);
 	color: var(--vscode-icon-foreground);
+}
+
+.experimental-new-session-composer .sessions-chat-toolbar {
+	gap: var(--vscode-spacing-size80);
 }
 
 .experimental-new-session-composer .sessions-chat-toolbar .sessions-chat-config-toolbar .actions-container {

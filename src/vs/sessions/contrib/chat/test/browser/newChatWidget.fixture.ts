@@ -738,9 +738,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		assert(!!sessionOptions && !!sessionControls);
 		assert(repositoryConfigContainer.querySelectorAll('.action-label:not(.separator)').length === 2);
 		const primaryToolbar = promptBox.querySelector<HTMLElement>('.sessions-chat-toolbar');
+		const attachButton = primaryToolbar?.querySelector<HTMLElement>('.sessions-chat-attach-button');
 		const secondaryControls = view.element.querySelector<HTMLElement>('.new-chat-controls-container');
 		const bottomContainer = view.element.querySelector<HTMLElement>('.new-chat-bottom-container');
-		assert(!!primaryToolbar && !!secondaryControls && !!bottomContainer);
+		assert(!!primaryToolbar && !!attachButton && !!secondaryControls && !!bottomContainer);
 		const configItems = primaryToolbar.querySelectorAll<HTMLElement>('.sessions-chat-config-toolbar:not(.new-chat-session-controls) .actions-container > .action-item');
 		assert(configItems[0]?.textContent === 'Agent' && configItems[1]?.textContent === 'Model',
 			'The agent picker must precede the model picker inside the prompt.');
@@ -761,6 +762,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				&& secondaryControls.contains(sessionControls)
 				&& !sessionOptions.contains(repositoryConfigContainer)
 				&& targetWindow.getComputedStyle(bottomContainer).justifyContent === 'space-between'
+				&& configItems[0].getBoundingClientRect().left - attachButton.getBoundingClientRect().right === 4
 				&& secondaryControls.getBoundingClientRect().left < repositoryControls.getBoundingClientRect().left,
 				'Legacy controls must remain split across the row below the prompt.');
 		}
