@@ -108,7 +108,7 @@
 	gap: 0;
 	box-sizing: border-box;
 	padding: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size60) var(--vscode-spacing-size60);
-	background: transparent;
+	background-color: var(--vscode-editorWidget-background);
 	border: 0;
 	border-radius: 0;
 }
