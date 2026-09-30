@@ -229,7 +229,6 @@ suite('Column selection paste', () => {
 			text: ['left--right', 'left--right', 'left--right', 'left--right'],
 			selections: [new Selection(1, 5, 1, 5)],
 			pastedText: '\tX\n\u4E2D\n\u{1F600}\ne\u0301',
-			payload: { isBlock: false },
 			expected: ['left\tX--right', 'left\u4E2D   --right', 'left\u{1F600}   --right', 'lefte\u0301    --right']
 		});
 	});
@@ -325,7 +324,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right', 'last'],
 			selections: [new Selection(1, 5, 1, 5)],
-			payload: { isBlock: false },
+			payload: { isBlock: true },
 			expected: ['leftA --right', 'lastBC', '    D ']
 		});
 	});
@@ -334,7 +333,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right', 'last'],
 			selections: [new Selection(1, 5, 1, 5)],
-			payload: { isBlock: undefined, multicursorText: null },
+			payload: { isBlock: true, multicursorText: null },
 			expected: ['leftA --right', 'lastBC', '    D ']
 		});
 	});
@@ -668,7 +667,7 @@ suite('Column selection paste', () => {
 			assert.deepStrictEqual(actual, ['leftAA--right', 'leftBB--right', 'leftCC--right']);
 		});
 
-		test('older clipboard metadata without a block flag still spreads multiline text', () => {
+		test('older clipboard metadata without a block flag uses normal paste', () => {
 			const clipboardData = new DataTransfer();
 			clipboardData.setData('text/plain', block);
 			clipboardData.setData('vscode-editor-data', JSON.stringify({
@@ -678,7 +677,7 @@ suite('Column selection paste', () => {
 				editor.setPosition(new Position(1, 5));
 				const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData }));
 				paste(editor, event.text, { isBlock: event.metadata?.isBlock === true });
-				assert.deepStrictEqual(editor.getModel().getLinesContent(), ['leftA --right', '    BC', '    D ']);
+				assert.deepStrictEqual(editor.getModel().getLinesContent(), ['leftA', 'BC', 'D--right']);
 			});
 		});
 	});
