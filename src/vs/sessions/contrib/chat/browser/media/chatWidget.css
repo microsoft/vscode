@@ -49,7 +49,7 @@
 .experimental-new-session-composer .new-session-workspace-picker-container {
 	padding: 0;
 	margin-top: var(--vscode-spacing-size120);
-	margin-bottom: 0;
+	margin-bottom: var(--vscode-spacing-size40);
 }
 
 .new-chat-widget-container.revealed .new-session-workspace-picker-container {
@@ -111,27 +111,7 @@
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
 	background-color: var(--vscode-editorWidget-background);
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-bottom: 0;
-	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
-}
-
-/* Shoulder: like the connected editor tabs, the tab base flares outward with a small concave
-	fillet where it meets the input surface, instead of a hard step. Only the right side needs it;
-	the left edge is flush with the input. The radius matches the tabs' shoulder
-	(cornerRadius-small + strokeThickness). */
-.new-session-workspace-picker-container .sessions-workspace-category-picker.new-chat-session-options::after {
-	content: '';
-	position: absolute;
-	bottom: 0;
-	left: 100%;
-	width: calc(var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness));
-	height: calc(var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness));
-	box-sizing: border-box;
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-left: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-bottom-left-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness));
-	box-shadow: calc(-1 * (var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness)) / 2) calc((var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness)) / 2) 0 calc((var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness)) / 2) var(--vscode-editorWidget-background);
-	pointer-events: none;
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 /* Getting-started tip demoted below the input in the experimental composer, matching
