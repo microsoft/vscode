@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IHostService, IToastOptions, IToastResult } from '../browser/host.js';
-import { FocusMode, INativeHostService } from '../../../../platform/native/common/native.js';
+import { FocusMode, INativeHostService, IWindowResizeAnchor, IWindowResizeDelta, getZoomedWindowResizeDelta } from '../../../../platform/native/common/native.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -14,9 +14,10 @@ import { Disposable, DisposableSet, IDisposable } from '../../../../base/common/
 import { NativeHostService } from '../../../../platform/native/common/nativeHostService.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
-import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from '../../../../base/browser/dom.js';
+import { IDimension, disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from '../../../../base/browser/dom.js';
 import { memoize } from '../../../../base/common/decorators.js';
-import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
+import { isAuxiliaryWindow, mainWindow } from '../../../../base/browser/window.js';
+import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { showBrowserToast } from '../browser/toasts.js';
@@ -175,6 +176,12 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	async setWindowDimmed(targetWindow: Window, dimmed: boolean): Promise<void> {
 		return this.nativeHostService.updateWindowControls({ dimmed, targetWindowId: getWindowId(targetWindow) });
+	}
+
+	async resizeMainWindow(delta: IWindowResizeDelta, anchor: IWindowResizeAnchor): Promise<IDimension | undefined> {
+		const zoomFactor = getZoomFactor(mainWindow);
+		const bounds = await this.nativeHostService.resizeWindow(getZoomedWindowResizeDelta(delta, zoomFactor), anchor);
+		return bounds ? { width: bounds.width / zoomFactor, height: bounds.height / zoomFactor } : undefined;
 	}
 
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
