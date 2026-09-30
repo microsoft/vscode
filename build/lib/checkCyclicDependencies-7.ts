@@ -100,7 +100,9 @@ export function collectJsFiles(dir: string): string[] {
 	return results;
 }
 
-function processSourceFile(filename: string, sourceFile: SourceFile, graph: Graph): void {
+function processSourceFile(filename: string, sourceFile: SourceFile, graph: Graph, fileExistsCache: Map<string, boolean>): void {
+	const dir = path.dirname(filename);
+	const normalizedFilename = normalize(filename);
 	for (const importNode of sourceFile.imports) {
 		if (!isStringLiteralLikeNode(importNode) || !importNode.text.startsWith('.')) {
 			continue; // skip node_modules
@@ -109,40 +111,46 @@ function processSourceFile(filename: string, sourceFile: SourceFile, graph: Grap
 			continue;
 		}
 
-		const dir = path.dirname(filename);
 		let resolvedPath = path.resolve(dir, importNode.text);
 		if (resolvedPath.endsWith('.js')) {
 			resolvedPath = resolvedPath.slice(0, -3);
 		}
 		const normalizedResolved = normalize(resolvedPath);
 
-		if (fs.existsSync(normalizedResolved + '.js')) {
-			graph.inertEdge(normalize(filename), normalizedResolved + '.js');
-		} else if (fs.existsSync(normalizedResolved + '.ts')) {
-			graph.inertEdge(normalize(filename), normalizedResolved + '.ts');
+		for (const extension of ['.js', '.ts']) {
+			const candidate = normalizedResolved + extension;
+			let exists = fileExistsCache.get(candidate);
+			if (exists === undefined) {
+				exists = fs.existsSync(candidate);
+				fileExistsCache.set(candidate, exists);
+			}
+			if (exists) {
+				graph.inertEdge(normalizedFilename, candidate);
+				break;
+			}
 		}
 	}
 }
 
-export function processFiles(filenames: readonly string[], graph: Graph): void {
+export function processFiles(rootDir: string, filenames: readonly string[], graph: Graph): void {
 	if (filenames.length === 0) {
 		return;
 	}
 
-	const api = new API({ cwd: path.dirname(filenames[0]) });
+	const fileExistsCache = new Map<string, boolean>(filenames.map(filename => [normalize(path.resolve(filename)), true]));
+	const api = new API({ cwd: rootDir });
 	try {
-		const snapshot = api.updateSnapshot({ openFiles: [...filenames] });
+		const program = api.createProgram(filenames, { allowJs: true });
 		try {
 			for (const filename of filenames) {
-				const project = snapshot.getDefaultProjectForFile(filename);
-				const sourceFile = project?.program.getSourceFile(filename);
+				const sourceFile = program.getSourceFile(filename);
 				if (!sourceFile) {
 					throw new Error(`Unable to parse '${filename}'.`);
 				}
-				processSourceFile(filename, sourceFile, graph);
+				processSourceFile(filename, sourceFile, graph, fileExistsCache);
 			}
 		} finally {
-			snapshot.dispose();
+			program.dispose();
 		}
 	} finally {
 		api.close();
@@ -150,7 +158,7 @@ export function processFiles(filenames: readonly string[], graph: Graph): void {
 }
 
 export function processFile(filename: string, graph: Graph): void {
-	processFiles([filename], graph);
+	processFiles(path.dirname(filename), [filename], graph);
 }
 
 function main(): void {
@@ -168,7 +176,7 @@ function main(): void {
 
 	const files = collectJsFiles(rootDir);
 	const graph = new Graph();
-	processFiles(files, graph);
+	processFiles(rootDir, files, graph);
 
 	const allNormalized = files.map(normalize).sort((a, b) => a.localeCompare(b));
 	const cycles = graph.findCycles(allNormalized);
@@ -192,6 +200,6 @@ function main(): void {
 	}
 }
 
-if (process.argv[1] && normalize(path.resolve(process.argv[1])).endsWith('checkCyclicDependencies.ts')) {
+if (process.argv[1] && normalize(path.resolve(process.argv[1])).endsWith('checkCyclicDependencies-7.ts')) {
 	main();
 }

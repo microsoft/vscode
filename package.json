@@ -197,7 +197,7 @@
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "8.66.0",
-    "@typescript/native": "npm:typescript@next",
+    "@typescript/native": "npm:typescript@7.1.0-dev.20260930.4",
     "@vscode/component-explorer": "^0.2.1-140",
     "@vscode/component-explorer-cli": "^0.2.1-143",
     "@vscode/gulp-electron": "^1.43.0",
