@@ -105,6 +105,7 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
+import { IByokLmProxyService } from '../../node/copilot/byokLmProxyService.js';
 import { CopilotApiError, CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext } from '../../node/agentHostRestrictedTelemetry.js';
 
@@ -842,6 +843,9 @@ class MockCopilotSession {
 	disconnectCalls = 0;
 	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
 	setModelError: Error | undefined;
+	readonly providerSyncCalls: string[][] = [];
+	/** BYOK `provider/id` selection ids registered at launch or through `provider.sync`. */
+	registeredByokModels = new Set<string>();
 	readonly workingDirectoryCalls: string[] = [];
 	readonly workingDirectoryErrors: Array<Error | undefined> = [];
 	readonly workingDirectoryResults: string[] = [];
@@ -884,6 +888,13 @@ class MockCopilotSession {
 		},
 		permissions: {
 			setMode: async ({ mode }: { mode: PermissionMode }) => ({ success: true, mode }),
+		},
+		provider: {
+			sync: async ({ models }: { models?: readonly { provider: string; id: string }[] }) => {
+				this.registeredByokModels = new Set((models ?? []).map(m => `${m.provider}/${m.id}`));
+				this.providerSyncCalls.push([...this.registeredByokModels]);
+				return { models: [], selectionIds: [...this.registeredByokModels] };
+			},
 		},
 		metadata: {
 			setWorkingDirectory: async ({ workingDirectory }: { workingDirectory: string }) => {
@@ -1191,7 +1202,7 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
@@ -1239,6 +1250,9 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			))
 			: createNoopCustomizationEnablementService()));
 	services.set(IByokLmBridgeRegistry, options?.byokBridgeRegistry ?? new ByokLmBridgeRegistry());
+	if (options?.byokProxyService) {
+		services.set(IByokLmProxyService, options.byokProxyService);
+	}
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	services.set(ICopilotApiService, copilotApiService);
 	services.set(ITelemetryService, telemetryService);
@@ -1274,7 +1288,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	return { agent, instantiationService, authenticationService, configurationService: configService, worktreeIsolation, managedSettingsService, fileService, stateManager };
 }
 
-function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; otelService?: IAgentHostOTelService }): CopilotAgent {
+function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService }): CopilotAgent {
 	return createTestAgentContext(disposables, options).agent;
 }
 
@@ -8451,6 +8465,68 @@ suite('CopilotAgent', () => {
 				'google/Gemini Personal/gemini-2.5-pro',
 				'google/Gemini Work/gemini-2.5-pro',
 			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('a session resumed before the first BYOK snapshot registers BYOK models once they arrive (#337742)', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		// The renderer bridge is connected but has not pushed its first snapshot yet.
+		disposables.add(byokBridgeRegistry.register('renderer', {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		}));
+		const sessionId = 'byok-early-restore';
+		const session = AgentSession.uri('copilotcli', sessionId);
+		const chat = defaultChatUri(session);
+		const byokModelId = 'customendpoint/Pool/deepseek-v4.1-flash';
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const client = new TestCopilotClient([sdkSession(sessionId, '/workspace')]);
+		const sdk = new MockCopilotSession(sessionId);
+		const resumedByokModels: string[][] = [];
+		client.resumeSession = async (_id, options) => {
+			sdk.registeredByokModels = new Set((options?.models ?? []).map(m => `${m.provider}/${m.id}`));
+			resumedByokModels.push([...sdk.registeredByokModels]);
+			return sdk as unknown as CopilotSession;
+		};
+		// Mirror the runtime, which rejects a BYOK model that is not registered on the session.
+		sdk.setModel = async (...args) => {
+			sdk.setModelCalls.push(args);
+			if (args[0].includes('/') && !sdk.registeredByokModels.has(args[0])) {
+				throw new Error(`Provider model '${args[0]}' is not registered`);
+			}
+		};
+		const byokProxyService: IByokLmProxyService = {
+			_serviceBrand: undefined,
+			start: async () => ({ baseUrl: 'http://127.0.0.1:1', nonce: 'NONCE', providerBaseUrl: vendor => `http://127.0.0.1:1/v/${vendor}`, dispose: () => { } }),
+		} as IByokLmProxyService;
+		const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService, byokBridgeRegistry, byokProxyService });
+		chatBackings(agent).set(chat.toString(), { sdkSessionId: sessionId, model: { id: byokModelId } });
+		chatScopes(agent).set(chat.toString(), session);
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+			// Startup restore resumes the SDK session before the renderer pushes BYOK models.
+			await agent.chats.getMessages(chat, exactChatContext(session, chat, session));
+			modelSnapshots.fire([{ vendor: 'customendpoint', id: 'deepseek-v4.1-flash', name: 'DeepSeek', modelIdentifier: byokModelId }]);
+			await waitForState(agent.models, models => models.some(m => m.id === byokModelId));
+			// The live session registers the new models without waiting for a model change.
+			for (let i = 0; i < 500 && sdk.providerSyncCalls.length === 0; i++) {
+				await timeout(1);
+			}
+			const syncedBeforeModelChange = [...sdk.providerSyncCalls];
+
+			const changeError = await agent.chats.changeModel(chat, { id: byokModelId }, exactChatContext(session, chat, session))
+				.then(() => undefined, (err: Error) => err.message);
+
+			assert.deepStrictEqual({ resumedByokModels, syncedBeforeModelChange, providerSyncCalls: sdk.providerSyncCalls, changeError, setModelCalls: sdk.setModelCalls.map(([model]) => model) }, {
+				resumedByokModels: [[]],
+				syncedBeforeModelChange: [[byokModelId]],
+				providerSyncCalls: [[byokModelId]],
+				changeError: undefined,
+				setModelCalls: [byokModelId],
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
