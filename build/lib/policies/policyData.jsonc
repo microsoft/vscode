@@ -455,6 +455,21 @@
             "included": false
         },
         {
+            "key": "chat.copilotCliCommand.enabled",
+            "name": "CopilotCliCommand",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.140",
+            "localization": {
+                "description": {
+                    "key": "chat.copilotCliCommand.enabled.policy",
+                    "value": "Controls whether VS Code provides the copilot command for GitHub Copilot CLI. When disabled, VS Code setup on Windows doesn't add the command to PATH and removes the entry it added, VS Code doesn't install GitHub Copilot CLI, and integrated terminals don't include the command. A GitHub Copilot CLI that was installed separately isn't affected."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
             "key": "chat.customizations.strictPluginOnlyCustomization",
             "name": "ChatStrictPluginOnlyCustomization",
             "category": "InteractiveSession",
