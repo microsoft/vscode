@@ -41,7 +41,8 @@ export interface ChatState {
 	/**
 	 * Work that keeps running after the tool call that started it returns and
 	 * will resume this chat when it finishes, such as background shells and
-	 * subagents. Entries stay listed whether or not the turn that started them is
+	 * subagents. Only active work is listed: hosts remove an entry once the work
+	 * ends. Entries stay listed whether or not the turn that started them is
 	 * still open.
 	 */
 	backgroundWork?: BackgroundWork[];
