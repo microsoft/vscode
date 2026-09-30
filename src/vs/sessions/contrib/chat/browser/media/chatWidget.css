@@ -151,12 +151,6 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
-/* The session options tray joins the input at its top-left corner, so square that corner
-	while the exposed top-right stays rounded. Quick chat has no tray above the input. */
-.experimental-new-session-composer:not(.quick-chat) .new-chat-input-area {
-	border-top-left-radius: 0;
-}
-
 .new-chat-session-options .new-chat-session-options-details {
 	display: flex;
 	flex: 0 0 auto;
