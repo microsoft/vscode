@@ -114,6 +114,7 @@
 		flex: 1;
 		min-width: 0;
 		font-size: var(--vscode-fontSize-label1, 12px);
+		font-weight: var(--vscode-fontWeight-semiBold, 600);
 		color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
 		overflow: hidden;
 		text-overflow: ellipsis;
