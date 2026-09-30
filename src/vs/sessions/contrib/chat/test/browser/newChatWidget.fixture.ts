@@ -616,10 +616,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			'The tray must precede the prompt in reading and keyboard order.');
 		if (!phoneLayout) {
 			assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
-				'The collapsed options row must join the top of the prompt.');
+				'The collapsed tray must sit flush with the prompt.');
 		}
-		assert(Math.abs(collapsedTrayBounds.width - promptBounds.width) < 1,
-			'The collapsed options row must span the prompt width.');
+		assert(collapsedTrayBounds.width < promptBounds.width, 'The collapsed tray must fit its controls, not the prompt width.');
 		if (collapsedSessionOptionsShowIcons) {
 			const detailLabels = [...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')];
 			const detailControls = [...sessionOptions.querySelectorAll<HTMLElement>('.action-label[role="button"]')].filter(control => control.checkVisibility());
@@ -635,8 +634,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				animation.finish();
 			}
 			await nextFrame();
-			assert(Math.abs(optionsTray.getBoundingClientRect().width - collapsedTrayBounds.width) < 1,
-				'Revealing controls must not change the options row width.');
+			assert(optionsTray.getBoundingClientRect().width > collapsedTrayBounds.width, 'The tray must grow with its revealed controls.');
 		}
 		const trayBounds = optionsTray.getBoundingClientRect();
 		if (expandSessionOptions && withControlPickers && !phoneLayout) {
@@ -645,12 +643,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 		if (!phoneLayout) {
 			assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
-				'The tray must remain joined to the top of the prompt after expansion.');
+				'The tray must remain flush with the prompt after expansion.');
 		}
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
-		assert(trayStyle.borderTopLeftRadius === '0px' && trayStyle.borderTopRightRadius === '0px'
-			&& trayStyle.borderBottomLeftRadius === '0px' && trayStyle.borderBottomRightRadius === '0px',
-			'The flat options row must keep every corner square.');
+		assert(parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0
+			&& parseFloat(trayStyle.borderBottomLeftRadius) > 0 && parseFloat(trayStyle.borderBottomRightRadius) > 0,
+			'The floating tray must round every corner.');
 		assert(trayBounds.left >= promptBounds.left - 1 && trayBounds.right <= promptBounds.right + 1,
 			'The tray must fit within the prompt width.');
 		if (phoneLayout) {
@@ -903,7 +901,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer renders the workspace, worktree and branch group, and harness controls on opaque bordered surfaces above the chat input. None of the stripes show through the controls.'],
+		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer keeps the options tray transparent while its individual workspace, worktree, branch, and harness controls remain opaque above the chat input.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, chatBackground: 'loud', experimentalComposerLayout: true }),
 	}),
 	NewSessionOptionsExpanded: defineComponentFixture({
