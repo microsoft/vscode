@@ -570,6 +570,8 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		tasks.setTasks(session.sessionId, [entry('setup', 'worktreeCreated')]);
 
 		mgmt.sessionStartedEmitter.fire(session);
+		// Archive before the worktree appears so the task would be launched against an
+		// already-archived session.
 		isArchived.set(true, undefined);
 		workspace.set(makeWorkspace(true), undefined);
 		await settle();
