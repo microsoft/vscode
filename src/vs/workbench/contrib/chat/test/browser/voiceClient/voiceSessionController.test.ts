@@ -2759,6 +2759,14 @@ suite('VoiceSessionController', () => {
 
 		setPendingTool('manual');
 		controller.pendingToolConfirmations.get()[0].approve();
+		setPendingTool('manual-reject');
+		controller.pendingToolConfirmations.get()[0].deny();
+		const fallbackTool = waitingTerminalTool('fallback-reject');
+		const fallbackState = fallbackTool.state.get();
+		assert.ok(fallbackState.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+		fallbackTool.state.set({ ...fallbackState, confirm: reason => confirmed.push({ toolCallId: 'fallback-reject', reason }) }, undefined);
+		chatService.setModels([pendingResponsePartModel(session.resource, fallbackTool, 'Needs input', false)]);
+		controller.pendingToolConfirmations.get()[0].deny();
 		setPendingTool('approve-all');
 		captured.delegate.addAllAutoApprovedSessions();
 		setPendingTool('automatic-sweep');
@@ -2771,6 +2779,8 @@ suite('VoiceSessionController', () => {
 
 		assert.deepStrictEqual(confirmed, [
 			{ toolCallId: 'manual', reason: { type: ToolConfirmKind.UserAction } },
+			{ toolCallId: 'manual-reject', reason: { type: ToolConfirmKind.Denied, isUserAction: true } },
+			{ toolCallId: 'fallback-reject', reason: { type: ToolConfirmKind.Denied, isUserAction: true } },
 			{ toolCallId: 'approve-all', reason: { type: ToolConfirmKind.UserAction } },
 			{ toolCallId: 'automatic-sweep', reason: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' } },
 			{ toolCallId: 'automatic-observer', reason: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' } },

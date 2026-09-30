@@ -8356,7 +8356,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all', 'allow-all']);
 		});
 
-		for (const outcome of ['success', 'rejected', 'error', 'missing-request', 'expired-request'] as const) {
+		for (const outcome of ['success', 'rejected', 'error', 'policy-error', 'missing-request', 'expired-request'] as const) {
 			test(`session sandbox bypass uses the pending SDK request: ${outcome}`, async () => {
 				const { session, runtime, mockSession, waitForSignal, sandboxResults, sessionConfigUpdates, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 					sandboxPolicy: { enabled: true, allowBypass: true },
@@ -8365,7 +8365,7 @@ suite('CopilotAgentSession', () => {
 					kind: 'shell' as const, toolCallId: 'bypass-tool', fullCommandText: 'curl https://example.com',
 					requestSandboxBypass: true,
 				};
-				const pending = runtime.handlePermissionRequest(request);
+				const pending = runtime.handleAttributedPermissionRequest(request);
 				if (outcome !== 'missing-request') {
 					mockSession.fire('permission.requested', {
 						requestId: 'sdk-permission-123',
@@ -8383,6 +8383,8 @@ suite('CopilotAgentSession', () => {
 					mockSession.sandboxDisableResult = { success: false, enabled: true };
 				} else if (outcome === 'error') {
 					mockSession.sandboxDisableError = new Error('Permission request expired');
+				} else if (outcome === 'policy-error') {
+					mockSession.sandboxDisableError = Object.assign(new Error('Sandbox policy refused the request'), { data: { code: 'managed_sandbox_policy_conflict' } });
 				}
 				session.respondToPermissionRequest('bypass-tool', true, {
 					selectedOptionId: 'allow-session',
@@ -8412,8 +8414,14 @@ suite('CopilotAgentSession', () => {
 				}, {
 					canOptOut: outcome !== 'missing-request',
 					requests: outcome === 'missing-request' || outcome === 'expired-request' ? [] : ['sdk-permission-123'],
-					result: { kind: outcome === 'success' ? 'no-result' : 'reject' },
-					applied: [outcome === 'success' ? false : outcome === 'rejected' ? 'Copilot SDK did not disable sandboxing for this session' : outcome === 'error' ? 'Permission request expired' : 'Sandbox bypass permission request is no longer pending'],
+					result: outcome === 'success' ? { kind: 'no-result' }
+						: outcome === 'missing-request' || outcome === 'expired-request' || outcome === 'policy-error'
+							? {
+								kind: 'attributed', result: { kind: 'reject' },
+								decisionContext: { source: outcome === 'policy-error' ? 'host_policy' : 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' },
+							}
+							: { kind: 'reject' },
+					applied: [outcome === 'success' ? false : outcome === 'rejected' ? 'Copilot SDK did not disable sandboxing for this session' : outcome === 'error' ? 'Permission request expired' : outcome === 'policy-error' ? 'Sandbox policy refused the request' : 'Sandbox bypass permission request is no longer pending'],
 					changes: outcome === 'success' ? [{ sandboxEnabled: 'off' }] : [],
 				});
 			});
@@ -8441,7 +8449,7 @@ suite('CopilotAgentSession', () => {
 				sandboxPolicy: { enabled: true, allowBypass: true },
 			});
 			const request = { kind: 'shell' as const, toolCallId: 'queued-bypass', fullCommandText: 'curl https://example.com', requestSandboxBypass: true };
-			const pending = runtime.handlePermissionRequest(request);
+			const pending = runtime.handleAttributedPermissionRequest(request);
 			mockSession.fire('permission.requested', { requestId: 'sdk-queued-request', permissionRequest: toPermissionRequest(request) });
 			await waitForSignal(signal => signal.kind === 'pending_confirmation');
 			const gate = new DeferredPromise<void>();
@@ -8454,7 +8462,10 @@ suite('CopilotAgentSession', () => {
 			const abort = session.abort();
 			await gate.complete();
 			await abort;
-			assert.deepStrictEqual({ result: await pending, requests: mockSession.sandboxDisableRequests }, { result: { kind: 'reject' }, requests: [] });
+			assert.deepStrictEqual({ result: await pending, requests: mockSession.sandboxDisableRequests }, {
+				result: { kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
+				requests: [],
+			});
 		});
 
 		test('defers an idle session approval change until the next turn', async () => {

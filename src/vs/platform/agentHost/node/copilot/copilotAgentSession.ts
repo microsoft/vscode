@@ -4691,7 +4691,11 @@ export class CopilotAgentSession extends Disposable {
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to disable sandboxing from a permission request`);
 			this._configurationService.setSessionSandboxEnabled(owner, enabled, context.origin && { ...context.origin, message: getErrorMessage(error) });
-			return resolved ? { kind: 'no-result' } : attributePermissionResult({ kind: 'reject' }, 'host_policy');
+			const data = isObject(error) ? error.data : undefined;
+			const source = token.isCancellationRequested || !requestId || this._sandboxBypassRequests.get(toolCallId) !== requestId
+				? 'unattended_fallback'
+				: isObject(data) && data.code === 'managed_sandbox_policy_conflict' ? 'host_policy' : undefined;
+			return resolved ? { kind: 'no-result' } : attributePermissionResult({ kind: 'reject' }, source);
 		}
 	}
 
