@@ -30,7 +30,7 @@ import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbe
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ProjectBoardService } from '../../browser/projectBoardService.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
 import { IProjectBoardNewSessionOptions, ProjectBoardNewSessionDialog } from '../../browser/projectBoardNewSessionDialog.js';
@@ -408,6 +408,87 @@ suite('ProjectBoardService', () => {
 	});
 
 	suite('child chat cards', () => {
+		function workerChat(name: string, parent: IChat): IChat {
+			return {
+				...new TestChat(name),
+				origin: { kind: ChatOriginKind.Tool, parentChat: parent.resource },
+				interactivity: constObservable(ChatInteractivity.ReadOnly),
+			};
+		}
+
+		test('delegated workers nest recursively, inherit placement, and remain included in collapsed state totals', async () => {
+			const main = new TestChat('Main');
+			const peer = new TestChat('Peer');
+			const worker = workerChat('Worker', peer);
+			const nested = workerChat('Nested worker', worker);
+			const h = createBoard(mainWindow.document, [main, peer, worker, nested]);
+			store.add(h.service.createView(h.container));
+			await h.moveViaPicker('General, P0', main.resource);
+			h.service.toggleAutoIncludeSessions();
+			const cell = () => h.container.querySelector<HTMLElement>('[aria-label="General, P0"]')!;
+			const nestedFamily = cell().querySelector('.project-board-card-family .project-board-card-family .project-board-card-family')!;
+			assert.deepStrictEqual({
+				unassigned: h.container.querySelectorAll('.project-board-unassigned .project-board-card').length,
+				titles: [...cell().querySelectorAll('h4')].map(element => element.textContent),
+				nested: nestedFamily.querySelector(':scope > .project-board-child-cards > .project-board-card h4')?.textContent,
+				summary: cell().querySelector('.project-board-child-summary')?.textContent,
+				readOnly: cell().querySelectorAll('.project-board-card-lifecycle').length,
+			}, { unassigned: 0, titles: ['Main', 'Peer', 'Worker', 'Nested worker'], nested: 'Nested worker', summary: '3 child chats · 🏃 3 Busy', readOnly: 2 });
+			h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p0"]')!.click();
+			assert.strictEqual(cell().querySelector('.project-board-collapsed-summary')?.textContent, '4 sessions · 🏃 4 Busy');
+			assert.ok(h.service.getAccessibleContent().includes('Nested worker, Busy'));
+			h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p0"]')!.click();
+			await h.moveViaPicker('General, P1', worker.resource);
+			assert.deepStrictEqual(
+				[...h.container.querySelectorAll('[aria-label="General, P1"] h4')].map(element => element.textContent),
+				['Worker', 'Nested worker'],
+			);
+			await h.moveViaPicker('Follow Parent', worker.resource);
+			assert.strictEqual(cell().querySelectorAll('.project-board-card').length, 4);
+			assert.strictEqual(h.catalog.boards.get()[0].configuration.placements.length, 1);
+			assert.deepStrictEqual(h.opened, []);
+		});
+
+		test('returning from a nested delegated worker expands every ancestor and opens the exact resource', async () => {
+			const { document } = createBoardDocument();
+			const parent = new TestChat('Parent');
+			const worker = workerChat('Worker', parent);
+			const nested = workerChat('Nested worker', worker);
+			const h = createBoard(document, [parent, worker, nested]);
+			await h.service.open();
+			await h.moveViaPicker('General, P0', parent.resource);
+			const card = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === nested.resource.toString())!;
+			card.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+			for (const title of ['Worker', 'Parent']) {
+				h.container.querySelector<HTMLElement>(`[aria-label="Collapse Child chats of ${title}"]`)!.click();
+			}
+			h.container.querySelector<HTMLElement>('[data-board-control="collapse:row:general"]')!.click();
+			h.state.closedResource = nested.resource;
+			await h.service.closeSession(12345);
+			assert.deepStrictEqual({
+				opened: h.opened.map(resource => resource.toString()),
+				focused: document.activeElement?.getAttribute('data-chat-resource'),
+				collapsed: h.container.querySelectorAll('.project-board-child-cards[hidden], [aria-label="General, P0"] .project-board-card-list[hidden]').length,
+			}, { opened: [nested.resource.toString()], focused: nested.resource.toString(), collapsed: 0 });
+		});
+
+		test('folded ancestors name a monitored grandchild without painting the ancestors current', () => {
+			const main = new TestChat('Main');
+			const worker = workerChat('Worker', main);
+			const nested = workerChat('Nested worker', worker);
+			const h = createBoard(mainWindow.document, [main, worker, nested]);
+			store.add(h.service.createView(h.container));
+			for (const title of ['Worker', 'Main']) {
+				h.container.querySelector<HTMLElement>(`[aria-label="Collapse Child chats of ${title}"]`)!.click();
+			}
+			h.activeSidePanelCardId.set(getProjectBoardCardId(h.session, nested), undefined);
+			assert.deepStrictEqual({
+				current: [...h.container.querySelectorAll<HTMLElement>('[aria-current="true"]')].map(element => element.dataset.chatResource),
+				cues: [...h.container.querySelectorAll('.project-board-monitored-child-label:not([hidden])')].map(element => element.textContent),
+				labelVisible: h.container.querySelectorAll('.project-board-card-active-chat-label:not([hidden])').length,
+			}, { current: [nested.resource.toString()], cues: ['Open in Side Panel: Nested worker', 'Open in Side Panel: Nested worker'], labelVisible: 0 });
+		});
+
 		test('nests children without duplicates, folds without opening, and opens the exact child', async () => {
 			const parent = new TestChat('Parent');
 			const child = new TestChat('Child');
@@ -497,24 +578,26 @@ suite('ProjectBoardService', () => {
 			const { document } = createBoardDocument();
 			const parents = Array.from({ length: 4 }, (_, index) => new TestChat(`Parent ${index}`));
 			const h = createIndependentChatBoard(document, parents);
-			const child = new TestChat('Delegated chat');
+			const child = workerChat('Delegated chat', parents[3]);
+			const nested = workerChat('Nested delegated chat', child);
 			const session = h.state.sessions[3];
 			assert.ok(session instanceof TestBoardSession);
-			session.chats.set([parents[3], child], undefined);
+			session.chats.set([parents[3], child, nested], undefined);
 			await h.service.open();
-			h.container.querySelector<HTMLElement>('.project-board-child-cards .project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+			[...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === nested.resource.toString())!
+				.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
 			for (const parent of parents) {
 				await h.moveViaPicker('General, P0', parent.resource);
 			}
 			h.container.querySelector<HTMLElement>('.project-board-less')!.click();
 			assert.strictEqual(h.container.querySelector('.project-board-child-cards'), null);
-			assert.ok(h.container.querySelector('.project-board-recency-warning')?.textContent?.includes('2 hidden chats'));
-			h.state.closedResource = child.resource;
+			assert.ok(h.container.querySelector('.project-board-recency-warning')?.textContent?.includes('3 hidden chats'));
+			h.state.closedResource = nested.resource;
 			await h.service.closeSession(12345);
 			assert.deepStrictEqual({
 				cards: h.container.querySelectorAll('[aria-label="General, P0"] .project-board-card').length,
 				focus: document.activeElement?.getAttribute('data-chat-resource'),
-			}, { cards: 5, focus: child.resource.toString() });
+			}, { cards: 6, focus: nested.resource.toString() });
 		});
 
 		test('embedded and standalone views fold the same family independently', async () => {
@@ -1415,8 +1498,9 @@ suite('ProjectBoardService', () => {
 			}, { first: 'Child', second: 'Other session', current: 'Other provider', count: 1, focused: true, selected: ['Main'], read: [false, false], opened: [], sidePanel: [] });
 			for (const element of cards) {
 				const indicator = element.querySelector<HTMLElement>('.project-board-card-active-chat-label')!;
-				assert.strictEqual(indicator.hidden, element !== current(h.container));
-				assert.strictEqual(element.getAttribute('aria-describedby')?.split(' ').includes(indicator.id), !indicator.hidden);
+				assert.strictEqual(indicator.hidden, true, 'The current-chat frame must not add a visible label');
+				assert.strictEqual(mainWindow.getComputedStyle(indicator).display, 'none');
+				assert.strictEqual(element.getAttribute('aria-describedby')?.split(' ').includes(indicator.id), element === current(h.container));
 			}
 			h.activeSidePanelCardId.set(undefined, undefined);
 			assert.strictEqual(h.container.querySelector('[aria-current], .project-board-card-active-chat'), null);
@@ -1540,7 +1624,7 @@ suite('ProjectBoardService', () => {
 				border: style.borderTopColor, status: style.borderLeftColor, outline: style.outlineColor,
 				indicator: card.querySelector<HTMLElement>('.project-board-card-active-chat-label')!.hidden,
 				selected: card.classList.contains('project-board-card-selected'),
-			}, { border: 'rgb(7, 8, 9)', status: 'rgb(4, 5, 6)', outline: 'rgb(1, 2, 3)', indicator: false, selected: true });
+			}, { border: 'rgb(7, 8, 9)', status: 'rgb(4, 5, 6)', outline: 'rgb(1, 2, 3)', indicator: true, selected: true });
 			h.container.style.setProperty('--vscode-contrastActiveBorder', 'initial');
 			assert.strictEqual(mainWindow.getComputedStyle(card).borderTopColor, 'rgb(1, 2, 3)');
 		});
