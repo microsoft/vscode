@@ -17,6 +17,12 @@ export function isHydraFusionModel(model: ILanguageModelChatMetadataAndIdentifie
 	return model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID;
 }
 
+export function filterModelPickerModelsForEntitlement(models: ILanguageModelChatMetadataAndIdentifier[], entitlement: ChatEntitlement): ILanguageModelChatMetadataAndIdentifier[];
+export function filterModelPickerModelsForEntitlement(models: readonly ILanguageModelChatMetadataAndIdentifier[], entitlement: ChatEntitlement): readonly ILanguageModelChatMetadataAndIdentifier[];
+export function filterModelPickerModelsForEntitlement(models: readonly ILanguageModelChatMetadataAndIdentifier[], entitlement: ChatEntitlement): readonly ILanguageModelChatMetadataAndIdentifier[] {
+	return entitlement === ChatEntitlement.Free ? models.filter(model => !isHydraFusionModel(model)) : models;
+}
+
 export function isMultiplierPricing(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return model.metadata.multiplierNumeric !== undefined;
 }

@@ -15,6 +15,7 @@ import { MANAGE_CHAT_COMMAND_ID } from '../../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, IModelsControlManifest } from '../../../../common/languageModels.js';
 import { buildFlatModelItems, buildGroupedModelItems, buildUnavailableStateItems, RESTRICTED_MODE_TRUST_ACTION_ID, SETUP_REQUIRED_SIGN_IN_ACTION_ID } from './modelPickerItemSections.js';
 import type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
+import { filterModelPickerModelsForEntitlement } from './modelPickerPresentation.js';
 
 export type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
 export { ModelPickerSection } from './modelPickerItemSections.js';
@@ -79,13 +80,17 @@ export function createManageModelsAction(commandService: ICommandService): IActi
 
 /** Builds the ordered model picker sections for the current presentation state. */
 export function buildModelPickerItems(options: IBuildModelPickerItemsOptions): IActionListItem<IActionWidgetDropdownAction>[] {
-	const unavailableItems = buildUnavailableStateItems(options);
+	const pickerOptions = {
+		...options,
+		models: filterModelPickerModelsForEntitlement(options.models, options.chatEntitlementService.entitlement),
+	};
+	const unavailableItems = buildUnavailableStateItems(pickerOptions);
 	if (unavailableItems) {
 		return unavailableItems;
 	}
-	return options.presentation.useGroupedModelPicker
-		? buildGroupedModelItems(options)
-		: buildFlatModelItems(options);
+	return pickerOptions.presentation.useGroupedModelPicker
+		? buildGroupedModelItems(pickerOptions)
+		: buildFlatModelItems(pickerOptions);
 }
 
 export function getModelPickerAccessibilityProvider(isSearch = false) {

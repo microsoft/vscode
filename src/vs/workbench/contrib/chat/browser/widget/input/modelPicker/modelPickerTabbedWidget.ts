@@ -22,7 +22,7 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { resolveConfiguredModel } from '../../../../common/modelSelection.js';
@@ -33,7 +33,7 @@ import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVari
 import { getModelBadge, getOrganizationDefaultDescription, organizationDefaultLabel } from './modelPickerBadges.js';
 import { createModelAction, createModelItem, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider } from './modelPickerItems.js';
-import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
+import { filterModelPickerModelsForEntitlement, isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
@@ -220,10 +220,7 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _filterModelsForEntitlement(context: ITabbedModelPickerContext): ITabbedModelPickerContext {
-		if (this._entitlementService.entitlement !== ChatEntitlement.Free) {
-			return context;
-		}
-		return { ...context, models: context.models.filter(model => !isHydraFusionModel(model)) };
+		return { ...context, models: filterModelPickerModelsForEntitlement(context.models, this._entitlementService.entitlement) };
 	}
 
 	private _showCurrent(initialFilterValue?: string): void {
