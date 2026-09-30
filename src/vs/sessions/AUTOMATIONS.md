@@ -64,6 +64,8 @@ Compatibility decoding for configuration values in existing AHP definitions is s
 
 `IAutomationBlueprint` is a versioned portable name, prompt, schedule, and optional `disableConditions`. It excludes runtime identity, target provider, workspace, session configuration, enabled state, timestamps, and history.
 
+Version 2 adds `disableConditions`. Version 1 remains readable with its original strict schema; exports without conditions retain version 1 compatibility, while exports containing conditions use version 2.
+
 Standalone `.automation.md` files and plugins use the same blueprint format. Plugin discovery exposes inert templates and follows effective plugin enablement; discovery, installation, and updates never mutate saved Automations.
 
 Import, duplication, and templates open the same review dialog and use the same AHP-only creation path. File imports and plugin templates start disabled. The user selects an available host and provider-owned configuration locally. Export transfers only portable state, not execution authority or history.

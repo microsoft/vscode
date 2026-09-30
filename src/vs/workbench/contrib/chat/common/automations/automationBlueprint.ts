@@ -9,10 +9,11 @@ import { AutomationDisableConditionKind, type AutomationAfterDateCondition } fro
 import { IAutomationDescriptor, IAutomationSchedule } from './automation.js';
 
 export const AUTOMATION_BLUEPRINT_FILE_SUFFIX = '.automation.md';
-export const AUTOMATION_BLUEPRINT_VERSION = 1;
+export const AUTOMATION_BLUEPRINT_VERSION = 2;
 
 const AUTOMATION_BLUEPRINT_ID_PATTERN = /^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/;
-const AUTOMATION_BLUEPRINT_PROPERTIES = new Set(['version', 'id', 'name', 'description', 'schedule', 'disableConditions']);
+const AUTOMATION_BLUEPRINT_V1_PROPERTIES = new Set(['version', 'id', 'name', 'description', 'schedule']);
+const AUTOMATION_BLUEPRINT_PROPERTIES = new Set([...AUTOMATION_BLUEPRINT_V1_PROPERTIES, 'disableConditions']);
 const AUTOMATION_BLUEPRINT_MANUAL_SCHEDULE_PROPERTIES = new Set(['kind']);
 const AUTOMATION_BLUEPRINT_HOURLY_SCHEDULE_PROPERTIES = new Set(['kind']);
 const AUTOMATION_BLUEPRINT_CRON_SCHEDULE_PROPERTIES = new Set(['kind', 'expression', 'timeZone']);
@@ -38,7 +39,7 @@ export class AutomationBlueprintParseError extends Error {
 
 /** A portable Automation definition without execution authority or machine-specific target state. */
 export interface IAutomationBlueprint {
-	readonly version: typeof AUTOMATION_BLUEPRINT_VERSION;
+	readonly version: 1 | typeof AUTOMATION_BLUEPRINT_VERSION;
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
@@ -54,11 +55,11 @@ export function parseAutomationBlueprint(content: string): IAutomationBlueprint 
 		throw new AutomationBlueprintParseError('invalidFrontmatter');
 	}
 
-	assertKnownProperties(document.header, AUTOMATION_BLUEPRINT_PROPERTIES);
 	const version = readRequiredInteger(document.header, 'version');
-	if (version !== AUTOMATION_BLUEPRINT_VERSION) {
+	if (version !== 1 && version !== AUTOMATION_BLUEPRINT_VERSION) {
 		throw new AutomationBlueprintParseError('unsupportedVersion', String(version));
 	}
+	assertKnownProperties(document.header, version === 1 ? AUTOMATION_BLUEPRINT_V1_PROPERTIES : AUTOMATION_BLUEPRINT_PROPERTIES);
 
 	const id = readRequiredString(document.header, 'id');
 	if (id.length > 64 || !AUTOMATION_BLUEPRINT_ID_PATTERN.test(id)) {
@@ -75,7 +76,7 @@ export function parseAutomationBlueprint(content: string): IAutomationBlueprint 
 	}
 
 	return {
-		version: AUTOMATION_BLUEPRINT_VERSION,
+		version,
 		id,
 		name,
 		...(description ? { description } : {}),
@@ -88,7 +89,7 @@ export function parseAutomationBlueprint(content: string): IAutomationBlueprint 
 export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): string {
 	const lines = [
 		'---',
-		`version: ${AUTOMATION_BLUEPRINT_VERSION}`,
+		`version: ${blueprint.disableConditions !== undefined ? AUTOMATION_BLUEPRINT_VERSION : blueprint.version}`,
 		`id: ${quoteYamlString(blueprint.id)}`,
 		`name: ${quoteYamlString(blueprint.name)}`,
 	];
@@ -128,7 +129,7 @@ export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): s
 
 export function automationToBlueprint(automation: IAutomationDescriptor): IAutomationBlueprint {
 	return {
-		version: AUTOMATION_BLUEPRINT_VERSION,
+		version: automation.disableConditions !== undefined ? AUTOMATION_BLUEPRINT_VERSION : 1,
 		id: createAutomationBlueprintId(automation.name),
 		name: automation.name,
 		prompt: automation.prompt,

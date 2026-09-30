@@ -9,6 +9,7 @@ import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import { EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -1075,7 +1076,7 @@ suite('AutomationsCardsWidget', () => {
 			automations: observableValue('pluginAutomations', [{
 				uri: URI.file('/plugins/review/automations/weekly-review.automation.md'),
 				blueprint: {
-					version: 1,
+					version: 2,
 					id: 'weekly-review',
 					name: 'Weekly review',
 					description: 'Review the past week.',
@@ -1289,7 +1290,7 @@ suite('AutomationsCardsWidget', () => {
 					resource,
 					value: VSBuffer.fromString([
 						'---',
-						'version: 1',
+						'version: 2',
 						'id: weekly-review',
 						'name: Weekly review',
 						'disableConditions:',
@@ -2291,6 +2292,27 @@ suite('AutomationsCardsWidget', () => {
 		dialogService.confirmResult = { confirmed: true };
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
 		assert.deepStrictEqual(automationService.guardedUpdateCalls, [{ id: source.id, patch: { enabled: true }, expected: source }]);
+	});
+
+	test('Enable announces the authoritative disabled state after an expired-date update', async () => {
+		const { automationService, dialogService, instantiationService } = setup();
+		const ariaHost = document.createElement('div');
+		document.body.appendChild(ariaHost);
+		disposables.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		const source = automation({
+			enabled: false,
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
+		});
+		automationService.setAutomations([source]);
+		automationService.updateResult = { kind: 'updated', automation: source };
+		dialogService.confirmResult = { confirmed: true };
+		const command = CommandsRegistry.getCommand('sessions.automations.enable')!;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		assert.deepStrictEqual({
+			status: ariaHost.textContent,
+			enabled: automationService.getAutomation(source.id)?.enabled,
+		}, { status: `Automation ${source.name} remains disabled.`, enabled: false });
 	});
 
 	test('Remove Limits visibility follows saved conditions, feature enablement and update capability', () => {

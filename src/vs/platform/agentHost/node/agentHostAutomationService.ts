@@ -260,16 +260,17 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._catalog = next;
 		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
 		const enabledChanged = existing.definition.enabled !== automation.definition.enabled;
-		const scheduleChanged = !equals(existing.definition.triggers, automation.definition.triggers)
-			|| !equals(existing.definition.disableConditions, automation.definition.disableConditions);
+		const scheduleChanged = !equals(existing.definition.triggers, automation.definition.triggers);
+		const disableConditionsChanged = !equals(existing.definition.disableConditions, automation.definition.disableConditions);
 		const sessionConfigurationChanged = !equals(existing.definition.session, automation.definition.session);
 		const promptChanged = !equals(existing.definition.message, automation.definition.message);
 		const titleChanged = existing.definition.title !== automation.definition.title;
-		if (enabledChanged || scheduleChanged || sessionConfigurationChanged || promptChanged || titleChanged) {
+		if (enabledChanged || scheduleChanged || disableConditionsChanged || sessionConfigurationChanged || promptChanged || titleChanged) {
 			logAutomationUpdated(this._telemetryService, {
 				...this._definitionTelemetry(automation),
 				enabledChanged,
 				scheduleChanged,
+				disableConditionsChanged,
 				sessionConfigurationChanged,
 				promptChanged,
 				titleChanged,

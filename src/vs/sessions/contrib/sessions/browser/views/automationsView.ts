@@ -2413,9 +2413,11 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 					? localize('automationDeletedDuringEnable', "This automation was deleted before it could be enabled.")
 					: localize('automationDeletedDuringDisable', "This automation was deleted before it could be disabled.")));
 		}
-		status(enabled
-			? localize('automationEnabledStatus', "Enabled automation {0}", automation.name)
-			: localize('automationDisabledStatus', "Disabled automation {0}", automation.name));
+		status(enabled && !result.automation.enabled
+			? localize('automationRemainsDisabledStatus', "Automation {0} remains disabled.", automation.name)
+			: result.automation.enabled
+				? localize('automationEnabledStatus', "Enabled automation {0}", automation.name)
+				: localize('automationDisabledStatus', "Disabled automation {0}", automation.name));
 	} catch (error) {
 		logService.error(enabled ? '[Automations] Failed to enable automation' : '[Automations] Failed to disable automation', error);
 		await dialogService.error(

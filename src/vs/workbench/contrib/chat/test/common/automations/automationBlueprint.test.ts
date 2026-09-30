@@ -101,7 +101,7 @@ suite('Automation blueprints', () => {
 	test('rejects invalid authority and schedule fields', () => {
 		const documents = [
 			'Review the workspace.',
-			'---\nversion: 2\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
+			'---\nversion: 3\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
 			'---\nversion: 1\nid: Review Task\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nenabled: true\nschedule:\n  kind: manual\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "20 * * * *"\n  timeZone: local\n---\nReview.',
@@ -119,7 +119,7 @@ suite('Automation blueprints', () => {
 			}
 		}), [
 			{ code: 'invalidFrontmatter', property: undefined },
-			{ code: 'unsupportedVersion', property: '2' },
+			{ code: 'unsupportedVersion', property: '3' },
 			{ code: 'invalidId', property: 'Review Task' },
 			{ code: 'unknownProperty', property: 'enabled' },
 			{ code: 'unsupportedSchedule', property: '20 * * * *' },
@@ -138,20 +138,20 @@ suite('Automation blueprints', () => {
 			], createdAt: '', updatedAt: '',
 		};
 		assert.deepStrictEqual(parseAutomationBlueprint(serializeAutomationBlueprint(automationToBlueprint(automation))), {
-			version: 1, id: 'review', name: 'Review', prompt: 'Review.',
+			version: 2, id: 'review', name: 'Review', prompt: 'Review.',
 			schedule: automation.schedule, disableConditions: automation.disableConditions,
 		});
 	});
 
-	test('rejects invalid scheduled maxima', () => {
-		for (const value of ['0', '-1', '1.5', '9007199254740992', 'null']) {
-			assert.throws(() => parseAutomationBlueprint(`---\nversion: 1\nid: review\nname: Review\ndisableConditions:\n  - kind: afterRuns\n    max: ${value}\nschedule:\n  kind: manual\n---\nReview.`),
+	test('rejects run-count conditions in version 2', () => {
+		for (const value of ['1', '0', '-1', '1.5', '9007199254740992', 'null']) {
+			assert.throws(() => parseAutomationBlueprint(`---\nversion: 2\nid: review\nname: Review\ndisableConditions:\n  - kind: afterRuns\n    max: ${value}\nschedule:\n  kind: manual\n---\nReview.`),
 				AutomationBlueprintParseError);
 		}
 	});
 
 	test('rejects duplicate and malformed conditions and round trips an empty array', () => {
-		const blueprint = parseAutomationBlueprint('---\nversion: 1\nid: review\nname: Review\ndisableConditions: []\nschedule:\n  kind: manual\n---\nReview.');
+		const blueprint = parseAutomationBlueprint('---\nversion: 2\nid: review\nname: Review\ndisableConditions: []\nschedule:\n  kind: manual\n---\nReview.');
 		assert.deepStrictEqual(parseAutomationBlueprint(serializeAutomationBlueprint(blueprint)), blueprint);
 		for (const conditions of [
 			'null',
@@ -159,8 +159,20 @@ suite('Automation blueprints', () => {
 			'\n  - kind: afterDate\n    date: invalid',
 			'\n  - kind: unknown',
 		]) {
-			assert.throws(() => parseAutomationBlueprint(`---\nversion: 1\nid: review\nname: Review\ndisableConditions: ${conditions}\nschedule:\n  kind: manual\n---\nReview.`), AutomationBlueprintParseError);
+			assert.throws(() => parseAutomationBlueprint(`---\nversion: 2\nid: review\nname: Review\ndisableConditions: ${conditions}\nschedule:\n  kind: manual\n---\nReview.`), AutomationBlueprintParseError);
 		}
+	});
+
+	test('retains the strict version 1 schema and upgrades exports that add conditions', () => {
+		const legacy = '---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.';
+		assert.throws(() => parseAutomationBlueprint(legacy.replace('schedule:', 'disableConditions: []\nschedule:')),
+			{ code: 'unknownProperty', property: 'disableConditions' });
+		const blueprint = parseAutomationBlueprint(legacy);
+		assert.deepStrictEqual({
+			legacy: parseAutomationBlueprint(serializeAutomationBlueprint(blueprint)).version,
+			upgraded: parseAutomationBlueprint(serializeAutomationBlueprint({ ...blueprint, disableConditions: [] })).version,
+			current: parseAutomationBlueprint(legacy.replace('version: 1', 'version: 2')).version,
+		}, { legacy: 1, upgraded: 2, current: 2 });
 	});
 
 	test('exports only portable automation state', () => {

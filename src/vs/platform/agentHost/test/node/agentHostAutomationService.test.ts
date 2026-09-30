@@ -225,6 +225,25 @@ suite('AgentHostAutomationService', () => {
 		]);
 	});
 
+	test('distinguishes end-date changes from schedule changes in update telemetry', async () => {
+		const service = createService();
+		const resource = 'ahp-automation:/review-changes';
+		await enableAndCreate(service, resource);
+		const conditions: AutomationDefinition['disableConditions'] = [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' }];
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: conditions } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: conditions } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: [] } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { triggers: scheduledDefinition().triggers } });
+		assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.updated').map(event => ({
+			scheduleChanged: event.data.scheduleChanged,
+			disableConditionsChanged: event.data.disableConditionsChanged,
+		})), [
+			{ scheduleChanged: false, disableConditionsChanged: true },
+			{ scheduleChanged: false, disableConditionsChanged: true },
+			{ scheduleChanged: true, disableConditionsChanged: false },
+		]);
+	});
+
 	test('preserves distinct complete automation resources across definition and run telemetry', async () => {
 		const service = createService();
 		const resources = [
