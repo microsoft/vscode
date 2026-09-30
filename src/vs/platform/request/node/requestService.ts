@@ -225,10 +225,10 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {
 			const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
-			if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
+			if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers.location) {
 				nodeRequest({
 					...options,
-					url: res.headers['location'],
+					url: res.headers.location,
 					followRedirects: followRedirects - 1
 				}, token).then(resolve, reject);
 			} else {

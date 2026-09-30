@@ -342,8 +342,8 @@ suite('TunnelProxy', () => {
 			assert.strictEqual(forwarded['proxy-authorization'], undefined);
 			assert.strictEqual(forwarded['proxy-connection'], undefined);
 			assert.strictEqual(forwarded['keep-alive'], undefined);
-			assert.strictEqual(forwarded['te'], undefined);
-			assert.strictEqual(forwarded['upgrade'], undefined);
+			assert.strictEqual(forwarded.te, undefined);
+			assert.strictEqual(forwarded.upgrade, undefined);
 			// Headers named in Connection must also be removed
 			assert.strictEqual(forwarded['x-custom-hop'], undefined);
 			// Note: connection itself is replaced by Node's http.Agent with

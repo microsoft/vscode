@@ -11,7 +11,7 @@ export async function createExperimentationService(
 	isPreRelease: boolean,
 ): Promise<IExperimentationService> {
 	const id = context.extension.id;
-	const version = context.extension.packageJSON['version'];
+	const version = context.extension.packageJSON.version;
 
 	const service = getExperimentationService(
 		id,
