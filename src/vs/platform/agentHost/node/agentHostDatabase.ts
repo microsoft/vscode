@@ -104,7 +104,6 @@ export interface IAgentHostDatabaseSessionChat {
 	readonly providerData?: string;
 	readonly origin?: string;
 	readonly inheritedTurnId?: string;
-	readonly modifiedAt?: string;
 }
 
 export interface IAgentHostDatabaseSessionChatCatalog {
@@ -280,7 +279,6 @@ const sessionChatCatalogSchemaSql = [
 ].join(';\n');
 
 const CHAT_ARCHIVE_MIGRATION_VERSION = 12;
-const CHAT_MODIFIED_AT_MIGRATION_VERSION = 13;
 
 const migrations = [
 	{
@@ -330,10 +328,6 @@ const migrations = [
 		version: CHAT_ARCHIVE_MIGRATION_VERSION,
 		sql: 'ALTER TABLE session_chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))',
 	},
-	{
-		version: CHAT_MODIFIED_AT_MIGRATION_VERSION,
-		sql: 'ALTER TABLE session_chats ADD COLUMN modified_at TEXT',
-	},
 ] as const;
 
 async function normalizePreReleaseCatalogSchema(database: Database, currentVersion: number): Promise<number> {
@@ -344,12 +338,9 @@ async function normalizePreReleaseCatalogSchema(database: Database, currentVersi
 		&& await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chats'`, []);
 	if (hasFinalCatalog && currentVersion >= 5 && currentVersion < CHAT_ARCHIVE_MIGRATION_VERSION) {
 		const chatColumns = await all(database, 'PRAGMA table_info(session_chats)', []);
-		const hasArchived = chatColumns.some(column => column.name === 'archived');
-		const hasModifiedAt = chatColumns.some(column => column.name === 'modified_at');
-		if (hasArchived) {
-			const normalizedVersion = hasModifiedAt ? CHAT_MODIFIED_AT_MIGRATION_VERSION : CHAT_ARCHIVE_MIGRATION_VERSION;
-			await exec(database, `PRAGMA user_version = ${normalizedVersion}`);
-			return normalizedVersion;
+		if (chatColumns.some(column => column.name === 'archived')) {
+			await exec(database, `PRAGMA user_version = ${CHAT_ARCHIVE_MIGRATION_VERSION}`);
+			return CHAT_ARCHIVE_MIGRATION_VERSION;
 		}
 	}
 	const isPreReleaseVersion11 = currentVersion === 11;
@@ -1300,8 +1291,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				chat.archived,
 				chat.provider_data,
 				chat.origin,
-				chat.inherited_turn_id,
-				chat.modified_at
+				chat.inherited_turn_id
 			FROM session_chat_catalogs AS catalog
 			LEFT JOIN session_chats AS chat ON chat.session_uri = catalog.session_uri
 			WHERE catalog.session_uri = ?
@@ -1321,7 +1311,6 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
 					...(row.origin === null ? {} : { origin: row.origin as string }),
 					...(row.inherited_turn_id === null ? {} : { inheritedTurnId: row.inherited_turn_id as string }),
-					...(row.modified_at === null ? {} : { modifiedAt: row.modified_at as string }),
 				})),
 			};
 		});
@@ -1366,8 +1355,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				for (let offset = 0; offset < chats.length; offset += SESSION_CHAT_INSERT_BATCH_SIZE) {
 					const batch = chats.slice(offset, offset + SESSION_CHAT_INSERT_BATCH_SIZE);
 					await run(database, `INSERT INTO session_chats (
-						session_uri, chat_uri, chat_order, archived, provider_data, origin, inherited_turn_id, modified_at
-					) VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`, batch.flatMap(chat => [
+						session_uri, chat_uri, chat_order, archived, provider_data, origin, inherited_turn_id
+					) VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')}`, batch.flatMap(chat => [
 						session,
 						chat.chat,
 						chat.order,
@@ -1375,7 +1364,6 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 						chat.providerData ?? null,
 						chat.origin ?? null,
 						chat.inheritedTurnId ?? null,
-						chat.modifiedAt ?? null,
 					]));
 				}
 				await exec(database, 'COMMIT');

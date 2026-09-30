@@ -553,8 +553,13 @@ suite('AgentHostPeerChatStore', () => {
 		const updatedWrites = databaseFor(first).metadataValueWrites + databaseFor(second).metadataValueWrites + databaseFor(third).metadataValueWrites - reorderedWrites;
 		await store.remove(session, third);
 		const removedWrites = databaseFor(first).metadataValueWrites + databaseFor(second).metadataValueWrites + databaseFor(third).metadataValueWrites - reorderedWrites - updatedWrites;
-		await store.upsert(session, added, 'added');
+		const modifiedAt = '2026-01-01T00:00:00.000Z';
+		await store.upsert(session, added, 'added', undefined, undefined, undefined, modifiedAt);
 		const addedWrites = databaseFor(added).metadataValueWrites;
+		const catalogBeforeModifiedAtUpdate = await orchestrator.getSessionChatCatalog(session.toString());
+		const updatedModifiedAt = '2026-01-02T00:00:00.000Z';
+		await store.setModifiedAt(session, added, updatedModifiedAt);
+		const catalogAfterModifiedAtUpdate = await orchestrator.getSessionChatCatalog(session.toString());
 		const central = await store.tryRead(session);
 
 		assert.deepStrictEqual({
@@ -562,6 +567,8 @@ suite('AgentHostPeerChatStore', () => {
 			updatedWrites,
 			removedWrites,
 			addedWrites,
+			catalogUnchangedByModifiedAt: JSON.stringify(catalogAfterModifiedAtUpdate) === JSON.stringify(catalogBeforeModifiedAtUpdate),
+			central,
 			local: central && await store.readLocalChatMetadata(central),
 			legacy: await store.tryReadLegacy(session),
 		}, {
@@ -569,10 +576,16 @@ suite('AgentHostPeerChatStore', () => {
 			updatedWrites: 1,
 			removedWrites: 0,
 			addedWrites: 1,
-			local: [
+			catalogUnchangedByModifiedAt: true,
+			central: [
 				{ uri: first.toString(), providerData: 'first' },
 				{ uri: second.toString(), providerData: 'updated' },
 				{ uri: added.toString(), providerData: 'added' },
+			],
+			local: [
+				{ uri: first.toString(), providerData: 'first' },
+				{ uri: second.toString(), providerData: 'updated' },
+				{ uri: added.toString(), providerData: 'added', modifiedAt: updatedModifiedAt },
 			],
 			legacy: [
 				{ uri: first.toString(), providerData: 'first' },
