@@ -470,12 +470,12 @@ describe('CopilotCLITerminalIntegration', () => {
 	});
 
 	describe('initialize', () => {
-		it('should contribute the native shim directory to the terminal PATH', async () => {
+		it('should append the native shim directory to the terminal PATH', async () => {
 			expect(terminalService.contributePathSpy).toHaveBeenCalledWith(
 				'copilot-cli',
 				path.dirname(expectedShimPath),
 				{ command: 'copilot' },
-				true,
+				undefined,
 			);
 		});
 
@@ -505,7 +505,7 @@ describe('CopilotCLITerminalIntegration', () => {
 					['-ci', `${escapeForPosixShell(expectedShimPath)} --resume sess-1`],
 				],
 				removed: [['copilot-cli']],
-				contributed: [['copilot-cli', path.dirname(expectedShimPath), { command: 'copilot' }, true]],
+				contributed: [['copilot-cli', path.dirname(expectedShimPath), { command: 'copilot' }, undefined]],
 			});
 		});
 
