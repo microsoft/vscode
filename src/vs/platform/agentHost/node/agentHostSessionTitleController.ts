@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -25,7 +24,6 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH = 40;
 const MAX_TITLE_TOKENS = 32;
 const GITHUB_CONTEXT_REQUEST_TIMEOUT = 5_000;
-const MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS = 5;
 const MAX_GITHUB_CONTEXT_BODY_CHARS = 4_000;
 const MAX_GITHUB_CONTEXT_REFERENCES = 10;
 const MAX_TRAILING_HAN_SUFFIX_CODE_UNITS = 6;
@@ -688,8 +686,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		try {
 			const client = store.add(gitHubService.acquireRepositoryClient(signal)).object;
 			const { account } = await client.credentials.getCredential(signal);
-			const limiter = store.add(new Limiter<IGitHubReferenceContext | undefined>(MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS));
-			const contexts = await Promise.all(references.map(reference => limiter.queue(async () => {
+			const contexts = await Promise.all(references.map(async reference => {
 				try {
 					const value = await client.query.getIssueOrPullRequest({ ...account, owner: reference.owner, repo: reference.repo, number: reference.number }, signal);
 					return { reference, value };
@@ -699,7 +696,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 					}
 					return undefined;
 				}
-			})));
+			}));
 			const successfulContexts = contexts.filter(context => context !== undefined);
 			if (successfulContexts.length === 0) {
 				return promptContent;

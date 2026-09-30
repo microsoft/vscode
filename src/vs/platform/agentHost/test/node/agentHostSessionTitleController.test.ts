@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
@@ -24,6 +29,7 @@ import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST
 import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -87,7 +93,10 @@ class TestGitHubQuery extends mock<IGitHubQuery>() {
 suite('AgentHostSessionTitleController', () => {
 	const disposables = new DisposableStore();
 
-	teardown(() => disposables.clear());
+	teardown(() => {
+		sinon.restore();
+		disposables.clear();
+	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createSummary(session: URI, title = '', isEphemeral = false): SessionSummary {
@@ -842,6 +851,98 @@ suite('AgentHostSessionTitleController', () => {
 			hasEleventhContext: false,
 		});
 	});
+
+	for (const cancelFirst of [false, true]) {
+		test(`concurrent title enrichment uses the engine queue${cancelFirst ? ' and preserves shared reads when one title is cancelled' : ''}`, async () => {
+			const started = new DeferredPromise<AbortSignal>();
+			const release = new DeferredPromise<void>();
+			const requests: string[] = [];
+			let activeRequests = 0;
+			let maximumActiveRequests = 0;
+			const authentication = new class extends mock<IAgentHostAuthenticationService>() {
+				override readonly onDidChangeAuthToken = Event.None;
+				override getAuthAccount() { return undefined; }
+				override getAuthToken() { return 'test-token'; }
+			}();
+			const gitHubService = disposables.add(new AgentHostGitHubService({
+				fetch: async (input, init) => {
+					const path = new URL(String(input)).pathname;
+					requests.push(path);
+					activeRequests++;
+					maximumActiveRequests = Math.max(maximumActiveRequests, activeRequests);
+					try {
+						if (path === '/user') {
+							return new Response('{"id":101}');
+						}
+						const number = Number(path.split('/').pop());
+						if (number === 1) {
+							assert.ok(init?.signal);
+							await started.complete(init.signal);
+							await release.p;
+						}
+						return new Response(JSON.stringify({ title: `Issue ${number}`, body: `Body ${number}` }));
+					} finally {
+						activeRequests--;
+					}
+				},
+			}, authentication, createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
+			const client = disposables.add(gitHubService.acquireRepositoryClient(new AbortController().signal)).object;
+			const rest = sinon.spy(client.transport, 'rest');
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const copilotApiService = new TestCopilotApiService();
+			const persistedTitles: string[] = [];
+			const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: createSessionDataService(new TestSessionDatabase()),
+				getGitHubCopilotToken: () => 'copilot-token',
+				getGitHubToken: () => 'test-token',
+				gitHubService,
+				copilotApiService,
+				persistSurfacedSessionTitle: async session => { persistedTitles.push(session); },
+			}, new NullLogService()));
+			const sessions = [URI.parse('agenthost-session://copilot/first'), URI.parse('agenthost-session://copilot/second')];
+			for (const session of sessions) {
+				stateManager.announceSurfacedSession(createSummary(session));
+			}
+			const prompt = Array.from({ length: 11 }, (_, index) => `https://github.com/microsoft/vscode/issues/${index + 1}`).join(' ');
+			const generations = sessions.map(session => controller.generateExternalSessionTitle(session.toString(), prompt));
+			try {
+				const wireSignal = await started.p;
+				await waitForCondition(
+					() => rest.getCalls().filter(call => call.args[2].url.includes('/issues/')).length === 20,
+					'both bounded context batches should be submitted directly to the GitHub client',
+				);
+				const beforeRelease = [...requests];
+				if (cancelFirst) {
+					controller.cancelTitleGeneration(sessions[0].toString());
+					await generations[0];
+				}
+				await release.complete();
+				await Promise.all(generations);
+
+				assert.deepStrictEqual({
+					beforeRelease,
+					requests,
+					maximumActiveRequests,
+					wireAborted: wireSignal.aborted,
+					persistedTitles,
+					contexts: copilotApiService.utilityCalls.map(call => {
+						const message = call.request.messages.find(message => message.role === 'user')?.content ?? '';
+						return [...message.matchAll(/The title of the issue is: Issue (?<number>\d+)/g)].map(match => Number(match.groups?.number));
+					}),
+				}, {
+					beforeRelease: ['/user', '/repos/microsoft/vscode/issues/1'],
+					requests: ['/user', ...Array.from({ length: 10 }, (_, index) => `/repos/microsoft/vscode/issues/${index + 1}`)],
+					maximumActiveRequests: 1,
+					wireAborted: false,
+					persistedTitles: sessions.slice(cancelFirst ? 1 : 0).map(session => session.toString()),
+					contexts: Array.from({ length: cancelFirst ? 1 : 2 }, () => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+				});
+			} finally {
+				await release.complete();
+				await Promise.all(generations);
+			}
+		});
+	}
 
 	test('seedTitleFromFirstMessage omits GitHub context when the request fails', async () => {
 		const copilotApiService = new TestCopilotApiService();

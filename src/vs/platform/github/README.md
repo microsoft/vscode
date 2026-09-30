@@ -39,6 +39,8 @@ VS Code forwards optional account provenance through the standard authentication
 
 The [association resolver](../agentHost/node/agentHostPullRequestAssociationResolver.ts), [creation handler](../agentHost/node/agentHostPullRequestOperationHandler.ts) and [title controller](../agentHost/node/agentHostSessionTitleController.ts) retain an authorized client for each operation. They reuse the binding's selected repository resource and existing silent missing-token checks; title context does not introduce another scope requirement or a sign-in prompt.
 
+Title enrichment submits its bounded batch directly to the engine's request queue, without a separate concurrency limiter. The caller still caps enrichment at ten references, bounds the model context, and imposes a five-second budget on the optional reads.
+
 Operation cancellation spans the workflow, while individual domain requests manage credential-generation signals. Same-account token renewal can therefore recover through subsequent requests or create reconciliation without switching the captured client or account.
 
 Query operations preserve fork head owners, caller-approved URL filtering and ordering, exact head-SHA matching, open/closed selection, and PR identity/title/creation metadata. An empty approved set issues no lookup. A full commit-association page remains inconclusive, and only GitHub's specific missing-commit 422 response means no match. The minimal issue/PR context read accepts the issues endpoint's PR payload without subscribing to an issue-only resource.
