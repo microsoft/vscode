@@ -29,7 +29,7 @@ suite('agentHostAgentPicker', () => {
 	const beta: AgentCustomization = { type: CustomizationType.Agent, id: 'agent://b', uri: 'agent://b', name: 'beta', description: 'b desc' };
 	const agents: readonly AgentCustomization[] = [alpha, beta];
 
-	test('orders the new-session agent before mode and model without duplicating it in automations', () => {
+	test('places the new-session agent before mode without duplicating it in automations', () => {
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
 		const phone = IsPhoneLayoutContext.bindTo(context);
@@ -56,8 +56,8 @@ suite('agentHostAgentPicker', () => {
 		phone.set(false);
 		inDialog.set(true);
 		assert.deepStrictEqual({ newSessionPrimary, newSessionSecondary, attachContextBefore, attachContextAfter, attachContextOnPhone }, {
-			newSessionPrimary: ['sessions.agentHost.agentPicker', 'sessions.modelPicker'],
-			newSessionSecondary: ['sessions.agentHost.newSessionModePicker'],
+			newSessionPrimary: ['sessions.modelPicker'],
+			newSessionSecondary: ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker'],
 			attachContextBefore: [],
 			attachContextAfter: ['sessions.agentHost.agentPicker'],
 			attachContextOnPhone: [],
