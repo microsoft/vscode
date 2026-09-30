@@ -178,11 +178,13 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IListService, ListService);
 	reg.defineInstance(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 	reg.defineInstance(IChatHarnessSwitchFeedbackSurveyService, { _serviceBrand: undefined, prompt: () => { } });
-	reg.defineInstance(IAccountPolicyGateService, {
+	const accountPolicyGateService = {
 		_serviceBrand: undefined,
 		gateInfo: { state: AccountPolicyGateState.Inactive },
 		onDidChangeGateInfo: Event.None,
-	});
+		async whenInitialized(): Promise<void> { },
+	};
+	reg.defineInstance(IAccountPolicyGateService, accountPolicyGateService);
 	reg.defineInstance(ILinkPresentationService, new class extends mock<ILinkPresentationService>() {
 		override getLinkPresentationRule() { return undefined; }
 		override createLinkPresentationWatcher() { return undefined; }

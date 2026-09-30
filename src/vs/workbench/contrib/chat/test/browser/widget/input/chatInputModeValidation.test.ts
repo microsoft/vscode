@@ -92,10 +92,11 @@ suite('ChatInputPart mode validation', () => {
 			findModeByName: name => availableModes.find(mode => mode.name?.get() === name),
 			waitForPendingUpdates: async () => { },
 		};
-		const accountPolicyGateService: IAccountPolicyGateService = services?.gateService ?? {
+		const accountPolicyGateService = services?.gateService ?? {
 			_serviceBrand: undefined,
 			get gateInfo() { return gateInfo; },
 			onDidChangeGateInfo: gateChanges.event,
+			async whenInitialized(): Promise<void> { },
 		};
 		const currentMode = observableValue<IChatMode>('currentMode', initialMode);
 		const persistedState = observableValue<IChatModelInputState>('persistedState', {
