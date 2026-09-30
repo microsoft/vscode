@@ -170,6 +170,13 @@ const getContextPickerActions = Reflect.get(NewChatWidget.prototype, '_getContex
 	readonly _newChatInput: {
 		runAttachContextAction(action: IAction): Promise<void>;
 	};
+	readonly _session: IObservable<IActiveSession | undefined>;
+	readonly sessionsProvidersService: {
+		getProvider(providerId: string): ISessionsProvider | undefined;
+	};
+	readonly contextKeyService: {
+		getContextKeyValue<T>(key: string): T | undefined;
+	};
 	readonly telemetryService: ITelemetryService;
 }) => readonly IWorkspacePickerContextAction[];
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
@@ -2244,10 +2251,11 @@ suite('NewChatWidget', () => {
 	}
 
 	test('moves the Agent picker into Add Context until the user selects an agent', async () => {
-		const createHarness = (enabled: boolean, experimentalLayout = true) => {
+		const createHarness = (enabled: boolean, experimentalLayout = true, eligibility: 'eligible' | 'empty' | 'otherProvider' | 'phone' = 'eligible') => {
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			let openCount = 0;
 			let showAgentAction = true;
+			const providerId = eligibility === 'otherProvider' ? 'other-provider' : LOCAL_AGENT_HOST_PROVIDER_ID;
 			const agentAction = toAction({
 				id: 'sessions.agentHost.agentPicker',
 				label: 'Agent',
@@ -2266,6 +2274,13 @@ suite('NewChatWidget', () => {
 				_newChatInput: {
 					runAttachContextAction: async (action: IAction) => { await action.run(); },
 				},
+				_session: constObservable(eligibility === 'empty' ? undefined : upcastPartial<IActiveSession>({ providerId })),
+				sessionsProvidersService: {
+					getProvider: (id: string) => upcastPartial<ISessionsProvider>({ id }),
+				},
+				contextKeyService: {
+					getContextKeyValue: <T>() => (eligibility === 'phone') as T,
+				},
 				telemetryService,
 			};
 			return { harness, telemetryService, hideAgentAction: () => showAgentAction = false, getOpenCount: () => openCount };
@@ -2273,6 +2288,9 @@ suite('NewChatWidget', () => {
 		const control = createHarness(false);
 		const treatment = createHarness(true);
 		const legacyLayoutTreatment = createHarness(true, false);
+		const emptyComposer = createHarness(true, true, 'empty');
+		const otherProvider = createHarness(true, true, 'otherProvider');
+		const phoneComposer = createHarness(true, true, 'phone');
 		const treatmentActions = getContextPickerActions.call(treatment.harness);
 		await treatmentActions[0].run();
 		treatment.hideAgentAction();
@@ -2281,6 +2299,10 @@ suite('NewChatWidget', () => {
 			controlLabels: getContextPickerActions.call(control.harness).map(action => action.label),
 			treatmentLabels: treatmentActions.map(action => action.label),
 			legacyLayoutTreatmentLabels: getContextPickerActions.call(legacyLayoutTreatment.harness).map(action => action.label),
+			ineligible: [emptyComposer, otherProvider, phoneComposer].map(item => ({
+				labels: getContextPickerActions.call(item.harness).map(action => action.label),
+				triggers: item.telemetryService.triggers,
+			})),
 			afterSelectionLabels: getContextPickerActions.call(treatment.harness).map(action => action.label),
 			openCount: treatment.getOpenCount(),
 			controlTriggers: control.telemetryService.triggers,
@@ -2289,6 +2311,11 @@ suite('NewChatWidget', () => {
 			controlLabels: ['Existing'],
 			treatmentLabels: ['Agent...', 'Existing'],
 			legacyLayoutTreatmentLabels: ['Agent...', 'Existing'],
+			ineligible: [
+				{ labels: ['Existing'], triggers: [] },
+				{ labels: ['Existing'], triggers: [] },
+				{ labels: ['Existing'], triggers: [] },
+			],
 			afterSelectionLabels: ['Existing'],
 			openCount: 1,
 			controlTriggers: [`config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`],

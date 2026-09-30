@@ -5,6 +5,7 @@
 
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import * as nls from '../../../../../nls.js';
@@ -28,6 +29,7 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession, ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -52,6 +54,31 @@ interface IAgentPickerActionContext {
 }
 let openActiveAgentPicker: ((anchor?: HTMLElement) => void) | undefined;
 
+/** Tracks sessions whose Agent picker has returned to the toolbar after an explicit selection. */
+export class AgentPickerSelectionState {
+	private readonly selectedSessions = new Set<string>();
+
+	has(session: ISession | undefined): boolean {
+		return !!session && this.selectedSessions.has(session.resource.toString());
+	}
+
+	mark(session: ISession | undefined): boolean {
+		if (!session || this.has(session)) {
+			return false;
+		}
+		this.selectedSessions.add(session.resource.toString());
+		return true;
+	}
+
+	transfer(from: ISession, to: ISession): boolean {
+		if (!this.selectedSessions.delete(from.resource.toString())) {
+			return false;
+		}
+		this.selectedSessions.add(to.resource.toString());
+		return true;
+	}
+}
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -67,7 +94,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionAttachContext,
 				group: 'navigation',
 				order: -1,
-				when: ContextKeyExpr.and(IsActiveSessionAgentHost, SessionAgentPickerInAttachContext),
+				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), SessionAgentPickerInAttachContext),
 			}, {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
@@ -146,6 +173,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -157,28 +185,37 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 		let settingAgentInternally = false;
-		const explicitlySelectedSessions = new Set<string>();
+		const explicitSelection = new AgentPickerSelectionState();
 		const explicitSelectionVersion = observableValue(this, 0);
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
+		const phoneLayoutChanged = observableSignalFromEvent(this, Event.filter(
+			contextKeyService.onDidChangeContext,
+			event => event.affectsSome(new Set([IsPhoneLayoutContext.key])),
+		));
 		const isEligible = (session: ISession | undefined): boolean => {
-			if (!session || !this._getProvider(session, sessionsProvidersService)) {
+			if (!session || contextKeyService.getContextKeyValue<boolean>(IsPhoneLayoutContext.key) || !this._getProvider(session, sessionsProvidersService)) {
 				return false;
 			}
-			return !explicitlySelectedSessions.has(session.resource.toString());
+			return !explicitSelection.has(session);
 		};
 		const isMoved = (session: ISession | undefined): boolean => isEligible(session)
 			&& configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);
 		const shouldHidePicker = (session: ISession | undefined): boolean => configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING)
-			&& (!session || !explicitlySelectedSessions.has(session.resource.toString()));
+			&& !explicitSelection.has(session);
 		const markExplicitlySelected = (session: ISession | undefined) => {
-			if (session && !explicitlySelectedSessions.has(session.resource.toString())) {
-				explicitlySelectedSessions.add(session.resource.toString());
+			if (explicitSelection.mark(session)) {
 				explicitSelectionVersion.set(explicitSelectionVersion.get() + 1, undefined);
 			}
 		};
+		this._register(sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			if (explicitSelection.transfer(from, to)) {
+				explicitSelectionVersion.set(explicitSelectionVersion.get() + 1, undefined);
+			}
+		}));
 		const agentPickerInAttachContext = SessionAgentPickerInAttachContext.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			configurationChanged.read(reader);
+			phoneLayoutChanged.read(reader);
 			explicitSelectionVersion.read(reader);
 			agentPickerInAttachContext.set(isMoved(sessionsService.activeSession.read(reader)));
 		}));

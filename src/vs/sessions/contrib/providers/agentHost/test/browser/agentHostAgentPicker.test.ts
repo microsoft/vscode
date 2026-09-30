@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationType, type AgentCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../../platform/agentHost/common/customAgents.js';
@@ -14,7 +16,8 @@ import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common
 import { Menus } from '../../../../../browser/menus.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext, SessionAgentPickerInAttachContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
-import '../../browser/agentHostAgentPicker.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
+import { AgentPickerSelectionState } from '../../browser/agentHostAgentPicker.js';
 import '../../browser/agentHostSessionConfigPicker.js';
 import '../../browser/mobile/mobileChatInputConfigPicker.js';
 import '../../../../chat/browser/modelPicker.js';
@@ -29,7 +32,8 @@ suite('agentHostAgentPicker', () => {
 	test('orders the new-session agent before mode and model without duplicating it in automations', () => {
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
-		IsPhoneLayoutContext.bindTo(context).set(false);
+		const phone = IsPhoneLayoutContext.bindTo(context);
+		phone.set(false);
 		const agentPickerInAttachContext = SessionAgentPickerInAttachContext.bindTo(context);
 		const inDialog = ChatContextKeys.inAutomationsDialog.bindTo(context);
 		const ids = ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker', 'sessions.modelPicker'];
@@ -47,12 +51,16 @@ suite('agentHostAgentPicker', () => {
 		const attachContextBefore = attachContext();
 		agentPickerInAttachContext.set(true);
 		const attachContextAfter = attachContext();
+		phone.set(true);
+		const attachContextOnPhone = attachContext();
+		phone.set(false);
 		inDialog.set(true);
-		assert.deepStrictEqual({ newSessionPrimary, newSessionSecondary, attachContextBefore, attachContextAfter }, {
+		assert.deepStrictEqual({ newSessionPrimary, newSessionSecondary, attachContextBefore, attachContextAfter, attachContextOnPhone }, {
 			newSessionPrimary: ['sessions.agentHost.agentPicker', 'sessions.modelPicker'],
 			newSessionSecondary: ['sessions.agentHost.newSessionModePicker'],
 			attachContextBefore: [],
 			attachContextAfter: ['sessions.agentHost.agentPicker'],
+			attachContextOnPhone: [],
 		});
 	});
 
@@ -82,6 +90,24 @@ suite('agentHostAgentPicker', () => {
 			mobile: ['sessions.agentHost.mobileChatInputConfigPicker'],
 			disabled: [],
 			outsideDialog: [],
+		});
+	});
+
+	test('preserves explicit selection when a draft session graduates', () => {
+		const state = new AgentPickerSelectionState();
+		const draft = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli://draft') });
+		const committed = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli://committed') });
+		state.mark(draft);
+		const transferred = state.transfer(draft, committed);
+
+		assert.deepStrictEqual({
+			transferred,
+			draft: state.has(draft),
+			committed: state.has(committed),
+		}, {
+			transferred: true,
+			draft: false,
+			committed: true,
 		});
 	});
 

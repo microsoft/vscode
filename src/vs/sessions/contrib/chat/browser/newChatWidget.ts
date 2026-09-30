@@ -37,7 +37,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { NewSessionCreationProviderIdContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, NewSessionCreationProviderIdContext } from '../../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspacePickerContextAction, IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -524,6 +524,11 @@ export class NewChatWidget extends Disposable {
 
 	private _getContextPickerActions(): readonly IWorkspacePickerContextAction[] {
 		const actions = this._workspacePicker.getContextPickerActions();
+		const session = this._session.get();
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		if (!session || !provider || !isAgentHostProvider(provider) || this.contextKeyService.getContextKeyValue<boolean>(IsPhoneLayoutContext.key)) {
+			return actions;
+		}
 		logSettingExperimentTrigger(this.telemetryService, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);
 		if (!this._agentsPickerInAttachContextMenu.get()) {
 			return actions;

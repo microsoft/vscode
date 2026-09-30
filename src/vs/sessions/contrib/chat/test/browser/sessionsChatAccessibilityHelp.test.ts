@@ -209,7 +209,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => screenReader, onDidChangeScreenReaderOptimized: Event.None });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent().split('\n');
 			return {
-				controls: content.find(line => line.startsWith('Inside the new-session prompt')),
+				controls: content.find(line => line.startsWith('Inside the new-session prompt') || line.startsWith('When an Agent picker')),
 				sync: content.find(line => line.startsWith('When available for a folder session with incoming or outgoing commits')),
 				hasSessionOptions: content.some(line => line.startsWith('Above the new-session input')),
 				sessionOptionsMentionsToggle: content.some(line => line.includes('Hide Session Options collapses these controls')),
@@ -232,7 +232,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				sessionOptionsMentionsToggle: false,
 			},
 			{
-				controls: 'Inside the new-session prompt, open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				controls: 'When an Agent picker is available in a new or running session, it initially appears in Add Context. Open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: false,
 				sessionOptionsMentionsToggle: false,
@@ -262,7 +262,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				sessionOptionsMentionsToggle: false,
 			},
 			{
-				controls: 'Inside the new-session prompt, open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				controls: 'When an Agent picker is available in a new or running session, it initially appears in Add Context. Open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: true,
 				sessionOptionsMentionsToggle: true,
