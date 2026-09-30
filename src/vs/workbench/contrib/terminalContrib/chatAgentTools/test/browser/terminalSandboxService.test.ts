@@ -931,15 +931,11 @@ suite('TerminalSandboxService - network domains', () => {
 	test('should restrict Ruby gem read access on Linux and macOS', () => {
 		for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
 			for (const keyword of ['ruby', 'gem', 'bundle', 'bundler', 'rake', 'rbenv', 'rvm']) {
-				const paths = getTerminalSandboxReadAllowListForCommands(os, [keyword]);
 				deepStrictEqual(
-					paths.filter(path => path.startsWith('~/.gem')),
+					getTerminalSandboxReadAllowListForCommands(os, [keyword]).filter(path => path.startsWith('~/.gem')),
 					['~/.gem/ruby', '~/.gem/specs'],
 					`${keyword} should only include non-credential gem roots on ${os}`
 				);
-				ok(!paths.includes('~/.gem'));
-				ok(!paths.includes('~/.gem/credentials'));
-				ok(!paths.includes('~/.gem/gem-private_key.pem'));
 			}
 		}
 	});
@@ -957,9 +953,6 @@ suite('TerminalSandboxService - network domains', () => {
 			config.filesystem.allowRead.filter((path: string) => path.startsWith('/home/user/.gem')),
 			['/home/user/.gem/ruby', '/home/user/.gem/specs']
 		);
-		ok(!config.filesystem.allowRead.includes('/home/user/.gem'));
-		ok(!config.filesystem.allowRead.includes('/home/user/.gem/credentials'));
-		ok(!config.filesystem.allowRead.includes('/home/user/.gem/gem-private_key.pem'));
 	});
 
 	test('should add GnuPG read allow-list paths for gpg command keywords', () => {
