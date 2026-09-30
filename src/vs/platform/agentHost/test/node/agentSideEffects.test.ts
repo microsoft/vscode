@@ -200,6 +200,7 @@ function createTestSideEffects(
 		[IAgentHostPeerChatPersistenceService, {
 			_serviceBrand: undefined,
 			setArchived: async () => { },
+			setModifiedAt: async () => { },
 		}],
 	);
 	services.set(ISessionWorkspaceConversionService, {

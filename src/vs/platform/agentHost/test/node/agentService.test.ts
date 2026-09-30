@@ -20936,15 +20936,23 @@ suite('AgentService (node dispatcher)', () => {
 			db.failPeerCatalogWrites = true;
 
 			await localService.createChat(session, peer);
+			const stateChat = getStateManager(localService).getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString());
+			const persistedChat = (await (localService as unknown as {
+				_peerChatStore: { tryRead(session: URI): Promise<readonly { uri: string; modifiedAt?: string }[] | undefined> };
+			})._peerChatStore.tryRead(session))?.find(chat => chat.uri === peer.toString());
 
 			assert.deepStrictEqual({
 				chats: getStateManager(localService).getSessionState(session.toString())?.chats.map(chat => chat.resource.toString()),
 				disposed: agent.disposedPeers.map(call => call.toString()),
 				legacy: await db.getMetadata('peerChats'),
+				persistedModifiedAt: persistedChat?.modifiedAt,
+				modifiedAtMatchesState: persistedChat?.modifiedAt === stateChat?.modifiedAt,
 			}, {
 				chats: [buildDefaultChatUri(session), peer.toString()],
 				disposed: [],
 				legacy: undefined,
+				persistedModifiedAt: stateChat?.modifiedAt,
+				modifiedAtMatchesState: true,
 			});
 		});
 
@@ -21181,6 +21189,9 @@ suite('AgentService (node dispatcher)', () => {
 			const peerModifiedTime = 42_000;
 			class MultiChatAgent extends MockAgent {
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+					if (!isDefaultChatUri(chat)) {
+						calls.push({ call: 'metadata', uri: chat.toString() });
+					}
 					return isDefaultChatUri(chat)
 						? super.getChatMetadata(chat, context)
 						: { chat, startTime: 1_000, modifiedTime: peerModifiedTime };
@@ -21215,7 +21226,12 @@ suite('AgentService (node dispatcher)', () => {
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
 			const peerOrigin = { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session), turnId: 'source-turn' };
-			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1', origin: peerOrigin }]));
+			await db.setMetadata('peerChats', JSON.stringify([{
+				uri: peerUri.toString(),
+				providerData: 'blob-1',
+				origin: peerOrigin,
+				modifiedAt: new Date(peerModifiedTime).toISOString(),
+			}]));
 			await db.setMetadata(`customChatTitle:${peerUri.toString()}`, 'Persisted Peer Title');
 			await db.setChatDraft(peerUri, { text: 'Persisted draft', origin: { kind: MessageKind.User } });
 

@@ -57,6 +57,7 @@ import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSes
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ChatArchiveContribution } from '../../node/chatContributions/chatArchive/chatArchiveContribution.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
+import { PeerChatModifiedTimeContribution } from '../../node/chatContributions/peerChatModifiedTime/peerChatModifiedTimeContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { SessionWorkspaceConversionContribution } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
@@ -901,6 +902,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentHostPeerChatPersistenceService, {
 			_serviceBrand: undefined,
 			setArchived: async () => { },
+			setModifiedAt: async () => { },
 		}],
 	);
 	services.set(ISessionWorkspaceConversionService, {
@@ -1122,6 +1124,7 @@ suite('AgentHostChatContributions', () => {
 				}
 				persisted.push({ session: session.toString(), chat: chat.toString(), archived });
 			},
+			setModifiedAt: async () => { },
 		};
 		const services = new ServiceCollection(
 			[ILogService, logService],
@@ -1147,6 +1150,71 @@ suite('AgentHostChatContributions', () => {
 				{ session, chat: peerChat, archived: false },
 			],
 			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
+		});
+
+		test('peer chat modified time contribution persists accepted catalog updates and logs failures', async () => {
+			const session = 'agent-host-session://modified-time';
+			const peerChat = buildChatUri(session, 'peer');
+			const failingChat = buildChatUri(session, 'failing-peer');
+			const persisted: { session: string; chat: string; modifiedAt: string }[] = [];
+			const errors: string[] = [];
+			const logService = new class extends NullLogService {
+				override error(message: string | Error, ...args: unknown[]): void {
+					errors.push([message, ...args].map(value => String(value)).join(' '));
+				}
+			};
+			const peerChatPersistenceService: IAgentHostPeerChatPersistenceService = {
+				_serviceBrand: undefined,
+				setArchived: async () => { },
+				setModifiedAt: async (session: URI, chat: URI, modifiedAt: string) => {
+					if (chat.toString() === failingChat) {
+						throw new Error('write failed');
+					}
+					persisted.push({ session: session.toString(), chat: chat.toString(), modifiedAt });
+				},
+			};
+			const services = new ServiceCollection(
+				[ILogService, logService],
+				[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
+			);
+			const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+			const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+			disposables.add(contributions.registerContribution(PeerChatModifiedTimeContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
+			const addedAt = '2026-01-01T00:00:00.000Z';
+			const updatedAt = '2026-01-02T00:00:00.000Z';
+
+			contributions.didDispatchAction(dispatchedAction(session, session, {
+				type: ActionType.SessionChatAdded,
+				summary: { resource: peerChat, title: 'Peer', status: SessionStatus.Idle, modifiedAt: addedAt },
+			}));
+			contributions.didDispatchAction(dispatchedAction(session, session, {
+				type: ActionType.SessionChatUpdated,
+				chat: peerChat,
+				changes: { modifiedAt: updatedAt },
+			}));
+			contributions.didDispatchAction(dispatchedAction(session, session, {
+				type: ActionType.SessionChatUpdated,
+				chat: peerChat,
+				changes: { modifiedAt: updatedAt },
+			}, 'rejected'));
+			contributions.didDispatchAction(dispatchedAction(session, session, {
+				type: ActionType.SessionChatAdded,
+				summary: { resource: buildDefaultChatUri(session), title: 'Default', status: SessionStatus.Idle, modifiedAt: addedAt },
+			}));
+			contributions.didDispatchAction(dispatchedAction(session, session, {
+				type: ActionType.SessionChatUpdated,
+				chat: failingChat,
+				changes: { modifiedAt: updatedAt },
+			}));
+			await Promise.resolve();
+
+			assert.deepStrictEqual({ persisted, errors }, {
+				persisted: [
+					{ session, chat: peerChat, modifiedAt: addedAt },
+					{ session, chat: peerChat, modifiedAt: updatedAt },
+				],
+				errors: [`Error: write failed [PeerChatModifiedTimeContribution] Failed to persist modified time for ${failingChat}`],
+			});
 		});
 	});
 

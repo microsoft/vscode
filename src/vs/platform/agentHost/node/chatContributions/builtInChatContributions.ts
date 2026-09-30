@@ -18,6 +18,7 @@ import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markd
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
 import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
 import { PersistedFailedTurnsContribution } from './persistedFailedTurns/persistedFailedTurnsContribution.js';
+import { PeerChatModifiedTimeContribution } from './peerChatModifiedTime/peerChatModifiedTimeContribution.js';
 import { PullRequestChatContribution } from './pullRequest/pullRequestChatContribution.js';
 import { SessionWorkspaceConversionContribution } from './sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
@@ -61,5 +62,6 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(SessionFlagsContribution));
 	registrations.add(contributions.registerContribution(AdditionalWorktreeLifecycleContribution));
 	registrations.add(contributions.registerContribution(ChatArchiveContribution));
+	registrations.add(contributions.registerContribution(PeerChatModifiedTimeContribution));
 	return registrations;
 }

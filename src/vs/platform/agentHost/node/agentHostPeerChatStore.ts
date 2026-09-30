@@ -21,6 +21,7 @@ export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
 export const CHAT_ORIGIN_METADATA_KEY = 'agentHost.chatOrigin';
 export const CHAT_INHERITED_TURN_METADATA_KEY = 'agentHost.chatInheritedTurnId';
 export const CHAT_WORKING_DIRECTORIES_METADATA_KEY = 'agentHost.chatWorkingDirectories';
+export const CHAT_MODIFIED_AT_METADATA_KEY = 'agentHost.chatModifiedAt';
 const CHAT_METADATA_CONCURRENCY = 4;
 const IMPORTED_PEER_CHAT_LIMIT = AGENT_HOST_CATALOG_CHILD_LIMIT - 1;
 
@@ -29,6 +30,7 @@ export const IAgentHostPeerChatPersistenceService = createDecorator<IAgentHostPe
 export interface IAgentHostPeerChatPersistenceService {
 	readonly _serviceBrand: undefined;
 	setArchived(session: URI, chat: URI, archived: boolean): Promise<void>;
+	setModifiedAt(session: URI, chat: URI, modifiedAt: string): Promise<void>;
 }
 
 export interface IPersistedPeerChat {
@@ -38,6 +40,7 @@ export interface IPersistedPeerChat {
 	readonly origin?: ChatOrigin;
 	readonly inheritedTurnId?: string;
 	readonly workingDirectories?: readonly string[];
+	readonly modifiedAt?: string;
 }
 
 interface IReplaceCentralOptions {
@@ -209,13 +212,14 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		});
 	}
 
-	upsert(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin, inheritedTurnId?: string, workingDirectories?: readonly string[]): Promise<void> {
+	upsert(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin, inheritedTurnId?: string, workingDirectories?: readonly string[], modifiedAt?: string): Promise<void> {
 		const chatUri = chat.toString();
 		return this._enqueueWrite(session, entries => {
 			const existing = entries.find(entry => entry.uri === chatUri);
 			const effectiveOrigin = origin ?? existing?.origin;
 			const effectiveInheritedTurnId = inheritedTurnId ?? existing?.inheritedTurnId;
 			const effectiveWorkingDirectories = workingDirectories ?? existing?.workingDirectories;
+			const effectiveModifiedAt = modifiedAt ?? existing?.modifiedAt;
 			const next = entries.filter(entry => entry.uri !== chatUri);
 			next.push({
 				uri: chatUri,
@@ -224,6 +228,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				...(effectiveOrigin !== undefined ? { origin: effectiveOrigin } : {}),
 				...(effectiveInheritedTurnId !== undefined ? { inheritedTurnId: effectiveInheritedTurnId } : {}),
 				...(effectiveWorkingDirectories !== undefined ? { workingDirectories: [...effectiveWorkingDirectories] } : {}),
+				...(effectiveModifiedAt !== undefined ? { modifiedAt: effectiveModifiedAt } : {}),
 			});
 			return next;
 		});
@@ -240,6 +245,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				...(existing?.providerData !== undefined ? { providerData: existing.providerData } : {}),
 				...(existing?.origin !== undefined ? { origin: existing.origin } : {}),
 				...(existing?.inheritedTurnId !== undefined ? { inheritedTurnId: existing.inheritedTurnId } : {}),
+				...(existing?.modifiedAt !== undefined ? { modifiedAt: existing.modifiedAt } : {}),
 				workingDirectories: [...workingDirectories],
 			});
 			return next;
@@ -251,6 +257,14 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return this._enqueueWrite(session, entries => entries.map(entry =>
 			entry.uri === chatUri
 				? { ...entry, archived: archived || undefined }
+				: entry));
+	}
+
+	setModifiedAt(session: URI, chat: URI, modifiedAt: string): Promise<void> {
+		const chatUri = chat.toString();
+		return this._enqueueWrite(session, entries => entries.map(entry =>
+			entry.uri === chatUri
+				? { ...entry, modifiedAt }
 				: entry));
 	}
 
@@ -391,6 +405,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		readonly providerData?: string;
 		readonly origin?: string;
 		readonly inheritedTurnId?: string;
+		readonly modifiedAt?: string;
 	}> {
 		return entries.map((entry, order) => ({
 			chat: entry.uri,
@@ -399,6 +414,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			...(entry.providerData !== undefined ? { providerData: entry.providerData } : {}),
 			...(entry.origin !== undefined ? { origin: this._stringifyOrigin(entry.origin) } : {}),
 			...(entry.inheritedTurnId !== undefined ? { inheritedTurnId: entry.inheritedTurnId } : {}),
+			...(entry.modifiedAt !== undefined ? { modifiedAt: entry.modifiedAt } : {}),
 		}));
 	}
 
@@ -545,7 +561,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			const baseEntry = baseByUri.get(legacyEntry.uri);
 			const centralEntry = centralByUri.get(legacyEntry.uri);
 			if (!baseEntry || JSON.stringify(legacyEntry) !== JSON.stringify(baseEntry)) {
-				merged.push(legacyEntry);
+				merged.push(legacyEntry.modifiedAt === undefined && centralEntry?.modifiedAt !== undefined
+					? { ...legacyEntry, modifiedAt: centralEntry.modifiedAt }
+					: legacyEntry);
 			} else if (centralEntry) {
 				merged.push(centralEntry);
 			}
@@ -569,6 +587,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				[CHAT_ORIGIN_METADATA_KEY]: true,
 				[CHAT_INHERITED_TURN_METADATA_KEY]: true,
 				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: true,
+				[CHAT_MODIFIED_AT_METADATA_KEY]: true,
 			});
 			const origin = metadata[CHAT_ORIGIN_METADATA_KEY]
 				? this._parseOrigin(metadata[CHAT_ORIGIN_METADATA_KEY])
@@ -576,6 +595,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			const workingDirectories = metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY]
 				? this._parseWorkingDirectories(metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY])
 				: metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY] === '' ? undefined : entry.workingDirectories;
+			const modifiedAt = metadata[CHAT_MODIFIED_AT_METADATA_KEY]
+				? this._parseModifiedAt(metadata[CHAT_MODIFIED_AT_METADATA_KEY])
+				: metadata[CHAT_MODIFIED_AT_METADATA_KEY] === '' ? undefined : entry.modifiedAt;
 			return {
 				uri: entry.uri,
 				...(metadata[CHAT_PROVIDER_DATA_METADATA_KEY] !== undefined
@@ -586,6 +608,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					? metadata[CHAT_INHERITED_TURN_METADATA_KEY] ? { inheritedTurnId: metadata[CHAT_INHERITED_TURN_METADATA_KEY] } : {}
 					: entry.inheritedTurnId !== undefined ? { inheritedTurnId: entry.inheritedTurnId } : {}),
 				...(workingDirectories !== undefined ? { workingDirectories } : {}),
+				...(modifiedAt !== undefined ? { modifiedAt } : {}),
 			};
 		} finally {
 			ref.dispose();
@@ -627,6 +650,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				[CHAT_ORIGIN_METADATA_KEY]: entry.origin === undefined ? '' : this._stringifyOrigin(entry.origin),
 				[CHAT_INHERITED_TURN_METADATA_KEY]: entry.inheritedTurnId ?? '',
 				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: entry.workingDirectories === undefined ? '' : JSON.stringify(entry.workingDirectories),
+				[CHAT_MODIFIED_AT_METADATA_KEY]: entry.modifiedAt ?? '',
 			});
 		} finally {
 			ref.dispose();
@@ -654,12 +678,20 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return parsed;
 	}
 
+	private _parseModifiedAt(raw: string): string {
+		if (!Number.isFinite(Date.parse(raw))) {
+			throw new Error('expected an ISO 8601 modified time');
+		}
+		return raw;
+	}
+
 	private _entriesFromCatalog(chats: readonly {
 		readonly chat: string;
 		readonly providerData?: string;
 		readonly origin?: string;
 		readonly inheritedTurnId?: string;
 		readonly archived?: boolean;
+		readonly modifiedAt?: string;
 	}[]): IPersistedPeerChat[] {
 		return chats.map(chat => ({
 			uri: chat.chat,
@@ -667,6 +699,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 			...(chat.origin !== undefined ? { origin: this._parseOrigin(chat.origin) } : {}),
 			...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
+			...(chat.modifiedAt !== undefined ? { modifiedAt: chat.modifiedAt } : {}),
 		}));
 	}
 
@@ -715,6 +748,10 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid working directories`);
 				continue;
 			}
+			if (value.modifiedAt !== undefined && (typeof value.modifiedAt !== 'string' || !Number.isFinite(Date.parse(value.modifiedAt)))) {
+				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid modified time`);
+				continue;
+			}
 			if (value.archived !== undefined && typeof value.archived !== 'boolean') {
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid archived state`);
 				continue;
@@ -732,6 +769,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				...(origin ? { origin } : {}),
 				...(typeof value.inheritedTurnId === 'string' ? { inheritedTurnId: value.inheritedTurnId } : {}),
 				...(Array.isArray(value.workingDirectories) ? { workingDirectories: value.workingDirectories } : {}),
+				...(typeof value.modifiedAt === 'string' ? { modifiedAt: value.modifiedAt } : {}),
 			});
 		}
 		return result;
