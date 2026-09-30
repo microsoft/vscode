@@ -629,7 +629,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				// In Autopilot, run the risk classifier on an auto-approved call that would
 				// otherwise show a confirmation. A "red" rating skips the call; terminal
 				// assessment failures also skip because the command cannot be classified safely.
-				const { autoConfirmed, skipExplanation: riskSkipExplanation } = await this._maybeApplyAutopilotRiskGate(tool, dto, preparedInvocation, preResolvedAutoConfirmed, token);
+				const { autoConfirmed, skipCause: riskSkipCause } = await this._maybeApplyAutopilotRiskGate(tool, dto, preparedInvocation, preResolvedAutoConfirmed, token);
 
 				// Important: a tool invocation that will be autoconfirmed should never
 				// be in the chat response in the `NeedsConfirmation` state, even briefly,
@@ -655,18 +655,22 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				// Enforce a risk skip here, before the confirmation flow below: run_in_terminal
 				// suppresses its own confirmation under Autopilot and never reaches it. The tool
 				// is not run, and an info note explains why.
-				if (riskSkipExplanation) {
+				if (riskSkipCause) {
 					this._logToolApprovalTelemetry(tool, dto, { type: ToolConfirmKind.Skipped });
 					// Terminal and edit tools hide their invocation part once complete, so show the
 					// reason as a separate info note.
 					this._chatService.appendProgress(request, {
 						kind: 'info',
-						content: new MarkdownString(localize('autopilotRiskSkipped', "Autopilot skipped \"{0}\" because it was assessed as high-risk: {1}", tool.data.displayName, riskSkipExplanation)),
+						content: new MarkdownString(riskSkipCause.kind === 'highRisk'
+							? localize('autopilotRiskSkipped', "Autopilot skipped \"{0}\" because it was assessed as high-risk: {1}", tool.data.displayName, riskSkipCause.explanation)
+							: localize('autopilotRiskUnavailableSkipped', "Autopilot skipped \"{0}\" because its risk could not be assessed safely.", tool.data.displayName)),
 					});
 					toolResult = {
 						content: [{
 							kind: 'text',
-							value: `Autopilot skipped this tool call because it was automatically assessed as high-risk: ${riskSkipExplanation} The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.`
+							value: riskSkipCause.kind === 'highRisk'
+								? `Autopilot skipped this tool call because it was automatically assessed as high-risk: ${riskSkipCause.explanation} The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.`
+								: 'Autopilot skipped this tool call because its risk could not be assessed safely. The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.'
 						}]
 					};
 					return toolResult;
@@ -966,7 +970,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		preparedInvocation: IPreparedToolInvocation | undefined,
 		autoConfirmed: ConfirmedReason | undefined,
 		token: CancellationToken,
-	): Promise<{ autoConfirmed: ConfirmedReason | undefined; skipExplanation?: string }> {
+	): Promise<{
+		autoConfirmed: ConfirmedReason | undefined;
+		skipCause?: { kind: 'highRisk'; explanation: string } | { kind: 'assessmentUnavailable' };
+	}> {
 		const isTerminalTool = tool.data.id === TerminalToolId.RunInTerminal;
 		const isFetchTool = fetchWebPageToolIds.has(tool.data.id);
 		const isAlwaysClassifyTool = isTerminalTool || isFetchTool;
@@ -1010,10 +1017,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return { autoConfirmed };
 		}
 
-		const skipUnassessedTerminal = (): { autoConfirmed: ConfirmedReason; skipExplanation: string } => {
-			const explanation = localize('autopilotTerminalRiskUnavailable', "The terminal command could not be assessed safely.");
+		const skipUnassessedTerminal = (): { autoConfirmed: ConfirmedReason; skipCause: { kind: 'assessmentUnavailable' } } => {
 			this._logService.info(`[LanguageModelToolsService#invokeTool] Autopilot skipping terminal command without a risk assessment`);
-			return { autoConfirmed: { type: ToolConfirmKind.Skipped }, skipExplanation: explanation };
+			return { autoConfirmed: { type: ToolConfirmKind.Skipped }, skipCause: { kind: 'assessmentUnavailable' } };
 		};
 		const terminalCommandForRiskAssessment = preparedInvocation?.toolSpecificData?.kind === 'terminal'
 			? preparedInvocation.toolSpecificData.commandLine.forRiskAssessment
@@ -1036,7 +1042,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const fallbackExplanation = localize('autopilotRiskSkipFallback', "The action was assessed as potentially destructive or irreversible.");
 				const explanation = assessment.explanation.trim() || fallbackExplanation;
 				this._logService.info(`[LanguageModelToolsService#invokeTool] Autopilot skipping high-risk tool ${tool.data.id}: ${explanation}`);
-				return { autoConfirmed: { type: ToolConfirmKind.Skipped }, skipExplanation: explanation };
+				return { autoConfirmed: { type: ToolConfirmKind.Skipped }, skipCause: { kind: 'highRisk', explanation } };
 			}
 		} catch (err) {
 			if (isTerminalTool) {

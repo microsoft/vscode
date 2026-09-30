@@ -1993,8 +1993,12 @@ suite('LanguageModelToolsService', () => {
 		const result = await t.invoke();
 
 		assert.deepStrictEqual(
-			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, isRiskMessage: String(result.content[0].value).startsWith('Autopilot skipped this tool call') },
-			{ invoked: false, assessCalls: 0, isRiskMessage: true },
+			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, value: result.content[0].value },
+			{
+				invoked: false,
+				assessCalls: 0,
+				value: 'Autopilot skipped this tool call because its risk could not be assessed safely. The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.',
+			},
 		);
 	});
 
@@ -2015,8 +2019,12 @@ suite('LanguageModelToolsService', () => {
 		const result = await t.invoke();
 
 		assert.deepStrictEqual(
-			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, isRiskMessage: String(result.content[0].value).startsWith('Autopilot skipped this tool call') },
-			{ invoked: false, assessCalls: 1, isRiskMessage: true },
+			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, value: result.content[0].value },
+			{
+				invoked: false,
+				assessCalls: 1,
+				value: 'Autopilot skipped this tool call because its risk could not be assessed safely. The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.',
+			},
 		);
 	});
 
@@ -2037,8 +2045,12 @@ suite('LanguageModelToolsService', () => {
 		const result = await t.invoke();
 
 		assert.deepStrictEqual(
-			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, isRiskMessage: String(result.content[0].value).startsWith('Autopilot skipped this tool call') },
-			{ invoked: false, assessCalls: 1, isRiskMessage: true },
+			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, value: result.content[0].value },
+			{
+				invoked: false,
+				assessCalls: 1,
+				value: 'Autopilot skipped this tool call because its risk could not be assessed safely. The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.',
+			},
 		);
 	});
 
