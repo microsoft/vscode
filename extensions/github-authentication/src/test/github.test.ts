@@ -510,3 +510,59 @@ for (const { name, type, base, issuer } of [
 ]) {
 	suite(`${name} Microsoft-brokered sessions`, () => registerMicrosoftBrokeredSessionTests(type, vscode.Uri.parse(base), issuer));
 }
+
+suite('GitHub Microsoft link probe', () => {
+
+	/** A provider with just the state the probe path touches: nothing that could persist or announce a session. */
+	function createProvider(linkedToken: string | undefined) {
+		const probed: string[] = [];
+		const githubServer: Pick<IGitHubServer, 'probeMicrosoftLink'> = {
+			probeMicrosoftLink: async subjectToken => {
+				probed.push(subjectToken);
+				return subjectToken === linkedToken ? { id: '42', accountName: 'mona_contoso', avatarUrl: undefined } : undefined;
+			}
+		};
+		const provider = Object.assign(Object.create(GitHubSessionEngine.prototype), {
+			_logger: new Log(AuthProviderType.github),
+			_githubServer: githubServer
+		}) as GitHubSessionEngine;
+		return { provider, probed };
+	}
+
+	async function probe(linkedToken: string | undefined, value: unknown): Promise<{ result: unknown; probed: string[] }> {
+		const { provider, probed } = createProvider(linkedToken);
+		let result: unknown;
+		try {
+			result = await provider.getSessions([], { _workbenchEntraExchangeProbe: value } as vscode.AuthenticationProviderSessionOptions);
+		} catch (e) {
+			result = (e as Error).message;
+		}
+		return { result, probed };
+	}
+
+	test('stops at the first linked identity and describes the account without a token', async () => {
+		assert.deepStrictEqual({
+			linkedSecond: await probe('entra-2', { subjectTokens: ['entra-1', 'entra-2', 'entra-3'] }),
+			unlinked: await probe(undefined, { subjectTokens: ['entra-1'] }),
+		}, {
+			linkedSecond: {
+				result: [{ id: '42', accessToken: '', account: { id: '42', label: 'mona_contoso' }, scopes: [] }],
+				probed: ['entra-1', 'entra-2'],
+			},
+			unlinked: { result: [], probed: ['entra-1'] },
+		});
+	});
+
+	test('refuses a malformed probe without contacting GitHub', async () => {
+		const malformed = 'The Microsoft link probe requires a list of subject tokens.';
+		assert.deepStrictEqual({
+			missing: await probe('entra-1', {}),
+			notStrings: await probe('entra-1', { subjectTokens: ['entra-1', 42] }),
+			empty: await probe('entra-1', { subjectTokens: [''] }),
+		}, {
+			missing: { result: malformed, probed: [] },
+			notStrings: { result: malformed, probed: [] },
+			empty: { result: malformed, probed: [] },
+		});
+	});
+});
