@@ -514,7 +514,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			const sessionControlsRect = sessionControls.getBoundingClientRect();
 			assert(workspaceControlsRect.left === inputRect.left
 				&& workspaceControlsRect.right === inputRect.right
-				&& inputRect.top - workspaceControlsRect.bottom === 4
+				&& inputRect.top - workspaceControlsRect.bottom === 6
 				&& sessionControlsRect.top >= inputRect.bottom
 				&& repositoryConfigContainer?.closest('.new-session-workspace-picker-container') === workspaceControls
 				&& [...repositoryActions].map(action => action.textContent).join(',') === 'New Worktree,Branch');

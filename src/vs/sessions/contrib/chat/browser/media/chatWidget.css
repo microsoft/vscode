@@ -111,7 +111,7 @@
 }
 
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-chat-input-container {
-	margin-top: var(--vscode-spacing-size40);
+	margin-top: var(--vscode-spacing-size60);
 }
 
 .new-chat-widget-content {
