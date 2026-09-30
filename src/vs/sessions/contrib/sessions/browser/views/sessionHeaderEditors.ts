@@ -66,8 +66,6 @@ export interface ISessionHeaderEditorOptions {
 	readonly target: ISessionHeaderColorTarget;
 	/** Extra actions rendered as buttons at the bottom (e.g. New Session in Group, Ungroup, Mark Group as Done, Remove Color). Running one closes the popover first. */
 	readonly actions?: readonly IAction[];
-	/** Called once when the popover closes if anything changed, with a message (e.g. "Edited group 'X'") and an undo restoring the state at open. */
-	readonly onDidCommit?: (message: string, undo: () => void) => void;
 	readonly onDidClose?: () => void;
 }
 
@@ -75,7 +73,6 @@ export interface ISessionCollectionEditorOptions {
 	readonly anchor: HTMLElement | { readonly x: number; readonly y: number };
 	/** The collection to edit, or undefined to create a new one (created immediately with defaults via ISessionCollectionsService.createCollection, then edited). */
 	readonly collectionId?: string;
-	readonly onDidCommit?: (message: string, undo: () => void) => void;
 	readonly onDidClose?: () => void;
 }
 
@@ -328,9 +325,6 @@ class SessionColorSwatches extends Disposable {
 class SessionHeaderEditorBody extends Disposable {
 
 	private readonly root: HTMLElement;
-	private readonly initialName: string | undefined;
-	private readonly initialColor: ISessionSectionColor | undefined;
-	private suppressCloseCommit = false;
 	private disposed = false;
 
 	constructor(
@@ -345,8 +339,6 @@ class SessionHeaderEditorBody extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-		this.initialName = this.getGroupName();
-		this.initialColor = this.sectionColorsService.getColor(options.target.sectionId);
 		this.ensureInitialColor();
 		this.root = DOM.append(container, $(`.session-header-editor`, { role: 'dialog', 'aria-label': this.getDialogLabel() }));
 		this.render();
@@ -355,7 +347,6 @@ class SessionHeaderEditorBody extends Disposable {
 	override dispose(): void {
 		if (!this.disposed) {
 			this.disposed = true;
-			this.commit();
 			this.options.onDidClose?.();
 		}
 		super.dispose();
@@ -580,22 +571,19 @@ class SessionHeaderEditorBody extends Disposable {
 	}
 
 	private moveToCollection(collection: ISessionCollection): void {
-		let undo: (() => void) | undefined;
-		if (this.options.target.kind === 'group' && this.options.target.groupId) {
-			undo = this.collectionsService.moveGroupToCollection(this.options.target.groupId, collection.id);
-		} else if (this.options.target.kind === 'workspace') {
-			undo = this.collectionsService.moveWorkspaceToCollection(this.options.target.sectionId, collection.id, this.options.target.sessions ?? []);
-		}
-		if (!undo) {
+		const target = this.options.target;
+		if (target.kind === 'group' && target.groupId) {
+			this.collectionsService.moveGroupToCollection(target.groupId, collection.id);
+		} else if (target.kind === 'workspace') {
+			this.collectionsService.moveWorkspaceToCollection(target.sectionId, collection.id, target.sessions ?? []);
+		} else {
 			return;
 		}
-		this.suppressCloseCommit = true;
 		this.options.close();
-		this.options.onDidCommit?.(localize('sessionHeaderEditor.movedToCollection', "Moved '{0}' to {1}", this.getCurrentLabel(), collection.name), undo);
 	}
 
 	private ensureInitialColor(): void {
-		if (this.initialColor) {
+		if (this.getCurrentColor()) {
 			return;
 		}
 		this.sectionColorsService.setColor(this.options.target.sectionId, { color: this.sectionColorsService.getNextColor(), textColor: SessionTextColorMode.Auto });
@@ -635,48 +623,11 @@ class SessionHeaderEditorBody extends Disposable {
 			case 'section': return localize('sessionHeaderEditor.colorSection', "Color Section");
 		}
 	}
-
-	private commit(): void {
-		if (this.suppressCloseCommit) {
-			return;
-		}
-		if (!this.hasChanged()) {
-			return;
-		}
-		const target = this.options.target;
-		const groupId = target.groupId;
-		const initialName = this.initialName;
-		const initialColor = this.initialColor;
-		const sectionId = target.sectionId;
-		const undo = () => {
-			if (groupId && initialName !== undefined) {
-				this.groupsService.renameGroup(groupId, initialName);
-			}
-			this.sectionColorsService.setColor(sectionId, initialColor);
-		};
-		this.options.onDidCommit?.(this.getCommitMessage(), undo);
-	}
-
-	private hasChanged(): boolean {
-		return this.initialName !== this.getGroupName() || !sectionColorEquals(this.initialColor, this.getCurrentColor());
-	}
-
-	private getCommitMessage(): string {
-		const label = this.getCurrentLabel();
-		switch (this.options.target.kind) {
-			case 'group': return localize('sessionHeaderEditor.editedGroup', "Edited group '{0}'", label);
-			case 'workspace': return localize('sessionHeaderEditor.editedWorkspace', "Edited workspace '{0}'", label);
-			case 'section': return localize('sessionHeaderEditor.editedSection', "Edited section '{0}'", label);
-		}
-	}
 }
 
 class SessionCollectionEditorBody extends Disposable {
 
 	private readonly root: HTMLElement;
-	private readonly initialCollection: ISessionCollection | undefined;
-	private readonly initialIndex: number;
-	private suppressCloseCommit = false;
 	private disposed = false;
 
 	constructor(
@@ -690,9 +641,6 @@ class SessionCollectionEditorBody extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-		const collections = this.collectionsService.collections.get();
-		this.initialCollection = this.collectionsService.getCollection(options.collectionId);
-		this.initialIndex = collections.findIndex(collection => collection.id === options.collectionId);
 		this.root = DOM.append(container, $('.session-collection-editor', { role: 'dialog', 'aria-label': options.isNew ? localize('sessionCollectionEditor.newCollection', "New Collection") : localize('sessionCollectionEditor.editCollection', "Edit Collection") }));
 		this.render();
 	}
@@ -700,7 +648,6 @@ class SessionCollectionEditorBody extends Disposable {
 	override dispose(): void {
 		if (!this.disposed) {
 			this.disposed = true;
-			this.commit();
 			this.options.onDidClose?.();
 		}
 		super.dispose();
@@ -845,60 +792,8 @@ class SessionCollectionEditorBody extends Disposable {
 	}
 
 	private deleteCollection(moveToId: string): void {
-		const name = this.getCollection()?.name ?? '';
-		const undo = this.collectionsService.deleteCollection(this.options.collectionId, moveToId);
-		if (!undo) {
-			return;
-		}
-		this.suppressCloseCommit = true;
-		this.options.onDidCommit?.(localize('sessionCollectionEditor.deletedCollection', "Deleted collection '{0}'", name), undo);
-		this.options.close();
-	}
-
-	private commit(): void {
-		if (this.suppressCloseCommit) {
-			return;
-		}
-		if (this.options.isNew) {
-			const collection = this.getCollection();
-			if (!collection) {
-				return;
-			}
-			this.options.onDidCommit?.(localize('sessionCollectionEditor.createdCollection', "Created collection '{0}'", collection.name), () => this.deleteCreatedCollection(collection.id));
-			return;
-		}
-		if (!this.hasChanged()) {
-			return;
-		}
-		const initial = this.initialCollection;
-		const initialIndex = this.initialIndex;
-		if (!initial) {
-			return;
-		}
-		this.options.onDidCommit?.(localize('sessionCollectionEditor.editedCollection', "Edited collection '{0}'", this.getCollection()?.name ?? initial.name), () => {
-			if (this.collectionsService.getCollection(initial.id)) {
-				this.collectionsService.updateCollection(initial.id, { name: initial.name, icon: initial.icon, color: initial.color });
-				this.collectionsService.moveCollection(initial.id, initialIndex);
-			}
-		});
-	}
-
-	private hasChanged(): boolean {
-		const current = this.getCollection();
-		if (!this.initialCollection || !current) {
-			return false;
-		}
-		const index = this.collectionsService.collections.get().findIndex(collection => collection.id === current.id);
-		return current.name !== this.initialCollection.name || current.icon !== this.initialCollection.icon || current.color !== this.initialCollection.color || index !== this.initialIndex;
-	}
-
-	private deleteCreatedCollection(collectionId: string): void {
-		const collections = this.collectionsService.collections.get();
-		const moveToId = this.collectionsService.defaultCollectionId.get() !== collectionId
-			? this.collectionsService.defaultCollectionId.get()
-			: collections.find(collection => collection.id !== collectionId)?.id;
-		if (moveToId) {
-			this.collectionsService.deleteCollection(collectionId, moveToId);
+		if (this.collectionsService.deleteCollection(this.options.collectionId, moveToId)) {
+			this.options.close();
 		}
 	}
 
@@ -926,10 +821,6 @@ function getTextColorModeLabel(mode: SessionTextColorMode): string {
 		case SessionTextColorMode.Light: return localize('sessionHeaderEditor.textLight', "Light");
 		case SessionTextColorMode.Dark: return localize('sessionHeaderEditor.textDark', "Dark");
 	}
-}
-
-function sectionColorEquals(a: ISessionSectionColor | undefined, b: ISessionSectionColor | undefined): boolean {
-	return a?.color === b?.color && a?.textColor === b?.textColor;
 }
 
 async function runAction(action: IAction): Promise<void> {

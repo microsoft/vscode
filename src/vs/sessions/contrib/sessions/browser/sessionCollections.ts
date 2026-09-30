@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IContextMenuDelegate } from '../../../../base/browser/contextmenu.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
@@ -30,7 +31,6 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { getWorkbenchContribution, IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { SessionsHasMultipleCollectionsContext } from '../../../common/contextkeys.js';
@@ -42,7 +42,6 @@ import { ISession, SessionStatus } from '../../../services/sessions/common/sessi
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionCollectionAttention, SessionCollectionsIconStrip, ISessionCollectionsSwitcherDelegate, SESSION_COLLECTIONS_CONTROLLER_ID } from './sessionCollectionsSwitcher.js';
 import { SessionHeaderEditors } from './views/sessionHeaderEditors.js';
-import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 
 const SWITCH_COLLECTION_COMMAND_ID = 'sessions.collections.switch';
 const SWITCH_COLLECTION_TO_INDEX_COMMAND_PREFIX = 'sessions.collections.switchTo';
@@ -238,7 +237,6 @@ export class SessionCollectionsController extends Disposable implements IWorkben
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IViewsService private readonly viewsService: IViewsService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -393,37 +391,30 @@ export class SessionCollectionsController extends Disposable implements IWorkben
 
 		const sessionIdentifiers = this.sessionTransfer.getData(DraggedSessionIdentifier.prototype);
 		const headerIdentifiers = this.headerTransfer.getData(DraggedSessionListHeaderIdentifier.prototype);
-		let undo: (() => void) | undefined;
 		let label: string | undefined;
 		if (sessionIdentifiers?.length) {
 			const sessions = sessionIdentifiers.map(identifier => this.sessionsManagementService.getSession(identifier.resource)).filter((session): session is ISession => !!session);
 			if (sessions.length === 0) {
 				return false;
 			}
-			undo = this.collectionsService.moveSessionsToCollection(sessions, collectionId);
+			this.collectionsService.moveSessionsToCollection(sessions, collectionId);
 			label = sessions.length === 1 ? sessions[0].title.get() : localize('sessionsMovedLabel', "{0} Sessions", sessions.length);
 		} else if (headerIdentifiers?.length) {
 			const [header] = headerIdentifiers;
 			const sessions = header.sessionResources.map(resource => this.sessionsManagementService.getSession(resource)).filter((session): session is ISession => !!session);
-			undo = header.kind === 'group'
-				? this.collectionsService.moveGroupToCollection(header.id, collectionId)
-				: this.collectionsService.moveWorkspaceToCollection(header.id, collectionId, sessions);
+			if (header.kind === 'group') {
+				this.collectionsService.moveGroupToCollection(header.id, collectionId);
+			} else {
+				this.collectionsService.moveWorkspaceToCollection(header.id, collectionId, sessions);
+			}
 			label = header.label;
 		}
 
-		if (!undo || !label) {
-			return false;
-		}
-
 		const target = this.collectionsService.getCollection(collectionId);
-		if (!target) {
+		if (!label || !target) {
 			return false;
 		}
-		this.showUndoNotification(
-			localize('movedToCollection', "Moved {0} to {1}", label, target.name),
-			undo,
-			localize('moveUndoHelp', "Undo moves the item back to its previous collection."),
-		);
+		status(localize('movedToCollection', "Moved {0} to {1}", label, target.name));
 		return true;
 	}
 
@@ -440,7 +431,6 @@ export class SessionCollectionsController extends Disposable implements IWorkben
 		editor.showCollectionEditor({
 			anchor: anchor ?? this.getEditorAnchor(collectionId),
 			collectionId,
-			onDidCommit: (message, undo) => this.showUndoNotification(message, undo, localize('collectionUndoHelp', "Undo restores the previous collection settings.")),
 		});
 	}
 
@@ -515,14 +505,5 @@ export class SessionCollectionsController extends Disposable implements IWorkben
 				this.collectionsService.setLastSession(collectionId, activeSession.resource);
 			}
 		}
-	}
-
-	private showUndoNotification(message: string, undo: () => void | Promise<void>, help: string): void {
-		const view = this.viewsService.getViewWithId<SessionsView>(SessionsViewId);
-		if (!view) {
-			this.logService.warn('[SessionCollectionsController] Unable to show collection undo notification because the Sessions view is not available.');
-			return;
-		}
-		view.showUndoNotification(message, undo, localize('collectionNotificationHelp', "{0}\n{1} Use Tab and Shift+Tab to reach Undo and Dismiss. Press Enter or Space to activate them, or Escape to dismiss the notice.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open. The bar along the bottom shows the remaining time.", message, help));
 	}
 }

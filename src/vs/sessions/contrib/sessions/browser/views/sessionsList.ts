@@ -60,6 +60,7 @@ import { readChatChangesStats } from '../../../../services/sessions/common/sessi
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -3445,9 +3446,6 @@ interface ISessionsListControlBaseOptions {
 	 * so tests and fixtures can supply pending approvals without a live chat model.
 	 */
 	readonly approvalModel?: AgentSessionApprovalModel;
-
-	/** Offers to undo a list-owned presentation change, such as editing a group or moving it to another collection. */
-	showUndoNotification?(message: string, undo: () => void): void;
 }
 
 export type ISessionsListControlOptions = ISessionsListControlBaseOptions;
@@ -5366,7 +5364,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			anchor,
 			target: this.getHeaderColorTarget(element),
 			actions: this.getHeaderEditorActions(element),
-			onDidCommit: (message, undo) => this.options.showUndoNotification?.(message, undo),
 			onDidClose: () => this.tree.domFocus(),
 		});
 		return true;
@@ -5381,14 +5378,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Removes the color of a workspace, Pinned or Chats section. Groups always keep a color. */
 	removeHeaderColor(sectionId: string): void {
-		const previous = this._sessionSectionColorsService.getColor(sectionId);
-		if (!previous || sectionId.startsWith('group:')) {
+		if (sectionId.startsWith('group:')) {
 			return;
 		}
 		this._sessionSectionColorsService.setColor(sectionId, undefined);
-		const element = this.findHeaderBySectionId(sectionId);
-		const label = element && isSessionSection(element) ? element.label : sectionId;
-		this.options.showUndoNotification?.(localize('removedHeaderColor', "Removed the color of '{0}'", label), () => this._sessionSectionColorsService.setColor(sectionId, previous));
 	}
 
 	private getHeaderEditorActions(element: ISessionGroupItem | ISessionSection): IAction[] {
@@ -5407,44 +5400,29 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return actions;
 	}
 
-	/** Deletes a group and keeps its sessions ungrouped in the same collection. Offers to undo. */
+	/** Deletes a group and keeps its sessions ungrouped in the same collection. */
 	ungroup(groupId: string): void {
-		const group = this._sessionGroupsService.getGroup(groupId);
-		if (!group) {
-			return;
-		}
-		const memberIds = this._sessionGroupsService.getSessionIdsInGroup(groupId);
-		const color = this._sessionSectionColorsService.getColor(getGroupSectionId(groupId));
-		const collectionId = this._sessionCollectionsService.getGroupCollection(groupId);
 		this._sessionGroupsService.deleteGroup(groupId);
-		this.options.showUndoNotification?.(localize('ungroupedGroup', "Ungrouped '{0}'", group.name), () => {
-			const restored = this._sessionGroupsService.createGroup(group.name, memberIds);
-			if (color) {
-				this._sessionSectionColorsService.setColor(getGroupSectionId(restored.id), color);
-			}
-			this._sessionCollectionsService.moveGroupToCollection(restored.id, collectionId);
-		});
 	}
 
-	/** Moves a group, workspace section or sessions to another collection and offers to undo. */
+	/** Moves a group, workspace section or sessions to another collection. */
 	private moveToCollection(target: { readonly group: ISessionGroupItem } | { readonly section: ISessionSection } | { readonly sessions: readonly ISession[] }, collectionId: string): void {
 		const collection = this._sessionCollectionsService.getCollection(collectionId);
 		if (!collection) {
 			return;
 		}
-		let undo: () => void;
 		let label: string;
 		if (hasKey(target, { group: true })) {
-			undo = this._sessionCollectionsService.moveGroupToCollection(target.group.group.id, collectionId);
+			this._sessionCollectionsService.moveGroupToCollection(target.group.group.id, collectionId);
 			label = target.group.group.name;
 		} else if (hasKey(target, { section: true })) {
-			undo = this._sessionCollectionsService.moveWorkspaceToCollection(target.section.id, collectionId, target.section.sessions);
+			this._sessionCollectionsService.moveWorkspaceToCollection(target.section.id, collectionId, target.section.sessions);
 			label = target.section.label;
 		} else {
-			undo = this._sessionCollectionsService.moveSessionsToCollection(target.sessions, collectionId);
+			this._sessionCollectionsService.moveSessionsToCollection(target.sessions, collectionId);
 			label = target.sessions.length === 1 ? target.sessions[0].title.get() : localize('nSessionsLabel', "{0} sessions", target.sessions.length);
 		}
-		this.options.showUndoNotification?.(localize('movedToCollection', "Moved '{0}' to {1}", label, collection.name), undo);
+		aria.status(localize('movedToCollection', "Moved '{0}' to {1}", label, collection.name));
 	}
 
 	private getMoveToCollectionAction(label: string, target: Parameters<SessionsList['moveToCollection']>[0], currentCollectionId: string | undefined): IAction | undefined {

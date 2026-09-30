@@ -23,9 +23,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SESSIONS_LIST_COLLECTIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { ISessionCollection, ISessionCollectionsService, SessionCollectionsUndo } from '../../../../services/sessions/browser/sessionCollectionsService.js';
+import { ISessionCollection, ISessionCollectionsService } from '../../../../services/sessions/browser/sessionCollectionsService.js';
 import { type IOpenNewSessionResult, type IOpenSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionPaletteColor } from '../../../../services/sessions/common/sessionColors.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -70,7 +69,7 @@ suite('SessionCollections', () => {
 
 		updateCollection(): void { }
 		moveCollection(): void { }
-		deleteCollection(): SessionCollectionsUndo | undefined { return undefined; }
+		deleteCollection(): boolean { return false; }
 
 		getSessionCollection(session: ISession): string {
 			return this.sessions.get(session.sessionId) ?? 'engineering';
@@ -79,23 +78,15 @@ suite('SessionCollections', () => {
 		getGroupCollection(): string { return 'engineering'; }
 		getWorkspaceCollection(): string { return 'engineering'; }
 
-		moveSessionsToCollection(sessions: readonly ISession[], collectionId: string): SessionCollectionsUndo {
-			const snapshot = new Map(this.sessions);
+		moveSessionsToCollection(sessions: readonly ISession[], collectionId: string): void {
 			for (const session of sessions) {
 				this.sessions.set(session.sessionId, collectionId);
 			}
 			this.onDidChangeMembershipEmitter.fire();
-			return () => {
-				this.sessions.clear();
-				for (const [sessionId, value] of snapshot) {
-					this.sessions.set(sessionId, value);
-				}
-				this.onDidChangeMembershipEmitter.fire();
-			};
 		}
 
-		moveGroupToCollection(): SessionCollectionsUndo { return () => { }; }
-		moveWorkspaceToCollection(): SessionCollectionsUndo { return () => { }; }
+		moveGroupToCollection(): void { }
+		moveWorkspaceToCollection(): void { }
 
 		getLastSession(collectionId: string): URI | undefined {
 			return this.lastSessions.get(collectionId);
@@ -173,7 +164,6 @@ suite('SessionCollections', () => {
 			sessionsManagementService,
 			instantiationService,
 			new NullActionViewItemService(),
-			new class extends mock<IViewsService>() { },
 			new class extends mock<IContextMenuService>() {
 				override readonly onDidShowContextMenu = Event.None;
 				override readonly onDidHideContextMenu = Event.None;

@@ -243,25 +243,20 @@ suite('SessionCollectionsService', () => {
 		}, { a: work.id, b: work.id, c: work.id, otherGroup: work.id });
 	});
 
-	test('moving sessions out of a group in another collection ungroups them, and undo restores both', () => {
+	test('moving sessions out of a group in another collection ungroups them', () => {
 		const context = createContext(disposables);
 		const session = createSession('s1', { workspace: 'vscode' });
 		context.sessions.push(session);
 		const { groups, collections } = createServices(disposables, context);
 		const work = collections.createCollection({ name: 'Work' });
-		const group = groups.createGroup('Group', [session.sessionId]);
+		groups.createGroup('Group', [session.sessionId]);
 
-		const undo = collections.moveSessionsToCollection([session], work.id);
-		const moved = { collection: collections.getSessionCollection(session), group: groups.getGroupOfSession(session.sessionId) };
-		undo();
+		collections.moveSessionsToCollection([session], work.id);
 
-		assert.deepStrictEqual({ moved, undone: { collection: collections.getSessionCollection(session), group: groups.getGroupOfSession(session.sessionId) } }, {
-			moved: { collection: work.id, group: undefined },
-			undone: { collection: 'default', group: group.id },
-		});
+		assert.deepStrictEqual({ collection: collections.getSessionCollection(session), group: groups.getGroupOfSession(session.sessionId) }, { collection: work.id, group: undefined });
 	});
 
-	test('moving a group or a workspace moves their sessions; undo restores them', () => {
+	test('moving a group or a workspace moves their sessions', () => {
 		const context = createContext(disposables);
 		const grouped = createSession('grouped', { workspace: 'vscode' });
 		const visible = createSession('visible', { workspace: 'vscode' });
@@ -273,18 +268,12 @@ suite('SessionCollectionsService', () => {
 		const group = groups.createGroup('Group', [grouped.sessionId]);
 		collections.moveSessionsToCollection([elsewhere], home.id);
 
-		const undoGroup = collections.moveGroupToCollection(group.id, work.id);
-		const undoWorkspace = collections.moveWorkspaceToCollection('workspace:vscode', work.id, [visible]);
+		collections.moveGroupToCollection(group.id, work.id);
+		collections.moveWorkspaceToCollection('workspace:vscode', work.id, [visible]);
 		const later = createSession('later', { workspace: 'vscode' });
 		context.sessions.push(later);
-		const moved = [grouped, visible, elsewhere, later].map(s => collections.getSessionCollection(s));
-		undoWorkspace();
-		undoGroup();
 
-		assert.deepStrictEqual({ moved, undone: [grouped, visible, elsewhere, later].map(s => collections.getSessionCollection(s)) }, {
-			moved: [work.id, work.id, home.id, work.id],
-			undone: ['default', 'default', home.id, 'default'],
-		});
+		assert.deepStrictEqual([grouped, visible, elsewhere, later].map(s => collections.getSessionCollection(s)), [work.id, work.id, home.id, work.id]);
 	});
 
 	test('a new session joins the collection that was active when it was sent', () => {
@@ -321,7 +310,7 @@ suite('SessionCollectionsService', () => {
 		});
 	});
 
-	test('deleting a collection moves its contents; undo restores them', () => {
+	test('deleting a collection moves its contents; the last collection cannot be deleted', () => {
 		const context = createContext(disposables);
 		const session = createSession('s1', { workspace: 'vscode' });
 		context.sessions.push(session);
@@ -331,13 +320,16 @@ suite('SessionCollectionsService', () => {
 		const group = groups.createGroup('Group');
 		collections.moveWorkspaceToCollection('workspace:vscode', work.id, [session]);
 
-		const undo = collections.deleteCollection(work.id, 'default');
-		const deleted = { names: collections.collections.get().map(c => c.name), active: collections.activeCollectionId.get(), group: collections.getGroupCollection(group.id), session: collections.getSessionCollection(session) };
-		undo?.();
+		const deletedWork = collections.deleteCollection(work.id, 'default');
+		const deletedLast = collections.deleteCollection('default', work.id);
 
-		assert.deepStrictEqual({ deleted, undone: { names: collections.collections.get().map(c => c.name), active: collections.activeCollectionId.get(), group: collections.getGroupCollection(group.id), session: collections.getSessionCollection(session) } }, {
-			deleted: { names: ['General'], active: 'default', group: 'default', session: 'default' },
-			undone: { names: ['General', 'Work'], active: work.id, group: work.id, session: work.id },
+		assert.deepStrictEqual({ deletedWork, deletedLast, names: collections.collections.get().map(c => c.name), active: collections.activeCollectionId.get(), group: collections.getGroupCollection(group.id), session: collections.getSessionCollection(session) }, {
+			deletedWork: true,
+			deletedLast: false,
+			names: ['General'],
+			active: 'default',
+			group: 'default',
+			session: 'default',
 		});
 	});
 

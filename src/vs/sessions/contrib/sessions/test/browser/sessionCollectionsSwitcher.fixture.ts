@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ISessionCollection, ISessionCollectionsService, SessionCollectionsUndo } from '../../../../services/sessions/browser/sessionCollectionsService.js';
+import { ISessionCollection, ISessionCollectionsService } from '../../../../services/sessions/browser/sessionCollectionsService.js';
 import { SessionPaletteColor } from '../../../../services/sessions/common/sessionColors.js';
 import { ISessionCollectionsSwitcherDelegate, SessionCollectionAttention, SessionCollectionTitleButton, SessionCollectionsIconStrip, SessionCollectionsTabs } from '../../browser/sessionCollectionsSwitcher.js';
 
@@ -44,13 +44,13 @@ class FixtureCollectionsService extends Disposable implements ISessionCollection
 
 	updateCollection(): void { }
 	moveCollection(): void { }
-	deleteCollection(): SessionCollectionsUndo | undefined { return undefined; }
+	deleteCollection(): boolean { return false; }
 	getSessionCollection(): string { return 'engineering'; }
 	getGroupCollection(): string { return 'engineering'; }
 	getWorkspaceCollection(): string { return 'engineering'; }
-	moveSessionsToCollection(): SessionCollectionsUndo { return () => { }; }
-	moveGroupToCollection(): SessionCollectionsUndo { return () => { }; }
-	moveWorkspaceToCollection(): SessionCollectionsUndo { return () => { }; }
+	moveSessionsToCollection(): void { }
+	moveGroupToCollection(): void { }
+	moveWorkspaceToCollection(): void { }
 	getLastSession(): URI | undefined { return undefined; }
 	setLastSession(): void { }
 }

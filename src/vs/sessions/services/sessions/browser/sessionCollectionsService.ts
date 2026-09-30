@@ -30,9 +30,6 @@ export interface ISessionCollection {
 	readonly color: SessionPaletteColor;
 }
 
-/** Restores the state an operation changed. */
-export type SessionCollectionsUndo = () => void;
-
 /** Codicons offered for collections. */
 export const SESSION_COLLECTION_ICONS: readonly string[] = [
 	Codicon.layers.id, Codicon.graph.id, Codicon.briefcase.id, Codicon.home.id, Codicon.person.id, Codicon.heart.id, Codicon.rocket.id, Codicon.beaker.id,
@@ -88,9 +85,10 @@ export interface ISessionCollectionsService {
 
 	/**
 	 * Deletes a collection, moving its groups, workspaces and sessions to
-	 * `moveToId`. The last collection cannot be deleted.
+	 * `moveToId`. The last collection cannot be deleted. Returns whether the
+	 * collection was deleted.
 	 */
-	deleteCollection(collectionId: string, moveToId: string): SessionCollectionsUndo | undefined;
+	deleteCollection(collectionId: string, moveToId: string): boolean;
 
 	/** The collection a session belongs to. Pass a reader to track dependencies. */
 	getSessionCollection(session: ISession, reader?: IReader): string;
@@ -104,16 +102,16 @@ export interface ISessionCollectionsService {
 	 * Moves sessions to a collection. Sessions in a group of another collection
 	 * leave the group.
 	 */
-	moveSessionsToCollection(sessions: readonly ISession[], collectionId: string): SessionCollectionsUndo;
+	moveSessionsToCollection(sessions: readonly ISession[], collectionId: string): void;
 
 	/** Moves a group, and with it its members, to a collection. */
-	moveGroupToCollection(groupId: string, collectionId: string): SessionCollectionsUndo;
+	moveGroupToCollection(groupId: string, collectionId: string): void;
 
 	/**
 	 * Moves a workspace section to a collection, together with `members`: the
 	 * section's ungrouped sessions currently shown in the source collection.
 	 */
-	moveWorkspaceToCollection(sectionId: string, collectionId: string, members: readonly ISession[]): SessionCollectionsUndo;
+	moveWorkspaceToCollection(sectionId: string, collectionId: string, members: readonly ISession[]): void;
 
 	/** The last session opened while the collection was active. */
 	getLastSession(collectionId: string): URI | undefined;
@@ -318,22 +316,18 @@ export class SessionCollectionsService extends Disposable implements ISessionCol
 		this.save();
 	}
 
-	deleteCollection(collectionId: string, moveToId: string): SessionCollectionsUndo | undefined {
+	deleteCollection(collectionId: string, moveToId: string): boolean {
 		const collections = this._collections.get();
 		const index = collections.findIndex(collection => collection.id === collectionId);
 		if (index === -1 || collections.length === 1 || collectionId === moveToId || !this.getCollection(moveToId)) {
-			return undefined;
+			return false;
 		}
-		const deleted = collections[index];
-		const wasDefault = this._defaultCollectionId.get() === collectionId;
-		const wasActive = this._activeCollectionId.get() === collectionId;
-		const moved: { readonly map: Map<string, string>; readonly key: string }[] = [];
 		transaction(tx => {
 			this._collections.set(collections.filter(collection => collection.id !== collectionId), tx);
-			if (wasDefault) {
+			if (this._defaultCollectionId.get() === collectionId) {
 				this._defaultCollectionId.set(moveToId, tx);
 			}
-			if (wasActive) {
+			if (this._activeCollectionId.get() === collectionId) {
 				this._activeCollectionId.set(moveToId, tx);
 			}
 		});
@@ -341,41 +335,13 @@ export class SessionCollectionsService extends Disposable implements ISessionCol
 			for (const [key, value] of map) {
 				if (value === collectionId) {
 					map.set(key, moveToId);
-					moved.push({ map, key });
 				}
 			}
 		}
-		const last = this._lastSessions.get(collectionId);
 		this._lastSessions.delete(collectionId);
 		this.save();
 		this.fireMembershipChanged();
-		return () => {
-			if (this.getCollection(collectionId)) {
-				return;
-			}
-			const current = [...this._collections.get()];
-			current.splice(Math.min(index, current.length), 0, deleted);
-			transaction(tx => {
-				this._collections.set(current, tx);
-				if (wasDefault) {
-					this._defaultCollectionId.set(collectionId, tx);
-				}
-				if (wasActive) {
-					this._activeCollectionId.set(collectionId, tx);
-				}
-			});
-			// Only restore assignments nobody changed since the deletion.
-			for (const { map, key } of moved) {
-				if (map.get(key) === moveToId) {
-					map.set(key, collectionId);
-				}
-			}
-			if (last) {
-				this._lastSessions.set(collectionId, last);
-			}
-			this.save();
-			this.fireMembershipChanged();
-		};
+		return true;
 	}
 
 	getSessionCollection(session: ISession, reader?: IReader): string {
@@ -412,15 +378,10 @@ export class SessionCollectionsService extends Disposable implements ISessionCol
 		return this.validCollection(this._workspaces.get(sectionId)) ?? this.getDefaultCollectionId();
 	}
 
-	moveSessionsToCollection(sessions: readonly ISession[], collectionId: string): SessionCollectionsUndo {
+	moveSessionsToCollection(sessions: readonly ISession[], collectionId: string): void {
 		if (!this.getCollection(collectionId)) {
-			return () => { };
+			return;
 		}
-		const previous = sessions.map(session => ({
-			session,
-			groupId: this.sessionGroupsService.getGroupOfSession(session.sessionId),
-			explicit: this._sessions.get(session.sessionId),
-		}));
 		for (const session of sessions) {
 			const groupId = this.sessionGroupsService.getGroupOfSession(session.sessionId);
 			if (groupId && this.getGroupCollection(groupId) !== collectionId) {
@@ -434,43 +395,21 @@ export class SessionCollectionsService extends Disposable implements ISessionCol
 		}
 		this.save();
 		this.fireMembershipChanged();
-		return () => {
-			for (const { session, groupId } of previous) {
-				if (groupId && this.sessionGroupsService.getGroup(groupId) && this.sessionGroupsService.getGroupOfSession(session.sessionId) !== groupId) {
-					this.sessionGroupsService.addToGroup(session.sessionId, groupId);
-				}
-			}
-			for (const { session, explicit } of previous) {
-				setOrDelete(this._sessions, session.sessionId, explicit);
-			}
-			this.save();
-			this.fireMembershipChanged();
-		};
 	}
 
-	moveGroupToCollection(groupId: string, collectionId: string): SessionCollectionsUndo {
+	moveGroupToCollection(groupId: string, collectionId: string): void {
 		if (!this.getCollection(collectionId) || !this.sessionGroupsService.getGroup(groupId) || this.getGroupCollection(groupId) === collectionId) {
-			return () => { };
+			return;
 		}
-		const previous = this._groups.get(groupId);
 		this._groups.set(groupId, collectionId);
 		this.save();
 		this.fireMembershipChanged();
-		return () => {
-			if (this._groups.has(groupId)) {
-				setOrDelete(this._groups, groupId, previous);
-				this.save();
-				this.fireMembershipChanged();
-			}
-		};
 	}
 
-	moveWorkspaceToCollection(sectionId: string, collectionId: string, members: readonly ISession[]): SessionCollectionsUndo {
+	moveWorkspaceToCollection(sectionId: string, collectionId: string, members: readonly ISession[]): void {
 		if (!this.getCollection(collectionId)) {
-			return () => { };
+			return;
 		}
-		const previousWorkspace = this._workspaces.get(sectionId);
-		const previousMembers = members.map(session => ({ sessionId: session.sessionId, explicit: this._sessions.get(session.sessionId) }));
 		this._workspaces.set(sectionId, collectionId);
 		for (const session of members) {
 			if (!this.sessionGroupsService.getGroupOfSession(session.sessionId) && this.getSessionCollection(session) !== collectionId) {
@@ -479,14 +418,6 @@ export class SessionCollectionsService extends Disposable implements ISessionCol
 		}
 		this.save();
 		this.fireMembershipChanged();
-		return () => {
-			setOrDelete(this._workspaces, sectionId, previousWorkspace);
-			for (const { sessionId, explicit } of previousMembers) {
-				setOrDelete(this._sessions, sessionId, explicit);
-			}
-			this.save();
-			this.fireMembershipChanged();
-		};
 	}
 
 	getLastSession(collectionId: string): URI | undefined {
@@ -628,14 +559,6 @@ export class SessionCollectionsService extends Disposable implements ISessionCol
 			return;
 		}
 		this.storageService.store(SessionCollectionsService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
-	}
-}
-
-function setOrDelete(map: Map<string, string>, key: string, value: string | undefined): void {
-	if (value === undefined) {
-		map.delete(key);
-	} else {
-		map.set(key, value);
 	}
 }
 

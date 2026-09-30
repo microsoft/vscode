@@ -313,7 +313,6 @@ export class SessionsView extends ViewPane {
 				return this.createSessionsHeader(container, phoneLayout, true, disposables).row;
 			},
 			onDidScroll: () => this.scheduleFindHeaderPositionUpdate(),
-			showUndoNotification: (message, undo) => this.showUndoNotification(message, undo, localize('listPresentationUndoHelp', "{0}\nThis notice appears after changing a group, a section color, or a collection. Use Tab and Shift+Tab to reach Undo and Dismiss. Press Enter or Space to activate them, or Escape to dismiss the notice.\nUndo restores the previous group, color, or collection.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open. The bar along the bottom shows the remaining time.", message)),
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {
@@ -891,12 +890,6 @@ export class SessionsView extends ViewPane {
 
 	refresh(): void {
 		this.sessionsControl?.refresh();
-	}
-
-	showUndoNotification(message: string, undo: () => void | Promise<void>, help?: string): void {
-		this.archiveNotification?.show(message, async () => {
-			await undo();
-		}, help);
 	}
 
 	openFind(): void {
