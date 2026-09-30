@@ -32,7 +32,7 @@ import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizati
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
+import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
@@ -82,7 +82,6 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
-import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets, type IAgentHostCurrentTurnChanges } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
@@ -3530,6 +3529,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _runningSessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
 	private readonly _runningModelConfigurations = this._register(new DisposableMap<string, AutomationModelConfiguration>());
+	/**
+	 * Model configuration a side chat inherited from its source chat's turn, keyed by chat
+	 * resource. Per chat rather than per session so it cannot change the session's other chats;
+	 * consumed by the chat's first committed request.
+	 */
+	private readonly _carriedOverChatModelConfigurations = new Map<string, { readonly modelId: string; readonly configuration: IAutomationSessionTemplate['modelConfiguration'] }>();
 
 	/**
 	 * Last authoritatively-resolved schemas for {@link SEEDED_CONFIG_SCHEMA_KEYS},
@@ -5991,8 +5996,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const sourceBackendUri = this._resolveBackendSourceChatUri(cached.sessionId, sessionUri, sourceChat);
 
 		// Inherit the source chat's own model/agent selection (which may differ
-		// from the session's default), not the session-level fallback.
-		const selectedModel = cached.getChatModelSelection(sourceChat);
+		// from the session's default), not the session-level fallback. When this
+		// client never learned it (e.g. a resumed chat with no persisted draft
+		// model), fall back to what the host recorded the source chat running on.
+		const selectedModel = cached.getChatModelSelection(sourceChat) ?? this._readRunningChatModel(connection, sourceBackendUri);
 		const selectedModelId = cached.getChatModelId(sourceChat)
 			?? (selectedModel ? `${cached.resource.scheme}:${selectedModel.id}` : undefined);
 		const selectedAgentUri = cached.getChatMode(sourceChat)?.id;
@@ -6018,8 +6025,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri);
+		const modelConfiguration = selectedModelId && selectedModel?.config !== undefined ? selectedModel.config : undefined;
+		if (selectedModelId && modelConfiguration) {
+			this._carriedOverChatModelConfigurations.set(chat.resource.toString(), { modelId: selectedModelId, configuration: modelConfiguration });
+		}
+
+		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri, modelConfiguration);
 		return chat;
+	}
+
+	/**
+	 * The model a chat is actually running on per the host: its draft model, else the model of
+	 * its active or most recent turn. `undefined` when the chat state is not hydrated.
+	 */
+	private _readRunningChatModel(connection: IAgentConnection, chat: URI): ModelSelection | undefined {
+		const ref = connection.getSubscription(StateComponents.Chat, chat, 'BaseAgentHostSessionsProvider.runningChatModel');
+		try {
+			const state = ref.object.value;
+			if (!state || state instanceof Error) {
+				return undefined;
+			}
+			return state.draft?.model ?? state.activeTurn?.message.model ?? state.turns.at(-1)?.message.model;
+		} finally {
+			ref.dispose();
+		}
 	}
 
 	private _resolveBackendSourceChatUri(sessionId: string, sessionUri: URI, sourceChat: URI): URI {
@@ -6060,7 +6089,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const contribution = this._chatSessionsService.getChatSessionContribution(sessionType);
 
 		const selectedModelId = this._resolveSendModelId(chatId, cached.getChatModelId(chatResource));
-		const selectedModelConfiguration = this._runningModelConfigurations.get(cached.sessionId)?.getModelConfigurationForRequest(selectedModelId);
+		const carriedOverConfiguration = this._carriedOverChatModelConfigurations.get(chatResource.toString());
+		this._carriedOverChatModelConfigurations.delete(chatResource.toString());
+		const selectedModelConfiguration = carriedOverConfiguration && carriedOverConfiguration.modelId === selectedModelId
+			? carriedOverConfiguration.configuration
+			: this._runningModelConfigurations.get(cached.sessionId)?.getModelConfigurationForRequest(selectedModelId);
 		const selectedAgentUri = cached.getChatMode(chatResource)?.id;
 
 		const sendOptions: IChatSendRequestOptions = {
@@ -6131,13 +6164,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private async _retainChatSessionModel(chatResource: URI, modelId: string | undefined, agentUri: string | undefined): Promise<void> {
+	private async _retainChatSessionModel(chatResource: URI, modelId: string | undefined, agentUri: string | undefined, modelConfiguration?: IAutomationSessionTemplate['modelConfiguration']): Promise<void> {
 		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!modelRef) {
 			return;
 		}
 
-		this._applyChatSessionState(modelRef, modelId, agentUri);
+		this._applyChatSessionState(modelRef, modelId, agentUri, { modelConfiguration });
 		const resourceKey = chatResource.toString();
 		const lease = new DisposableStore();
 		lease.add(modelRef);

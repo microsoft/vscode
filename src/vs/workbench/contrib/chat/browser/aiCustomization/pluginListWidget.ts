@@ -1392,18 +1392,18 @@ export class PluginListWidget extends Disposable {
 		const availableEntries = availableItems.map(item => ({ type: 'marketplace-item' as const, item }));
 		const definitions = [
 			{
-				id: 'workspace',
-				label: localize('workspacePluginsGroup', "Workspace"),
-				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
-				icon: Codicon.folder,
-				children: workspaceEntries,
-			},
-			{
 				id: 'user',
 				label: localize('userPluginsGroup', "User"),
 				description: localize('userPluginsGroupDescription', "Plugins installed for your profile and available across workspaces."),
 				icon: Codicon.account,
 				children: userEntries,
+			},
+			{
+				id: 'workspace',
+				label: localize('workspacePluginsGroup', "Workspace"),
+				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
+				icon: Codicon.folder,
+				children: workspaceEntries,
 			},
 			{
 				id: 'remote',

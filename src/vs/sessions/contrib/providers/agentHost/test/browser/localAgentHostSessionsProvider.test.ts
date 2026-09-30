@@ -8098,6 +8098,66 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}));
 
+		test('createSideChat inherits the model the source chat last ran on when no model is recorded for it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
+			let sent: { modelId: string | undefined; modelConfiguration: IChatSendRequestOptions['userSelectedModelConfiguration'] } | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				lookupLanguageModel: createTestLanguageModel,
+				acquireOrLoadSession: async () => {
+					const inputModel = new class extends mock<IInputModel>() {
+						override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+						override setState(): void { }
+						override clearState(): void { }
+						override toJSON(): undefined { return undefined; }
+					}();
+					const chatModel = new class extends mock<IChatModel>() {
+						override readonly inputModel = inputModel;
+					}();
+					return { object: chatModel, dispose() { } } satisfies IChatModelReference;
+				},
+				sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+					sent = { modelId: options?.userSelectedModelId, modelConfiguration: options?.userSelectedModelConfiguration };
+					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = setupMultiChatSession(provider, 'side-chat-byok');
+			const sessionUri = AgentSession.uri('copilotcli', 'side-chat-byok').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('side-chat-byok', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+			// The main chat ran on a BYOK model; the host records it on the turn, but the
+			// chat has no persisted draft model, so the adapter never learns it.
+			agentHost.setChatState(defaultChat, {
+				resource: defaultChat,
+				title: 'Session',
+				status: ProtocolSessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+				turns: [{
+					id: 'turn-1',
+					startedAt: new Date(0).toISOString(),
+					message: { text: 'hi', origin: { kind: MessageKind.User }, model: { id: 'byok-model', config: { reasoningEffort: 'high' } } },
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			});
+
+			const sideChat = await provider.createSideChat(session.sessionId, session.resource, 'turn-1');
+			await provider.sendRequest(session.sessionId, sideChat.resource, { query: 'side question' });
+
+			assert.deepStrictEqual({
+				adapterModelId: session.modelId.get(),
+				createdModel: agentHost.createdChats.at(-1)?.options?.model,
+				sent,
+			}, {
+				adapterModelId: undefined,
+				createdModel: { id: 'byok-model', config: { reasoningEffort: 'high' } },
+				// The source turn's configuration travels with the model, not the global default.
+				sent: { modelId: 'agent-host-copilotcli:byok-model', modelConfiguration: { reasoningEffort: 'high' } },
+			});
+		}));
+
 		test('createSideChat rejects when the session capability is not advertised', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-side-chat-unsupported');

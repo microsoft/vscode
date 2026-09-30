@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
@@ -21,21 +22,23 @@ import { ISendRequestOptions, ISessionsProvider } from '../../../../services/ses
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
-import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING } from '../../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
+import { IWorkspacePickerContextAction, IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import { TOTAL_SESSIONS_KEY } from '../../../sessions/browser/sessionsLifecycleTracker.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
+import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -155,7 +158,27 @@ const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreate
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
 const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
-const restoreAndPersistSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreAndPersistSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
+const restoreSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
+const setSessionOptionsExpandedFromUser = Reflect.get(NewChatWidget.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
+const getContextPickerActions = Reflect.get(NewChatWidget.prototype, '_getContextPickerActions') as (this: {
+	readonly _workspacePicker: Pick<WorkspacePicker, 'getContextPickerActions'>;
+	readonly _useExperimentalComposerLayout: IObservable<boolean>;
+	readonly _agentsPickerInAttachContextMenu: IObservable<boolean>;
+	readonly _newSessionAttachContextMenu: {
+		getActions(): [string, IAction[]][];
+	};
+	readonly _newChatInput: {
+		runAttachContextAction(action: IAction): Promise<void>;
+	};
+	readonly _session: IObservable<IActiveSession | undefined>;
+	readonly sessionsProvidersService: {
+		getProvider(providerId: string): ISessionsProvider | undefined;
+	};
+	readonly contextKeyService: {
+		getContextKeyValue<T>(key: string): T | undefined;
+	};
+	readonly telemetryService: ITelemetryService;
+}) => readonly IWorkspacePickerContextAction[];
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => string | undefined;
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
@@ -209,8 +232,12 @@ interface ISessionCountHarness {
 
 interface ISessionOptionsPersistenceHarness {
 	readonly storageService: IStorageService;
+	readonly _usage: AgentsWindowUsage;
+	readonly configurationService: {
+		getValue<T>(key: string): T;
+	};
+	readonly telemetryService: ITelemetryService;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
-	_register<T extends IDisposable>(disposable: T): T;
 }
 
 interface ISendHarness {
@@ -256,6 +283,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	_workspacePickerRow: HTMLElement | undefined;
 	_workspaceSessionOptionsHost: HTMLElement | undefined;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
+	_setSessionOptionsExpandedFromUser(expanded: boolean): void;
 	readonly _useExperimentalComposerLayout: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
@@ -337,26 +365,62 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('remembers the session options expanded state across composers', () => {
-		const storageService = disposables.add(new InMemoryStorageService());
-		const restore = (initial: boolean) => {
+	test('applies the session options experiment only before the first created session', () => {
+		const restore = (storageService: IStorageService, telemetryService: ITelemetryService, initial: boolean, expandedByDefault: boolean | undefined) => {
 			const expanded = observableValue('sessionOptionsExpanded', initial);
-			restoreAndPersistSessionOptionsExpanded.call({
+			const harness: ISessionOptionsPersistenceHarness = {
 				storageService,
+				_usage: new AgentsWindowUsage(storageService),
+				configurationService: {
+					getValue: <T>(key: string) => ({
+						[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
+						[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
+						[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING]: expandedByDefault,
+					})[key] as T,
+				},
+				telemetryService,
 				_sessionOptionsExpanded: expanded,
-				_register: disposable => disposables.add(disposable),
-			});
-			return expanded;
+			};
+			restoreSessionOptionsExpanded.call(harness);
+			return { expanded, harness };
 		};
 
-		// No stored preference restores the expanded default, then collapsing is persisted and
-		// restored by the next composer.
-		const first = restore(false);
-		const defaultExpanded = first.get();
-		first.set(false, undefined);
-		const restoredCollapsed = restore(true).get();
+		const firstTimeStorage = disposables.add(new InMemoryStorageService());
+		const firstTimeTelemetry = new TestExperimentTriggerTelemetryService();
+		const first = restore(firstTimeStorage, firstTimeTelemetry, true, false);
+		const configuredDefault = first.expanded.get();
+		const defaultBeforeInteraction = restore(firstTimeStorage, firstTimeTelemetry, true, false).expanded.get();
+		setSessionOptionsExpandedFromUser.call(first.harness, true);
+		const restoredUserChoice = restore(firstTimeStorage, firstTimeTelemetry, false, false).expanded.get();
 
-		assert.deepStrictEqual({ defaultExpanded, restoredCollapsed }, { defaultExpanded: true, restoredCollapsed: false });
+		const returningStorage = disposables.add(new InMemoryStorageService());
+		returningStorage.store(TOTAL_SESSIONS_KEY, 1, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const returningTelemetry = new TestExperimentTriggerTelemetryService();
+		const returningDefault = restore(returningStorage, returningTelemetry, false, false).expanded.get();
+
+		const fallbackStorage = disposables.add(new InMemoryStorageService());
+		const fallbackTelemetry = new TestExperimentTriggerTelemetryService();
+		const fallbackDefault = restore(fallbackStorage, fallbackTelemetry, false, undefined).expanded.get();
+
+		assert.deepStrictEqual({
+			configuredDefault,
+			defaultBeforeInteraction,
+			restoredUserChoice,
+			returningDefault,
+			fallbackDefault,
+			firstTimeTriggers: firstTimeTelemetry.triggers,
+			returningTriggers: returningTelemetry.triggers,
+			fallbackTriggers: fallbackTelemetry.triggers,
+		}, {
+			configuredDefault: false,
+			defaultBeforeInteraction: false,
+			restoredUserChoice: true,
+			returningDefault: true,
+			fallbackDefault: true,
+			firstTimeTriggers: [`config.${NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING}`],
+			returningTriggers: [],
+			fallbackTriggers: [`config.${NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING}`],
+		});
 	});
 
 	test('workspace remains visible while repository and harness controls expand without being recreated', () => {
@@ -417,6 +481,7 @@ suite('NewChatWidget', () => {
 			_workspacePickerRow: undefined,
 			_workspaceSessionOptionsHost: undefined,
 			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
+			_setSessionOptionsExpandedFromUser: expanded => harness._sessionOptionsExpanded.set(expanded, undefined),
 			_useExperimentalComposerLayout: observableValue('experimentalComposerLayout', false),
 			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
 			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.
@@ -2184,5 +2249,86 @@ suite('NewChatWidget', () => {
 			});
 		});
 	}
+
+	test('moves the Agent picker into Add Context until the user selects an agent', async () => {
+		const createHarness = (enabled: boolean, experimentalLayout = true, eligibility: 'eligible' | 'empty' | 'otherProvider' | 'phone' = 'eligible') => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			let openCount = 0;
+			let showAgentAction = true;
+			let forwardsActionArguments = false;
+			const providerId = eligibility === 'otherProvider' ? 'other-provider' : LOCAL_AGENT_HOST_PROVIDER_ID;
+			const agentAction = toAction({
+				id: 'sessions.agentHost.agentPicker',
+				label: 'Agent',
+				run: async () => { openCount++; },
+			});
+			const existingAction: IWorkspacePickerContextAction = {
+				label: 'Existing',
+				icon: Codicon.file,
+				run: async () => { },
+			};
+			const harness = {
+				_workspacePicker: { getContextPickerActions: () => [existingAction] },
+				_useExperimentalComposerLayout: constObservable(experimentalLayout),
+				_agentsPickerInAttachContextMenu: constObservable(enabled),
+				_newSessionAttachContextMenu: {
+					getActions: (options?: { shouldForwardArgs?: boolean }) => {
+						forwardsActionArguments = options?.shouldForwardArgs === true;
+						return [['navigation', showAgentAction ? [agentAction] : []] as [string, IAction[]]];
+					},
+				},
+				_newChatInput: {
+					runAttachContextAction: async (action: IAction) => { await action.run(); },
+				},
+				_session: constObservable(eligibility === 'empty' ? undefined : upcastPartial<IActiveSession>({ providerId })),
+				sessionsProvidersService: {
+					getProvider: (id: string) => upcastPartial<ISessionsProvider>({ id }),
+				},
+				contextKeyService: {
+					getContextKeyValue: <T>() => (eligibility === 'phone') as T,
+				},
+				telemetryService,
+			};
+			return { harness, telemetryService, hideAgentAction: () => showAgentAction = false, getOpenCount: () => openCount, forwardsActionArguments: () => forwardsActionArguments };
+		};
+		const control = createHarness(false);
+		const treatment = createHarness(true);
+		const legacyLayoutTreatment = createHarness(true, false);
+		const emptyComposer = createHarness(true, true, 'empty');
+		const otherProvider = createHarness(true, true, 'otherProvider');
+		const phoneComposer = createHarness(true, true, 'phone');
+		const treatmentActions = getContextPickerActions.call(treatment.harness);
+		await treatmentActions[0].run();
+		treatment.hideAgentAction();
+
+		assert.deepStrictEqual({
+			controlLabels: getContextPickerActions.call(control.harness).map(action => action.label),
+			treatmentLabels: treatmentActions.map(action => action.label),
+			legacyLayoutTreatmentLabels: getContextPickerActions.call(legacyLayoutTreatment.harness).map(action => action.label),
+			ineligible: [emptyComposer, otherProvider, phoneComposer].map(item => ({
+				labels: getContextPickerActions.call(item.harness).map(action => action.label),
+				triggers: item.telemetryService.triggers,
+			})),
+			afterSelectionLabels: getContextPickerActions.call(treatment.harness).map(action => action.label),
+			openCount: treatment.getOpenCount(),
+			forwardsActionArguments: treatment.forwardsActionArguments(),
+			controlTriggers: control.telemetryService.triggers,
+			treatmentTriggers: treatment.telemetryService.triggers,
+		}, {
+			controlLabels: ['Existing'],
+			treatmentLabels: ['Agent...', 'Existing'],
+			legacyLayoutTreatmentLabels: ['Agent...', 'Existing'],
+			ineligible: [
+				{ labels: ['Existing'], triggers: [] },
+				{ labels: ['Existing'], triggers: [] },
+				{ labels: ['Existing'], triggers: [] },
+			],
+			afterSelectionLabels: ['Existing'],
+			openCount: 1,
+			forwardsActionArguments: true,
+			controlTriggers: [`config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`],
+			treatmentTriggers: [`config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`],
+		});
+	});
 
 });

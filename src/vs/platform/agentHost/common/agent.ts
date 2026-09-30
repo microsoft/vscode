@@ -338,6 +338,8 @@ export interface AuthenticateParams {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	/** Optional client metadata. Hosts must remain usable when it is absent. */
+	readonly _meta?: Record<string, unknown>;
 }
 
 /** Request for a previously accepted bearer token. */
