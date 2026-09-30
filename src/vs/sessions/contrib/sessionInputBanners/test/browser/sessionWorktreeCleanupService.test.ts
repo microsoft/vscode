@@ -320,7 +320,7 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
-	test('coalesces concurrent measurements into one cancellable progress operation', async () => {
+	test('coalesces concurrent measurements while giving each caller cancellable progress', async () => {
 		const diskUsage = new DeferredPromise<number | undefined>();
 		const progressService = new TestProgressService();
 		let scanCount = 0;
@@ -354,15 +354,21 @@ suite('SessionWorktreeCleanupService', () => {
 			states: [(await fourteenDays)[0].cleanupState, (await sevenDays)[0].cleanupState],
 		}, {
 			scanCount: 1,
-			progress: [{
-				title: 'Measuring agent session worktrees...',
-				cancellable: true,
-			}],
+			progress: [
+				{
+					title: 'Measuring agent session worktrees...',
+					cancellable: true,
+				},
+				{
+					title: 'Measuring agent session worktrees...',
+					cancellable: true,
+				},
+			],
 			states: ['eligible', 'eligible'],
 		});
 	});
 
-	test('reports cleanup progress after each archived session', async () => {
+	test('reports cleanup scheduling progress after each archived session', async () => {
 		const archived: string[] = [];
 		const progressService = new TestProgressService();
 		const first = createSession('first', oldDate(), SessionStatus.Completed, false, true, 2);
@@ -402,17 +408,17 @@ suite('SessionWorktreeCleanupService', () => {
 			cleaned: true,
 			archived: ['first', 'second'],
 			progress: [{
-				title: 'Cleaning up 3 agent session worktrees...',
-				total: 3,
+				title: 'Scheduling cleanup for 3 agent session worktrees...',
+				total: undefined,
 			}],
 			reports: [
-				{ increment: 2, total: 3, message: '2 of 3 worktrees' },
-				{ increment: 1, total: 3, message: '3 of 3 worktrees' },
+				{ increment: 2 / 3 * 100, message: 'Scheduled 2 of 3 worktrees' },
+				{ increment: 1 / 3 * 100, message: 'Scheduled 3 of 3 worktrees' },
 			],
 		});
 	});
 
-	test('cancels an active measurement from the progress notification', async () => {
+	test('cancels a foreground wait while disk measurement remains unresolved', async () => {
 		const diskUsage = new DeferredPromise<number | undefined>();
 		const progressService = new TestProgressService();
 		const service = disposables.add(createService(
@@ -431,9 +437,72 @@ suite('SessionWorktreeCleanupService', () => {
 
 		const measurement = service.getWorktrees(14);
 		progressService.cancel();
-		diskUsage.complete(ByteSize.GB);
 
 		await assert.rejects(measurement, error => isCancellationError(error));
+		diskUsage.complete(ByteSize.GB);
+	});
+
+	test('canceling a foreground wait does not cancel a shared background measurement', async () => {
+		const diskUsage = new DeferredPromise<number | undefined>();
+		const progressService = new TestProgressService();
+		const service = disposables.add(createService(
+			[createSession('eligible', oldDate())],
+			true,
+			() => diskUsage.p,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			Event.None,
+			{ progressService },
+		));
+
+		const backgroundMeasurement = service.activate();
+		const foregroundMeasurement = service.getWorktrees(14);
+		progressService.cancel();
+
+		await assert.rejects(foregroundMeasurement, error => isCancellationError(error));
+		diskUsage.complete(ByteSize.GB);
+		await backgroundMeasurement;
+
+		assert.deepStrictEqual((await service.getWorktrees(14)).map(worktree => worktree.session.sessionId), ['eligible']);
+	});
+
+	test('retries when the worktree session set changes during measurement', async () => {
+		const firstMeasurement = new DeferredPromise<number | undefined>();
+		const firstMeasurementStarted = new DeferredPromise<void>();
+		const original = createSession('original', oldDate());
+		const replacement = createSession('replacement', oldDate());
+		const sessions = [original];
+		let scanCount = 0;
+		const service = disposables.add(createService(
+			sessions,
+			true,
+			session => {
+				scanCount++;
+				if (session === original) {
+					firstMeasurementStarted.complete();
+					return firstMeasurement.p;
+				}
+				return ByteSize.GB;
+			},
+		));
+
+		const measurement = service.getWorktrees(14);
+		await firstMeasurementStarted.p;
+		sessions.splice(0, 1, replacement);
+		firstMeasurement.complete(ByteSize.GB);
+		const worktrees = await measurement;
+
+		assert.deepStrictEqual({
+			scanCount,
+			sessionIds: worktrees.map(worktree => worktree.session.sessionId),
+		}, {
+			scanCount: 2,
+			sessionIds: ['replacement'],
+		});
 	});
 
 });
