@@ -532,6 +532,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					const responseId = getOpenAiResponseId(msg as { response_id?: unknown; response?: { id?: unknown } }) ?? 'openai-response';
 					const firstChunk = !this._openAiAudioChunkSeen.has(responseId);
 					this._openAiAudioChunkSeen.add(responseId);
+					if (firstChunk) {
+						this._logService.info(`[voice] OpenAI audio stream started response=${responseId}`);
+					}
 					this._onAudioResponse.fire({
 						audio: asOptionalString((msg as { delta?: string }).delta) ?? '',
 						isFirstChunk: firstChunk,
@@ -544,6 +547,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				case 'response.output_audio.done': {
 					const responseId = getOpenAiResponseId(msg as { response_id?: unknown; response?: { id?: unknown } }) ?? 'openai-response';
 					this._openAiAudioChunkSeen.delete(responseId);
+					this._logService.info(`[voice] OpenAI audio stream completed response=${responseId}`);
 					this._onAudioResponse.fire({
 						audio: '',
 						isFirstChunk: false,
@@ -740,7 +744,17 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			if (this._isOpenAiRealtimeMode()) {
 				this._ws.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
-				this._ws.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio'] } }));
+				this._ws.send(JSON.stringify({
+					type: 'response.create',
+					response: {
+						modalities: ['audio', 'text'],
+						audio: {
+							voice: this._getOpenAiVoice(),
+							format: 'pcm16',
+						},
+					},
+				}));
+				this._logService.info(`[voice] OpenAI response.create requested voice=${this._getOpenAiVoice()} format=pcm16`);
 				return;
 			}
 			this._ws.send(JSON.stringify({ type: 'ptt_end' }));
