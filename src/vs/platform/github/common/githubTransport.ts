@@ -97,6 +97,10 @@ export interface GitHubTransportOptions {
 	readonly maximumSharedWaiters: number;
 	readonly queue?: Partial<GitHubRequestQueueOptions>;
 	readonly requestMetadata?: GitHubRequestMetadata;
+	readonly coordination?: {
+		readonly queue: GitHubRequestQueue;
+		readonly rateLimits: GitHubRateLimitCoordinator;
+	};
 }
 
 const defaultApiVersion = '2022-11-28';
@@ -114,6 +118,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	private readonly _inFlight = new Map<string, ISharedRequest<GitHubRestResponse<unknown>>>();
 	private readonly _graphQlInFlight = new Map<string, ISharedRequest<GitHubGraphQLResponse<unknown>>>();
 	private readonly _options: GitHubTransportOptions;
+	private readonly _accounts = new Map<string, GitHubAccountHandle>();
 
 	constructor(
 		fetchFn: FetchFunction | undefined,
@@ -136,8 +141,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			}
 		}
 		this._fetch = fetchFn ?? ((input, init) => globalThis.fetch(input, init));
-		this._rateLimits = this._register(new GitHubRateLimitCoordinator(_scheduler));
-		this._queue = this._register(new GitHubRequestQueue(_scheduler, context => this._rateLimits.getDelay(context.account, context.resource), options.queue, _telemetry));
+		this._rateLimits = options.coordination?.rateLimits ?? this._register(new GitHubRateLimitCoordinator(_scheduler));
+		this._queue = options.coordination?.queue ?? this._register(new GitHubRequestQueue(_scheduler, context => this._rateLimits.getDelay(context.account, context.resource), options.queue, _telemetry));
 	}
 
 	get rateLimits(): GitHubRateLimitCoordinator {
@@ -477,8 +482,9 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		const restRequests = [...this._inFlight.keys()].filter(key => key.startsWith(`${accountKey}\x00`)).length;
 		const graphQlRequests = [...this._graphQlInFlight.keys()].filter(key => key.startsWith(`${accountKey}\x00`)).length;
 		this._logService?.debug(`[GitHubTransport] Invalidating state for ${account.host} (REST requests: ${restRequests}, GraphQL requests: ${graphQlRequests})`);
-		this._queue.cancelAccount(account, reason);
-		this._rateLimits.releaseAccount(account);
+		this._queue.cancelAccount(account, reason, this);
+		this._rateLimits.releaseAccount(account, this);
+		this._accounts.delete(accountKey);
 		const cacheKeys: string[] = [];
 		for (const [key, entry] of this._restCache) {
 			if (entry.accountKey === accountKey) {
@@ -504,7 +510,11 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 
 	clear(): void {
 		this._logService?.debug(`[GitHubTransport] Clearing transport state (cache: ${this._restCache.size}, REST requests: ${this._inFlight.size}, GraphQL requests: ${this._graphQlInFlight.size})`);
-		this._queue.clear();
+		this._queue.cancelOwner(this);
+		for (const account of this._accounts.values()) {
+			this._rateLimits.releaseAccount(account, this);
+		}
+		this._accounts.clear();
 		this._restCache.clear();
 		this._redirects.clear();
 		for (const request of this._inFlight.values()) {
@@ -518,8 +528,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	}
 
 	override dispose(): void {
-		this.clear();
 		super.dispose();
+		this.clear();
 	}
 
 	private async _executeRest<T>(
@@ -641,13 +651,14 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		onAdmitted?: () => void,
 	): Promise<T> {
 		const context: GitHubRequestContext = {
-			account, resource, priority, signal, kind,
+			account, resource, priority, signal, kind, owner: this,
 			caller: options.caller ?? 'github',
 			deadline: this._deadline(options),
 		};
 		// A rejected request never becomes active, so it must not cancel cleanup of an inactive cooldown.
 		return this._queue.enqueue(context, task, () => {
-			this._rateLimits.retainAccount(account);
+			this._accounts.set(GitHubRequestQueue.accountKey(account), account);
+			this._rateLimits.retainAccount(account, this);
 			onAdmitted?.();
 		});
 	}
@@ -737,6 +748,9 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	}
 
 	private _deadline(options: GitHubRequestOptions, timeout = this._options.requestTimeout): number {
+		if (this._store.isDisposed) {
+			throw new GitHubRequestError('GitHub client was disposed', 'unknown');
+		}
 		if (options.caller !== undefined && !options.caller.trim()
 			|| options.deadline !== undefined && !Number.isFinite(options.deadline)) {
 			throw new GitHubRequestError('Invalid GitHub request options', 'validation');
