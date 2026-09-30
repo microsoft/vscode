@@ -680,7 +680,7 @@
 
 .session-chat-item {
 	/* Base title-row height, matching SessionsTreeDelegate.CHAT_ITEM_HEIGHT.
-		Details and approval rows stack beneath it without changing this value. */
+		Folder and approval rows stack beneath it without changing this value. */
 	--session-chat-base-height: 28px;
 	display: flex;
 	flex-direction: column;
@@ -739,12 +739,7 @@
 		line-height: 17px;
 	}
 
-	&.unread .session-chat-title,
-	&.needs-input .session-chat-title {
-		color: var(--vscode-strongForeground);
-	}
-
-	.session-chat-details-row {
+	.session-chat-folder-row {
 		display: flex;
 		align-items: center;
 		flex: 0 0 var(--vscode-spacing-size160);
@@ -772,38 +767,9 @@
 		}
 
 		.session-chat-folder-label {
-			flex-shrink: 1;
 			min-width: 0;
 			overflow: hidden;
 			text-overflow: ellipsis;
-			white-space: nowrap;
-		}
-
-		.session-description {
-			min-width: 0;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-
-			p {
-				margin: 0;
-				overflow: hidden;
-				text-overflow: ellipsis;
-				white-space: nowrap;
-			}
-		}
-
-		.session-separator {
-			flex-shrink: 0;
-
-			&::before {
-				content: '\00B7';
-			}
-		}
-
-		.session-time {
-			flex-shrink: 0;
-			font-variant-numeric: tabular-nums;
 			white-space: nowrap;
 		}
 	}
