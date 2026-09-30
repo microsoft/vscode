@@ -226,6 +226,106 @@ suite('ProjectBoardModel', () => {
 		assert.strictEqual(model.getPlacement(child.id), undefined);
 	});
 
+	test('delegated tool chats follow their declared parent instead of remaining in Unassigned', () => {
+		const parent = createChat('parent', ChatInteractivity.Full);
+		const worker = createChat('worker', ChatInteractivity.ReadOnly, { kind: ChatOriginKind.Tool, parentChat: parent.resource });
+		const model = new ProjectBoardModel();
+		model.updateSessions([createSession(parent, worker)]);
+		const [parentCard, workerCard] = model.cards;
+		model.moveCard(parentCard.id, { rowId: 'general', columnId: 'p1' });
+
+		assert.deepStrictEqual({
+			unassigned: model.getUnassignedCards().map(card => card.title),
+			parent: model.getParentCard(workerCard.id)?.title,
+			children: model.getChildCards(parentCard.id).map(card => card.title),
+			placement: model.getPlacement(workerCard.id),
+		}, { unassigned: [], parent: 'parent', children: ['worker'], placement: { rowId: 'general', columnId: 'p1' } });
+	});
+
+	test('nested workers inherit through peer chats and follow the nearest explicit placement', () => {
+		const main = createChat('main', ChatInteractivity.Full);
+		const peer = createChat('peer', ChatInteractivity.Full, { kind: ChatOriginKind.User });
+		const worker = createChat('worker', ChatInteractivity.ReadOnly, { kind: ChatOriginKind.Tool, parentChat: peer.resource });
+		const nested = createChat('nested', ChatInteractivity.ReadOnly, { kind: ChatOriginKind.Tool, parentChat: worker.resource });
+		const session = createSession(main, peer, worker, nested);
+		session.chats.set([nested, worker, peer, main], undefined);
+		const model = new ProjectBoardModel();
+		model.updateSessions([session]);
+		const id = (chat: IChat) => model.cards.find(card => card.chat === chat)!.id;
+		model.moveCard(id(main), { rowId: 'general', columnId: 'p0' });
+		assert.deepStrictEqual({
+			unassigned: model.getUnassignedCards().map(card => card.title),
+			parents: [peer, worker, nested].map(chat => model.getParentCard(id(chat))?.title),
+			placements: [peer, worker, nested].map(chat => model.getPlacement(id(chat))),
+		}, { unassigned: [], parents: ['main', 'peer', 'worker'], placements: Array(3).fill({ rowId: 'general', columnId: 'p0' }) });
+		model.moveCard(id(peer), { rowId: 'general', columnId: 'p1' });
+		assert.deepStrictEqual({
+			roots: model.getCards('general', 'p1').map(card => card.title),
+			worker: model.getPlacement(id(worker)), nested: model.getPlacement(id(nested)),
+		}, { roots: ['peer'], worker: { rowId: 'general', columnId: 'p1' }, nested: { rowId: 'general', columnId: 'p1' } });
+		model.moveCard(id(worker), { rowId: 'general', columnId: 'p2' });
+		assert.deepStrictEqual({
+			roots: model.getCards('general', 'p2').map(card => card.title), nested: model.getPlacement(id(nested)),
+		}, { roots: ['worker'], nested: { rowId: 'general', columnId: 'p2' } });
+		model.moveCard(id(worker), undefined);
+		assert.strictEqual(model.getParentCard(id(worker))?.title, 'peer');
+		assert.deepStrictEqual(model.getPlacement(id(nested)), { rowId: 'general', columnId: 'p1' });
+	});
+
+	test('unknown and filtered worker parents stay visible and late parent discovery rejoins the family', () => {
+		const main = createChat('main', ChatInteractivity.Full);
+		const peer = createChat('peer', ChatInteractivity.Full);
+		const worker = createChat('worker', ChatInteractivity.ReadOnly, { kind: ChatOriginKind.Tool, parentChat: peer.resource });
+		const unknown = createChat('unknown', ChatInteractivity.ReadOnly, { kind: ChatOriginKind.Tool });
+		const hidden = createChat('hidden', ChatInteractivity.Hidden, { kind: ChatOriginKind.Tool, parentChat: main.resource });
+		const session = createSession(main, worker, unknown, hidden);
+		const model = new ProjectBoardModel();
+		model.updateSessions([session]);
+		assert.deepStrictEqual(model.getUnassignedCards().map(card => card.title), ['main', 'unknown', 'worker']);
+		session.chats.set([main, peer, worker, unknown, hidden], undefined);
+		model.updateSessions([session]);
+		const workerId = model.cards.find(card => card.chat === worker)!.id;
+		assert.strictEqual(model.getParentCard(workerId)?.title, 'peer');
+		peer.isArchived.set(true, undefined);
+		model.updateSessions([session]);
+		assert.deepStrictEqual({
+			roots: model.getUnassignedCards().map(card => card.title),
+			archivedParent: model.getParentCard(workerId, true)?.title,
+		}, { roots: ['main', 'unknown', 'worker'], archivedParent: 'peer' });
+	});
+
+	test('worker parent resolution is scoped to its owning session and provider', () => {
+		const parent = createChat('parent', ChatInteractivity.Full);
+		const worker = createChat('worker', ChatInteractivity.ReadOnly, { kind: ChatOriginKind.Tool, parentChat: parent.resource });
+		const otherMain = createChat('other', ChatInteractivity.Full);
+		const model = new ProjectBoardModel();
+		model.updateSessions([createSession(parent), createSession(otherMain, worker)]);
+		const card = model.cards.find(card => card.chat === worker)!;
+		assert.strictEqual(model.getParentCard(card.id), undefined);
+		assert.ok(model.getUnassignedCards().includes(card));
+
+		const session = createSession(parent, worker);
+		const otherProvider: ISession = { ...session, providerId: 'other-provider' };
+		model.updateSessions([session, otherProvider]);
+		assert.deepStrictEqual(model.cards.filter(card => card.chat === worker).map(card => [
+			card.session.providerId, model.getParentCard(card.id)?.session.providerId,
+		]), [['test-provider', 'test-provider'], ['other-provider', 'other-provider']]);
+	});
+
+	test('self-references and provider cycles cannot hide worker cards or recurse forever', () => {
+		const main = createChat('main', ChatInteractivity.Full);
+		const first = createChat('first', ChatInteractivity.ReadOnly, { kind: ChatOriginKind.Tool, parentChat: URI.parse('test-chat:session#second') });
+		const second = createChat('second', ChatInteractivity.ReadOnly, { kind: ChatOriginKind.Tool, parentChat: first.resource });
+		const self = createChat('self', ChatInteractivity.ReadOnly, { kind: ChatOriginKind.Tool, parentChat: URI.parse('test-chat:session#self') });
+		const model = new ProjectBoardModel();
+		model.updateSessions([createSession(main, first, second, self)]);
+		assert.deepStrictEqual({
+			roots: model.getUnassignedCards().map(card => card.title),
+			parents: model.cards.map(card => model.getParentCard(card.id)),
+			placements: model.cards.map(card => model.getPlacement(card.id)),
+		}, { roots: ['first', 'main', 'second', 'self'], parents: Array(4).fill(undefined), placements: Array(4).fill(undefined) });
+	});
+
 	test('only co-located children are grouped, with independent per-board placements', () => {
 		const session = createSession(createChat('parent', ChatInteractivity.Full), createChat('child', ChatInteractivity.Full));
 		const first = new ProjectBoardModel();
@@ -263,7 +363,7 @@ suite('ProjectBoardModel', () => {
 		assert.deepStrictEqual(model.getUnassignedCards(true).map(card => card.title), ['child']);
 	});
 
-	test('children reuse native list eligibility and retain their own recency and read state', () => {
+	test('children include declared workers alongside native peer chats and retain their own recency and read state', () => {
 		const parent = createChat('parent', ChatInteractivity.Full);
 		const first = createChat('first', ChatInteractivity.Full);
 		const second = createChat('second', ChatInteractivity.ReadOnly);
@@ -277,7 +377,7 @@ suite('ProjectBoardModel', () => {
 		assert.deepStrictEqual({
 			roots: model.getUnassignedCards().map(card => card.title),
 			children: model.getChildCards(parentId).map(card => [card.title, card.readOnly, card.isRead]),
-		}, { roots: ['parent', 'side', 'tool'], children: [['second', true, false], ['first', false, false]] });
+		}, { roots: ['parent', 'side'], children: [['second', true, false], ['first', false, false], ['tool', true, false]] });
 	});
 });
 

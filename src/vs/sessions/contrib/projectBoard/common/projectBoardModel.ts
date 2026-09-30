@@ -7,7 +7,7 @@ import { IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IProjectBoardConfiguration } from './projectBoardConfiguration.js';
-import { IChat, ISession, ChatInteractivity, SessionStatus, getGitHubPullRequestRefs, getSessionChildChats } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ChatInteractivity, ChatOriginKind, SessionStatus, getGitHubPullRequestRefs, getSessionChildChats } from '../../../services/sessions/common/session.js';
 
 export interface IProjectBoardAxis {
 	readonly id: string;
@@ -167,18 +167,47 @@ export class ProjectBoardModel {
 		const byId = new Map(cards.map(card => [card.id, card]));
 		for (const session of sessions) {
 			const parent = byId.get(getProjectBoardCardId(session, session.mainChat.read(reader)));
-			if (!parent) {
-				continue;
-			}
-			const children = getSessionChildChats(session, reader).flatMap(chat => {
-				const child = byId.get(getProjectBoardCardId(session, chat));
-				if (!child) {
-					return [];
+			if (parent) {
+				for (const chat of getSessionChildChats(session, reader)) {
+					const child = byId.get(getProjectBoardCardId(session, chat));
+					if (child) {
+						this.parents.set(child.id, parent);
+					}
 				}
-				this.parents.set(child.id, parent);
-				return [child];
-			});
-			this.children.set(parent.id, children);
+			}
+			for (const chat of session.chats.read(reader)) {
+				if (chat.origin?.kind !== ChatOriginKind.Tool || !chat.origin.parentChat) {
+					continue;
+				}
+				const child = byId.get(getProjectBoardCardId(session, chat));
+				const spawningChat = byId.get(`${getProjectBoardSessionKey(session)}\0${chat.origin.parentChat.toString()}`);
+				if (child && spawningChat && child !== spawningChat) {
+					this.parents.set(child.id, spawningChat);
+				}
+			}
+		}
+		// Malformed provider cycles stay visible as roots rather than hiding chats or recursing forever.
+		for (const card of cards) {
+			const ancestors = new Set<string>();
+			let current: IProjectBoardCard | undefined = card;
+			while (current && !ancestors.has(current.id)) {
+				ancestors.add(current.id);
+				current = this.parents.get(current.id);
+			}
+			if (current) {
+				let cycle: IProjectBoardCard | undefined = current;
+				while (cycle) {
+					const parent = this.parents.get(cycle.id);
+					this.parents.delete(cycle.id);
+					cycle = parent;
+				}
+			}
+		}
+		for (const card of cards) {
+			const parent = this.parents.get(card.id);
+			if (parent) {
+				this.children.set(parent.id, [...(this.children.get(parent.id) ?? []), card]);
+			}
 		}
 	}
 
@@ -206,8 +235,15 @@ export class ProjectBoardModel {
 	}
 
 	getInheritedPlacement(cardId: string): IProjectBoardPlacement | undefined {
-		const parent = this.parents.get(cardId);
-		return parent ? this.placements.get(parent.id) : undefined;
+		let parent = this.parents.get(cardId);
+		while (parent) {
+			const placement = this.placements.get(parent.id);
+			if (placement) {
+				return placement;
+			}
+			parent = this.parents.get(parent.id);
+		}
+		return undefined;
 	}
 
 	private getCardPlacement(card: IProjectBoardCard): IProjectBoardPlacement | undefined {
