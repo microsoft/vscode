@@ -567,8 +567,14 @@ export interface ISessionsManagementService {
 	 */
 	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
 
+	/** Set one chat's read state, falling back to the session state when unsupported. */
+	setChatReadState(session: ISession, chat: IChat, isRead: boolean): Promise<void>;
+
 	/** Mark a session as read through its provider. */
 	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void>;
+
+	/** Mark one chat as read through its provider. */
+	markChatRead(session: ISession, chat: IChat, options?: IMarkSessionReadOptions): Promise<void>;
 
 	/** Mark a session as unread through its provider. */
 	markUnread(session: ISession): Promise<void>;

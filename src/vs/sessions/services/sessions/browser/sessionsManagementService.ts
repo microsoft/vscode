@@ -1306,11 +1306,28 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this._getProvider(session)?.setSessionReadState(session.sessionId, isRead);
 	}
 
+	async setChatReadState(session: ISession, chat: IChat, isRead: boolean): Promise<void> {
+		const provider = this._getProvider(session);
+		if (provider?.setChatReadState) {
+			await provider.setChatReadState(session.sessionId, chat.resource, isRead);
+		} else {
+			await this.setSessionReadState(session, isRead);
+		}
+	}
+
 	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void> {
 		if (options?.preserveExplicitUnread && this._explicitlyMarkedUnreadSessions.has(session.resource)) {
 			return Promise.resolve();
 		}
 		return this.setSessionReadState(session, true);
+	}
+
+	markChatRead(session: ISession, chat: IChat, options?: IMarkSessionReadOptions): Promise<void> {
+		const provider = this._getProvider(session);
+		if (provider?.setChatReadState) {
+			return provider.setChatReadState(session.sessionId, chat.resource, true);
+		}
+		return this.markRead(session, options);
 	}
 
 	markUnread(session: ISession): Promise<void> {

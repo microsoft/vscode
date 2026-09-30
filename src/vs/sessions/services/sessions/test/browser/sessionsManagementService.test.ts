@@ -1336,6 +1336,55 @@ suite('SessionsManagementService', () => {
 			);
 		});
 
+		test('opening an unread peer chat marks that chat read before clearing the aggregate session state', async () => {
+			const sessionRead = observableValue('sessionRead', false);
+			const mainRead = observableValue('mainRead', true);
+			const peerRead = observableValue('peerRead', false);
+			const archivedRead = observableValue('archivedRead', false);
+			const main: IChat = { ...stubChat, resource: URI.parse('test:///main'), isRead: mainRead };
+			const peer: IChat = { ...stubChat, resource: URI.parse('test:///peer'), isRead: peerRead };
+			const archived: IChat = { ...stubChat, resource: URI.parse('test:///archived'), isRead: archivedRead, isArchived: constObservable(true) };
+			const session = stubSession({
+				sessionId: 'multi-chat',
+				providerId: 'test',
+				isRead: sessionRead,
+				chats: constObservable([main, peer, archived]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const changes: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [session]; }
+				override async setChatReadState(_sessionId: string, chatResource: URI, read: boolean): Promise<void> {
+					changes.push(`chat:${chatResource.path}:${read}`);
+					(chatResource.path === peer.resource.path ? peerRead : mainRead).set(read, undefined);
+				}
+				override async setSessionReadState(_sessionId: string, read: boolean): Promise<void> {
+					changes.push(`session:${read}`);
+					sessionRead.set(read, undefined);
+				}
+			}(session);
+			const { view } = createSessionsManagementService(session, disposables, provider);
+
+			await view.openChat(session, peer.resource);
+
+			assert.deepStrictEqual({
+				activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+				mainRead: mainRead.get(),
+				peerRead: peerRead.get(),
+				archivedRead: archivedRead.get(),
+				sessionRead: sessionRead.get(),
+				changes,
+			}, {
+				activeChat: peer.resource.toString(),
+				mainRead: true,
+				peerRead: true,
+				archivedRead: false,
+				sessionRead: true,
+				changes: [`chat:${peer.resource.path}:true`, 'session:true'],
+			});
+		});
+
 		for (const destination of ['another session', 'the new-session composer']) {
 			test(`keeps an explicitly unread active session unread until navigating to ${destination} and back`, async () => {
 				const { session, other, service, view, readChanges } = createReadStateSessions();

@@ -30,6 +30,32 @@ const NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
 		{ id: 'task-b', title: 'Task B' },
 	],
 };
+const PER_CHAT_STATE_SESSION: ISessionsListFixtureSession = {
+	id: 'per-chat-state',
+	title: 'Refine session activity',
+	workspace: 'vscode',
+	minutesAgo: 1,
+	status: SessionStatus.InProgress,
+	description: 'Running integration tests',
+	mainChatStatus: SessionStatus.Completed,
+	mainChatMinutesAgo: 18,
+	chats: [
+		{ id: 'review', title: 'Review state propagation', minutesAgo: 12, isRead: false },
+		{ id: 'tests', title: 'Validate integration tests', status: SessionStatus.InProgress, description: 'Running integration tests', minutesAgo: 1 },
+	],
+};
+const COLLAPSED_UNREAD_CHAT_SESSION: ISessionsListFixtureSession = {
+	id: 'collapsed-unread-chat',
+	title: 'Review session state',
+	workspace: 'vscode',
+	minutesAgo: 2,
+	description: 'Peer review completed',
+	isRead: false,
+	mainChatMinutesAgo: 25,
+	chats: [
+		{ id: 'review', title: 'Review unread projection', minutesAgo: 2, isRead: false },
+	],
+};
 const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
 	id: 'nested-archive',
 	title: 'Investigate session persistence',
@@ -559,7 +585,31 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { width: 620 },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix single-pane details layout" peer chat shows an inactive dot. The session details say "Working...".'],
+		expectedVisualDescriptions: ['An expanded session projects its completed main chat on the parent row with an inactive dot and its own modified time. The completed "Fix single-pane details layout" peer has an inactive dot and modified time on the second line, while the active "Fix empty files restore" peer has a blue spinner and "Working..." on the second line.'],
+	}),
+	SessionsList_PerChatState: defineSessionsListFixture({
+		sessions: [PER_CHAT_STATE_SESSION],
+		view: { width: 460, height: 260 },
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['An expanded session projects the completed main chat on its parent row with its own 18-minute modified time. The completed unread "Review state propagation" peer has a blue unread dot and its own 12-minute time on the second line. The active "Validate integration tests" peer has a spinner and "Running integration tests" on the second line.'],
+	}),
+	SessionsList_CollapsedUnreadChatState: defineSessionsListFixture({
+		sessions: [COLLAPSED_UNREAD_CHAT_SESSION],
+		view: { width: 460, height: 180, collapsed: [{ session: 'collapsed-unread-chat' }] },
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A collapsed multi-chat session hides its unread peer and projects aggregate state on the parent: a blue unread dot and the aggregate two-minute modified time instead of the main chat\'s older 25-minute time.'],
+	}),
+	SessionsList_CollapsedPeerChatInProgress: defineSessionsListFixture({
+		sessions: [PER_CHAT_STATE_SESSION],
+		view: { width: 460, height: 180, collapsed: [{ session: 'per-chat-state' }], reducedMotion: false },
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A collapsed multi-chat session hides its completed main chat and peer rows, then projects the active peer onto the parent with a blue progress spinner and "Running integration tests" in the details line.'],
 	}),
 	SessionsList_NestedChatApprovals: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_APPROVAL_SESSION],
