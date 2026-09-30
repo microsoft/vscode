@@ -75,6 +75,7 @@ export function isVoiceEntitled(chatEntitlementService: IChatEntitlementService)
 /** One buffered audio chunk of a deferred response. */
 interface IDeferredChunk {
 	readonly audio: string;
+	readonly audioFormat?: 'pcm16';
 	readonly isFirstChunk: boolean;
 	readonly isFinal: boolean;
 	readonly transcript: string | undefined;
@@ -139,7 +140,7 @@ interface IQueuedAudioResponse {
 	readonly responseId?: string;
 	readonly narration?: IPlaybackNarration;
 	finalized: boolean;
-	readonly chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[];
+	readonly chunks: { audio: string; audioFormat?: 'pcm16'; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[];
 }
 
 interface IVoiceAgentStateInfo {
@@ -1947,7 +1948,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 				return;
 			} else if (defer) {
-				this._deferResponse(codingSessionId!, e.audio, e.isFirstChunk, e.isFinal, e.transcript, e.responseId, e.turnId);
+				this._deferResponse(codingSessionId!, e.audio, e.audioFormat, e.isFirstChunk, e.isFinal, e.transcript, e.responseId, e.turnId);
 			} else {
 				if (e.audio && !isCheckpointNarration) {
 					this._preemptCheckpointPlayback();
@@ -1962,7 +1963,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					&& !this._deferredBufferHasResponse(codingSessionId, e.responseId)) {
 					this._flushDeferredResponse(codingSessionId);
 				}
-				this._enqueueAudio(codingSessionId, e.audio, e.isFirstChunk, e.isFinal, e.transcript, e.responseId, playbackNarration);
+				this._enqueueAudio(codingSessionId, e.audio, e.audioFormat, e.isFirstChunk, e.isFinal, e.transcript, e.responseId, playbackNarration);
 				if (e.isFinal) {
 					this._liveReplyKeys.delete(codingSessionId ?? '');
 					// Record this heard reply so an immediate backend re-narration
@@ -5155,7 +5156,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this._shouldDeferForSession(sessionId);
 	}
 
-	private _deferResponse(sessionId: string, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string, turnId?: string): void {
+	private _deferResponse(sessionId: string, audio: string, audioFormat: 'pcm16' | undefined, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string, turnId?: string): void {
 		const key = this._sessionKey(sessionId);
 		let responses = this._deferredResponses.get(key);
 		if (!responses) {
@@ -5180,7 +5181,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._markPendingResponse(key, true);
 			this.logService.trace(`[voice] deferring response for unfocused session=${key} (buffered=${responses.length}); showing pending indicator`);
 		}
-		response.chunks.push({ audio, isFirstChunk, isFinal, transcript });
+		response.chunks.push({ audio, audioFormat, isFirstChunk, isFinal, transcript });
 		if (isFinal) {
 			response.finalized = true;
 		}
@@ -5281,7 +5282,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Play every buffered response for this session, in the order they arrived.
 		for (const r of responses) {
 			for (const chunk of r.chunks) {
-				this._enqueueAudio(key, chunk.audio, chunk.isFirstChunk, chunk.isFinal, chunk.transcript, r.responseId);
+				this._enqueueAudio(key, chunk.audio, chunk.audioFormat, chunk.isFirstChunk, chunk.isFinal, chunk.transcript, r.responseId);
 			}
 		}
 		// Do not mark these narrations heard here - enqueuing is not playing.
@@ -5534,7 +5535,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				continue;
 			}
 			for (const chunk of queued.chunks) {
-				this._deferResponse(sessionId, chunk.audio, chunk.isFirstChunk, chunk.isFinal, chunk.transcript, queued.responseId);
+				this._deferResponse(sessionId, chunk.audio, chunk.audioFormat, chunk.isFirstChunk, chunk.isFinal, chunk.transcript, queued.responseId);
 			}
 		}
 
@@ -5776,7 +5777,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			|| this._audioQueue.some(queued => isResponseForSession(queued.sessionId, queued.narration));
 	}
 
-	private _enqueueAudio(sessionId: string | undefined, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string, narration?: IPlaybackNarration): void {
+	private _enqueueAudio(sessionId: string | undefined, audio: string, audioFormat: 'pcm16' | undefined, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string, narration?: IPlaybackNarration): void {
 		const isCheckpointNarration = narration?.kind === 'checkpoint';
 		// An incoming response frame means the assistant is actively replying, so
 		// cancel any pending auto-listen. Otherwise a debounced listen scheduled
@@ -5821,7 +5822,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// too - forcing a fresh turn once the current one finishes.
 		const continuationOfCurrent = sameSession && !isFirstChunk && !this._currentPlaybackFinalized;
 		if ((nothingPlaying && this._audioQueue.length === 0) || continuationOfCurrent) {
-			this._playChunk(sessionId, audio, isFirstChunk, isFinal, transcript, responseId, narration);
+			this._playChunk(sessionId, audio, audioFormat, isFirstChunk, isFinal, transcript, responseId, narration);
 			return;
 		}
 
@@ -5840,7 +5841,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			entry = { sessionId, responseId, narration, finalized: false, chunks: [] };
 			this._audioQueue.push(entry);
 		}
-		entry.chunks.push({ audio, isFirstChunk, isFinal, transcript });
+		entry.chunks.push({ audio, audioFormat, isFirstChunk, isFinal, transcript });
 		if (isFinal) {
 			entry.finalized = true;
 		}
@@ -5851,7 +5852,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	private _playChunk(sessionId: string | undefined, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string, narration?: IPlaybackNarration): void {
+	private _playChunk(sessionId: string | undefined, audio: string, audioFormat: 'pcm16' | undefined, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string, narration?: IPlaybackNarration): void {
 		const isCheckpointNarration = narration?.kind === 'checkpoint';
 		// Streaming pipeline sends a monotonically-growing transcript on every
 		// chunk. On the FIRST chunk of a response we push a fresh assistant
@@ -5894,7 +5895,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			this._voiceState.set('speaking', undefined);
 			this._statusText.set('Speaking...', undefined);
-			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
+			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!, audioFormat);
 			if (this._isHandsFreeEnabled()) {
 				// Hands-free: keep the mic streaming while the assistant speaks so
 				// the backend's server-VAD can hear the user barge in over it. The
@@ -5941,7 +5942,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (isFinal && this._currentPlaybackSessionId === sessionId) {
 				this._currentPlaybackFinalized = true;
 			}
-			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
+			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!, audioFormat);
 		}
 	}
 
@@ -5954,7 +5955,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		while (this._currentPlaybackSessionId === null && this._audioQueue.length > 0) {
 			const next = this._audioQueue.shift()!;
 			for (const chunk of next.chunks) {
-				this._playChunk(next.sessionId, chunk.audio, chunk.isFirstChunk, chunk.isFinal, chunk.transcript, next.responseId, next.narration);
+				this._playChunk(next.sessionId, chunk.audio, chunk.audioFormat, chunk.isFirstChunk, chunk.isFinal, chunk.transcript, next.responseId, next.narration);
 			}
 		}
 		this._isProcessingQueue = false;

@@ -15,7 +15,7 @@ export interface ITtsPlaybackService {
 	readonly _serviceBrand: undefined;
 
 	/** Append a base64-encoded audio chunk for streaming playback. */
-	playAudioChunk(audio: string, isFinal: boolean, window: Window & typeof globalThis): void;
+	playAudioChunk(audio: string, isFinal: boolean, window: Window & typeof globalThis, audioFormatHint?: 'pcm16'): void;
 
 	/** Stop any current playback immediately. */
 	stopPlayback(): void;
@@ -120,7 +120,7 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 		return this._playbackCtx;
 	}
 
-	playAudioChunk(audio: string, isFinal: boolean, window: Window & typeof globalThis): void {
+	playAudioChunk(audio: string, isFinal: boolean, window: Window & typeof globalThis, audioFormatHint?: 'pcm16'): void {
 		this._window = window;
 		if (!audio && isFinal) {
 			const turn = this._ensurePlayTurn(window);
@@ -139,13 +139,17 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 			try {
 				const ctx = this.ensureContext(this._window!);
 				let decoded: AudioBuffer | undefined;
-				try {
-					decoded = await ctx.decodeAudioData(arrayBuf);
-				} catch {
-					// decodeAudioData may detach/transcode its input buffer even on
-					// failure. Reconstruct bytes from the original base64 payload so
-					// PCM fallback always sees intact samples.
-					decoded = decodePcm16Chunk(ctx, binaryToBytes(binary));
+				if (audioFormatHint === 'pcm16') {
+					decoded = decodePcm16Chunk(ctx, bytes);
+				} else {
+					try {
+						decoded = await ctx.decodeAudioData(arrayBuf);
+					} catch {
+						// decodeAudioData may detach/transcode its input buffer even on
+						// failure. Reconstruct bytes from the original base64 payload so
+						// PCM fallback always sees intact samples.
+						decoded = decodePcm16Chunk(ctx, binaryToBytes(binary));
+					}
 				}
 				if (!decoded || gen !== this._playbackGen) { return; }
 				this._writeToPlayBuffer(decoded);

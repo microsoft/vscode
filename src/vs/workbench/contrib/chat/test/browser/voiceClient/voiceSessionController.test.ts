@@ -322,7 +322,7 @@ class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
 			override resume(): Promise<void> { return Promise.resolve(); }
 		}();
 	}
-	override playAudioChunk(audio: string): void {
+	override playAudioChunk(audio: string, _isFinal?: boolean, _window?: Window & typeof globalThis, _audioFormatHint?: 'pcm16'): void {
 		if (audio) {
 			this.playedAudio.push(audio);
 			this.playing = true;
@@ -360,7 +360,7 @@ class RecordingVoicePlaybackService extends mock<IVoicePlaybackService>() {
 class DeferredFirstTtsPlaybackService extends TestTtsPlaybackService {
 	private deferNextStart = true;
 
-	override playAudioChunk(audio: string): void {
+	override playAudioChunk(audio: string, _isFinal?: boolean, _window?: Window & typeof globalThis, _audioFormatHint?: 'pcm16'): void {
 		if (audio && this.deferNextStart) {
 			this.deferNextStart = false;
 			this.playedAudio.push(audio);

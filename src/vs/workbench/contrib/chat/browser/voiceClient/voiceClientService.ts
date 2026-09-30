@@ -554,6 +554,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					}
 					this._onAudioResponse.fire({
 						audio: getOpenAiAudioDelta(msg as { delta?: unknown; audio?: { delta?: unknown } }) ?? '',
+						audioFormat: 'pcm16',
 						isFirstChunk: firstChunk,
 						isFinal: false,
 						responseId,

@@ -435,6 +435,8 @@ export interface IVoiceTranscription {
 
 export interface IVoiceAudioResponse {
 	readonly audio: string;
+	/** Encoding hint for `audio` when the backend emits raw chunks. */
+	readonly audioFormat?: 'pcm16';
 	readonly isFirstChunk: boolean;
 	readonly isFinal: boolean;
 	readonly codingSessionId?: string;
