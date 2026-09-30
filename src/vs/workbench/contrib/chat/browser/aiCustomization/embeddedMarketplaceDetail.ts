@@ -318,7 +318,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		let fetchedUri = readmeUri;
 		const githubBlobMatch = readmeUri.toString().match(/^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/blob\/(?<rest>.+)$/);
 		if (githubBlobMatch?.groups) {
-			fetchedUri = URI.parse(`https://raw.githubusercontent.com/${githubBlobMatch.groups['owner']}/${githubBlobMatch.groups['repo']}/${githubBlobMatch.groups['rest']}`);
+			fetchedUri = URI.parse(`https://raw.githubusercontent.com/${githubBlobMatch.groups.owner}/${githubBlobMatch.groups.repo}/${githubBlobMatch.groups.rest}`);
 		}
 		const context = await this.requestService.request({ type: 'GET', url: fetchedUri.toString(), callSite: 'aiCustomizationMarketplaceDetail.fetchReadme' }, token);
 		return { content: await asTextOrError(context) ?? '', baseUri: fetchedUri };
@@ -351,7 +351,17 @@ function isPlugin(resource: ICustomizationMarketplaceResource): boolean {
 }
 
 function getLocationTarget(state: CustomizationMarketplaceInstallState): URI | undefined {
-	return 'target' in state && (state.target.kind === 'plugin' || state.target.kind === 'skill') ? state.target.uri : undefined;
+	switch (state.kind) {
+		case 'checking':
+		case 'installed':
+		case 'repairing':
+		case 'uninstalling':
+		case 'missing':
+		case 'error':
+			return state.target.kind === 'plugin' || state.target.kind === 'skill' ? state.target.uri : undefined;
+		default:
+			return undefined;
+	}
 }
 
 function getRepositoryLabel(repository: URI): string {
