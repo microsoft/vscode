@@ -404,11 +404,16 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			const placement = draft ? undefined : this.model.getPlacement(id);
 			let changed = this.expandPlacement(placement);
 			if (!this.showSessionList && !draft) {
-				const parent = this.model.getParentCard(id, this.showArchived);
-				changed = (parent ? this.collapsedChats.delete(parent.id) : false) || changed;
+				let rootId = id;
+				let parent = this.model.getParentCard(rootId, this.showArchived);
+				while (parent) {
+					changed = this.collapsedChats.delete(parent.id) || changed;
+					rootId = parent.id;
+					parent = this.model.getParentCard(rootId, this.showArchived);
+				}
 				if (placement) {
 					const cards = this.model.getCards(placement.rowId, placement.columnId, this.showArchived);
-					const index = cards.findIndex(card => card.id === (parent?.id ?? id));
+					const index = cards.findIndex(card => card.id === rootId);
 					const key = this.cellKey(placement);
 					if (index >= (this.visibleCounts.get(key) ?? 3)) {
 						this.visibleCounts.set(key, index + 1);
@@ -573,7 +578,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					if (this.selectedCards.has(card.id)) {
 						lines.push(localize('projectBoard.accessibleSelected', "  Selected"));
 					}
-					const children = this.model.getChildCards(card.id, this.showArchived);
+					const children = this.withChildCards(this.model.getChildCards(card.id, this.showArchived));
 					if (children.length) {
 						const summary = this.childChatSummary(children);
 						lines.push(this.collapsedChats.has(card.id) ? localize('projectBoard.collapsedGroup', "{0} (collapsed)", summary) : summary);
@@ -920,7 +925,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	}
 
 	private withChildCards(cards: readonly IProjectBoardCard[]): readonly IProjectBoardCard[] {
-		return this.showSessionList ? cards : cards.flatMap(card => [card, ...this.model.getChildCards(card.id, this.showArchived)]);
+		return this.showSessionList ? cards : cards.flatMap(card => [card, ...this.withChildCards(this.model.getChildCards(card.id, this.showArchived))]);
 	}
 
 	private render(): void {
@@ -1168,7 +1173,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 			const indicator = this.activeChatLabels.get(id);
 			if (indicator) {
-				indicator.hidden = !active;
 				const descriptions = (element.getAttribute('aria-describedby') ?? '').split(' ').filter(id => id && id !== indicator.id);
 				if (active) {
 					descriptions.push(indicator.id);
@@ -1819,14 +1823,15 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		heading.className = 'project-board-child-heading';
 		const summary = document.createElement('span');
 		summary.className = 'project-board-child-summary';
-		summary.textContent = this.childChatCountLabel(children.length);
-		this.appendStateCounts(summary, children);
+		const descendants = this.withChildCards(children);
+		summary.textContent = this.childChatCountLabel(descendants.length);
+		this.appendStateCounts(summary, descendants);
 		const monitoredChild = document.createElement('span');
 		monitoredChild.className = 'project-board-monitored-child-label';
 		monitoredChild.id = `project-board-monitored-child-${generateUuid()}`;
 		monitoredChild.hidden = true;
 		summary.appendChild(monitoredChild);
-		this.monitoredChildLabels.set(card.id, { element: monitoredChild, children });
+		this.monitoredChildLabels.set(card.id, { element: monitoredChild, children: descendants });
 		heading.appendChild(summary);
 		this.createCollapseControl(heading, `collapse:children:${card.id}`, name, childCards.hidden, [childCards.id], () => {
 			if (!this.collapsedChats.delete(card.id)) {
@@ -1834,7 +1839,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 		}, store);
 		for (const child of children) {
-			childCards.appendChild(this.createCard(document, child, store));
+			childCards.appendChild(this.createCardFamily(document, child, store));
 		}
 		family.append(parent, heading, childCards);
 		return family;

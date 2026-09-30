@@ -85,7 +85,7 @@ No maintainer tokens, private planning workspace or synthetic provider is requir
 - Open both boards in separate windows and switch the embedded Hub independently. Rename a board and verify only its title changes; delete it and verify conversations and unrelated windows survive.
 - Enter a pending answer, switch embedded boards and return. Verify the input survives and answering on one board resolves the same request on other boards without duplicate submission.
 - Create a session, send a bounded prompt, close its standalone window, move its card to General/P1 and reopen it. Verify title and transcript.
-- Add or delegate a chat within that session. Verify it appears beneath the main card in both embedded and standalone Hub views, with no duplicate root card. Fold it, update its status, and check the live child summary; expand and open the exact child. Closing the child must reveal its card, and folding must preserve pending answers.
+- Add a peer chat and delegate a real tool worker within that session. Verify peers appear beneath the main card and workers beneath the chat that spawned them, in both embedded and standalone Hub views, with no duplicate root card. Include a worker delegated by a peer or another worker. Fold ancestors, update a child's status, and check summaries include all descendants; expand and open the exact child. Closing a nested child must reveal every ancestor and its card, and folding must preserve pending answers.
 - Move the parent to a cell and verify newly discovered unplaced children follow it, including with Auto-include Sessions off. Move a child to another cell and verify its explicit placement wins; **Follow Parent** in its destination picker rejoins the family. Toggle Session List and verify native nested rows still open the exact chat without rewriting placements.
 - Right-click a card in each Hub surface. Verify **Move to row** and **Move to column** exclude its current axes, preserve the other coordinate, reveal collapsed destinations and restore card focus. From Unassigned, verify the missing coordinate uses the first axis. Move an inherited child independently and check another board remains unchanged; the searchable picker must still offer Unassigned/Follow Parent.
 - Use the board's **New Session** modal to choose a workspace, agent/model and **Project Path**, then press Enter to submit a bounded prompt. Verify the selected workspace and board cell are used and the main Agents draft remains unchanged. The running chat should open immediately in the embedded side panel (even with the existing-card preference off), or in a new chat window when created from a standalone board, without waiting for its response to finish.
@@ -106,6 +106,7 @@ No maintainer tokens, private planning workspace or synthetic provider is requir
 - Type, Backspace/Delete, select/replace text and undo/redo in a new standalone draft and a published chat.
 - Use arrows to move focus, Home/End for first/last card, Enter/Space to open, and Escape to close.
 - In embedded Agents Hub, enable **Open Chat in Side Panel**, open a card and verify the board remains visible and scrollable beside the exact chat. **Close Chat** returns focus to the card; leaving the Hub restores the prior side-panel layout. Restore the setting afterward and verify the separate Hub window still opens chats in standalone windows.
+- The monitored card has a highlight frame but no visible "Open in Side Panel" label. Its accessible current state and description remain available; a folded ancestor can still name the monitored descendant in its disclosure.
 - On a rename-capable test chat, use F2 or the card's Rename context-menu action. Verify cancel preserves the title and a committed rename changes only that chat; restore the test title afterward.
 - Verify Escape dismisses a popup first and preserves unsent text across close/reopen.
 - Use Ctrl/Cmd+Shift+M for the searchable placement picker. Axis menus remain, but card menus should not enumerate cells.
@@ -184,6 +185,30 @@ If the isolated instance reports an empty hardware keyboard map and letter short
 - **A card appears missing:** expand overflow and check Show Archived, Unassigned and the exact resource before concluding that a conversation was deleted.
 - **Typing works but editing/navigation keys do not:** check native focus ownership and keyboard mapping; do not replace real key events with injected input to make tests green.
 - **Extra windows after testing:** close only identified test windows after checking their input. Preserve the owner/board and user work; never kill all Electron or Node processes by name.
+
+### Delegated workers still appear in Unassigned
+
+First distinguish peers from delegated tool workers. The initial nesting implementation reused the sidebar's peer-chat filter, which deliberately excludes `origin.kind: "tool"`. That implementation could group manually added chats while leaving actual subagents in Unassigned. Current Hub card mode adds worker grouping using `origin.parentChat`; native Session List mode retains its existing sidebar behavior.
+
+On the affected machine, run these commands inside the checkout used to launch OSS:
+
+```powershell
+git status --short
+git fetch origin agent-hub-main
+git log -1 --oneline
+git log --oneline HEAD..origin/agent-hub-main -- src/vs/sessions/contrib/projectBoard
+```
+
+If the checkout is clean and only behind the feature branch, `git merge --ff-only origin/agent-hub-main` updates it without rewriting local work. If it diverged or has edits, preserve those changes and reconcile them first. Rebuild the client from that checkout with the pinned Node version (`npm run compile-client`), then close and relaunch that checkout's dedicated OSS instance using the same profile. Pulling source does not update an already-running renderer or stale emitted JavaScript.
+
+Check a known parent/worker pair in card mode:
+
+- Move the parent to a cell. An unplaced worker with a valid parent relationship follows it, even with Auto-include Sessions off.
+- A worker explicitly placed in a different cell remains independent. Use **Follow Parent** in its move picker to remove only that override; do not clear the board's saved configuration.
+- Expand ancestor disclosures and cell overflow. Check Show Archived if the parent is archived. A missing, hidden or filtered parent leaves the child visible instead of silently dropping it.
+- For a remaining mismatch, inspect the provider's `ISession.chats` inventory: record `providerId`, owning-session resource, main-chat resource, child resource, `origin.kind`, `origin.parentChat`, interactivity, archive state and the pair's board placements. The parent resource must resolve to a visible chat in that same owning session/provider. Missing metadata or separately exposed sessions need a provider-side investigation, not title matching in the Hub.
+
+Include the checkout commit, launched build/path, provider name, card/list mode and a redacted parent/child metadata sample in a bug report. Do not include prompts, transcripts or credentials. The regressions can be run with `node test\unit\browser\index.js --browser chromium --runGlob "**/projectBoard{Model,Service}.test.js"` after compilation.
 
 ## 8. Contributing a change
 

@@ -369,7 +369,6 @@
 	border-bottom-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
 }
 
-.project-board-card-active-chat-label,
 .project-board-monitored-child-label {
 	margin-top: var(--vscode-spacing-size40);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
