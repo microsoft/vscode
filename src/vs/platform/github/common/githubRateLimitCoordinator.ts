@@ -24,6 +24,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 	private readonly _states = new Map<string, GitHubRateLimitState>();
 	private readonly _accountBlockedUntil = new Map<string, number>();
 	private readonly _inactiveAccounts = new Map<string, number>();
+	private readonly _accountOwners = new Map<string, Set<object>>();
 	private readonly _cleanup = this._register(new MutableDisposable());
 
 	constructor(
@@ -45,6 +46,16 @@ export class GitHubRateLimitCoordinator extends Disposable {
 			? accountBlockedUntil
 			: accountBlockedUntil === undefined ? resourceBlockedUntil : Math.max(resourceBlockedUntil, accountBlockedUntil);
 		return blockedUntil === undefined ? 0 : Math.max(0, blockedUntil - this._scheduler.now());
+	}
+
+	preserveCooldown(account: GitHubAccountHandle, resource: string, delay: number): void {
+		if (delay <= 0) {
+			return;
+		}
+		const key = this._key(account, resource);
+		const previous = this._states.get(key);
+		this._states.set(key, { ...previous, blockedUntil: Math.max(previous?.blockedUntil ?? 0, this._scheduler.now() + delay) });
+		this.releaseAccount(account);
 	}
 
 	async wait(account: GitHubAccountHandle, resource: string, signal: AbortSignal): Promise<void> {
@@ -137,18 +148,35 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		this._scheduleCleanup();
 	}
 
-	retainAccount(account: GitHubAccountHandle): void {
-		if (this._inactiveAccounts.delete(GitHubRequestQueue.accountKey(account))) {
+	retainAccount(account: GitHubAccountHandle, owner?: object): void {
+		const accountKey = GitHubRequestQueue.accountKey(account);
+		if (owner) {
+			let owners = this._accountOwners.get(accountKey);
+			if (!owners) {
+				owners = new Set();
+				this._accountOwners.set(accountKey, owners);
+			}
+			owners.add(owner);
+		}
+		if (this._inactiveAccounts.delete(accountKey)) {
 			this._scheduleCleanup();
 		}
 	}
 
 	/** Drops unused quota data once all server-required cooldowns for the account have elapsed. */
-	releaseAccount(account: GitHubAccountHandle): void {
+	releaseAccount(account: GitHubAccountHandle, owner?: object): void {
 		if (this._store.isDisposed) {
 			return;
 		}
 		const accountKey = GitHubRequestQueue.accountKey(account);
+		const owners = this._accountOwners.get(accountKey);
+		if (owner) {
+			owners?.delete(owner);
+		}
+		if (owners?.size) {
+			return;
+		}
+		this._accountOwners.delete(accountKey);
 		const prefix = `${accountKey}\x00`;
 		let expiresAt = this._accountBlockedUntil.get(accountKey) ?? 0;
 		for (const [key, state] of this._states) {
@@ -198,6 +226,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		this._states.clear();
 		this._accountBlockedUntil.clear();
 		this._inactiveAccounts.clear();
+		this._accountOwners.clear();
 		super.dispose();
 	}
 

@@ -196,11 +196,19 @@ export class GitHubRequestQueue extends Disposable {
 		this._drain();
 	}
 
-	cancelAccount(account: GitHubAccountHandle, reason: unknown = new GitHubRequestError('GitHub credential was invalidated', 'authentication')): void {
+	cancelAccount(account: GitHubAccountHandle, reason: unknown = new GitHubRequestError('GitHub credential was invalidated', 'authentication'), owner?: object): void {
 		const accountKey = GitHubRequestQueue.accountKey(account);
 		for (const request of [...this._pending, ...this._active]) {
-			if (request.accountKey === accountKey) {
+			if (request.accountKey === accountKey && (owner === undefined || request.context.owner === owner)) {
 				request.cancel(reason);
+			}
+		}
+	}
+
+	cancelOwner(owner: object): void {
+		for (const request of [...this._pending, ...this._active]) {
+			if (request.context.owner === owner) {
+				request.cancel(new GitHubRequestError('GitHub client was disposed', 'unknown'));
 			}
 		}
 	}

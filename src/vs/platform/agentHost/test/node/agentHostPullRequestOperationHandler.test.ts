@@ -224,6 +224,7 @@ function createAuthenticationService(withCopilotToken = false): IAgentHostAuthen
 	return {
 		_serviceBrand: undefined,
 		onDidChangeAuthToken: Event.None,
+		getAuthAccount: () => undefined,
 		getAuthToken: resource => {
 			if (resource.resource === GITHUB_REPO_PROTECTED_RESOURCE.resource) {
 				return 'gh-token';

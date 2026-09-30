@@ -1027,7 +1027,7 @@ suite('aiCustomizationListWidget', () => {
 				groups,
 				rowCount,
 			}, {
-				groups: ['Workspace', 'User'],
+				groups: ['User', 'Workspace'],
 				rowCount: 6,
 			});
 		});

@@ -5,29 +5,52 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { URI } from '../../../../base/common/uri.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { IPathService, type IResourcePathProvider } from '../../../path/common/pathService.js';
 import { AgentHostConnectionsService } from '../../browser/agentHostConnectionsService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../common/agentHostConnectionsService.js';
 import type { IAgentConnection, IAgentHostService } from '../../common/agentService.js';
 import { ChangesetKind } from '../../common/changesetUri.js';
 import type { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
+import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../common/agentHostUri.js';
 
 /** A connection stand-in identified by a `marker` so equality checks read clearly. */
-function fakeConnection(marker: string): IAgentConnection {
-	return { marker } as unknown as IAgentConnection;
+function fakeConnection(marker: string, operatingSystem = 'linux'): IAgentConnection {
+	return {
+		marker,
+		getNetworkDiagnosticsInfo: async () => ({
+			version: '1.0.0',
+			os: operatingSystem,
+			arch: 'x64',
+			proxySettings: {},
+			proxyEnv: {},
+			endpoints: [],
+		}),
+	} as unknown as IAgentConnection;
 }
 
 suite('AgentHostConnectionsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(remoteConnections: readonly IRemoteAgentHostConnectionInfo[], remoteByAddress: Map<string, IAgentConnection>): { service: AgentHostConnectionsService; ambient: IAgentConnection; fireRemoteChange: () => void } {
+	function createService(
+		remoteConnections: readonly IRemoteAgentHostConnectionInfo[],
+		remoteByAddress: Map<string, IAgentConnection>,
+		options?: { ambientResourceAuthority?: string; ambientOperatingSystem?: string },
+	): { service: AgentHostConnectionsService; ambient: IAgentConnection; pathProvider: IResourcePathProvider; fireRemoteChange: () => void } {
 		const onRemoteChange = store.add(new Emitter<void>());
 
 		const agentHostService = {
-			marker: 'ambient',
+			...fakeConnection('ambient', options?.ambientOperatingSystem),
 			onAgentHostStart: Event.None,
 			onAgentHostExit: Event.None,
+			resourceUris: options?.ambientResourceAuthority
+				? createAgentHostResourceUriMapper(options.ambientResourceAuthority)
+				: identityAgentHostResourceUriMapper,
 		} as unknown as IAgentHostService;
 
 		const remoteAgentHostService = {
@@ -44,8 +67,16 @@ suite('AgentHostConnectionsService', () => {
 			},
 		} as unknown as IRemoteAgentHostService;
 
-		const service = store.add(new AgentHostConnectionsService(agentHostService, remoteAgentHostService));
-		return { service, ambient: agentHostService as unknown as IAgentConnection, fireRemoteChange: () => onRemoteChange.fire() };
+		let pathProvider!: IResourcePathProvider;
+		const pathService = upcastPartial<IPathService>({
+			registerPathProvider: (scheme, provider) => {
+				assert.strictEqual(scheme, AGENT_HOST_SCHEME);
+				pathProvider = provider;
+				return Disposable.None;
+			},
+		});
+		const service = store.add(new AgentHostConnectionsService(agentHostService, remoteAgentHostService, pathService, new NullLogService()));
+		return { service, ambient: agentHostService as unknown as IAgentConnection, pathProvider, fireRemoteChange: () => onRemoteChange.fire() };
 	}
 
 	// Mirror agentHostAuthority for the simple alphanumeric/host cases used here.
@@ -53,8 +84,8 @@ suite('AgentHostConnectionsService', () => {
 		return /^[a-zA-Z0-9]+$/.test(address) ? address : address.replaceAll(':', '__');
 	}
 
-	function info(address: string, name: string): IRemoteAgentHostConnectionInfo {
-		return { address, name, clientId: `id-${address}`, status: { kind: 'connected' } };
+	function info(address: string, name: string, operatingSystem?: OperatingSystem): IRemoteAgentHostConnectionInfo {
+		return { address, name, clientId: `id-${address}`, status: { kind: 'connected' }, operatingSystem };
 	}
 
 	test('enumerates [ambient, ...remotes] and resolves by authority/address', () => {
@@ -90,6 +121,35 @@ suite('AgentHostConnectionsService', () => {
 		fireRemoteChange();
 
 		assert.strictEqual(fired, 1);
+	});
+
+	test('provides path semantics for mixed remote authorities and the ambient resource authority', async () => {
+		const windows = fakeConnection('windows', 'win32');
+		const linux = fakeConnection('linux', 'linux');
+		const { service, ambient, pathProvider } = createService([
+			info('windows', 'Windows', OperatingSystem.Windows),
+			info('linux', 'Linux', OperatingSystem.Linux),
+		], new Map([
+			['windows', windows],
+			['linux', linux],
+		]), {
+			ambientResourceAuthority: 'ambient-remote',
+			ambientOperatingSystem: 'darwin',
+		});
+
+		assert.deepStrictEqual({
+			windows: await pathProvider.getOperatingSystem(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'windows', path: '/' })),
+			linux: await pathProvider.getOperatingSystem(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'linux', path: '/' })),
+			ambient: await pathProvider.getOperatingSystem(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'ambient-remote', path: '/' })),
+			unknown: await pathProvider.getOperatingSystem(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'unknown', path: '/' })),
+			ambientAlias: service.getConnectionByAuthority('ambient-remote'),
+		}, {
+			windows: OperatingSystem.Windows,
+			linux: OperatingSystem.Linux,
+			ambient: OperatingSystem.Macintosh,
+			unknown: undefined,
+			ambientAlias: ambient,
+		});
 	});
 
 	test('resolveSessionResource maps local and remote schemes to connections', () => {

@@ -281,8 +281,7 @@ suite('pluginParsers', () => {
 				'/path with spaces',
 				'${PLUGIN_ROOT}'
 			);
-			assert.ok(result.includes('"'), 'should add quotes for path with spaces');
-			assert.ok(result.includes('/path with spaces'));
+			assert.strictEqual(result, 'cd \'/path with spaces\' && run');
 		});
 
 		test('returns unchanged when token not present', () => {
@@ -296,7 +295,16 @@ suite('pluginParsers', () => {
 				'/path with spaces',
 				'${PLUGIN_ROOT}'
 			);
-			assert.ok(!result.includes('""'), 'should not double-quote');
+			assert.strictEqual(result, '\'/path with spaces/script.sh\'');
+		});
+
+		test('preserves expansion characters as literal path content', () => {
+			const result = shellQuotePluginRootInCommand(
+				'printf %s ${PLUGIN_ROOT}/script.sh',
+				'/path/$HOME/`example`',
+				'${PLUGIN_ROOT}'
+			);
+			assert.strictEqual(result, 'printf %s \'/path/$HOME/`example`/script.sh\'');
 		});
 	});
 
@@ -556,6 +564,7 @@ suite('pluginParsers', () => {
 			});
 
 			test('reads Copilot components from the sanctioned extension directory by default', async () => {
+				const pluginFsPath = URI.from({ scheme: Schemas.inMemory, path: '/plugins/example' }).fsPath;
 				await write('/plugins/example/plugin.json', JSON.stringify({
 					$schema: AGENT_PLUGIN_SCHEMA,
 					name: 'example',
@@ -570,7 +579,7 @@ suite('pluginParsers', () => {
 				await write('/plugins/example/com.github.copilot/rules/project.instructions.md', '---\nname: project-rule\n---');
 				await write('/plugins/example/com.github.copilot/hooks/hooks.json', JSON.stringify({
 					hooks: {
-						PostToolUse: [{ hooks: [{ type: 'command', command: 'echo done' }] }],
+						PostToolUse: [{ hooks: [{ type: 'command', command: 'echo ${PLUGIN_ROOT}' }] }],
 					},
 				}));
 				await write('/plugins/example/agents/legacy.md', '# Legacy agent');
@@ -582,12 +591,21 @@ suite('pluginParsers', () => {
 					instructions: plugin.instructions.map(instruction => instruction.name),
 					hooks: plugin.hooks.map(hook => ({
 						type: hook.type,
-						commands: hook.commands.map(command => command.command),
+						commands: hook.commands.map(command => ({
+							command: command.command,
+							env: command.env,
+						})),
 					})),
 				}, {
 					agents: ['helper'],
 					instructions: ['project'],
-					hooks: [{ type: 'PostToolUse', commands: ['echo done'] }],
+					hooks: [{
+						type: 'PostToolUse',
+						commands: [{
+							command: `echo ${pluginFsPath}`,
+							env: { PLUGIN_ROOT: pluginFsPath },
+						}],
+					}],
 				});
 			});
 

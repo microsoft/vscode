@@ -11,6 +11,7 @@ export const UNIFIED_WORKSPACE_PICKER_SETTING = ChatConfiguration.UnifiedWorkspa
 export { COMPARE_AGENTS_ENABLED_SETTING };
 export const EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING = 'sessions.chat.experimental.newSessionComposerLayout';
 export const NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING = 'sessions.chat.experimental.newSessionComposerOptionsExpanded';
+export const AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING = 'sessions.chat.experimental.agentsPickerInAttachContextMenu';
 export const COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING = 'sessions.chat.experimental.collapsedSessionOptionsShowIcons';
 export const NEW_SESSION_WELCOME_PHRASES_SETTING = 'sessions.chat.experimental.welcomePhrases';
 export const NEW_SESSION_WELCOME_NAME_SETTING = 'sessions.chat.experimental.welcomeName';

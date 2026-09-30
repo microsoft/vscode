@@ -5,7 +5,7 @@
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
-import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
+import { AgentHostGitHubService, IAgentHostGitHubService } from './agentHostGitHubService.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
 import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
@@ -81,7 +81,7 @@ export interface IAgentHostCoreServiceInputs {
 	readonly rootConfigResource?: URI;
 	readonly orchestratorDatabase?: IAgentHostDatabase;
 	readonly fetchFn: typeof globalThis.fetch;
-	readonly gitHubServiceOptions: GitHubServiceOptions;
+	readonly gitHubServiceOptions: Omit<GitHubServiceOptions, 'credentialProvider'>;
 	readonly copilotApiService?: ICopilotApiService;
 	readonly hostLaunchKind?: AgentHostLaunchKind;
 	readonly startupMarks?: AgentHostStartupMarks;
@@ -102,7 +102,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
 	services.set(IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
 	services.set(IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
-	services.set(IGitHubService, new SyncDescriptor(GitHubService, [inputs.gitHubServiceOptions]));
+	services.set(IAgentHostGitHubService, new SyncDescriptor(AgentHostGitHubService, [inputs.gitHubServiceOptions]));
 	services.set(ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
 	services.set(IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
 	services.set(IAgentHostGitStateService, new SyncDescriptor(AgentHostGitStateService));

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -90,12 +89,6 @@ function registerCoreServices(services: ServiceCollection): void {
 		storageResource: URI.file('/storage.json'),
 		fetchFn: globalThis.fetch,
 		gitHubServiceOptions: {
-			endpoint: {
-				onDidChange: Event.None,
-				getApiBaseUri: () => 'https://api.github.com',
-				getGraphQlUri: () => 'https://api.github.com/graphql',
-			},
-			tokenProvider: { getToken: () => undefined },
 			fetch: globalThis.fetch,
 		},
 	});

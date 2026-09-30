@@ -57,7 +57,7 @@ import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery,
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOrigin, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
-import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 
 const $ = DOM.$;
@@ -344,6 +344,8 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		container.classList.add('customization-discovery-result-row');
 		const root = DOM.append(container, $('.customization-discovery-result-content'));
 		const primaryAction = createCustomizationCardPrimaryAction(root, '', 'customization-discovery-result-primary');
+		const templateDisposables = new DisposableStore();
+		trackCustomizationCardPrimaryActionFocus(primaryAction, root, templateDisposables);
 		const icon = DOM.append(primaryAction, $('.customization-discovery-result-icon'));
 		const identity = DOM.append(primaryAction, $('.customization-discovery-result-identity'));
 		const heading = DOM.append(identity, $('.customization-discovery-result-heading'));
@@ -364,7 +366,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			stats,
 			actions,
 			elementDisposables: new DisposableStore(),
-			templateDisposables: new DisposableStore(),
+			templateDisposables,
 		};
 	}
 
@@ -416,22 +418,26 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			: localize('customizationDiscovery.openDetails', "View details for {0}", name));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.description, { content: description }));
-		if (installed) {
+		const registerOpenListeners = (open: () => void) => {
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.root, DOM.EventType.CLICK, open));
 			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
 				event.stopPropagation();
+				open();
+			}));
+		};
+		if (element.kind === 'installed') {
+			registerOpenListeners(() => {
 				if (element.promptDetail || element.pluginDetail || element.mcpDetail || !element.catalogResource) {
 					this.onOpenInstalled(element);
-				} else {
-					this.onOpenDetails(element.catalogResource);
+					return;
 				}
-			}));
+				this.onOpenDetails(element.catalogResource);
+			});
+		} else {
+			registerOpenListeners(() => this.onOpenDetails(element.resource));
 		}
 
 		if (!installed) {
-			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
-				event.stopPropagation();
-				this.onOpenDetails(element.resource);
-			}));
 			if (element.resource.stars !== undefined) {
 				const starsLabel = localize('customizationDiscovery.stars', "{0} stars", element.resource.stars.toLocaleString());
 				templateData.stats.setAttribute('aria-label', starsLabel);

@@ -390,6 +390,8 @@ class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationServ
 		return this._tokens.get(request.resource);
 	}
 
+	getAuthAccount(): undefined { return undefined; }
+
 	dispose(): void {
 		this._onDidChangeAuthToken.dispose();
 	}
