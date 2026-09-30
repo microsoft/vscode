@@ -20,6 +20,7 @@ import { ILabelService } from '../../../../../../../platform/label/common/label.
 import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { parseCommand } from '../terminalCommandParser.js';
 import { isZsh } from '../../runInTerminalHelpers.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
 
 const nullDevice = Symbol('null device');
 
@@ -170,7 +171,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					// Absolute
 					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(value) : posix.isAbsolute(value);
 					if (isAbsolute) {
-						if (options.os === OperatingSystem.Windows && uriPath.startsWith('//') && !cwd.authority) {
+						if (options.os === OperatingSystem.Windows && uriPath.startsWith('//') && cwd.scheme === Schemas.file) {
 							const authorityEnd = uriPath.indexOf('/', 2);
 							return cwd.with({
 								authority: uriPath.substring(2, authorityEnd === -1 ? undefined : authorityEnd),

@@ -500,13 +500,33 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		});
 	});
 
-	test('PowerShell UNC path preserves the file authority', async () => {
-		const cwd = URI.file('C:/workspace/project');
+	test('PowerShell UNC path uses its own file authority', async () => {
+		const cwd = URI.from({ scheme: Schemas.file, authority: 'server-a', path: '/share/other' });
+		const workspace = URI.from({ scheme: Schemas.file, authority: 'server-b', path: '/share/workspace' });
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+		workspaceContextService.setWorkspace(new Workspace('test', [toWorkspaceFolder(workspace)]));
+
+		const result = await analyzer.analyze({
+			commandLine: 'Write-Host "hello" > \\\\server-b\\share\\workspace\\file.txt',
+			cwd,
+			shell: 'pwsh',
+			os: OperatingSystem.Windows,
+			treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
+			terminalToolSessionId: 'test',
+			chatSessionResource: undefined,
+		});
+
+		strictEqual(result.isAutoApproveAllowed, true);
+		strictEqual(result.disclaimers?.length, 1);
+	});
+
+	test('PowerShell UNC path does not inherit the current file authority', async () => {
+		const cwd = URI.from({ scheme: Schemas.file, authority: 'server-a', path: '/share/workspace' });
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
 		workspaceContextService.setWorkspace(new Workspace('test', [toWorkspaceFolder(cwd)]));
 
 		const result = await analyzer.analyze({
-			commandLine: 'Write-Host "hello" > \\\\server\\share\\file.txt',
+			commandLine: 'Write-Host "hello" > \\\\server-b\\share\\workspace\\file.txt',
 			cwd,
 			shell: 'pwsh',
 			os: OperatingSystem.Windows,
