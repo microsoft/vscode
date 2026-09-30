@@ -839,10 +839,11 @@ export class AgentService extends Disposable implements IAgentService {
 				const provider = this._providerService.resolveProvider(template.provider);
 				return provider !== undefined && provider.isReadyForAutomation?.(template.model, reader) !== false;
 			},
-			createSession: (template, run) => this.createSession({
+			createSession: (template, run, activeClient) => this.createSession({
 				provider: template.provider,
 				model: template.model,
 				agent: template.agent,
+				activeClient,
 				workingDirectories: template.workingDirectories?.map(resource => URI.parse(resource)),
 				config: template.config,
 				_meta: {
@@ -6761,7 +6762,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 
-			void this._dispatchAutomationAction(action).catch(error => {
+			void this._dispatchAutomationAction(action, clientId).catch(error => {
 				const message = toErrorMessage(error);
 				this._logService.error(`[AgentService] automation action failed: ${message}`);
 				this._stateManager.rejectClientAction(channel, action, origin, message);
@@ -6877,12 +6878,12 @@ export class AgentService extends Disposable implements IAgentService {
 		this._clientDispatchQueues.set(clientId, next);
 	}
 
-	private async _dispatchAutomationAction(action: ClientAutomationAction): Promise<void> {
+	private async _dispatchAutomationAction(action: ClientAutomationAction, clientId: string): Promise<void> {
 		switch (action.type) {
 			case ActionType.AutomationCreateRequested:
-				return this._automationService.handleCreate(action);
+				return this._automationService.handleCreate(action, clientId);
 			case ActionType.AutomationUpdateRequested:
-				return this._automationService.handleUpdate(action);
+				return this._automationService.handleUpdate(action, clientId);
 			case ActionType.AutomationRemoved:
 				return this._automationService.handleRemove(action);
 		}

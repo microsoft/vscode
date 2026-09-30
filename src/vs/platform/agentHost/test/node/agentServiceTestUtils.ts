@@ -6,6 +6,8 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
@@ -18,6 +20,8 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentService } from '../../common/agentService.js';
+import { IAgentPluginManager } from '../../common/agentPluginManager.js';
+import { AgentPluginManager } from '../../node/agentPluginManager.js';
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -199,6 +203,8 @@ export function createTestAgentService(
 	services.set(IAgentHostFileMonitorService, effectiveFileMonitorService);
 	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 	services.set(IAgentHostOTelService, NullAgentHostOTelService);
+	services.set(IAgentPluginManager, new AgentPluginManager(URI.file('/agentHostTestData'), fileService, logService));
+	services.set(INativeEnvironmentService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }));
 	if (startupPerformance) {
 		services.set(IAgentHostStartupPerformance, startupPerformance);
 	}

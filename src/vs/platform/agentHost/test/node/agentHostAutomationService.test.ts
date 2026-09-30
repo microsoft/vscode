@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -26,12 +28,18 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type SessionActiveClient } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
+import { AgentPluginManager } from '../../node/agentPluginManager.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../node/agentHostAutomationCustomizations.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -49,6 +57,8 @@ suite('AgentHostAutomationService', () => {
 	let writeFailures: number;
 	let writeAttempts: number;
 	let telemetry: RecordingAutomationTelemetry;
+	let fileService: FileService;
+	let pluginManager: AgentPluginManager;
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -60,6 +70,10 @@ suite('AgentHostAutomationService', () => {
 		writeFailures = 0;
 		writeAttempts = 0;
 		telemetry = new RecordingAutomationTelemetry();
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+		pluginManager = new AgentPluginManager(URI.file('/userData'), fileService, new NullLogService());
 		const writer: IAgentHostStorageWriter = {
 			mkdir: async () => { },
 			writeFile: async () => {
@@ -114,13 +128,79 @@ suite('AgentHostAutomationService', () => {
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
-		}, stateManager, storageService, new NullLogService(), telemetry, providers);
+		}, stateManager, storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }));
 		return disposables.add(service);
 	}
 
 	async function enableAndCreate(service: AgentHostAutomationService, resource = 'ahp-automation:/review-changes'): Promise<void> {
 		await service.handleCreate(createAction(resource));
 	}
+
+	test('captures plugins durably and seeds a disconnected run with the rewritten agent', async () => {
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
+		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		const created = new DeferredPromise<{ activeClient: SessionActiveClient | undefined; agent: string | undefined }>();
+		const service = createService({
+			createSession: async (template, _run, activeClient) => {
+				created.complete({ activeClient, agent: template.agent?.uri });
+				return AgentSession.uri('mock', 'customized');
+			},
+			startSession: async () => { },
+		});
+		const action = createAction();
+		action.definition.session = { provider: 'mock', agent: { uri: 'virtual:/bundle/agents/reviewer.md' }, customizations: [ref] };
+		await service.handleCreate(action, 'author');
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		const copy = entry.customizations![0];
+		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'offline' });
+		const run = await created.p;
+		assert.deepStrictEqual({
+			copy,
+			stored: storageService.get<{ catalog: { automations: typeof entry[] } }>('automations')!.catalog.automations[0].customizations,
+			run,
+		}, {
+			copy: { type: CustomizationType.Plugin, id: 'bundle', uri: copy.uri, name: 'Bundle', children: [], load: { kind: 'loaded' }, icons: undefined, range: undefined, version: undefined },
+			stored: [copy],
+			run: {
+				activeClient: { clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [], customizations: [{ ...ref, uri: copy.uri, clientId: AUTOMATION_ACTIVE_CLIENT_ID }] },
+				agent: URI.joinPath(URI.parse(copy.uri), 'agents/reviewer.md').toString(),
+			},
+		});
+	});
+
+	test('keeps copies on unrelated updates and rejects failed captures atomically', async () => {
+		const service = createService();
+		const action = createAction();
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
+		action.definition.session.customizations = [ref];
+		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		await service.handleCreate(action, 'author');
+		const original = stateManager.getAutomationCatalogState()!.entries[0].customizations;
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { title: 'Updated' } });
+		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { session: { provider: 'mock', customizations: [{ ...ref, uri: 'virtual:/missing' }] } } }, 'author'));
+		const updated = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ copies: updated.customizations, session: updated.definition.session, title: updated.definition.title }, {
+			copies: original, session: action.definition.session, title: 'Updated',
+		});
+	});
+
+	test('collects only at startup and retains removed copies for live sessions', async () => {
+		const orphan = URI.joinPath(pluginManager.hostPluginsPath, 'automations', '.staging-orphan');
+		await fileService.createFolder(orphan);
+		const service = createService();
+		const action = createAction();
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
+		action.definition.session.customizations = [ref];
+		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		await service.handleCreate(action, 'author');
+		const copy = stateManager.getAutomationCatalogState()!.entries[0].customizations![0];
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { session: { provider: 'mock' } } });
+		assert.deepStrictEqual({
+			orphanExists: await fileService.exists(orphan),
+			capturedCopyExists: await fileService.exists(URI.parse(copy.uri)),
+			customizations: stateManager.getAutomationCatalogState()!.entries[0].customizations,
+		}, { orphanExists: false, capturedCopyExists: true, customizations: undefined });
+	});
 
 	function terminalRun(resource: string): Promise<void> {
 		const isTerminal = (status: AutomationRunStatus | undefined) => status === AutomationRunStatus.Completed || status === AutomationRunStatus.Cancelled || status === AutomationRunStatus.Failed;
@@ -452,7 +532,7 @@ suite('AgentHostAutomationService', () => {
 			definition: stateManager.getAutomationCatalogState()?.entries[0].definition,
 			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
 		}, {
-			capabilities: { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: 50 },
+			capabilities: { create: {}, schedules: {}, customizations: {}, runCancellation: {}, runHistoryLimit: 50 },
 			triggers: { items: [] },
 			definition: savedDefinition,
 			operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
