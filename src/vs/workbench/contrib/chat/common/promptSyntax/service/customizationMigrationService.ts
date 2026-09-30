@@ -65,6 +65,8 @@ export interface IMcpServerCustomizationMigrationItem {
 	readonly supported: boolean;
 }
 
+export const mcpServerCustomizationMigrationRemovableProperties = ['gallery', 'version', 'dev', 'sandboxEnabled'] as const;
+
 export interface IMcpServerCustomizationMigrationCandidate {
 	readonly type: CustomizationMigrationType.McpServers;
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
@@ -73,6 +75,8 @@ export interface IMcpServerCustomizationMigrationCandidate {
 	readonly sourceUri: URI;
 	readonly targetUri: URI;
 	readonly projectedConfiguration: IMcpServerConfiguration;
+	/** Raw values of properties removed with a warning, retained to revalidate the user's confirmation. */
+	readonly removedProperties?: Readonly<Partial<Record<typeof mcpServerCustomizationMigrationRemovableProperties[number], unknown>>>;
 }
 
 export function getMcpServerCustomizationMigrationCandidateKey(candidate: IMcpServerCustomizationMigrationCandidate): string {
@@ -109,7 +113,7 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	SourceUnavailable = 'sourceUnavailable',
 	/** The source JSON, servers map, or selected server definition is invalid. */
 	InvalidSource = 'invalidSource',
-	/** The configuration cannot be moved losslessly because of unsupported properties, unresolved variables, or projection differences. */
+	/** The configuration has unsupported properties, unresolved variables, or projection differences beyond the confirmed removals. */
 	UnrepresentableConfiguration = 'unrepresentableConfiguration',
 	/** The source entry or file no longer matches what was validated for migration. */
 	SourceChanged = 'sourceChanged',

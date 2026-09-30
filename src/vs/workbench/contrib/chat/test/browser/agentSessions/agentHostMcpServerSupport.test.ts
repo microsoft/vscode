@@ -50,13 +50,17 @@ class TestMcpSupportConfigurationService extends TestConfigurationService {
 suite('agentHostMcpServerSupport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('describes gallery and version metadata as non-portable', () => {
+	test('describes property removals as requiring confirmation', () => {
 		assert.deepStrictEqual({
 			gallery: getMcpCompatibilityDetail(AgentHostMcpSupportReason.GalleryMetadataNotPortable),
 			version: getMcpCompatibilityDetail(AgentHostMcpSupportReason.ServerVersionNotPortable),
+			dev: getMcpCompatibilityDetail(AgentHostMcpSupportReason.DevelopmentModeIgnored),
+			sandbox: getMcpCompatibilityDetail(AgentHostMcpSupportReason.SandboxConfigurationIgnored),
 		}, {
-			gallery: 'Gallery metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the gallery property.',
-			version: 'Server version metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the version property.',
+			gallery: 'Gallery metadata is not supported in the destination MCP configuration.\nMigration can remove the gallery property after you confirm that this MCP server will no longer be automatically updated from the registry.',
+			version: 'Server version metadata is not supported in the destination MCP configuration.\nMigration can remove the version property after you confirm the loss of version metadata. Version pins in the command, arguments, or URL will not change.',
+			dev: 'MCP development mode is not supported by the Copilot harness.\nMigration can remove dev after you confirm the loss of development-mode auto-start, file-watch restarts, debugging, and logging.',
+			sandbox: 'Per-server sandbox settings are not supported by the Copilot harness.\nMigration can remove sandboxEnabled after you confirm that VS Code\'s per-server sandbox restrictions will no longer be applied.',
 		});
 	});
 
