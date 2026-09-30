@@ -10,6 +10,7 @@ import { IInstantiationService, type IConstructorSignature } from '../../instant
 import { ILogService } from '../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributionHost, IAgentHostChatContributions, IChatMementoKey, IHydrationContext, IIncomingRequest, IAppliedClientAction, IDispatchedAction, IOutgoingTurn, IOutgoingTurnContributionResult, IncomingRequestDisposition, IRestoredChat, ISessionMementoKey, ITurnEnd } from '../common/agentHostChatContributionsService.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import type { IWorkspaceSnapshot } from '../common/workspaceSnapshot.js';
 
 type MementoKeySegment = string | boolean | number;
 type MementoMap = NKeyMap<ISettableObservable<unknown>, [ProtocolURI, string, ...MementoKeySegment[]]>;
@@ -177,6 +178,7 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 	async outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult> {
 		const instructions: string[] = [];
 		let message = turn.message;
+		let workspaceSnapshot: IWorkspaceSnapshot | undefined;
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
 			if (!contribution.onOutgoingTurn) {
@@ -190,12 +192,16 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 				if (result?.text !== undefined) {
 					message = { ...message, text: result.text };
 				}
+				if (result?.workspaceSnapshot) {
+					workspaceSnapshot = result.workspaceSnapshot;
+				}
 			} catch (err) {
 				this._logContributionFailure(registration, err);
 			}
 		}
 		return {
 			...(instructions.length ? { instructions } : {}),
+			...(workspaceSnapshot ? { workspaceSnapshot } : {}),
 			message,
 		};
 	}

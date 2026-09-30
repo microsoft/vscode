@@ -43,6 +43,7 @@ import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { getWorkspaceSnapshotPaths, renderWorkspaceSnapshot, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
@@ -453,6 +454,8 @@ const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
+/** Longest a first turn waits for the content exclusion check of its workspace snapshot before omitting the snapshot. */
+const CONTENT_EXCLUSION_CHECK_TIMEOUT_MS = 1000;
 
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
@@ -3042,7 +3045,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, workspaceSnapshot?: IWorkspaceSnapshot): Promise<void> {
 		if (this._workingDirectoryMutationInProgress) {
 			throw new Error('Cannot start a turn while the working directory is changing');
 		}
@@ -3059,6 +3062,16 @@ export class CopilotAgentSession extends Disposable {
 			currentTurn.messageCharLen = prompt.length;
 		}
 		const turn = this._currentTurn.value;
+		if (workspaceSnapshot) {
+			const abortToken = this._abortToken;
+			const snapshotInstruction = await this._renderWorkspaceSnapshot(workspaceSnapshot);
+			if (!this._canSendTurn(turn, abortToken)) {
+				return;
+			}
+			if (snapshotInstruction) {
+				hostInstructions = [...(hostInstructions ?? []), snapshotInstruction];
+			}
+		}
 		this._hostInstructions = hostInstructions;
 		this._pendingSnapshotReminder = this._snapshotReadonlyReminder(attachments);
 		if (this._tryStartDevelopmentRecoverableError(prompt)) {
@@ -3080,6 +3093,36 @@ export class CopilotAgentSession extends Disposable {
 			this._pendingSnapshotReminder = undefined;
 			throw err;
 		}
+	}
+
+	/**
+	 * Renders the workspace snapshot without the paths the session's content
+	 * exclusion policy excludes. Fails closed: returns `undefined` when the
+	 * policy cannot be evaluated in time.
+	 */
+	private async _renderWorkspaceSnapshot(snapshot: IWorkspaceSnapshot): Promise<string | undefined> {
+		const paths = getWorkspaceSnapshotPaths(snapshot);
+		if (paths.length === 0) {
+			return undefined;
+		}
+		let excluded: Set<string> | undefined;
+		try {
+			const result = await raceTimeout(this._wrapper.session.rpc.contentExclusion.checkPaths({ paths }), CONTENT_EXCLUSION_CHECK_TIMEOUT_MS);
+			if (result?.available === true && result.checks.length === paths.length && result.checks.every((check, index) => check.path === paths[index] && typeof check.excluded === 'boolean')) {
+				excluded = new Set(result.checks.filter(check => check.excluded).map(check => check.path));
+			}
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Content exclusion check for the workspace snapshot failed: ${getErrorMessage(err)}`);
+		}
+		if (!excluded) {
+			this._logService.info(`[Copilot:${this.sessionId}] Omitting the workspace snapshot: content exclusion could not be evaluated`);
+			return undefined;
+		}
+		if (excluded.size > 0) {
+			this._logService.info(`[Copilot:${this.sessionId}] Workspace snapshot: dropped ${excluded.size} of ${paths.length} paths excluded by content exclusion`);
+		}
+		const excludedPaths = excluded;
+		return renderWorkspaceSnapshot(snapshot, path => excludedPaths.has(path));
 	}
 
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined {

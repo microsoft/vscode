@@ -23,6 +23,7 @@ import { AgentSession } from '../../common/agent.js';
 import type { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
+import { renderWorkspaceSnapshot, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -164,14 +165,18 @@ suite('WorkspaceContextContribution', () => {
 		 * one without the dispatched-action hook if none is active. Unless
 		 * `dispatchAndComplete` is false, it then dispatches and completes the turn.
 		 */
+		let lastSnapshot: IWorkspaceSnapshot | undefined;
 		const send = async (channel = chat, workingDirectories: readonly URI[] | undefined = roots.map(root => URI.parse(root)), dispatchAndComplete = true) => {
 			const turnId = activeTurns.get(channel) ?? startTurn(channel, false);
-			const result = await service.outgoingTurn({ session, chat: channel, turnId, workingDirectories, message: userMessage });
+			const { workspaceSnapshot, ...result } = await service.outgoingTurn({ session, chat: channel, turnId, workingDirectories, message: userMessage });
+			lastSnapshot = workspaceSnapshot;
 			if (dispatchAndComplete) {
 				dispatch(channel);
 				endTurn(channel, 'success');
 			}
-			return result;
+			// Rendered as the provider does when content exclusion excludes nothing.
+			const instruction = workspaceSnapshot && renderWorkspaceSnapshot(workspaceSnapshot);
+			return instruction ? { ...result, instructions: [...(result.instructions ?? []), instruction] } : result;
 		};
 		/** Accepts a turn, lets preparation finish, and sends it. */
 		const firstTurn = async (channel = chat, workingDirectories?: readonly URI[], dispatchAndComplete = true) => {
@@ -188,7 +193,7 @@ suite('WorkspaceContextContribution', () => {
 			const { waitMs: _waitMs, ...event } = call.args[0];
 			return event;
 		});
-		return { log, state, service, session, chat, disk, accept, dispatch, send, firstTurn, endTurn, addChat, events, worktreeIsolation };
+		return { log, state, service, session, chat, disk, accept, dispatch, send, firstTurn, endTurn, addChat, events, worktreeIsolation, lastSnapshot: () => lastSnapshot };
 	}
 
 	const structureOf = (result: { instructions?: readonly string[] }) => result.instructions?.[0].split('```text\n')[1].split('\n```')[0];
@@ -204,6 +209,16 @@ suite('WorkspaceContextContribution', () => {
 			message: userMessage,
 			instructions: ['<workspace_info>\nInitial workspace structure (file names only):\n```text\n' + heading('/workspace') + '\nmeta.json\nsrc/\n\tmain.ts\ntests/\n\tmain.test.ts\n```\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>'],
 		});
+	});
+
+	test('gives the provider each listed entry\'s absolute path to check against content exclusion', async () => {
+		const context = await setupContext({ files: ['/workspace/src/main.ts', '/workspace/meta.json'] });
+		await context.firstTurn();
+		assert.deepStrictEqual(context.lastSnapshot()?.roots.map(root => root.entries.map(({ path, depth }) => ({ path, depth }))), [[
+			{ path: URI.file('/workspace/meta.json').fsPath, depth: 0 },
+			{ path: URI.file('/workspace/src').fsPath, depth: 0 },
+			{ path: URI.file('/workspace/src/main.ts').fsPath, depth: 1 },
+		]]);
 	});
 
 	test('lists files that .gitignore excludes, like the classic workspace structure', async () => {

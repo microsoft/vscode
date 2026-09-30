@@ -19,6 +19,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
 import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import type { IWorkspaceSnapshot } from './workspaceSnapshot.js';
 
 /** User-selected permission action and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -510,6 +511,13 @@ export interface IAgentChatContext {
 	readonly customizations?: readonly Customization[];
 	/** Per-operation host instructions that providers add to model context without persisting as user content. */
 	readonly hostInstructions?: readonly string[];
+	/**
+	 * A workspace file-name snapshot for the provider to add to model context
+	 * like {@link hostInstructions}, after dropping the paths its content
+	 * exclusion policy excludes. A provider that cannot evaluate that policy
+	 * must leave it out.
+	 */
+	readonly workspaceSnapshot?: IWorkspaceSnapshot;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
 }
@@ -560,6 +568,10 @@ export function resolveAgentHostCustomizations(context?: URI | IAgentChatContext
 
 export function resolveAgentHostInstructions(context?: URI | IAgentChatContext): readonly string[] | undefined {
 	return context && !URI.isUri(context) ? context.hostInstructions : undefined;
+}
+
+export function resolveAgentWorkspaceSnapshot(context?: URI | IAgentChatContext): IWorkspaceSnapshot | undefined {
+	return context && !URI.isUri(context) ? context.workspaceSnapshot : undefined;
 }
 
 /** Fully resolved options for creating one chat. */

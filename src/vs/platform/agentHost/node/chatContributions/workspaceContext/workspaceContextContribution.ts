@@ -6,7 +6,6 @@
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource, type CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { appendEscapedMarkdownCodeBlockFence } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, type IDisposable } from '../../../../../base/common/lifecycle.js';
 import { isAbsolute, join } from '../../../../../base/common/path.js';
 import { compare } from '../../../../../base/common/strings.js';
@@ -17,6 +16,7 @@ import { AgentSession } from '../../../common/agent.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { renderWorkspaceSnapshotStructure, type IWorkspaceSnapshotEntry, type IWorkspaceSnapshotRoot } from '../../../common/workspaceSnapshot.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostWorkspaceSnapshotPreparation, type IAgentHostWorkspaceSnapshotEvent } from '../../agentHostTelemetryReporter.js';
@@ -45,7 +45,7 @@ type RootOutcome = 'pending' | 'included' | 'empty' | 'gitAdministrative' | 'fai
 interface IPreparedRoot {
 	readonly root: URI;
 	outcome: RootOutcome;
-	tree: string | undefined;
+	snapshot: IWorkspaceSnapshotRoot | undefined;
 	readonly done: Promise<void>;
 }
 
@@ -134,14 +134,14 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 				}
 			}
 			const waitMs = Date.now() - waitStarted;
-			const structure = prepared.roots.map(root => root.outcome === 'included' ? root.tree : undefined).filter(Boolean).join('\n\n');
+			const workspaceSnapshot = { roots: prepared.roots.flatMap(root => root.outcome === 'included' && root.snapshot ? [root.snapshot] : []) };
+			// The provider drops paths excluded by its content exclusion policy, so this is the length before exclusion.
+			const structure = renderWorkspaceSnapshotStructure(workspaceSnapshot);
 			candidate.report = this._createReport(prepared, preparation, waitMs, structure.length);
 			if (!structure) {
 				return undefined;
 			}
-			return {
-				instructions: [`<workspace_info>\nInitial workspace structure (file names only):\n${appendEscapedMarkdownCodeBlockFence(structure, 'text')}\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>`],
-			};
+			return { workspaceSnapshot };
 		} finally {
 			if (this._isActiveTurn(turn)) {
 				this._stopPreparing(turn.chat);
@@ -319,10 +319,10 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		const cancellation = new CancellationTokenSource();
 		const budget = enumerationRoots.length ? Math.floor(MAX_STRUCTURE_LENGTH / enumerationRoots.length) : 0;
 		const roots = enumerationRoots.map(root => {
-			const prepared: { -readonly [K in keyof IPreparedRoot]: IPreparedRoot[K] } = { root, outcome: 'pending', tree: undefined, done: Promise.resolve() };
-			prepared.done = this._prepareRoot(root, budget, cancellation.token).then(({ outcome, tree }) => {
+			const prepared: { -readonly [K in keyof IPreparedRoot]: IPreparedRoot[K] } = { root, outcome: 'pending', snapshot: undefined, done: Promise.resolve() };
+			prepared.done = this._prepareRoot(root, budget, cancellation.token).then(({ outcome, snapshot }) => {
 				prepared.outcome = outcome;
-				prepared.tree = tree;
+				prepared.snapshot = snapshot;
 			});
 			return prepared;
 		});
@@ -332,17 +332,17 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	}
 
 	/** Renders one root's tree. Failures are isolated to the root, so other roots still contribute. */
-	private async _prepareRoot(root: URI, budget: number, token: CancellationToken): Promise<{ outcome: RootOutcome; tree?: string }> {
+	private async _prepareRoot(root: URI, budget: number, token: CancellationToken): Promise<{ outcome: RootOutcome; snapshot?: IWorkspaceSnapshotRoot }> {
 		try {
 			if (await isGitAdministrativeDirectory(this._fileService, root)) {
 				return { outcome: 'gitAdministrative' };
 			}
 			const heading = JSON.stringify(root.fsPath).slice(1, -1);
-			const tree = await renderWorkspaceTree(this._fileService, root, budget - heading.length - 3, token);
+			const tree = await listWorkspaceTree(this._fileService, root, budget - heading.length - 3, token);
 			if (tree === undefined) {
 				return { outcome: 'pending' };
 			}
-			return tree ? { outcome: 'included', tree: `${heading}\n${tree}` } : { outcome: 'empty' };
+			return tree.entries.length ? { outcome: 'included', snapshot: { heading, ...tree } } : { outcome: 'empty' };
 		} catch (err) {
 			this._logService.warn(`[WorkspaceContext] Could not list ${root.fsPath} for the initial workspace snapshot: ${toErrorMessage(err)}`);
 			return { outcome: 'failed' };
@@ -410,17 +410,17 @@ async function readChildren(fileService: IFileService, directory: URI): Promise<
 }
 
 /**
- * Renders at most `maxLength` characters of `root`'s file names, breadth
- * first so top-level orientation survives truncation, reading only the
- * directories whose names fit. Like the classic Copilot Chat workspace
- * structure it does not apply `.gitignore`. Returns `undefined` once `token`
- * is cancelled.
+ * Lists the entries of `root` whose rendered lines fit in `maxLength`
+ * characters, breadth first so top-level orientation survives truncation,
+ * reading only the directories whose names fit. Like the classic Copilot Chat
+ * workspace structure it does not apply `.gitignore`. Returns `undefined` once
+ * `token` is cancelled.
  */
-async function renderWorkspaceTree(fileService: IFileService, root: URI, maxLength: number, token: CancellationToken): Promise<string | undefined> {
+async function listWorkspaceTree(fileService: IFileService, root: URI, maxLength: number, token: CancellationToken): Promise<{ entries: IWorkspaceSnapshotEntry[]; truncated: boolean } | undefined> {
 	if (maxLength < 4) {
-		return '';
+		return { entries: [], truncated: false };
 	}
-	const selected = new Map<IWorkspaceNode, string>();
+	const selected = new Map<IWorkspaceNode, IWorkspaceSnapshotEntry>();
 	// The root must be readable; an unreadable nested directory is shown without children.
 	const topLevel = await readChildren(fileService, root);
 	let level = topLevel;
@@ -437,7 +437,7 @@ async function renderWorkspaceTree(fileService: IFileService, root: URI, maxLeng
 				truncated = true;
 				break;
 			}
-			selected.set(node, line);
+			selected.set(node, { path: node.resource.fsPath, depth, line });
 			length += line.length + 1;
 			if (node.expandable) {
 				expanded.push(node);
@@ -451,21 +451,18 @@ async function renderWorkspaceTree(fileService: IFileService, root: URI, maxLeng
 	if (token.isCancellationRequested) {
 		return undefined;
 	}
-	const lines: string[] = [];
-	const render = (nodes: readonly IWorkspaceNode[] | undefined): void => {
+	const entries: IWorkspaceSnapshotEntry[] = [];
+	const collect = (nodes: readonly IWorkspaceNode[] | undefined): void => {
 		for (const node of nodes ?? []) {
-			const line = selected.get(node);
-			if (line !== undefined) {
-				lines.push(line);
-				render(node.children);
+			const entry = selected.get(node);
+			if (entry) {
+				entries.push(entry);
+				collect(node.children);
 			}
 		}
 	};
-	render(topLevel);
-	if (truncated) {
-		lines.push('...');
-	}
-	return lines.join('\n');
+	collect(topLevel);
+	return { entries, truncated };
 }
 
 /**

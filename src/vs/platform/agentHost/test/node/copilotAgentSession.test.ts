@@ -51,6 +51,7 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { renderWorkspaceSnapshot, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -133,6 +134,8 @@ class MockCopilotSession {
 	readonly collectLogsResults: Awaited<ReturnType<CopilotSession['rpc']['debug']['collectLogs']>>[] = [];
 	readonly workingDirectorySetCalls: Parameters<CopilotSession['rpc']['metadata']['setWorkingDirectory']>[0][] = [];
 	readonly workingDirectorySetResults: Awaited<ReturnType<CopilotSession['rpc']['metadata']['setWorkingDirectory']>>[] = [];
+	/** Paths `rpc.contentExclusion.checkPaths` reports as excluded; `undefined` makes policy evaluation unavailable. */
+	contentExcludedPaths: ReadonlySet<string> | undefined = new Set();
 	readonly workingDirectorySetErrors: Array<Error | undefined> = [];
 	workingDirectorySetGate: Promise<void> | undefined;
 	onWorkingDirectorySet: (() => void) | undefined;
@@ -383,6 +386,14 @@ class MockCopilotSession {
 				return destination.kind === 'directory'
 					? { kind: 'directory' as const, path: destination.outputDirectory, entries: [] }
 					: { kind: 'archive' as const, path: destination.outputPath, entries: [] };
+			},
+		},
+		contentExclusion: {
+			checkPaths: async ({ paths }: Parameters<CopilotSession['rpc']['contentExclusion']['checkPaths']>[0]) => {
+				const excluded = this.contentExcludedPaths;
+				return excluded
+					? { available: true, checks: paths.map(path => ({ path, excluded: excluded.has(path) })) }
+					: { available: false, checks: [] };
 			},
 		},
 		metadata: {
@@ -3144,6 +3155,43 @@ suite('CopilotAgentSession', () => {
 				attachments: [{ type: 'file', path: snapshotUri.fsPath, displayName: 'Pasted Image' }],
 			}],
 			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([snapshotUri.fsPath]) },
+		});
+	});
+
+	suite('workspace snapshot', () => {
+		const workspaceSnapshot: IWorkspaceSnapshot = {
+			roots: [{
+				heading: '/repo',
+				entries: [
+					{ path: '/repo/README.md', depth: 0, line: 'README.md' },
+					{ path: '/repo/secrets', depth: 0, line: 'secrets/' },
+					{ path: '/repo/secrets/keys.json', depth: 1, line: '\tkeys.json' },
+					{ path: '/repo/src', depth: 0, line: 'src/' },
+					{ path: '/repo/src/config.ts', depth: 1, line: '\tconfig.ts' },
+					{ path: '/repo/src/main.ts', depth: 1, line: '\tmain.ts' },
+				],
+				truncated: true,
+			}],
+		};
+
+		test('drops paths excluded by content exclusion, with everything below them', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.contentExcludedPaths = new Set(['/repo/secrets', '/repo/src/config.ts']);
+
+			await session.send('hello', undefined, undefined, undefined, undefined, undefined, ['<other/>'], undefined, false, workspaceSnapshot);
+
+			assert.deepStrictEqual(session.handleUserPromptSubmitted(), {
+				additionalContext: '<other/>\n\n' + renderWorkspaceSnapshot({ roots: [{ heading: '/repo', entries: [workspaceSnapshot.roots[0].entries[0], workspaceSnapshot.roots[0].entries[3], workspaceSnapshot.roots[0].entries[5]], truncated: true }] }),
+			});
+		});
+
+		test('omits the snapshot when content exclusion cannot be evaluated', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.contentExcludedPaths = undefined;
+
+			await session.send('hello', undefined, undefined, undefined, undefined, undefined, ['<other/>'], undefined, false, workspaceSnapshot);
+
+			assert.deepStrictEqual({ sent: mockSession.sendRequests.length, additionalContext: session.handleUserPromptSubmitted() }, { sent: 1, additionalContext: { additionalContext: '<other/>' } });
 		});
 	});
 
