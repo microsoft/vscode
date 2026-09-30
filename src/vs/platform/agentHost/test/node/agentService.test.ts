@@ -21280,9 +21280,10 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('restore rejects missing peer metadata instead of publishing the session modified time', async () => {
+			let peerMetadataAvailable = false;
 			class MultiChatAgent extends MockAgent {
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-					return isDefaultChatUri(chat) ? super.getChatMetadata(chat, context) : undefined;
+					return isDefaultChatUri(chat) || peerMetadataAvailable ? super.getChatMetadata(chat, context) : undefined;
 				}
 			}
 			const db = new TestSessionDatabase();
@@ -21299,6 +21300,18 @@ suite('AgentService (node dispatcher)', () => {
 				localService.restoreSession(session),
 				/provider metadata is unavailable/,
 			);
+			const stateAfterFailure = getStateManager(localService).getSessionState(session.toString());
+			peerMetadataAvailable = true;
+			await localService.restoreSession(session);
+			const stateAfterRetry = getStateManager(localService).getSessionState(session.toString());
+
+			assert.deepStrictEqual({
+				stateAfterFailure,
+				chatIdsAfterRetry: stateAfterRetry?.chats.map(chat => parseChatUri(chat.resource)?.chatId),
+			}, {
+				stateAfterFailure: undefined,
+				chatIdsAfterRetry: ['default', 'peer-without-metadata'],
+			});
 		});
 
 		test('coalesces concurrent first access for one restored peer chat', async () => {

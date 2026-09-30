@@ -149,11 +149,19 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 	}
 
 	private _isMostRecentChat(session: ISession, chat: IChat, reader?: IReader): boolean {
-		const mostRecentChat = session.chats.read(reader).reduce<IChat | undefined>(
-			(latest, candidate) => !latest || (candidate.updatedAt.read(reader)?.getTime() ?? -Infinity) > (latest.updatedAt.read(reader)?.getTime() ?? -Infinity) ? candidate : latest,
-			undefined,
-		);
-		return isEqual(mostRecentChat?.resource ?? session.mainChat.read(reader).resource, chat.resource);
+		let mostRecentChat: IChat | undefined;
+		let mostRecentTime = -Infinity;
+		for (const candidate of session.chats.read(reader)) {
+			const updatedAt = candidate.updatedAt.read(reader);
+			if (!updatedAt) {
+				return false;
+			}
+			if (updatedAt.getTime() > mostRecentTime) {
+				mostRecentChat = candidate;
+				mostRecentTime = updatedAt.getTime();
+			}
+		}
+		return isEqual(mostRecentChat?.resource, chat.resource);
 	}
 
 	private _toSessionFileChanges(session: ISession, changes: IObservable<readonly IEditSessionEntryDiff[]>): IObservable<readonly ISessionFileChange[]> {

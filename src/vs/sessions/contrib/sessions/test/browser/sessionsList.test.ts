@@ -3903,6 +3903,44 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('does not resolve timestamps while chat rows are virtualized offscreen', () => {
+			let timestampSubscriptions = 0;
+			const onDidResolveTimestamp: Event<void> = listener => {
+				timestampSubscriptions++;
+				return toDisposable(() => timestampSubscriptions--);
+			};
+			const unresolvedTimestamp = observableFromEvent(disposables, onDidResolveTimestamp, () => undefined);
+			const main = createChat('Main chat');
+			const chats = [
+				main,
+				...Array.from({ length: 24 }, (_, index) => index === 23
+					? createChat(`Task ${index}`, ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, unresolvedTimestamp)
+					: createChat(`Task ${index}`, ChatOriginKind.User)),
+			];
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable(chats),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(120, 400);
+			setSessionChatsExpanded(container, true);
+
+			assert.strictEqual(timestampSubscriptions, 0);
+
+			list.layout(2000, 400);
+
+			assert.strictEqual(timestampSubscriptions, 1);
+		});
+
 		test('shows the folder of a chat scoped to one project of a multi-project session', () => {
 			const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
 			const second = { root: URI.file('/workspace/second'), workingDirectory: URI.file('/workspace/second'), name: 'second', description: undefined };

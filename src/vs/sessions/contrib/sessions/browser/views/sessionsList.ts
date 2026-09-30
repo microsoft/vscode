@@ -458,7 +458,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	}
 
 	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
-		const detailsHeight = !this._isCompact() && element.chat.updatedAt.get() ? SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT : 0;
+		const detailsHeight = !this._isCompact() ? SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT : 0;
 		return this.withInsetRowSpacing(this.withChatApprovalHeight(
 			element,
 			(this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT) + detailsHeight,
@@ -768,11 +768,9 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			}
 			if (hadDetailsRow === undefined) {
 				hadDetailsRow = showDetailsRow;
-				// A row sized while offscreen reserved no folder row, since its
-				// workspace was not read then; correct it once it is rendered.
-				if (showDetailsRow) {
-					template.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(template.container), () => this._onDidChangeItemHeight.fire(element)));
-				}
+				// Offscreen rows reserve the details row without hydrating chat
+				// metadata; correct that estimate once the row is rendered.
+				template.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(template.container), () => this._onDidChangeItemHeight.fire(element)));
 			} else if (hadDetailsRow !== showDetailsRow) {
 				hadDetailsRow = showDetailsRow;
 				this._onDidChangeItemHeight.fire(element);
@@ -4517,7 +4515,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 					chatItem.chat.updatedAt.read(reader);
 					this.tree.updateElementHeight(chatItem, this._delegate.getHeight(chatItem));
 				} else if (this.tree.hasElement(chatItem)) {
-					chatItem.chat.updatedAt.read(reader);
 					this.tree.updateElementHeight(chatItem, this._delegate.getHeightWithoutChatWorkspace(chatItem));
 				}
 			}

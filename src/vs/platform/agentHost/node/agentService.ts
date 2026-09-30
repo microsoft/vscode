@@ -8281,12 +8281,16 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		const promises: Promise<unknown>[] = [];
 		await this._registerRestoredSubagentSummaries(agent, session, mergedTurns);
 
 		// Register persisted peer-chat catalog metadata. Their provider backings
 		// and histories are restored when a peer chat is first requested.
-		promises.push(this._restorePeerChats(agent, session, cachedChatCatalog));
+		try {
+			await this._restorePeerChats(agent, session, cachedChatCatalog);
+		} catch (error) {
+			this._stateManager.deleteSession(sessionStr);
+			throw error;
+		}
 
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The coordinator
@@ -8322,7 +8326,6 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error('[AgentService] restoreSession: failed to resolve chat customizations', err);
 				return undefined;
 			}),
-			...promises
 		]);
 		if (restoredConfig) {
 			const previousConfig = this._stateManager.getSessionState(sessionStr)?.config;
