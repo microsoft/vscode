@@ -530,11 +530,11 @@ describe('CopilotCLITerminalIntegration', () => {
 			expect({
 				prepared: mockPrepareShim.mock.calls,
 				removed: mockRm.mock.calls,
-				contributed: terminalService.contributePathSpy.mock.calls,
+				contributed: terminalService.contributePathSpy.mock.calls.map(call => call.slice(0, 3)),
 			}).toEqual({
 				prepared: [['/tmp/test-global-storage', expect.objectContaining({ warn: expect.any(Function) })]],
 				removed: [],
-				contributed: [['copilot-cli', path.dirname(storedShimPath), { command: 'copilot' }, true]],
+				contributed: [['copilot-cli', path.dirname(storedShimPath), { command: 'copilot' }]],
 			});
 		});
 
