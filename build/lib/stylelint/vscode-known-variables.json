@@ -28,6 +28,7 @@
 		"--vscode-agentSessionSelectedBadge-border",
 		"--vscode-agentSessionSelectedUnfocusedBadge-border",
 		"--vscode-agentStatusIndicator-background",
+		"--vscode-agentsHub-busyTimerWarningForeground",
 		"--vscode-agentsVoice-speakingBackground",
 		"--vscode-agentsVoice-speakingForeground",
 		"--vscode-activeSessionView-background",
