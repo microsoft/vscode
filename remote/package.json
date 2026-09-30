@@ -33,7 +33,6 @@
     "@xterm/addon-webgl": "^0.20.0-beta.300",
     "@xterm/headless": "^6.1.0-beta.303",
     "@xterm/xterm": "^6.1.0-beta.304",
-    "code-oss-dev": "file:..",
     "cookie": "^0.7.0",
     "detect-libc": "^2.1.2",
     "http-proxy-agent": "^7.0.0",
