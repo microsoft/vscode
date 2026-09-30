@@ -5,7 +5,7 @@
 
 import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
 import { IChatMLFetcher, type IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation, type ChatResponse, type ChatResponses } from '../../../../platform/chat/common/commonTypes';
@@ -14,7 +14,9 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ExtensionContributedChatEndpoint } from '../../../../platform/endpoint/vscode-node/extChatEndpoint';
+import { IFetcherService } from '../../../../platform/networking/common/fetcherService';
 import type { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
+import { createFakeResponse } from '../../../../platform/test/node/fetcher';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { Event } from '../../../../util/vs/base/common/event';
@@ -113,7 +115,44 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	});
 
 	afterEach(() => {
+		vi.restoreAllMocks();
 		disposables.clear();
+	});
+
+	it('discovers unknown models from a custom endpoint with conservative capabilities', async () => {
+		const fetch = vi.spyOn(accessor.get(IFetcherService), 'fetch').mockResolvedValue(createFakeResponse(200, {
+			data: [{ id: 'custom-chat-1' }, { id: 'custom-chat-2' }, { id: '' }, { name: 'missing-id' }]
+		}));
+		const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+		const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+		const models = await provider.provideLanguageModelChatInformation({
+			silent: true,
+			configuration: { apiKey: 'test-api-key', url: 'https://api.example.com/v1' }
+		}, tokenSource.token);
+
+		expect({
+			requests: fetch.mock.calls.map(([url, options]) => ({ url, method: options.method, authorization: options.headers?.Authorization })),
+			models: models.map(model => ({
+				id: model.id,
+				name: model.name,
+				url: model.url,
+				maxInputTokens: model.maxInputTokens,
+				maxOutputTokens: model.maxOutputTokens,
+				toolCalling: model.capabilities?.toolCalling,
+				vision: model.capabilities?.imageInput,
+			}))
+		}).toEqual({
+			requests: [{ url: 'https://api.example.com/v1/models', method: 'GET', authorization: 'Bearer test-api-key' }],
+			models: ['custom-chat-1', 'custom-chat-2'].map(id => ({
+				id,
+				name: id,
+				url: 'https://api.example.com/v1',
+				maxInputTokens: 16384,
+				maxOutputTokens: 4096,
+				toolCalling: false,
+				vision: false,
+			}))
+		});
 	});
 
 	describe('resolveCustomEndpointUrl', () => {

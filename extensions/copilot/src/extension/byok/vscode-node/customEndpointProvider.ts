@@ -14,7 +14,7 @@ import { IChatWebSocketManager } from '../../../platform/networking/node/chatWeb
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { resolveModelInfo } from '../common/byokProvider';
+import { BYOKModelCapabilities, resolveModelInfo } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
@@ -150,6 +150,19 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			}
 		}
 		return models;
+	}
+
+	protected override resolveModelCapabilities(modelData: unknown): BYOKModelCapabilities | undefined {
+		if (typeof modelData !== 'object' || modelData === null || !('id' in modelData) || typeof modelData.id !== 'string' || !modelData.id) {
+			return undefined;
+		}
+		return {
+			name: modelData.id,
+			maxInputTokens: 16384,
+			maxOutputTokens: 4096,
+			toolCalling: false,
+			vision: false,
+		};
 	}
 
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<OpenAIEndpoint> {
