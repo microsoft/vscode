@@ -125,6 +125,33 @@ suite('Session promotion', () => {
 		});
 	});
 
+	test('publishes promotion to catalog subscribers when evicted during persistence', async () => {
+		const persisted = new DeferredPromise<void>();
+		const database = new class extends TestSessionDatabase {
+			override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+				await persisted.p;
+				await super.setMetadataValues(values);
+			}
+		};
+		const h = setup(database);
+		const changed = new Promise<void>(resolve => {
+			disposables.add(h.stateManager.onDidEmitNotification(notification => {
+				if (notification.type === 'root/sessionSummaryChanged' && readSessionIsPromoted(notification.changes)) {
+					resolve();
+				}
+			}));
+		});
+		h.dispatch({ type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'queued', message: { text: 'Follow-up', origin: { kind: MessageKind.User } } });
+		h.stateManager.removeSession(h.session);
+		await persisted.complete();
+		await changed;
+		assert.deepStrictEqual({
+			resident: !!h.stateManager.getSessionState(h.session),
+			promoted: readSessionIsPromoted(h.stateManager.getSurfacedSessionSummary(h.session)),
+			persisted: await database.getMetadata(SESSION_IS_PROMOTED_METADATA_KEY),
+		}, { resident: false, promoted: true, persisted: 'true' });
+	});
+
 	test('automation seeds, agent messages, drafts and queue drains do not promote', async () => {
 		const h = setup();
 		for (const kind of [MessageKind.Automation, MessageKind.Agent, MessageKind.SystemNotification]) {

@@ -133,6 +133,8 @@ export interface IAppliedClientAction {
 	readonly action: StateAction;
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
+	/** A message already present before reduction, not a new user submission. */
+	readonly isReplay?: boolean;
 }
 
 /**

@@ -37,8 +37,8 @@ export class SessionPromotionContribution extends Disposable implements IAgentHo
 		super();
 	}
 
-	onDidApplyClientAction({ session, channel, action }: IAppliedClientAction): void {
-		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
+	onDidApplyClientAction({ session, channel, action, isReplay }: IAppliedClientAction): void {
+		if (isReplay || (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet)) {
 			return;
 		}
 		if (action.message.origin.kind !== MessageKind.User || readMessageRetryOf(action.message)) {
@@ -90,8 +90,16 @@ export class SessionPromotionContribution extends Disposable implements IAgentHo
 	private async _persistPromotion(session: string): Promise<void> {
 		await this._metadataPersistence.persist(URI.parse(session), { [SESSION_IS_PROMOTED_METADATA_KEY]: 'true' });
 		const state = this._stateManager.getSessionState(session);
-		if (!this._store.isDisposed && state && !readSessionIsPromoted(state)) {
+		if (this._store.isDisposed) {
+			return;
+		}
+		if (state && !readSessionIsPromoted(state)) {
 			this._stateManager.setSessionMeta(session, withSessionIsPromoted(state._meta));
+		} else if (!state) {
+			const summary = this._stateManager.getSurfacedSessionSummary(session);
+			if (summary) {
+				this._stateManager.updateSurfacedSessionMetadata(session, { ...summary, _meta: withSessionIsPromoted(summary._meta) });
+			}
 		}
 	}
 }

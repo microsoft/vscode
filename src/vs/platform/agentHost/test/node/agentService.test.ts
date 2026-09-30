@@ -34,6 +34,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { readSessionIsPromoted, SESSION_IS_PROMOTED_METADATA_KEY } from '../../common/meta/agentSessionPromotionMeta.js';
+import { PendingMessageKind } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -1426,6 +1427,34 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
+		for (const kind of [PendingMessageKind.Queued, PendingMessageKind.Steering]) {
+			test(`replayed ${kind} messages do not promote, but a user edit does`, async () => {
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ provider: 'copilot' });
+				const stateManager = getStateManager(service);
+				const chat = buildDefaultChatUri(session.toString());
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatTurnStarted, turnId: 'seed', startedAt: '2026-09-29T00:00:00Z',
+					message: { text: 'seed', origin: { kind: MessageKind.Automation } },
+				});
+				const action = {
+					type: ActionType.ChatPendingMessageSet, kind, id: 'old-message',
+					message: { text: 'already queued', origin: { kind: MessageKind.User } },
+				} as const;
+				stateManager.dispatchServerAction(chat, action);
+				service.dispatchAction(chat, action, 'client', 1);
+				await timeout(0);
+				const replayPromoted = readSessionIsPromoted(stateManager.getSessionSummary(session.toString()));
+				const promoted = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope,
+					envelope => envelope.action.type === ActionType.SessionMetaChanged && readSessionIsPromoted(envelope.action)));
+				service.dispatchAction(chat, { ...action, message: { ...action.message, text: 'edited by user' } }, 'client', 2);
+				await promoted;
+				assert.deepStrictEqual({ replayPromoted, editPromoted: readSessionIsPromoted(stateManager.getSessionSummary(session.toString())) }, {
+					replayPromoted: false, editPromoted: true,
+				});
+			});
+		}
+
 		test('promotion from a human follow-up survives catalog listing and host restart', async () => {
 			const database = new TestSessionDatabase();
 			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
