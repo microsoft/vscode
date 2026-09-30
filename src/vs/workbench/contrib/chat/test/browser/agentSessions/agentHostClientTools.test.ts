@@ -1222,7 +1222,7 @@ suite('AgentHostClientTools', () => {
 			}));
 			session.dispose();
 			assert.deepStrictEqual({ shown, remaining: inputNotifications.size }, {
-				shown: [{ description: 'Install bubblewrap.', sessions: [sessionResource.toString()] }],
+				shown: [{ description: new MarkdownString().appendText('Install bubblewrap.'), sessions: [sessionResource.toString()] }],
 				remaining: 0,
 			});
 		});

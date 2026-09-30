@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
@@ -17,6 +18,8 @@ import { SyncDescriptor } from '../../../../../../../platform/instantiation/comm
 import { getSingletonServiceDescriptors } from '../../../../../../../platform/instantiation/common/extensions.js';
 import { ServiceCollection } from '../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService, OpenOptions } from '../../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
@@ -389,6 +392,62 @@ suite('ChatInputNotificationWidget', () => {
 			markdown: true,
 			linkText: 'Learn more',
 			linkHref: 'https://aka.ms/learn',
+		});
+	});
+
+	test('escaped diagnostic text is selectable and support links open with mouse and keyboard', () => {
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		const opened: { link: string; allowCommands: boolean | readonly string[] | undefined }[] = [];
+		instantiationService.stub(IOpenerService, {
+			open: async (link: URI | string, options?: OpenOptions) => {
+				opened.push({ link: link.toString(), allowCommands: options?.allowCommands });
+				return true;
+			},
+		});
+
+		const container = dom.append(document.body, dom.$('.monaco-workbench'));
+		instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+		store.add(toDisposable(() => container.remove()));
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+		container.appendChild(widget.domNode);
+		const url = 'https://aka.ms/ghcp-sandbox-os-support';
+		const reason = `Update Windows: ${url} [not a command](command:evil) <b>literal</b>`;
+		notificationService.setNotification({
+			id: 'sandbox-diagnostic',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: 'Sandboxing is unavailable in this environment',
+			description: new MarkdownString().appendText('Update Windows: ').appendLink(url, url).appendText(' [not a command](command:evil) <b>literal</b>'),
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: false,
+		});
+
+		const title = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-title');
+		const description = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-description');
+		const link = description?.querySelector('a');
+		assert.ok(title && description && link);
+		link.click();
+		link.focus();
+		const focused = document.activeElement === link;
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		assert.deepStrictEqual({
+			text: description.textContent?.replace(/\u00a0/g, ' '),
+			links: description.querySelectorAll('a').length,
+			titleSelection: dom.getWindow(title).getComputedStyle(title).userSelect,
+			descriptionSelection: dom.getWindow(description).getComputedStyle(description).userSelect,
+			focused,
+			opened,
+		}, {
+			text: reason,
+			links: 1,
+			titleSelection: 'text',
+			descriptionSelection: 'text',
+			focused: true,
+			opened: [{ link: url, allowCommands: false }, { link: url, allowCommands: false }],
 		});
 	});
 
