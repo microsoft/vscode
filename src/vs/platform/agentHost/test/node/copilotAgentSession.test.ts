@@ -9120,8 +9120,8 @@ suite('CopilotAgentSession', () => {
 				sandboxPolicy.allowOutbound = true;
 				await session.send('second', undefined, 'turn-2');
 				assert.deepStrictEqual({ denied, allowed: mockSession.sandboxConfigUpdates.at(-1) }, {
-					denied: { enabled: true, allowBypass: false, userPolicy: { filesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR] }, network: { allowOutbound: false } } },
-					allowed: { enabled: true, allowBypass: false, userPolicy: { filesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR] }, network: { allowOutbound: true } } },
+					denied: { enabled: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR] }, network: { allowOutbound: false } } },
+					allowed: { enabled: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR] }, network: { allowOutbound: true } } },
 				});
 			});
 		}

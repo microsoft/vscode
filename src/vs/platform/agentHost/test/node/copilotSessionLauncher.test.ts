@@ -259,7 +259,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				policy: fixture.configuration.getSessionSandboxPolicy(fixture.owner),
 				stored: fixture.configuration.getRootConfigValues()?.sandbox,
 			}, {
-				applied: [{ enabled: true, allowBypass: false, userPolicy: { filesystem: {}, network: { allowOutbound: false } } }],
+				applied: [{ enabled: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: {}, network: { allowOutbound: false } } }],
 				policy: { enabled: true, allowBypass: false, allowOutbound: false },
 				stored: { enabled: 'off', 'enabled.windows': 'off', allowNetwork: true, allowUnsandboxedCommands: false },
 			});
