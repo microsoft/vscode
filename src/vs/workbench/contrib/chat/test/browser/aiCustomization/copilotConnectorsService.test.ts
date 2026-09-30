@@ -226,10 +226,11 @@ suite('CopilotConnectorsService', () => {
 		}]);
 		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 		const page = await source.query({}, CancellationToken.None);
+		const marketplaceIcon = page.items[0]?.icon;
 
 		assert.deepStrictEqual({
 			connectorIcon: fixture.service.connectors[0]?.icon?.toString(),
-			marketplaceIcon: page.items[0]?.icon?.toString(),
+			marketplaceIcon: URI.isUri(marketplaceIcon) ? marketplaceIcon.toString() : undefined,
 		}, {
 			connectorIcon: 'https://static.powerapps.com/kusto/icon.png',
 			marketplaceIcon: 'https://static.powerapps.com/kusto/icon.png',

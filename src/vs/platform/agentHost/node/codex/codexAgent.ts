@@ -7558,12 +7558,26 @@ export class CodexAgent extends Disposable implements IAgent {
 				if (discovered.length > 0) {
 					this._onDidDiscoverChats.fire(discovered);
 				}
+				this._recordFirstDiscoveryResult(discovered);
 				return true;
 			}
 		} catch (err) {
 			this._logService.warn(`[Codex] Failed to emit discovered chats: ${err instanceof Error ? err.message : String(err)}`);
 		}
 		return false;
+	}
+
+	private _recordFirstDiscoveryResult(discovered: readonly IAgentDiscoveredChat[]): void {
+		if (this._isShuttingDown || this._store.isDisposed || !this._startupPerformance.isPending('firstSessionDiscoveryResult', this.id)) {
+			return;
+		}
+		this._startupPerformance.mark('firstSessionDiscoveryResult', {
+			provider: this.id, since: 'processStart',
+			...(this._startupPerformance.isEnabled ? {
+				candidateSessionCount: discovered.length,
+				externalSessionCount: discovered.reduce((count, chat) => count + (chat.external ? 1 : 0), 0),
+			} : {}),
+		});
 	}
 
 	private async _isKnownCodexChat(chat: IAgentChatMetadata): Promise<boolean> {

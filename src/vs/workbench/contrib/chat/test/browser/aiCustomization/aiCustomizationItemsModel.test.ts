@@ -12,14 +12,18 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -28,6 +32,14 @@ import { basename } from '../../../../../../base/common/resources.js';
 
 suite('AICustomizationItemsModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createEmptyMarketplaceInstallService(): ICustomizationMarketplaceInstallService {
+		return new class extends mock<ICustomizationMarketplaceInstallService>() {
+			override readonly onDidChange = Event.None;
+			override readonly installations = observableValue('marketplaceInstallations', emptyCustomizationMarketplaceInstallationSnapshot);
+			override getInstallState(): CustomizationMarketplaceInstallState { return { kind: 'available' }; }
+		}();
+	}
 
 	suite('basics', () => {
 
@@ -44,6 +56,9 @@ suite('AICustomizationItemsModel', () => {
 		let plugins: ISettableObservable<readonly IAgentPlugin[]>;
 		let listPromptFilesResult: Awaited<ReturnType<IPromptsService['listPromptFiles']>>;
 		let disabledPromptFilesResult: ResourceSet;
+		let marketplaceStates: Map<string, RecordedCustomizationMarketplaceInstallState>;
+		let marketplaceInstallations: ISettableObservable<ICustomizationMarketplaceInstallationSnapshot>;
+		let marketplaceInstallStateLookups: number;
 
 		function createDescriptor(id: string, provider: ICustomizationItemProvider | undefined, syncProvider?: ICustomizationSyncProvider): IHarnessDescriptor {
 			return {
@@ -62,6 +77,9 @@ suite('AICustomizationItemsModel', () => {
 			providerA_items = [];
 			listPromptFilesResult = [];
 			disabledPromptFilesResult = new ResourceSet();
+			marketplaceStates = new Map();
+			marketplaceInstallations = observableValue('marketplaceInstallations', emptyCustomizationMarketplaceInstallationSnapshot);
+			marketplaceInstallStateLookups = 0;
 
 			const providerA: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
@@ -83,6 +101,14 @@ suite('AICustomizationItemsModel', () => {
 			plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
 
 			instaService = workbenchInstantiationService({}, disposables);
+			instaService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
+				override readonly onDidChange = Event.None;
+				override readonly installations = marketplaceInstallations;
+				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+					marketplaceInstallStateLookups++;
+					return marketplaceStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
+				}
+			}());
 
 			function customAgentFromPromptPath(promptFile: IPromptPath): ICustomAgent {
 				return {
@@ -181,6 +207,55 @@ suite('AICustomizationItemsModel', () => {
 			assert.ok(model.getItems(AICustomizationManagementSection.Instructions));
 			assert.ok(model.getItems(AICustomizationManagementSection.Prompts));
 			assert.ok(model.getItems(AICustomizationManagementSection.Hooks));
+		});
+
+		test('links recorded marketplace metadata to its exact installed skill', async () => {
+			const uri = URI.parse('agent-host://t/skills/review/SKILL.md');
+			const resource: ICustomizationMarketplaceResource = {
+				sourceId: 'testSource',
+				identifier: 'review',
+				displayName: 'Review',
+				description: 'Review changes',
+				mediaType: CustomizationMarketplaceMediaType.Skill,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				icon: URI.parse('https://example.com/review.png'),
+			};
+			providerA_items = [{
+				uri,
+				type: PromptsType.skill,
+				name: 'Review',
+				source: AICustomizationSources.plugin,
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: true,
+			}];
+			const key = getCustomizationMarketplaceResourceKey(resource);
+			marketplaceStates.set(key, { kind: 'installed', target: { kind: 'skill', uri } });
+			marketplaceInstallations.set(createCustomizationMarketplaceInstallationSnapshot([
+				{ resource, state: marketplaceStates.get(key)! },
+			]), undefined);
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const items = model.getItems(AICustomizationManagementSection.Skills);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			const installed = items.get()[0]?.marketplace;
+
+			marketplaceStates.set(key, { kind: 'uninstalling', target: { kind: 'skill', uri } });
+			marketplaceInstallations.set(createCustomizationMarketplaceInstallationSnapshot([
+				{ resource, state: marketplaceStates.get(key)! },
+			]), undefined);
+			const uninstalling = items.get()[0]?.marketplace;
+
+			assert.deepStrictEqual({
+				installed: installed && { identifier: installed.resource.identifier, icon: getCustomizationMarketplaceIconUri(installed.resource.icon, ColorScheme.LIGHT)?.toString(), state: installed.state.kind },
+				uninstalling: uninstalling?.state.kind,
+				installStateLookups: marketplaceInstallStateLookups,
+			}, {
+				installed: { identifier: 'review', icon: 'https://example.com/review.png', state: 'installed' },
+				uninstalling: 'uninstalling',
+				installStateLookups: 0,
+			});
 		});
 
 		test('does not fetch on construction (lazy)', async () => {
@@ -657,6 +732,7 @@ suite('AICustomizationItemsModel', () => {
 			const availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptor]);
 
 			instaService = workbenchInstantiationService({}, disposables);
+			instaService.stub(ICustomizationMarketplaceInstallService, createEmptyMarketplaceInstallService());
 			instaService.stub(IPromptsService, {
 				onDidChangeCustomAgents: Event.None,
 				onDidChangeSlashCommands: Event.None,
@@ -902,6 +978,7 @@ suite('AICustomizationItemsModel', () => {
 			const availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptor]);
 
 			instaService = workbenchInstantiationService({}, disposables);
+			instaService.stub(ICustomizationMarketplaceInstallService, createEmptyMarketplaceInstallService());
 			instaService.stub(IPromptsService, {
 				onDidChangeCustomAgents: Event.None,
 				onDidChangeSlashCommands: Event.None,

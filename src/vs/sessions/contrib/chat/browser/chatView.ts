@@ -25,6 +25,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -44,10 +45,12 @@ import { ISendRequestOptions } from '../../../services/sessions/common/sessionsP
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
+import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
-import { NewChatWidget } from './newChatWidget.js';
+import { isExperimentalSessionComposerLayoutEnabled, NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from './sessionChatInputToolbar.js';
@@ -67,8 +70,11 @@ import { SessionComparisonResult } from './sessionComparisonResult.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
+// 14px icon + 6px padding + 4px gap + the 4em (44px) expanded percentage label + breathing room.
+export const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 72;
 
 /**
  * Returns the total horizontal space the renderer must reserve for Sessions chat items.
@@ -80,6 +86,10 @@ export function getSessionChatItemHorizontalPadding(hasBackground: boolean): num
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
+}
+
+export function isExperimentalRunningSessionComposerLayoutEnabled(configurationService: IConfigurationService, layoutService: IWorkbenchLayoutService): boolean {
+	return isExperimentalSessionComposerLayoutEnabled(configurationService) && !isPhoneLayout(layoutService);
 }
 
 /**
@@ -278,6 +288,7 @@ export class ChatView extends AbstractChatView {
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
@@ -323,6 +334,18 @@ export class ChatView extends AbstractChatView {
 		));
 		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
+		const updateExperimentalComposerLayout = () => {
+			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
+			this.element.classList.toggle('experimental-session-composer', enabled);
+			this._widget.inputPart.placeContextUsageWidget(enabled ? this._widget.inputPart.inputContainerElement : undefined);
+			this._widget.inputPart.setInputEditorTrailingSpace(enabled ? EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE : 0);
+		};
+		updateExperimentalComposerLayout();
+		this._register(contextKeyService.onDidChangeContext(event => {
+			if (event.affectsSome(new Set([IsPhoneLayoutContext.key]))) {
+				updateExperimentalComposerLayout();
+			}
+		}));
 		this._register(this._widget.onDidChangeStickyScrollDomNode(() => this._layoutStickyScrollBackground()));
 		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatBackground()));
 		this._externalSessionBanner = this._register(scopedInstantiationService.createInstance(
@@ -407,6 +430,10 @@ export class ChatView extends AbstractChatView {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
 				this._applyHistoryKey();
+			}
+			if (e.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
+				|| e.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
+				updateExperimentalComposerLayout();
 			}
 		}));
 
