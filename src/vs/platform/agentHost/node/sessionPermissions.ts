@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { realpath as fsRealpath } from 'fs';
+import { lstat as fsLstat, realpath as fsRealpath } from 'fs';
 import { homedir } from 'os';
 import { promisify } from 'util';
 import { firstParallel } from '../../../base/common/async.js';
@@ -82,6 +82,7 @@ const PLATFORM_RESTRICTED_DIRS: readonly string[] = (
 ).filter(isDefined);
 
 const realpath = promisify(fsRealpath);
+const lstat = promisify(fsLstat);
 
 /**
  * Validates that a path doesn't contain suspicious characters that could be
@@ -146,8 +147,10 @@ function assertPathIsSafe(fsPath: string, _isWindows = isWindows): void {
  * Resolves the real path of `resource`, walking up the parent chain when the path
  * (or its ancestors) does not yet exist on disk. This ensures a symlink at any
  * ancestor is followed even for files that are about to be created.
+ * Returns `undefined` when the path or an ancestor is a dangling symlink, since
+ * writing through it creates the link target wherever it points.
  */
-async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: string) => Promise<string>): Promise<URI> {
+async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: string) => Promise<string>): Promise<URI | undefined> {
 	const fsPath = resource.fsPath;
 	try {
 		return URI.file(await realpath(fsPath));
@@ -155,6 +158,9 @@ async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: s
 		if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
 			throw e;
 		}
+	}
+	if (await isSymbolicLink(fsPath)) {
+		return undefined;
 	}
 
 	const tail: string[] = [path.basename(fsPath)];
@@ -173,9 +179,21 @@ async function resolveRealPathForNonexistent(resource: URI, realpath: (fsPath: s
 			if (code !== 'ENOENT' && code !== 'ENOTDIR') {
 				throw e;
 			}
+			if (code === 'ENOENT' && await isSymbolicLink(current)) {
+				return undefined;
+			}
 		}
 		tail.unshift(path.basename(current));
 		current = parent;
+	}
+}
+
+/** Whether `fsPath` itself is a symlink, without following it. */
+async function isSymbolicLink(fsPath: string): Promise<boolean> {
+	try {
+		return (await lstat(fsPath)).isSymbolicLink();
+	} catch {
+		return false;
 	}
 }
 
@@ -654,7 +672,8 @@ export class SessionPermissionManager extends Disposable {
 	/**
 	 * Returns the literal path plus, for absolute paths, the symlink-resolved
 	 * real path. Returns `undefined` when the path cannot be resolved due to
-	 * missing permissions, signalling that confirmation is required.
+	 * missing permissions or a dangling symlink, signalling that confirmation
+	 * is required.
 	 */
 	private async _resolveResourcesForApproval(resource: URI): Promise<URI[] | undefined> {
 		const resourcesToCheck = [resource];
@@ -663,6 +682,9 @@ export class SessionPermissionManager extends Disposable {
 		}
 		try {
 			const resolved = await resolveRealPathForNonexistent(resource, this._realpath);
+			if (!resolved) {
+				return undefined;
+			}
 			if (!extUri.isEqual(resolved, resource)) {
 				resourcesToCheck.push(resolved);
 			}
