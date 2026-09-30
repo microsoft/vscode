@@ -5831,6 +5831,73 @@ suite('Sessions - SessionsList', () => {
 			assert.strictEqual(revealSpy.callCount, 0);
 		});
 
+		test('preserves the visible row anchor when an offscreen multi-folder chat tree is remeasured', async () => {
+			const firstFolder = { root: URI.file('/workspace/vscode'), workingDirectory: URI.file('/workspace/vscode'), name: 'vscode', description: undefined };
+			const secondFolder = { root: URI.file('/workspace/agent-host-protocol'), workingDirectory: URI.file('/workspace/agent-host-protocol'), name: 'agent-host-protocol', description: undefined };
+			const multiChatBase = createMultiFolderSession([firstFolder, secondFolder], [[firstFolder]]);
+			const sessionWorkspace = multiChatBase.workspace.get()!;
+			const peerChats = Array.from({ length: 10 }, (_, index) => upcastPartial<IChat>({
+				...createChat(`Peer chat ${index}`, ChatOriginKind.User),
+				workspace: constObservable({
+					...sessionWorkspace,
+					uri: index < 6 ? firstFolder.root : secondFolder.root,
+					label: index < 6 ? firstFolder.name : secondFolder.name,
+					folders: [index < 6 ? firstFolder : secondFolder],
+				}),
+			}));
+			const multiChatSession: ISession = {
+				...multiChatBase,
+				title: constObservable('Multi-folder session'),
+				chats: constObservable([multiChatBase.mainChat.get(), ...peerChats]),
+			};
+			const targetSession = createTestSession('Target session', { workspaceLabel: 'vscode' }).session;
+			const sessions = [
+				multiChatSession,
+				...Array.from({ length: 8 }, (_, index) => createTestSession(`Session ${index}`, { workspaceLabel: 'vscode' }).session),
+				targetSession,
+			];
+			const harness = createListHarness(disposables, sessions);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				compact: () => false,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const tree = Reflect.get(list, 'tree') as {
+				scrollTop: number;
+				reveal(element: SessionListItem, relativeTop?: number): void;
+				getNode(element: SessionListItem): { children: readonly { element: SessionListItem | null }[] };
+				getRelativeTop(element: SessionListItem): number | null;
+				getElementTop(element: SessionListItem): number | undefined;
+				updateElementHeight(element: SessionListItem, height: number): void;
+			};
+			tree.reveal(targetSession, 0.8);
+			assert.notStrictEqual(tree.getRelativeTop(targetSession), null);
+			const offscreenChats = tree.getNode(multiChatSession).children.map(child => child.element).filter((element): element is SessionListItem => !!element);
+			assert.ok(offscreenChats.every(element => tree.getRelativeTop(element) === null));
+			for (const chat of offscreenChats) {
+				tree.updateElementHeight(chat, 30);
+			}
+			const scrollTopBefore = tree.scrollTop;
+			const targetTopBefore = tree.getElementTop(targetSession)! - scrollTopBefore;
+
+			list.update();
+
+			assert.deepStrictEqual({
+				scrollTopBefore,
+				scrollTopAfter: tree.scrollTop,
+				targetTopBefore,
+				targetTopAfter: tree.getElementTop(targetSession)! - tree.scrollTop,
+			}, {
+				scrollTopBefore,
+				scrollTopAfter: scrollTopBefore + offscreenChats.length * 16,
+				targetTopBefore,
+				targetTopAfter: targetTopBefore,
+			});
+		});
+
 		test('ordinary list updates preserve a collapsed active session and user selection', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
