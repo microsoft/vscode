@@ -529,7 +529,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			},
 		});
 		const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
-		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.agent', title: 'Agent' }, group: 'navigation', order: -1 });
+		menuService.addItem(Menus.NewSessionConfig, { command: { id: 'fixture.agent', title: 'Agent' }, group: 'navigation', order: -1 });
+		menuService.addItem(Menus.NewSessionConfig, { command: { id: 'fixture.model', title: 'Model' }, group: 'navigation', order: 1 });
 		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.mode', title: 'Mode' }, group: 'navigation', order: 0 });
 		menuService.addItem(Menus.NewSessionRepositoryConfig, {
 			command: { id: 'fixture.worktree', title: 'New Worktree' },
@@ -740,6 +741,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const secondaryControls = view.element.querySelector<HTMLElement>('.new-chat-controls-container');
 		const bottomContainer = view.element.querySelector<HTMLElement>('.new-chat-bottom-container');
 		assert(!!primaryToolbar && !!secondaryControls && !!bottomContainer);
+		const configItems = primaryToolbar.querySelectorAll<HTMLElement>('.sessions-chat-config-toolbar:not(.new-chat-session-controls) .actions-container > .action-item');
+		assert(configItems[0]?.textContent === 'Agent' && configItems[1]?.textContent === 'Model',
+			'The agent picker must precede the model picker inside the prompt.');
 		if (experimentalComposerLayout) {
 			const [attach, controls, models] = [...primaryToolbar.children];
 			assert(sessionOptions.contains(repositoryConfigContainer)
@@ -748,10 +752,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				&& models.classList.contains('sessions-chat-config-toolbar'),
 				'Experimental controls must appear in workspace/repository/harness order above and attachment, agent/mode, model order inside the prompt.');
 			const controlItems = controls.querySelectorAll<HTMLElement>('.actions-container > .action-item');
-			assert(controlItems[0]?.textContent === 'Agent'
-				&& !!controlItems[1]?.querySelector('.agent-host-mode-permissions-trigger')
+			assert(!!controlItems[0]?.querySelector('.agent-host-mode-permissions-trigger')
 				&& targetWindow.getComputedStyle(bottomContainer).justifyContent === 'flex-end',
-				'The agent picker must precede the shared mode/permissions trigger inside the prompt.');
+				'The shared mode/permissions trigger must remain inside the prompt.');
 		} else {
 			const repositoryControls = repositoryConfigContainer.closest<HTMLElement>('.new-chat-secondary-controls-container');
 			assert(!!repositoryControls
@@ -839,7 +842,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionExperimentalComposer: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The experimental new-session composer places workspace, worktree, branch, and harness controls in one row above the chat input. The model remains inside the input, while mode and permissions remain below it.'],
+		expectedVisualDescriptions: ['The experimental new-session composer places workspace, worktree, branch, and harness controls in one row above the chat input. Inside the input, the Agent picker appears before the model picker, and mode and permissions remain available.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({
