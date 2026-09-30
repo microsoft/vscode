@@ -1976,7 +1976,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		model: ModelSelection | undefined,
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
-	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean> }> {
+	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } }> {
 		const plan = {
 			kind: 'resume',
 			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -1991,7 +1991,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
-		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean> }> })._buildSessionConfig(plan, runtime, () => { });
+		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } }> })._buildSessionConfig(plan, runtime, () => { });
 	}
 
 	test('excludes native dynamic workflow tools even when explicitly allowlisted', async () => {
@@ -2054,6 +2054,19 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
 			enabled: { CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true },
 		});
+	});
+
+	test('explicitly disables Copilot Memory unless opted in', async () => {
+		const store = disposables.add(new DisposableStore());
+		const enabled = await buildResumeConfig(createLauncher(store, { memory: true }), { id: 'gpt-5' });
+		const disabled = await buildResumeConfig(createLauncher(store, { memory: false }), { id: 'gpt-5' });
+		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+
+		assert.deepStrictEqual([enabled.memory, disabled.memory, notOptedIn.memory], [
+			{ enabled: true },
+			{ enabled: false },
+			{ enabled: false },
+		]);
 	});
 
 	test('exposes only the client semantic-search override', async () => {

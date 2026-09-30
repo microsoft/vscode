@@ -974,6 +974,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		const hydraFusionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		const memoryEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
 		const tgrepEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Tgrep) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
@@ -1181,6 +1182,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// it, `rpc.plan.read()` returns `path: null` and the SDK
 			// never emits `exit_plan_mode.requested`.
 			infiniteSessions: { enabled: true },
+			// Always explicit so the VS Code opt-in gates memory instead of the runtime default.
+			memory: { enabled: memoryEnabled },
 			// Per-session remote export: the client-level `--remote` flag
 			// (enableRemoteSessions) enables the CLI capability, but each
 			// session must opt in via `remoteSession` to actually export
