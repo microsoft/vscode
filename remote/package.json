@@ -71,7 +71,7 @@
     "@vscode/fs-copyfile@2.0.0": true,
     "@vscode/native-watchdog@1.4.6": true,
     "@vscode/spdlog@0.15.8": true,
-    "@vscode/windows-registry@1.2.0": true,
+    "@vscode/windows-registry@1.3.0": true,
     "ssh2": false,
     "@vscode/sqlite3@5.1.12-vscode": true,
     "cpu-features": false,
