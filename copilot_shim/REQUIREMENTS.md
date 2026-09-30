@@ -83,6 +83,28 @@ CLI's files, its `PATH` entry, its updates, its uninstallation, and its data.
 The shim installs Copilot CLI only when there is none, never updates it, and
 uninstalling VS Code never removes it or its data (`~/.copilot`).
 
+### `copilot` on PATH on Windows
+
+Setup decides whether the shim folder is on `PATH` (the user `PATH` for the user
+installer, the machine `PATH` for the system installer), in this order:
+
+1. The `CopilotCliCommand` policy set to `0` disables the command: no page, no
+   shim, and setup removes the `PATH` entry it added. `1` means the same as not
+   set.
+2. An explicit choice wins and is remembered for later updates: the installer
+   page (Install now, install on first use, or don't add) or the
+   `/copilotcli=install|onfirstuse|none` switch.
+3. Otherwise `copilot` follows `code`: when the Add to PATH task is selected,
+   the shim folder is added too. This applies to silent installs, silent
+   reinstalls, background updates, and interactive installs that skip the
+   page, including once for existing installs that predate the shim. The
+   result is remembered like a choice.
+
+Background updates never download Copilot CLI; only Install now on the page or
+`/copilotcli=install` in the user installer does. VS Code has no commands or
+prompt of its own for this; the Copilot extension adds the shim to integrated
+terminals on every platform.
+
 ### Publishing the shim on Windows
 
 Setup publishes the shim itself, because `inno_updater` handles only the files
