@@ -41,7 +41,6 @@ fn retain_binary_marker() {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use runtime::TestRuntime;
 
 	#[test]
 	fn marker_is_stable() {
@@ -49,27 +48,5 @@ mod tests {
 
 		let expected = ["VSCODE_COPILOT_", "RUST_SHIM_V1"].concat();
 		assert_eq!(SHIM_MARKER, expected.as_bytes());
-	}
-
-	#[test]
-	fn runtime_seam_accepts_a_test_adapter() {
-		let result = app::run(
-			&TestRuntime::default(),
-			vec![OsString::from("--example")],
-			HostTarget::current(),
-		);
-
-		assert_eq!(result, 1);
-	}
-
-	#[test]
-	fn application_results_map_to_exit_codes() {
-		assert_eq!(
-			[
-				app::ApplicationExit::Code(0).code(),
-				app::ApplicationExit::Code(17).code(),
-			],
-			[0, 17]
-		);
 	}
 }

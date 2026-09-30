@@ -9,7 +9,7 @@
 //!
 //! ```text
 //! copilot [--vscode-shim <clear|verbose>]... [--] [copilot arguments...]
-//! copilot [--vscode-shim verbose]... --vscode-shim <info|probe|install> [command options...]
+//! copilot [--vscode-shim verbose]... --vscode-shim <probe|install> [command options...]
 //! ```
 //!
 //! Modifiers are removed and the remaining arguments are forwarded to the Copilot CLI. Commands run and exit without
@@ -34,7 +34,6 @@ pub(crate) enum Invocation {
 		clear: bool,
 		arguments: Vec<OsString>,
 	},
-	Info,
 	Probe(ProbeOptions),
 	Install(InstallOptions),
 }
@@ -165,10 +164,9 @@ fn parse_invocation(
 				*verbose = true;
 				index += 2;
 			}
-			Some("info" | "probe" | "install") if clear => {
+			Some("probe" | "install") if clear => {
 				return Err(InvocationError::CommandAfterClear(name.clone()));
 			}
-			Some("info") => return parse_info(&arguments[index + 2..]),
 			Some("probe") => return parse_probe(&arguments[index + 2..]),
 			Some("install") => return parse_install(&arguments[index + 2..]),
 			_ => return Err(InvocationError::UnknownOption(name.clone())),
@@ -188,16 +186,6 @@ fn parse_invocation(
 		clear,
 		arguments: arguments.into_iter().skip(index).collect(),
 	})
-}
-
-fn parse_info(options: &[OsString]) -> Result<Invocation, InvocationError> {
-	match options.first() {
-		Some(option) => Err(InvocationError::UnknownCommandOption {
-			command: "info",
-			option: option.clone(),
-		}),
-		None => Ok(Invocation::Info),
-	}
 }
 
 fn parse_probe(options: &[OsString]) -> Result<Invocation, InvocationError> {
@@ -421,7 +409,6 @@ mod tests {
 	fn commands_never_launch_and_parse_their_options() {
 		assert_eq!(
 			[
-				parse(arguments(&["--vscode-shim", "info"])),
 				parse(arguments(&[
 					"--vscode-shim",
 					"verbose",
@@ -458,7 +445,6 @@ mod tests {
 				])),
 			],
 			[
-				parsed(false, Ok(Invocation::Info)),
 				parsed(
 					true,
 					Ok(Invocation::Probe(ProbeOptions {
@@ -503,7 +489,7 @@ mod tests {
 					"--vscode-shim",
 					"probe"
 				])),
-				parse(arguments(&["--vscode-shim", "info", "extra"])),
+				parse(arguments(&["--vscode-shim", "probe", "extra"])),
 				parse(arguments(&[
 					"--vscode-shim",
 					"verbose",
@@ -551,7 +537,7 @@ mod tests {
 				parsed(
 					false,
 					Err(InvocationError::UnknownCommandOption {
-						command: "info",
+						command: "probe",
 						option: OsString::from("extra"),
 					})
 				),
