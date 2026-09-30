@@ -631,6 +631,9 @@ class TestCopilotClient implements ITestCopilotClient {
 			list: async () => {
 				this.sessionListStarted?.complete();
 				await this.sessionListGate;
+				if (this.sessionListError) {
+					throw this.sessionListError;
+				}
 				return {
 					sessions: this._sessions.map(session => ({
 						sessionId: session.sessionId,
@@ -673,6 +676,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	listSessionCallCount = 0;
 	sessionListStarted: DeferredPromise<void> | undefined;
 	sessionListGate: Promise<void> | undefined;
+	sessionListError: Error | undefined;
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly modelListErrors: Error[] = [];
 	/** When set, `models.list` records its request then blocks on this until resolved. */
@@ -9387,6 +9391,95 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('external chat discovery', () => {
+
+		test('startup telemetry records the processed Copilot result after all batches with observed filtering and failures', async () => {
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			let now = 10;
+			const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => now));
+			const sessionDataService = disposables.add(new class extends TestSessionDataService {
+				override async tryOpenDatabase(session: URI): Promise<IReference<SessionDatabase> | undefined> {
+					if (AgentSession.id(session) === 'failed') {
+						throw new Error('unreadable session');
+					}
+					return super.tryOpenDatabase(session);
+				}
+			});
+			const client = new TestCopilotClient([
+				...Array.from({ length: 251 }, (_, i) => sdkSession(`external-${i}`, '/work', { clientName: 'github/cli', modifiedTime: new Date(2000) })),
+				sdkSession('filtered'),
+				sdkSession('failed', '/work'),
+			]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, startupPerformance, now: () => 2000 });
+			const batches: number[] = [];
+			disposables.add(agent.onDidDiscoverChats(chats => {
+				batches.push(chats.length);
+				now += 10;
+			}));
+			try {
+				await agent.startChatDiscovery();
+				await agent.startChatDiscovery();
+				assert.deepStrictEqual({
+					batches,
+					markers: telemetry.events.filter(event => ['sessionDiscoveryScan', 'firstSessionDiscoveryResult'].includes(String(event.data?.name))).map(({ data }) => [
+						data?.name, data?.timestampMs, data?.since, data?.scannedSessionCount, data?.candidateSessionCount, data?.externalSessionCount, data?.filteredSessionCount, data?.failedSessionCount,
+					]),
+				}, {
+					batches: [250, 1],
+					markers: [
+						['sessionDiscoveryScan', 10, 'sessionDiscoveryScanStart', 253, undefined, undefined, undefined, undefined],
+						['firstSessionDiscoveryResult', 30, 'processStart', undefined, 251, 251, 1, 1],
+					],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('startup telemetry records a processed empty Copilot result after scan errors exhaust sampling', async () => {
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 50));
+			const client = new TestCopilotClient([]);
+			client.sessionListError = new Error('catalog unavailable');
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, startupPerformance });
+			const internal = agent as unknown as { _emitCopilotChats(): Promise<boolean> };
+			const results: boolean[] = [];
+			try {
+				for (let i = 0; i < 4; i++) {
+					results.push(await internal._emitCopilotChats());
+				}
+				const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length;
+				client.sessionListError = undefined;
+				results.push(await internal._emitCopilotChats());
+				await internal._emitCopilotChats();
+				assert.deepStrictEqual({
+					before,
+					results,
+					scans: telemetry.events.filter(event => event.data?.name === 'sessionDiscoveryScan').map(({ data }) => data?.outcome),
+					first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => [
+						data?.durationMs, data?.candidateSessionCount, data?.externalSessionCount, data?.filteredSessionCount, data?.failedSessionCount,
+					]),
+				}, { before: 0, results: [false, false, false, false, true], scans: ['error', 'error', 'error'], first: [[50, 0, 0, 0, 0]] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('startup telemetry does not mistake unavailable Copilot discovery for an empty result', async () => {
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+			const client = new TestCopilotClient([]);
+			client.sessionListError = new CancellationError();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, startupPerformance });
+			try {
+				const completed = await (agent as unknown as { _emitCopilotChats(): Promise<boolean> })._emitCopilotChats();
+				assert.deepStrictEqual({
+					completed,
+					markers: telemetry.events.filter(event => ['sessionDiscoveryScan', 'firstSessionDiscoveryResult'].includes(String(event.data?.name))).map(({ data }) => [data?.name, data?.outcome, data?.scannedSessionCount, data?.candidateSessionCount]),
+				}, { completed: false, markers: [['sessionDiscoveryScan', 'unavailable', undefined, undefined]] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 
 		test('surfaces a standalone Copilot CLI SDK session as external', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/external-discovery-home-`));

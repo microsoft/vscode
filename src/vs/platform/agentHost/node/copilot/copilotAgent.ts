@@ -639,6 +639,11 @@ const COPILOT_EXTERNAL_SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 /** How many SDK sessions are classified before the batch is published to clients. */
 const COPILOT_DISCOVERY_BATCH_SIZE = 250;
 
+interface ICopilotDiscoveryResultMetrics {
+	candidateSessionCount: number;
+	externalSessionCount: number;
+}
+
 /**
  * Backoff between initial chat-discovery attempts. The common failure is the CLI
  * client still starting, which clears in well under a second, so the first retry
@@ -3047,9 +3052,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * additive, so a large catalogue converges progressively instead of
 	 * withholding every row until the whole scan completes.
 	 */
-	private _publishDiscoveredChats(chats: readonly IAgentDiscoveredChat[], migrateLegacyAtStart: boolean): void {
+	private _publishDiscoveredChats(chats: readonly IAgentDiscoveredChat[], migrateLegacyAtStart: boolean): readonly IAgentDiscoveredChat[] {
 		if (this._shutdownPromise || this._store.isDisposed) {
-			return;
+			return [];
 		}
 		const migrateLegacy = migrateLegacyAtStart && this._isMigrateLegacyCopilotCliEnabled();
 		const emitted = chats.filter(chat => {
@@ -3068,6 +3073,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (emitted.length > 0) {
 			this._onDidDiscoverChats.fire(emitted);
 		}
+		return emitted;
 	}
 
 	/**
@@ -3100,7 +3106,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `undefined` means the catalog could not be enumerated yet — not an
 	 * authoritative empty result.
 	 */
-	private async _discoverCopilotChats(publish: (chats: readonly IAgentDiscoveredChat[]) => void): Promise<boolean> {
+	private async _discoverCopilotChats(publish: (chats: readonly IAgentDiscoveredChat[]) => readonly IAgentDiscoveredChat[]): Promise<boolean> {
+		const resultMetrics = this._createDiscoveryResultMetrics();
 		const sessions = await this._listSdkSessions('discoverable chats', async client => (await client.rpc.sessions.list({})).sessions);
 		if (!sessions) {
 			return false;
@@ -3204,11 +3211,40 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (chats.length > 0) {
 				discovered += chats.length;
 				external += chats.filter(chat => chat.external).length;
-				publish(chats);
+				const emitted = publish(chats);
+				this._accumulateDiscoveryResultMetrics(resultMetrics, emitted);
 			}
 		}
 		this._logService.info(`[Copilot] Chat discovery: ${sessions.length} SDK session(s) -> ${external} external, ${discovered - external} adoptable legacy extension-host, ${suppressedAdoptable} suppressed adoptable legacy extension-host, ${suppressedArchived} suppressed archived legacy extension-host, ${known} already known to Agent Host, ${withoutWorkingDirectory} without a working directory, ${unsupportedClientName} with unsupported or missing client name, ${outsideImportWindow} outside the import window, ${failed} failed to classify (adopt legacy extension-host chats: ${emitAdoptable})`);
+		this._recordFirstDiscoveryResult(resultMetrics, sessions.length, failed);
 		return true;
+	}
+
+	private _createDiscoveryResultMetrics(): ICopilotDiscoveryResultMetrics | undefined {
+		return this._startupPerformance.isEnabled && this._startupPerformance.isPending('firstSessionDiscoveryResult', this.id)
+			? { candidateSessionCount: 0, externalSessionCount: 0 }
+			: undefined;
+	}
+
+	private _accumulateDiscoveryResultMetrics(metrics: ICopilotDiscoveryResultMetrics | undefined, emitted: readonly IAgentDiscoveredChat[]): void {
+		if (metrics) {
+			metrics.candidateSessionCount += emitted.length;
+			metrics.externalSessionCount += emitted.reduce((count, chat) => count + (chat.external ? 1 : 0), 0);
+		}
+	}
+
+	private _recordFirstDiscoveryResult(metrics: ICopilotDiscoveryResultMetrics | undefined, listedCount: number, failedCount: number): void {
+		if (this._shutdownPromise || this._store.isDisposed || !this._startupPerformance.isPending('firstSessionDiscoveryResult', this.id)) {
+			return;
+		}
+		this._startupPerformance.mark('firstSessionDiscoveryResult', {
+			provider: this.id, since: 'processStart',
+			...(metrics ? {
+				...metrics,
+				filteredSessionCount: listedCount - metrics.candidateSessionCount - failedCount,
+				failedSessionCount: failedCount,
+			} : {}),
+		});
 	}
 
 	private async _listSdkSessions<T>(reason: 'chats to migrate' | 'discoverable chats' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {

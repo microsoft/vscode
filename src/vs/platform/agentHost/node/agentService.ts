@@ -7,6 +7,7 @@ import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, ResourceQueue, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
@@ -158,6 +159,11 @@ interface ISessionListComputation {
 	epoch: number;
 	readonly promise: Promise<readonly IAgentSessionMetadata[]>;
 	trailing?: Promise<readonly IAgentSessionMetadata[]>;
+}
+
+interface IDiscoveryRegistrationObservation {
+	outcome: 'success' | 'partial';
+	readonly metrics?: Required<Pick<IAgentHostStartupMetrics, 'candidateSessionCount' | 'externalSessionCount' | 'registeredSessionCount' | 'filteredSessionCount' | 'failedSessionCount' | 'incompleteSessionCount'>>;
 }
 
 type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
@@ -2586,7 +2592,54 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.warn(`[AgentService] registry migration: failed for provider ${provider.id} after chat discovery`, err);
 			}
 		}
-		await this._registerDiscoveredChats(provider, chats, false);
+		await this._registerDiscoveredChatsWithStartupTelemetry(provider, chats);
+	}
+
+	private async _registerDiscoveredChatsWithStartupTelemetry(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<void> {
+		const isCurrentProvider = () => !this._store.isDisposed && this._providerService.getProvider(provider.id) === provider;
+		const timing = isCurrentProvider() ? this._startupPerformance.start('sessionDiscoveryRegistration', provider.id) : undefined;
+		const firstCompletionPending = isCurrentProvider() && this._startupPerformance.isPending('firstSessionDiscoveryRegistration', provider.id);
+		const observation: IDiscoveryRegistrationObservation | undefined = timing || firstCompletionPending ? {
+			outcome: 'success',
+			metrics: this._startupPerformance.isEnabled ? this._getDiscoveryRegistrationMetrics(chats) : undefined,
+		} : undefined;
+		if (observation?.metrics) {
+			timing?.setMetrics({ candidateSessionCount: observation.metrics.candidateSessionCount, externalSessionCount: observation.metrics.externalSessionCount });
+		}
+		try {
+			await this._registerDiscoveredChats(provider, chats, false, observation);
+			const outcome = isCurrentProvider() ? observation?.outcome ?? 'success' : 'cancelled';
+			timing?.complete(outcome, observation?.metrics);
+			if (outcome === 'success' && firstCompletionPending) {
+				this._startupPerformance.mark('firstSessionDiscoveryRegistration', { provider: provider.id, since: 'processStart', ...observation?.metrics });
+			}
+		} catch (error) {
+			timing?.complete(!isCurrentProvider() || isCancellationError(error) ? 'cancelled' : 'error', observation?.metrics);
+			throw error;
+		}
+	}
+
+	private _getDiscoveryRegistrationMetrics(chats: readonly IAgentDiscoveredChat[]): NonNullable<IDiscoveryRegistrationObservation['metrics']> {
+		return {
+			candidateSessionCount: chats.length,
+			externalSessionCount: chats.reduce((count, chat) => count + (chat.external ? 1 : 0), 0),
+			registeredSessionCount: 0,
+			filteredSessionCount: 0,
+			failedSessionCount: 0,
+			incompleteSessionCount: 0,
+		};
+	}
+
+	private _recordDiscoveryRegistrationProgress(observation: IDiscoveryRegistrationObservation | undefined, result: 'registered' | 'filtered' | 'failed' | 'incomplete' | 'partial'): void {
+		if (!observation) {
+			return;
+		}
+		if (result === 'failed' || result === 'incomplete' || result === 'partial') {
+			observation.outcome = 'partial';
+		}
+		if (observation.metrics && result !== 'partial') {
+			observation.metrics[`${result}SessionCount`]++;
+		}
 	}
 
 	private _replaceFailedInitialProviderMigration(provider: IAgent, failed: Promise<void>): Promise<void> {
@@ -2701,7 +2754,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * next readiness signal retries.
 	 */
 
-	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[], awaitReconciliation = true): Promise<boolean> {
+	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[], awaitReconciliation = true, observation?: IDiscoveryRegistrationObservation): Promise<boolean> {
 		// Keys only: discovery arrives in batches, and the full listing re-runs the
 		// per-row provenance migration for every registered session each time.
 		const [runtimeCompatibleKeys, registeredRecency, persistedExclusions] = await Promise.all([
@@ -2757,6 +2810,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (Number.isFinite(sessionMetadata.modifiedTime) && (stored === undefined || sessionMetadata.modifiedTime > stored)) {
 						modifiedTimeAdvances.push({ session, modifiedTime: sessionMetadata.modifiedTime });
 					}
+					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
 				if (isSubagentSession(session.toString())) {
@@ -2767,6 +2821,7 @@ export class AgentService extends Disposable implements IAgentService {
 						fingerprint: 'uri-v1',
 					});
 					suppressed++;
+					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
 				const persistedExclusion = exclusions.get(session.toString());
@@ -2778,11 +2833,13 @@ export class AgentService extends Disposable implements IAgentService {
 						fingerprint: 'backing-v1',
 					});
 					suppressed++;
+					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
 				const registrationFacts = await this._readSessionRegistrationFacts(session);
 				if (registrationFacts.chatBacking) {
 					suppressed++;
+					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
 				const external = reportedExternal && !registrationFacts.hostCreated;
@@ -2794,6 +2851,7 @@ export class AgentService extends Disposable implements IAgentService {
 						fingerprint: String(sessionMetadata.modifiedTime),
 					});
 					skippedAsStale++;
+					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
 				const identity: IRegisteredSession = { session, provider: provider.id, startTime: metadata.startTime, modifiedTime: metadata.modifiedTime, external, source: external ? 'discovery' : 'restore' };
@@ -2802,6 +2860,7 @@ export class AgentService extends Disposable implements IAgentService {
 					`discovery registration for ${session.toString()}`,
 				);
 				if (registered) {
+					this._recordDiscoveryRegistrationProgress(observation, 'registered');
 					const effectiveIdentity = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
 					if (!effectiveIdentity) {
 						throw new Error(`Missing registered identity for discovered session ${session.toString()}`);
@@ -2815,6 +2874,7 @@ export class AgentService extends Disposable implements IAgentService {
 						? await this._catalogSyncService.synchronizeMigrationWithFactory(session, requestFactory)
 						: await this._catalogSyncService.synchronizeWithFactory(session, requestFactory);
 					if (syncResult.status === 'pending') {
+						this._recordDiscoveryRegistrationProgress(observation, 'incomplete');
 						this._logService.warn(`[AgentService] Discovered session ${session.toString()} remains incomplete: ${syncResult.reason}`);
 					}
 					registeredKeys.add(session.toString());
@@ -2827,10 +2887,12 @@ export class AgentService extends Disposable implements IAgentService {
 						await this._announceSurfacedSession({ ...sessionMetadata, _meta: withSessionExternal(sessionMetadata._meta, effectiveExternal) }, provider.id);
 					}
 				} else {
+					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					this._logService.trace(`[AgentService] discovery: ${session.toString()} was not registered (tombstoned)`);
 				}
 				return registered;
 			} catch (err) {
+				this._recordDiscoveryRegistrationProgress(observation, 'failed');
 				this._logService.warn(`[AgentService] Failed to register discovered chat ${session.toString()} for provider ${provider.id}`, err);
 				return false;
 			}
@@ -2843,6 +2905,7 @@ export class AgentService extends Disposable implements IAgentService {
 				);
 				this._invalidateSessionList();
 			} catch (error) {
+				this._recordDiscoveryRegistrationProgress(observation, 'partial');
 				this._logService.warn(`[AgentService] Failed to persist ${modifiedTimeAdvances.length} discovered session modified time(s); continuing discovery post-processing`, error);
 			}
 			this._catalogReconciliationService.schedule();
@@ -2850,6 +2913,7 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			await this._sessionRegistry.markSessionsV2ExcludedBatch(exclusionsToMark);
 		} catch (error) {
+			this._recordDiscoveryRegistrationProgress(observation, 'partial');
 			this._logService.warn(`[AgentService] Failed to persist ${exclusionsToMark.length} discovery exclusion(s) for provider ${provider.id}; retrying on the next discovery pass`, error);
 		}
 		const registered = results.filter(changed => changed).length;
@@ -2857,6 +2921,7 @@ export class AgentService extends Disposable implements IAgentService {
 			try {
 				await this._orchestratorDatabase.markSessionsV2PayloadsDirty(changedMetadataSessions);
 			} catch (error) {
+				this._recordDiscoveryRegistrationProgress(observation, 'partial');
 				this._logService.warn('[AgentService] Failed to mark discovered metadata changes dirty', error);
 			}
 			// Wake after marking dirty so a concurrent parking decision observes the newer revision.
