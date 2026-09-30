@@ -18,12 +18,13 @@ suite('codexMcpServers', () => {
 
 	const tool = (name: string): Tool => ({ name, inputSchema: { type: 'object' } });
 
-	const status = (name: string, tools: Tool[]): CodexMcpServerStatus => ({
+	const status = (name: string, tools: Tool[], toolsError: string | null = null): CodexMcpServerStatus => ({
 		name,
 		runtimeStatus: null,
 		pluginId: null,
 		serverInfo: null,
 		tools: Object.fromEntries(tools.map(t => [t.name, t])),
+		toolsError,
 		resources: [{ name: `${name}-res`, uri: `mem://${name}/r` }],
 		resourceTemplates: [{ name: `${name}-tpl`, uriTemplate: `mem://${name}/{id}` }],
 		authStatus: 'unsupported',
@@ -84,15 +85,29 @@ suite('codexMcpServers', () => {
 		});
 	});
 
+	test('tool discovery errors are preserved instead of becoming empty catalogs', () => {
+		const entry = codexMcpStatusToEntry(status('s1', [], 'catalog unavailable'));
+		assert.deepStrictEqual(entry, {
+			state: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'catalog unavailable' } },
+			tools: [],
+			toolsError: 'catalog unavailable',
+			resources: [{ name: 's1-res', uri: 'mem://s1/r' }],
+			resourceTemplates: [{ name: 's1-tpl', uriTemplate: 'mem://s1/{id}' }],
+		});
+		assert.throws(() => buildCodexMcpReadResult('tools/list', entry), /catalog unavailable/);
+	});
+
 	test('codexMcpToolsChanged detects tool-set changes by name', () => {
 		const a = codexMcpStatusToEntry(status('s', [tool('t1')]));
 		const sameNames = codexMcpStatusToEntry(status('s', [tool('t1')]));
 		const added = codexMcpStatusToEntry(status('s', [tool('t1'), tool('t2')]));
+		const failed = codexMcpStatusToEntry(status('s', [tool('t1')], 'catalog unavailable'));
 		assert.deepStrictEqual([
 			codexMcpToolsChanged(a, sameNames),
 			codexMcpToolsChanged(a, added),
+			codexMcpToolsChanged(a, failed),
 			codexMcpToolsChanged(undefined, a),
-		], [false, true, true]);
+		], [false, true, true, true]);
 	});
 
 	test('CodexMcpInventory isolates thread servers while retaining global servers', () => {

@@ -35,6 +35,10 @@ suite('codexElicitationMapper', () => {
 		threadId: 't1', turnId: null, serverName: 'srv', mode: 'url', _meta: null,
 		message: 'Authorize', url: 'https://example.com/auth', elicitationId: 'e1',
 	};
+	const userVerificationParams: McpServerElicitationRequestParams = {
+		threadId: 't1', turnId: null, serverName: 'srv', mode: 'openai/userVerification',
+		title: 'Verify', description: 'Confirm this request', challenge: 'Y2hhbGxlbmdl',
+	};
 
 	test('buildElicitationRequest (form) projects every primitive field kind', () => {
 		assert.deepStrictEqual(buildElicitationRequest('req-1', formParams), {
@@ -55,6 +59,16 @@ suite('codexElicitationMapper', () => {
 	test('buildElicitationRequest (url) surfaces the url with no questions', () => {
 		assert.deepStrictEqual(buildElicitationRequest('req-2', urlParams), {
 			id: 'req-2', _meta: { purpose: ChatInputRequestPurpose.Elicitation }, message: 'Authorize', url: 'https://example.com/auth',
+		});
+	});
+
+	test('native user verification is not surfaced as an ordinary confirmation', () => {
+		assert.deepStrictEqual({
+			request: buildElicitationRequest('req-3', userVerificationParams),
+			accepted: elicitationResponseFromAnswers(userVerificationParams, ChatInputResponseKind.Accept, undefined),
+		}, {
+			request: undefined,
+			accepted: { action: 'decline', content: null, _meta: null },
 		});
 	});
 

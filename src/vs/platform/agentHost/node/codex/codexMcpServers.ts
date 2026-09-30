@@ -26,6 +26,7 @@ import type { Tool } from './protocol/generated/Tool.js';
 export interface ICodexMcpServerEntry {
 	readonly state: McpServerState;
 	readonly tools: readonly Tool[];
+	readonly toolsError?: string;
 	readonly resources: readonly Resource[];
 	readonly resourceTemplates: readonly ResourceTemplate[];
 }
@@ -81,6 +82,7 @@ export class CodexMcpInventory {
 		const entry: ICodexMcpServerEntry = {
 			state,
 			tools: previous?.tools ?? [],
+			...(previous?.toolsError !== undefined ? { toolsError: previous.toolsError } : {}),
 			resources: previous?.resources ?? [],
 			resourceTemplates: previous?.resourceTemplates ?? [],
 		};
@@ -149,13 +151,17 @@ export function codexToolMapToArray(tools: CodexMcpServerStatus['tools']): Tool[
 
 /**
  * Builds an {@link ICodexMcpServerEntry} from a codex `mcpServerStatus/list`
- * entry. Servers returned by `mcpServerStatus/list` are connected and
- * serving, so they map to {@link McpServerStatus.Ready}.
+ * entry. A returned tool-discovery error is distinct from an empty catalog
+ * and must remain visible to both the customization surface and `tools/list`.
  */
 export function codexMcpStatusToEntry(status: CodexMcpServerStatus): ICodexMcpServerEntry {
+	const toolsError = status.toolsError ?? undefined;
 	return {
-		state: { kind: McpServerStatus.Ready },
+		state: toolsError === undefined
+			? { kind: McpServerStatus.Ready }
+			: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: toolsError } },
 		tools: codexToolMapToArray(status.tools),
+		...(toolsError !== undefined ? { toolsError } : {}),
 		resources: status.resources,
 		resourceTemplates: status.resourceTemplates,
 	};
@@ -197,6 +203,9 @@ export function inventoryToSdkServers(inventory: ReadonlyMap<string, ICodexMcpSe
 export function buildCodexMcpReadResult(method: string, entry: ICodexMcpServerEntry): { readonly handled: true; readonly result: unknown } | { readonly handled: false } {
 	switch (method) {
 		case 'tools/list':
+			if (entry.toolsError !== undefined) {
+				throw new Error(entry.toolsError);
+			}
 			return { handled: true, result: { tools: entry.tools } };
 		case 'resources/list':
 			return { handled: true, result: { resources: entry.resources } };
@@ -212,6 +221,9 @@ export function buildCodexMcpReadResult(method: string, entry: ICodexMcpServerEn
  * name). Drives the decision to fire `notifications/tools/list_changed`.
  */
 export function codexMcpToolsChanged(previous: ICodexMcpServerEntry | undefined, next: ICodexMcpServerEntry | undefined): boolean {
+	if (previous?.toolsError !== next?.toolsError) {
+		return true;
+	}
 	const a = (previous?.tools ?? []).map(t => t.name).sort();
 	const b = (next?.tools ?? []).map(t => t.name).sort();
 	if (a.length !== b.length) {
