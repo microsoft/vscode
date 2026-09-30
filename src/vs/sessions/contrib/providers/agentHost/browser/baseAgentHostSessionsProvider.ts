@@ -84,7 +84,7 @@ import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCa
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
-import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets } from './agentHostSessionChangesets.js';
+import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets, type IAgentHostCurrentTurnChanges } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
@@ -2505,7 +2505,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			: undefined;
 	}
 
-	private _createChatCurrentTurnChangesObservable(chatUriObs: IObservable<URI | undefined>): IObservable<readonly ISessionTurnFileChange[] | undefined> {
+	private _createChatCurrentTurnChangesObservable(chatUriObs: IObservable<URI | undefined>): IObservable<IAgentHostCurrentTurnChanges | undefined> {
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			this._options,
 			this.isActiveSessionObs,
@@ -2518,7 +2518,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			if (!chatUri || !chatState || chatState instanceof Error || !chatState.activeTurn) {
 				return undefined;
 			}
-			return this._sessionOutput.getLastTurnChanges(chatUri).read(reader).filter(change => !change.isOutsideWorkspace);
+			return {
+				id: chatState.activeTurn.id,
+				changes: this._sessionOutput.getLastTurnChanges(chatUri).read(reader).filter(change => !change.isOutsideWorkspace),
+			};
 		});
 	}
 
