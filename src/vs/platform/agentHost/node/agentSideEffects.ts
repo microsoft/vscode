@@ -113,6 +113,8 @@ export interface IAgentSideEffectsOptions {
 	 * sessions. Provided by {@link AgentService}.
 	 */
 	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
+	/** Announces a provisional session whose turn was cancelled before reaching its agent, which never materialized it. */
+	readonly announceUnsentProvisionalSession?: (params: { session: ProtocolURI; workingDirectories: readonly URI[] | undefined }) => void;
 	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
 	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
 	/** Process launcher used when client-origin metadata is unavailable. */
@@ -2016,6 +2018,7 @@ export class AgentSideEffects extends Disposable {
 			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId });
 			const sendContext = { ...clientOperationContext, ...(turnTelemetryContext ? { turnTelemetryContext } : {}), ...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}) };
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				this._announceUnsentProvisionalSession(sessionChannel, resolvedWorkingDirectories);
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 				return;
 			}
@@ -2026,6 +2029,7 @@ export class AgentSideEffects extends Disposable {
 				await checkpointCapture;
 			}
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				this._announceUnsentProvisionalSession(sessionChannel, resolvedWorkingDirectories);
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 				return;
 			}
@@ -2181,6 +2185,12 @@ export class AgentSideEffects extends Disposable {
 		const summary = this._stateManager.getSessionSummary(sessionChannel);
 		if (summary) {
 			this._stateManager.markSessionPersisted(sessionChannel, summary);
+		}
+	}
+
+	private _announceUnsentProvisionalSession(sessionChannel: ProtocolURI, workingDirectories: readonly URI[] | undefined): void {
+		if (this._stateManager.getSessionState(sessionChannel)?.lifecycle === SessionLifecycle.Creating) {
+			this._options.announceUnsentProvisionalSession?.({ session: sessionChannel, workingDirectories });
 		}
 	}
 
