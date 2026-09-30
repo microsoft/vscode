@@ -16,6 +16,7 @@ import { ExtensionContributedChatEndpoint } from '../../../../../platform/endpoi
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
 import { CAPIChatMessage } from '../../../../../platform/networking/common/openai';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
+import { ThinkingOriginApi } from '../../../../../platform/thinking/common/thinking';
 import { AsyncIterableObject } from '../../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../../util/vs/base/common/event';
@@ -24,7 +25,7 @@ import { SyncDescriptor } from '../../../../../util/vs/platform/instantiation/co
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelChatToolMode, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
 import { resolveModelInfo } from '../../../../byok/common/byokProvider';
-import { CustomEndpointBYOKModelProvider } from '../../../../byok/vscode-node/customEndpointProvider';
+import { CustomEndpointBYOKModelProvider, CustomEndpointModelConfig } from '../../../../byok/vscode-node/customEndpointProvider';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
 import { Conversation, Turn, TurnStatus } from '../../../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../../../prompt/common/intents';
@@ -84,6 +85,7 @@ suite('Agent history preserves thinking across user turns', () => {
 			debugName: 'thinking-history',
 			messages,
 			requestOptions: {},
+			modelCapabilities: { enableThinking: true },
 			finishedCb: undefined,
 			location: ChatLocation.Panel,
 		}, CancellationToken.None);
@@ -91,7 +93,7 @@ suite('Agent history preserves thinking across user turns', () => {
 		return fetcher.requests.at(-1)!;
 	}
 
-	async function createEndpoint(provider: 'Copilot' | 'custom', modelId: string): Promise<IChatEndpoint> {
+	async function createEndpoint(provider: 'Copilot' | 'custom', modelId: string, customConfiguration?: Partial<CustomEndpointModelConfig>, includeProtocolMetadata = true): Promise<IChatEndpoint> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const capabilities = {
 			name: modelId,
@@ -120,7 +122,7 @@ suite('Agent history preserves thinking across user turns', () => {
 		const [model] = await customProvider.provideLanguageModelChatInformation({
 			silent: true,
 			configuration: {
-				models: [{ ...capabilities, id: modelId, url: 'https://model.example/v1/chat/completions' }],
+				models: [{ ...capabilities, id: modelId, url: 'https://model.example', ...customConfiguration }],
 			},
 		}, CancellationToken.None);
 		const languageModel: vscode.LanguageModelChat = {
@@ -130,7 +132,12 @@ suite('Agent history preserves thinking across user turns', () => {
 			family: model.family,
 			version: model.version,
 			maxInputTokens: model.maxInputTokens,
-			capabilities: { supportsToolCalling: true, supportsImageToText: false },
+			capabilities: {
+				supportsToolCalling: true,
+				supportsImageToText: false,
+				apiType: includeProtocolMetadata ? model.capabilities.apiType : undefined,
+				supportsAdaptiveThinking: includeProtocolMetadata ? model.capabilities.adaptiveThinking : undefined,
+			},
 			countTokens: (text, token) => customProvider.provideTokenCount(model, text, token ?? CancellationToken.None),
 			sendRequest: async (messages, options, token) => {
 				const parts: vscode.LanguageModelResponsePart2[] = [];
@@ -149,16 +156,16 @@ suite('Agent history preserves thinking across user turns', () => {
 		return instantiationService.createInstance(ExtensionContributedChatEndpoint, languageModel);
 	}
 
-	async function renderConversation(endpoint: IChatEndpoint, enableSummarization: boolean, roundModelId: string | undefined) {
+	async function renderConversation(endpoint: IChatEndpoint, enableSummarization: boolean, roundModelId: string | undefined, originApi: ThinkingOriginApi = 'chatCompletions') {
 		const firstTurn = new Turn('turn-1', { type: 'user', message: 'Read the file.' });
 		const round = ToolCallRound.create({
 			id: 'round-1',
 			modelId: roundModelId,
-			originApi: 'chatCompletions',
+			originApi,
 			response: 'I will read the file.',
 			toolCalls: [{ id: 'call-1', name: 'read_file', arguments: '{"filePath":"/workspace/example.txt"}' }],
 			toolInputRetry: 0,
-			thinking: { id: 'reasoning-1', text: ['Read the file first.\n', 'Then answer exactly.'] },
+			thinking: { id: 'reasoning-1', text: ['Read the file first.\n', 'Then answer exactly.'], metadata: originApi === 'messages' ? { encrypted_content: 'signature-1' } : undefined },
 		});
 		const toolCallResults = { 'call-1': new LanguageModelToolResult([new LanguageModelTextPart('File contents.')]) };
 		const promptContext: IBuildPromptContext = {
@@ -174,11 +181,11 @@ suite('Agent history preserves thinking across user turns', () => {
 		const finalRound = ToolCallRound.create({
 			id: 'round-2',
 			modelId: roundModelId,
-			originApi: 'chatCompletions',
+			originApi,
 			response: 'Done.',
 			toolCalls: [],
 			toolInputRetry: 0,
-			thinking: { id: 'reasoning-2', text: 'The file has been read.\nReady to answer.' },
+			thinking: { id: 'reasoning-2', text: 'The file has been read.\nReady to answer.', metadata: originApi === 'messages' ? { encrypted_content: 'signature-2' } : undefined },
 		});
 
 		firstTurn.setResponse(TurnStatus.Success, { type: 'model', message: 'Done.' }, 'response-1', {
@@ -217,6 +224,72 @@ suite('Agent history preserves thinking across user turns', () => {
 			reasoning_content: 'Read the file first.\nThen answer exactly.',
 		});
 	}
+
+	test.each([false, true])('CCR2: custom family aliases select the preserved-thinking default (summarization=%s)', async enableSummarization => {
+		await accessor.get(IConfigurationService).setConfig(ConfigKey.Advanced.ModelCapabilityOverrides, {
+			deployment: { family: 'kimi-k3' },
+		});
+		const endpoint = await createEndpoint('custom', 'deployment');
+		const { duringTurn, nextTurn } = await renderConversation(endpoint, enableSummarization, endpoint.model);
+		expectCurrentThinking(duringTurn, 'custom');
+		expect(nextTurn).toEqual([...duringTurn, expect.objectContaining({
+			role: 'assistant',
+			content: 'Done.',
+			reasoning_content: 'The file has been read.\nReady to answer.',
+		})]);
+	});
+
+	test.each([false, true])('CCR1: custom budget-mode Messages cannot opt into historical thinking (summarization=%s)', async enableSummarization => {
+		await accessor.get(IConfigurationService).setConfig(ConfigKey.Advanced.ModelCapabilityOverrides, {
+			'budget-deployment': { thinkingInHistory: true },
+		});
+		const endpoint = await createEndpoint('custom', 'budget-deployment', {
+			apiType: 'messages',
+			adaptiveThinking: false,
+			minThinkingBudget: 1024,
+			maxThinkingBudget: 32000,
+		});
+		const { duringTurn, nextTurn } = await renderConversation(endpoint, enableSummarization, endpoint.model, 'messages');
+		const thinkingMessage = expect.objectContaining({
+			role: 'assistant',
+			content: expect.arrayContaining([expect.objectContaining({ type: 'thinking' })]),
+		});
+		expect(duringTurn).toContainEqual(thinkingMessage);
+		expect(nextTurn).toHaveLength(2);
+		expect(nextTurn).not.toContainEqual(thinkingMessage);
+	});
+
+	test.each([false, true])('custom adaptive Messages preserves signed thinking independently of the Chat Completions override (summarization=%s)', async enableSummarization => {
+		await accessor.get(IConfigurationService).setConfig(ConfigKey.Advanced.ModelCapabilityOverrides, {
+			'adaptive-deployment': { thinkingInHistory: false },
+		});
+		const endpoint = await createEndpoint('custom', 'adaptive-deployment', { apiType: 'messages', adaptiveThinking: true });
+		const { nextTurn } = await renderConversation(endpoint, enableSummarization, endpoint.model, 'messages');
+		expect(nextTurn).toMatchObject([
+			{ role: 'assistant', content: expect.arrayContaining([{ type: 'thinking', thinking: 'Read the file first.\nThen answer exactly.', signature: 'signature-1' }]) },
+			{ role: 'assistant', content: expect.arrayContaining([{ type: 'thinking', thinking: 'The file has been read.\nReady to answer.', signature: 'signature-2' }]) },
+		]);
+	});
+
+	test.each([false, true])('custom models with no declared protocol cannot opt into historical thinking (summarization=%s)', async enableSummarization => {
+		await accessor.get(IConfigurationService).setConfig(ConfigKey.Advanced.ModelCapabilityOverrides, {
+			deployment: { thinkingInHistory: true },
+		});
+		const endpoint = await createEndpoint('custom', 'deployment', undefined, false);
+		const { duringTurn, nextTurn } = await renderConversation(endpoint, enableSummarization, endpoint.model);
+		expectCurrentThinking(duringTurn, 'custom');
+		expect(nextTurn).toEqual(messagesWithoutThinking);
+	});
+
+	test.each([false, true])('custom family aliases respect an explicit thinking opt-out (summarization=%s)', async enableSummarization => {
+		await accessor.get(IConfigurationService).setConfig(ConfigKey.Advanced.ModelCapabilityOverrides, {
+			deployment: { family: 'kimi-k3', thinkingInHistory: false },
+		});
+		const endpoint = await createEndpoint('custom', 'deployment');
+		const { duringTurn, nextTurn } = await renderConversation(endpoint, enableSummarization, endpoint.model);
+		expectCurrentThinking(duringTurn, 'custom');
+		expect(nextTurn).toEqual(messagesWithoutThinking);
+	});
 
 	test.each((['Copilot', 'custom'] as const).flatMap(provider => [false, true].flatMap(enableSummarization => [
 		{ provider, enableSummarization, modelId: 'kimi-k3', thinkingInHistory: undefined },

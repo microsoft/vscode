@@ -3885,6 +3885,12 @@ export class ChatReferenceDiagnostic implements vscode.ChatReferenceDiagnostic {
 	constructor(public readonly diagnostics: [vscode.Uri, vscode.Diagnostic[]][]) { }
 }
 
+export enum LanguageModelChatApiType {
+	ChatCompletions = 1,
+	Responses = 2,
+	Messages = 3
+}
+
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,

@@ -57,6 +57,9 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	public readonly isExtensionContributed = true;
 	public readonly supportedEditTools?: readonly EndpointEditToolName[] | undefined;
 	public readonly supportsThinkingContentInHistory: boolean;
+	public readonly apiType: 'chatCompletions' | 'responses' | 'messages' | undefined;
+	public readonly supportsAdaptiveThinking: boolean;
+	public readonly family: string;
 
 	constructor(
 		private readonly languageModel: vscode.LanguageModelChat,
@@ -67,8 +70,13 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		// Initialize with the model's max tokens
 		this._maxTokens = languageModel.maxInputTokens;
 		this.supportedEditTools = languageModel.capabilities.editToolsHint?.filter(isEndpointEditToolName);
-		this.supportsThinkingContentInHistory = getModelCapabilityOverride(languageModel.id, configurationService)?.thinkingInHistory
-			?? modelSupportsThinkingContentInHistory(languageModel);
+		this.apiType = languageModel.capabilities.apiType === vscode.LanguageModelChatApiType.ChatCompletions ? 'chatCompletions'
+			: languageModel.capabilities.apiType === vscode.LanguageModelChatApiType.Responses ? 'responses'
+				: languageModel.capabilities.apiType === vscode.LanguageModelChatApiType.Messages ? 'messages' : undefined;
+		this.supportsAdaptiveThinking = languageModel.capabilities.supportsAdaptiveThinking ?? false;
+		const capabilityOverride = getModelCapabilityOverride(languageModel.id, configurationService);
+		this.family = capabilityOverride?.family ?? languageModel.family;
+		this.supportsThinkingContentInHistory = capabilityOverride?.thinkingInHistory ?? modelSupportsThinkingContentInHistory(this);
 	}
 
 	get modelProvider(): string {
@@ -99,10 +107,6 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 
 	get version(): string {
 		return this.languageModel.version;
-	}
-
-	get family(): string {
-		return this.languageModel.family;
 	}
 
 	get tokenizer(): TokenizerType {

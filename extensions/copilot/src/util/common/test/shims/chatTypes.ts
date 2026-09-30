@@ -565,6 +565,12 @@ export class LanguageModelToolResultPart2 implements vscode.LanguageModelToolRes
 	}
 }
 
+export enum LanguageModelChatApiType {
+	ChatCompletions = 1,
+	Responses = 2,
+	Messages = 3
+}
+
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,
