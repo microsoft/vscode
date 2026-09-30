@@ -13,7 +13,7 @@ import { GitHubRequestError, GitHubTransport } from '../../common/githubTranspor
 import { IGitHubTokenProvider } from '../../common/githubTypes.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
-import { gitHubDisconnectResponse, gitHubJsonResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
+import { gitHubDisconnectResponse, gitHubJsonResponse, gitHubRateLimitResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 
 /** Jitter-free so every asserted delay is exact. */
 const testBackoffPolicy: GitHubBackoffPolicy = {
@@ -151,6 +151,37 @@ suite('GitHubCredentialService', () => {
 				invalidatedTokens: ['one'],
 				aborted: true,
 				invalidations: ['authentication'],
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('preserves account cooldowns across token rotation', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubRestStep({ method: 'GET', path: '/user', response: gitHubJsonResponse({ id: 101 }) }),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r', response: gitHubRateLimitResponse({ status: 429, retryAfterSeconds: 5 }) }),
+				gitHubRestStep({ method: 'GET', path: '/user', response: gitHubJsonResponse({ id: 101 }) }),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r', response: gitHubJsonResponse({ ok: true }) }),
+			);
+			const scheduler = disposables.add(new FakeGitHubScheduler());
+			const tokenProvider = disposables.add(new TestTokenProvider());
+			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
+			const credentials = disposables.add(new GitHubCredentialService(scheduler, testBackoffPolicy, transport, tokenProvider, server.createEndpointService()));
+			tokenProvider.setToken('one');
+			const first = await credentials.getCredential(signal());
+			const request = { method: 'GET' as const, url: `${server.apiBaseUrl}/repos/o/r` };
+			await assert.rejects(transport.rest(first.account, first.token, request, signal()), { kind: 'rateLimit' });
+			tokenProvider.setToken('two');
+			const second = await credentials.getCredential(signal());
+			const cooldown = transport.rateLimits.getDelay(second.account, 'core');
+			const pending = transport.rest(second.account, second.token, request, signal());
+			scheduler.advanceBy(4_999);
+			const beforeReset = server.requests.length;
+			scheduler.advanceBy(1);
+			await pending;
+			assert.deepStrictEqual({ cooldown, beforeReset, requests: server.requests.length, timers: scheduler.pendingCount }, {
+				cooldown: 5_000, beforeReset: 3, requests: 4, timers: 0,
 			});
 			server.assertSatisfied();
 		});

@@ -138,6 +138,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		return this._serializeRepository(ref, 'createPullRequest', async () => {
 			const created = await this._withCredential(ref, signal, async (credential, combinedSignal) => {
 				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+					caller: 'github.mutations',
 					method: 'POST',
 					url: this._restUrl(ref, 'pulls'),
 					body: {
@@ -177,6 +178,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 					{ pullRequestId: options.pullRequestId, mergeMethod: options.method },
 					combinedSignal,
 					'mutation',
+					{ caller: 'github.mutations' },
 				);
 				throwGraphQLErrors(response.errors);
 			});
@@ -293,6 +295,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, signal: AbortSignal): Promise<GitHubWorkflowLog> {
 		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
 			const response = await this._transport.download(credential.account, credential.token, {
+				caller: 'github.mutations',
 				url: this._restUrl(ref, `actions/jobs/${encodeURIComponent(jobId)}/logs`),
 				maximumBytes: maximumWorkflowLogBytes,
 				timeout: workflowLogTimeout,
@@ -334,6 +337,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			try {
 				await this._withCredential(ref, signal, async (credential, combinedSignal) => {
 					await this._transport.rest(credential.account, credential.token, {
+						caller: 'github.mutations',
 						method: 'POST',
 						url: this._restUrl(
 							ref,
@@ -370,6 +374,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			}
 			await this._withCredential(ref, signal, async (credential, combinedSignal) => {
 				await this._transport.rest(credential.account, credential.token, {
+					caller: 'github.mutations',
 					method: 'PUT',
 					url: this._restUrl(ref, `pulls/${ref.number}/update-branch`),
 					body: { expected_head_sha: options.expectedHeadSha },
@@ -462,6 +467,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				try {
 					const result = await this._withCredential(preparation.ref, signal, async (credential, combinedSignal) => {
 						const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+							caller: 'github.mutations',
 							method: 'PUT',
 							url: this._restUrl(preparation.ref, `pulls/${preparation.ref.number}/merge`),
 							body: {
@@ -639,6 +645,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	private _postComment(ref: PullRequestRef, body: string, signal: AbortSignal): Promise<PullRequestComment> {
 		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.mutations',
 				method: 'POST',
 				url: this._restUrl(ref, `issues/${ref.number}/comments`),
 				body: { body },
@@ -658,6 +665,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ threadId, body },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 			return toGraphQLComment(objectAt(response.data, 'addPullRequestReviewThreadReply', 'comment'));
@@ -674,6 +682,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ threadId },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 			const thread = objectAt(response.data, 'resolveReviewThread', 'thread');
@@ -728,6 +737,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	private async _getWorkflowRun(ref: PullRequestRef, runId: string, signal: AbortSignal): Promise<GitHubWorkflowRun> {
 		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.mutations',
 				method: 'GET',
 				url: this._restUrl(ref, `actions/runs/${encodeURIComponent(runId)}`),
 				etag: false,
@@ -761,6 +771,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ pullRequestId, expectedHeadOid },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 			return requiredString(objectAt(response.data, 'enqueuePullRequest', 'mergeQueueEntry'), 'id');
@@ -778,6 +789,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		let url: string | undefined = this._restUrl(ref, route);
 		for (let page = 0; url && page < maximumPaginationPages; page++) {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.mutations',
 				method: 'GET',
 				url,
 				etag: true,
@@ -813,6 +825,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ pullRequestId: options.pullRequestId },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 		});
@@ -996,7 +1009,10 @@ function rerunProvenAbsent(run: GitHubWorkflowRun, expectedRunAttempt: number): 
 }
 
 function isAmbiguousMutationError(error: unknown): boolean {
-	return error instanceof GitHubRequestError && (error.kind === 'network' || error.kind === 'server');
+	return error instanceof GitHubRequestError && (
+		error.kind === 'network' || error.kind === 'server' || error.kind === 'timeout'
+		|| error.kind === 'responseTooLarge' && (error.statusCode === undefined || error.statusCode < 400 || error.statusCode >= 500)
+	);
 }
 
 function sameAccount(

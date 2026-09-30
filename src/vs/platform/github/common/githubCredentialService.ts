@@ -201,6 +201,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		let response;
 		try {
 			response = await this._transport.rest<IGitHubUserResponse>(bootstrapAccount, token, {
+				caller: 'github.credentials',
 				method: 'GET',
 				url: `${apiBaseUri}/user`,
 				etag: false,
@@ -214,6 +215,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 			throw error;
 		} finally {
 			this._transport.invalidateAccount(bootstrapAccount);
+			this._transport.rateLimits.clearAccount(bootstrapAccount);
 		}
 		const id = response.data?.id;
 		if ((typeof id !== 'string' && typeof id !== 'number') || String(id).length === 0) {

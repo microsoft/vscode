@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { deriveGitHubEndpoints } from '../../../../platform/agentHost/common/githubEndpoints.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -12,6 +13,7 @@ import { GitHubRequestError } from '../../../../platform/github/common/githubTra
 import { IGitHubEndpointProvider, IGitHubTokenProvider } from '../../../../platform/github/common/githubTypes.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../authentication/common/authentication.js';
 
 class WorkbenchGitHubEndpointProvider implements IGitHubEndpointProvider {
@@ -99,11 +101,13 @@ export class WorkbenchGitHubService extends GitHubService {
 		@IAuthenticationService authenticationService: IAuthenticationService,
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 		@ILogService logService: ILogService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super({
 			endpoint: new WorkbenchGitHubEndpointProvider(defaultAccountService),
 			tokenProvider: new WorkbenchGitHubTokenProvider(authenticationService, defaultAccountService, logService),
-		}, logService);
+			telemetrySource: isWeb ? 'web' : 'workbench',
+		}, logService, telemetryService);
 	}
 }
 

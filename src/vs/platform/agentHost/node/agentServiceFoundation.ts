@@ -143,6 +143,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 		fetchFn,
 		gitHubServiceOptions: {
 			endpoint: gitHubEndpointService,
+			telemetrySource: 'agentHost',
 			tokenProvider: {
 				getToken: () => {
 					const resource = gitHubEndpointService.getRepoResource();

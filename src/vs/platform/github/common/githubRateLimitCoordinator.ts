@@ -52,8 +52,8 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		}
 	}
 
-	updateFromResponse(account: GitHubAccountHandle, response: Response, responseBody?: string): void {
-		const resource = response.headers.get('x-ratelimit-resource') ?? 'core';
+	updateFromResponse(account: GitHubAccountHandle, response: Response, responseBody?: string, fallbackResource = 'core'): void {
+		const resource = response.headers.get('x-ratelimit-resource') ?? fallbackResource;
 		const key = this._key(account, resource);
 		const previous = this._states.get(key);
 		const now = this._scheduler.now();
@@ -93,7 +93,8 @@ export class GitHubRateLimitCoordinator extends Disposable {
 			remaining: remaining ?? previous?.remaining,
 			used: parseNumber(response.headers.get('x-ratelimit-used')) ?? previous?.used,
 			resetAt: resetSeconds !== undefined ? resetSeconds * 1000 : previous?.resetAt,
-			blockedUntil,
+			blockedUntil: previous?.blockedUntil !== undefined && previous.blockedUntil > now
+				? Math.max(previous.blockedUntil, blockedUntil ?? 0) : blockedUntil,
 		});
 	}
 
@@ -102,11 +103,15 @@ export class GitHubRateLimitCoordinator extends Disposable {
 			return;
 		}
 		const resetAt = typeof rateLimit.resetAt === 'string' ? Date.parse(rateLimit.resetAt) : undefined;
-		this._states.set(this._key(account, 'graphql'), {
+		const key = this._key(account, 'graphql');
+		const previous = this._states.get(key);
+		this._states.set(key, {
 			limit: rateLimit.limit,
 			remaining: rateLimit.remaining,
 			used: rateLimit.used,
 			resetAt: resetAt !== undefined && Number.isFinite(resetAt) ? resetAt : undefined,
+			...(previous?.blockedUntil !== undefined && previous.blockedUntil > this._scheduler.now()
+				? { blockedUntil: previous.blockedUntil } : {}),
 		});
 	}
 
@@ -119,9 +124,9 @@ export class GitHubRateLimitCoordinator extends Disposable {
 			remaining: 0,
 			// The retained reset can belong to a window that has already closed,
 			// and a refusal must park the caller rather than retry at once.
-			blockedUntil: previous?.resetAt !== undefined && previous.resetAt > now
+			blockedUntil: Math.max(previous?.blockedUntil ?? 0, previous?.resetAt !== undefined && previous.resetAt > now
 				? previous.resetAt
-				: now + unhintedRateLimitCooldown,
+				: now + unhintedRateLimitCooldown),
 		});
 	}
 
