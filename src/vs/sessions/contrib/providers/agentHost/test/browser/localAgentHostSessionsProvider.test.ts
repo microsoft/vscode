@@ -8100,7 +8100,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		test('createSideChat inherits the model the source chat last ran on when no model is recorded for it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
-			let sentModelId: string | undefined = 'not-sent';
+			let sent: { modelId: string | undefined; modelConfiguration: IChatSendRequestOptions['userSelectedModelConfiguration'] } | undefined;
 			const provider = createProvider(disposables, agentHost, undefined, {
 				lookupLanguageModel: createTestLanguageModel,
 				acquireOrLoadSession: async () => {
@@ -8116,7 +8116,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 					return { object: chatModel, dispose() { } } satisfies IChatModelReference;
 				},
 				sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
-					sentModelId = options?.userSelectedModelId;
+					sent = { modelId: options?.userSelectedModelId, modelConfiguration: options?.userSelectedModelConfiguration };
 					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 				},
 			});
@@ -8136,7 +8136,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				turns: [{
 					id: 'turn-1',
 					startedAt: new Date(0).toISOString(),
-					message: { text: 'hi', origin: { kind: MessageKind.User }, model: { id: 'byok-model' } },
+					message: { text: 'hi', origin: { kind: MessageKind.User }, model: { id: 'byok-model', config: { reasoningEffort: 'high' } } },
 					responseParts: [],
 					usage: undefined,
 					state: TurnState.Complete,
@@ -8149,11 +8149,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.deepStrictEqual({
 				adapterModelId: session.modelId.get(),
 				createdModel: agentHost.createdChats.at(-1)?.options?.model,
-				sentModelId,
+				sent,
 			}, {
 				adapterModelId: undefined,
-				createdModel: { id: 'byok-model' },
-				sentModelId: 'agent-host-copilotcli:byok-model',
+				createdModel: { id: 'byok-model', config: { reasoningEffort: 'high' } },
+				// The source turn's configuration travels with the model, not the global default.
+				sent: { modelId: 'agent-host-copilotcli:byok-model', modelConfiguration: { reasoningEffort: 'high' } },
 			});
 		}));
 
