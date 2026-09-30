@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript';
 import lazy from 'lazy.js';
 import eventStream from 'event-stream';
 import File from 'vinyl';
@@ -14,6 +13,11 @@ import { type ISpan, analyzeLocalizeCalls, TextModel, parseLocalizeKeyOrValue } 
 import { serializeNlsData } from './nlsMessages.ts';
 
 type FileWithSourcemap = File & { sourceMap: sm.RawSourceMap };
+
+interface LineAndCharacter {
+	line: number;
+	character: number;
+}
 
 /**
  * Returns a stream containing the patched JavaScript and source maps.
@@ -114,11 +118,11 @@ const _nls = (() => {
 		});
 	}
 
-	function mappedPositionFrom(source: string, lc: ts.LineAndCharacter): sm.MappedPosition {
+	function mappedPositionFrom(source: string, lc: LineAndCharacter): sm.MappedPosition {
 		return { source, line: lc.line + 1, column: lc.character };
 	}
 
-	function lcFrom(position: sm.Position): ts.LineAndCharacter {
+	function lcFrom(position: sm.Position): LineAndCharacter {
 		return { line: position.line - 1, character: position.column };
 	}
 
