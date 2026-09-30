@@ -738,6 +738,7 @@ mod tests {
 					file_identity: FileIdentityState::Unsupported,
 					file_type: InspectedFileType::RegularFile,
 					executable: true,
+					file_size: 0,
 				},
 			);
 			Self {
@@ -772,6 +773,7 @@ mod tests {
 					file_identity: FileIdentityState::Unsupported,
 					file_type: InspectedFileType::Directory,
 					executable: true,
+					file_size: 0,
 				},
 			);
 		}
@@ -784,6 +786,7 @@ mod tests {
 					file_identity: FileIdentityState::Unsupported,
 					file_type: InspectedFileType::RegularFile,
 					executable: true,
+					file_size: 0,
 				},
 			);
 			self.files

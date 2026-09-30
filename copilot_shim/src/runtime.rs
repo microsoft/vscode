@@ -35,6 +35,7 @@ pub(crate) struct PathInspection {
 	pub(crate) file_identity: FileIdentityState,
 	pub(crate) file_type: InspectedFileType,
 	pub(crate) executable: bool,
+	pub(crate) file_size: u64,
 }
 
 pub(crate) trait EnvironmentEffects {
@@ -166,6 +167,7 @@ impl FileSystemEffects for NativeRuntime {
 			file_identity: file_identity(path, &metadata)?,
 			file_type,
 			executable,
+			file_size: metadata.len(),
 		}))
 	}
 
