@@ -667,7 +667,7 @@ export class EnterOperation {
 export class PasteOperation {
 
 	public static getEdits(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[], isBlock: boolean = false) {
-		const distributeBlockToCursor = config.multiCursorPaste === 'spread' && selections.length === 1 && strings.splitLines(text).length > 1;
+		const distributeBlockToCursor = isBlock && config.multiCursorPaste === 'spread' && selections.length === 1;
 		if (distributeBlockToCursor) {
 			return this._blockPaste(config, selections[0], text);
 		}
