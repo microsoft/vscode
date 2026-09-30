@@ -61,7 +61,7 @@ export const COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION = 'When a tool rep
 const largeOutputToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
 
 /** Steers workspace discovery toward scoped, targeted searches instead of broad upfront exploration. */
-export const COPILOT_AGENT_HOST_TARGETED_SEARCH_TOOL_INSTRUCTION = 'To find relevant code, start from the concrete file names, symbols, strings, and paths in the request and search for them directly with targeted queries scoped to the most likely files or directories, running independent searches in parallel. Do not list or recursively explore the whole workspace, or delegate broad exploration to a subagent, unless targeted searches come up empty or the task genuinely needs a codebase-wide survey. Stop searching once you have enough context to act.';
+export const COPILOT_AGENT_HOST_TARGETED_SEARCH_TOOL_INSTRUCTION = 'To find relevant code, start from the concrete file names, symbols, strings, and paths in the request and search for them with targeted queries scoped to the most likely files or directories, running independent searches in parallel. Avoid listing or recursively exploring the whole workspace unless targeted searches come up empty or the task genuinely needs a codebase-wide survey. Stop searching once you have enough context to act.';
 const targetedSearchToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_TARGETED_SEARCH_TOOL_INSTRUCTION;
 
 /** Keeps subagents on their default model unless the user explicitly requests another model. */
