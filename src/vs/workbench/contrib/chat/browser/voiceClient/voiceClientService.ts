@@ -1059,7 +1059,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 						audio: {
 							output: {
 								voice: this._getOpenAiVoice(),
-								format: { type: 'audio/pcm' },
+								format: { type: 'audio/pcm', rate: 24000 },
 							},
 						},
 					},
