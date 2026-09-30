@@ -645,8 +645,11 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			caller: options.caller ?? 'github',
 			deadline: this._deadline(options),
 		};
-		this._rateLimits.retainAccount(account);
-		return this._queue.enqueue(context, task, onAdmitted);
+		// A rejected request never becomes active, so it must not cancel cleanup of an inactive cooldown.
+		return this._queue.enqueue(context, task, () => {
+			this._rateLimits.retainAccount(account);
+			onAdmitted?.();
+		});
 	}
 
 	private async _fetchRestWithRedirects(account: GitHubAccountHandle, initialUrl: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined, onDispatch: () => void): Promise<Response> {

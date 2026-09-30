@@ -531,6 +531,31 @@ suite('GitHub request lifecycle', () => {
 		});
 	});
 
+	test('rejected reuse does not cancel inactive cooldown cleanup', async () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		const release = new DeferredPromise<Response>();
+		let calls = 0;
+		const transport = store.add(new GitHubTransport(async () => {
+			calls++;
+			return release.p;
+		}, scheduler, false, undefined, { queue: { maximumRequests: 1, reservedInteractiveRequests: 0 } }));
+		const inactive = { ...account, accountId: 'inactive' };
+		transport.rateLimits.updateFromResponse(inactive, new Response(null, { status: 429, headers: { 'retry-after': '1' } }));
+		transport.invalidateAccount(inactive);
+		const occupying = request(transport, 'rest');
+		await assert.rejects(transport.rest(inactive, 'token', { method: 'GET', url }, new AbortController().signal), { kind: 'overloaded' });
+		const retainedBeforeExpiry = transport.rateLimits.getState(inactive, 'core') !== undefined;
+		scheduler.advanceBy(1_000);
+		await release.complete(new Response('{}'));
+		await occupying;
+		assert.deepStrictEqual({
+			calls,
+			retainedBeforeExpiry,
+			state: transport.rateLimits.getState(inactive, 'core'),
+			timers: scheduler.pendingCount,
+		}, { calls: 1, retainedBeforeExpiry: true, state: undefined, timers: 0 });
+	});
+
 	test('many inactive accounts share one expiry timer and release all quota state', () => {
 		const scheduler = store.add(new FakeGitHubScheduler());
 		const transport = store.add(new GitHubTransport(undefined, scheduler));
