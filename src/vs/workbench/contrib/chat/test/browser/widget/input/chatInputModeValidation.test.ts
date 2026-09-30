@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -22,7 +23,7 @@ import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../..
 import { ConfigurationService } from '../../../../../../../platform/configuration/common/configurationService.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountRefreshOptions, IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -342,10 +343,11 @@ suite('ChatInputPart mode validation', () => {
 			configurationService,
 			gateService,
 			get settingsRequests() { return settingsRequests; },
-			beginRetry: () => {
+			beginRefresh: (options: IDefaultAccountRefreshOptions, withAgentDisabled = disableAgent) => {
 				started = new DeferredPromise<void>();
 				delayedResponse = new DeferredPromise<IRequestContext>();
-				const completed = accountService.refresh({ forceRefresh: true, retryManagedSettings: true });
+				disableAgent = withAgentDisabled;
+				const completed = accountService.refresh(options);
 				return { requested: started.p, completed };
 			},
 			finishRefresh: () => delayedResponse.complete(jsonResponse(settings)),
@@ -381,29 +383,79 @@ suite('ChatInputPart mode validation', () => {
 		});
 	}
 
-	test('preserves startup selection through a failed fetch and successful explicit retry', async () => {
-		const refresh = await createAccountStartup(false);
-		const harness = createInput(ChatMode.Agent, inactiveGate, true, refresh);
-		refresh.failRefresh();
-		await refresh.gateService.whenInitialized();
-		harness.input.flushInputStateToModel();
-		const failed = { ...harness.snapshot(), blocked: harness.input.isManagedSettingsRefreshBlocked, freshness: refresh.provider.managedSettingsFreshness.state };
+	for (const { name, hourly, disableAgent } of [
+		{ name: 'forced refresh', hourly: false, disableAgent: false },
+		{ name: 'hourly cache expiry', hourly: true, disableAgent: false },
+		{ name: 'resolved Agent-disabled policy', hourly: false, disableAgent: true },
+	]) {
+		test(`preserves selection during background fetch and enforces the result (${name})`, async () => {
+			const refresh = await createAccountStartup(false);
+			const harness = createInput(ChatMode.Agent, inactiveGate, true, refresh);
+			refresh.finishRefresh();
+			await refresh.gateService.whenInitialized();
+			if (hourly) {
+				const clock = useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+				store.add(toDisposable(() => clock.restore()));
+				clock.setSystemTime(Date.now() + 60 * 60 * 1000 + 1);
+			}
 
-		const retry = refresh.beginRetry();
-		await retry.requested;
-		harness.input.validateAgentMode();
-		harness.input.flushInputStateToModel();
-		const retrying = { ...harness.snapshot(), blocked: harness.input.isManagedSettingsRefreshBlocked, freshness: refresh.provider.managedSettingsFreshness.state };
-		const settled = Event.toPromise(Event.filter(refresh.gateService.onDidChangeGateInfo, info => info.state === AccountPolicyGateState.Inactive));
-		refresh.finishRefresh();
-		await retry.completed;
-		await settled;
+			const pending = refresh.beginRefresh({ forceRefresh: !hourly }, disableAgent);
+			await pending.requested;
+			harness.input.validateAgentMode();
+			harness.input.flushInputStateToModel();
+			const duringRefresh = harness.snapshot();
+			refresh.finishRefresh();
+			await pending.completed;
 
-		assert.deepStrictEqual({ failed, retrying, recovered: harness.snapshot(), writes: harness.persistedModes }, {
-			failed: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: false, blocked: true, freshness: ManagedSettingsFreshnessState.Blocked },
-			retrying: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: false, blocked: true, freshness: ManagedSettingsFreshnessState.Pending },
-			recovered: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: true },
-			writes: ['agent', 'agent'],
+			assert.deepStrictEqual({
+				currentModeDuringRefresh: duringRefresh.currentMode,
+				persistedModeDuringRefresh: duringRefresh.persistedMode,
+				recovered: harness.snapshot(),
+				settingsRequests: refresh.settingsRequests,
+				writes: harness.persistedModes,
+			}, {
+				currentModeDuringRefresh: 'agent',
+				persistedModeDuringRefresh: 'agent',
+				recovered: { currentMode: disableAgent ? 'ask' : 'agent', persistedMode: disableAgent ? 'ask' : 'agent', agentEnabled: !disableAgent },
+				settingsRequests: 2,
+				writes: disableAgent ? ['agent', 'ask'] : ['agent'],
+			});
 		});
-	});
+	}
+
+	for (const background of [false, true]) {
+		test(`preserves ${background ? 'background' : 'startup'} selection through a failed fetch and successful explicit retry`, async () => {
+			const refresh = await createAccountStartup(false);
+			const harness = createInput(ChatMode.Agent, inactiveGate, true, refresh);
+			let pending = refresh.gateService.whenInitialized();
+			if (background) {
+				refresh.finishRefresh();
+				await pending;
+				const next = refresh.beginRefresh({ forceRefresh: true });
+				pending = next.completed.then(() => undefined);
+				await next.requested;
+			}
+			refresh.failRefresh();
+			await pending;
+			harness.input.flushInputStateToModel();
+			const failed = { ...harness.snapshot(), blocked: harness.input.isManagedSettingsRefreshBlocked, freshness: refresh.provider.managedSettingsFreshness.state };
+
+			const retry = refresh.beginRefresh({ forceRefresh: true, retryManagedSettings: true });
+			await retry.requested;
+			harness.input.validateAgentMode();
+			harness.input.flushInputStateToModel();
+			const retrying = { ...harness.snapshot(), blocked: harness.input.isManagedSettingsRefreshBlocked, freshness: refresh.provider.managedSettingsFreshness.state };
+			const settled = Event.toPromise(Event.filter(refresh.gateService.onDidChangeGateInfo, info => info.state === AccountPolicyGateState.Inactive));
+			refresh.finishRefresh();
+			await retry.completed;
+			await settled;
+
+			assert.deepStrictEqual({ failed, retrying, recovered: harness.snapshot(), writes: harness.persistedModes }, {
+				failed: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: false, blocked: true, freshness: ManagedSettingsFreshnessState.Blocked },
+				retrying: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: false, blocked: true, freshness: ManagedSettingsFreshnessState.Pending },
+				recovered: { currentMode: 'agent', persistedMode: 'agent', agentEnabled: true },
+				writes: ['agent', 'agent'],
+			});
+		});
+	}
 });
