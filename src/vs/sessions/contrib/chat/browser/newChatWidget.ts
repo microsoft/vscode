@@ -64,7 +64,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
-import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
+import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
@@ -102,6 +102,7 @@ export function areNewSessionWelcomePhrasesEnabled(configurationService: IConfig
 
 export class NewChatWidget extends Disposable {
 
+	private readonly _usage: AgentsWindowUsage;
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
 	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
@@ -191,6 +192,7 @@ export class NewChatWidget extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+		this._usage = new AgentsWindowUsage(storageService);
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
 
@@ -316,7 +318,7 @@ export class NewChatWidget extends Disposable {
 		const canSubmitWithoutSession = derived(this, reader => !this._session.read(reader));
 		const deferredNotificationsEnabled = observableFromEvent(
 			this,
-			this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store),
+			this._usage.onDidChangeCreatedSessionCount(this._store),
 			() => this._hasEnoughSessionsForFirstRunNotices(),
 		);
 
@@ -476,7 +478,7 @@ export class NewChatWidget extends Disposable {
 				this._clearChatTip();
 			}
 		}));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store)(() => this._renderChatTip()));
+		this._register(this._usage.onDidChangeCreatedSessionCount(this._store)(() => this._renderChatTip()));
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(foregroundSessionCountContextKeys)) {
@@ -920,7 +922,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _hasEnoughSessionsForFirstRunNotices(): boolean {
-		return this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) >= MIN_SESSIONS_FOR_FIRST_RUN_NOTICES;
+		return this._usage.createdSessionCount >= MIN_SESSIONS_FOR_FIRST_RUN_NOTICES;
 	}
 
 	/**
