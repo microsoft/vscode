@@ -57,7 +57,7 @@ import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery,
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOrigin, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
-import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 
 const $ = DOM.$;
@@ -344,6 +344,8 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		container.classList.add('customization-discovery-result-row');
 		const root = DOM.append(container, $('.customization-discovery-result-content'));
 		const primaryAction = createCustomizationCardPrimaryAction(root, '', 'customization-discovery-result-primary');
+		const templateDisposables = new DisposableStore();
+		trackCustomizationCardPrimaryActionFocus(primaryAction, root, templateDisposables);
 		const icon = DOM.append(primaryAction, $('.customization-discovery-result-icon'));
 		const identity = DOM.append(primaryAction, $('.customization-discovery-result-identity'));
 		const heading = DOM.append(identity, $('.customization-discovery-result-heading'));
@@ -364,7 +366,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			stats,
 			actions,
 			elementDisposables: new DisposableStore(),
-			templateDisposables: new DisposableStore(),
+			templateDisposables,
 		};
 	}
 

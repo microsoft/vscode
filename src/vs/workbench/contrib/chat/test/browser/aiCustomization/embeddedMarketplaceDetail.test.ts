@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IRequestContext } from '../../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -26,13 +26,16 @@ suite('EmbeddedMarketplaceDetail', () => {
 		const parent = DOM.append(document.body, DOM.$('.embedded-marketplace-detail-test'));
 		store.add({ dispose: () => parent.remove() });
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		const installChangeEmitter = store.add(new Emitter<void>());
+		let requestCount = 0;
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
-			override readonly onDidChange = Event.None;
+			override readonly onDidChange = installChangeEmitter.event;
 			override getInstallState() { return { kind: 'available' as const }; }
 		}());
 		instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 			override async request(): Promise<IRequestContext> {
+				requestCount++;
 				return {
 					res: { statusCode: 200, headers: {} },
 					stream: bufferToStream(VSBuffer.fromString(readmeContent ?? '')),
@@ -45,7 +48,12 @@ suite('EmbeddedMarketplaceDetail', () => {
 			openExternal: async () => { },
 		}));
 		detail.setInput(resource);
-		return { detail, parent };
+		return {
+			detail,
+			parent,
+			fireInstallChange: () => installChangeEmitter.fire(),
+			getRequestCount: () => requestCount,
+		};
 	}
 
 	test('renders ordered metadata and representative queries', () => {
@@ -109,7 +117,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 	});
 
 	test('fetches and renders the plugin README inline without a Contains section', async () => {
-		const { parent } = render({
+		const { detail, parent, fireInstallChange, getRequestCount } = render({
 			sourceId: 'test',
 			identifier: 'frontend-design',
 			displayName: 'Frontend Design',
@@ -123,13 +131,19 @@ suite('EmbeddedMarketplaceDetail', () => {
 		}, '# Frontend Design\n\nUse the design system.');
 
 		await timeout(0);
+		fireInstallChange();
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			contains: parent.querySelector('.plugin-detail-contributions')?.textContent,
 			readme: parent.querySelector('.plugin-detail-readme-content')?.textContent,
+			accessible: detail.getAccessibilityContent(),
+			requestCount: getRequestCount(),
 		}, {
 			contains: undefined,
 			readme: 'Frontend Design\nUse the design system.',
+			accessible: 'Frontend Design\n\nAvailable to install\n\nDesign UI.\n\nType: Plugin\n\nSource: Marketplace\n\nPlugin README:\n# Frontend Design\n\nUse the design system.',
+			requestCount: 1,
 		});
 	});
 });

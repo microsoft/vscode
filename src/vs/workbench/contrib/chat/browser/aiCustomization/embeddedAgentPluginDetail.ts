@@ -745,13 +745,13 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	}
 }
 
-export interface IPluginContributionEntry {
+interface IPluginContributionEntry {
 	readonly kind: string;
 	readonly label: string;
 	readonly items: readonly { name: string; description?: string; uri?: URI }[];
 }
 
-export function toMarketplacePlugin(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>): IMarketplacePlugin {
+function toMarketplacePlugin(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>): IMarketplacePlugin {
 	return {
 		name: item.name,
 		description: item.description,

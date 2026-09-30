@@ -3339,12 +3339,12 @@ per-word capitalization does not survive translation. */
 	outline-offset: -1px;
 }
 
-.plugin-list-widget .plugin-home-row:has(> .customization-card-primary-action:focus-visible) {
+.plugin-list-widget .plugin-home-row.primary-action-focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.monaco-workbench .plugin-list-widget .plugin-home-row > .customization-card-primary-action:focus {
+.monaco-workbench .plugin-list-widget .plugin-home-row .customization-card-primary-action:focus {
 	outline: none;
 }
 

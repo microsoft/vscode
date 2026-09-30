@@ -362,7 +362,7 @@
 }
 
 .customization-discovery-list .monaco-list-row.focused > .customization-discovery-result-content,
-.customization-discovery-result-content:has(> .customization-discovery-result-primary:focus) {
+.customization-discovery-result-content.primary-action-focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }

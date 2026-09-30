@@ -13,6 +13,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -49,10 +50,14 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	private readonly readmeEl: HTMLElement;
 	private readonly readmeContentEl: HTMLElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
+	private readonly installActionDisposables = this._register(new DisposableStore());
+	private readonly readmeRenderDisposables = this._register(new DisposableStore());
 	private readonly iconDisposables = this._register(new DisposableStore());
 	private readonly previewDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private renderGeneration = 0;
 	private current: ICustomizationMarketplaceResource | undefined;
+	private locationFactEl: HTMLElement | undefined;
+	private readmeContent: string | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -91,7 +96,8 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 
 		this._register(this.installService.onDidChange(() => {
 			if (this.current) {
-				this.render(true);
+				this.renderInstallState(this.current);
+				this._onDidChangeContent.fire();
 			}
 		}));
 		this._register(this.themeService.onDidColorThemeChange(() => this.renderIcon()));
@@ -102,8 +108,9 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	}
 
 	setInput(resource: ICustomizationMarketplaceResource): void {
+		const previous = this.current;
 		this.current = resource;
-		this.render(true);
+		this.render(previous !== resource || !isEqual(previous?.readmeUri, resource.readmeUri));
 	}
 
 	clearInput(): void {
@@ -111,6 +118,10 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.renderGeneration++;
 		this.previewDisposables.clear();
 		this.renderDisposables.clear();
+		this.installActionDisposables.clear();
+		this.readmeRenderDisposables.clear();
+		this.locationFactEl = undefined;
+		this.readmeContent = undefined;
 		this.titleEl.textContent = '';
 		this.descriptionEl.textContent = '';
 		this.stateEl.textContent = '';
@@ -142,6 +153,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 			formatList(localize('marketplaceDetail.tags', "Tags"), resource.tags),
 			resource.repository ? localize('marketplaceDetail.repositoryAccessible', "Repository: {0}", getRepositoryLabel(resource.repository)) : undefined,
 			target ? localize('marketplaceDetail.locationAccessible', "Location: {0}", target.fsPath || target.toString()) : undefined,
+			this.readmeContent?.trim() ? localize('marketplaceDetail.pluginReadmeAccessible', "Plugin README:\n{0}", this.readmeContent) : undefined,
 		].filter(Boolean).join('\n\n');
 	}
 
@@ -151,18 +163,13 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 			return;
 		}
 		this.renderDisposables.clear();
-		DOM.clearNode(this.titleActionsEl);
 		DOM.clearNode(this.queriesEl);
 		DOM.clearNode(this.factsEl);
+		this.locationFactEl = undefined;
 
 		this.titleEl.textContent = resource.displayName;
 		this.renderIcon();
 		this.descriptionEl.textContent = resource.description || localize('marketplaceDetail.noDescription', "No description provided.");
-		const state = this.installService.getInstallState(resource);
-		this.stateEl.textContent = getInstallStateLabel(state);
-		this.stateEl.classList.toggle('unavailable', state.kind === 'unavailable');
-
-		this.renderInstallAction(resource, state);
 		this.renderQueries(resource.representativeQueries);
 		this.appendFact(localize('marketplaceDetail.type', "Type"), getMarketplaceTypeLabel(resource));
 		if (resource.publisher) {
@@ -179,18 +186,32 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		if (resource.repository) {
 			this.appendFact(localize('marketplaceDetail.repository', "Repository"), this.createLink(getRepositoryLabel(resource.repository), resource.repository));
 		}
-		const location = getLocationTarget(state);
-		if (location) {
-			const value = $('span');
-			value.textContent = location.fsPath || location.toString();
-			value.title = location.fsPath || location.toString();
-			this.appendFact(localize('marketplaceDetail.location', "Location"), value);
-		}
+		this.renderInstallState(resource);
 
 		if (loadPreview) {
 			this.renderReadme(resource);
 		}
 		this._onDidChangeContent.fire();
+	}
+
+	private renderInstallState(resource: ICustomizationMarketplaceResource): void {
+		this.installActionDisposables.clear();
+		DOM.clearNode(this.titleActionsEl);
+		this.locationFactEl?.remove();
+		this.locationFactEl = undefined;
+
+		const state = this.installService.getInstallState(resource);
+		this.stateEl.textContent = getInstallStateLabel(state);
+		this.stateEl.classList.toggle('unavailable', state.kind === 'unavailable');
+		this.renderInstallAction(resource, state);
+
+		const location = getLocationTarget(state);
+		if (location) {
+			const value = $('span');
+			value.textContent = location.fsPath || location.toString();
+			value.title = location.fsPath || location.toString();
+			this.locationFactEl = this.appendFact(localize('marketplaceDetail.location', "Location"), value);
+		}
 	}
 
 	private renderIcon(): void {
@@ -231,14 +252,14 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 					: setupUrl
 						? localize('marketplaceDetail.viewSetup', "View Setup")
 						: localize('marketplaceDetail.install', "Install");
-		const button = this.renderDisposables.add(new Button(this.titleActionsEl, {
+		const button = this.installActionDisposables.add(new Button(this.titleActionsEl, {
 			...defaultButtonStyles,
 			ariaLabel: localize('marketplaceDetail.actionAria', "{0} {1}", label, resource.displayName),
 		}));
 		button.label = label;
 		button.enabled = state.kind === 'available' || !!setupUrl;
 		button.element.setAttribute('aria-busy', String(state.kind === 'installing'));
-		this.renderDisposables.add(button.onDidClick(async () => {
+		this.installActionDisposables.add(button.onDidClick(async () => {
 			try {
 				if (setupUrl) {
 					await this.options.openExternal(setupUrl);
@@ -252,7 +273,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		}));
 	}
 
-	private appendFact(label: string, value: string | HTMLElement): void {
+	private appendFact(label: string, value: string | HTMLElement): HTMLElement {
 		const row = DOM.append(this.factsEl, $('.embedded-detail-fact-row'));
 		DOM.append(row, $('dt.embedded-detail-fact-label')).textContent = label;
 		const valueEl = DOM.append(row, $('dd.embedded-detail-fact-value'));
@@ -262,6 +283,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 			valueEl.classList.add('has-actions');
 			valueEl.appendChild(value);
 		}
+		return row;
 	}
 
 	private createLink(label: string, resource: URI | string | undefined): HTMLElement {
@@ -282,7 +304,10 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 
 	private renderReadme(resource: ICustomizationMarketplaceResource): void {
 		this.previewDisposables.clear();
+		this.readmeRenderDisposables.clear();
+		this.readmeContent = undefined;
 		DOM.clearNode(this.readmeContentEl);
+		const generation = ++this.renderGeneration;
 		if (!isPlugin(resource) || !resource.readmeUri) {
 			this.readmeEl.style.display = 'none';
 			return;
@@ -291,7 +316,6 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.readmeEl.style.display = '';
 		DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message')).textContent = localize('marketplaceDetail.readmeLoading', "Loading plugin README...");
 
-		const generation = ++this.renderGeneration;
 		const disposables = new DisposableStore();
 		this.previewDisposables.value = disposables;
 		const cancellation = disposables.add(new CancellationTokenSource());
@@ -325,6 +349,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	}
 
 	private renderReadmeContent(content: string, baseUri: URI): void {
+		this.readmeContent = content;
 		DOM.clearNode(this.readmeContentEl);
 		this.readmeEl.style.display = '';
 		if (!content.trim()) {
@@ -333,7 +358,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		}
 		const markdown = new MarkdownString(content, { supportHtml: false });
 		markdown.baseUri = baseUri;
-		const rendered = this.renderDisposables.add(this.markdownRendererService.render(markdown, {
+		const rendered = this.readmeRenderDisposables.add(this.markdownRendererService.render(markdown, {
 			asyncRenderCallback: () => this._onDidChangeContent.fire(),
 		}));
 		this.readmeContentEl.appendChild(rendered.element);
