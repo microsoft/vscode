@@ -32,9 +32,9 @@ suite('agentHostAgentPicker', () => {
 		const inDialog = ChatContextKeys.inAutomationsDialog.bindTo(context);
 		const ids = ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker', 'sessions.modelPicker'];
 		const controls = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem)
-				.filter(item => ids.includes(item.command.id) && context.contextMatchesRules(item.when))
-				.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-				.map(item => item.command.id);
+			.filter(item => ids.includes(item.command.id) && context.contextMatchesRules(item.when))
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+			.map(item => item.command.id);
 		inDialog.set(false);
 		const newSessionPrimary = controls(Menus.NewSessionConfig);
 		const newSessionSecondary = controls(Menus.NewSessionControl);

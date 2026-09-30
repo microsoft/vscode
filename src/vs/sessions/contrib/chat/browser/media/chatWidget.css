@@ -43,7 +43,7 @@
 	max-width: 800px;
 	padding: 0;
 	box-sizing: border-box;
-	margin-bottom: var(--vscode-spacing-size60);
+	margin-bottom: var(--vscode-spacing-size80);
 }
 
 .experimental-new-session-composer .new-session-workspace-picker-container {

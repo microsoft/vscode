@@ -162,11 +162,6 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
 		@ICommandService commandService: ICommandService,
 	) {
 		super(contextKeyService, commandService);
-		this.addItem(Menus.NewSessionConfig, {
-			command: { id: 'sessions.modelPicker', title: 'Model' },
-			group: 'navigation',
-			order: 1,
-		});
 		this.addItem(MenuId.ChatInputStatus, {
 			command: { id: 'fixture.autopilotStatus', title: 'Autopilot', icon: Codicon.rocket },
 			group: 'navigation',
@@ -186,6 +181,14 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
 			command: { id: 'fixture.textStatus', title: 'Status' },
 			group: 'navigation',
 			order: 4,
+		});
+	}
+
+	addModelItem(): void {
+		this.addItem(Menus.NewSessionConfig, {
+			command: { id: 'sessions.modelPicker', title: 'Model' },
+			group: 'navigation',
+			order: 1,
 		});
 	}
 }
@@ -499,6 +502,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	sessionViewContent.style.width = '100%';
 	sessionViewContent.style.height = '100%';
 
+	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
 	if (withControlPickers) {
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 		instantiationService.stub(IAgentHostConnectionsService, {
@@ -528,9 +532,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					: undefined;
 			},
 		});
-		const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
 		menuService.addItem(Menus.NewSessionConfig, { command: { id: 'fixture.agent', title: 'Agent' }, group: 'navigation', order: -1 });
-		menuService.addItem(Menus.NewSessionConfig, { command: { id: 'fixture.model', title: 'Model' }, group: 'navigation', order: 1 });
+		if (!(menuService instanceof AutoModelFixtureMenuService)) {
+			menuService.addItem(Menus.NewSessionConfig, { command: { id: 'fixture.model', title: 'Model' }, group: 'navigation', order: 1 });
+		}
 		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.mode', title: 'Mode' }, group: 'navigation', order: 0 });
 		menuService.addItem(Menus.NewSessionRepositoryConfig, {
 			command: { id: 'fixture.worktree', title: 'New Worktree' },
@@ -542,6 +547,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			group: getNewSessionRepositoryConfigGroup(2, 'fixture.branch'),
 			order: 2,
 		});
+	}
+	if (menuService instanceof AutoModelFixtureMenuService) {
+		menuService.addModelItem();
 	}
 
 	if (migrationCount > 0) {
@@ -732,9 +740,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	const repositoryConfigContainer = view.element.querySelector<HTMLElement>('.new-chat-repo-config-container');
 	if (withControlPickers) {
+		const workspacePickerContainer = view.element.querySelector<HTMLElement>('.new-session-workspace-picker-container');
 		const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
 		const sessionControls = view.element.querySelector<HTMLElement>('.new-chat-session-controls');
-		assert(!!repositoryConfigContainer);
+		assert(!!workspacePickerContainer && !!repositoryConfigContainer);
 		assert(!!sessionOptions && !!sessionControls);
 		assert(repositoryConfigContainer.querySelectorAll('.action-label:not(.separator)').length === 2);
 		const primaryToolbar = promptBox.querySelector<HTMLElement>('.sessions-chat-toolbar');
@@ -743,7 +752,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const bottomContainer = view.element.querySelector<HTMLElement>('.new-chat-bottom-container');
 		assert(!!primaryToolbar && !!attachButton && !!secondaryControls && !!bottomContainer);
 		const configItems = primaryToolbar.querySelectorAll<HTMLElement>('.sessions-chat-config-toolbar:not(.new-chat-session-controls) .actions-container > .action-item');
-		assert(configItems[0]?.textContent === 'Agent' && configItems[1]?.textContent === 'Model',
+		assert(configItems.length === 2 && configItems[0]?.textContent === 'Agent',
 			'The agent picker must precede the model picker inside the prompt.');
 		if (experimentalComposerLayout) {
 			const [attach, controls, models] = [...primaryToolbar.children];
@@ -761,6 +770,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			assert(!!repositoryControls
 				&& secondaryControls.contains(sessionControls)
 				&& !sessionOptions.contains(repositoryConfigContainer)
+				&& promptBox.getBoundingClientRect().top - workspacePickerContainer.getBoundingClientRect().bottom === 8
 				&& targetWindow.getComputedStyle(bottomContainer).justifyContent === 'space-between'
 				&& configItems[0].getBoundingClientRect().left - attachButton.getBoundingClientRect().right === 4
 				&& secondaryControls.getBoundingClientRect().left < repositoryControls.getBoundingClientRect().left,
