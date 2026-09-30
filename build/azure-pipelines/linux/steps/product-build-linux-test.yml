@@ -1,4 +1,7 @@
 parameters:
+  - name: VSCODE_TEST_IDS
+    type: object
+    default: []
   - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
   - name: VSCODE_RUN_BROWSER_TESTS
@@ -29,7 +32,7 @@ steps:
     displayName: Download Electron and Playwright
     retryCountOnTaskFailure: 3
 
-  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote'), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - script: npm run gulp node
       env:
         AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
@@ -48,7 +51,7 @@ steps:
       stat $ELECTRON_ROOT/chrome-sandbox
     displayName: Change setuid helper binary permission
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'unit-electron'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: unit-electron
@@ -59,6 +62,7 @@ steps:
           displayName: 🧪 Run unit tests (Electron)
           timeoutInMinutes: 30
 
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'unit-node'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: unit-node
@@ -72,7 +76,7 @@ steps:
           displayName: 🧪 Run unit tests (node.js)
           timeoutInMinutes: 30
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'unit-browser-chromium'), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true)) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: unit-browser-chromium
@@ -106,7 +110,7 @@ steps:
         compile-extension:vscode-test-resolver
     displayName: Build integration tests
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-electron
@@ -127,7 +131,7 @@ steps:
           displayName: 🧪 Run integration tests (Electron)
           timeoutInMinutes: 30
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-chromium'), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true)) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-browser-chromium
@@ -138,7 +142,7 @@ steps:
           displayName: 🧪 Run integration tests (Browser, Chromium)
           timeoutInMinutes: 30
 
-  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-remote
@@ -161,7 +165,7 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
     - script: |
         set -e
         sudo mkdir /etc/vscode
@@ -195,7 +199,7 @@ steps:
       displayName: Clean up native policy smoke fixture
       condition: and(always(), eq(variables['policyFixture.created'], 'true'))
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true)) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-browser-chromium
@@ -207,7 +211,7 @@ steps:
           timeoutInMinutes: 30
           displayName: 🧪 Run smoke tests (Browser, Chromium)
 
-  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote'), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-remote
@@ -227,7 +231,7 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'copilot'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
     - template: ../../copilot/test-integration-steps.yml@self
       parameters:
         OS: linux
