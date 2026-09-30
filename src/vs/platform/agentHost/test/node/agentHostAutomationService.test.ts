@@ -19,6 +19,7 @@ import { NullTelemetryServiceShape, TelemetryTrustedValue } from '../../../telem
 import { AgentSession, type IAgent, type IAgentModelInfo } from '../../common/agent.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { readAgentHostAutomationHistoryState } from '../../common/meta/agentHostAutomationsMeta.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../common/automationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -1051,6 +1052,61 @@ suite('AgentHostAutomationService', () => {
 		});
 	}
 
+	test('keeps deleted Automation history paginated and non-runnable after restart', async () => {
+		const runs = await storeCompletedHistory(60);
+		const deleted: string[] = [];
+		const service = createService({ deleteSession: async session => { deleted.push(session.toString()); } });
+		await service.deleteAutomation(runs[0].automation, false);
+		service.dispose();
+		const restored = createService();
+		await assert.rejects(restored.runAutomation({ channel: 'ahp-automations://', automation: runs[0].automation, requestId: 'deleted-automation' }), /operation 'run' is not available/);
+		await restored.fetchAutomationRuns({ channel: 'ahp-automations://', automation: runs[0].automation });
+		const automation = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.ok(automation);
+
+		assert.deepStrictEqual({
+			deleted,
+			historyState: readAgentHostAutomationHistoryState(automation),
+			enabled: automation.definition.enabled,
+			triggers: automation.definition.triggers,
+			operations: automation.operations,
+			runs: automation.runs.length,
+			cursor: automation.runsNextCursor,
+		}, {
+			deleted: [],
+			historyState: 'retained',
+			enabled: false,
+			triggers: [],
+			operations: [AutomationOperation.Remove],
+			runs: 60,
+			cursor: undefined,
+		});
+	});
+
+	test('restores discoverable history owners for Automations deleted by older hosts', async () => {
+		const runs = await storeCompletedHistory(60);
+		await storageService.setAndFlush('automations', { version: 1, catalog: { automations: [] }, runs });
+		const service = createService();
+		await service.handleConfigurationChanged();
+		await service.fetchAutomationRuns({ channel: 'ahp-automations://', automation: runs[0].automation });
+		const owner = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.ok(owner);
+		await assert.rejects(service.runAutomation({ channel: 'ahp-automations://', automation: owner.resource, requestId: 'orphan' }), /operation 'run' is not available/);
+		assert.deepStrictEqual({
+			title: owner.definition.title,
+			historyState: readAgentHostAutomationHistoryState(owner),
+			operations: owner.operations,
+			enabled: owner.definition.enabled,
+			runs: owner.runs.length,
+		}, {
+			title: 'Deleted Automation',
+			historyState: 'retained',
+			operations: [AutomationOperation.Remove],
+			enabled: false,
+			runs: 60,
+		});
+	});
+
 	test('retries interrupted creation cleanup when its provider becomes available', async () => {
 		const [run] = await storeCompletedHistory(1);
 		const stored = storageService.get<{ catalog: { automations: unknown[] } }>('automations');
@@ -1085,6 +1141,48 @@ suite('AgentHostAutomationService', () => {
 			intent: storageService.get<Record<string, unknown>>('automations')?.sessionCreations,
 			sessions: stateManager.getAutomationRunState(run.resource)?.sessions,
 		}, { deleted: ['mock:/unregistered'], intent: undefined, sessions: [] });
+	});
+
+	test('deletes every run session across history pages and includes legacy archive sessions', async () => {
+		const runs = await storeCompletedHistory(60);
+		const deleted: string[] = [];
+		const service = createService({ deleteSession: async session => { deleted.push(session.toString()); } });
+		await service.deleteAutomation(runs[0].automation, true, [URI.parse(runs[0].sessions[0]), URI.parse('mock:/legacy-session')]);
+		service.dispose();
+		createService();
+
+		assert.deepStrictEqual({
+			deleted,
+			entries: stateManager.getAutomationCatalogState()?.entries,
+			run: stateManager.getAutomationRunState(runs[0].resource),
+			deletions: storageService.get<Record<string, unknown>>('automations')?.historyDeletions,
+		}, {
+			deleted: [...runs.flatMap(run => run.sessions), 'mock:/legacy-session'],
+			entries: [],
+			run: undefined,
+			deletions: undefined,
+		});
+	});
+
+	test('resumes interrupted history deletion from its durable targets', async () => {
+		const runs = await storeCompletedHistory(1);
+		const service = createService({ deleteSession: async () => { throw new Error('session deletion failed'); } });
+		await assert.rejects(service.deleteAutomation(runs[0].automation, true, [URI.parse('mock:/legacy-session')]), /session deletion failed/);
+		service.dispose();
+		const deleted: string[] = [];
+		const removed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.AutomationRemoved), disposables);
+		createService({ deleteSession: async session => { deleted.push(session.toString()); } });
+		await removed;
+
+		assert.deepStrictEqual({
+			deleted,
+			entries: stateManager.getAutomationCatalogState()?.entries,
+			deletions: storageService.get<Record<string, unknown>>('automations')?.historyDeletions,
+		}, {
+			deleted: [...runs[0].sessions, 'mock:/legacy-session'],
+			entries: [],
+			deletions: undefined,
+		});
 	});
 
 	test('run persistence failure prevents session side effects', async () => {

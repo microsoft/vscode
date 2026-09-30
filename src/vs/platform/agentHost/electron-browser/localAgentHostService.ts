@@ -507,6 +507,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().runAutomation(params);
 	}
 
+	deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[]): Promise<void> {
+		return this._requireClient().deleteAutomation(resource, deleteHistory, legacySessions);
+	}
+
 	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
 		return this._requireClient().fetchAutomationRuns(params);
 	}

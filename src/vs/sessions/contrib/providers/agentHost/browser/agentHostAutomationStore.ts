@@ -14,6 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { readAgentHostAutomationHistoryState, supportsAgentHostAutomationHistory } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -21,9 +22,9 @@ import { ActionType } from '../../../../../platform/agentHost/common/state/sessi
 import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { assertAutomationSessionTemplate, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationUnavailableError, type AutomationCatalogueState, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationUnavailableError, type AutomationCatalogueState, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IDeleteAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const MUTATION_TIMEOUT_MS = 30_000;
@@ -35,6 +36,7 @@ export type IAgentHostAutomationConnection = Pick<IAgentConnection,
 	| 'initializeResult'
 	| 'onDidAction'
 	| 'runAutomation'
+	| 'deleteAutomation'
 > & {
 	getSubscription(
 		kind: StateComponents.AutomationCatalog,
@@ -54,6 +56,7 @@ export interface IAgentHostAutomationBoundaryMapper {
 	resourceSchemeForProvider(provider: string): string;
 	providerForSessionScheme?(scheme: string): string;
 	providerForResourceScheme?(scheme: string): string | undefined;
+	backendSessionScheme?(provider: string): string;
 }
 
 /**
@@ -73,7 +76,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private readonly _archivedRuns;
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
-	/** Authoritative host runs merged with read-only historical archive rows. */
+	/** Authoritative host runs merged with historical archive rows. */
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
 	readonly canCreateAutomation = derived(this, reader => this.catalogueState.read(reader) === 'ready'
@@ -132,7 +135,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	canDeleteAutomation(automationId: string): boolean {
-		return this._operationAvailable(automationId, AutomationOperation.Remove);
+		return this._operationAvailable(automationId, AutomationOperation.Remove)
+			&& this._connection.deleteAutomation !== undefined
+			&& supportsAgentHostAutomationHistory(this._connection.initializeResult.get());
 	}
 
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
@@ -184,13 +189,27 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return { kind: 'updated', automation: await this.updateAutomation(id, patch, mutationGuard) };
 	}
 
-	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
+	async deleteAutomation(id: string, options: IDeleteAutomationOptions = { deleteHistory: true }, mutationGuard?: AutomationMutationGuard): Promise<void> {
+		await this._waitForCatalog(() => true);
+		mutationGuard?.();
 		const { resource } = this._requireOperation(id, AutomationOperation.Remove);
-		await this._dispatchAndWait(
-			{ type: ActionType.AutomationRemoved, resource },
-			catalog => !catalog.entries.some(automation => automation.resource === resource),
-			mutationGuard,
-		);
+		if (this._connection.deleteAutomation === undefined || !supportsAgentHostAutomationHistory(this._connection.initializeResult.get())) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.historyUnsupported', "Update the Agent Host to choose whether Automation run history is kept or deleted."));
+		}
+		if (options.deleteHistory) {
+			this._readArchiveForDeletion();
+		}
+		const legacySessions = options.deleteHistory ? this._archivedRuns.get()
+			.filter(run => run.automationId === id)
+			.flatMap(run => run.sessionResource === undefined ? [] : [this._toHostSessionResource(run.sessionResource)]) : [];
+		await this._connection.deleteAutomation(resource, options.deleteHistory, legacySessions);
+		await this._waitForCatalog(catalog => {
+			const automation = catalog.entries.find(entry => entry.resource === resource);
+			return options.deleteHistory ? automation === undefined : automation !== undefined && readAgentHostAutomationHistoryState(automation) === 'retained';
+		});
+		if (options.deleteHistory) {
+			this._removeArchivedRuns(id);
+		}
 		this._runsForCache.delete(id);
 	}
 
@@ -252,6 +271,12 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return resourceScheme ? session.with({ scheme: resourceScheme }) : session;
 	}
 
+	private _toHostSessionResource(resource: URI): URI {
+		const provider = this._boundaryMapper?.providerForResourceScheme?.(resource.scheme) ?? resource.scheme;
+		const scheme = this._boundaryMapper?.backendSessionScheme?.(provider) ?? provider;
+		return resource.with({ scheme });
+	}
+
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {
 		return this.runs.get().find(run => run.automationId === automationId && (run.status === 'pending' || run.status === 'running'));
 	}
@@ -263,6 +288,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			return [];
 		}
 		return catalog.entries
+			.filter(automation => readAgentHostAutomationHistoryState(automation) !== 'retained')
 			.map(automation => this._projectAutomation(automation))
 			.filter((automation): automation is IAutomationDescriptor => automation !== undefined)
 			.sort((first, second) => second.createdAt.localeCompare(first.createdAt));
@@ -672,6 +698,28 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			automationId: this._resourceId(automationResource(run.automationId)),
 		}));
 	}
+
+	private _readArchiveForDeletion(): Extract<ParsedArchivedRuns, { kind: 'archive' }> | undefined {
+		const raw = this._storageService.get(this._archiveKey, StorageScope.APPLICATION);
+		if (raw === undefined) {
+			return undefined;
+		}
+		const parsed = parseArchivedRuns(raw);
+		if (parsed.kind !== 'archive') {
+			throw new Error(`Cannot delete run history from an unreadable legacy archive: ${this._archiveKey}`);
+		}
+		return parsed;
+	}
+
+	private _removeArchivedRuns(automationId: string): void {
+		const parsed = this._readArchiveForDeletion();
+		if (parsed === undefined) {
+			return;
+		}
+		const runs = parsed.serialized.runs.filter(run => !isSerializedArchivedRun(run)
+			|| this._resourceId(automationResource(run.automationId)) !== automationId);
+		this._storageService.store(this._archiveKey, JSON.stringify({ ...parsed.serialized, runs }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
 }
 
 function automationResource(id: string): string {
@@ -831,7 +879,7 @@ function isSerializedArchivedRun(value: unknown): value is ISerializedArchivedRu
 }
 
 type ParsedArchivedRuns =
-	| { readonly kind: 'archive'; readonly runs: readonly IAutomationRun[]; readonly droppedRuns: number }
+	| { readonly kind: 'archive'; readonly runs: readonly IAutomationRun[]; readonly droppedRuns: number; readonly serialized: { readonly runs: readonly unknown[]; readonly [key: string]: unknown } }
 	| { readonly kind: 'invalid'; readonly error: string }
 	| { readonly kind: 'unsupported'; readonly version: number };
 
@@ -866,5 +914,5 @@ function parseArchivedRuns(raw: string): ParsedArchivedRuns {
 			continue;
 		}
 	}
-	return { kind: 'archive', runs, droppedRuns: archive['runs'].length - runs.length };
+	return { kind: 'archive', runs, droppedRuns: archive['runs'].length - runs.length, serialized: { ...archive, runs: archive['runs'] } };
 }

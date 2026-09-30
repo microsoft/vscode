@@ -5328,6 +5328,28 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('keeps or deletes historical run sessions without changing ordinary sessions', async () => {
+			const { sessionData, database, storage, session, origin } = await createLegacyAutomationSession();
+			const host = createHost(sessionData.service, database, storage);
+			const ordinary = await host.createSession({ provider: 'copilot' });
+			await host.deleteAutomation(automation, false);
+			const kept = await host.listSessions();
+			await host.deleteAutomation(automation, true);
+			await host.disposeSession(session);
+			const remaining = await host.listSessions();
+			assert.deepStrictEqual({
+				keptOrigin: kept.find(metadata => metadata.session.toString() === session.toString())?.origin,
+				remaining: remaining.map(metadata => ({ session: metadata.session.toString(), origin: metadata.origin })),
+				history: getStateManager(host).getAutomationCatalogState()?.entries,
+				tombstoned: await database.isSessionTombstoned(session.toString()),
+			}, {
+				keptOrigin: origin,
+				remaining: [{ session: ordinary.toString(), origin: undefined }],
+				history: [],
+				tombstoned: true,
+			});
+		});
+
 		test('rolls back an Automation session when origin cannot be persisted', async () => {
 			class FailingOriginDatabase extends TestSessionDatabase {
 				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {

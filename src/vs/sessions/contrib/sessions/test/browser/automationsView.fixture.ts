@@ -94,6 +94,10 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 		this.unavailableProviders = constObservable(unavailableProviders);
 	}
 
+	override getAutomation(id: string): IAutomationDescriptor | undefined {
+		return this.automations.get().find(automation => automation.id === id);
+	}
+
 	override canRunAutomation(): boolean { return true; }
 	override canUpdateAutomation(): boolean { return true; }
 	override canDeleteAutomation(): boolean { return true; }

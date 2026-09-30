@@ -2061,6 +2061,38 @@ suite('AgentHostProtocolClient', () => {
 		await assertRemoteProtocolError(resultPromise, error);
 	});
 
+	test('deleteAutomation sends the history choice and host session identities', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, true));
+		transport.sentMessages.length = 0;
+		const result = client.deleteAutomation('ahp-automation:/review', true, [URI.parse('copilotcli:/legacy')]);
+		assert.deepStrictEqual(transport.sentMessages, [{
+			jsonrpc: '2.0', id: 2, method: 'vscode/deleteAutomation',
+			params: { automation: 'ahp-automation:/review', deleteHistory: true, legacySessions: ['copilotcli:/legacy'] },
+		}]);
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+		await result;
+	});
+
+	test('deleteAutomation fails without sending to a host lacking the history capability', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		transport.sentMessages.length = 0;
+		await assert.rejects(client.deleteAutomation('ahp-automation:/review', false), /does not support Automation history/);
+		assert.deepStrictEqual(transport.sentMessages, []);
+	});
+
+	test('deleteAutomation propagates session cleanup failures when keeping or deleting history', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, true));
+		for (const [index, deleteHistory] of [false, true].entries()) {
+			const result = client.deleteAutomation('ahp-automation:/review', deleteHistory);
+			const error = { code: JsonRpcErrorCodes.InternalError, message: 'Session cleanup failed' };
+			transport.fireMessage({ jsonrpc: '2.0', id: index + 2, error });
+			await assertRemoteProtocolError(result, error);
+		}
+	});
+
 	test('getSessionStateFile maps the returned host resource', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());

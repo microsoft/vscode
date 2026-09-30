@@ -842,6 +842,10 @@ export class AgentHostStateManager extends Disposable {
 		return this._automationRuns.get(resource);
 	}
 
+	deleteAutomationRunState(resource: string): void {
+		this._automationRuns.delete(resource);
+	}
+
 	/** Read-only accessor for callers that only need to inspect a changeset (not subscribe). */
 	getChangesetState(changeset: URI): ChangesetState | undefined {
 		return this._changesets.get(changeset);

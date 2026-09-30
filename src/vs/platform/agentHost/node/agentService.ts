@@ -6056,6 +6056,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._automationService.runAutomation(params);
 	}
 
+	deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[]): Promise<void> {
+		return this._automationService.deleteAutomation(resource, deleteHistory, legacySessions);
+	}
+
 	async fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
 		return this._automationService.fetchAutomationRuns(params);
 	}

@@ -73,6 +73,7 @@ export class NullAgentHostService implements IAgentHostService {
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	async listAutomationTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> { return notSupported(); }
 	async runAutomation(_params: RunAutomationParams): Promise<RunAutomationResult> { return notSupported(); }
+	async deleteAutomation(_resource: string, _deleteHistory: boolean, _legacySessions?: readonly URI[]): Promise<void> { return notSupported(); }
 	async fetchAutomationRuns(_params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> { return notSupported(); }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async startWebSocketServer(): Promise<IAgentHostSocketInfo> { return notSupported(); }
