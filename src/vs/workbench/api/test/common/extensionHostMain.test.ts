@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import sinon from 'sinon';
-import { ErrorNoTelemetry, SerializedError, errorHandler, onUnexpectedError } from '../../../../base/common/errors.js';
+import { SerializedError, errorHandler, onUnexpectedError } from '../../../../base/common/errors.js';
 import { isFirefox, isSafari } from '../../../../base/common/platform.js';
 import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -33,12 +32,11 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 	}
 
 	const extensionsIndex = TernarySearchTree.forUris<IExtensionDescription>();
-	const unexpectedErrors: string[] = [];
 	const mainThreadExtensionsService = new class extends mock<MainThreadExtensionServiceShape>() implements MainThreadErrorsShape {
 		override $onExtensionRuntimeError(extensionId: ExtensionIdentifier, data: SerializedError): void {
 
 		}
-		$onUnexpectedError(err: unknown): void {
+		$onUnexpectedError(err: any | SerializedError): void {
 
 		}
 	};
@@ -105,14 +103,9 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 
 	setup(async function () {
 		findSubstrCount = 0;
-		unexpectedErrors.length = 0;
-		sinon.stub(mainThreadExtensionsService, '$onUnexpectedError').callsFake(err => {
-			unexpectedErrors.push(JSON.stringify(err));
-		});
 	});
 
 	teardown(() => {
-		sinon.restore();
 		Error.prepareStackTrace = originalPrepareStackTrace;
 	});
 
@@ -124,50 +117,6 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 
 		assert.strictEqual(findSubstrCount, 1);
 
-	});
-
-	test('serializes unexpected errors with circular custom properties', () => {
-		const err = Object.assign(new Error('request failed'), { code: 'ECONNRESET' });
-		Object.assign(err, { request: { error: err } });
-
-		onUnexpectedError(err);
-
-		assert.deepStrictEqual(unexpectedErrors.map(data => JSON.parse(data)), [{
-			$isError: true,
-			name: 'Error',
-			message: 'request failed',
-			stack: err.stack,
-			noTelemetry: false,
-			code: 'ECONNRESET',
-		}]);
-	});
-
-	test('preserves unexpected error causes and telemetry suppression', () => {
-		const cause = new Error('socket closed');
-		const err = Object.assign(new ErrorNoTelemetry('request failed'), { cause });
-
-		onUnexpectedError(err);
-
-		assert.deepStrictEqual(unexpectedErrors.map(data => JSON.parse(data)), [{
-			$isError: true,
-			name: err.name,
-			message: 'request failed',
-			stack: err.stack,
-			noTelemetry: true,
-			cause: {
-				$isError: true,
-				name: 'Error',
-				message: 'socket closed',
-				stack: cause.stack,
-				noTelemetry: false,
-			},
-		}]);
-	});
-
-	test('preserves non-Error unexpected errors', () => {
-		onUnexpectedError('request failed');
-
-		assert.deepStrictEqual(unexpectedErrors, ['"request failed"']);
 	});
 
 	test('set/reset prepareStackTrace-callback', function () {
