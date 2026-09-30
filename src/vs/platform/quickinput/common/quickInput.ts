@@ -984,6 +984,11 @@ export interface IQuickInputService {
 	readonly alignment: IObservable<QuickInputAlignment>;
 
 	/**
+	 * Runs an operation so that the next quick pick it opens inherits the provided anchor.
+	 */
+	withQuickInputAnchor<T>(anchor: IQuickInput['anchor'], anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T>;
+
+	/**
 	 * Opens the quick input box for selecting items and returns a promise
 	 * with the user selected item(s) if any.
 	 */
