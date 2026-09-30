@@ -143,7 +143,12 @@ suite('TabbedModelPicker', () => {
 			getContainer: () => container, mainContainer: container, onDidChangeActiveContainer: Event.None,
 		}));
 		instantiationService.set(IStorageService, disposables.add(new InMemoryStorageService()));
-		instantiationService.set(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ entitlement: options.entitlement ?? ChatEntitlement.Pro }));
+		let entitlement = options.entitlement ?? ChatEntitlement.Pro;
+		const entitlementChanged = disposables.add(new Emitter<void>());
+		instantiationService.set(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
+			get entitlement() { return entitlement; },
+			onDidChangeEntitlement: entitlementChanged.event,
+		}));
 		instantiationService.set(ILanguageModelsService, upcastPartial<ILanguageModelsService>({
 			getVendors: () => [
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'copilot', displayName: 'Copilot', isDefault: true }),
@@ -190,6 +195,10 @@ suite('TabbedModelPicker', () => {
 		picker.show(anchor, context, options.details);
 		return {
 			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges,
+			setEntitlement: (value: ChatEntitlement) => {
+				entitlement = value;
+				entitlementChanged.fire();
+			},
 			get hintDismissed() { return hintDismissed; },
 		};
 	}
@@ -651,6 +660,36 @@ suite('TabbedModelPicker', () => {
 			selected: selectedModels(result.popup),
 			selections: result.selections,
 		}, {
+			label: 'HydraFusion',
+			upgrade: true,
+			selected: ['Balance'],
+			selections: [],
+		});
+	});
+
+	test('resolving an open picker to Free replaces HydraFusion with an unavailable upgrade', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: auto.identifier,
+			entitlement: ChatEntitlement.Unknown,
+			showUnavailable: true,
+			controlModels: {
+				hydrafusion: { label: 'HydraFusion', exists: false, featured: true },
+			},
+		});
+		const before = Array.from(result.popup.querySelectorAll('.chat-model-picker-routing-model .title'), element => element.textContent);
+		result.setEntitlement(ChatEntitlement.Free);
+		const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
+		assert.deepStrictEqual({
+			before,
+			label: unavailableHydra.querySelector('.title')?.textContent,
+			upgrade: unavailableHydra.textContent?.includes('Upgrade'),
+			selected: selectedModels(result.popup),
+			selections: result.selections,
+		}, {
+			before: ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion'],
 			label: 'HydraFusion',
 			upgrade: true,
 			selected: ['Balance'],

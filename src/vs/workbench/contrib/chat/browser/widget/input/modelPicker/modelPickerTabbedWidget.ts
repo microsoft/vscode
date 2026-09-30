@@ -113,6 +113,7 @@ export class TabbedModelPicker extends Disposable {
 	private readonly _speedVariants = new Map<string, IModelSpeedVariants>();
 	private readonly _preferredSpeedVariants = new Map<string, string>();
 	private _selectionVersion = 0;
+	private _models: readonly ILanguageModelChatMetadataAndIdentifier[] = [];
 	/** The manual Copilot model to restore when Auto is switched off. */
 	private _lastExplicitModelId: string | undefined;
 	private _lastRoutingModelId: string | undefined;
@@ -139,6 +140,7 @@ export class TabbedModelPicker extends Disposable {
 				this.refresh();
 			}
 		}));
+		this._register(this._entitlementService.onDidChangeEntitlement(() => this.refresh(this._models)));
 		this._register(this._widget.onDidHide(() => {
 			// Search is a transient view. Left on, it would also size the next popup from
 			// its flattened cross-provider list.
@@ -169,6 +171,7 @@ export class TabbedModelPicker extends Disposable {
 		}
 		this._anchor = anchor;
 		this._selectionVersion++;
+		this._models = context.models;
 		const pickerContext = this._filterModelsForEntitlement(context);
 		this._context = pickerContext;
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
@@ -195,7 +198,8 @@ export class TabbedModelPicker extends Disposable {
 			return;
 		}
 		if (models) {
-			this._context = this._filterModelsForEntitlement({ ...this._context, models });
+			this._models = models;
+			this._context = this._filterModelsForEntitlement({ ...this._context, models: this._models });
 		}
 		const destinations = this._buildDestinations(this._context);
 		if (!destinations.length) {
