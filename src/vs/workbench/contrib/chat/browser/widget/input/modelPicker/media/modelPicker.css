@@ -884,8 +884,13 @@
 	opacity: 1;
 }
 
-/* Pushes a detail link down to the second line. */
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model .detail::before {
+/* WebKit can't float inside a -webkit-box, so a detail with a link is clamped by height, with a spacer pushing the link to the second line. */
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model .detail.has-link {
+	display: block;
+	max-height: 2lh;
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-routing-model .detail.has-link::before {
 	content: '';
 	float: right;
 	height: 1lh;
