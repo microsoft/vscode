@@ -6,7 +6,7 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 
 - `promptRegistry.ts` — `AgentHostPromptRegistry`: resolves the final `SystemMessageConfig` for a session's model. Defines the `IAgentHostPrompt` contributor interface and the `IAgentHostPromptContext` read-time context.
 - `systemMessage.ts` — the default message (`COPILOT_AGENT_HOST_SYSTEM_MESSAGE`), shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and `describeSystemMessageConfig` (the one-line log summary).
-- `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including scoped, targeted workspace-search guidance and the default-model guidance for subagents.
+- `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including workspace-orientation and parallel targeted-search guidance and the default-model guidance for subagents.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
 - `openaiPrompt.ts` — OpenAI targeted post-edit inspection guidance, appended to `code_change_rules` without replacing the SDK foundation prompt.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
@@ -27,7 +27,7 @@ There are two ways to customize, and a model can use both at once.
 
 ## Lever 1 — universal, all models (`toolInstructions.ts`)
 
-Guidance that should apply to **every** model. A line can be unconditional for host-wide behavior such as preferring targeted workspace searches over broad upfront exploration or reading offloaded tool output, gated on a client tool as the browser line is, or gated on a host setting as the subagent model-guidance line is.
+Guidance that should apply to **every** model. A line can be unconditional for host-wide behavior such as orienting on the workspace layout before running scoped, parallel searches or reading offloaded tool output, gated on a client tool as the browser line is, or gated on a host setting as the subagent model-guidance line is.
 
 1. Write a `ToolInstructionLine` — a function `(context) => string | undefined` that returns one sentence (no surrounding newlines), or `undefined` when its gate does not apply. The `IToolInstructionContext` exposes `hasTool(name)` and `getSetting(key)` (a `CopilotCliConfigKey`).
 2. Add it to `TOOL_INSTRUCTION_LINES`.
