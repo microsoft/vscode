@@ -50,7 +50,7 @@ import { ICustomizationHarnessService } from '../../../../../workbench/contrib/c
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, ICustomizationMigrationHint, ICustomizationMigrationService, McpServerCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService, McpServerCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { IMcpWorkbenchService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -162,11 +162,6 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
 		@ICommandService commandService: ICommandService,
 	) {
 		super(contextKeyService, commandService);
-		this.addItem(Menus.NewSessionConfig, {
-			command: { id: 'sessions.modelPicker', title: 'Model' },
-			group: 'navigation',
-			order: 1,
-		});
 		this.addItem(MenuId.ChatInputStatus, {
 			command: { id: 'fixture.autopilotStatus', title: 'Autopilot', icon: Codicon.rocket },
 			group: 'navigation',
@@ -186,6 +181,14 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
 			command: { id: 'fixture.textStatus', title: 'Status' },
 			group: 'navigation',
 			order: 4,
+		});
+	}
+
+	addModelItem(): void {
+		this.addItem(Menus.NewSessionConfig, {
+			command: { id: 'sessions.modelPicker', title: 'Model' },
+			group: 'navigation',
+			order: 1,
 		});
 	}
 }
@@ -499,6 +502,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	sessionViewContent.style.width = '100%';
 	sessionViewContent.style.height = '100%';
 
+	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
 	if (withControlPickers) {
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 		instantiationService.stub(IAgentHostConnectionsService, {
@@ -528,8 +532,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					: undefined;
 			},
 		});
-		const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
-		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.agent', title: 'Agent' }, group: 'navigation', order: -1 });
+		menuService.addItem(Menus.NewSessionConfig, { command: { id: 'fixture.agent', title: 'Agent' }, group: 'navigation', order: -1 });
+		if (!(menuService instanceof AutoModelFixtureMenuService)) {
+			menuService.addItem(Menus.NewSessionConfig, { command: { id: 'fixture.model', title: 'Model' }, group: 'navigation', order: 1 });
+		}
 		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.mode', title: 'Mode' }, group: 'navigation', order: 0 });
 		menuService.addItem(Menus.NewSessionRepositoryConfig, {
 			command: { id: 'fixture.worktree', title: 'New Worktree' },
@@ -542,9 +548,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			order: 2,
 		});
 	}
+	if (menuService instanceof AutoModelFixtureMenuService) {
+		menuService.addModelItem();
+	}
 
 	if (migrationCount > 0) {
-		await configurationService.setUserConfiguration(getCustomizationMigrationEnablementSetting(CustomizationMigrationType.PromptFiles), true);
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled, true);
 	}
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
@@ -731,14 +740,20 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	const repositoryConfigContainer = view.element.querySelector<HTMLElement>('.new-chat-repo-config-container');
 	if (withControlPickers) {
+		const workspacePickerContainer = view.element.querySelector<HTMLElement>('.new-session-workspace-picker-container');
 		const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
 		const sessionControls = view.element.querySelector<HTMLElement>('.new-chat-session-controls');
-		assert(!!repositoryConfigContainer);
+		assert(!!workspacePickerContainer && !!repositoryConfigContainer);
 		assert(!!sessionOptions && !!sessionControls);
 		assert(repositoryConfigContainer.querySelectorAll('.action-label:not(.separator)').length === 2);
 		const primaryToolbar = promptBox.querySelector<HTMLElement>('.sessions-chat-toolbar');
+		const attachButton = primaryToolbar?.querySelector<HTMLElement>('.sessions-chat-attach-button');
 		const secondaryControls = view.element.querySelector<HTMLElement>('.new-chat-controls-container');
-		assert(!!primaryToolbar && !!secondaryControls);
+		const bottomContainer = view.element.querySelector<HTMLElement>('.new-chat-bottom-container');
+		assert(!!primaryToolbar && !!attachButton && !!secondaryControls && !!bottomContainer);
+		const configItems = primaryToolbar.querySelectorAll<HTMLElement>('.sessions-chat-config-toolbar:not(.new-chat-session-controls) .actions-container > .action-item');
+		assert(configItems.length === 2 && configItems[0]?.textContent === 'Agent',
+			'The agent picker must precede the model picker inside the prompt.');
 		if (experimentalComposerLayout) {
 			const [attach, controls, models] = [...primaryToolbar.children];
 			assert(sessionOptions.contains(repositoryConfigContainer)
@@ -747,11 +762,19 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				&& models.classList.contains('sessions-chat-config-toolbar'),
 				'Experimental controls must appear in workspace/repository/harness order above and attachment, agent/mode, model order inside the prompt.');
 			const controlItems = controls.querySelectorAll<HTMLElement>('.actions-container > .action-item');
-			assert(controlItems[0]?.textContent === 'Agent' && !!controlItems[1]?.querySelector('.agent-host-mode-permissions-trigger'),
-				'The agent picker must precede the shared mode/permissions trigger inside the prompt.');
+			assert(!!controlItems[0]?.querySelector('.agent-host-mode-permissions-trigger')
+				&& targetWindow.getComputedStyle(bottomContainer).justifyContent === 'flex-end',
+				'The shared mode/permissions trigger must remain inside the prompt.');
 		} else {
-			assert(secondaryControls.contains(sessionControls) && !sessionOptions.contains(repositoryConfigContainer),
-				'Legacy controls must remain below the prompt.');
+			const repositoryControls = repositoryConfigContainer.closest<HTMLElement>('.new-chat-secondary-controls-container');
+			assert(!!repositoryControls
+				&& secondaryControls.contains(sessionControls)
+				&& !sessionOptions.contains(repositoryConfigContainer)
+				&& promptBox.getBoundingClientRect().top - workspacePickerContainer.getBoundingClientRect().bottom === 8
+				&& targetWindow.getComputedStyle(bottomContainer).justifyContent === 'space-between'
+				&& configItems[0].getBoundingClientRect().left - attachButton.getBoundingClientRect().right === 4
+				&& secondaryControls.getBoundingClientRect().left < repositoryControls.getBoundingClientRect().left,
+				'Legacy controls must remain split across the row below the prompt.');
 		}
 	} else if (hasChatBackground) {
 		assert(!!repositoryConfigContainer
@@ -825,13 +848,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { width: 420, height: 560, withWorkspace: true, migrationCount: 4 }),
 	}),
+	MigrationsBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the new-session composer shows the customization migration notice below the input on an opaque bordered surface. None of the stripes show through the notice.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 4, chatBackground: 'loud' }),
+	}),
 	NewSessionDefault: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { withWorkspace: true }),
 	}),
 	NewSessionExperimentalComposer: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The experimental new-session composer places workspace, worktree, branch, and harness controls in one row above the chat input. The model remains inside the input, while mode and permissions remain below it.'],
+		expectedVisualDescriptions: ['The experimental new-session composer places workspace, worktree, branch, and harness controls in one row above the chat input. Inside the input, the Agent picker appears before the model picker, and mode and permissions remain available.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true }),
 	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({

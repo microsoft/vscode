@@ -1827,7 +1827,7 @@ export class McpListWidget extends Disposable {
 					this.filterServers();
 				}
 			}
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled)) {
 				this.updateMcpServerCompatibilityScope();
 			}
 		}));
@@ -2139,7 +2139,7 @@ export class McpListWidget extends Disposable {
 		if (!this.visible) {
 			return;
 		}
-		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled) !== true) {
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMigrationEnabled) !== true) {
 			return;
 		}
 		const descriptor = this.customizationHarnessService.getActiveDescriptor();

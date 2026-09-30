@@ -1140,10 +1140,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const codeReviewService = createMockCodeReviewService();
 			const configurationService = marketplaceConfiguration = new TestConfigurationService({
 				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceVisibilityEnabled,
