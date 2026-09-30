@@ -6,12 +6,12 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
+#[cfg(any(windows, test))]
+use crate::model::ResolutionFailure;
 use crate::model::{
 	Candidate, CandidateKind, CommandArguments, CommandBuildError, CommandSpec,
-	DiscoveredCandidate, DiscoveredFileKind, LaunchAdapter, ResolvedCandidate,
+	DiscoveredCandidate, DiscoveredFileKind, ResolvedCandidate,
 };
-#[cfg(any(windows, test))]
-use crate::model::{PowerShellHost, ResolutionFailure, WindowsScriptKind};
 #[cfg(any(windows, test))]
 use crate::platform;
 
@@ -28,52 +28,39 @@ pub(crate) fn resolve_candidate(
 ) -> ResolvedCandidate {
 	#[cfg(not(any(windows, test)))]
 	let _ = interpreters;
-	let kind = match discovered.kind() {
+	let kind = match discovered.kind {
 		#[cfg(any(not(windows), test))]
 		DiscoveredFileKind::UnixExecutable => CandidateKind::UnixExecutable,
 		#[cfg(any(windows, test))]
 		DiscoveredFileKind::WindowsExecutable => CandidateKind::WindowsExecutable,
 		#[cfg(any(windows, test))]
-		DiscoveredFileKind::CommandScript => {
+		DiscoveredFileKind::CommandScript | DiscoveredFileKind::BatchScript => {
 			let Some(interpreter) = &interpreters.command_shell else {
 				return ResolvedCandidate::Unusable(ResolutionFailure::MissingCommandShell);
 			};
-			CandidateKind::Cmd {
-				interpreter: interpreter.clone(),
-			}
-		}
-		#[cfg(any(windows, test))]
-		DiscoveredFileKind::BatchScript => {
-			let Some(interpreter) = &interpreters.command_shell else {
-				return ResolvedCandidate::Unusable(ResolutionFailure::MissingCommandShell);
-			};
-			CandidateKind::Batch {
+			CandidateKind::CommandScript {
 				interpreter: interpreter.clone(),
 			}
 		}
 		#[cfg(any(windows, test))]
 		DiscoveredFileKind::PowerShellScript => {
-			let (interpreter, host) =
-				if let Some(interpreter) = &interpreters.powershell_7_3_or_newer {
-					(interpreter, PowerShellHost::Modern)
-				} else if let Some(interpreter) = &interpreters.windows_powershell_5_1 {
-					(interpreter, PowerShellHost::WindowsPowerShell)
-				} else {
-					return ResolvedCandidate::Unusable(ResolutionFailure::MissingPowerShellHost);
-				};
+			let Some(interpreter) = interpreters
+				.powershell_7_3_or_newer
+				.as_ref()
+				.or(interpreters.windows_powershell_5_1.as_ref())
+			else {
+				return ResolvedCandidate::Unusable(ResolutionFailure::MissingPowerShellHost);
+			};
 			CandidateKind::PowerShell {
 				interpreter: interpreter.clone(),
-				host,
 			}
 		}
 	};
 
-	ResolvedCandidate::Usable(Candidate::new(
-		discovered.discovered_path().to_path_buf(),
-		discovered.canonical_path().to_path_buf(),
-		discovered.file_identity().clone(),
+	ResolvedCandidate::Usable(Candidate {
+		path: discovered.path,
 		kind,
-	))
+	})
 }
 
 impl Candidate {
@@ -82,47 +69,33 @@ impl Candidate {
 		&self,
 		forwarded_arguments: Vec<OsString>,
 	) -> Result<CommandSpec, CommandBuildError> {
-		match self.kind() {
+		match &self.kind {
 			#[cfg(any(not(windows), test))]
 			CandidateKind::UnixExecutable => Ok(CommandSpec::new(
-				self.discovered_path().as_os_str().to_os_string(),
+				self.path.clone().into_os_string(),
 				CommandArguments::Native(forwarded_arguments),
-				LaunchAdapter::Direct,
 			)),
 			#[cfg(any(windows, test))]
 			CandidateKind::WindowsExecutable => Ok(CommandSpec::new(
-				self.discovered_path().as_os_str().to_os_string(),
+				self.path.clone().into_os_string(),
 				CommandArguments::Native(forwarded_arguments),
-				LaunchAdapter::Direct,
 			)),
 			#[cfg(any(windows, test))]
-			CandidateKind::Cmd { interpreter } | CandidateKind::Batch { interpreter } => {
-				let kind = if matches!(self.kind(), CandidateKind::Cmd { .. }) {
-					WindowsScriptKind::Cmd
-				} else {
-					WindowsScriptKind::Batch
-				};
-				let raw_command_tail = platform::encode_windows_command_tail(
-					self.discovered_path().as_os_str(),
-					&forwarded_arguments,
-				)?;
-				Ok(CommandSpec::new(
-					interpreter.as_os_str().to_os_string(),
-					CommandArguments::WindowsCommand {
-						switches: platform::WINDOWS_COMMAND_SWITCHES
-							.into_iter()
-							.map(OsString::from)
-							.collect(),
-						raw_command_tail,
-					},
-					LaunchAdapter::WindowsCommandScript {
-						script: self.discovered_path().to_path_buf(),
-						kind,
-					},
-				))
-			}
+			CandidateKind::CommandScript { interpreter } => Ok(CommandSpec::new(
+				interpreter.clone().into_os_string(),
+				CommandArguments::WindowsCommand {
+					switches: platform::WINDOWS_COMMAND_SWITCHES
+						.into_iter()
+						.map(OsString::from)
+						.collect(),
+					raw_command_tail: platform::encode_windows_command_tail(
+						self.path.as_os_str(),
+						&forwarded_arguments,
+					)?,
+				},
+			)),
 			#[cfg(any(windows, test))]
-			CandidateKind::PowerShell { interpreter, host } => {
+			CandidateKind::PowerShell { interpreter } => {
 				let arguments = [
 					"-NoLogo",
 					"-NoProfile",
@@ -132,22 +105,17 @@ impl Candidate {
 				]
 				.into_iter()
 				.map(OsString::from)
-				.chain([self.discovered_path().as_os_str().to_os_string()])
+				.chain([self.path.clone().into_os_string()])
 				.chain(forwarded_arguments)
 				.collect();
 				Ok(CommandSpec::new(
-					interpreter.as_os_str().to_os_string(),
+					interpreter.clone().into_os_string(),
 					CommandArguments::Native(arguments),
-					LaunchAdapter::PowerShellScript {
-						script: self.discovered_path().to_path_buf(),
-						host: *host,
-					},
 				))
 			}
 		}
 	}
 }
-
 #[cfg(test)]
 mod tests {
 	use crate::platform;
@@ -156,17 +124,15 @@ mod tests {
 
 	use super::{resolve_candidate, InterpreterInventory};
 	use crate::model::{
-		Candidate, CommandArguments, DiscoveredCandidate, DiscoveredFileKind, FileIdentityState,
-		LaunchAdapter, PowerShellHost, ResolutionFailure, ResolvedCandidate,
+		Candidate, CommandArguments, DiscoveredCandidate, DiscoveredFileKind, ResolutionFailure,
+		ResolvedCandidate,
 	};
 
 	fn discovered(path: &str, kind: DiscoveredFileKind) -> DiscoveredCandidate {
-		DiscoveredCandidate::new(
-			PathBuf::from(path),
-			PathBuf::from(format!("{path}.canonical")),
-			FileIdentityState::Unsupported,
+		DiscoveredCandidate {
+			path: PathBuf::from(path),
 			kind,
-		)
+		}
 	}
 
 	fn arguments() -> Vec<OsString> {
@@ -300,16 +266,13 @@ mod tests {
 			);
 		}
 
-		for (inventory, expected_host) in [
-			(inventory.clone(), PowerShellHost::Modern),
-			(
-				InterpreterInventory {
-					command_shell: inventory.command_shell.clone(),
-					powershell_7_3_or_newer: None,
-					windows_powershell_5_1: inventory.windows_powershell_5_1.clone(),
-				},
-				PowerShellHost::WindowsPowerShell,
-			),
+		for inventory in [
+			inventory.clone(),
+			InterpreterInventory {
+				command_shell: inventory.command_shell.clone(),
+				powershell_7_3_or_newer: None,
+				windows_powershell_5_1: inventory.windows_powershell_5_1.clone(),
+			},
 		] {
 			let resolved = resolve_candidate(
 				discovered(
@@ -335,14 +298,24 @@ mod tests {
 			let command = candidate
 				.command(Vec::new())
 				.expect("build PowerShell command without forwarded arguments");
-			assert!(matches!(
-				command.adapter(),
-				LaunchAdapter::PowerShellScript { host, .. } if *host == expected_host
-			));
 			let CommandArguments::Native(arguments) = command.arguments() else {
 				panic!("expected native PowerShell arguments");
 			};
-			assert!(!arguments.iter().any(|value| value == "-NonInteractive"));
+			assert_eq!(
+				(
+					command.program(),
+					arguments.iter().any(|value| value == "-NonInteractive")
+				),
+				(
+					inventory
+						.powershell_7_3_or_newer
+						.as_ref()
+						.or(inventory.windows_powershell_5_1.as_ref())
+						.unwrap()
+						.as_os_str(),
+					false
+				)
+			);
 		}
 
 		assert_eq!(

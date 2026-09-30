@@ -18,7 +18,6 @@ pub(crate) enum PromptResponse {
 pub(crate) fn prompt_with_io<R: BufRead, W: Write>(
 	input: &mut R,
 	output: &mut W,
-	interactive: bool,
 ) -> io::Result<PromptResponse> {
 	writeln!(
 		output,
@@ -27,22 +26,19 @@ pub(crate) fn prompt_with_io<R: BufRead, W: Write>(
 	write!(output, "Install GitHub Copilot CLI? [y/N] ")?;
 	output.flush()?;
 
-	if !interactive {
-		return Ok(PromptResponse::Declined);
-	}
-
 	let mut response = Vec::new();
 	input.read_until(b'\n', &mut response)?;
 	Ok(parse_response(&response))
 }
 
+/// Accepts an answer that starts with `y`, including the full-width `y` that an East Asian IME types in full-width mode.
+/// Leading whitespace, including the ideographic space, is ignored.
 pub(crate) fn parse_response(response: &[u8]) -> PromptResponse {
-	match response
-		.iter()
-		.copied()
-		.find(|byte| !byte.is_ascii_whitespace())
+	match String::from_utf8_lossy(response)
+		.chars()
+		.find(|character| !character.is_whitespace())
 	{
-		Some(b'y' | b'Y') => PromptResponse::Accepted,
+		Some('y' | 'Y' | '\u{FF59}' | '\u{FF39}') => PromptResponse::Accepted,
 		_ => PromptResponse::Declined,
 	}
 }
@@ -51,14 +47,10 @@ pub(crate) fn native_can_prompt() -> bool {
 	io::stdin().is_terminal() && io::stderr().is_terminal()
 }
 
-/// Shows the prompt on stderr, so it stays visible, and out of the output, when stdout is redirected.
+/// Shows the prompt on stderr, so it stays visible, and out of the output, when stdout is redirected. Callers check
+/// [`native_can_prompt`] first.
 pub(crate) fn native_prompt() -> io::Result<PromptResponse> {
-	let stdin = io::stdin();
-	let mut input = stdin.lock();
-	let interactive = native_can_prompt();
-	let stderr = io::stderr();
-	let mut output = stderr.lock();
-	prompt_with_io(&mut input, &mut output, interactive)
+	prompt_with_io(&mut io::stdin().lock(), &mut io::stderr().lock())
 }
 
 #[cfg(any(unix, test))]

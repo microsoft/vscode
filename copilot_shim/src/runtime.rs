@@ -17,8 +17,8 @@ pub(crate) mod prompt;
 pub(crate) mod supervisor;
 
 use crate::model::{
-	CommandSpec, FileIdentity, FileIdentityState, ProcessDiagnostic, ProcessError,
-	ProcessOperation, ProcessOutcome, SupervisionMode, SystemError,
+	CommandSpec, FileIdentity, FileIdentityState, ProcessError, ProcessOperation, ProcessOutcome,
+	SupervisionMode,
 };
 pub(crate) use prompt::PromptResponse;
 use supervisor::{CancellationToken, ProcessSupervisor};
@@ -50,9 +50,8 @@ pub(crate) trait EnvironmentEffects {
 }
 
 pub(crate) trait FileSystemEffects {
+	/// Inspects `path`, following links. Returns `None` when it doesn't exist.
 	fn inspect_path(&self, path: &Path) -> io::Result<Option<PathInspection>>;
-	#[cfg(any(windows, test))]
-	fn read_directory(&self, path: &Path) -> io::Result<Vec<OsString>>;
 	fn open_file(&self, path: &Path) -> io::Result<Box<dyn Read>>;
 }
 
@@ -148,7 +147,15 @@ impl FileSystemEffects for NativeRuntime {
 	fn inspect_path(&self, path: &Path) -> io::Result<Option<PathInspection>> {
 		match std::fs::symlink_metadata(path) {
 			Ok(_) => {}
-			Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+			// A PATH entry that is a file makes its candidates `NotADirectory`.
+			Err(error)
+				if matches!(
+					error.kind(),
+					io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+				) =>
+			{
+				return Ok(None)
+			}
 			Err(error) => return Err(error),
 		}
 
@@ -180,13 +187,6 @@ impl FileSystemEffects for NativeRuntime {
 		}))
 	}
 
-	#[cfg(any(windows, test))]
-	fn read_directory(&self, path: &Path) -> io::Result<Vec<OsString>> {
-		std::fs::read_dir(path)?
-			.map(|entry| entry.map(|entry| entry.file_name()))
-			.collect()
-	}
-
 	fn open_file(&self, path: &Path) -> io::Result<Box<dyn Read>> {
 		Ok(Box::new(File::open(path)?))
 	}
@@ -212,8 +212,8 @@ fn file_identity(path: &Path, _metadata: &std::fs::Metadata) -> io::Result<FileI
 		FILE_READ_ATTRIBUTES,
 	};
 
-	// Directories (PATH entries) can only be opened with FILE_FLAG_BACKUP_SEMANTICS, and attribute-only access
-	// avoids sharing conflicts with running executables.
+	// Attribute-only access avoids sharing conflicts with running executables; FILE_FLAG_BACKUP_SEMANTICS also opens
+	// directories.
 	let file = std::fs::OpenOptions::new()
 		.access_mode(FILE_READ_ATTRIBUTES)
 		.custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
@@ -242,11 +242,6 @@ fn is_unsupported_file_identity_error(error: &io::Error) -> bool {
 		error.raw_os_error().map(|code| code as u32),
 		Some(ERROR_INVALID_FUNCTION) | Some(ERROR_NOT_SUPPORTED)
 	)
-}
-
-#[cfg(not(any(unix, windows)))]
-fn file_identity(_path: &Path, _metadata: &std::fs::Metadata) -> io::Result<FileIdentityState> {
-	Ok(FileIdentityState::Unsupported)
 }
 
 impl UserInteractionEffects for NativeRuntime {
@@ -283,165 +278,25 @@ impl ProcessEffects for NativeRuntime {
 		command: &CommandSpec,
 		mode: SupervisionMode,
 	) -> Result<ProcessOutcome, ProcessError> {
-		let cancellation = CancellationToken::process_wide()
-			.map_err(|error| cancellation_handler_error(command, &error))?;
+		#[cfg(unix)]
+		if mode == SupervisionMode::FinalInteractiveCli {
+			return Err(platform::exec(command));
+		}
+		let cancellation = CancellationToken::process_wide().map_err(|error| {
+			ProcessError::supervision(
+				ProcessOperation::InstallCancellationHandler,
+				command.program(),
+				&error,
+			)
+		})?;
 		ProcessSupervisor::new(cancellation).supervise(command, mode)
 	}
 }
 
-fn cancellation_handler_error(command: &CommandSpec, error: &io::Error) -> ProcessError {
-	ProcessError::SupervisionFailed(ProcessDiagnostic {
-		operation: ProcessOperation::InstallCancellationHandler,
-		subject: Some(PathBuf::from(command.program())),
-		error: SystemError::from(error),
-	})
-}
-
-#[cfg(test)]
-fn unsupported() -> io::Error {
-	io::Error::new(
-		io::ErrorKind::Unsupported,
-		"runtime effect is implemented in a later task",
-	)
-}
-
-#[cfg(test)]
-pub(crate) struct TestRuntime {
-	path: Option<OsString>,
-	current_executable: io::Result<PathBuf>,
-	current_directory: io::Result<PathBuf>,
-}
-
-#[cfg(test)]
-impl Default for TestRuntime {
-	fn default() -> Self {
-		Self {
-			path: None,
-			current_executable: Err(unsupported()),
-			current_directory: Err(unsupported()),
-		}
-	}
-}
-
-#[cfg(test)]
-impl EnvironmentEffects for TestRuntime {
-	fn path(&self) -> Option<OsString> {
-		self.path.clone()
-	}
-
-	fn current_executable(&self) -> io::Result<PathBuf> {
-		copy_io_result(&self.current_executable)
-	}
-
-	fn current_directory(&self) -> io::Result<PathBuf> {
-		copy_io_result(&self.current_directory)
-	}
-}
-
-#[cfg(test)]
-impl FileSystemEffects for TestRuntime {
-	fn inspect_path(&self, _path: &Path) -> io::Result<Option<PathInspection>> {
-		Err(unsupported())
-	}
-
-	#[cfg(any(windows, test))]
-	fn read_directory(&self, _path: &Path) -> io::Result<Vec<OsString>> {
-		Err(unsupported())
-	}
-
-	fn open_file(&self, _path: &Path) -> io::Result<Box<dyn Read>> {
-		Err(unsupported())
-	}
-}
-
-#[cfg(test)]
-impl UserInteractionEffects for TestRuntime {
-	fn clear_terminal(&self) -> io::Result<()> {
-		Ok(())
-	}
-
-	fn can_prompt(&self) -> bool {
-		true
-	}
-
-	fn prompt(&self) -> io::Result<PromptResponse> {
-		Ok(PromptResponse::Declined)
-	}
-}
-
-#[cfg(test)]
-impl ProcessEffects for TestRuntime {
-	fn supervise(
-		&self,
-		_command: &CommandSpec,
-		_mode: SupervisionMode,
-	) -> Result<ProcessOutcome, ProcessError> {
-		Ok(ProcessOutcome {
-			termination: crate::model::ProcessTermination::NumericExit(0),
-			captured_output: None,
-		})
-	}
-}
-
-#[cfg(test)]
-impl PolicyEffects for TestRuntime {
-	fn copilot_cli_command_disabled(&self) -> bool {
-		false
-	}
-}
-
-#[cfg(test)]
-fn copy_io_result(result: &io::Result<PathBuf>) -> io::Result<PathBuf> {
-	match result {
-		Ok(path) => Ok(path.clone()),
-		Err(error) => Err(io::Error::new(error.kind(), error.to_string())),
-	}
-}
-
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests {
-	use std::ffi::OsString;
-
 	use super::*;
-	use crate::model::{CommandArguments, LaunchAdapter};
 
-	fn accepts_runtime<R: Runtime>(_runtime: &R) {}
-
-	#[test]
-	fn native_and_test_adapters_share_the_composed_interface() {
-		accepts_runtime(&NativeRuntime::default());
-		let test_runtime = TestRuntime::default();
-		accepts_runtime(&test_runtime);
-		assert_eq!(
-			test_runtime
-				.read_directory(Path::new("."))
-				.expect_err("test read directory is unsupported")
-				.kind(),
-			io::ErrorKind::Unsupported
-		);
-	}
-
-	#[test]
-	fn cancellation_handler_failure_retains_candidate_path() {
-		let command = CommandSpec::new(
-			OsString::from("candidate-path"),
-			CommandArguments::Native(Vec::new()),
-			LaunchAdapter::Direct,
-		);
-		let error = io::Error::from_raw_os_error(13);
-		let system_error = SystemError::from(&error);
-
-		assert_eq!(
-			cancellation_handler_error(&command, &error),
-			ProcessError::SupervisionFailed(ProcessDiagnostic {
-				operation: ProcessOperation::InstallCancellationHandler,
-				subject: Some(PathBuf::from("candidate-path")),
-				error: system_error,
-			})
-		);
-	}
-
-	#[cfg(windows)]
 	#[test]
 	fn windows_file_identity_reports_supported_native_file() -> io::Result<()> {
 		let path = std::env::current_exe()?;
@@ -456,7 +311,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[cfg(windows)]
 	#[test]
 	fn windows_file_identity_only_treats_explicit_unsupported_errors_as_unsupported() {
 		use windows_sys::Win32::Foundation::{
