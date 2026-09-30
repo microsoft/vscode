@@ -65,7 +65,7 @@ impl TryFrom<&str> for Quality {
 	type Error = String;
 
 	fn try_from(s: &str) -> Result<Self, Self::Error> {
-		match s {
+		match s.to_ascii_lowercase().as_str() {
 			"stable" => Ok(Quality::Stable),
 			"insiders" | "insider" => Ok(Quality::Insiders),
 			"exploration" => Ok(Quality::Exploration),
