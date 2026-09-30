@@ -961,34 +961,36 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('external discovery notifications update the same session facade without refreshing the window', () => runWithFakedTimers({}, async () => {
-		agentHost.setAgents([{ provider: 'codex', displayName: 'Codex', description: '', models: [] } as AgentInfo]);
-		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
-		await timeout(0);
-		const session = AgentSession.uri('codex', 'external-live');
-		agentHost.fireNotification({
-			channel: 'ahp-root://', type: NotificationType.SessionAdded,
-			summary: {
-				resource: session.toString(), provider: 'codex', title: 'Created in ChatGPT',
-				status: ProtocolSessionStatus.Idle, createdAt: new Date(1000).toISOString(), modifiedAt: new Date(1000).toISOString(),
-				_meta: withSessionExternal(undefined, true),
-			},
-		});
-		await timeout(100);
-		const facade = provider.getSessions()[0];
-		fireSessionSummaryChanged(agentHost, 'external-live', {
-			title: 'Renamed in ChatGPT', modifiedAt: new Date(2000).toISOString(),
-			workingDirectories: ['file:///project'], _meta: withSessionExternal(undefined, true),
-		}, 'codex');
-		await timeout(100);
-		assert.deepStrictEqual({
-			identityPreserved: provider.getSessions()[0] === facade,
-			title: facade.title.get(), updatedAt: facade.updatedAt.get().getTime(),
-			external: facade.isExternal?.get(), listCalls: agentHost.listSessionsCallCount,
-		}, { identityPreserved: true, title: 'Renamed in ChatGPT', updatedAt: 2000, external: true, listCalls: 1 });
-	}));
+	for (const providerId of ['codex', 'copilotcli'] as const) {
+		test(`${providerId} external discovery notifications update the same session facade without refreshing the window`, () => runWithFakedTimers({}, async () => {
+			agentHost.setAgents([{ provider: providerId, displayName: providerId, description: '', models: [] } as AgentInfo]);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+			await timeout(0);
+			const session = AgentSession.uri(providerId, 'external-live');
+			agentHost.fireNotification({
+				channel: 'ahp-root://', type: NotificationType.SessionAdded,
+				summary: {
+					resource: session.toString(), provider: providerId, title: 'Created externally',
+					status: ProtocolSessionStatus.Idle, createdAt: new Date(1000).toISOString(), modifiedAt: new Date(1000).toISOString(),
+					_meta: withSessionExternal(undefined, true),
+				},
+			});
+			await timeout(100);
+			const facade = provider.getSessions()[0];
+			fireSessionSummaryChanged(agentHost, 'external-live', {
+				title: 'Renamed externally', modifiedAt: new Date(2000).toISOString(),
+				workingDirectories: ['file:///project'], _meta: withSessionExternal(undefined, true),
+			}, providerId);
+			await timeout(100);
+			assert.deepStrictEqual({
+				identityPreserved: provider.getSessions()[0] === facade,
+				title: facade.title.get(), updatedAt: facade.updatedAt.get().getTime(),
+				external: facade.isExternal?.get(), listCalls: agentHost.listSessionsCallCount,
+			}, { identityPreserved: true, title: 'Renamed externally', updatedAt: 2000, external: true, listCalls: 1 });
+		}));
+	}
 
 	for (const delivery of ['action', 'summary', 'reconnect'] as const) {
 		test(`external adoption metadata updates the same facade via ${delivery}`, () => runWithFakedTimers({}, async () => {
