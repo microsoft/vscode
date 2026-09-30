@@ -33,6 +33,7 @@ interface ITestInstalledPlugin {
 	readonly version?: string;
 	readonly installedAt?: string;
 	readonly sourceSha?: string;
+	readonly source?: string | { readonly source: 'github'; readonly repo: string; readonly ref?: string; readonly sha?: string; readonly path?: string };
 }
 
 class TestCopilotCliAgentPluginDiscovery extends CopilotCliAgentPluginDiscovery {
@@ -130,6 +131,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			installed_at: plugin.installedAt ?? '2026-09-21T00:00:00Z',
 			enabled: true,
 			...(plugin.sourceSha ? { source_sha: plugin.sourceSha } : {}),
+			...(plugin.source ? { source: plugin.source } : {}),
 		}));
 		await fileService.writeFile(configFile, VSBuffer.fromString([
 			'// Managed by Copilot CLI.',
@@ -163,6 +165,61 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			}],
 			removedEnablement: [committedPlugin.toString()],
 		});
+	});
+
+	test('disambiguates same-name direct plugin uninstalls by source identity', async () => {
+		const mainPlugin = joinPath(installedPluginsRoot, '_direct', 'spark-main');
+		const nextPlugin = joinPath(installedPluginsRoot, '_direct', 'spark-next');
+		await writePlugin(mainPlugin, 'spark');
+		await writePlugin(nextPlugin, 'spark');
+		await writeInstalledPlugins([
+			{ name: 'spark', marketplace: '', uri: mainPlugin, source: { source: 'github', repo: 'owner/repo', ref: 'main' } },
+			{ name: 'spark', marketplace: '', uri: nextPlugin, source: { source: 'github', repo: 'owner/repo', ref: 'next' } },
+		]);
+
+		const sources = await createDiscovery().discoverPluginSources();
+		for (const source of sources) {
+			assert.ok(source.remove);
+			await source.remove();
+		}
+
+		assert.deepStrictEqual({
+			sources: sources.map(source => source.uri.toString()),
+			uninstallCalls,
+		}, {
+			sources: [mainPlugin.toString(), nextPlugin.toString()],
+			uninstallCalls: [{
+				provider: 'copilotcli',
+				request: {
+					name: 'spark',
+					marketplace: '',
+					directSourceId: 'b28f37595143df611741ca53f1d7e05eb85b133a1307f8a3a44cb383649d6ab2',
+				},
+			}, {
+				provider: 'copilotcli',
+				request: {
+					name: 'spark',
+					marketplace: '',
+					directSourceId: '94478a45a5d696cd7e18f9bb6752956b0fb9ac1bd21fe5676215c3fdb0071634',
+				},
+			}],
+		});
+	});
+
+	test('does not expose uninstall for a direct plugin without source identity', async () => {
+		const pluginUri = joinPath(installedPluginsRoot, '_direct', 'spark');
+		await writePlugin(pluginUri, 'spark');
+		await writeInstalledPlugins([{ name: 'spark', marketplace: '', uri: pluginUri }]);
+
+		const sources = await createDiscovery().discoverPluginSources();
+
+		assert.deepStrictEqual(sources.map(source => ({
+			uri: source.uri.toString(),
+			remove: source.remove,
+		})), [{
+			uri: pluginUri.toString(),
+			remove: undefined,
+		}]);
 	});
 
 	test('does not expose uninstall without Agent Host management support', async () => {
