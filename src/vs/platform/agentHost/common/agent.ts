@@ -338,6 +338,8 @@ export interface AuthenticateParams {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	/** Optional client metadata. Hosts must remain usable when it is absent. */
+	readonly _meta?: Record<string, unknown>;
 }
 
 /** Request for a previously accepted bearer token. */
@@ -682,6 +684,31 @@ export interface IAgentChatDataChange {
 	readonly providerData: string;
 }
 
+export const AgentCanvasAvailability = {
+	Ready: 'ready',
+	Unavailable: 'unavailable',
+} as const;
+
+export type AgentCanvasAvailability = typeof AgentCanvasAvailability[keyof typeof AgentCanvasAvailability];
+
+/** A live model-opened canvas projected by an agent provider. */
+export interface IAgentCanvas {
+	readonly instanceId: string;
+	readonly extensionId: string;
+	readonly extensionName?: string;
+	readonly canvasId: string;
+	readonly title?: string;
+	readonly status?: string;
+	readonly revision: number;
+	readonly availability: AgentCanvasAvailability;
+}
+
+/** Full replacement of the live canvas collection for one exact chat. */
+export interface IAgentCanvasSnapshot {
+	readonly chat: URI;
+	readonly canvases: readonly IAgentCanvas[];
+}
+
 /** A legacy concrete chat backing enumerated by {@link IAgent.listLegacyChatBackings} for migration. */
 export interface IAgentLegacyChat {
 	/** The concrete chat's channel URI (see {@link buildChatUri}). */
@@ -840,6 +867,9 @@ export interface IAgentChats {
 
 	/** Reconstruct the turns for `chat` (used on restore). */
 	getMessages(chat: URI, context: AgentChatOperationContext): Promise<readonly Turn[]>;
+
+	/** Resolve the current source of a live model-opened canvas. */
+	resolveCanvasSource?(chat: URI, instanceId: string, revision: number, context: AgentChatOperationContext): Promise<string>;
 }
 
 export interface IAgentResolveChatConfigParams {
@@ -1247,6 +1277,9 @@ export interface IAgent {
 
 	/** Fires when an opaque chat backing changes and must be persisted again. */
 	readonly onDidChangeChatData: Event<IAgentChatDataChange>;
+
+	/** Full-replacement live canvas snapshots for exact chats owned by this provider. */
+	readonly onDidChangeCanvases?: Event<IAgentCanvasSnapshot>;
 
 	/** Fires when the provider creates a chat, such as a delegated subagent. */
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent>;

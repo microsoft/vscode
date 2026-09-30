@@ -1827,7 +1827,7 @@ export class McpListWidget extends Disposable {
 					this.filterServers();
 				}
 			}
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled)) {
 				this.updateMcpServerCompatibilityScope();
 			}
 		}));
@@ -2139,7 +2139,7 @@ export class McpListWidget extends Disposable {
 		if (!this.visible) {
 			return;
 		}
-		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled) !== true) {
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMigrationEnabled) !== true) {
 			return;
 		}
 		const descriptor = this.customizationHarnessService.getActiveDescriptor();
@@ -2531,8 +2531,8 @@ export class McpListWidget extends Disposable {
 		}
 
 		const definitions = [
-			{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace."), icon: Codicon.folder },
 			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userMcpServersGroupDescription', "MCP servers configured for your profile and available across workspaces."), icon: Codicon.account },
+			{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace."), icon: Codicon.folder },
 			{ id: 'plugins', label: localize('pluginMcpServersGroup', "Plugins"), description: localize('pluginMcpServersGroupDescription', "MCP servers provided by installed plugins."), icon: Codicon.plug },
 			{ id: 'extensions', label: localize('extensionMcpServersGroup', "Extensions"), description: localize('extensionMcpServersGroupDescription', "MCP servers provided by installed extensions."), icon: Codicon.extensions },
 			{ id: 'builtin', label: localize('builtinMcpServersGroup', "Built-In"), description: localize('builtinMcpServersGroupDescription', "MCP servers built into the application or active agent host."), icon: mcpServerIcon },

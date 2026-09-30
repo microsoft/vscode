@@ -192,7 +192,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
+			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled)) {
 				this.bindDiagnostics();
 			}
 		}));
@@ -368,7 +368,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			this.customizationHarnessService.availableHarnesses.read(reader);
 			const descriptor = this.customizationHarnessService.getActiveDescriptor();
 			this.harnessLabel = descriptor.label || localize('currentHarness', "the current harness");
-			if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled) !== true) {
+			if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMigrationEnabled) !== true) {
 				this.compatibilityState = { kind: 'unavailable', details: [] };
 				this.renderCompatibility();
 				return;

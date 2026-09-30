@@ -119,7 +119,7 @@ import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browse
 import { IDictationOnboardingService } from '../../../../workbench/contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
-import { Separator, toAction } from '../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
 import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
@@ -574,6 +574,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	// Attached context
 	private readonly _contextAttachments: NewChatContextAttachments;
+	private _attachButton: HTMLElement | undefined;
 
 	// Slash commands
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
@@ -1297,7 +1298,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _createAttachButton(container: HTMLElement): void {
-		const attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
+		const attachButton = this._attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
 		const attachButtonLabel = localize('addContext', "Add Context...");
 		attachButton.tabIndex = 0;
 		attachButton.role = 'button';
@@ -1308,13 +1309,22 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			appearance: { showPointer: true }
 		}));
 		dom.append(attachButton, renderIcon(Codicon.addCompact));
+		this._register(dom.addDisposableListener(attachButton, dom.EventType.MOUSE_DOWN, event => {
+			if (this._contextAttachments.isPickerVisibleAt(attachButton)) {
+				dom.EventHelper.stop(event, true);
+			}
+		}));
 		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
 			this._showContextPicker();
 		}));
 	}
 
 	private _showContextPicker(): void {
-		this._contextAttachments.showPicker(this.options.getContextFolderUri(), this.options.getContextPickerActions?.());
+		this._contextAttachments.showPicker(this.options.getContextFolderUri(), this.options.getContextPickerActions?.(), this._attachButton);
+	}
+
+	async runAttachContextAction(action: IAction): Promise<void> {
+		await action.run({ anchor: this._attachButton });
 	}
 
 	private _createInputToolbar(container: HTMLElement): void {
