@@ -5,11 +5,12 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import type { IRecordedPullRequestAssociationResult } from '../../common/agentHostGitStateService.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../common/openSessionLink.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { parseSessionArtifactInputs, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
-import { SESSION_ARTIFACT_TYPES, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { parseRequiredSessionUriFromChatUri, type ToolDefinition } from '../../common/state/sessionState.js';
 import type { IServerToolDisplay, IServerToolGroup } from './agentServerToolHost.js';
 import { SessionArtifacts } from './sessionArtifacts.js';
@@ -27,7 +28,7 @@ const artifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 		label: { type: 'string', description: 'Short label shown to the user.' },
 		isArtifact: {
 			type: 'boolean',
-			description: 'Required. `true` for an artifact, `false` for a reference; follow the tool description\'s classification.',
+			description: `Required. \`true\` for an artifact, \`false\` for a reference. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report the user asked for. References are existing resources the user should look at because of this task.`,
 		},
 		link: { type: 'string', description: 'URL of the pull request, issue, commit or website. Required for those kinds.' },
 		uri: { type: 'string', description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.' },
@@ -91,28 +92,18 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	},
 ];
 
-const originalArtifactServerToolDefinitions = artifactServerToolDefinitions.map(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference ? {
-	...definition,
-	inputSchema: createAddArtifactInputSchema({
-		...artifactInputSchema,
-		properties: {
-			...artifactInputSchema.properties,
-			isArtifact: {
-				type: 'boolean',
-				description: `Required. \`true\` for an artifact, \`false\` for a reference. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report the user asked for. References are existing resources the user should look at because of this task.`,
-			},
-		},
-	}),
-} : definition);
-
 /** Host services the artifact tools need beyond the session state. */
 export interface IArtifactServerToolAccessor {
 	/** Whether the artifact tools are advertised and executable. */
 	readonly isEnabled: () => boolean;
-	/** Whether the compact prompt treatment is enabled. */
-	readonly useCompactPrompts: () => boolean;
 	/** Persists a session's artifacts and references so they survive a host restart. */
 	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
+	/** Verifies a PR against the invoking chat's folder and associates it when its head branch matches. */
+	readonly associatePullRequest?: (chat: string, pullRequestUrl: string) => Promise<boolean>;
+	/** Verifies a batch in one GitHub request and persists candidates that need retrying. */
+	readonly associatePullRequests?: (chat: string, urls: readonly string[]) => Promise<IRecordedPullRequestAssociationResult>;
+	readonly removePendingPullRequest?: (session: string, url: string) => Promise<void>;
+	readonly reportAssociationError?: (error: unknown) => void;
 }
 
 /** The noun an entry is described by, so every message names what it acted on. */
@@ -148,10 +139,7 @@ function describeArtifact(artifact: ISessionArtifact): string {
 export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAccessor): IServerToolGroup {
 	const isEnabled = () => accessor?.isEnabled() === true;
 	return {
-		definitions: originalArtifactServerToolDefinitions,
-		getDefinitions() {
-			return accessor?.useCompactPrompts() ? artifactServerToolDefinitions : originalArtifactServerToolDefinitions;
-		},
+		definitions: artifactServerToolDefinitions,
 		legacyToolNames: LEGACY_ARTIFACT_SERVER_TOOL_NAMES,
 		isEnabled,
 		isEnabledForSession: isEnabled,
@@ -211,16 +199,45 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					}
 					const result = await artifacts.mutate(collection => {
 						const messages: string[] = [];
+						const pullRequestUrls = new Set<string>();
 						for (const input of inputs) {
 							const result = collection.addOrPromoteArtifact(input, generateUuid);
 							const status = result.added
 								? `Added ${entryNoun(result.artifact.isArtifact)}`
 								: result.artifacts !== collection.artifacts ? 'Promoted artifact' : 'Already recorded';
 							messages.push(`${status}: ${result.artifact.id}`);
+							if (input.isArtifact && result.artifact.type === SessionArtifactType.PullRequest && result.artifact.isGitHub && result.artifact.link) {
+								pullRequestUrls.add(result.artifact.link);
+							}
 							collection = new SessionArtifactCollection(result.artifacts);
 						}
-						return { artifacts: collection.artifacts, messages };
+						return { artifacts: collection.artifacts, messages, pullRequestUrls };
 					});
+					if (accessor.associatePullRequests && result.pullRequestUrls.size) {
+						try {
+							const associated = await accessor.associatePullRequests(context.chatUri, [...result.pullRequestUrls]);
+							for (const url of associated.pending) {
+								result.messages.push(`Pull request ${url} was recorded; folder association is pending verification.`);
+							}
+							for (const url of associated.unmatched) {
+								result.messages.push(`Pull request ${url} was recorded but not associated with this chat's working folder.`);
+							}
+						} catch (error) {
+							accessor.reportAssociationError?.(error);
+							result.messages.push('Pull request artifacts were recorded, but folder association could not be queued.');
+						}
+					} else if (accessor.associatePullRequest) {
+						for (const url of result.pullRequestUrls) {
+							try {
+								if (!await accessor.associatePullRequest(context.chatUri, url)) {
+									result.messages.push(`Pull request ${url} was recorded but not associated with this chat's working folder.`);
+								}
+							} catch (error) {
+								accessor.reportAssociationError?.(error);
+								result.messages.push(`Pull request ${url} was recorded, but folder association could not be verified.`);
+							}
+						}
+					}
 					return result.messages.join('\n');
 				}
 				case ArtifactServerToolName.RemoveArtifactOrReference: {
@@ -228,7 +245,15 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					if (typeof id !== 'string' || id.length === 0) {
 						throw new Error(`Invalid ${ArtifactServerToolName.RemoveArtifactOrReference} input: id must be a non-empty string.`);
 					}
-					const result = await artifacts.mutate(collection => collection.remove(id));
+					const result = await artifacts.mutate(collection => collection.remove(id), async result => {
+						if (result.removed?.type === SessionArtifactType.PullRequest && result.removed.link && accessor.removePendingPullRequest) {
+							try {
+								await accessor.removePendingPullRequest(context.sessionUri, result.removed.link);
+							} catch (error) {
+								accessor.reportAssociationError?.(error);
+							}
+						}
+					});
 					if (!result.removed) {
 						return `No artifact or reference with id ${id}.`;
 					}
@@ -248,13 +273,4 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 	};
 }
 
-const artifactToolDiscoveryInstruction = `List/remove (discover if needed): \`${ArtifactServerToolName.ListArtifactsAndReferences}\`, \`${ArtifactServerToolName.RemoveArtifactOrReference}\`.`;
 
-/** Compact first-turn guidance for the prompt treatment. */
-export const ARTIFACT_TOOLS_INSTRUCTION = `Artifact registration is optional; default to none. Follow \`${ArtifactServerToolName.AddArtifactOrReference}\` eligibility rules and batch related entries. ${artifactToolDiscoveryInstruction}`;
-
-const ORIGINAL_ARTIFACT_TOOLS_INSTRUCTION = `Record notable artifacts and references with \`${ArtifactServerToolName.AddArtifactOrReference}\` so they are surfaced next to the chat input. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user explicitly requested or standalone results the user is clearly likely to reopen, download, or reuse; references are existing resources the user will likely want to view. Batch related entries in one call when practical. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register. ${artifactToolDiscoveryInstruction}`;
-
-export function getArtifactToolsInstruction(useCompactPrompts: boolean): string {
-	return useCompactPrompts ? ARTIFACT_TOOLS_INSTRUCTION : ORIGINAL_ARTIFACT_TOOLS_INSTRUCTION;
-}

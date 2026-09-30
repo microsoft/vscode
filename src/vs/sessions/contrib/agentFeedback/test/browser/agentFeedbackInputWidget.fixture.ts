@@ -6,7 +6,6 @@
 import { Color } from '../../../../../base/common/color.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -117,10 +116,8 @@ function renderInputWidget(context: ComponentFixtureContext, options: IInputFixt
 
 /** A session whose feedback scopes {@link fileResource}, for the mock service. */
 function createFixtureSession(): ISession {
-	const changes = observableValue<readonly ISessionFileChange[]>('agentFeedbackFixtureChanges', []);
 	return new class extends mock<ISession>() {
 		override readonly resource = sessionResource;
-		override readonly changes = changes;
 	}();
 }
 
@@ -155,6 +152,9 @@ function renderInEditor(context: ComponentFixtureContext): Promise<void> {
 		}
 		override getSessionForFile(resourceUri: URI): ISession | undefined {
 			return isEqual(resourceUri, fileResource) ? session : undefined;
+		}
+		override getChatChanges(): readonly ISessionFileChange[] {
+			return [];
 		}
 		override getFeedbackSessionResource(resourceUri: URI): URI | undefined {
 			return isEqual(resourceUri, fileResource) ? sessionResource : undefined;

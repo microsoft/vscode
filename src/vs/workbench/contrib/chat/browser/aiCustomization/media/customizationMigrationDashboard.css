@@ -12,9 +12,9 @@
 
 .customization-migration-dashboard .migration-page {
 	box-sizing: border-box;
-	max-width: 920px;
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
 	margin: 0 auto;
-	padding: var(--vscode-spacing-size400);
+	padding-block: var(--vscode-spacing-size400);
 }
 
 .customization-migration-dashboard h1,
@@ -27,7 +27,8 @@
 }
 
 .customization-migration-dashboard h1 {
-	font-size: var(--vscode-fontSize-heading1);
+	font-size: var(--vscode-fontSize-heading2);
+	line-height: normal;
 }
 
 .customization-migration-dashboard h2,
@@ -36,7 +37,7 @@
 }
 
 .customization-migration-dashboard .migration-intro {
-	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size240);
+	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size240);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -337,10 +338,6 @@
 }
 
 @container (max-width: 520px) {
-	.customization-migration-dashboard .migration-page {
-		padding: var(--vscode-spacing-size240) var(--vscode-spacing-size200);
-	}
-
 	.customization-migration-dashboard .migration-category {
 		align-items: stretch;
 		flex-direction: column;

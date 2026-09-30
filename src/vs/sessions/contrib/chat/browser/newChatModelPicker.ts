@@ -9,12 +9,14 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 export const INewChatModelPickerService = createDecorator<INewChatModelPickerService>('newChatModelPickerService');
 
 export interface INewChatModelPicker {
+	getDomNode(): HTMLElement | undefined;
 	readonly open: () => void;
 	readonly switchToModel: (modelIdentifier: string) => boolean;
 }
 
 export interface INewChatModelPickerService {
 	readonly _serviceBrand: undefined;
+	readonly activePicker: INewChatModelPicker | undefined;
 	registerModelPicker(modelPicker: INewChatModelPicker): IDisposable;
 	openModelPicker(): void;
 	switchToModel(modelIdentifier: string): boolean;
@@ -31,14 +33,14 @@ export class NewChatModelPickerService implements INewChatModelPickerService {
 	}
 
 	openModelPicker(): void {
-		this._getActiveModelPicker()?.open();
+		this.activePicker?.open();
 	}
 
 	switchToModel(modelIdentifier: string): boolean {
-		return this._getActiveModelPicker()?.switchToModel(modelIdentifier) ?? false;
+		return this.activePicker?.switchToModel(modelIdentifier) ?? false;
 	}
 
-	private _getActiveModelPicker(): INewChatModelPicker | undefined {
+	get activePicker(): INewChatModelPicker | undefined {
 		let activeModelPicker: INewChatModelPicker | undefined;
 		for (const modelPicker of this._modelPickers) {
 			activeModelPicker = modelPicker;

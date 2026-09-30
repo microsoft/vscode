@@ -431,6 +431,9 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			}));
 		}
 
+		case ActionType.SessionMcpServerBackgroundRequested:
+			return state;
+
 		case ActionType.SessionMcpServerStopRequested: {
 			return updateMcpServerCustomization(state, action.id, entry => ({
 				...entry,

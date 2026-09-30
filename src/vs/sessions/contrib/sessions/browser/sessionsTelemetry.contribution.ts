@@ -12,10 +12,12 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { isChatRequestFileEntry, isImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { EditorChatUsage } from '../../../../workbench/contrib/chat/common/editorChatUsage.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 import { AgentFeedbackKind, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
@@ -27,8 +29,17 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsWindowUsageService } from '../../../services/sessions/browser/sessionsWindowUsageService.js';
+import { getSessionsTelemetryCopilotSku } from './sessionsAccountTelemetry.js';
 import { ISessionLifecycleSummary, SessionDoneReason, SessionsLifecycleTracker } from './sessionsLifecycleTracker.js';
 import { ITypedCharactersEntry, SessionsTypedCharactersTracker } from './sessionsTypedCharactersTracker.js';
+
+/**
+ * Upper bound for the `workspaceFileCount` measurement. The count comes from a
+ * file search whose matches are all materialized in the renderer, so an
+ * unbounded search over a very large workspace (e.g. the user's home folder)
+ * exhausts the renderer heap.
+ */
+const MAX_WORKSPACE_FILE_COUNT = 20_000;
 
 /**
  * Listens to lifecycle events from {@link ISessionsManagementService} and
@@ -42,10 +53,8 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 
 	static readonly ID = 'workbench.contrib.sessionsTelemetry';
 
-	/** Final workspace file counts, keyed by session id (so subsequent log calls for the same session are instant). */
-	private readonly _workspaceFileCountCache = new Map<string, number>();
-	/** Pending workspace file-count fetches, keyed by workspace URI so a prewarm started before a session-id assignment can be picked up after. */
-	private readonly _workspaceFileCountInFlight = new Map<string, Promise<number>>();
+	/** Pending and completed workspace file counts, keyed by the scanned workspace folders so each is scanned at most once per window. */
+	private readonly _workspaceFileCounts = new Map<string, Promise<number>>();
 	/** Persists per-session lifecycle counters for the `agents/sessionSummary` event. */
 	private readonly _lifecycleTracker: SessionsLifecycleTracker;
 	/** Counts characters the user manually types into session workspace folders from this window. */
@@ -68,6 +77,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		@ISessionsTasksService private readonly _sessionsTasksService: ISessionsTasksService,
 		@IModelService modelService: IModelService,
 		@ISessionsWindowUsageService sessionsWindowUsageService: ISessionsWindowUsageService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -87,9 +97,8 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		this._register(this._sessionsManagementService.onWillSendRequest(session => {
 			// Kick off the workspace file-count fetch now so it has time to
 			// resolve while the provider sends the request. The result is
-			// picked up under the (possibly updated) session id when
-			// `onDidSendNewChatRequest` fires.
-			this._startWorkspaceFileCountFetch(session.workspace.get());
+			// picked up by workspace when `onDidSendRequest` fires.
+			void this._getWorkspaceFileCount(session.workspace.get());
 		}));
 		this._register(this._sessionsManagementService.onDidSendRequest(e => this._logRequestSent(e)));
 		this._register(this._sessionsManagementService.onDidArchiveSession(session => this._logSessionArchived(session)));
@@ -218,6 +227,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 			? this._lifecycleTracker.incrementAndGetUserRequestCounters(session)
 			: this._lifecycleTracker.getUserRequestCounters(session);
 		const sync = {
+			...new EditorChatUsage(this._storageService).getTelemetry(),
 			isNewSession,
 			isNewChat,
 			visibleSessionsCount,
@@ -228,7 +238,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 			...this._getAllSessionsFields(session, allSessions),
 			...requestCounters,
 		};
-		void this._getOrFetchWorkspaceFileCount(session.sessionId, workspace).then(workspaceFileCount => {
+		void this._getWorkspaceFileCount(workspace).then(workspaceFileCount => {
 			this._telemetryService.publicLog2<SessionRequestSentEvent, SessionRequestSentClassification>('agents/requestSent', {
 				...sync,
 				...this._getWorkspaceFields(workspace, workspaceFileCount, isolationKind),
@@ -539,7 +549,11 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	}
 
 	private _logSessionSummary(summary: ISessionLifecycleSummary): void {
-		this._telemetryService.publicLog2<ISessionLifecycleSummary, SessionSummaryClassification>('agents/sessionSummary', summary);
+		this._telemetryService.publicLog2<SessionSummaryEvent, SessionSummaryClassification>('agents/sessionSummary', {
+			...summary,
+			// eslint-disable-next-line local/code-no-telemetry-common-property -- Copilot SKU is not a renderer common property.
+			copilotSku: getSessionsTelemetryCopilotSku(this._chatEntitlementService),
+		});
 	}
 
 	// -- manually typed characters ---------------------------------------------
@@ -578,7 +592,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		const workspace = session.workspace.get();
 		const sessionFields = this._getSessionFields(session);
 		const changesFields = this._getSessionChangesFields(session);
-		return this._getOrFetchWorkspaceFileCount(session.sessionId, workspace).then(workspaceFileCount => ({
+		return this._getWorkspaceFileCount(workspace).then(workspaceFileCount => ({
 			...sessionFields,
 			...this._getWorkspaceFields(workspace, workspaceFileCount),
 			...changesFields,
@@ -589,6 +603,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 
 	private _getSessionFields(session: ISession): SessionFields {
 		return {
+			copilotSku: getSessionsTelemetryCopilotSku(this._chatEntitlementService),
 			agentSessionId: hashSessionIdForTelemetry(session.sessionId),
 			providerId: getSessionsTelemetryProviderId(session.providerId),
 			providerType: session.sessionType,
@@ -611,7 +626,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		let sessionFilesChanged = 0;
 		let sessionLinesAdded = 0;
 		let sessionLinesDeleted = 0;
-		for (const change of session.changes.get()) {
+		for (const change of session.mainChat.get().changes.get()) {
 			sessionFilesChanged++;
 			sessionLinesAdded += change.insertions;
 			sessionLinesDeleted += change.deletions;
@@ -652,49 +667,43 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		return { isMultiRoot, folderCount, gitFolderCount, nonGitFolderCount };
 	}
 
-	private _getOrFetchWorkspaceFileCount(sessionId: string, workspace: ISessionWorkspace | undefined): Promise<number> {
-		const cached = this._workspaceFileCountCache.get(sessionId);
-		if (cached !== undefined) {
-			return Promise.resolve(cached);
-		}
-		const pending = this._startWorkspaceFileCountFetch(workspace);
-		if (!pending) {
+	private _getWorkspaceFileCount(workspace: ISessionWorkspace | undefined): Promise<number> {
+		// The count is only reported through usage telemetry, so don't scan
+		// the workspace when the event would not be sent anyway.
+		if (!workspace || workspace.folders.length === 0 || this._telemetryService.telemetryLevel < TelemetryLevel.USAGE) {
 			return Promise.resolve(-1);
 		}
-		return pending.then(count => {
-			this._workspaceFileCountCache.set(sessionId, count);
-			return count;
-		});
-	}
-
-	private _startWorkspaceFileCountFetch(workspace: ISessionWorkspace | undefined): Promise<number> | undefined {
-		if (!workspace || workspace.folders.length === 0) {
-			return undefined;
+		// Folders can change while the workspace URI stays the same, so key by what is scanned.
+		const extUri = this._uriIdentityService.extUri;
+		const workspaceKey = [workspace.uri, ...workspace.folders.map(folder => folder.root)].map(uri => extUri.getComparisonKey(uri)).join('\n');
+		let count = this._workspaceFileCounts.get(workspaceKey);
+		if (!count) {
+			count = this._computeWorkspaceFileCount(workspace).catch(() => -1);
+			this._workspaceFileCounts.set(workspaceKey, count);
 		}
-		const workspaceKey = workspace.uri.toString();
-		let pending = this._workspaceFileCountInFlight.get(workspaceKey);
-		if (!pending) {
-			pending = this._computeWorkspaceFileCount(workspace).then(count => {
-				this._workspaceFileCountInFlight.delete(workspaceKey);
-				return count;
-			}, () => {
-				this._workspaceFileCountInFlight.delete(workspaceKey);
-				return -1;
-			});
-			this._workspaceFileCountInFlight.set(workspaceKey, pending);
-		}
-		return pending;
+		return count;
 	}
 
 	private async _computeWorkspaceFileCount(workspace: ISessionWorkspace): Promise<number> {
 		const excludePattern = getExcludes(this._configurationService.getValue<ISearchConfiguration>({ resource: workspace.uri }));
-		const result = await this._searchService.fileSearch({
-			folderQueries: workspace.folders.map(folder => ({ folder: folder.root, disregardIgnoreFiles: false })),
-			type: QueryType.File,
-			filePattern: '',
-			excludePattern,
-		});
-		return result.results.length;
+		let count = 0;
+		// Search providers apply `maxResults` per scheme or per folder, so scan
+		// one folder at a time with the remaining budget to bound the total.
+		for (const folder of workspace.folders) {
+			const maxResults = MAX_WORKSPACE_FILE_COUNT - count;
+			const result = await this._searchService.fileSearch({
+				folderQueries: [{ folder: folder.root, disregardIgnoreFiles: false }],
+				type: QueryType.File,
+				filePattern: '',
+				excludePattern,
+				maxResults,
+			});
+			count += Math.min(result.results.length, maxResults);
+			if (count >= MAX_WORKSPACE_FILE_COUNT) {
+				break;
+			}
+		}
+		return count;
 	}
 
 	private _getRequestFields(options: ISendRequestOptions): RequestFields {
@@ -809,6 +818,7 @@ type SessionIsolationKind = 'worktree' | 'folder';
 // single literal type. ---
 
 type SessionFields = {
+	copilotSku: string;
 	agentSessionId: string;
 	providerId: string;
 	providerType: string;
@@ -869,6 +879,12 @@ type AllSessionsFields = {
 // --- Event: agents/requestSent ---
 
 type SessionRequestSentEvent = {
+	copilotSku: string;
+	editorSessionsByProvider: string;
+	editorMessages: number;
+	editorMessagesWithOtherSessionInProgress: number;
+	editorMessagesWithOtherSessionInProgressAcrossWindows: number;
+	editorLastMessageSecondsAgo: number | undefined;
 	isNewSession: boolean;
 	isNewChat: boolean;
 	visibleSessionsCount: number;
@@ -916,6 +932,7 @@ type SessionRequestSentEvent = {
 // can resolve every event individually. ---
 
 type SessionActionEvent = {
+	copilotSku: string;
 	agentSessionId: string;
 	providerId: string;
 	providerType: string;
@@ -934,6 +951,12 @@ type SessionActionEvent = {
 // Classifications
 
 type SessionRequestSentClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
+	editorSessionsByProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON map of cumulative editor chat starts by bounded provider category. No remote addresses or extension identifiers.' };
+	editorMessages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative user messages accepted in editor windows, including queued and steering submissions, excluding retries and Agents window messages.' };
+	editorMessagesWithOtherSessionInProgress: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Editor submissions with a different session known to the submitting window in progress, counted once per message.' };
+	editorMessagesWithOtherSessionInProgressAcrossWindows: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Editor submissions with a different session in progress in the submitting window or reported by another live editor window within a 200ms probe, counted once per message.' };
+	editorLastMessageSecondsAgo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Seconds since the last editor message at request submission; absent if no editor message has been recorded. Never an absolute timestamp.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user sends a request from a session in the Agents window, including the user state at the time of send.';
 	isNewSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'True when the request starts a brand-new session, false when it is a new or continued chat in an existing session.' };
@@ -950,7 +973,7 @@ type SessionRequestSentClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one workspace folder.' };
 	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders in the session (browser-projected metadata).' };
 	gitFolderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace folders backed by a git repository (browser-projected metadata).' };
@@ -978,6 +1001,7 @@ type SessionRequestSentClassification = {
 };
 
 type SessionArchivedClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user archives a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -989,13 +1013,14 @@ type SessionArchivedClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type SessionUnarchivedClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user unarchives a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1007,13 +1032,14 @@ type SessionUnarchivedClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type SessionDeletedClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user deletes a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1025,13 +1051,14 @@ type SessionDeletedClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type ChatDeletedClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user deletes a chat from a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1043,13 +1070,14 @@ type ChatDeletedClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type ChatRenamedClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user renames a chat in a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1061,13 +1089,14 @@ type ChatRenamedClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type SessionRenamedClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user renames a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1079,13 +1108,14 @@ type SessionRenamedClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type CreatePullRequestClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user runs the Create Pull Request command for a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1097,13 +1127,14 @@ type CreatePullRequestClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type CreateDraftPullRequestClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user runs the Create Draft Pull Request command for a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1115,13 +1146,14 @@ type CreateDraftPullRequestClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type UpdatePullRequestClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user runs the Update (Sync) Pull Request command for a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1133,13 +1165,14 @@ type UpdatePullRequestClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type MergePullRequestClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user runs the Merge Pull Request command for a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1151,13 +1184,14 @@ type MergePullRequestClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type CheckoutPullRequestClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user runs the Checkout Pull Request command for a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1169,13 +1203,14 @@ type CheckoutPullRequestClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type InitializeRepositoryClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user runs the Initialize Repository command for a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1187,13 +1222,14 @@ type InitializeRepositoryClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type CommitClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user runs the Commit command for a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1205,13 +1241,14 @@ type CommitClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type CommitAndSyncClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user runs the Commit and Sync command for a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1223,13 +1260,14 @@ type CommitAndSyncClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type SessionRestoredClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user restores a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1241,13 +1279,14 @@ type SessionRestoredClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
 };
 
 type FixCIChecksClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user runs the Fix CI Checks command for a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1259,7 +1298,7 @@ type FixCIChecksClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
@@ -1268,6 +1307,7 @@ type FixCIChecksClassification = {
 // --- Events: agent feedback ---
 
 type FeedbackAddedEvent = {
+	copilotSku: string;
 	agentSessionId: string;
 	providerId: string;
 	providerType: string;
@@ -1286,6 +1326,7 @@ type FeedbackAddedEvent = {
 };
 
 type FeedbackAddedClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user adds a new agent feedback comment to a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1297,7 +1338,7 @@ type FeedbackAddedClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
@@ -1306,6 +1347,7 @@ type FeedbackAddedClassification = {
 };
 
 type FeedbackConvertedEvent = {
+	copilotSku: string;
 	agentSessionId: string;
 	providerId: string;
 	providerType: string;
@@ -1325,6 +1367,7 @@ type FeedbackConvertedEvent = {
 };
 
 type FeedbackConvertedClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when an external review comment (code review or PR review) is converted into agent feedback for a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1336,7 +1379,7 @@ type FeedbackConvertedClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
@@ -1346,6 +1389,7 @@ type FeedbackConvertedClassification = {
 };
 
 type FeedbackReplyAddedEvent = {
+	copilotSku: string;
 	agentSessionId: string;
 	providerId: string;
 	providerType: string;
@@ -1364,6 +1408,7 @@ type FeedbackReplyAddedEvent = {
 };
 
 type FeedbackReplyAddedClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user adds a reply to an existing agent feedback thread in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1375,7 +1420,7 @@ type FeedbackReplyAddedClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
@@ -1384,6 +1429,7 @@ type FeedbackReplyAddedClassification = {
 };
 
 type FeedbackSubmittedEvent = {
+	copilotSku: string;
 	agentSessionId: string;
 	providerId: string;
 	providerType: string;
@@ -1405,6 +1451,7 @@ type FeedbackSubmittedEvent = {
 };
 
 type FeedbackSubmittedClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user submits the accumulated agent feedback for a session in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1416,7 +1463,7 @@ type FeedbackSubmittedClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
@@ -1430,6 +1477,7 @@ type FeedbackSubmittedClassification = {
 // --- Events: sticky toggle / maximize toggle ---
 
 type SessionStickinessToggledEvent = {
+	copilotSku: string;
 	agentSessionId: string;
 	providerId: string;
 	providerType: string;
@@ -1447,6 +1495,7 @@ type SessionStickinessToggledEvent = {
 };
 
 type SessionStickinessToggledClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user toggles a session\'s stickiness in the sessions grid in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1458,7 +1507,7 @@ type SessionStickinessToggledClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
@@ -1466,6 +1515,7 @@ type SessionStickinessToggledClassification = {
 };
 
 type SessionMaximizeToggledEvent = {
+	copilotSku: string;
 	agentSessionId: string;
 	providerId: string;
 	providerType: string;
@@ -1483,6 +1533,7 @@ type SessionMaximizeToggledEvent = {
 };
 
 type SessionMaximizeToggledClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the action occurred, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Reports when the user toggles the maximized state of a session view in the sessions grid in the Agents window.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };
@@ -1494,7 +1545,7 @@ type SessionMaximizeToggledClassification = {
 	workspaceHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Non-reversible hash of the workspace URI, used to correlate events across the same workspace without disclosing the path.' };
 	hasGitRepository: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether any of the workspace folders has a git repository.' };
 	isVirtualWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the workspace URI uses a non-file scheme (virtual/remote).' };
-	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes); -1 if the workspace could not be scanned.' };
+	workspaceFileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files in the workspace (honoring user excludes), capped at 20000; -1 if the workspace could not be scanned.' };
 	sessionFilesChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files changed in the session at the time of the action.' };
 	sessionLinesAdded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines added across all changed files in the session at the time of the action.' };
 	sessionLinesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of lines deleted across all changed files in the session at the time of the action.' };
@@ -1503,7 +1554,12 @@ type SessionMaximizeToggledClassification = {
 
 // --- Event: session summary (emitted once when a session reaches a terminal state) ---
 
+type SessionSummaryEvent = ISessionLifecycleSummary & {
+	copilotSku: string;
+};
+
 type SessionSummaryClassification = {
+	copilotSku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Copilot entitlement SKU when the summary was emitted, or signedOut or unknown when no SKU is available.' };
 	owner: 'benibenj';
 	comment: 'Single per-session summary emitted when a tracked session is finished (archived, deleted, or observed as archived/deleted in another client). Aggregates everything that happened during the session\'s lifetime.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate events for the same session without exposing provider or resource details.' };

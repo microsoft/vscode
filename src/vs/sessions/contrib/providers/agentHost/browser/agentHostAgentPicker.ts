@@ -46,17 +46,22 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('agentHostAgentPicker', "Agent"),
 			f1: false,
 			menu: [{
-				id: Menus.NewSessionConfig,
+				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: -1,
-				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate()),
+			}, {
+				id: Menus.AutomationsDialogInputToolbar,
+				group: 'navigation',
+				order: -1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
 			}, {
 				// Running-session input bar — only inside the dedicated
 				// Agents Window. The regular VS Code chat editor uses the
 				// built-in mode picker for Agent Host custom agents.
 				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 1,
+				order: 0,
 				// Hide the agent picker while a delegation (continue in) target is pending.
 				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, IsPhoneLayoutContext.negate(), ChatContextKeys.hasPendingDelegationTarget.negate()),
 			}],
@@ -66,14 +71,27 @@ registerAction2(class extends Action2 {
 });
 
 class AgentHostModePickerActionViewItem extends BaseActionViewItem {
+	private compact = false;
+
 	constructor(private readonly picker: ModePicker, disposable: IDisposable) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 		this._register(disposable);
 	}
 
 	override render(container: HTMLElement): void {
+		this.element = container;
 		container.classList.add('chat-input-picker-item', 'chat-agent-picker-item');
+		container.classList.toggle('compact-picker', this.compact);
 		this.picker.render(container);
+	}
+
+	isCompact(): boolean {
+		return this.compact;
+	}
+
+	setCompact(compact: boolean): void {
+		this.compact = compact;
+		this.element?.classList.toggle('compact-picker', compact);
 	}
 
 	override dispose(): void {
@@ -150,7 +168,8 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			return scopedInstantiationService.createInstance(AgentHostModePickerActionViewItem, picker, disposableStore);
 		};
 
-		this._register(actionViewItemService.register(Menus.NewSessionConfig, 'sessions.agentHost.agentPicker', factory));
+		this._register(actionViewItemService.register(Menus.NewSessionControl, 'sessions.agentHost.agentPicker', factory));
+		this._register(actionViewItemService.register(Menus.AutomationsDialogInputToolbar, 'sessions.agentHost.agentPicker', factory));
 		this._register(actionViewItemService.register(MenuId.ChatInput, 'sessions.agentHost.agentPicker', factory));
 	}
 
