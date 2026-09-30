@@ -983,6 +983,7 @@ export class QuickInputController extends Disposable {
 					preferredAnchorPosition = AnchorPosition.BELOW;
 				} else {
 					width = 380;
+					preferredAnchorPosition = this.controller.anchorPosition === 'below' ? AnchorPosition.BELOW : AnchorPosition.ABOVE;
 				}
 
 				listHeight = this.dimension ? Math.min(this.dimension.height * listHeightRatio, maxListHeight) : maxListHeight;

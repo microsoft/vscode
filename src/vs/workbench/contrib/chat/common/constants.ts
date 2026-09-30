@@ -27,6 +27,7 @@ export const enum BYOKUtilityModelDefault {
 }
 
 export enum ChatConfiguration {
+	AnchoredContextPicker = 'chat.experimental.anchoredContextPicker',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
@@ -144,6 +145,8 @@ export enum ChatConfiguration {
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
+
+export const CHAT_ATTACH_CONTEXT_ACTION_ID = 'workbench.action.chat.attachContext';
 
 export const enum CopilotHarnessIntroductionMode {
 	Off = 'off',

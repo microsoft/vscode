@@ -141,10 +141,12 @@ interface IInitializationLoadingHarness {
 }
 
 interface IContextPickerHarness {
+	readonly configurationService: {
+		getValue<T>(key: string): T;
+	};
 	readonly options: {
 		readonly getContextFolderUri: () => URI | undefined;
 		readonly getContextPickerActions?: () => readonly [];
-		readonly useExperimentalLayout?: { get(): boolean };
 	};
 	readonly _attachButton: HTMLElement | undefined;
 	readonly _contextAttachments: {
@@ -285,16 +287,18 @@ suite('NewChatInputWidget', () => {
 		});
 	});
 
-	test('anchors the context picker to the attach button only in the experimental layout', () => {
+	test('anchors the context picker to the attach button only when configured', () => {
 		const attachButton = document.createElement('div');
 		const folderUri = URI.file('/workspace');
 		const calls: Array<{ folderUri: URI | undefined; anchor: HTMLElement | undefined }> = [];
-		const experimentalLayout = { enabled: false };
+		const anchoredContextPicker = { enabled: false };
 		const harness: IContextPickerHarness = {
+			configurationService: {
+				getValue: <T>() => anchoredContextPicker.enabled as T,
+			},
 			options: {
 				getContextFolderUri: () => folderUri,
 				getContextPickerActions: () => [],
-				useExperimentalLayout: { get: () => experimentalLayout.enabled },
 			},
 			_attachButton: attachButton,
 			_contextAttachments: {
@@ -303,7 +307,7 @@ suite('NewChatInputWidget', () => {
 		};
 
 		showContextPicker.call(harness);
-		experimentalLayout.enabled = true;
+		anchoredContextPicker.enabled = true;
 		showContextPicker.call(harness);
 
 		assert.deepStrictEqual(calls.map(call => ({

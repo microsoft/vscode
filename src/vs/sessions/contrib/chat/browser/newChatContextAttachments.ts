@@ -267,6 +267,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 		picker.matchOnDescription = true;
 		picker.sortByLabel = false;
 		picker.anchor = anchor;
+		picker.anchorPosition = anchor ? 'below' : undefined;
 
 		const staticPicks = this._getStaticPicks(contextActions);
 
