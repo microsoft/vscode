@@ -9,7 +9,7 @@ import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js
 
 const VOICE_PATH = '/realtime/voice';
 const TRANSCRIPTION_PATH = '/realtime/transcription';
-const GPT_LIVE_VOICE_WS_URL = 'wss://api.openai.com/v1/live/sessions';
+const GPT_LIVE_VOICE_WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-live-1';
 
 function isGptLiveEnabled(configurationService: IConfigurationService | undefined): boolean {
 	return configurationService?.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) === true;
@@ -66,7 +66,7 @@ export function shouldUseOpenAiWebSocketSubprotocolAuth(endpointUrl: string): bo
 	try {
 		const url = new URL(endpointUrl);
 		const path = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname;
-		return url.protocol === 'wss:' && url.hostname === 'api.openai.com' && path === '/v1/live/sessions';
+		return url.protocol === 'wss:' && url.hostname === 'api.openai.com' && (path === '/v1/live/sessions' || path === '/v1/realtime');
 	} catch {
 		return false;
 	}

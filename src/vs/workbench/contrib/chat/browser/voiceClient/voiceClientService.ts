@@ -353,7 +353,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				? baseUrl
 				: addWebSocketAuthToken(baseUrl, this._authToken)
 			: baseUrl;
-		const ws = this._authToken && shouldUseOpenAiWebSocketSubprotocolAuth(baseUrl)
+		const useOpenAiSubprotocolAuth = !!this._authToken && shouldUseOpenAiWebSocketSubprotocolAuth(baseUrl);
+		this._logService.info(`[voice] connecting websocket endpoint=${baseUrl} authMode=${useOpenAiSubprotocolAuth ? 'openai-subprotocol' : this._authToken ? 'query-token' : 'none'}`);
+		const ws = useOpenAiSubprotocolAuth
 			? new win.WebSocket(url, getOpenAiWebSocketProtocols(this._authToken))
 			: new win.WebSocket(url);
 		this._ws = ws;
@@ -365,6 +367,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			// reset happens on session_init/session_resumed instead.
 			this._isResuming = !!this._lastSessionId;
 			this._sessionStartedOnSocket = false;
+			this._logService.info(`[voice] websocket opened protocol=${ws.protocol || 'none'}`);
 			this._setConnected(true);
 			this._startPing();
 
@@ -969,6 +972,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			if (this._isOpenAiRealtimeMode()) {
+				this._logService.info('[voice] sending OpenAI session.start');
 				this._ws.send(JSON.stringify({
 					type: 'session.start',
 					session: {
