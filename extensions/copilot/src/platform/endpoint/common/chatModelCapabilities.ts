@@ -213,6 +213,11 @@ export function isVSCModelE(model: LanguageModelChat | IChatEndpoint) {
 	return model.name.startsWith('vscModelE') || model.family.startsWith('vscModelE') || modelId.startsWith('vscModelE') || VSC_MODEL_HASHES_E.includes(ID_hash) || VSC_MODEL_HASHES_E.includes(family_hash);
 }
 
+export function isVSCModelF(model: LanguageModelChat | IChatEndpoint) {
+	const modelId = getModelId(model);
+	return model.name.startsWith('vscModelF') || model.family.startsWith('vscModelF') || modelId.startsWith('vscModelF');
+}
+
 export function isGpt52CodexFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
 	const family = typeof model === 'string' ? model : model.family;
 	return family === 'gpt-5.2-codex';
