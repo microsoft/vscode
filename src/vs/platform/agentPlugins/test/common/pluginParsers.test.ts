@@ -745,17 +745,18 @@ suite('pluginParsers', () => {
 				]);
 			});
 
-			test('reads known MCP fields and leaves harness placeholders unresolved', async () => {
+			test('expands PLUGIN_ROOT in MCP fields and leaves other harness placeholders unresolved', async () => {
+				const pluginFsPath = URI.from({ scheme: Schemas.inMemory, path: '/plugins/example' }).fsPath;
 				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
 				await write('/plugins/example/mcp.json', JSON.stringify({
 					$schema: AGENT_PLUGIN_MCP_SCHEMA.replace('/1.0.0/', '/1.0.1/'),
 					mcpServers: {
 						stdio: {
 							type: 'stdio',
-							command: 'server',
-							args: ['${PLUGIN_ROOT}', '${PLUGIN_DATA}', '${UNKNOWN}'],
-							env: { ROOT: '${PLUGIN_ROOT}' },
-							cwd: './work',
+							command: '${PLUGIN_ROOT}/bin/server',
+							args: ['${PLUGIN_ROOT}/data', '${PLUGIN_DATA}', '${UNKNOWN}'],
+							env: { ROOT: '${PLUGIN_ROOT}', DATA: '${PLUGIN_DATA}' },
+							cwd: '${PLUGIN_ROOT}/work',
 						},
 						implicit: { type: 'stdio', command: 'implicit-server' },
 						http: { type: 'streamable-http', url: 'https://example.com/mcp' },
@@ -776,10 +777,10 @@ suite('pluginParsers', () => {
 					env: stdio.env,
 					cwd: stdio.cwd,
 				}, {
-					command: 'server',
-					args: ['${PLUGIN_ROOT}', '${PLUGIN_DATA}', '${UNKNOWN}'],
-					env: { ROOT: '${PLUGIN_ROOT}' },
-					cwd: './work',
+					command: `${pluginFsPath}/bin/server`,
+					args: [`${pluginFsPath}/data`, '${PLUGIN_DATA}', '${UNKNOWN}'],
+					env: { ROOT: pluginFsPath, DATA: '${PLUGIN_DATA}', PLUGIN_ROOT: pluginFsPath },
+					cwd: `${pluginFsPath}/work`,
 				});
 				const implicit = servers.get('implicit');
 				assert.ok(implicit);
