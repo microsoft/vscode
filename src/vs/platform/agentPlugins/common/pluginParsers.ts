@@ -661,6 +661,10 @@ export function interpolateMcpPluginRoot(
 	return { ...def, configuration: interpolated };
 }
 
+/**
+ * Applies Agent Plugins v1 MCP path semantics, which intentionally differ from legacy plugin interpolation.
+ * Only stdio args, env values, and cwd expand `PLUGIN_ROOT`; `./` commands resolve against the plugin root and remote fields remain literal.
+ */
 function interpolateAgentPluginMcpRoot(def: IMcpServerDefinition, pluginRoot: URI): IMcpServerDefinition | undefined {
 	const config = def.configuration;
 	if (config.type !== McpServerType.LOCAL) {
