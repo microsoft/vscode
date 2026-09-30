@@ -977,7 +977,7 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Voice Mode requires a paid GitHub Copilot plan.']);
 	});
 
-	test('confirms the OpenAI model when GPT-Live connects', async () => {
+	test('confirms the OpenAI model when GPT-Live is available', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		voiceClientService.gptLiveByok = true;
 		const notificationService = new VoiceTestNotificationService();
@@ -995,8 +995,6 @@ suite('VoiceSessionController', () => {
 		);
 
 		await controller.connect(mainWindow);
-		voiceClientService.fireConnectionState(true);
-		voiceClientService.fireConnectionState(true);
 
 		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Using gpt-live-1 from your OpenAI provider for Voice Mode.']);
 	});

@@ -38,6 +38,12 @@ interface OpenAIModelsResponse {
 	}[];
 }
 
+interface OpenAIErrorResponse {
+	readonly error?: {
+		readonly message?: unknown;
+	};
+}
+
 export async function isGptLiveModelAvailable(fetcherService: IFetcherService, apiKey: string, modelId: string): Promise<boolean> {
 	const response = await fetcherService.fetch(OPENAI_MODELS_URL, {
 		callSite: 'openai-gpt-live-model-availability',
@@ -59,8 +65,7 @@ export async function isGptLiveModelAvailable(fetcherService: IFetcherService, a
 }
 
 export async function createGptLiveSession(fetcherService: IFetcherService, apiKey: string, modelId: string, sdp: string): Promise<GptLiveSession> {
-	const offer = sdp.trim();
-	if (!offer) {
+	if (!sdp.trim()) {
 		throw new Error(l10n.t('An SDP offer is required to create a GPT-Live session.'));
 	}
 
@@ -80,14 +85,18 @@ export async function createGptLiveSession(fetcherService: IFetcherService, apiK
 			},
 			transport: {
 				type: 'webrtc',
-				sdp: offer,
+				sdp,
 			},
 		},
 		expectJSON: true,
 	});
 
 	if (!response.ok) {
-		throw new Error(l10n.t('OpenAI GPT-Live session creation failed with status {0}.', response.status));
+		const result = await response.json().catch(() => undefined) as OpenAIErrorResponse | undefined;
+		const message = result?.error?.message;
+		throw new Error(typeof message === 'string' && message
+			? l10n.t('OpenAI GPT-Live session creation failed with status {0}: {1}', response.status, message)
+			: l10n.t('OpenAI GPT-Live session creation failed with status {0}.', response.status));
 	}
 
 	const result = await response.json() as GptLiveSessionResponse;

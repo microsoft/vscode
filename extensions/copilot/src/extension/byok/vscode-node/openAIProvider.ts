@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { CancellationToken, PrepareLanguageModelChatModelOptions } from 'vscode';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -28,6 +29,11 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 
 	public static readonly providerName = 'OpenAI';
 	public static readonly providerId = this.providerName.toLowerCase();
+	private _apiKey: string | undefined;
+
+	get apiKey(): string | undefined {
+		return this._apiKey;
+	}
 
 	constructor(
 		knownModels: BYOKKnownModels,
@@ -49,6 +55,14 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 			configurationService,
 			expService
 		);
+	}
+
+	override async provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken) {
+		const apiKey = (options.configuration as OpenAIProviderConfig | undefined)?.apiKey?.trim();
+		if (apiKey) {
+			this._apiKey = apiKey;
+		}
+		return super.provideLanguageModelChatInformation(options, token);
 	}
 
 	protected override getModelsBaseUrl(): string {

@@ -50,14 +50,14 @@ describe('isGptLiveModelAvailable', () => {
 });
 
 describe('createGptLiveSession', () => {
-	it('creates a client-delegation GPT-Live session without returning the API key', async () => {
+	it('creates a client-delegation GPT-Live session without returning the API key or trimming the SDP terminator', async () => {
 		const fetcher = new TestFetcherService();
 		fetcher.fetch.mockResolvedValue(createFakeResponse(201, {
 			session: { id: 'live_123' },
 			transport: { type: 'webrtc', sdp: 'answer-sdp' },
 		}));
 
-		const result = await createGptLiveSession(fetcher, 'secret-key', 'configured-live-model', ' offer-sdp ');
+		const result = await createGptLiveSession(fetcher, 'secret-key', 'configured-live-model', 'offer-sdp\r\n');
 
 		expect({
 			result,
@@ -82,7 +82,7 @@ describe('createGptLiveSession', () => {
 					},
 					transport: {
 						type: 'webrtc',
-						sdp: 'offer-sdp',
+						sdp: 'offer-sdp\r\n',
 					},
 				},
 			},

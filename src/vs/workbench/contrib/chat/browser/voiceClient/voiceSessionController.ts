@@ -1082,6 +1082,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		let hasGptLiveByok = false;
 		try {
 			hasGptLiveByok = await this.voiceClientService.hasGptLiveByok();
+			this.logService.info(`[voice] GPT-Live BYOK is ${hasGptLiveByok ? 'available' : 'unavailable'}.`);
 		} catch (error) {
 			this.logService.debug('[voice] GPT-Live BYOK availability check failed', error);
 			this.notificationService.error(localize('voiceMode.gptLiveAvailabilityFailed', "Unable to check the OpenAI GPT-Live configuration."));
@@ -1092,6 +1093,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				? localize('voiceMode.organizationUnavailable', "Voice Mode is not available for GitHub Copilot Business or Enterprise accounts.")
 				: localize('voiceMode.requiresPaidPlan', "Voice Mode requires a paid GitHub Copilot plan."));
 			return;
+		}
+		if (hasGptLiveByok && !this._didNotifyGptLiveByok) {
+			const modelId = this.configurationService.getValue<string>(AgentsVoiceSettingId.UseBYOKVoiceModel)?.trim();
+			if (modelId) {
+				this._didNotifyGptLiveByok = true;
+				this.notificationService.info(localize('voiceMode.usingOpenAIModel', "Using {0} from your OpenAI provider for Voice Mode.", modelId));
+			}
 		}
 		const connectAttemptGeneration = ++this._connectAttemptGeneration;
 
@@ -1315,13 +1323,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Connection state → start mic + send start session
 		this._voiceEventDisposables.add(this.voiceClientService.onDidChangeConnectionState(async connected => {
 			if (connected) {
-				if (hasGptLiveByok && !this._didNotifyGptLiveByok) {
-					const modelId = this.configurationService.getValue<string>(AgentsVoiceSettingId.UseBYOKVoiceModel)?.trim();
-					if (modelId) {
-						this._didNotifyGptLiveByok = true;
-						this.notificationService.info(localize('voiceMode.usingOpenAIModel', "Using {0} from your OpenAI provider for Voice Mode.", modelId));
-					}
-				}
 				const sessionInitializationGeneration = ++this._sessionInitializationGeneration;
 				// Every socket open, including reconnects, gets a full timeout window
 				// covering voice instructions, mic warm-up, and the session command.

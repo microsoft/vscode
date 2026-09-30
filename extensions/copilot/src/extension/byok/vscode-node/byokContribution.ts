@@ -33,6 +33,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	private _providersRegistered = false;
 	private _knownModelsRefreshed = false;
 	private _knownModelsRefreshTargets: ReadonlyArray<readonly [string, AbstractLanguageModelChatProvider]> = [];
+	private _openAIProvider: OAIBYOKLMProvider | undefined;
 
 	constructor(
 		@IFetcherService private readonly _fetcherService: IFetcherService,
@@ -53,19 +54,25 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 
 	private async _provideGptLiveSession(sdp?: string): Promise<GptLiveSessionResult> {
 		if (!isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken)) {
+			this._logService.info('BYOK: GPT-Live is unavailable because client BYOK is not allowed.');
 			return { status: 'unavailable' };
 		}
-		const apiKey = await this._byokStorageService.getAPIKey(OAIBYOKLMProvider.providerName);
+		const openAIModels = await lm.selectChatModels({ vendor: OAIBYOKLMProvider.providerId });
+		const apiKey = openAIModels.length > 0 ? this._openAIProvider?.apiKey : undefined;
 		if (!apiKey) {
+			this._logService.info('BYOK: GPT-Live is unavailable because no OpenAI API key is configured.');
 			return { status: 'unavailable' };
 		}
 		const modelId = this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_MODEL_SETTING)?.trim();
 		if (!modelId) {
+			this._logService.info('BYOK: GPT-Live is unavailable because no voice model is configured.');
 			return { status: 'unavailable' };
 		}
 		if (sdp === undefined) {
 			try {
-				return await isGptLiveModelAvailable(this._fetcherService, apiKey, modelId)
+				const isAvailable = await isGptLiveModelAvailable(this._fetcherService, apiKey, modelId);
+				this._logService.info(`BYOK: configured GPT-Live model is ${isAvailable ? 'available' : 'unavailable'}.`);
+				return isAvailable
 					? { status: 'available' }
 					: { status: 'unavailable' };
 			} catch (error) {
@@ -86,6 +93,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		const gemini = instantiationService.createInstance(GeminiNativeBYOKLMProvider, undefined, this._byokStorageService);
 		const xai = instantiationService.createInstance(XAIBYOKLMProvider, {}, this._byokStorageService);
 		const openai = instantiationService.createInstance(OAIBYOKLMProvider, {}, this._byokStorageService);
+		this._openAIProvider = openai;
 
 		this._providers.set(OllamaLMProvider.providerId, instantiationService.createInstance(OllamaLMProvider, this._byokStorageService));
 		this._providers.set(AnthropicLMProvider.providerId, anthropic);
