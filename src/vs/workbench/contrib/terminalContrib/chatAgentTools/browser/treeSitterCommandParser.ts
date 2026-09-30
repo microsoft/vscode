@@ -205,7 +205,7 @@ export class TreeSitterCommandParser extends Disposable {
 	}
 
 	private _getCommandFileWriteParserText(commandLine: string, capture: QueryCapture): string {
-		const commandStart = capture.node.namedChildren.find(child => child.type !== 'variable_assignment')?.startIndex ?? capture.node.startIndex;
+		const commandStart = capture.node.namedChildren.find(child => child !== null && child.type !== 'variable_assignment')?.startIndex ?? capture.node.startIndex;
 		return commandLine.substring(commandStart, capture.node.endIndex);
 	}
 
