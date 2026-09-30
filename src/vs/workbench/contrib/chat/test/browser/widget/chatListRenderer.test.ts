@@ -2918,6 +2918,16 @@ suite('ChatListRenderer', () => {
 			toolId: 'search_workspace', toolCallId: 'search-1',
 			toolData: { id: 'search_workspace', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
 		});
+		const hiddenTool = new ChatToolInvocation(
+			{ invocationMessage: 'Update metadata', presentation: ToolInvocationPresentation.Hidden },
+			{ id: 'update_metadata', displayName: 'Update metadata', modelDescription: 'Update metadata', source: ToolDataSource.Internal },
+			'hidden', undefined, {},
+		);
+		const nestedTool = new ChatToolInvocation(
+			{ invocationMessage: 'Search in subagent' },
+			{ id: 'search_workspace', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+			'nested', 'subagent-1', {},
+		);
 		const waitingTool = new ChatToolInvocation(
 			{ invocationMessage: 'Query documentation' },
 			{ id: 'mcp_docs', displayName: 'Documentation', modelDescription: 'Documentation', source: ToolDataSource.Internal },
@@ -2931,6 +2941,13 @@ suite('ChatListRenderer', () => {
 			followedByTool: getPersistentProgressState([authentication, tool], 0, false),
 			followedByThinking: getPersistentProgressState([authentication, { kind: 'thinking', value: 'Considering the next step' }], 0, false),
 			followedByEmptyParts: getPersistentProgressState([authentication, { kind: 'markdownContent', content: new MarkdownString(' \n') }, { kind: 'thinking', value: '' }], 0, false),
+			followedByHiddenTool: getPersistentProgressState([authentication, hiddenTool], 0, false),
+			followedByUndoStop: getPersistentProgressState([authentication, { kind: 'undoStop', id: 'edit' }], 0, false),
+			followedByNestedTool: getPersistentProgressState([authentication, nestedTool], 0, false),
+			followedByNestedMarkdown: getPersistentProgressState([authentication, { kind: 'markdownContent', content: new MarkdownString('<vscode_codeblock_uri subAgentInvocationId="subagent-1">file:///test.txt</vscode_codeblock_uri>') }], 0, false),
+			followedByNestedHook: getPersistentProgressState([authentication, { kind: 'hook', hookType: 'PreToolUse', subAgentInvocationId: 'subagent-1' }], 0, false),
+			followedByReferences: getPersistentProgressState([authentication, { kind: 'references', references: [] }], 0, false),
+			markdownFollowedByHiddenTool: getPersistentProgressState([authentication, markdown, hiddenTool], 0, false),
 			used: getPersistentProgressState([{ ...authentication, isUsed: true }], 0, false),
 			empty: getPersistentProgressState([{ ...authentication, servers: observableValue('servers', []) }], 0, false),
 			blockingToolFollowedByMarkdown: getPersistentProgressState([waitingTool, markdown], 0, false),
@@ -2940,6 +2957,13 @@ suite('ChatListRenderer', () => {
 			followedByTool: 'active',
 			followedByThinking: 'active',
 			followedByEmptyParts: 'authentication',
+			followedByHiddenTool: 'authentication',
+			followedByUndoStop: 'authentication',
+			followedByNestedTool: 'authentication',
+			followedByNestedMarkdown: 'authentication',
+			followedByNestedHook: 'authentication',
+			followedByReferences: 'authentication',
+			markdownFollowedByHiddenTool: 'active',
 			used: 'active',
 			empty: 'active',
 			blockingToolFollowedByMarkdown: 'authentication',

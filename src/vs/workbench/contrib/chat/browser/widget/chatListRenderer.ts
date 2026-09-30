@@ -5856,7 +5856,7 @@ export function getPersistentProgressState(parts: readonly IChatRendererContent[
 		return 'confirmation';
 	}
 	// MCP sign-in prompts stop describing the current activity once later content is rendered.
-	const lastPart = findLastMeaningfulPart(parts);
+	const lastPart = findLastMeaningfulPart(parts.filter(isParentFlowContent));
 	if ((lastPart?.kind === 'mcpAuthenticationRequired' && !lastPart.isUsed && lastPart.servers.get().length > 0)
 		|| parts.some(part => part.kind === 'toolInvocation' && part.presentation !== 'hidden' && part.state.get().type === IChatToolInvocation.StateKind.WaitingForAuthentication)) {
 		return 'authentication';
