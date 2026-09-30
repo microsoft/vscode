@@ -121,7 +121,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 
 	it('discovers unknown models from a custom endpoint with conservative capabilities', async () => {
 		const fetch = vi.spyOn(accessor.get(IFetcherService), 'fetch').mockResolvedValue(createFakeResponse(200, {
-			data: [{ id: 'custom-chat-1' }, { id: 'custom-chat-2' }, { id: '' }, { name: 'missing-id' }]
+			data: [{ id: 'custom-chat-1' }, null, { id: 'custom-chat-2' }, { id: '' }, { name: 'missing-id' }]
 		}));
 		const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
 		const tokenSource = disposables.add(new vscode.CancellationTokenSource());
