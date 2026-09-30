@@ -2777,7 +2777,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers page with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with separate collapsible Workspace and User groups, followed by source-specific and Available groups when applicable. The tree edges align with the title and search field.'],
+		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with separate collapsible User and Workspace groups, followed by source-specific and Available groups when applicable. The tree edges align with the title and search field.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -3018,7 +3018,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Prompts tab — workspace and user prompts, scrollable
 	PromptsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Prompts page shows Workspace, User, Plugins, Extensions, and Built-In customizations as collapsible parent nodes in a tree.'],
+		expectedVisualDescriptions: ['The Prompts page shows User, Workspace, Plugins, Extensions, and Built-In customizations as collapsible parent nodes in a tree.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
@@ -3186,7 +3186,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible Workspace and User groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap.'],
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible User and Workspace groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
@@ -3472,7 +3472,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginCatalogHome: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page shows separate Workspace and User sections plus Available, with no Featured section.'],
+		expectedVisualDescriptions: ['The Plugins page shows separate User and Workspace sections plus Available, with no Featured section.'],
 		render: renderPluginHomeMode,
 	}),
 
