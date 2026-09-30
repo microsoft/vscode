@@ -3459,12 +3459,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _downloadProgress: AgentHostDownloadProgress;
 
 	/**
-	 * Temporary session that has been sent (first turn dispatched) but not yet
+	 * Temporary sessions that have been sent (first turn dispatched) but not yet
 	 * committed by the backend session list. Shown in the session list until the
-	 * server reports the backend session, at which point it is replaced via
+	 * server reports each backend session, at which point it is replaced via
 	 * {@link _onDidReplaceSession}.
 	 */
-	protected _pendingSession: ISession | undefined;
+	protected readonly _pendingSessions = new Map<string, ISession>();
 
 	/**
 	 * In-flight new sessions — sessions being composed in the new-chat view
@@ -4063,18 +4063,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Subclasses whose `_shouldAdvertiseAgent` can change at runtime MUST
 		// fire `onDidChangeSessions` when it does, so consumers re-query and
 		// re-filter (see the local provider's `preferAgentHost` listener).
-		const pendingSession = this._pendingSession;
+		const pendingSessions = [...this._pendingSessions.values()];
 		const sessions: ISession[] = [];
 		for (const cached of this._sessionCache.values()) {
-			if (pendingSession && isEqual(cached.resource, pendingSession.resource)) {
+			if (pendingSessions.some(pendingSession => isEqual(cached.resource, pendingSession.resource))) {
 				continue;
 			}
 			if (this._shouldAdvertiseAgent(cached.agentProvider)) {
 				sessions.push(cached);
 			}
 		}
-		if (pendingSession && this._shouldAdvertiseAgent(pendingSession.sessionType)) {
-			sessions.push(pendingSession);
+		for (const pendingSession of pendingSessions) {
+			if (this._shouldAdvertiseAgent(pendingSession.sessionType)) {
+				sessions.push(pendingSession);
+			}
 		}
 		return sessions;
 	}
@@ -4180,8 +4182,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		for (const newSession of this._newSessions.values()) {
 			sessions.set(newSession.session.resource.toString(), newSession.session);
 		}
-		if (this._pendingSession) {
-			sessions.set(this._pendingSession.resource.toString(), this._pendingSession);
+		for (const pendingSession of this._pendingSessions.values()) {
+			sessions.set(pendingSession.resource.toString(), pendingSession);
 		}
 		return [...sessions.values()];
 	}
@@ -4193,8 +4195,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 		}
 
-		if (this._pendingSession?.resource.toString() === resource.toString()) {
-			return this._pendingSession;
+		for (const pendingSession of this._pendingSessions.values()) {
+			if (pendingSession.resource.toString() === resource.toString()) {
+				return pendingSession;
+			}
 		}
 
 		this._ensureSessionCache();
@@ -6351,7 +6355,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// by the committed AgentHostSession once it arrives.
 		newSession.setTitle((options.title || query.split('\n')[0]).substring(0, 100) || newSession.untitledTitle);
 		const skeleton = newSession.session;
-		this._pendingSession = skeleton;
+		this._pendingSessions.set(newSession.sessionId, skeleton);
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
 
 		try {
@@ -6381,7 +6385,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				// Clear the pending session before firing the replace event so
 				// that any synchronous listener calling getSessions() sees only
 				// the committed session and not both.
-				this._pendingSession = undefined;
+				this._pendingSessions.delete(newSession.sessionId);
 				this._onDidReplaceSession.fire({ from: skeleton, to: committedSession });
 				return committedSession;
 			}
@@ -6390,7 +6394,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} finally {
 			// Defensive clear: covers the failure path where the try block
 			// never reached the explicit clear above.
-			this._pendingSession = undefined;
+			this._pendingSessions.delete(newSession.sessionId);
 		}
 
 		// On failure: drop the eager subscription without firing
@@ -7137,9 +7141,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 			const removed: ISession[] = [];
 			this._onHostListedSessions(currentKeys);
-			// Some hosts briefly omit the just-sent eager session from listSessions.
-			// Keep the pending session visible until sendRequest graduates it.
-			const pendingRawId = this._pendingSession?.resource.path.replace(/^\//, '');
+			// Some hosts briefly omit just-sent eager sessions from listSessions.
+			// Keep pending sessions visible until their sendRequest graduates them.
+			const pendingRawIds = new Set([...this._pendingSessions.values()]
+				.map(session => session.resource.path.replace(/^\//, '')));
 			// The host aggregates one listing across all of its agents, and an
 			// agent that cannot enumerate yet (its SDK is not downloaded) can
 			// contribute an empty list rather than failing. When other agents
@@ -7153,7 +7158,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const evictUnlistedAgents = listedAgentProviders.size === 0;
 			for (const [key, cached] of this._sessionCache) {
 				if (!currentKeys.has(key)) {
-					if (key === pendingRawId) {
+					if (pendingRawIds.has(key)) {
 						continue;
 					}
 					if (!this._isSessionEvictable(key)) {

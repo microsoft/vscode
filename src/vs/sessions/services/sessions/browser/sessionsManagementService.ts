@@ -87,7 +87,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
-	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; readonly input?: Pick<ISendRequestOptions, 'query' | 'attachedContext'>; count: number }>();
+	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; readonly input?: Pick<ISendRequestOptions, 'query' | 'attachedContext'>; readonly published: boolean; count: number }>();
 	private readonly _explicitlyMarkedUnreadSessions = new ResourceSet();
 
 	/**
@@ -236,7 +236,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// `getSessionForChatResource`) use the raw merged set so a hidden EH row can
 		// still be resolved by resource, and {@link resolveSessionResource} redirects
 		// it to its agent-host twin when it is opened.
-		return this._dedupeMigratedCopilotCliSessions(this._getMergedSessions());
+		const sessions = this._getMergedSessions();
+		for (const { session } of this._inFlightNewSessionRequests.values()) {
+			if (!sessions.some(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, session.resource))) {
+				sessions.push(session);
+			}
+		}
+		return this._dedupeMigratedCopilotCliSessions(sessions);
 	}
 
 	getInFlightNewSessionRequests(): readonly ISession[] {
@@ -252,17 +258,30 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (entry) {
 			entry.count++;
 		} else {
+			const published = !this._getMergedSessions().some(candidate =>
+				this.uriIdentityService.extUri.isEqual(candidate.resource, session.resource));
 			this._inFlightNewSessionRequests.set(session.resource, {
 				session,
 				input: options ? { query: options.query, attachedContext: options.attachedContext?.slice() } : undefined,
+				published,
 				count: 1,
 			});
+			if (published) {
+				this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
+			}
 		}
 
 		return toDisposable(() => {
 			const current = this._inFlightNewSessionRequests.get(session.resource);
 			if (current?.count === 1) {
 				this._inFlightNewSessionRequests.delete(session.resource);
+				if (current.published) {
+					const listedSession = this._getMergedSessions().find(candidate =>
+						this.uriIdentityService.extUri.isEqual(candidate.resource, session.resource));
+					this._onDidChangeSessions.fire(listedSession
+						? { added: [], removed: [], changed: [listedSession] }
+						: { added: [], removed: [], changed: [] });
+				}
 			} else if (current) {
 				current.count--;
 			}

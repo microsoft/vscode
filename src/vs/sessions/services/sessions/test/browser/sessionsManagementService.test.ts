@@ -3437,6 +3437,51 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get(), undefined);
 	});
 
+	test('createAndSendNewChatRequest publishes the session while its first request is in flight', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			status: constObservable(SessionStatus.Untitled),
+		});
+		const configurationStarted = new DeferredPromise<void>();
+		const configurationBarrier = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return []; }
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override async getNewSessionConfig() {
+				configurationStarted.complete();
+				await configurationBarrier.p;
+				return undefined;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const changes: Array<{ added: string[]; removed: string[]; changed: string[] }> = [];
+		disposables.add(service.onDidChangeSessions(event => changes.push({
+			added: event.added.map(session => session.sessionId),
+			removed: event.removed.map(session => session.sessionId),
+			changed: event.changed.map(session => session.sessionId),
+		})));
+
+		const sending = service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' });
+		await configurationStarted.p;
+		const duringConfiguration = service.getSessions().map(session => session.sessionId);
+		configurationBarrier.complete();
+		await sending;
+
+		assert.deepStrictEqual({
+			duringConfiguration,
+			afterSend: service.getSessions().map(session => session.sessionId),
+			changes,
+		}, {
+			duringConfiguration: ['s1'],
+			afterSend: [],
+			changes: [
+				{ added: ['s1'], removed: [], changed: [] },
+				{ added: [], removed: [], changed: [] },
+			],
+		});
+	});
+
 	test('createAndSendNewChatRequest restores Automation configuration during draft creation', async () => {
 		const session = stubSession({
 			sessionId: 's1',
