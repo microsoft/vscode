@@ -4,12 +4,6 @@ parameters:
   - name: VSCODE_TEST_IDS
     type: object
     default: []
-  - name: VSCODE_RUN_ELECTRON_TESTS
-    type: boolean
-  - name: VSCODE_RUN_BROWSER_TESTS
-    type: boolean
-  - name: VSCODE_RUN_REMOTE_TESTS
-    type: boolean
 
 # Each test task records a checkpoint once it passes, and retries of the job
 # skip the test tasks that already passed in an earlier attempt of the same
@@ -32,7 +26,7 @@ steps:
     displayName: Download Electron and Playwright
     retryCountOnTaskFailure: 3
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'unit-electron'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-electron') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: unit-electron
@@ -43,7 +37,7 @@ steps:
           displayName: 🧪 Run unit tests (Electron)
           timeoutInMinutes: 30
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'unit-node'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-node') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: unit-node
@@ -56,7 +50,7 @@ steps:
           displayName: 🧪 Run unit tests (node.js)
           timeoutInMinutes: 30
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'unit-browser-chromium'), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true)) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-browser-chromium') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: unit-browser-chromium
@@ -106,7 +100,7 @@ steps:
       Copy-Item -Path "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web" -Destination "$TestDir\vscode-server-win32-$(VSCODE_ARCH)-web" -Recurse -Force
     displayName: Copy builds to test directory
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-electron
@@ -129,7 +123,7 @@ steps:
           displayName: 🧪 Run integration tests (Electron)
           timeoutInMinutes: 30
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-firefox'), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true)) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-firefox') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-browser-firefox
@@ -142,7 +136,7 @@ steps:
           displayName: 🧪 Run integration tests (Browser, Firefox)
           timeoutInMinutes: 30
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-remote
@@ -172,7 +166,7 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron') }}:
     # The WSL Dev Container setup only serves the Electron smoke tests, so it
     # is skipped together with them when they already passed in this run.
     - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
@@ -224,7 +218,7 @@ steps:
           WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
           WSL_SMOKE_ROOT: $(WSL_SMOKE_ROOT)
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true)) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-browser-chromium
@@ -235,7 +229,7 @@ steps:
           displayName: 🧪 Run smoke tests (Browser, Chromium)
           timeoutInMinutes: 30
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote'), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-remote
@@ -252,7 +246,7 @@ steps:
     condition: succeededOrFailed()
 
   # The copilot ID runs all three checkpointed Copilot tests with shared setup.
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'copilot'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
     - template: ../../copilot/test-integration-steps.yml@self
       parameters:
         OS: win32

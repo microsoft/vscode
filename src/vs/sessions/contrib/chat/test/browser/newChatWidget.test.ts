@@ -206,7 +206,7 @@ interface ISyncWorkspacePickerHarness {
 }
 
 interface ISessionCountHarness {
-	readonly storageService: { getNumber(key: string, scope: unknown, defaultValue: number): number };
+	readonly _usage: { readonly createdSessionCount: number };
 }
 
 interface ISessionOptionsPersistenceHarness {
@@ -1790,7 +1790,7 @@ suite('NewChatWidget', () => {
 
 	test('only allows first-run notices once the session count threshold is reached', () => {
 		const eligibility = [0, 1, 2, 5].map(sessionCount => hasEnoughSessionsForFirstRunNotices.call({
-			storageService: { getNumber: () => sessionCount },
+			_usage: { createdSessionCount: sessionCount },
 		}));
 
 		assert.deepStrictEqual(eligibility, [false, false, true, true]);

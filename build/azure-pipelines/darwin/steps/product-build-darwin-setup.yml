@@ -7,25 +7,16 @@ parameters:
   - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
     type: boolean
     default: false
-  - name: VSCODE_RUN_ELECTRON_TESTS
-    type: boolean
-    default: false
-  - name: VSCODE_RUN_BROWSER_TESTS
-    type: boolean
-    default: false
-  - name: VSCODE_RUN_REMOTE_TESTS
-    type: boolean
-    default: false
 
 # Checks out the sources and installs the dependencies that every macOS job
 # needs regardless of whether it compiles, tests or packages the product.
 steps:
   - template: ../../common/checkout.yml@self
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'copilot'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
     - template: ../../copilot/pull-test-cache.yml@self
 
-  - ${{ if or(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+  - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - template: ../../common/ensure-test-artifact-directories.yml@self
 
   - task: NodeTool@0
