@@ -95,35 +95,22 @@
 
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-quick-chat-header {
 	width: 100%;
-	margin: var(--vscode-spacing-size120) 0 0;
+	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size40);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80) var(--vscode-spacing-size60);
 	background-color: var(--vscode-editorWidget-background, var(--session-view-background));
-	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 .new-session-workspace-picker-container .sessions-workspace-category-picker.new-chat-session-options {
-	position: relative;
 	width: fit-content;
 	max-width: 100%;
-	margin: 0;
+	margin: 0 0 var(--vscode-spacing-size40);
 	flex-wrap: nowrap;
 	gap: 0;
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
 	background-color: var(--vscode-editorWidget-background, var(--session-view-background));
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-bottom: 0;
-	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
-}
-
-.new-session-workspace-picker-container .sessions-workspace-category-picker.new-chat-session-options::after {
-	content: '';
-	position: absolute;
-	top: 100%;
-	right: 0;
-	left: var(--vscode-cornerRadius-large);
-	height: var(--vscode-cornerRadius-large);
-	background-color: var(--vscode-editorWidget-background, var(--session-view-background));
-	pointer-events: none;
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 /* Getting-started tip demoted below the input in the experimental composer, matching

@@ -583,8 +583,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		assert(!!(optionsTray.compareDocumentPosition(promptBox) & Node.DOCUMENT_POSITION_FOLLOWING),
 			'The tray must precede the prompt in reading and keyboard order.');
 		if (!phoneLayout) {
-			assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
-				'The collapsed tray must join the top of the prompt.');
+			const trayGap = parseFloat(getComputedStyle(optionsTray).marginBottom);
+			assert(trayGap > 0 && Math.abs(promptBounds.top - collapsedTrayBounds.bottom - trayGap) < 1,
+				'The collapsed tray must float above the prompt.');
 		}
 		assert(collapsedTrayBounds.width < promptBounds.width, 'The collapsed tray must fit its controls, not the prompt width.');
 		if (collapsedSessionOptionsShowIcons) {
@@ -610,13 +611,14 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				'Expanding the tray must compact pickers rather than increase its height.');
 		}
 		if (!phoneLayout) {
-			assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
-				'The tray must remain joined to the top of the prompt after expansion.');
+			const trayGap = parseFloat(getComputedStyle(optionsTray).marginBottom);
+			assert(trayGap > 0 && Math.abs(promptBox.getBoundingClientRect().top - trayBounds.bottom - trayGap) < 1,
+				'The tray must remain floating above the prompt after expansion.');
 		}
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
 		assert(parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0
-			&& trayStyle.borderBottomLeftRadius === '0px' && trayStyle.borderBottomRightRadius === '0px',
-			'The tray must round its outer top corners and keep its joined bottom edge square.');
+			&& parseFloat(trayStyle.borderBottomLeftRadius) > 0 && parseFloat(trayStyle.borderBottomRightRadius) > 0,
+			'The floating tray must round every corner.');
 		assert(trayBounds.left >= promptBounds.left - 1 && trayBounds.right <= promptBounds.right + 1,
 			'The tray must fit within the prompt width.');
 		if (phoneLayout) {
