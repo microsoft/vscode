@@ -25,6 +25,7 @@ import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setN
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
+import '../../browser/parts/media/chatCompositeBar.css';
 
 interface IViewSize { width: number; height: number }
 
@@ -450,6 +451,140 @@ suite('Sessions - Workbench', () => {
 
 		try {
 			assert.strictEqual(mainWindow.getComputedStyle(mainRow).alignItems, 'center');
+		} finally {
+			root.remove();
+		}
+	});
+
+	test('matches only the Agents cards next to macOS window corners', () => {
+		const root = document.createElement('div');
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-zoom-factor: 1;';
+		const grid = document.createElement('div');
+		grid.className = 'monaco-grid-view';
+		root.appendChild(grid);
+		const createPart = (classes: string) => {
+			const part = document.createElement('div');
+			part.className = `part ${classes}`;
+			grid.appendChild(part);
+			return part;
+		};
+		const sessions = createPart('sessionspart agents-part-card');
+		const sessionView = document.createElement('div');
+		sessionView.className = 'session-view session-grid-bottom-left session-grid-bottom-right';
+		sessions.appendChild(sessionView);
+		const internalSessionView = document.createElement('div');
+		internalSessionView.className = 'session-view';
+		sessions.appendChild(internalSessionView);
+		const customView = createPart('customviewgrid agents-part-card');
+		const editor = createPart('editor');
+		const auxiliaryBar = createPart('auxiliarybar');
+		const panel = createPart('panel');
+		const connectedTabs = 'modern-ui-tabs modern-ui-connected-editor-tabs';
+		const corners = (part: HTMLElement, classes: string, pseudoElement?: string) => {
+			root.className = `monaco-workbench agent-sessions-workbench mac macos-tahoe ${classes}`;
+			const style = mainWindow.getComputedStyle(part, pseudoElement);
+			return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
+		};
+		document.body.appendChild(root);
+
+		try {
+			assert.deepStrictEqual({
+				sessions: corners(sessions, 'nopanel noeditorpane'),
+				sessionsWithoutSidebar: corners(sessions, 'nopanel noeditorpane nosidebar'),
+				sessionsBesideEditor: corners(sessions, 'nopanel noauxiliarybar'),
+				sessionsBesideEditorWithoutSidebar: corners(sessions, 'nopanel noauxiliarybar nosidebar'),
+				sessionView: corners(sessionView, `${connectedTabs} nopanel noeditorpane`),
+				sessionViewWithoutSidebar: corners(sessionView, `${connectedTabs} nopanel noeditorpane nosidebar`),
+				sessionViewBesideEditor: corners(sessionView, `${connectedTabs} nopanel noauxiliarybar`),
+				sessionViewBesideEditorWithoutSidebar: corners(sessionView, `${connectedTabs} nopanel noauxiliarybar nosidebar`),
+				sessionViewAbovePanel: corners(sessionView, `${connectedTabs} noeditorpane nosidebar`),
+				sessionViewBorder: corners(sessionView, `${connectedTabs} nopanel noeditorpane nosidebar`, '::after'),
+				internalSessionView: corners(internalSessionView, `${connectedTabs} nopanel noeditorpane nosidebar`),
+				sessionViewWithoutConnectedTabs: corners(sessionView, 'modern-ui-tabs nopanel noeditorpane nosidebar'),
+				sessionViewWithoutModernTabs: corners(sessionView, 'modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar'),
+				customView: corners(customView, 'nopanel noeditorpane nosessionspart'),
+				editor: corners(editor, 'nopanel noauxiliarybar'),
+				dockedEditor: corners(editor, 'nopanel dock-detail-panel'),
+				editorBesideDetails: corners(editor, 'nopanel'),
+				details: corners(auxiliaryBar, 'nopanel'),
+				detailsWithoutEditor: corners(auxiliaryBar, 'nopanel nomaineditorarea'),
+				sessionsAbovePanel: corners(sessions, 'noeditorpane'),
+				editorAbovePanel: corners(editor, 'noauxiliarybar'),
+				panel: corners(panel, ''),
+			}, {
+				sessions: ['8px', '8px', '12px', '8px'],
+				sessionsWithoutSidebar: ['8px', '8px', '12px', '12px'],
+				sessionsBesideEditor: ['8px', '8px', '8px', '8px'],
+				sessionsBesideEditorWithoutSidebar: ['8px', '8px', '8px', '12px'],
+				sessionView: ['7px', '7px', '11px', '7px'],
+				sessionViewWithoutSidebar: ['7px', '7px', '11px', '11px'],
+				sessionViewBesideEditor: ['7px', '7px', '7px', '7px'],
+				sessionViewBesideEditorWithoutSidebar: ['7px', '7px', '7px', '11px'],
+				sessionViewAbovePanel: ['7px', '7px', '7px', '7px'],
+				sessionViewBorder: ['7px', '7px', '11px', '11px'],
+				internalSessionView: ['7px', '7px', '7px', '7px'],
+				sessionViewWithoutConnectedTabs: ['0px', '0px', '0px', '0px'],
+				sessionViewWithoutModernTabs: ['0px', '0px', '0px', '0px'],
+				customView: ['8px', '8px', '12px', '8px'],
+				editor: ['8px', '8px', '12px', '8px'],
+				dockedEditor: ['8px', '8px', '12px', '8px'],
+				editorBesideDetails: ['8px', '0px', '0px', '8px'],
+				details: ['0px', '8px', '12px', '0px'],
+				detailsWithoutEditor: ['8px', '8px', '12px', '8px'],
+				sessionsAbovePanel: ['8px', '8px', '8px', '8px'],
+				editorAbovePanel: ['8px', '8px', '8px', '8px'],
+				panel: ['8px', '8px', '12px', '8px'],
+			});
+		} finally {
+			root.remove();
+		}
+	});
+
+	test('keeps Agents window corner geometry native-only and zoom-aware', () => {
+		const root = document.createElement('div');
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px;';
+		const card = document.createElement('div');
+		card.className = 'part sessionspart agents-part-card';
+		const sessionView = document.createElement('div');
+		sessionView.className = 'session-view session-grid-bottom-left session-grid-bottom-right';
+		card.appendChild(sessionView);
+		root.appendChild(card);
+		document.body.appendChild(root);
+		const radius = (classes: string, zoomFactor = 1) => {
+			root.className = `monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs nopanel noeditorpane ${classes}`;
+			root.style.setProperty('--window-zoom-factor', String(zoomFactor));
+			return [
+				mainWindow.getComputedStyle(card).borderBottomRightRadius,
+				mainWindow.getComputedStyle(sessionView).borderBottomRightRadius,
+			];
+		};
+
+		try {
+			assert.deepStrictEqual({
+				tahoe: radius('mac macos-tahoe'),
+				olderMacOS: radius('mac'),
+				zoomedIn: radius('mac macos-tahoe', 2),
+				zoomedOut: radius('mac macos-tahoe', 0.5),
+				clamped: radius('mac macos-tahoe', 4),
+				highContrast: radius('mac macos-tahoe hc-black'),
+				fullscreen: radius('mac macos-tahoe fullscreen'),
+				web: radius('mac macos-tahoe web'),
+				phone: radius('mac macos-tahoe phone-layout'),
+				windows: radius('windows'),
+				linux: radius('linux'),
+			}, {
+				tahoe: ['12px', '11px'],
+				olderMacOS: ['6px', '5px'],
+				zoomedIn: ['4px', '3px'],
+				zoomedOut: ['28px', '27px'],
+				clamped: ['0px', '0px'],
+				highContrast: ['12px', '11px'],
+				fullscreen: ['8px', '7px'],
+				web: ['8px', '7px'],
+				phone: ['0px', '0px'],
+				windows: ['8px', '7px'],
+				linux: ['8px', '7px'],
+			});
 		} finally {
 			root.remove();
 		}
@@ -2352,6 +2487,58 @@ suite('Sessions - Workbench', () => {
 			},
 			sashState: SashState.Enabled,
 		});
+
+		controller.dispose();
+	});
+
+	test('keeps the rendered detail width while the outer pane grows until the editor is comfortable', () => {
+		const editorContainer = document.createElement('div');
+		const auxiliaryBarContainer = document.createElement('div');
+		const layouts: { editorWidth: number; auxiliaryBarWidth: number }[] = [];
+		let editorWidth = 1200;
+
+		Object.defineProperty(editorContainer, 'clientWidth', { get: () => editorWidth });
+		Object.defineProperty(editorContainer, 'clientHeight', { value: 600 });
+		editorContainer.getBoundingClientRect = () => ({
+			width: editorWidth,
+			height: 600,
+			top: 0,
+			right: editorWidth,
+			bottom: 600,
+			left: 0,
+			x: 0,
+			y: 0,
+			toJSON: () => undefined,
+		});
+
+		const auxiliaryBarPart = {
+			getContainer: () => auxiliaryBarContainer,
+			layout: (auxiliaryBarWidth: number) => layouts.push({ editorWidth: editorWidth - auxiliaryBarWidth, auxiliaryBarWidth }),
+		} as unknown as Part;
+		const host: IDockedAuxiliaryBarHost = {
+			getWidth: () => 820,
+			setWidth: () => { },
+			isEditorAreaVisible: () => true,
+			isEditorVisible: () => true,
+			isAuxiliaryBarVisible: () => true,
+			hideAuxiliaryBar: () => { },
+			setEditorContentRightInset: () => { },
+			getTabsHeight: () => 35,
+		};
+		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
+
+		for (editorWidth of [1200, 700, 900, 1300, 1400, 1500]) {
+			controller.layout();
+		}
+
+		assert.deepStrictEqual(layouts, [
+			{ editorWidth: 380, auxiliaryBarWidth: 820 },
+			{ editorWidth: 300, auxiliaryBarWidth: 400 },
+			{ editorWidth: 500, auxiliaryBarWidth: 400 },
+			{ editorWidth: 900, auxiliaryBarWidth: 400 },
+			{ editorWidth: 1000, auxiliaryBarWidth: 400 },
+			{ editorWidth: 1000, auxiliaryBarWidth: 500 },
+		]);
 
 		controller.dispose();
 	});

@@ -120,7 +120,7 @@ function buildAutoRoutingContext(
 
 // Auto model delegates to different backends, so the only picker it exposes is
 // the routing tier; per-model options belong to the model it routes to.
-function buildConfigurationSchema(endpoint: IChatEndpoint, opusDefaultEffort: string | undefined): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(endpoint: IChatEndpoint, claudeDefaultEffort: string | undefined): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	if (endpoint instanceof AutoChatEndpoint) {
 		return { configurationSchema: { properties: { [AUTO_MODE_TIER_PROPERTY]: buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier) } } };
 	}
@@ -131,7 +131,7 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, opusDefaultEffort: st
 	const effortLevels = endpoint.supportsReasoningEffort;
 	if (effortLevels && effortLevels.length > 1) {
 		const family = endpoint.family.toLowerCase();
-		const defaultOverride = family.includes('opus') ? opusDefaultEffort : undefined;
+		const defaultOverride = family.startsWith('claude') ? claudeDefaultEffort : undefined;
 		properties.reasoningEffort = buildReasoningEffortSchemaProperty(effortLevels, family, defaultOverride);
 	}
 
@@ -205,6 +205,7 @@ export function buildUtilityAliasModelInfo(
 			version: endpoint.version,
 			maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 			maxOutputTokens: endpoint.maxOutputTokens,
+			maxContextWindowTokens: endpoint.maxContextWindowTokens,
 			requiresAuthorization,
 			isUserSelectable: false,
 			isDefault: false,
@@ -297,7 +298,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			this._onDidChange.fire();
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.ClaudeOpusDefaultReasoningEffort.fullyQualifiedId)) {
+			if (e.affectsConfiguration(ConfigKey.ClaudeDefaultReasoningEffort.fullyQualifiedId)) {
 				this._onDidChange.fire();
 			}
 		}));
@@ -333,7 +334,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 
 		const seenFamilies = new Set<string>();
-		const opusDefaultEffort = this._configurationService.getExperimentBasedConfig(ConfigKey.ClaudeOpusDefaultReasoningEffort, this._expService) || undefined;
+		const claudeDefaultEffort = this._configurationService.getExperimentBasedConfig(ConfigKey.ClaudeDefaultReasoningEffort, this._expService) || undefined;
 
 		for (const endpoint of chatEndpoints) {
 			if (seenFamilies.has(endpoint.family) && !endpoint.showInModelPicker) {
@@ -397,6 +398,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				version: endpoint.version,
 				maxInputTokens: endpoint.modelMaxPromptTokens - baseCount - BaseTokensPerCompletion,
 				maxOutputTokens: endpoint.maxOutputTokens,
+				maxContextWindowTokens: endpoint.maxContextWindowTokens,
 				requiresAuthorization: session && { label: session.account.label },
 				isDefault: {
 					[ApiChatLocation.Panel]: isDefault,
@@ -412,7 +414,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,
 				},
-				...buildConfigurationSchema(endpoint, opusDefaultEffort),
+				...buildConfigurationSchema(endpoint, claudeDefaultEffort),
 			};
 
 			models.push(model);

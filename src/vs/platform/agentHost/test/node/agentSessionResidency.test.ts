@@ -15,7 +15,8 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { AgentSession } from '../../common/agent.js';
 import { IAgentHostSubscriptionService } from '../../common/agentHostSubscriptionService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { buildBranchChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -235,7 +236,8 @@ suite('AgentSessionResidency', () => {
 		['session', (session: URI) => session.toString()],
 		['default chat', (session: URI) => buildDefaultChatUri(session)],
 		['peer chat', (session: URI) => buildChatUri(session, 'peer')],
-		['branch changeset', (session: URI) => buildBranchChangesetUri(session.toString())],
+		['retained terminal', (session: URI) => buildNonPtyShellTerminalUri(session, session, buildDefaultChatUri(session), 'tool')],
+		['branch changeset', (session: URI) => buildBranchChangesetUri(buildFolderChangesetOwnerUri(session.toString(), 'workspace'))],
 		['uncommitted changeset', (session: URI) => buildUncommittedChangesetUri(session.toString())],
 	] as const) {
 		test(`keeps a session resident while its ${label} is subscribed`, async () => {

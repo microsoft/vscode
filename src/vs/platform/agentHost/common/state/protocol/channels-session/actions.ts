@@ -514,6 +514,31 @@ export interface SessionMcpServerStartRequestedAction {
 }
 
 /**
+ * Requests that the host background the startup of an existing
+ * {@link McpServerCustomization} that is currently blocking message
+ * processing (see {@link McpServerStartingState.blocking}), so that new
+ * messages can be processed without waiting for the server to finish
+ * starting.
+ *
+ * The server keeps starting in the background; backgrounding only stops the
+ * host from holding message processing on it. The reducer does **not** change
+ * state for this action. The host remains authoritative: when it accepts the
+ * request it SHOULD follow with
+ * {@link SessionMcpServerStateChangedAction | `session/mcpServerStateChanged`}
+ * clearing `blocking`. The host MAY ignore the request when the target server
+ * is not found or is not blocking.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionMcpServerBackgroundRequestedAction {
+	type: ActionType.SessionMcpServerBackgroundRequested;
+	/** The id of the {@link McpServerCustomization} to background. */
+	id: string;
+}
+
+/**
  * Requests that the host stop an existing {@link McpServerCustomization}.
  *
  * Locates the target entry by `id`, searching both the top-level

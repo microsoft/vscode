@@ -33,6 +33,8 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { InstallChatEvent, InstallChatClassification, ChatSetupStrategy } from '../../chat/browser/chatSetup/chatSetup.js';
+import { IChatMicrosoftSignInProbeService } from '../../chat/browser/chatSetup/chatSetupMicrosoftProbe.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import {
@@ -88,7 +90,8 @@ const defaultChat = product.defaultChatAgent;
  * tab. When dismissed, the welcome tab is revealed underneath.
  *
  * Steps:
- * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options
+ * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options, plus
+ *    Microsoft when {@link IChatMicrosoftSignInProbeService} offers it
  * 2. Personalize — Theme selection grid + keymap pills
  */
 export class OnboardingVariationA extends Disposable implements IOnboardingService {
@@ -146,6 +149,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IChatMicrosoftSignInProbeService private readonly microsoftSignInProbeService: IChatMicrosoftSignInProbeService,
 	) {
 		super();
 
@@ -557,6 +561,20 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			this._handleSignIn('apple');
 		}));
 
+		const microsoftBtn = this._registerStepFocusable(this._createSignInButton(actions, 'microsoft', localize('onboarding.signIn.microsoft', "Continue with Microsoft"), {
+			iconOnly: true,
+			label: localize('onboarding.signIn.microsoft', "Continue with Microsoft")
+		}));
+		this.stepDisposables.add(addDisposableListener(microsoftBtn, EventType.CLICK, () => {
+			this._logAction('signIn', undefined, 'microsoft');
+			this._handleSignIn(defaultChat.provider.microsoft.id);
+		}));
+		// Only offered once a linked Microsoft account is found, which can happen while this step shows.
+		this.microsoftSignInProbeService.notifySignInShown();
+		this.stepDisposables.add(autorun(reader => {
+			microsoftBtn.style.display = this.microsoftSignInProbeService.offerMicrosoftSignIn.read(reader) ? '' : 'none';
+		}));
+
 		const gheBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github-enterprise', localize('onboarding.signIn.ghe', "GHE"), {
 			textOnly: true,
 			label: localize('onboarding.signIn.ghe.aria', "Continue with GitHub Enterprise")
@@ -679,7 +697,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}
 	}
 
-	private _createSignInButton(parent: HTMLElement, providerClass: 'github' | 'github-enterprise' | 'google' | 'apple', label: string, options?: { emphasized?: boolean; iconOnly?: boolean; textOnly?: boolean; label?: string }): HTMLButtonElement {
+	private _createSignInButton(parent: HTMLElement, providerClass: 'github' | 'github-enterprise' | 'google' | 'apple' | 'microsoft', label: string, options?: { emphasized?: boolean; iconOnly?: boolean; textOnly?: boolean; label?: string }): HTMLButtonElement {
 		const isCompact = options?.iconOnly || options?.textOnly;
 		const btn = append(parent, $<HTMLButtonElement>(isCompact ? 'button.onboarding-a-signin-icon-btn' : 'button.onboarding-a-signin-btn'));
 		btn.type = 'button';
@@ -1115,13 +1133,17 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		return kbd;
 	}
 
-	private _createInlineLink(parent: HTMLElement, label: string, href: string): HTMLAnchorElement {
+	private _createInlineLink(parent: HTMLElement, label: string, href: string | undefined): void {
+		if (!href) {
+			parent.append(label);
+			return;
+		}
+
 		const link = this._registerStepFocusable(append(parent, $<HTMLAnchorElement>('a.onboarding-a-inline-link')));
 		link.textContent = label;
 		link.href = href;
 		link.target = '_blank';
 		link.rel = 'noopener';
-		return link;
 	}
 
 	// =====================================================================

@@ -1589,6 +1589,8 @@ export default defineConfig(
 						'inspector',
 						'minimist',
 						'node:module',
+						'node:url',
+						'node:v8',
 						'native-keymap',
 						'net',
 						'node-pty',
@@ -2012,8 +2014,6 @@ export default defineConfig(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/workbench/contrib/terminal/terminal.all.js',
-						'vs/sessions/common/theme.js', // side-effect import for color registry
-						'vs/sessions/common/sizes.js' // side-effect import for size registry
 					]
 				},
 				{
@@ -2088,7 +2088,7 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-node.ts,bootstrap-server.ts,cli.ts,main.ts,server-cli.ts,server-main.ts}',
+					'target': 'src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-node.ts,bootstrap-server.ts,cli.ts,main.ts,mainImpl.ts,server-cli.ts,server-main.ts}',
 					'restrictions': [
 						'vs/**/common/*',
 						'vs/**/node/*',

@@ -442,15 +442,15 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 
 	/** Opens the classic non-wizard reporter in an auxiliary window. */
 	async openAuxIssueReporterLegacy(data: IssueReporterData): Promise<void> {
-		await this.openAuxIssueReporter(data);
+		const disposables = await this.openAuxIssueReporter(data);
 
 		if (this.issueReporterWindow) {
-			const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow);
+			const issueReporter = disposables.add(this.instantiationService.createInstance(IssueWebReporter, false, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow));
 			issueReporter.render();
 		}
 	}
 
-	async openAuxIssueReporter(data: IssueReporterData, bounds?: IRectangle): Promise<void> {
+	async openAuxIssueReporter(data: IssueReporterData, bounds?: IRectangle): Promise<DisposableStore> {
 
 		let issueReporterBounds: Partial<IRectangle> = { width: 700, height: 800 };
 
@@ -522,6 +522,8 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			disposables.dispose();
 			this.issueReporterWindow = null;
 		});
+
+		return disposables;
 	}
 
 	async sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined> {

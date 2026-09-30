@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChannelClient, IChannelServer, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -20,13 +21,16 @@ import { TestNotificationService } from '../../../notification/test/common/testN
 import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
-import { isFatalAgentHostStartError, toFatalAgentHostStartError } from '../../common/agent.js';
+import { IMcpNotification, isFatalAgentHostStartError, toFatalAgentHostStartError } from '../../common/agent.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL } from '../../common/agentHostClientProxyChannel.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../../common/agentHostClientByokLmChannel.js';
 import { AgentHostClientType, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostStartupTelemetry } from '../../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import { AgentHostOTelEnabledSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelPolicyState, IAgentHostOTelPolicyReadiness, IAgentHostOTelSettings } from '../../common/agentService.js';
+import { ActionEnvelope, ActionType, INotification, NotificationType } from '../../common/state/sessionActions.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import { LocalAgentHostManagementConnection, LocalAgentHostServiceClient, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
 
 class CapturingNotificationService extends TestNotificationService {
@@ -47,6 +51,179 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 		}
 	}
 }
+
+suite('LocalAgentHostServiceClient events', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const action: ActionEnvelope = {
+		channel: ROOT_STATE_URI,
+		action: { type: ActionType.RootConfigChanged, config: {} },
+		serverSeq: 1,
+		origin: undefined,
+	};
+	const notification: INotification = { type: NotificationType.SessionRemoved, channel: ROOT_STATE_URI, session: 'copilotcli:/test' };
+	const mcpNotification: IMcpNotification = { channel: 'mcp:/test', method: 'notifications/tools/list_changed' };
+	const expected = [action, notification, mcpNotification];
+
+	function createService(
+		configurationService = new TestConfigurationService(),
+		readiness: IAgentHostOTelPolicyReadiness = { isReady: () => true, onDidChange: Event.None },
+		sendOTelPolicy?: (policy: IAgentHostOTelSettings, ready: boolean) => void,
+	) {
+		const onDidAction = disposables.add(new Emitter<ActionEnvelope>());
+		const onDidNotification = disposables.add(new Emitter<INotification>());
+		const onMcpNotification = disposables.add(new Emitter<IMcpNotification>());
+		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
+		let connectCount = 0;
+		const fire = () => {
+			onDidAction.fire(action);
+			onDidNotification.fire(notification);
+			onMcpNotification.fire(mcpNotification);
+		};
+		const protocolClient = {
+			connect: async () => { connectCount++; fire(); },
+			onDidAction: onDidAction.event,
+			onDidNotification: onDidNotification.event,
+			onMcpNotification: onMcpNotification.event,
+			onDidChangeConnectionState: onDidChangeConnectionState.event,
+			onDidFatalClose: Event.None,
+			dispose: () => { },
+		};
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
+		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
+		instantiationService.stubInstance(AgentHostStartupTelemetry, {
+			protocolConnected: () => { },
+			connectionFailed: () => { },
+			dispose: () => { },
+		});
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo, readiness, sendOTelPolicy));
+		const received: (ActionEnvelope | INotification | IMcpNotification)[] = [];
+		const listen = () => {
+			const listeners = disposables.add(new DisposableStore());
+			listeners.add(service.onDidAction(event => received.push(event)));
+			listeners.add(service.onDidNotification(event => received.push(event)));
+			listeners.add(service.onMcpNotification(event => received.push(event)));
+			return listeners;
+		};
+		return {
+			service, received, listen, fire, onDidChangeConnectionState,
+			connectCount: () => connectCount,
+			listening: () => [onDidAction.hasListeners(), onDidNotification.hasListeners(), onMcpNotification.hasListeners()],
+		};
+	}
+
+	test('forwards readiness changes and keeps another window refresh from restarting the shared host', async () => {
+		class PolicyConfigurationService extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: value.value };
+			}
+
+			async setPolicy(enabled: boolean, endpoint: string): Promise<void> {
+				await this.setUserConfiguration(AgentHostOTelEnabledSettingId, enabled);
+				await this.setUserConfiguration(AgentHostOTelOtlpEndpointSettingId, endpoint);
+				const keys = [AgentHostOTelEnabledSettingId, AgentHostOTelOtlpEndpointSettingId];
+				this.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.DEFAULT,
+					affectedKeys: new Set(keys),
+					change: { keys, overrides: [] },
+					affectsConfiguration: section => keys.some(key => key.startsWith(section)),
+				});
+			}
+		}
+		const state = new AgentHostOTelPolicyState();
+		const forwarded: boolean[] = [];
+		const restartEndpoints: (string | undefined)[] = [];
+		let running = false;
+		const sendPolicy = (policy: IAgentHostOTelSettings, ready: boolean) => {
+			forwarded.push(ready);
+			if (state.update(policy, running, ready)) {
+				restartEndpoints.push(state.policy?.otlpEndpoint);
+				state.didStart();
+			}
+		};
+		const first = new PolicyConfigurationService();
+		createService(first, { isReady: () => true, onDidChange: Event.None }, sendPolicy);
+		await first.setPolicy(true, 'https://collector.example');
+		running = true;
+		state.didStart();
+
+		let ready = false;
+		const readinessChanged = disposables.add(new Emitter<void>());
+		const second = new PolicyConfigurationService();
+		createService(second, { isReady: () => ready, onDidChange: readinessChanged.event }, sendPolicy);
+		await second.setPolicy(false, '');
+		await second.setPolicy(true, 'https://collector.example');
+		ready = true;
+		readinessChanged.fire();
+		await second.setPolicy(true, 'https://collector.example');
+		await second.setPolicy(true, 'https://changed.example');
+
+		ready = false;
+		await second.setPolicy(false, '');
+		ready = true;
+		readinessChanged.fire(); // The refresh failed; identical values are now authoritative.
+		assert.deepStrictEqual({ forwarded, restartEndpoints }, {
+			forwarded: [true, false, false, true, true, false, true],
+			restartEndpoints: ['https://changed.example', ''],
+		});
+	});
+
+	test('forwards initial connection events to subscribers registered before start', () => {
+		const { service, received, listen } = createService();
+		listen();
+		service.startAgentHost();
+		assert.deepStrictEqual(received, expected);
+	});
+
+	test('preserves subscriptions across reconnects and repeated start calls', () => {
+		const { service, received, listen, fire, onDidChangeConnectionState, connectCount } = createService();
+		listen();
+		service.startAgentHost();
+		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
+		onDidChangeConnectionState.fire(AgentHostClientState.Reconnecting);
+		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
+		service.startAgentHost();
+		fire();
+		assert.deepStrictEqual({ received, connectCount: connectCount() }, {
+			received: [...expected, ...expected],
+			connectCount: 1,
+		});
+	});
+
+	test('detaches disposed listeners and accepts new listeners after start', () => {
+		const { service, received, listen, fire, listening } = createService();
+		const listeners = listen();
+		service.startAgentHost();
+		listeners.dispose();
+		fire();
+		const detached = listening();
+		listen();
+		fire();
+		assert.deepStrictEqual({ received, detached, listening: listening() }, {
+			received: [...expected, ...expected],
+			detached: [false, false, false],
+			listening: [true, true, true],
+		});
+	});
+
+	test('service disposal detaches all forwarded events', () => {
+		const { service, received, listen, fire, listening } = createService();
+		listen();
+		service.startAgentHost();
+		service.dispose();
+		fire();
+		assert.deepStrictEqual({ received, listening: listening() }, {
+			received: expected,
+			listening: [false, false, false],
+		});
+	});
+});
 
 /**
  * Regression coverage for the renderer reverse-RPC channel registration. The
@@ -123,6 +300,9 @@ suite('registerAgentHostClientChannels', () => {
 			connect: () => Promise.resolve(),
 			onDidChangeConnectionState: onDidChangeConnectionState.event,
 			onDidFatalClose: onDidFatalClose.event,
+			onDidAction: Event.None,
+			onDidNotification: Event.None,
+			onMcpNotification: Event.None,
 			initializeResult: constObservable(undefined),
 			rootState: {
 				value: undefined,
@@ -146,7 +326,7 @@ suite('registerAgentHostClientChannels', () => {
 		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
 		instantiationService.stubInstance(AgentHostStartupTelemetry, startupTelemetry);
 		instantiationService.set(IInstantiationService, instantiationService);
-		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo));
+		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo, { isReady: () => true, onDidChange: Event.None }, undefined));
 		service.startAgentHost();
 
 		onDidFatalClose.fire(new ProtocolError(-32000, 'fatal before connect'));
