@@ -13,6 +13,7 @@ import { AsyncIterableObject } from '../../../util/vs/base/common/async';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../chat/common/commonTypes';
+import { IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { ContextManagementResponse } from '../../networking/common/anthropic';
 import { FinishedCallback, OpenAiFunctionTool, OptionalChatRequestParams } from '../../networking/common/fetch';
@@ -23,6 +24,7 @@ import { IOTelService, type OTelModelOptions } from '../../otel/common/otelServi
 import { retrieveCapturingTokenByCorrelation, storeCapturingTokenForCorrelation } from '../../requestLogger/node/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
+import { getModelCapabilityOverride, modelSupportsThinkingContentInHistory } from '../common/chatModelCapabilities';
 import { EndpointEditToolName, isEndpointEditToolName } from '../common/endpointProvider';
 import { CustomDataPartMimeTypes, modelVendorHandlesCacheBreakpoints } from '../common/endpointTypes';
 import { decodeStatefulMarker, encodeStatefulMarker, rawPartAsStatefulMarker } from '../common/statefulMarkerContainer';
@@ -54,15 +56,19 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	public readonly multiplier: number | undefined = undefined;
 	public readonly isExtensionContributed = true;
 	public readonly supportedEditTools?: readonly EndpointEditToolName[] | undefined;
+	public readonly supportsThinkingContentInHistory: boolean;
 
 	constructor(
 		private readonly languageModel: vscode.LanguageModelChat,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		// Initialize with the model's max tokens
 		this._maxTokens = languageModel.maxInputTokens;
 		this.supportedEditTools = languageModel.capabilities.editToolsHint?.filter(isEndpointEditToolName);
+		this.supportsThinkingContentInHistory = getModelCapabilityOverride(languageModel.id, configurationService)?.thinkingInHistory
+			?? modelSupportsThinkingContentInHistory(languageModel);
 	}
 
 	get modelProvider(): string {
