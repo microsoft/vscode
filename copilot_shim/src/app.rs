@@ -20,7 +20,10 @@ use crate::model::{
 	SupervisionMode,
 };
 #[cfg(any(windows, test))]
-use crate::model::{CommandArguments, CommandSpec, DiscoveredFileKind, LaunchAdapter, ProbeLimits};
+use crate::model::{
+	CommandArguments, CommandSpec, DiscoveredCandidate, DiscoveredFileKind, LaunchAdapter,
+	ProbeLimits,
+};
 use crate::runtime::prompt::INSTALL_DOCUMENTATION_URL;
 use crate::runtime::{InspectedFileType, PromptResponse, Runtime};
 use crate::setup;
@@ -325,7 +328,14 @@ fn prepare_workflow<R: Runtime>(
 			(DiscoveryCycle::Initial, CandidateSelection::Missing) => {
 				match request_install(runtime, target)? {
 					PromptResponse::Declined => return Ok(WorkflowAction::Exit(0)),
-					PromptResponse::Accepted => cycle = DiscoveryCycle::AfterInstall,
+					PromptResponse::Accepted => {
+						if let Some(candidate) =
+							installed_msi_candidate(runtime, target, interpreters)
+						{
+							return Ok(WorkflowAction::Launch(candidate));
+						}
+						cycle = DiscoveryCycle::AfterInstall;
+					}
 				}
 			}
 			(DiscoveryCycle::AfterInstall, CandidateSelection::Missing) => {
@@ -336,6 +346,49 @@ fn prepare_workflow<R: Runtime>(
 			}
 		}
 	}
+}
+
+/// The Copilot CLI that GitHub's per-user MSI installs, launched by its full path right after installing: the MSI adds
+/// its folder to the user PATH, which this process and its terminal don't see yet.
+#[cfg(any(windows, test))]
+fn installed_msi_candidate<R: Runtime>(
+	runtime: &R,
+	target: Option<HostTarget>,
+	interpreters: &Interpreters,
+) -> Option<Candidate> {
+	if !matches!(
+		target,
+		Some(HostTarget::WindowsX64 | HostTarget::WindowsArm64)
+	) {
+		return None;
+	}
+	let path = PathBuf::from(runtime.environment_variable("LOCALAPPDATA")?)
+		.join(setup::CLI_INSTALL_FOLDER)
+		.join("copilot.exe");
+	let inspection = runtime
+		.inspect_path(&path)
+		.ok()
+		.flatten()
+		.filter(|inspection| inspection.file_type == InspectedFileType::RegularFile)?;
+	let discovered = DiscoveredCandidate::new(
+		path,
+		inspection.canonical_path,
+		inspection.file_identity,
+		DiscoveredFileKind::WindowsExecutable,
+	);
+	match resolve_candidate(discovered, &interpreters.inventory) {
+		ResolvedCandidate::Usable(candidate) => Some(candidate),
+		ResolvedCandidate::Unusable(_) => None,
+	}
+}
+
+#[cfg(not(any(windows, test)))]
+fn installed_msi_candidate<R: Runtime>(
+	_runtime: &R,
+	_target: Option<HostTarget>,
+	_interpreters: &Interpreters,
+) -> Option<Candidate> {
+	None
 }
 
 pub(crate) fn run<R: Runtime>(
@@ -759,7 +812,6 @@ mod tests {
 			});
 		}
 
-		#[cfg(not(windows))]
 		fn push_prompt_response(&self, response: PromptResponse) {
 			self.prompt_responses.borrow_mut().push_back(response);
 		}
@@ -1272,6 +1324,36 @@ mod tests {
 				0,
 				true,
 			)
+		);
+	}
+
+	#[test]
+	fn windows_installs_launch_the_msi_cli_by_its_full_path() {
+		let runtime = FakeRuntime::default();
+		runtime.add_directory(Path::new("/stale-path"));
+		runtime.set_path(&[Path::new("/stale-path")]);
+		runtime
+			.environment
+			.borrow_mut()
+			.insert(String::from("LOCALAPPDATA"), OsString::from("/local"));
+		let installed = Path::new("/local")
+			.join(setup::CLI_INSTALL_FOLDER)
+			.join("copilot.exe");
+		runtime.push_prompt_response(PromptResponse::Accepted);
+		// The interactive install succeeds and creates the CLI outside the terminal's PATH.
+		runtime.push_process_result(Ok(interactive_exit(0)));
+		runtime.push_process_result(Ok(interactive_exit(5)));
+		runtime.add_program(&installed);
+
+		let exit = run(
+			&runtime,
+			vec![OsString::from("-p")],
+			Some(HostTarget::WindowsX64),
+		);
+
+		assert_eq!(
+			(exit, runtime.prompts.borrow().len(), programs(&runtime)),
+			(5, 1, vec![PathBuf::from("/shim"), installed])
 		);
 	}
 
