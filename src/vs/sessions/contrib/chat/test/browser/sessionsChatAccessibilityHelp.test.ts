@@ -91,7 +91,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		]);
 	});
 
-	test('describes teaching the pet with /pet and Taught Moves', () => {
+	test('describes teaching the pet with /pet and the Sprites and Interactions pages', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -104,9 +104,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.deepStrictEqual({
-			command: content.includes('type /pet followed by a request to have the agent teach it'),
-			taughtMoves: content.includes('open its context menu and choose Taught Moves'),
-		}, { command: true, taughtMoves: true });
+			command: content.includes('/pet'),
+			pages: content.includes('choose Interactions') && content.includes('Sprites'),
+			petsFile: content.includes('pets.md'),
+		}, { command: true, pages: true, petsFile: true });
 	});
 
 	test('describes automatic external session adoption', () => {

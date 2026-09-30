@@ -10,10 +10,21 @@ import { CHAT_PET_MOVE_CELL_SIZE, getChatPetMoveDuration, getChatPetMoveFacingRo
 const MAX_LOOP_PLAYBACK_DURATION = 4_000;
 const MIN_LOOP_PLAYBACK_DURATION = 2_000;
 
-/** How long a taught move plays as a reaction: once for one-shot moves, a couple of loops (at most 4 s) for looping ones. */
+/**
+ * How many times a looping move plays as a reaction: a couple of loops, more for short moves to
+ * reach 2 s and fewer for long ones to stay within 4 s, but always whole loops and at least one,
+ * so playback ends on the move's last frame, its settle, rather than mid-cycle.
+ */
+export function getChatPetMoveLoopIterations(move: IChatPetMove): number {
+	const total = Math.max(1, getChatPetMoveDuration(move));
+	const wanted = Math.max(2, Math.ceil(MIN_LOOP_PLAYBACK_DURATION / total));
+	return Math.max(1, Math.min(Math.floor(MAX_LOOP_PLAYBACK_DURATION / total), wanted));
+}
+
+/** How long a taught move plays as a reaction: once for one-shot moves, whole loops for looping ones. */
 export function getChatPetMovePlaybackDuration(move: IChatPetMove): number {
 	const total = getChatPetMoveDuration(move);
-	return move.loop ? Math.min(MAX_LOOP_PLAYBACK_DURATION, Math.max(MIN_LOOP_PLAYBACK_DURATION, total * 2)) : total;
+	return move.loop ? getChatPetMoveLoopIterations(move) * total : total;
 }
 
 /** Paints move rows with their top-left pixel at `left`, `top`, one square of `size` per letter. */
@@ -29,14 +40,27 @@ function paintChatPetRows(context: CanvasRenderingContext2D, rows: readonly stri
 	});
 }
 
+/** Paints one frame of a move on a canvas sized to it, `cellSize` pixels per logical pixel, for previews. */
+export function paintChatPetMoveFrame(canvas: HTMLCanvasElement, move: IChatPetMove, frameIndex: number, variant: 'stable' | 'insiders', cellSize: number): void {
+	const rows = move.frames[frameIndex]?.rows ?? [];
+	canvas.width = (rows[0]?.length ?? 0) * cellSize;
+	canvas.height = rows.length * cellSize;
+	const context = canvas.getContext('2d');
+	if (context) {
+		paintChatPetRows(context, rows, getChatPetMovePalette(move, variant), 0, 0, cellSize);
+	}
+}
+
 /**
  * Draws a move's sprite sheets for a colorway and facing direction, as the pet plays its own: every
  * frame side by side, and the reduced-motion frame alone. The left-facing sheets are already
  * mirrored, with fixed-orientation letters kept readable, so the runtime must not mirror them again.
- * The canvas belongs to the main window: auxiliary windows can't create elements, and the sheets
- * are only data URLs.
+ * As a reaction, a looping move plays the whole loops of `getChatPetMoveLoopIterations` and then
+ * holds its last frame, so it never snaps back to idle mid-cycle; `holds` makes it loop for as long
+ * as it shows, in place of a state the pet holds, such as sleeping. The canvas belongs to the main
+ * window: auxiliary windows can't create elements, and the sheets are only data URLs.
  */
-export function renderChatPetMoveSheets(move: IChatPetMove, variant: 'stable' | 'insiders', facing: 'left' | 'right') {
+export function renderChatPetMoveSheets(move: IChatPetMove, variant: 'stable' | 'insiders', facing: 'left' | 'right', holds = false) {
 	const frameWidth = (move.frames[0]?.rows[0]?.length ?? 0) * CHAT_PET_MOVE_CELL_SIZE;
 	const frameHeight = (move.frames[0]?.rows.length ?? 0) * CHAT_PET_MOVE_CELL_SIZE;
 	const palette = getChatPetMovePalette(move, variant);
@@ -54,7 +78,7 @@ export function renderChatPetMoveSheets(move: IChatPetMove, variant: 'stable' | 
 		return canvas.toDataURL('image/png');
 	};
 	return {
-		animated: { url: draw(move.frames.map((_, index) => index)), frameWidth, frameHeight, frameDurations: move.frames.map(frame => frame.durationMs), iterations: move.loop ? Infinity : 1 },
+		animated: { url: draw(move.frames.map((_, index) => index)), frameWidth, frameHeight, frameDurations: move.frames.map(frame => frame.durationMs), iterations: move.loop ? (holds ? Infinity : getChatPetMoveLoopIterations(move)) : 1 },
 		reducedMotion: { url: draw([getChatPetMoveStillIndex(move)]), frameWidth, frameHeight, frameDurations: [], iterations: 1 },
 	};
 }

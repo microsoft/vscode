@@ -86,10 +86,16 @@ suite('ChatPetMoveSprites', () => {
 			leftEyes: leftSheet.rows[8].slice(0, 14),
 			insidersLight: insidersSheet.rows[8][3],
 			playback: getChatPetMovePlaybackDuration(move),
-			loopPlayback: [getChatPetMovePlaybackDuration({ ...move, loop: true }), getChatPetMovePlaybackDuration({ ...move, loop: true, frames: move.frames.map(frame => ({ ...frame, durationMs: 1_500 })) })],
+			// Whole loops: a 400 ms loop plays 5 times to reach 2 s, a 3 s loop once rather than 1.3 times, and the longest allowed, 5 s, once whole.
+			loopPlayback: [
+				getChatPetMovePlaybackDuration({ ...move, loop: true }),
+				getChatPetMovePlaybackDuration({ ...move, loop: true, frames: move.frames.map(frame => ({ ...frame, durationMs: 1_500 })) }),
+				getChatPetMovePlaybackDuration({ ...move, loop: true, frames: move.frames.map(frame => ({ ...frame, durationMs: 2_500 })) }),
+				getChatPetMovePlaybackDuration({ ...move, loop: true, frames: move.frames.map(frame => ({ ...frame, durationMs: 600 })) }),
+			],
 		}, {
 			frame: [112, 96, [100, 300]],
-			iterations: [1, Infinity, 1],
+			iterations: [1, 5, 1],
 			sheet: [224, 96],
 			// The still frame is the longest one, the crouch.
 			still: [112, 96, '.BAAACCCCCC...'],
@@ -100,7 +106,7 @@ suite('ChatPetMoveSprites', () => {
 			leftEyes: '..CCCECCECCAAB',
 			insidersLight: 'c',
 			playback: 400,
-			loopPlayback: [2_000, 4_000],
+			loopPlayback: [2_000, 3_000, 5_000, 2_400],
 		});
 	});
 

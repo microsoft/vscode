@@ -31,8 +31,9 @@ import { ICustomizationHarnessService } from '../common/customizationHarnessServ
 import { IAICustomizationItemSource, IAICustomizationListItem } from './aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from './aiCustomization/aiCustomizationItemsModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAchievementIds, isUserAuthoredChatPetCustomization } from './chatPetAchievements.js';
-import { ChatPetAchievementsContextKeys, ChatPetAchievementsEditor } from './chatPetAchievementsEditor.js';
+import { ChatPetAchievementsContextKeys, ChatPetAchievementsEditor, IChatPetAchievementsEditorOptions } from './chatPetAchievementsEditor.js';
 import { ChatPetAchievementsEditorInput } from './chatPetAchievementsEditorInput.js';
+import { CHAT_PET_OPEN_INTERACTIONS_COMMAND_ID, CHAT_PET_OPEN_SPRITES_COMMAND_ID } from './chatPetMoves.js';
 import { ChatPetContextKeys, IChatPetService } from './chatPetService.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -94,7 +95,46 @@ registerAction2(class extends Action2 {
 		if (!accessor.get(IChatPetService).enabled.get()) {
 			return;
 		}
-		await accessor.get(IEditorService).openEditor(ChatPetAchievementsEditorInput.getOrCreate(), { pinned: true });
+		const options: IChatPetAchievementsEditorOptions = { pinned: true, tab: 'achievements' };
+		await accessor.get(IEditorService).openEditor(ChatPetAchievementsEditorInput.getOrCreate(), options);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CHAT_PET_OPEN_SPRITES_COMMAND_ID,
+			title: localize2('chatPet.sprites.open', "Open Pet Sprites"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatPetContextKeys.enabled),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, args?: { readonly move?: string }): Promise<void> {
+		if (!accessor.get(IChatPetService).enabled.get()) {
+			return;
+		}
+		const options: IChatPetAchievementsEditorOptions = { pinned: true, tab: 'sprites', move: typeof args?.move === 'string' ? args.move : undefined };
+		await accessor.get(IEditorService).openEditor(ChatPetAchievementsEditorInput.getOrCreate(), options);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CHAT_PET_OPEN_INTERACTIONS_COMMAND_ID,
+			title: localize2('chatPet.interactions.open', "Open Pet Interactions"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatPetContextKeys.enabled),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, args?: { readonly move?: string }): Promise<void> {
+		if (!accessor.get(IChatPetService).enabled.get()) {
+			return;
+		}
+		const options: IChatPetAchievementsEditorOptions = { pinned: true, tab: 'interactions', move: typeof args?.move === 'string' ? args.move : undefined };
+		await accessor.get(IEditorService).openEditor(ChatPetAchievementsEditorInput.getOrCreate(), options);
 	}
 });
 
@@ -337,10 +377,12 @@ export class ChatPetAchievementsAccessibilityHelp implements IAccessibleViewImpl
 		const previouslyFocusedElement = DOM.getActiveElement();
 		const editorService = _accessor.get(IEditorService);
 		const content = [
-			localize('chatPet.achievements.accessibilityHelp.overview', "The Achievements modal lists agent-feature achievements and their pet hat rewards. Locked cards reveal a hint and reward while keeping the achievement name and exact unlock requirement hidden."),
-			localize('chatPet.achievements.accessibilityHelp.cards', "Use Tab and Shift+Tab to move through No Hat and the achievement cards. Press Enter or Space on No Hat or an unlocked achievement to change what the pet wears. Newly unlocked cards are announced as New until you activate them. Locked achievements announce their hint and reward and cannot be selected."),
-			localize('chatPet.achievements.accessibilityHelp.roadmap', "The final TBD card is informational and lists upcoming pet ideas. The VS Code pet and achievements are experimental and may change."),
-			localize('chatPet.achievements.accessibilityHelp.close', "Press Escape to close the Achievements modal."),
+			localize('chatPet.achievements.accessibilityHelp.overview', "The VS Code Pet modal has three pages, Achievements, Interactions and Sprites, in a tab list at the top; use the Left and Right Arrow keys or Tab to move between them and Enter to open one. Achievements lists agent-feature achievements and their pet hat rewards. Locked cards reveal a hint and reward while keeping the achievement name and exact unlock requirement hidden."),
+			localize('chatPet.achievements.accessibilityHelp.cards', "On Achievements, use Tab and Shift+Tab to move through No Hat and the achievement cards. Press Enter or Space on No Hat or an unlocked achievement to change what the pet wears. Newly unlocked cards are announced as New until you activate them. Locked achievements announce their hint and reward and cannot be selected."),
+			localize('chatPet.achievements.accessibilityHelp.sprites', "Sprites lists everything the pet can show, in three sections: Taught moves, Built-in Moves and Pet Animations. Use the Up and Down Arrow keys in the list; section headers are skipped, and the selected sprite's detail follows. The detail has Play, and for taught moves Edit as Text, Copy and Forget, which asks for a second press; built-in moves have Customize and Copy. A Used by list names each event and text interaction that plays the sprite, each a link to it on the Interactions page, which is where sprites are assigned, turned off or removed; Use in an Interaction goes to that page with a form for a new interaction that plays this sprite, with Plays when chips for the event and a Phrases box for message interactions. New Move, Import from Clipboard and Edit as Text above the list make sprites: the first and last open pets.md, a text file where moves and interactions are written and saved."),
+			localize('chatPet.achievements.accessibilityHelp.interactions', "Interactions lists the events that make the pet play a sprite, in two sections, and is where sprites are assigned. Built-in holds the pet's own events: clicked, request finished, confirmation needed, shaken, falls asleep, typing and responding. Each plays one sprite: select the event and, in the Plays list of pictured tiles, use the arrow keys and Enter to pick a taught or built-in move, one of the pet's own reactions, its own animation, or Nothing; the change applies at once, and Show Sprite goes to the sprite on the Sprites page. Clicked plays one of a pool at random: each sprite has a checkbox to turn it off or on, a link to it on the Sprites page and, for sprites added to the pool, a Remove button; Add Sprite opens a form with the same tiles. Text Interactions holds the phrases the pet listens for; each has a checkbox to turn it off or on and Change, Show Sprite and Remove buttons. New Text Interaction opens a form with a Phrases box, the sprite tiles, and Save and Cancel buttons; Change opens the same form for the selected interaction, with a Remove button. Edit as Text opens pets.md. Restore Defaults, which asks for a second press, puts the pet's own animation back on every built-in event and drops the sprites added to them; text interactions stay."),
+			localize('chatPet.achievements.accessibilityHelp.roadmap', "The final TBD card on Achievements is informational and lists upcoming pet ideas. The VS Code pet and achievements are experimental and may change."),
+			localize('chatPet.achievements.accessibilityHelp.close', "Press Escape to close the VS Code Pet modal."),
 		].join('\n\n');
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.ChatPetAchievements,

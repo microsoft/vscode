@@ -14,6 +14,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { getChatPetBuiltInMoves } from '../../browser/chatPetBuiltInMoves.js';
 import { ChatPetMovePoses, serializeChatPetMove } from '../../browser/chatPetMoves.js';
+import { IChatPetReaction } from '../../browser/chatPetReactions.js';
 import { ChatPetService } from '../../browser/chatPetService.js';
 import { getChatPetMoveGuide, getChatPetMovesGuide, showChatPetTaughtMoves, validateChatPetLesson } from '../../browser/chatPetTeaching.js';
 import { IChatPetWidgetService } from '../../browser/widget/chatPetWidgetService.js';
@@ -31,14 +32,14 @@ const chatPetSalute = {
 	],
 };
 
-const chatPetExecuteReaction = { when: 'when I tell you to execute on our plan', phrases: ['do it', 'go ahead', 'Do it!'], play: 'YES SIR', chance: 0.5 };
+const chatPetExecuteReaction = { when: 'when I tell you to execute on our plan', phrases: ['do it', 'go ahead', 'Do it!'], play: 'YES SIR' };
 
 suite('ChatPetTeaching', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('accepts a whole lesson or reports everything the agent must fix', () => {
-		const knownReaction = (id: string, play = 'love') => ({ id, when: '', phrases: ['do it'], play, chance: 1 });
+		const knownReaction = (id: string, play = 'love'): IChatPetReaction => ({ id, trigger: 'message', when: '', phrases: ['do it'], play, enabled: true });
 		const lessonResult = (input: unknown, knownMoves: readonly string[] = [], reactionIds: readonly string[] = [], play?: string) => {
 			const result = validateChatPetLesson(input, knownMoves, reactionIds.map(id => knownReaction(id, play)));
 			return result.valid ? { ...result.lesson, moves: result.lesson.moves.map(move => [move.name, move.fixed, move.loop, move.frames.length]) } : result;
@@ -49,6 +50,9 @@ suite('ChatPetTeaching', () => {
 
 		assert.deepStrictEqual({
 			valid: lessonResult({ moves: [chatPetSalute], reactions: [chatPetExecuteReaction] }),
+			// A click reaction needs no phrases, and one with a made-up trigger is a mistake to fix.
+			click: lessonResult({ reactions: [{ trigger: 'click', when: 'sometimes when I click you', play: 'YES SIR' }] }, ['yes-sir']),
+			badTrigger: lessonResult({ reactions: [{ trigger: 'hover', phrases: ['hi'], play: 'love' }] }),
 			pasted: lessonResult({ pastedMoves: [idleText], play: 'wave' }),
 			miscounted: miscounted.valid ? miscounted.lesson.moves[0].frames.map(frame => [frame.rows.length, new Set(frame.rows.map(row => row.length)).size, frame.rows.at(-1)]) : miscounted,
 			// A hold written without a pose or rows must be drawn, not padded into a blank frame.
@@ -73,11 +77,13 @@ suite('ChatPetTeaching', () => {
 		}, {
 			valid: {
 				moves: [['yes-sir', 'Y', false, 3]],
-				reactions: [{ when: 'when I tell you to execute on our plan', phrases: ['do it', 'go ahead'], play: 'yes-sir', chance: 0.5 }],
+				reactions: [{ trigger: 'message', when: 'when I tell you to execute on our plan', phrases: ['do it', 'go ahead'], play: 'yes-sir', enabled: true }],
 				removedReactionIds: [],
 				forgottenMoves: [],
 				play: undefined,
 			},
+			click: { moves: [], reactions: [{ trigger: 'click', when: 'sometimes when I click you', phrases: [], play: 'yes-sir', enabled: true }], removedReactionIds: [], forgottenMoves: [], play: undefined },
+			badTrigger: { valid: false, errors: ['A reaction\'s trigger must be "message" or one of click, requestDone, confirmation, dizzy, sleep, typing, responding, not "hover".'] },
 			pasted: { moves: [['wave', '', true, 1]], reactions: [], removedReactionIds: [], forgottenMoves: [], play: 'wave' },
 			miscounted: [[12, 1, '.BAAACCCCCC...'], [12, 1, '.BAAACCCCCC...'], [12, 1, '.BAAACCCCCC...']],
 			holdWithoutRows: { valid: false, errors: ['Move "yes-sir": Frame 2 needs a "pose" (idle, crouch, airborne, love) or "rows".'] },
@@ -91,15 +97,15 @@ suite('ChatPetTeaching', () => {
 					'There is no taught move called "duck" to forget; the pet knows wave.',
 					'There is no reaction with the id "nope".',
 					'The pet doesn\'t know a move called "moonwalk" yet.',
-					'The pet doesn\'t know a move called "moonwalk"; it can play wave, yes, idea, ship-it, cowboy, rubber-duck, magic, trophy, debug, coffee, zapped, love, cool, sing, worry, speechless, celebrate, dizzy, jump.',
+					'The pet doesn\'t know a move called "moonwalk"; it can play wave, yes, idea, ship-it, cowboy, rubber-duck, magic, trophy, debug, coffee, zapped, love, cool, sing, worry, speechless, celebrate, clap, dizzy, jump.',
 				],
 			},
 			empty: { valid: false, errors: ['The lesson is empty: give moves, pastedMoves, reactions, forgetMoves, forgetReactions or play.'] },
 			repeatedForgets: { moves: [], reactions: [], removedReactionIds: ['abc'], forgottenMoves: ['wave'], play: undefined },
 			fullAfterRepeatedForget: { valid: false, errors: ['The pet can know at most 24 reactions; remove some first.'] },
-			roomAfterForgottenMove: { moves: [], reactions: [{ when: '', phrases: ['ship it'], play: 'jump', chance: 1 }], removedReactionIds: [], forgottenMoves: ['wave'], play: undefined },
+			roomAfterForgottenMove: { moves: [], reactions: [{ trigger: 'message', when: '', phrases: ['ship it'], play: 'jump', enabled: true }], removedReactionIds: [], forgottenMoves: ['wave'], play: undefined },
 			notAList: { valid: false, errors: ['"moves" must be a list.'] },
-			builtIn: { moves: [], reactions: [{ when: '', phrases: ['howdy'], play: 'cowboy', chance: 1 }], removedReactionIds: [], forgottenMoves: [], play: 'zapped' },
+			builtIn: { moves: [], reactions: [{ trigger: 'message', when: '', phrases: ['howdy'], play: 'cowboy', enabled: true }], removedReactionIds: [], forgottenMoves: [], play: 'zapped' },
 			forgetBuiltIn: { valid: false, errors: ['"trophy" is a built-in move, which can\'t be forgotten.'] },
 		});
 	});
@@ -110,7 +116,8 @@ suite('ChatPetTeaching', () => {
 		for (const move of lesson.valid ? lesson.lesson.moves : []) {
 			chatPetService.learnMove(move);
 		}
-		const reaction = chatPetService.addReaction({ when: 'when I say do it', phrases: ['do it', 'go ahead', 'ship it', 'let\'s go'], play: 'yes-sir', chance: 0.5 });
+		const reaction = chatPetService.addReaction({ trigger: 'message', when: 'when I say do it', phrases: ['do it', 'go ahead', 'ship it', 'let\'s go'], play: 'yes-sir' });
+		const click = chatPetService.addReaction({ trigger: 'click', when: '', phrases: [], play: 'wave' });
 		const guide = getChatPetMoveGuide(chatPetService.moves.get(), chatPetService.reactions.get()).split('\n');
 		// A taught move, a built-in move, two unknown names, and more moves than come at a time.
 		const whole = getChatPetMovesGuide(chatPetService.moves.get(), ['YES SIR', 'moonwalk', 'cowboy', 'Coffee', 'nope']);
@@ -123,7 +130,8 @@ suite('ChatPetTeaching', () => {
 			// Names only, and a few phrases per reaction, so the guide stays short.
 			known: [
 				'- taught moves: yes-sir, wave, coffee',
-				`- reaction ${reaction.id}: plays yes-sir with chance 0.5 on "do it", "go ahead", "ship it", …`,
+				`- reaction ${reaction.id}: plays yes-sir on "do it", "go ahead", "ship it", …`,
+				`- reaction ${click.id}: plays wave on click`,
 			],
 			whole: [
 				'The pet knows no move called "moonwalk" or "nope"; it knows yes-sir, wave, coffee, yes, idea, ship-it, cowboy, rubber-duck, magic, trophy, debug, zapped.',
@@ -142,7 +150,7 @@ suite('ChatPetTeaching', () => {
 		const chatPetService = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), NullTelemetryService, new NullLogService()));
 		for (let index = 0; index < 8; index++) {
 			chatPetService.learnMove({ ...getChatPetBuiltInMoves()[0], name: `taught-move-number-${index}`, about: 'x'.repeat(200) });
-			chatPetService.addReaction({ when: 'y'.repeat(200), phrases: Array.from({ length: 12 }, (_, phrase) => `a phrase to react to ${phrase}`), play: 'yes', chance: 1 });
+			chatPetService.addReaction({ trigger: 'message', when: 'y'.repeat(200), phrases: Array.from({ length: 12 }, (_, phrase) => `a phrase to react to ${phrase}`), play: 'yes' });
 		}
 		const names = getChatPetBuiltInMoves().map(move => move.name);
 		const lengths = {
@@ -159,7 +167,7 @@ suite('ChatPetTeaching', () => {
 		for (const move of lesson.valid ? lesson.lesson.moves : []) {
 			chatPetService.learnMove(move);
 		}
-		chatPetService.addReaction({ when: 'when I say do it', phrases: ['do it', 'ship it'], play: 'wave', chance: 1 });
+		chatPetService.addReaction({ trigger: 'message', when: 'when I say do it', phrases: ['do it', 'ship it'], play: 'wave' });
 		const shown: string[][] = [];
 		const played: string[] = [];
 		const copied: string[] = [];

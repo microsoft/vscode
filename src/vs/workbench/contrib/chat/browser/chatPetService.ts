@@ -18,7 +18,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { allChatPetAchievements, chatPetAchievements, ChatPetAccessoryId, ChatPetAchievementId, ChatPetAchievementIds, getChatPetAchievementForAccessory, isChatPetAccessoryId, isChatPetAchievementEnabled, isChatPetAchievementId } from './chatPetAchievements.js';
 import { getChatPetBuiltInMoveNames } from './chatPetBuiltInMoves.js';
 import { ChatPetMoveLimits, IChatPetMove, parseChatPetMove, serializeChatPetMove, validateChatPetMove } from './chatPetMoves.js';
-import { ChatPetReactionLimits, IChatPetReaction, IChatPetReactionInput, sanitizeChatPetReaction } from './chatPetReactions.js';
+import { ChatPetBuiltInAnimation, ChatPetBuiltInTrigger, ChatPetBuiltInTriggerAnimations, ChatPetReactionLimits, ChatPetReactionTrigger, getChatPetBuiltInReactionKey, hasChatPetTriggerPool, IChatPetReaction, IChatPetReactionInput, isChatPetBuiltInTrigger, isChatPetReactionTrigger, sanitizeChatPetReaction } from './chatPetReactions.js';
 
 const CHAT_PET_ENABLED_STORAGE_KEY = 'chat.vscodePet.enabled';
 const CHAT_PET_VARIANT_STORAGE_KEY = 'chat.vscodePet.variant';
@@ -33,6 +33,7 @@ const CHAT_PET_SCALE_STORAGE_KEY = 'chat.vscodePet.scale';
 const CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY = 'chat.vscodePet.horizontalPosition';
 const CHAT_PET_MOVES_STORAGE_KEY = 'chat.vscodePet.moves';
 const CHAT_PET_REACTIONS_STORAGE_KEY = 'chat.vscodePet.reactions';
+const CHAT_PET_DISABLED_BUILT_INS_STORAGE_KEY = 'chat.vscodePet.disabledBuiltInReactions';
 /** How many moves the pet can learn. */
 export const CHAT_PET_MAX_MOVES = 24;
 export const CHAT_PET_DEFAULT_SCALE = 1;
@@ -86,23 +87,41 @@ function readChatPetStoredMoves(stored: string | undefined): IChatPetMove[] {
 	return moves.slice(0, CHAT_PET_MAX_MOVES);
 }
 
-/** Reads stored reactions, dropping malformed ones and ones whose move is gone. */
+/** Reads stored reactions, dropping malformed ones and ones whose move is gone. Reactions stored before triggers existed are message reactions. */
 function readChatPetStoredReactions(stored: string | undefined, knownMoves: readonly string[]): IChatPetReaction[] {
 	const reactions: IChatPetReaction[] = [];
 	for (const item of parseStoredArray(stored)) {
 		if (!item || typeof item !== 'object') {
 			continue;
 		}
-		const { id, when, phrases, play, chance } = item as Record<string, unknown>;
-		if (typeof id !== 'string' || typeof when !== 'string' || !Array.isArray(phrases) || typeof play !== 'string' || typeof chance !== 'number') {
+		const { id, trigger, when, phrases, play, enabled } = item as Record<string, unknown>;
+		if (typeof id !== 'string' || typeof when !== 'string' || !Array.isArray(phrases) || typeof play !== 'string') {
 			continue;
 		}
-		const sanitized = sanitizeChatPetReaction({ when, phrases: phrases.filter((phrase): phrase is string => typeof phrase === 'string'), play, chance }, knownMoves);
+		if (trigger !== undefined && !isChatPetReactionTrigger(trigger)) {
+			continue;
+		}
+		const sanitized = sanitizeChatPetReaction({ trigger: trigger ?? 'message', when, phrases: phrases.filter((phrase): phrase is string => typeof phrase === 'string'), play, enabled: enabled !== false }, knownMoves);
 		if (typeof sanitized !== 'string') {
 			reactions.push({ id, ...sanitized });
 		}
 	}
 	return reactions.slice(0, ChatPetReactionLimits.maxReactions);
+}
+
+/** Reads the built-in animations turned off for their triggers, keeping only keys that still exist. */
+function readChatPetDisabledBuiltIns(stored: string | undefined): string[] {
+	const keys: string[] = [];
+	for (const item of parseStoredArray(stored)) {
+		if (typeof item !== 'string' || keys.includes(item)) {
+			continue;
+		}
+		const [trigger, animation] = item.split('/');
+		if (isChatPetBuiltInTrigger(trigger) && (ChatPetBuiltInTriggerAnimations[trigger] as readonly string[]).includes(animation)) {
+			keys.push(item);
+		}
+	}
+	return keys;
 }
 
 function parseStoredArray(stored: string | undefined): unknown[] {
@@ -115,6 +134,28 @@ function parseStoredArray(stored: string | undefined): unknown[] {
 	} catch {
 		return [];
 	}
+}
+
+/** Whether two reactions do the same thing, so one written back as text can keep the other's id. */
+function isSameChatPetReaction(reaction: IChatPetReactionInput, other: IChatPetReactionInput): boolean {
+	return reaction.trigger === other.trigger
+		&& reaction.play === other.play
+		&& (reaction.enabled ?? true) === (other.enabled ?? true)
+		&& reaction.when === other.when
+		&& reaction.phrases.length === other.phrases.length
+		&& reaction.phrases.every((phrase, index) => phrase === other.phrases[index]);
+}
+
+/**
+ * The reactions that stay when one is stored for `trigger`: all of them for messages and for a
+ * trigger with a pool, where reactions add up; for any other built-in trigger, which plays one
+ * sprite, the others taught for it go, but for `except`.
+ */
+function withoutChatPetTriggerReactions(reactions: readonly IChatPetReaction[], trigger: ChatPetReactionTrigger, except?: string): IChatPetReaction[] {
+	if (trigger === 'message' || hasChatPetTriggerPool(trigger)) {
+		return [...reactions];
+	}
+	return reactions.filter(reaction => reaction.trigger !== trigger || reaction.id === except);
 }
 
 function getChatPetHorizontalPosition(storedPosition: string | undefined): number | undefined {
@@ -135,10 +176,12 @@ export interface IChatPetService {
 	readonly selectedAccessory: IObservable<ChatPetAccessoryId | undefined>;
 	readonly onDidUnlockAchievement: Event<ChatPetAchievementId>;
 	readonly horizontalPosition: IObservable<number | undefined>;
-	/** Moves agents taught the pet with the `teachPet` tool, shared by every window. */
+	/** Moves agents taught the pet with the `teachPet` tool, or users wrote in `pets.md`, shared by every window. */
 	readonly moves: IObservable<readonly IChatPetMove[]>;
-	/** Reactions agents taught the pet: which move to play when a chat message says certain things. */
+	/** Reactions the pet was taught: which move to play when a chat message says certain things, or on one of its built-in triggers. */
 	readonly reactions: IObservable<readonly IChatPetReaction[]>;
+	/** The pet's own animations turned off for their built-in triggers, as `getChatPetBuiltInReactionKey` keys. */
+	readonly disabledBuiltInReactions: IObservable<readonly string[]>;
 	toggle(): boolean;
 	setVariant(variant: ChatPetVariant): void;
 	setOnTheRun(onTheRun: boolean): void;
@@ -153,9 +196,31 @@ export interface IChatPetService {
 	learnMove(move: IChatPetMove): void;
 	/** Forgets a taught move and every reaction that plays it. */
 	forgetMove(name: string): boolean;
-	/** Stores a reaction, as `validateChatPetLesson` returns it, and returns it with its new id. */
+	/** Stores a reaction, as `validateChatPetLesson` returns it, and returns it with its new id. On a built-in trigger without a pool, it replaces the reactions taught for the trigger. */
 	addReaction(reaction: IChatPetReactionInput): IChatPetReaction;
+	/** Changes a reaction, keeping its id and whether it is on unless `reaction` says. Returns false when there is no reaction with that id. */
+	updateReaction(id: string, reaction: IChatPetReactionInput): boolean;
+	/** Turns a reaction on or off, keeping it. Returns false when there is no reaction with that id. */
+	setReactionEnabled(id: string, enabled: boolean): boolean;
 	removeReaction(id: string): boolean;
+	/** Turns one of the pet's own animations on or off for a built-in trigger. */
+	setBuiltInReactionEnabled(trigger: ChatPetBuiltInTrigger, animation: ChatPetBuiltInAnimation, enabled: boolean): void;
+	/**
+	 * Sets the one sprite a built-in trigger without a pool plays: a move or built-in reaction the
+	 * caller validated with `sanitizeChatPetReaction`, the pet's own animation, or nothing. The
+	 * reactions taught for the trigger go, but for the one that plays the sprite.
+	 */
+	setTriggerSprite(trigger: ChatPetBuiltInTrigger, sprite: { readonly kind: 'own' | 'nothing' } | { readonly kind: 'sprite'; readonly play: string }): void;
+	/**
+	 * Puts the pet's own animations back on every built-in trigger, turned on, and forgets the
+	 * reactions taught for them. Message reactions stay.
+	 */
+	resetBuiltInReactions(): void;
+	/**
+	 * Replaces everything the pet was taught, as when `pets.md` is saved: moves not in `moves` are
+	 * forgotten, and reactions equal to current ones keep their ids. The caller validates first.
+	 */
+	replaceTaught(moves: readonly IChatPetMove[], reactions: readonly IChatPetReactionInput[]): void;
 }
 
 export class ChatPetService extends Disposable implements IChatPetService {
@@ -186,6 +251,8 @@ export class ChatPetService extends Disposable implements IChatPetService {
 	readonly moves: IObservable<readonly IChatPetMove[]>;
 	private readonly _reactions;
 	readonly reactions: IObservable<readonly IChatPetReaction[]>;
+	private readonly _disabledBuiltInReactions;
+	readonly disabledBuiltInReactions: IObservable<readonly string[]>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -215,6 +282,11 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		this.moves = this._moves;
 		this._reactions = observableValue<readonly IChatPetReaction[]>(this, this._readReactions());
 		this.reactions = this._reactions;
+		this._disabledBuiltInReactions = observableValue<readonly string[]>(this, readChatPetDisabledBuiltIns(this.storageService.get(CHAT_PET_DISABLED_BUILT_INS_STORAGE_KEY, StorageScope.APPLICATION_SHARED)));
+		this.disabledBuiltInReactions = this._disabledBuiltInReactions;
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION_SHARED, CHAT_PET_DISABLED_BUILT_INS_STORAGE_KEY, this._store)(() => {
+			this._disabledBuiltInReactions.set(readChatPetDisabledBuiltIns(this.storageService.get(CHAT_PET_DISABLED_BUILT_INS_STORAGE_KEY, StorageScope.APPLICATION_SHARED)), undefined);
+		}));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION_SHARED, CHAT_PET_MOVES_STORAGE_KEY, this._store)(() => {
 			transaction(tx => {
 				this._moves.set(readChatPetStoredMoves(this.storageService.get(CHAT_PET_MOVES_STORAGE_KEY, StorageScope.APPLICATION_SHARED)), tx);
@@ -328,9 +400,28 @@ export class ChatPetService extends Disposable implements IChatPetService {
 	}
 
 	addReaction(input: IChatPetReactionInput): IChatPetReaction {
-		const reaction: IChatPetReaction = { id: generateUuid().slice(0, 8), ...input };
-		this._storeReactions([...this._reactions.get(), reaction]);
+		const reaction: IChatPetReaction = { id: generateUuid().slice(0, 8), ...input, enabled: input.enabled ?? true };
+		this._storeReactions([...withoutChatPetTriggerReactions(this._reactions.get(), input.trigger), reaction]);
 		return reaction;
+	}
+
+	updateReaction(id: string, input: IChatPetReactionInput): boolean {
+		const reactions = this._reactions.get();
+		const existing = reactions.find(reaction => reaction.id === id);
+		if (!existing) {
+			return false;
+		}
+		this._storeReactions(withoutChatPetTriggerReactions(reactions, input.trigger, id).map(reaction => reaction.id === id ? { id, ...input, enabled: input.enabled ?? existing.enabled } : reaction));
+		return true;
+	}
+
+	setReactionEnabled(id: string, enabled: boolean): boolean {
+		const reactions = this._reactions.get();
+		if (!reactions.some(reaction => reaction.id === id)) {
+			return false;
+		}
+		this._storeReactions(reactions.map(reaction => reaction.id === id ? { ...reaction, enabled } : reaction));
+		return true;
 	}
 
 	removeReaction(id: string): boolean {
@@ -341,6 +432,65 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		}
 		this._storeReactions(remaining);
 		return true;
+	}
+
+	setBuiltInReactionEnabled(trigger: ChatPetBuiltInTrigger, animation: ChatPetBuiltInAnimation, enabled: boolean): void {
+		const key = getChatPetBuiltInReactionKey(trigger, animation);
+		const current = this._disabledBuiltInReactions.get();
+		if (current.includes(key) === !enabled) {
+			return;
+		}
+		this._storeDisabledBuiltIns(enabled ? current.filter(candidate => candidate !== key) : [...current, key]);
+	}
+
+	setTriggerSprite(trigger: ChatPetBuiltInTrigger, sprite: { readonly kind: 'own' | 'nothing' } | { readonly kind: 'sprite'; readonly play: string }): void {
+		const key = getChatPetBuiltInReactionKey(trigger, ChatPetBuiltInTriggerAnimations[trigger][0]);
+		const disabled = this._disabledBuiltInReactions.get();
+		const remaining = withoutChatPetTriggerReactions(this._reactions.get(), trigger);
+		transaction(tx => {
+			if (sprite.kind === 'sprite') {
+				this._storeReactions([...remaining, { id: generateUuid().slice(0, 8), trigger, when: '', phrases: [], play: sprite.play, enabled: true }], tx);
+			} else {
+				this._storeReactions(remaining, tx);
+			}
+			// The pet's own animation stands in once the sprite goes, unless the trigger is turned off.
+			const off = sprite.kind === 'nothing';
+			if (disabled.includes(key) !== off) {
+				this._storeDisabledBuiltIns(off ? [...disabled, key] : disabled.filter(candidate => candidate !== key), tx);
+			}
+		});
+	}
+
+	resetBuiltInReactions(): void {
+		transaction(tx => {
+			this._storeReactions(this._reactions.get().filter(reaction => reaction.trigger === 'message'), tx);
+			this._storeDisabledBuiltIns([], tx);
+		});
+	}
+
+	private _storeDisabledBuiltIns(disabled: readonly string[], tx?: ITransaction): void {
+		this._disabledBuiltInReactions.set(disabled, tx);
+		if (disabled.length) {
+			this.storageService.store(CHAT_PET_DISABLED_BUILT_INS_STORAGE_KEY, JSON.stringify(disabled), StorageScope.APPLICATION_SHARED, StorageTarget.USER);
+		} else {
+			this.storageService.remove(CHAT_PET_DISABLED_BUILT_INS_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
+		}
+	}
+
+	replaceTaught(moves: readonly IChatPetMove[], inputs: readonly IChatPetReactionInput[]): void {
+		// A reaction written back unchanged keeps its id, so agents can still refer to it.
+		const unclaimed = [...this._reactions.get()];
+		const reactions = inputs.map((input): IChatPetReaction => {
+			const index = unclaimed.findIndex(reaction => isSameChatPetReaction(reaction, input));
+			const id = index >= 0 ? unclaimed.splice(index, 1)[0].id : generateUuid().slice(0, 8);
+			return { id, ...input, enabled: input.enabled ?? true };
+		});
+		// A trigger without a pool plays the last reaction written for it; the others would never play.
+		const kept = reactions.filter((reaction, index) => reaction.trigger === 'message' || hasChatPetTriggerPool(reaction.trigger) || !reactions.some((later, laterIndex) => laterIndex > index && later.trigger === reaction.trigger));
+		transaction(tx => {
+			this._storeMoves(moves, tx);
+			this._storeReactions(kept, tx);
+		});
 	}
 
 	private _readReactions(): IChatPetReaction[] {

@@ -5,25 +5,45 @@
 
 import './media/chatPetAchievements.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { renderChatPetAchievementPreview, CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE } from './chatPetAchievementPreview.js';
 import { chatPetAchievements, ChatPetAccessoryId, ChatPetAchievementId, getChatPetAccessory, getChatPetAchievementPresentation } from './chatPetAchievements.js';
+import { ChatPetInteractionsWidget } from './chatPetInteractionsWidget.js';
+import { ChatPetPage, IChatPetPageHost } from './chatPetListPage.js';
 import { ChatPetVariant, IChatPetService } from './chatPetService.js';
+import { ChatPetSpritesWidget } from './chatPetSpritesWidget.js';
+
+/** The pages of the pet's modal: its achievements, the sprites it can show, and what makes it show them. */
+export type ChatPetAchievementsTab = ChatPetPage;
+
+/** The height of the tab strip above either page. */
+const CHAT_PET_TABS_HEIGHT = 35;
 
 export class ChatPetAchievementsWidget extends Disposable {
 
 	private readonly container: HTMLElement;
+	private readonly achievementsPage: HTMLElement;
+	private readonly spritesPage: HTMLElement;
+	private readonly interactionsPage: HTMLElement;
 	private readonly content: HTMLElement;
 	private readonly scrollable: DomScrollableElement;
+	private readonly tabActions: readonly Action[];
 	private readonly renderDisposables = this._register(new DisposableStore());
+	/** The Sprites and Interactions pages are built on first use, and paused while hidden. */
+	private readonly sprites = this._register(new MutableDisposable<ChatPetSpritesWidget>());
+	private readonly interactions = this._register(new MutableDisposable<ChatPetInteractionsWidget>());
+	private activeTab: ChatPetAchievementsTab = 'achievements';
 	private readonly accessoryCards = new Map<string, {
 		readonly button: Button;
 		readonly state: HTMLElement;
@@ -43,22 +63,43 @@ export class ChatPetAchievementsWidget extends Disposable {
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILogService private readonly logService: ILogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this.container = DOM.append(parent, DOM.$('.chat-pet-achievements-widget'));
+		const tabs = DOM.append(this.container, DOM.$('.chat-pet-tabs'));
+		const tabBar = this._register(new ActionBar(tabs, {
+			orientation: ActionsOrientation.HORIZONTAL,
+			ariaLabel: localize('chatPet.tabs.ariaLabel', "VS Code Pet Pages"),
+			ariaRole: 'tablist',
+		}));
+		this.tabActions = [
+			this._register(new Action('chatPet.tab.achievements', localize('chatPet.tabs.achievements', "Achievements"), undefined, true, () => this.showTab('achievements'))),
+			this._register(new Action('chatPet.tab.interactions', localize('chatPet.tabs.interactions', "Interactions"), undefined, true, () => this.showTab('interactions'))),
+			this._register(new Action('chatPet.tab.sprites', localize('chatPet.tabs.sprites', "Sprites"), undefined, true, () => this.showTab('sprites'))),
+		];
+		tabBar.push(this.tabActions);
+
+		this.achievementsPage = DOM.append(this.container, DOM.$('.chat-pet-achievements-page'));
+		this.achievementsPage.setAttribute('role', 'tabpanel');
+		this.interactionsPage = DOM.append(this.container, DOM.$('.chat-pet-interactions-page.hidden'));
+		this.interactionsPage.setAttribute('role', 'tabpanel');
+		this.spritesPage = DOM.append(this.container, DOM.$('.chat-pet-interactions-page.hidden'));
+		this.spritesPage.setAttribute('role', 'tabpanel');
 		this.content = DOM.$('.chat-pet-achievements-content');
 		this.scrollable = this._register(new DomScrollableElement(this.content, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
 		}));
-		this.container.appendChild(this.scrollable.getDomNode());
+		this.achievementsPage.appendChild(this.scrollable.getDomNode());
 		this._register(DOM.addDisposableListener(this.content, DOM.EventType.SCROLL, () => {
 			const scrollTop = this.content.scrollTop;
 			if (scrollTop !== this.scrollable.getScrollPosition().scrollTop) {
 				this.scrollable.setScrollPosition({ scrollTop });
 			}
 		}, { passive: true }));
+		this.updateTabs();
 
 		const themeChanged = observableSignalFromEvent(this, this.themeService.onDidColorThemeChange);
 		this._register(autorun(reader => {
@@ -75,6 +116,48 @@ export class ChatPetAchievementsWidget extends Disposable {
 		}));
 	}
 
+	get tab(): ChatPetAchievementsTab {
+		return this.activeTab;
+	}
+
+	/** Shows a page; `selection` selects a row on it: a sprite's name on Sprites, an interaction's row id on Interactions. */
+	showTab(tab: ChatPetAchievementsTab, selection?: string): void {
+		this.activeTab = tab;
+		this.updateTabs();
+		this.achievementsPage.classList.toggle('hidden', tab !== 'achievements');
+		this.spritesPage.classList.toggle('hidden', tab !== 'sprites');
+		this.interactionsPage.classList.toggle('hidden', tab !== 'interactions');
+		const host: IChatPetPageHost = {
+			showPage: (page, selection) => this.showTab(page, selection),
+			newInteraction: play => {
+				this.showTab('interactions');
+				this.interactions.value?.newInteraction(play);
+			},
+			close: this.onDidRequestClose,
+		};
+		if (tab === 'sprites') {
+			this.sprites.value ??= this.instantiationService.createInstance(ChatPetSpritesWidget, this.spritesPage, host);
+		} else if (tab === 'interactions') {
+			this.interactions.value ??= this.instantiationService.createInstance(ChatPetInteractionsWidget, this.interactionsPage, host);
+		}
+		this.sprites.value?.setVisible(tab === 'sprites');
+		this.interactions.value?.setVisible(tab === 'interactions');
+		const page = tab === 'sprites' ? this.sprites.value : tab === 'interactions' ? this.interactions.value : undefined;
+		if (page && selection) {
+			page.select(selection);
+		}
+		this.layout(this.lastDimension);
+		if (page && selection) {
+			page.focus();
+		}
+	}
+
+	private updateTabs(): void {
+		for (const action of this.tabActions) {
+			action.checked = action.id === `chatPet.tab.${this.activeTab}`;
+		}
+	}
+
 	layout(dimension?: DOM.Dimension): void {
 		if (dimension) {
 			this.lastDimension = dimension;
@@ -82,7 +165,7 @@ export class ChatPetAchievementsWidget extends Disposable {
 			this.container.style.height = `${dimension.height}px`;
 		}
 		const width = dimension?.width ?? this.container.clientWidth;
-		const height = dimension?.height ?? this.container.clientHeight;
+		const height = Math.max(0, (dimension?.height ?? this.container.clientHeight) - CHAT_PET_TABS_HEIGHT);
 		this.container.classList.toggle('narrow', width < 560);
 		this.content.style.width = `${width}px`;
 		this.content.style.height = `${height}px`;
@@ -90,10 +173,19 @@ export class ChatPetAchievementsWidget extends Disposable {
 		scrollableNode.style.width = `${width}px`;
 		scrollableNode.style.height = `${height}px`;
 		this.scrollable.scanDomNode();
+		// Only the page that shows has a size to lay out.
+		const page = this.activeTab === 'sprites' ? this.sprites.value : this.activeTab === 'interactions' ? this.interactions.value : undefined;
+		page?.layout(new DOM.Dimension(width, height));
 	}
 
 	focus(): void {
-		this.focusTarget?.();
+		if (this.activeTab === 'sprites') {
+			this.sprites.value?.focus();
+		} else if (this.activeTab === 'interactions') {
+			this.interactions.value?.focus();
+		} else {
+			this.focusTarget?.();
+		}
 	}
 
 	private render(unlockedAchievements: readonly ChatPetAchievementId[], selectedAccessory: ChatPetAccessoryId | undefined, variant: ChatPetVariant): void {

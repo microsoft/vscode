@@ -1,0 +1,590 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-pet-interactions {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+}
+
+.chat-pet-interactions-header {
+	flex: none;
+	padding: var(--vscode-spacing-size240) var(--vscode-spacing-size240) 0;
+}
+
+.chat-pet-interactions.narrow .chat-pet-interactions-header {
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size120) 0;
+}
+
+.chat-pet-interactions h1,
+.chat-pet-interactions h2,
+.chat-pet-interactions h3,
+.chat-pet-interactions p {
+	margin-top: 0;
+}
+
+.chat-pet-interactions h1 {
+	margin-bottom: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-pet-interactions-intro {
+	max-width: 720px;
+	margin-bottom: var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-pet-interactions-toolbar,
+.chat-pet-interaction-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.chat-pet-interactions-toolbar .monaco-button,
+.chat-pet-interaction-actions .monaco-button,
+.chat-pet-interaction-pool > .monaco-button,
+.chat-pet-interaction-pool-entry > .monaco-button {
+	display: inline-flex;
+	width: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+}
+
+.chat-pet-interactions-notice {
+	margin: var(--vscode-spacing-size80) 0 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-pet-interactions-notice.error {
+	color: var(--vscode-errorForeground);
+}
+
+.chat-pet-interactions-notice.hidden {
+	display: none;
+}
+
+/* Two panes: the list of sprites or interactions, and the selected one's detail. */
+.chat-pet-interactions-body {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	gap: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size240) var(--vscode-spacing-size240);
+}
+
+.chat-pet-interactions.narrow .chat-pet-interactions-body {
+	flex-direction: column;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+}
+
+.chat-pet-interactions-list,
+.chat-pet-interactions-detail {
+	box-sizing: border-box;
+	min-height: 0;
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+}
+
+.chat-pet-interactions-list {
+	flex: 0 0 280px;
+}
+
+.chat-pet-interactions.narrow .chat-pet-interactions-list {
+	flex: 0 0 200px;
+}
+
+.chat-pet-interactions-detail {
+	flex: 1;
+	min-width: 0;
+}
+
+.chat-pet-interactions-list .monaco-list {
+	height: 100%;
+}
+
+.chat-pet-interactions-list .monaco-list-row {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+}
+
+/* Section headers stand aside: nothing selects them, and clicks fall through. */
+.chat-pet-interactions-list .monaco-list-row.chat-pet-list-header-row {
+	pointer-events: none;
+}
+
+.chat-pet-interaction-header {
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 100%;
+	padding: 0 var(--vscode-spacing-size120);
+	background: var(--vscode-sideBarSectionHeader-background, var(--vscode-editorWidget-background));
+	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.chat-pet-interaction-header-count {
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-regular);
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+/* Rows: a still of what shows beside its name, and a line on where it stands. */
+.chat-pet-interaction-row {
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	height: 100%;
+	padding: 0 var(--vscode-spacing-size120);
+}
+
+.chat-pet-interaction-row.off .chat-pet-interaction-thumb,
+.chat-pet-interaction-row.off .chat-pet-interaction-name {
+	opacity: 0.5;
+}
+
+.chat-pet-interaction-thumb {
+	box-sizing: border-box;
+	display: flex;
+	flex: none;
+	align-items: flex-end;
+	justify-content: center;
+	width: 48px;
+	height: 48px;
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-editor-background);
+}
+
+.chat-pet-interaction-thumb canvas,
+.chat-pet-interaction-stage canvas {
+	display: block;
+	image-rendering: pixelated;
+}
+
+.chat-pet-interaction-row-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.chat-pet-interaction-row-title,
+.chat-pet-interaction-heading {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.chat-pet-interaction-name {
+	overflow: hidden;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-pet-interaction-badge {
+	flex: none;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.2;
+	white-space: nowrap;
+}
+
+.chat-pet-interaction-badge.hidden {
+	display: none;
+}
+
+.chat-pet-interaction-badge.custom {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.chat-pet-interaction-row.placeholder .chat-pet-interaction-row-summary {
+	font-style: italic;
+}
+
+.chat-pet-interaction-row-summary {
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-list-row.selected .chat-pet-interaction-row-summary,
+.monaco-list-row.focused .chat-pet-interaction-row-summary {
+	color: inherit;
+	opacity: 0.8;
+}
+
+/* The selected sprite, playing on a stage that stands in for the chat input's edge. */
+/* The detail pane's content is sized to the pane by the page, and scrolls behind the scrollable element's scrollbar. */
+.chat-pet-interaction-detail-content {
+	box-sizing: border-box;
+	overflow: hidden;
+	padding: var(--vscode-spacing-size200);
+}
+
+.chat-pet-interaction-stage {
+	position: relative;
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	height: 176px;
+	margin-bottom: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editor-background);
+}
+
+.chat-pet-interaction-stage.empty::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: repeating-linear-gradient(135deg, transparent 0 var(--vscode-spacing-size120), var(--vscode-editorWidget-border) var(--vscode-spacing-size120) calc(var(--vscode-spacing-size120) + var(--vscode-strokeThickness)));
+	opacity: 0.3;
+}
+
+.chat-pet-interaction-stage::after {
+	content: '';
+	position: absolute;
+	right: var(--vscode-spacing-size160);
+	bottom: var(--vscode-spacing-size160);
+	left: var(--vscode-spacing-size160);
+	height: 2px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-editorWidget-border);
+}
+
+.chat-pet-interaction-stage canvas {
+	margin-bottom: calc(var(--vscode-spacing-size160) + 2px);
+}
+
+.chat-pet-interaction-heading {
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.chat-pet-interaction-heading h2 {
+	margin: 0;
+	overflow-wrap: anywhere;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-pet-interaction-description {
+	margin-bottom: var(--vscode-spacing-size40);
+	overflow-wrap: anywhere;
+}
+
+.chat-pet-interaction-meta {
+	margin-bottom: var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+/* Lists inside the detail: what a trigger plays, or what a sprite is used by, each entry on or off. */
+.chat-pet-interaction-pool {
+	margin-top: var(--vscode-spacing-size200);
+}
+
+.chat-pet-interaction-pool h3 {
+	margin-bottom: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-pet-interaction-pool ul {
+	margin: 0 0 var(--vscode-spacing-size120);
+	padding: 0;
+	list-style: none;
+}
+
+.chat-pet-interaction-pool-empty {
+	margin-bottom: var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-pet-interaction-pool-entry {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size100);
+	min-height: 40px;
+	padding: var(--vscode-spacing-size40) 0;
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+}
+
+.chat-pet-interaction-pool-entry.off .chat-pet-interaction-pool-thumb,
+.chat-pet-interaction-pool-entry.off .chat-pet-interaction-pool-label {
+	opacity: 0.6;
+}
+
+.chat-pet-interaction-pool-thumb {
+	display: flex;
+	flex: none;
+	align-items: flex-end;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-editor-background);
+}
+
+.chat-pet-interaction-pool-thumb canvas {
+	display: block;
+	image-rendering: pixelated;
+}
+
+.chat-pet-interaction-pool-label {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.chat-pet-interaction-pool-label .monaco-link {
+	align-self: flex-start;
+	overflow: hidden;
+	max-width: 100%;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-pet-interaction-pool-detail {
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* A text interaction's switch, with what its state means. */
+.chat-pet-interaction-enabled {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+/* The inline reaction form: a bordered card in the detail, for a new interaction or the one it changes. */
+.chat-pet-trigger-form {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editor-background);
+}
+
+.chat-pet-trigger-form h4 {
+	margin: 0;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-pet-trigger-field {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+}
+
+.chat-pet-trigger-field.hidden {
+	display: none;
+}
+
+.chat-pet-trigger-field-label {
+	flex: 0 0 80px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-pet-trigger-field-control {
+	flex: 1 1 240px;
+	min-width: 0;
+}
+
+.chat-pet-trigger-field-value {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-pet-trigger-field-control .monaco-inputbox {
+	width: 100%;
+}
+
+.chat-pet-trigger-hint.hidden {
+	display: none;
+}
+
+.chat-pet-trigger-field-hint {
+	margin: var(--vscode-spacing-size40) 0 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+/*
+ * A choice among sprites or events: pictured tiles or text chips in rows that wrap, in place of a
+ * dropdown. The chosen one wears the list's selection colors, as the selected row on the left does.
+ */
+.chat-pet-choice {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+}
+
+.chat-pet-choice-group-label {
+	margin-bottom: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.chat-pet-choice-options {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+}
+
+.chat-pet-choice-option {
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	user-select: none;
+}
+
+.chat-pet-choice.tiles .chat-pet-choice-option {
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	width: 84px;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size40);
+}
+
+.chat-pet-choice.chips .chat-pet-choice-option {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size100);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-pet-choice-option:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.chat-pet-choice-option.selected {
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+}
+
+.chat-pet-choice-option:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+/* A tile's picture stands in the same kind of frame as a row's thumbnail; an empty frame is what nothing looks like. */
+.chat-pet-choice-thumb {
+	box-sizing: border-box;
+	display: flex;
+	flex: none;
+	align-items: flex-end;
+	justify-content: center;
+	width: 56px;
+	height: 44px;
+	padding-bottom: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-editorWidget-background);
+}
+
+.chat-pet-choice-option.selected .chat-pet-choice-thumb {
+	background: var(--vscode-editor-background);
+}
+
+.chat-pet-choice-thumb.empty {
+	border: var(--vscode-strokeThickness) dashed var(--vscode-editorWidget-border);
+}
+
+.chat-pet-choice-thumb canvas {
+	display: block;
+	image-rendering: pixelated;
+}
+
+.chat-pet-choice.tiles .chat-pet-choice-label {
+	overflow: hidden;
+	max-width: 100%;
+	font-size: var(--vscode-fontSize-label1);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-pet-interaction-sprite-field .chat-pet-choice {
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.chat-pet-trigger-form-error {
+	margin: 0;
+	color: var(--vscode-errorForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-pet-trigger-form-error.hidden {
+	display: none;
+}
+
+.chat-pet-trigger-form-actions {
+	display: flex;
+	gap: var(--vscode-spacing-size80);
+}
+
+.chat-pet-trigger-form-actions .monaco-button {
+	display: inline-flex;
+	width: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+}
+
+.hc-black .chat-pet-interactions-list,
+.hc-light .chat-pet-interactions-list,
+.hc-black .chat-pet-interactions-detail,
+.hc-light .chat-pet-interactions-detail,
+.hc-black .chat-pet-interaction-stage,
+.hc-light .chat-pet-interaction-stage,
+.hc-black .chat-pet-interaction-pool-entry,
+.hc-light .chat-pet-interaction-pool-entry,
+.hc-black .chat-pet-trigger-form,
+.hc-light .chat-pet-trigger-form,
+.hc-black .chat-pet-choice-option,
+.hc-light .chat-pet-choice-option,
+.hc-black .chat-pet-choice-thumb.empty,
+.hc-light .chat-pet-choice-thumb.empty {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.hc-black .chat-pet-choice-option.selected,
+.hc-light .chat-pet-choice-option.selected {
+	border-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+}

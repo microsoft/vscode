@@ -10,6 +10,65 @@
 	overflow: hidden;
 }
 
+.chat-pet-achievements-widget {
+	display: flex;
+	flex-direction: column;
+}
+
+/* Tabs: the pet's pages, underlined like panel titles so the modal reads as one surface. */
+.chat-pet-tabs {
+	flex: none;
+	box-sizing: border-box;
+	height: 35px;
+	padding: 0 var(--vscode-spacing-size240);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+}
+
+.chat-pet-achievements-widget.narrow .chat-pet-tabs {
+	padding: 0 var(--vscode-spacing-size120);
+}
+
+.chat-pet-tabs .monaco-action-bar .actions-container {
+	gap: var(--vscode-spacing-size80);
+}
+
+.chat-pet-tabs .monaco-action-bar .action-item .action-label {
+	box-sizing: border-box;
+	align-items: center;
+	height: 35px;
+	padding: 0 var(--vscode-spacing-size80);
+	border-bottom: var(--vscode-strokeThickness) solid transparent;
+	border-radius: 0;
+	background: none;
+	color: var(--vscode-panelTitle-inactiveForeground);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.chat-pet-tabs .monaco-action-bar .action-item .action-label:hover,
+.chat-pet-tabs .monaco-action-bar .action-item .action-label.checked {
+	color: var(--vscode-panelTitle-activeForeground);
+}
+
+.chat-pet-tabs .monaco-action-bar .action-item .action-label.checked {
+	border-bottom-color: var(--vscode-panelTitle-activeBorder);
+}
+
+.chat-pet-tabs .monaco-action-bar .action-item .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.chat-pet-achievements-page,
+.chat-pet-interactions-page {
+	flex: 1;
+	min-height: 0;
+}
+
+.chat-pet-achievements-page.hidden,
+.chat-pet-interactions-page.hidden {
+	display: none;
+}
+
 .chat-pet-achievements-content {
 	box-sizing: border-box;
 	min-width: 0;
@@ -226,6 +285,8 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.hc-black .chat-pet-tabs,
+.hc-light .chat-pet-tabs,
 .hc-black .chat-pet-achievement-card,
 .hc-light .chat-pet-achievement-card,
 .hc-black .chat-pet-achievement-preview,

@@ -45,6 +45,10 @@ interface IChatPetMoveFrame {
 
 /** Opens the list of moves and reactions the pet was taught. */
 export const CHAT_PET_TAUGHT_MOVES_COMMAND_ID = 'chat.pet.taughtMoves';
+/** Opens the pet's Sprites page, where its moves are seen, played, drawn and copied. */
+export const CHAT_PET_OPEN_SPRITES_COMMAND_ID = 'chat.pet.openSprites';
+/** Opens the pet's Interactions page, where what it plays on its triggers and on messages is changed. */
+export const CHAT_PET_OPEN_INTERACTIONS_COMMAND_ID = 'chat.pet.openInteractions';
 
 /** Source pixels per logical pixel, matching the pet's own sprite sheets. */
 export const CHAT_PET_MOVE_CELL_SIZE = 8;
@@ -67,7 +71,8 @@ const ChatPetMoveBodyPalettes = {
 	insiders: { C: '#24bfa5', A: '#009a7c', B: '#004538' },
 } as const;
 
-const CHAT_PET_MOVE_EYE_COLOR = '#191a1b';
+/** The color of the pet's eyes, in moves and on its own sprites. */
+export const CHAT_PET_MOVE_EYE_COLOR = '#191a1b';
 
 /**
  * Real poses of the pet as move rows, derived from the sprite sheets in `widget/media/chatPet/`

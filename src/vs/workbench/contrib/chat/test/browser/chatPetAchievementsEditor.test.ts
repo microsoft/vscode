@@ -10,7 +10,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { EditorInputCapabilities } from '../../../../common/editor.js';
@@ -59,7 +59,7 @@ suite('Chat Pet Achievements Editor', () => {
 			requiresModal: openedInput.hasCapability(EditorInputCapabilities.RequiresModal),
 			modalOptions: openedInput.getModalEditorOptions(),
 		}, {
-			name: 'Achievements',
+			name: 'VS Code Pet',
 			pinned: true,
 			singleton: true,
 			requiresModal: true,
@@ -106,6 +106,7 @@ suite('Chat Pet Achievements Editor', () => {
 			chatPetService,
 			new TestThemeService(),
 			store.add(new NullLogService()),
+			new class extends mock<IInstantiationService>() { }(),
 		));
 
 		const lockedCard = parent.querySelector<HTMLElement>(`[data-accessory-id="${ChatPetAccessoryIds.TopHatMonocle}"]`);
@@ -174,6 +175,7 @@ suite('Chat Pet Achievements Editor', () => {
 			chatPetService,
 			new TestThemeService(),
 			store.add(new NullLogService()),
+			new class extends mock<IInstantiationService>() { }(),
 		));
 
 		const unlockedCards = Array.from(parent.querySelectorAll<HTMLElement>('.chat-pet-achievement-card.monaco-button:not(.locked)'));
@@ -222,6 +224,7 @@ suite('Chat Pet Achievements Editor', () => {
 			chatPetService,
 			new TestThemeService(),
 			store.add(new NullLogService()),
+			new class extends mock<IInstantiationService>() { }(),
 		));
 
 		const noHatCard = parent.querySelector<HTMLElement>('[data-accessory-id="none"]');

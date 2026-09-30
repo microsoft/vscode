@@ -28,8 +28,8 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAccessoryId, getChatPetAccessory, getChatPetAchievement } from '../chatPetAchievements.js';
 import { findChatPetMove } from '../chatPetBuiltInMoves.js';
-import { CHAT_PET_TAUGHT_MOVES_COMMAND_ID, IChatPetMove } from '../chatPetMoves.js';
-import { findChatPetReaction } from '../chatPetReactions.js';
+import { CHAT_PET_OPEN_INTERACTIONS_COMMAND_ID, CHAT_PET_OPEN_SPRITES_COMMAND_ID, IChatPetMove } from '../chatPetMoves.js';
+import { ChatPetBuiltInAnimation, ChatPetBuiltInTrigger, ChatPetBuiltInTriggerAnimations, ChatPetTriggerPick, findChatPetReaction, getChatPetTriggerPool, isChatPetBuiltInReaction, pickChatPetTriggerReaction } from '../chatPetReactions.js';
 import { CHAT_PET_DEFAULT_SCALE, ChatPetVariant, IChatPetService } from '../chatPetService.js';
 import { drawChatPetComposite, drawChatPetEyeAccessory, getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetAccessoryImageSource, IChatPetFixedOrientationDecoration } from './chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetReducedMotionRigFrame } from './chatPetAccessoryRig.js';
@@ -450,6 +450,45 @@ function getSpriteSources(variant: ChatPetVariant): Record<ChatPetState, ChatPet
 	return sources;
 }
 
+/** One of the pet's own animations as the Sprites and Interactions pages draw it. */
+export interface IChatPetBuiltInAnimationImage {
+	/** The still frame, for thumbnails and reduced motion. */
+	readonly url: string;
+	readonly frameWidth: number;
+	readonly frameHeight: number;
+	/** Whether the pet draws its blinking eyes over the still, which the picture must add. */
+	readonly eyesDrawnOver: boolean;
+	/** The frames side by side, for a preview that plays; none when the animation is a single frame. */
+	readonly sheet: {
+		readonly url: string;
+		readonly frames: readonly { readonly durationMs: number; readonly eyesDrawnOver: boolean }[];
+		/** Whether the pet plays it over and over, or once, resting on the last frame. */
+		readonly loops: boolean;
+	} | undefined;
+}
+
+/**
+ * The picture of one of the pet's own animations, for the Sprites and Interactions pages, which
+ * draw taught moves from their rows but have no rows for the pet's own sprite sheets.
+ */
+export function getChatPetBuiltInAnimationImage(animation: ChatPetBuiltInAnimation, variant: ChatPetVariant): IChatPetBuiltInAnimationImage {
+	const state = getChatPetBuiltInAnimationState(animation);
+	const sources = getSpriteSources(variant)[state];
+	const still = sources.reducedMotion;
+	const eyesDrawnOver = (frameIndex?: number) => doesChatPetStateTrackCursor(state) || doesChatPetStateBlink(state, frameIndex);
+	return {
+		url: still.url,
+		frameWidth: still.frameWidth,
+		frameHeight: still.frameHeight ?? CHAT_PET_SOURCE_SIZE,
+		eyesDrawnOver: eyesDrawnOver(),
+		sheet: sources.animated.frameDurations.length > 1 ? {
+			url: sources.animated.url,
+			frames: sources.animated.frameDurations.map((durationMs, frameIndex) => ({ durationMs, eyesDrawnOver: eyesDrawnOver(frameIndex) })),
+			loops: sources.animated.iterations === Infinity,
+		} : undefined,
+	};
+}
+
 function getSpeechSpriteSources(variant: ChatPetVariant): ChatPetSpriteSources {
 	let sources = speechSpriteSources.get(variant);
 	if (!sources) {
@@ -590,10 +629,15 @@ function announceChatPetReaction(state: ChatPetState): void {
 		case 'dizzy':
 			status(localize('chatPet.dizzy', "The VS Code pet got dizzy"));
 			break;
+		case 'clapping':
+			status(localize('chatPet.clapping', "The VS Code pet is clapping"));
+			break;
 	}
 }
 
 const CHAT_PET_REACTION_REQUEST_MAX_AGE = 5_000;
+/** How many recent request ids the pet remembers; older requests are past `CHAT_PET_REACTION_REQUEST_MAX_AGE` anyway. */
+const CHAT_PET_SEEN_REQUEST_LIMIT = 32;
 /** How often a reaction the pet can't play yet is retried, for example while it moves to a new chat's input. */
 const CHAT_PET_PENDING_REACTION_RETRY_DELAY = 150;
 
@@ -675,6 +719,30 @@ function getTransientStateDuration(state: ChatPetState): number {
 	}
 }
 
+/** The state that shows one of the pet's own animations, as the Interactions page names them. */
+export function getChatPetBuiltInAnimationState(animation: ChatPetBuiltInAnimation): ChatPetState {
+	switch (animation) {
+		case 'celebrate': return 'buttonPress';
+		case 'clap': return 'clapping';
+		case 'thinking': return 'rendering';
+		default: return animation;
+	}
+}
+
+/** The built-in trigger a base state answers, so a custom move picked for the trigger can show in its place. */
+export function getChatPetBaseStateTrigger(state: ChatPetState): ChatPetBuiltInTrigger | undefined {
+	switch (state) {
+		case 'clapping': return 'confirmation';
+		case 'sleep': return 'sleep';
+		case 'typing': return 'typing';
+		case 'rendering': return 'responding';
+		default: return undefined;
+	}
+}
+
+/** The built-in reactions a click plays one of, at random, along with the moves taught for clicks. */
+export const ChatPetClickInteractions: readonly ChatPetClickInteraction[] = ChatPetBuiltInTriggerAnimations.click.map(animation => getChatPetBuiltInAnimationState(animation) as ChatPetClickInteraction);
+
 export function getChatPetClickInteraction(random: number, previousInteraction?: ChatPetClickInteraction): ChatPetClickInteraction {
 	if (random < CHAT_PET_ICON_TRANSFORMATION_CHANCE) {
 		return 'complete';
@@ -684,8 +752,7 @@ export function getChatPetClickInteraction(random: number, previousInteraction?:
 		return 'yapping';
 	}
 
-	const interactions: readonly ChatPetClickInteraction[] = ['buttonPress', 'love', 'cool', 'sing', 'speechless', 'worry'];
-	const availableInteractions = interactions.filter(interaction => interaction !== previousInteraction);
+	const availableInteractions = ChatPetClickInteractions.filter(interaction => interaction !== previousInteraction);
 	const normalizedRandom = (random - yappingThreshold) / (1 - yappingThreshold);
 	return availableInteractions[Math.min(Math.floor(normalizedRandom * availableInteractions.length), availableInteractions.length - 1)];
 }
@@ -1374,12 +1441,22 @@ export class ChatPetWidget extends Disposable {
 	private _horizontalAnchor: ChatPetHorizontalAnchor | undefined;
 	private _suppressNextPointerClick = false;
 	private _contextMenuVisible = false;
-	private _lastClickInteraction: ChatPetClickInteraction | undefined;
+	/** What the last click played, an animation or a move, so the next click plays something else. */
+	private _lastClickPick: string | undefined;
 	/** The taught move the `custom` state plays, and its sheets drawn per colorway and facing. */
 	private _customMove: IChatPetMove | undefined;
+	/** Whether the custom move holds for a base state, looping until the state ends, rather than playing as a reaction. */
+	private _customMoveHolds = false;
 	private readonly _customMoveSources = new Map<string, ChatPetSpriteSources>();
+	/** The built-in trigger the playing custom move answers, so the trigger doesn't restart it. */
+	private _customMoveTrigger: ChatPetBuiltInTrigger | undefined;
+	/** What was picked for the base state the pet is in, out of the pool as it was: a custom move to show in its place, or nothing at all. */
+	private _baseOverride: { readonly state: ChatPetState; readonly poolKey: string; readonly move: IChatPetMove | undefined; readonly animation: ChatPetState | undefined; readonly silent: boolean } | undefined;
 	/** Only messages sent after the newest one already seen can trigger a taught reaction. */
-	private _lastSeenRequestTimestamp = Date.now();
+	/** Ids of the requests the pet answered or passed over, so a message reacts at most once however often it is observed. */
+	private readonly _seenRequestIds: string[] = [];
+	/** When the pet started watching for messages: ones sent before, such as restored turns, don't react. */
+	private readonly _watchingSince = Date.now();
 	/** The state a reaction or taught move started, which the end of a chat response must not cut short. */
 	private _reactionState: ChatPetState | undefined;
 	/** A reaction to a message sent while the pet couldn't react, played once it can while the message is recent. */
@@ -1603,10 +1680,17 @@ export class ChatPetWidget extends Disposable {
 				status(localize('chatPet.wokeUp', "The VS Code pet woke up"));
 				return;
 			}
-			const interaction = getChatPetClickInteraction(Math.random(), this._lastClickInteraction);
-			this._lastClickInteraction = interaction;
-			this._showTransientState(interaction);
-			announceChatPetReaction(interaction);
+			// A rare spin or a bit of yapping first; otherwise one of the click pool, built-in animations and taught moves alike.
+			const roll = this._random();
+			if (roll < CHAT_PET_ICON_TRANSFORMATION_CHANCE + CHAT_PET_YAPPING_CHANCE) {
+				const interaction = getChatPetClickInteraction(roll);
+				this._showTransientState(interaction);
+				announceChatPetReaction(interaction);
+				return;
+			}
+			const pick = this._pickForTrigger('click', this._lastClickPick);
+			this._lastClickPick = pick?.animation ?? pick?.move;
+			this._playPick('click', pick);
 		}));
 		this._register(this.chatPetService.onDidUnlockAchievement(id => {
 			if (!this._enabled || !this.hostService.hasFocus || this.chatPetService.onTheRun.get() || this._isDead.get()) {
@@ -1780,7 +1864,10 @@ export class ChatPetWidget extends Disposable {
 			if (renderedState !== 'jump' || this._motionReduced) {
 				this._hopController.cancel();
 			}
-			this._renderState(renderedState, variantChanged, isDragging);
+			// What the user set for the base state's trigger, read here so a change shows right away.
+			this.chatPetService.reactions.read(reader);
+			this.chatPetService.disabledBuiltInReactions.read(reader);
+			this._renderState(this._applyBaseOverride(renderedState), variantChanged, isDragging);
 		}));
 
 		this._register(autorun(reader => {
@@ -1801,7 +1888,7 @@ export class ChatPetWidget extends Disposable {
 				// A reaction to this message, or a move an agent just taught, finishes first.
 				const reacting = this._reactionState !== undefined && this._transientState.read(undefined) === this._reactionState;
 				if (e.reason === 'completedRequest' && !response.isCanceled && !reacting) {
-					this._showTransientState('buttonPress');
+					this._playPick('requestDone', this._pickForTrigger('requestDone'));
 				}
 			}));
 		}));
@@ -2536,12 +2623,19 @@ export class ChatPetWidget extends Disposable {
 			true,
 			() => this.commandService.executeCommand(CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID)
 		));
-		const taughtMoves = actions.add(new Action(
-			'chat.pet.taughtMoves',
-			localize('chatPet.taughtMoves.action', "Taught Moves…"),
+		const sprites = actions.add(new Action(
+			'chat.pet.sprites',
+			localize('chatPet.sprites.action', "Sprites…"),
 			undefined,
 			true,
-			() => this.commandService.executeCommand(CHAT_PET_TAUGHT_MOVES_COMMAND_ID)
+			() => this.commandService.executeCommand(CHAT_PET_OPEN_SPRITES_COMMAND_ID)
+		));
+		const interactions = actions.add(new Action(
+			'chat.pet.interactions',
+			localize('chatPet.interactions.action', "Interactions…"),
+			undefined,
+			true,
+			() => this.commandService.executeCommand(CHAT_PET_OPEN_INTERACTIONS_COMMAND_ID)
 		));
 		const stable = actions.add(new Action('chat.pet.variant.stable', localize('chatPet.variant.stable.action', "Stable Colors"), undefined, true, () => this.chatPetService.setVariant('stable')));
 		stable.checked = this.chatPetService.variant.get() === 'stable';
@@ -2577,7 +2671,8 @@ export class ChatPetWidget extends Disposable {
 			getAnchor: () => new StandardMouseEvent(dom.getWindow(this._button.element), event),
 			getActions: (): IAction[] => [
 				achievements,
-				taughtMoves,
+				interactions,
+				sprites,
 				onTheRunAction,
 				interactionSeparator,
 				grow,
@@ -3108,7 +3203,7 @@ export class ChatPetWidget extends Disposable {
 		this._button.element.dataset.facing = direction;
 		if (changed) {
 			// A taught move is drawn pre-mirrored, so it needs the other facing's sheet (unless it is already ending).
-			if (this._renderedState === 'custom' && this._transientState.get() === 'custom') {
+			if (this._renderedState === 'custom' && (this._transientState.get() === 'custom' || this._baseOverride?.move)) {
 				this._renderState('custom');
 			} else {
 				this._redrawActiveFrame?.();
@@ -3118,7 +3213,9 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _recordDirectionChange(direction: ChatPetFacingDirection): boolean {
-		if (!this._enabled || this._isDead.get() || this.chatPetService.onTheRun.get() || this._transientState.get() === 'dizzy') {
+		const transientState = this._transientState.get();
+		const alreadyDizzy = transientState === 'dizzy' || (transientState === 'custom' && this._customMoveTrigger === 'dizzy');
+		if (!this._enabled || this._isDead.get() || this.chatPetService.onTheRun.get() || alreadyDizzy) {
 			return false;
 		}
 		if (!this._directionChangeController.record(direction, dom.getWindow(this._button.element).performance.now())) {
@@ -3126,8 +3223,32 @@ export class ChatPetWidget extends Disposable {
 		}
 
 		this._setFacingDirection(direction);
-		this._showTransientState('dizzy', false);
-		announceChatPetReaction('dizzy');
+		this._playPick('dizzy', this._pickForTrigger('dizzy'), false);
+		return true;
+	}
+
+	private _pickForTrigger(trigger: ChatPetBuiltInTrigger, previous?: string): ChatPetTriggerPick | undefined {
+		return pickChatPetTriggerReaction(trigger, this.chatPetService.reactions.get(), this.chatPetService.disabledBuiltInReactions.get(), () => this._random(), previous);
+	}
+
+	/**
+	 * Plays what a built-in trigger picked: one of the pet's own animations, or a taught move.
+	 * Nothing plays when the user turned everything off for the trigger.
+	 */
+	private _playPick(trigger: ChatPetBuiltInTrigger, pick: ChatPetTriggerPick | undefined, snapFacingToCursor = true): boolean {
+		if (!pick) {
+			return false;
+		}
+		if (pick.move !== undefined) {
+			if (!this.playReaction(pick.move)) {
+				return false;
+			}
+			this._customMoveTrigger = trigger;
+			return true;
+		}
+		const state = getChatPetBuiltInAnimationState(pick.animation);
+		this._showTransientState(state, snapFacingToCursor);
+		announceChatPetReaction(state);
 		return true;
 	}
 
@@ -3258,6 +3379,11 @@ export class ChatPetWidget extends Disposable {
 				this._reactionState = 'buttonPress';
 				announceChatPetReaction('buttonPress');
 				return true;
+			case 'clap':
+				this._showTransientState('clapping');
+				this._reactionState = 'clapping';
+				announceChatPetReaction('clapping');
+				return true;
 			case 'jump':
 				this._wake();
 				this._hopController.request(0, this._motionReduced);
@@ -3269,12 +3395,17 @@ export class ChatPetWidget extends Disposable {
 		if (!move) {
 			return false;
 		}
-		this._customMove = move;
-		this._customMoveSources.clear();
+		this._setCustomMove(move, false);
+		this._customMoveTrigger = undefined;
 		this._showTransientState('custom');
 		this._reactionState = 'custom';
 		status(localize('chatPet.playedMove', "The VS Code pet plays {0}", move.name));
 		return true;
+	}
+
+	/** The roll behind what a click or a message plays; tests override it to pick a known reaction. */
+	protected _random(): number {
+		return Math.random();
 	}
 
 	private _canReact(): boolean {
@@ -3288,38 +3419,82 @@ export class ChatPetWidget extends Disposable {
 			&& this._transientState.get() !== 'achievementUnlocked';
 	}
 
+	/** The move the `custom` state shows. The sheets are drawn and encoded synchronously, so a move shown again keeps its own. */
+	private _setCustomMove(move: IChatPetMove, holds: boolean): void {
+		if (this._customMove !== move) {
+			this._customMove = move;
+			this._customMoveSources.clear();
+		}
+		this._customMoveHolds = holds;
+	}
+
 	private _getCustomMoveSources(): ChatPetSpriteSources {
 		const move = this._customMove;
 		if (!move) {
 			return getSpriteSources(this._variant).idle;
 		}
 		const facing = this._facingController.direction;
-		const key = `${this._variant}:${facing}`;
+		const key = `${this._variant}:${facing}:${this._customMoveHolds}`;
 		let sources = this._customMoveSources.get(key);
 		if (!sources) {
-			sources = renderChatPetMoveSheets(move, this._variant, facing);
+			sources = renderChatPetMoveSheets(move, this._variant, facing, this._customMoveHolds);
 			this._customMoveSources.set(key, sources);
 		}
 		return sources;
 	}
 
 	/**
-	 * Plays the first taught reaction whose phrases appear in a message the user just sent. Send
-	 * times only move forward, so each request can react at most once.
+	 * The state to render for a base state the pet is in: the sprite assigned to its trigger, held
+	 * while the state lasts, whether a move shown in the custom state or one of the pet's own
+	 * reactions, idle when the user turned the trigger off, or the state itself. The pick stays
+	 * until the pet leaves the state or the trigger's pool changes.
+	 */
+	private _applyBaseOverride(state: ChatPetState): ChatPetState {
+		const trigger = getChatPetBaseStateTrigger(state);
+		if (!trigger) {
+			this._baseOverride = undefined;
+			return state;
+		}
+		const poolKey = getChatPetTriggerPool(trigger, this.chatPetService.reactions.get(), this.chatPetService.disabledBuiltInReactions.get()).map(entry => `${entry.pick.animation ?? entry.pick.reactionId}${entry.enabled ? '' : '!'}`).join('|');
+		if (this._baseOverride?.state !== state || this._baseOverride.poolKey !== poolKey) {
+			const pick = this._pickForTrigger(trigger);
+			const move = pick?.move !== undefined ? findChatPetMove(this.chatPetService.moves.get(), pick.move) : undefined;
+			// One-shot reactions rest on their last frame once played, which holds as well as a looping one.
+			const animation = pick?.move !== undefined && !move && isChatPetBuiltInReaction(pick.move) ? getChatPetBuiltInAnimationState(pick.move) : undefined;
+			this._baseOverride = { state, poolKey, move, animation, silent: pick === undefined };
+		}
+		if (this._baseOverride.silent) {
+			return 'idle';
+		}
+		if (this._baseOverride.move) {
+			this._setCustomMove(this._baseOverride.move, true);
+			return 'custom';
+		}
+		return this._baseOverride.animation ?? state;
+	}
+
+	/**
+	 * Plays a taught reaction whose phrases appear in a message the user just sent. Requests are
+	 * told apart by id, as send times are neither unique nor ordered, so each reacts at most once
+	 * however often it is observed, as when the pet moves between chats.
 	 */
 	private _reactToRequest(request: IChatRequestModel): void {
 		const sentAt = request.requestTimestamp;
-		if (sentAt === undefined || sentAt <= this._lastSeenRequestTimestamp) {
+		if (sentAt === undefined || sentAt < this._watchingSince || this._seenRequestIds.includes(request.id)) {
 			return;
 		}
-		this._lastSeenRequestTimestamp = sentAt;
+		// Only recent requests can react, so remembering the last few is enough.
+		this._seenRequestIds.push(request.id);
+		if (this._seenRequestIds.length > CHAT_PET_SEEN_REQUEST_LIMIT) {
+			this._seenRequestIds.shift();
+		}
 		// A newer message replaces a reaction still waiting for the pet, whether or not it reacts.
 		this._pendingReaction = undefined;
 		this._pendingReactionScheduler.cancel();
 		if (!isChatPetReactionRequest(request, Date.now())) {
 			return;
 		}
-		const reaction = findChatPetReaction(request.message.text, this.chatPetService.reactions.get(), Math.random);
+		const reaction = findChatPetReaction(request.message.text, this.chatPetService.reactions.get(), () => this._random());
 		if (!reaction) {
 			return;
 		}
