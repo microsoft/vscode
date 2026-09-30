@@ -62,11 +62,6 @@ export interface BYOKModelCapabilities {
 	contextWindow?: number;
 	toolCalling: boolean;
 	vision: boolean;
-	/**
-	 * Whether the model is used exclusively for voice experiences.
-	 * Voice models are shown in model management but excluded from chat model pickers.
-	 */
-	voice?: boolean;
 	thinking?: boolean;
 	adaptiveThinking?: boolean;
 	minThinkingBudget?: number;
@@ -213,7 +208,7 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		family: id,
 		tooltip: `${capabilities.name} is contributed via the ${providerName} provider.`,
 		multiplierNumeric: undefined,
-		isUserSelectable: capabilities.voice !== true,
+		isUserSelectable: true,
 		capabilities: {
 			toolCalling: capabilities.toolCalling,
 			imageInput: capabilities.vision,

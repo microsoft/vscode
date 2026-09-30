@@ -8,33 +8,13 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { BYOKKnownModels, BYOKModelCapabilities } from '../common/byokProvider';
+import { BYOKKnownModels } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
-import { GPT_LIVE_MODEL_ID } from './gptLiveSession';
 
 export interface OpenAIProviderConfig extends LanguageModelChatConfiguration {
 	readonly zeroDataRetentionEnabled?: boolean;
-}
-
-const GPT_LIVE_MODEL_CAPABILITIES: BYOKModelCapabilities = {
-	name: 'GPT Live 1',
-	contextWindow: 128000,
-	maxOutputTokens: 8192,
-	toolCalling: false,
-	vision: false,
-	voice: true,
-};
-
-export function withOpenAIVoiceModels(knownModels: BYOKKnownModels | undefined): BYOKKnownModels {
-	return {
-		...knownModels,
-		[GPT_LIVE_MODEL_ID]: {
-			...knownModels?.[GPT_LIVE_MODEL_ID],
-			...GPT_LIVE_MODEL_CAPABILITIES,
-		},
-	};
 }
 
 export function applyOpenAIProviderConfig(modelInfo: IChatModelInformation, configuration: OpenAIProviderConfig | undefined): IChatModelInformation {
@@ -61,7 +41,7 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 		super(
 			OAIBYOKLMProvider.providerId,
 			OAIBYOKLMProvider.providerName,
-			withOpenAIVoiceModels(knownModels),
+			knownModels,
 			byokStorageService,
 			fetcherService,
 			logService,
@@ -69,10 +49,6 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 			configurationService,
 			expService
 		);
-	}
-
-	override updateKnownModels(knownModels: BYOKKnownModels | undefined): void {
-		super.updateKnownModels(withOpenAIVoiceModels(knownModels));
 	}
 
 	protected override getModelsBaseUrl(): string {

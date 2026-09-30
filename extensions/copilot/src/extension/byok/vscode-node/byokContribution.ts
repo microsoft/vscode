@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { LanguageModelChatInformation, LanguageModelChatProvider, lm, speech } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
@@ -18,7 +19,7 @@ import { BYOKStorageService, IBYOKStorageService } from './byokStorageService';
 import { CustomEndpointBYOKModelProvider } from './customEndpointProvider';
 import { CustomOAIBYOKModelProvider } from './customOAIProvider';
 import { GeminiNativeBYOKLMProvider } from './geminiNativeProvider';
-import { createGptLiveSession, GPT_LIVE_SESSION_PROVIDER_ID, GptLiveSessionResult, isGptLiveModelAvailable } from './gptLiveSession';
+import { createGptLiveSession, GPT_LIVE_SESSION_PROVIDER_ID, GptLiveSessionResult, isGptLiveModelAvailable, USE_BYOK_VOICE_MODEL_SETTING } from './gptLiveSession';
 import { OllamaLMProvider } from './ollamaProvider';
 import { OAIBYOKLMProvider } from './openAIProvider';
 import { OpenRouterLMProvider } from './openRouterProvider';
@@ -39,6 +40,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._byokStorageService = new BYOKStorageService(extensionContext);
@@ -57,9 +59,13 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		if (!apiKey) {
 			return { status: 'unavailable' };
 		}
+		const modelId = this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_MODEL_SETTING)?.trim();
+		if (!modelId) {
+			return { status: 'unavailable' };
+		}
 		if (sdp === undefined) {
 			try {
-				return await isGptLiveModelAvailable(this._fetcherService, apiKey)
+				return await isGptLiveModelAvailable(this._fetcherService, apiKey, modelId)
 					? { status: 'available' }
 					: { status: 'unavailable' };
 			} catch (error) {
@@ -69,7 +75,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		}
 		return {
 			status: 'ready',
-			session: await createGptLiveSession(this._fetcherService, apiKey, sdp),
+			session: await createGptLiveSession(this._fetcherService, apiKey, modelId, sdp),
 		};
 	}
 

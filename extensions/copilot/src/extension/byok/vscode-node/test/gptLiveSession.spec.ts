@@ -20,10 +20,10 @@ describe('isGptLiveModelAvailable', () => {
 	it('detects GPT-Live access without exposing the API key', async () => {
 		const fetcher = new TestFetcherService();
 		fetcher.fetch.mockResolvedValue(createFakeResponse(200, {
-			data: [{ id: 'gpt-4.1' }, { id: 'gpt-live-1' }],
+			data: [{ id: 'gpt-4.1' }, { id: 'configured-live-model' }],
 		}));
 
-		const available = await isGptLiveModelAvailable(fetcher, 'secret-key');
+		const available = await isGptLiveModelAvailable(fetcher, 'secret-key', 'configured-live-model');
 
 		expect({
 			available,
@@ -45,7 +45,7 @@ describe('isGptLiveModelAvailable', () => {
 			data: [{ id: 'gpt-4.1' }],
 		}));
 
-		await expect(isGptLiveModelAvailable(fetcher, 'secret-key')).resolves.toBe(false);
+		await expect(isGptLiveModelAvailable(fetcher, 'secret-key', 'gpt-live-1')).resolves.toBe(false);
 	});
 });
 
@@ -57,7 +57,7 @@ describe('createGptLiveSession', () => {
 			transport: { type: 'webrtc', sdp: 'answer-sdp' },
 		}));
 
-		const result = await createGptLiveSession(fetcher, 'secret-key', ' offer-sdp ');
+		const result = await createGptLiveSession(fetcher, 'secret-key', 'configured-live-model', ' offer-sdp ');
 
 		expect({
 			result,
@@ -77,7 +77,7 @@ describe('createGptLiveSession', () => {
 				},
 				json: {
 					session: {
-						model: 'gpt-live-1',
+						model: 'configured-live-model',
 						delegation: { type: 'client' },
 					},
 					transport: {
@@ -93,7 +93,7 @@ describe('createGptLiveSession', () => {
 	it('rejects an empty SDP offer before making a request', async () => {
 		const fetcher = new TestFetcherService();
 
-		await expect(createGptLiveSession(fetcher, 'secret-key', '  ')).rejects.toThrow('An SDP offer is required');
+		await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', '  ')).rejects.toThrow('An SDP offer is required');
 		expect(fetcher.fetch).not.toHaveBeenCalled();
 	});
 
@@ -103,7 +103,7 @@ describe('createGptLiveSession', () => {
 
 		let error: Error | undefined;
 		try {
-			await createGptLiveSession(fetcher, 'secret-key', 'offer-sdp');
+			await createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp');
 		} catch (caught) {
 			error = caught instanceof Error ? caught : new Error(String(caught));
 		}
@@ -124,6 +124,6 @@ describe('createGptLiveSession', () => {
 			transport: { type: 'webrtc' },
 		}));
 
-		await expect(createGptLiveSession(fetcher, 'secret-key', 'offer-sdp')).rejects.toThrow('invalid session response');
+		await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp')).rejects.toThrow('invalid session response');
 	});
 });
