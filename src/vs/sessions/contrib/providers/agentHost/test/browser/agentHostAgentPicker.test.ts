@@ -13,8 +13,9 @@ import { ContextKeyService } from '../../../../../../platform/contextkey/browser
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionAgentPickerInAttachContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
 import '../../browser/agentHostAgentPicker.js';
+import '../../browser/agentHostSessionConfigPicker.js';
 import '../../browser/mobile/mobileChatInputConfigPicker.js';
 import '../../../../chat/browser/modelPicker.js';
 
@@ -29,6 +30,7 @@ suite('agentHostAgentPicker', () => {
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
 		IsPhoneLayoutContext.bindTo(context).set(false);
+		const agentPickerInAttachContext = SessionAgentPickerInAttachContext.bindTo(context);
 		const inDialog = ChatContextKeys.inAutomationsDialog.bindTo(context);
 		const ids = ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker', 'sessions.modelPicker'];
 		const controls = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem)
@@ -38,10 +40,19 @@ suite('agentHostAgentPicker', () => {
 		inDialog.set(false);
 		const newSessionPrimary = controls(Menus.NewSessionConfig);
 		const newSessionSecondary = controls(Menus.NewSessionControl);
+		const attachContext = () => MenuRegistry.getMenuItems(Menus.NewSessionAttachContext)
+			.filter(isIMenuItem)
+			.filter(item => context.contextMatchesRules(item.when))
+			.map(item => item.command.id);
+		const attachContextBefore = attachContext();
+		agentPickerInAttachContext.set(true);
+		const attachContextAfter = attachContext();
 		inDialog.set(true);
-		assert.deepStrictEqual({ newSessionPrimary, newSessionSecondary }, {
+		assert.deepStrictEqual({ newSessionPrimary, newSessionSecondary, attachContextBefore, attachContextAfter }, {
 			newSessionPrimary: ['sessions.agentHost.agentPicker', 'sessions.modelPicker'],
 			newSessionSecondary: ['sessions.agentHost.newSessionModePicker'],
+			attachContextBefore: [],
+			attachContextAfter: ['sessions.agentHost.agentPicker'],
 		});
 	});
 

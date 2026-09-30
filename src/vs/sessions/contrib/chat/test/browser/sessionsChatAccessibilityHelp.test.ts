@@ -27,7 +27,7 @@ import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessi
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -192,11 +192,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 	});
 
 	test('describes controls according to the effective new-session layout', () => {
-		const getLayoutHelp = (unifiedPicker: boolean, experimentalLayout: boolean, screenReader = false) => {
+		const getLayoutHelp = (unifiedPicker: boolean, experimentalLayout: boolean, agentPickerInAttachContext = false, screenReader = false) => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({
 				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
 				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
+				[AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: agentPickerInAttachContext,
 			});
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiationService.stub(IConfigurationService, configuration);
@@ -217,13 +218,21 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.deepStrictEqual([
 			getLayoutHelp(false, false),
+			getLayoutHelp(false, false, true),
 			getLayoutHelp(true, false),
 			getLayoutHelp(false, true),
 			getLayoutHelp(true, true),
+			getLayoutHelp(true, true, false, true),
 			getLayoutHelp(true, true, true),
 		], [
 			{
 				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+				hasSessionOptions: false,
+				sessionOptionsMentionsToggle: false,
+			},
+			{
+				controls: 'Inside the new-session prompt, open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: false,
 				sessionOptionsMentionsToggle: false,
@@ -251,6 +260,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: true,
 				sessionOptionsMentionsToggle: false,
+			},
+			{
+				controls: 'Inside the new-session prompt, open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+				hasSessionOptions: true,
+				sessionOptionsMentionsToggle: true,
 			},
 		]);
 	});

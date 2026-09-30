@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
@@ -24,13 +25,13 @@ import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
+import { IWorkspacePickerContextAction, IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { TOTAL_SESSIONS_KEY } from '../../../sessions/browser/sessionsLifecycleTracker.js';
@@ -159,6 +160,18 @@ const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.protot
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const restoreSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
 const setSessionOptionsExpandedFromUser = Reflect.get(NewChatWidget.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
+const getContextPickerActions = Reflect.get(NewChatWidget.prototype, '_getContextPickerActions') as (this: {
+	readonly _workspacePicker: Pick<WorkspacePicker, 'getContextPickerActions'>;
+	readonly _useExperimentalComposerLayout: IObservable<boolean>;
+	readonly _agentsPickerInAttachContextMenu: IObservable<boolean>;
+	readonly _newSessionAttachContextMenu: {
+		getActions(): [string, IAction[]][];
+	};
+	readonly _newChatInput: {
+		runAttachContextAction(action: IAction): Promise<void>;
+	};
+	readonly telemetryService: ITelemetryService;
+}) => readonly IWorkspacePickerContextAction[];
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => string | undefined;
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
@@ -2229,5 +2242,58 @@ suite('NewChatWidget', () => {
 			});
 		});
 	}
+
+	test('moves the Agent picker into Add Context until the user selects an agent', async () => {
+		const createHarness = (enabled: boolean, experimentalLayout = true) => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			let openCount = 0;
+			let showAgentAction = true;
+			const agentAction = toAction({
+				id: 'sessions.agentHost.agentPicker',
+				label: 'Agent',
+				run: async () => { openCount++; },
+			});
+			const existingAction: IWorkspacePickerContextAction = {
+				label: 'Existing',
+				icon: Codicon.file,
+				run: async () => { },
+			};
+			const harness = {
+				_workspacePicker: { getContextPickerActions: () => [existingAction] },
+				_useExperimentalComposerLayout: constObservable(experimentalLayout),
+				_agentsPickerInAttachContextMenu: constObservable(enabled),
+				_newSessionAttachContextMenu: { getActions: () => [['navigation', showAgentAction ? [agentAction] : []] as [string, IAction[]]] },
+				_newChatInput: {
+					runAttachContextAction: async (action: IAction) => { await action.run(); },
+				},
+				telemetryService,
+			};
+			return { harness, telemetryService, hideAgentAction: () => showAgentAction = false, getOpenCount: () => openCount };
+		};
+		const control = createHarness(false);
+		const treatment = createHarness(true);
+		const legacyLayoutTreatment = createHarness(true, false);
+		const treatmentActions = getContextPickerActions.call(treatment.harness);
+		await treatmentActions[0].run();
+		treatment.hideAgentAction();
+
+		assert.deepStrictEqual({
+			controlLabels: getContextPickerActions.call(control.harness).map(action => action.label),
+			treatmentLabels: treatmentActions.map(action => action.label),
+			legacyLayoutTreatmentLabels: getContextPickerActions.call(legacyLayoutTreatment.harness).map(action => action.label),
+			afterSelectionLabels: getContextPickerActions.call(treatment.harness).map(action => action.label),
+			openCount: treatment.getOpenCount(),
+			controlTriggers: control.telemetryService.triggers,
+			treatmentTriggers: treatment.telemetryService.triggers,
+		}, {
+			controlLabels: ['Existing'],
+			treatmentLabels: ['Agent...', 'Existing'],
+			legacyLayoutTreatmentLabels: ['Agent...', 'Existing'],
+			afterSelectionLabels: ['Existing'],
+			openCount: 1,
+			controlTriggers: [`config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`],
+			treatmentTriggers: [`config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`],
+		});
+	});
 
 });
