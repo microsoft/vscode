@@ -18,7 +18,8 @@ import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/brow
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionCanvasAvailability, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionCanvasInput } from '../../../canvases/common/sessionCanvas.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { SinglePaneDetailPanelCoordinator } from '../../browser/singlePane/singlePaneDetailPanelCoordinator.js';
@@ -202,6 +203,56 @@ suite('SinglePane layout strategies', () => {
 		});
 		harness.activeGroupEditors.push(pullRequestEditor);
 		harness.activeEditorInput = pullRequestEditor;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		activate(session);
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			createVisibilityStore(),
+			createDetailPanel(),
+		));
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		harness.setPartHiddenCalls.length = 0;
+
+		state.isRestoringSessionLayout = false;
+		state.endSessionLayoutRestore();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [
+				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+			],
+		});
+	});
+
+	test('Existing Session hides Files Details after initial restoration settles with a canvas editor', () => {
+		harness = createTestHarness(store);
+		const { ctx, state } = createStrategyTestContext(store, harness);
+		state.isRestoringSessionLayout = true;
+		const session = makeSession(URI.parse('session:/existing'), { isCreated: true });
+		const canvasResource = URI.parse('agent-host-canvas:/preview');
+		const canvasEditor = store.add(new SessionCanvasInput({
+			providerId: 'local-agent-host',
+			session: session.resource,
+			chat: URI.parse('agent-host-chat:/session/main'),
+			canvas: canvasResource,
+		}, {
+			resource: canvasResource,
+			instanceId: 'preview',
+			title: 'Preview',
+			revision: 1,
+			availability: SessionCanvasAvailability.Ready,
+			resolveSource: async () => URI.parse('https://example.test/preview'),
+		}));
+		harness.activeGroupEditors.push(canvasEditor);
+		harness.activeEditorInput = canvasEditor;
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		activate(session);

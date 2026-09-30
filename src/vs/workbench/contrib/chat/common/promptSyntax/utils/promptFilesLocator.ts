@@ -18,7 +18,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { AgentInstructionFileType, IPromptPath, IAgentInstructionFile, Logger, PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -214,8 +214,10 @@ export class PromptFilesLocator {
 				paths.add(file);
 				result.push({ uri: file, source: isUserDataFile ? PromptFileSource.UserData : source });
 			}
+			// Report cancellation as an error so callers cannot mistake a partial
+			// scan for a complete "no prompt files" answer and cache it.
 			if (token.isCancellationRequested) {
-				return [];
+				throw new CancellationError();
 			}
 		}
 		return result;

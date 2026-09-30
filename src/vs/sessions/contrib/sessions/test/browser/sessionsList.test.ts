@@ -99,7 +99,7 @@ function createSession(id: string, opts: {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	const isArchived = observableValue(`isArchived-${id}`, opts.isArchived ?? false);
-	const mainChat = upcastPartial<IChat>({ changes: constObservable([]), changesets: constObservable([]) });
+	const mainChat = upcastPartial<IChat>({ updatedAt: constObservable(updatedAt), changes: constObservable([]), changesets: constObservable([]) });
 	return {
 		sessionId: id,
 		resource: opts.resource ?? URI.parse(`session://${id}`),
@@ -2261,7 +2261,7 @@ suite('Sessions - SessionsList', () => {
 			title: constObservable('Fix the redirect loop'),
 			isQuickChat: constObservable(false),
 			worktreePending: constObservable(false),
-			mainChat: constObservable(upcastPartial<IChat>({ changes: constObservable([]), changesets: constObservable([]) })),
+			mainChat: constObservable(upcastPartial<IChat>({ updatedAt: constObservable(new Date()), changes: constObservable([]), changesets: constObservable([]) })),
 			workspace: constObservable({
 				uri: root,
 				label: 'vscode',
@@ -3608,12 +3608,12 @@ suite('Sessions - SessionsList', () => {
 
 	suite('session chat rows', () => {
 
-		function createChat(title: string, origin?: ChatOriginKind, interactivity = ChatInteractivity.Full, status = SessionStatus.Completed): IChat {
+		function createChat(title: string, origin?: ChatOriginKind, interactivity = ChatInteractivity.Full, status = SessionStatus.Completed, updatedAt: IObservable<Date | undefined> = constObservable(new Date())): IChat {
 			return upcastPartial<IChat>({
 				resource: URI.parse(`test-chat://${title.replaceAll(' ', '-')}`),
 				workspace: constObservable(undefined),
 				title: constObservable(title),
-				updatedAt: constObservable(new Date()),
+				updatedAt,
 				status: constObservable(status),
 				isArchived: constObservable(false),
 				changes: constObservable([]),
@@ -3676,6 +3676,97 @@ suite('Sessions - SessionsList', () => {
 		function chatRowTitles(container: HTMLElement): string[] {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
+
+		test('shows each resolved chat modified time independently and omits unresolved times', () => {
+			const built = buildTestSession({
+				id: 'chat-times',
+				title: 'Main chat',
+				minutesAgo: 60,
+				mainChatMinutesAgo: 0,
+				chats: [{ id: 'peer', title: 'Peer chat', hasModifiedTime: false }],
+			});
+			const { container } = renderSessionChatsList(built.session, undefined, false, false);
+			const sessionRow = container.querySelector<HTMLElement>('.session-item')?.closest<HTMLElement>('.monaco-list-row');
+			const collapsedMainTime = sessionRow?.querySelector('.session-time')?.textContent;
+
+			setSessionChatsExpanded(container, true);
+			const peerItem = container.querySelector<HTMLElement>('.session-chat-item');
+			const peerRow = peerItem?.closest<HTMLElement>('.monaco-list-row');
+			const before = {
+				mainTime: sessionRow?.querySelector('.session-time')?.textContent,
+				mainAriaLabel: sessionRow?.getAttribute('aria-label'),
+				peerTime: peerItem?.querySelector('.session-chat-time')?.textContent,
+				peerAriaLabel: peerRow?.getAttribute('aria-label'),
+				peerHeight: peerRow?.style.height,
+			};
+
+			built.chats.get('peer')?.updatedAt.set(new Date(), undefined);
+			const after = {
+				peerTime: peerItem?.querySelector('.session-chat-time')?.textContent,
+				peerAriaLabel: peerRow?.getAttribute('aria-label'),
+				peerHeight: peerRow?.style.height,
+			};
+
+			assert.deepStrictEqual({
+				collapsedMainTime,
+				before,
+				after,
+			}, {
+				collapsedMainTime: 'now',
+				before: {
+					mainTime: 'now',
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerTime: undefined,
+					peerAriaLabel: 'Peer chat, chat, State: Completed',
+					peerHeight: '46px',
+				},
+				after: {
+					peerTime: 'now',
+					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed',
+					peerHeight: '46px',
+				},
+			});
+		});
+
+		test('hides the main chat modified time while it is in progress', () => {
+			const status = observableValue('main-chat-status', SessionStatus.Completed);
+			const main = upcastPartial<IChat>({
+				resource: URI.parse('test-chat://main'),
+				workspace: constObservable(undefined),
+				title: constObservable('Main chat'),
+				updatedAt: constObservable(new Date()),
+				status,
+				isArchived: constObservable(false),
+				changes: constObservable([]),
+				changesets: constObservable([]),
+				interactivity: constObservable(ChatInteractivity.Full),
+			});
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				status,
+				chats: constObservable([main]),
+				mainChat: constObservable(main),
+			};
+			const { container } = renderSessionChatsList(session);
+			const row = container.querySelector<HTMLElement>('.session-item')?.closest<HTMLElement>('.monaco-list-row');
+			const snapshot = () => ({
+				time: row?.querySelector('.session-time')?.textContent,
+				ariaIncludesUpdatedTime: row?.getAttribute('aria-label')?.includes('updated') ?? false,
+			});
+
+			const completed = snapshot();
+			status.set(SessionStatus.InProgress, undefined);
+			const inProgress = snapshot();
+			status.set(SessionStatus.Completed, undefined);
+			const completedAgain = snapshot();
+
+			assert.deepStrictEqual({ completed, inProgress, completedAgain }, {
+				completed: { time: 'now', ariaIncludesUpdatedTime: true },
+				inProgress: { time: undefined, ariaIncludesUpdatedTime: false },
+				completedAgain: { time: 'now', ariaIncludesUpdatedTime: true },
+			});
+		});
 
 		test('keeps the sticky session hierarchy opaque and actions trailing aligned while nested chats scroll beneath it', async () => {
 			const main = createChat('Main chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
@@ -3812,6 +3903,44 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('does not resolve timestamps while chat rows are virtualized offscreen', () => {
+			let timestampSubscriptions = 0;
+			const onDidResolveTimestamp: Event<void> = listener => {
+				timestampSubscriptions++;
+				return toDisposable(() => timestampSubscriptions--);
+			};
+			const unresolvedTimestamp = observableFromEvent(disposables, onDidResolveTimestamp, () => undefined);
+			const main = createChat('Main chat');
+			const chats = [
+				main,
+				...Array.from({ length: 24 }, (_, index) => index === 23
+					? createChat(`Task ${index}`, ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, unresolvedTimestamp)
+					: createChat(`Task ${index}`, ChatOriginKind.User)),
+			];
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable(chats),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(120, 400);
+			setSessionChatsExpanded(container, true);
+
+			assert.strictEqual(timestampSubscriptions, 0);
+
+			list.layout(2000, 400);
+
+			assert.strictEqual(timestampSubscriptions, 1);
+		});
+
 		test('shows the folder of a chat scoped to one project of a multi-project session', () => {
 			const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
 			const second = { root: URI.file('/workspace/second'), workingDirectory: URI.file('/workspace/second'), name: 'second', description: undefined };
@@ -3851,13 +3980,13 @@ suite('Sessions - SessionsList', () => {
 				regular: {
 					hasFolderLabel: true,
 					folder: 'second',
-					folderRow: 'second',
+					folderRow: 'second·now',
 					folderIcon: 'folder',
 					ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed',
 					height: '46px',
 				},
-				worktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second', folderIcon: 'worktree', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
-				pendingMainWorktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second', folderIcon: 'folder', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
+				worktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second·now', folderIcon: 'worktree', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
+				pendingMainWorktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second·now', folderIcon: 'folder', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
 			});
 		});
 
@@ -4608,12 +4737,12 @@ suite('Sessions - SessionsList', () => {
 					childHasProgress: false,
 				},
 				parentAndChildExpanded: {
-					parent: { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' },
+					parent: { inProgress: true, needsInput: false, ariaLabel: 'Session, State: In Progress' },
 					parentHasProgress: true,
 					childHasProgress: true,
 				},
 				parentAndChildCollapsed: {
-					parent: { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' },
+					parent: { inProgress: true, needsInput: false, ariaLabel: 'Session, State: In Progress' },
 					parentHasProgress: true,
 					childHasProgress: false,
 				},
@@ -4752,6 +4881,116 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		for (const { expanded, withPeer } of [{ expanded: true, withPeer: true }, { expanded: false, withPeer: true }, { expanded: true, withPeer: false }]) {
+			test(`parent session row reflects side chat activity ${withPeer ? `with peer chats ${expanded ? 'expanded' : 'collapsed'}` : 'without peer chats'}`, () => {
+				const mainStatus = observableValue('main-status', SessionStatus.Completed);
+				const main = { ...createChat('Main chat'), status: mainStatus };
+				const peers = withPeer ? [createChat('Peer chat', ChatOriginKind.User)] : [];
+				const sideStatus = observableValue('side-status', SessionStatus.Completed);
+				const sideArchived = observableValue('side-archived', false);
+				const sideInteractivity = observableValue('side-interactivity', ChatInteractivity.Full);
+				const side = {
+					...createChat('Side chat', ChatOriginKind.SideChat),
+					status: sideStatus,
+					isArchived: sideArchived,
+					interactivity: sideInteractivity,
+				};
+				const chats = observableValue<readonly IChat[]>('chats', [main, ...peers]);
+				const session: ISession = {
+					...createTestSession('Session').session,
+					chats,
+					status: derived(reader => {
+						const statuses = chats.read(reader).map(chat => chat.status.read(reader));
+						return statuses.includes(SessionStatus.NeedsInput) ? SessionStatus.NeedsInput
+							: statuses.includes(SessionStatus.InProgress) ? SessionStatus.InProgress : SessionStatus.Completed;
+					}),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const { container } = renderSessionChatsList(session, undefined, false, expanded);
+				setSessionChatsExpanded(container, expanded);
+				const snapshots = [sessionRowSnapshot(container)];
+				const capture = () => snapshots.push(sessionRowSnapshot(container));
+
+				sideStatus.set(SessionStatus.InProgress, undefined);
+				chats.set([main, ...peers, side], undefined);
+				capture();
+				sideStatus.set(SessionStatus.NeedsInput, undefined);
+				capture();
+				mainStatus.set(SessionStatus.InProgress, undefined);
+				capture();
+				sideStatus.set(SessionStatus.Completed, undefined);
+				capture();
+				mainStatus.set(SessionStatus.Completed, undefined);
+				capture();
+				sideStatus.set(SessionStatus.InProgress, undefined);
+				sideArchived.set(true, undefined);
+				capture();
+				sideArchived.set(false, undefined);
+				capture();
+				sideInteractivity.set(ChatInteractivity.Hidden, undefined);
+				capture();
+				sideInteractivity.set(ChatInteractivity.Full, undefined);
+				capture();
+				sideStatus.set(SessionStatus.NeedsInput, undefined);
+				sideArchived.set(true, undefined);
+				capture();
+				sideArchived.set(false, undefined);
+				capture();
+				sideInteractivity.set(ChatInteractivity.Hidden, undefined);
+				capture();
+				sideInteractivity.set(ChatInteractivity.Full, undefined);
+				chats.set([main, ...peers], undefined);
+				capture();
+
+				const completed = { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' };
+				const working = { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' };
+				const waiting = { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Input Needed' };
+				const workingWithoutTime = { inProgress: true, needsInput: false, ariaLabel: 'Session, State: In Progress' };
+				const waitingWithoutTime = { inProgress: false, needsInput: true, ariaLabel: 'Session, State: Input Needed' };
+				assert.deepStrictEqual({ snapshots, chats: chatRowTitles(container) }, {
+					snapshots: [completed, working, waiting, waitingWithoutTime, workingWithoutTime, completed, completed, working, completed, working, completed, waiting, completed, completed],
+					chats: expanded && withPeer ? ['Peer chat'] : [],
+				});
+			});
+		}
+
+		for (const exclusion of ['archived', 'hidden'] as const) {
+			test(`collapsed parent keeps peer progress while excluding an ${exclusion} side chat`, () => {
+				const main = createChat('Main chat');
+				const peerStatus = observableValue('peer-status', SessionStatus.Completed);
+				const peer = { ...createChat('Peer chat', ChatOriginKind.User), status: peerStatus };
+				const sideStatus = observableValue('side-status', SessionStatus.InProgress);
+				const side = {
+					...createChat('Side chat', ChatOriginKind.SideChat),
+					status: sideStatus,
+					isArchived: constObservable(exclusion === 'archived'),
+					interactivity: constObservable(exclusion === 'hidden' ? ChatInteractivity.Hidden : ChatInteractivity.Full),
+				};
+				const session: ISession = {
+					...createTestSession('Session').session,
+					chats: constObservable([main, peer, side]),
+					status: derived(reader => peerStatus.read(reader) === SessionStatus.InProgress || sideStatus.read(reader) === SessionStatus.InProgress
+						? SessionStatus.InProgress : SessionStatus.Completed),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const { container } = renderSessionChatsList(session);
+				setSessionChatsExpanded(container, false);
+				const snapshots = [sessionRowSnapshot(container)];
+				peerStatus.set(SessionStatus.InProgress, undefined);
+				snapshots.push(sessionRowSnapshot(container));
+				peerStatus.set(SessionStatus.Completed, undefined);
+				snapshots.push(sessionRowSnapshot(container));
+				sideStatus.set(SessionStatus.Completed, undefined);
+				snapshots.push(sessionRowSnapshot(container));
+
+				const completed = { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' };
+				const working = { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' };
+				assert.deepStrictEqual(snapshots, [completed, working, completed, completed]);
+			});
+		}
+
 		test('parent session row still shows NeedsInput when the main chat needs input while a hidden child is in progress', () => {
 			const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.NeedsInput);
 			const subagent = createChat('Subagent chat', ChatOriginKind.Tool, ChatInteractivity.ReadOnly, SessionStatus.InProgress);
@@ -4859,8 +5098,8 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(phoneChatRow);
 
 			assert.deepStrictEqual({ desktopHeight, phoneHeight: phoneChatRow.style.height }, {
-				desktopHeight: '30px',
-				phoneHeight: '46px',
+				desktopHeight: '46px',
+				phoneHeight: '62px',
 			});
 		});
 
@@ -4879,7 +5118,7 @@ suite('Sessions - SessionsList', () => {
 				opened.push({ session: openedSession, chat, preserveFocus, sideBySide });
 			});
 			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-				.find(element => element.textContent === 'Peer chat');
+				.find(element => element.querySelector('.session-chat-title')?.textContent === 'Peer chat');
 			assert.ok(peerRow);
 
 			peerRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
@@ -4924,7 +5163,7 @@ suite('Sessions - SessionsList', () => {
 			const beforeChatFocus = list.getFocusedChatItem();
 
 			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-				.find(element => element.textContent === 'Peer chat');
+				.find(element => element.querySelector('.session-chat-title')?.textContent === 'Peer chat');
 			assert.ok(peerRow);
 			peerRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 			list.focus();
@@ -4969,7 +5208,7 @@ suite('Sessions - SessionsList', () => {
 				opened.push({ chat, preserveFocus, sideBySide });
 			});
 			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-				.find(element => element.textContent === 'Peer chat');
+				.find(element => element.querySelector('.session-chat-title')?.textContent === 'Peer chat');
 			assert.ok(peerRow);
 
 			peerRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, altKey: true }));
@@ -5175,7 +5414,7 @@ suite('Sessions - SessionsList', () => {
 			};
 			const container = renderSessionChats(session);
 			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-				.find(element => element.textContent === 'Peer chat')
+				.find(element => element.querySelector('.session-chat-title')?.textContent === 'Peer chat')
 				?.closest<HTMLElement>('.monaco-list-row');
 			assert.ok(peerRow);
 			const dataTransfer = new DataTransfer();
@@ -5481,7 +5720,7 @@ suite('Sessions - SessionsList', () => {
 			test('hovering a chat child reveals its parent session hierarchy guides only', () => {
 				const { container } = twoSessionContainer();
 				const chatItem = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-					.find(item => item.textContent === 'Peer chat');
+					.find(item => item.querySelector('.session-chat-title')?.textContent === 'Peer chat');
 				assert.ok(chatItem);
 
 				chatItem.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
@@ -5522,7 +5761,7 @@ suite('Sessions - SessionsList', () => {
 			test('selecting a chat child keeps only its parent session guides visible', () => {
 				const { container } = twoSessionContainer();
 				const chatItem = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-					.find(item => item.textContent === 'Peer chat');
+					.find(item => item.querySelector('.session-chat-title')?.textContent === 'Peer chat');
 				assert.ok(chatItem);
 
 				chatItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
@@ -5538,7 +5777,7 @@ suite('Sessions - SessionsList', () => {
 				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
 					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
 				const chatItem = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-					.find(item => item.textContent === 'Peer chat');
+					.find(item => item.querySelector('.session-chat-title')?.textContent === 'Peer chat');
 				assert.ok(sessionItem);
 				assert.ok(chatItem);
 				const sessionRow = sessionItem.closest<HTMLElement>('.monaco-list-row');
@@ -5590,7 +5829,7 @@ suite('Sessions - SessionsList', () => {
 			test('keyboard/focus-only navigation to a chat child reveals its parent session hierarchy guides only', () => {
 				const { container } = twoSessionContainer();
 				const chatItem = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-					.find(item => item.textContent === 'Peer chat');
+					.find(item => item.querySelector('.session-chat-title')?.textContent === 'Peer chat');
 				assert.ok(chatItem);
 
 				focusOnly(chatItem);
@@ -5902,7 +6141,7 @@ suite('Sessions - SessionsList', () => {
 			// the newly-visible row from its cached height (no re-splice recomputes
 			// it), so the row is only sized correctly if the offscreen reconcile
 			// already corrected the cache.
-			list.layout(1000, 400);
+			list.layout(1500, 400);
 
 			const row = targetRow();
 			assert.ok(row, 'target row should render after growing the viewport');

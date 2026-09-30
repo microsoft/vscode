@@ -495,7 +495,8 @@ export interface ISessionChangeset {
 	 */
 	readonly isDefault: IObservable<boolean>;
 	/**
-	 * Whether this changeset is currently loading its file changes.
+	 * Whether this changeset has not yet published a usable file list.
+	 * This is false while a cached file list is available during recomputation.
 	 */
 	readonly isLoadingChanges: IObservable<boolean>;
 	/** Observable for the file changes in this changeset. */
@@ -644,6 +645,30 @@ export interface IChatCapabilities {
 /** Capabilities assumed for a chat that does not advertise its own. */
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canArchive: false, canDelete: true };
 
+/** Availability of a live canvas source. */
+export const enum SessionCanvasAvailability {
+	Ready = 'ready',
+	Unavailable = 'unavailable',
+}
+
+/** A model-opened canvas owned by one chat. */
+export interface ISessionCanvas {
+	/** Stable canvas identity within its owning chat. */
+	readonly resource: URI;
+	/** Stable provider-supplied instance identifier. */
+	readonly instanceId: string;
+	/** Display title. */
+	readonly title: string;
+	/** Optional provider status text. */
+	readonly status?: string;
+	/** Monotonic instance revision. */
+	readonly revision: number;
+	/** Whether the current source can be resolved. */
+	readonly availability: SessionCanvasAvailability;
+	/** Resolve the current HTTP(S) source for this revision. */
+	resolveSource(): Promise<URI>;
+}
+
 /**
  * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
  * question model selection asks of it: `chat.defaultModel` seeds a chat that has no model of its
@@ -673,8 +698,8 @@ export interface IChat {
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
-	/** When the chat was last updated. */
-	readonly updatedAt: IObservable<Date>;
+	/** When the chat was last updated. `undefined` while the provider resolves the exact per-chat timestamp; consumers should omit it rather than fall back to aggregate session time. */
+	readonly updatedAt: IObservable<Date | undefined>;
 	/** Current chat status. */
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
@@ -695,6 +720,8 @@ export interface IChat {
 	 * output stream. Providers that cannot determine this omit the observable.
 	 */
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
+	/** Live model-opened canvases owned by this chat. */
+	readonly canvases?: IObservable<readonly ISessionCanvas[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -888,6 +915,8 @@ export interface ISessionCapabilities {
 	readonly supportsImport?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */
 	readonly supportsRemoveArtifacts?: boolean;
+	/** Whether this session can expose model-opened canvases. */
+	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
 	/**

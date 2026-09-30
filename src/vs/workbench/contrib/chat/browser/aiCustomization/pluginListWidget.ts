@@ -31,7 +31,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
-import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement } from '../agentPluginActions.js';
+import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -48,7 +49,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
@@ -809,6 +810,7 @@ export class PluginListWidget extends Disposable {
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget'); // reuse MCP shell, add plugin-specific row styling
@@ -1230,6 +1232,7 @@ export class PluginListWidget extends Disposable {
 
 	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void, ...classNames: string[]): HTMLButtonElement {
 		const primaryAction = createCustomizationCardPrimaryAction(surface, label, ...classNames);
+		trackCustomizationCardPrimaryActionFocus(primaryAction, surface.closest<HTMLElement>('.plugin-home-row') ?? surface, this.cardDisposables);
 		this.rememberCardFocusElement(primaryAction);
 		this.cardDisposables.add(DOM.addDisposableListener(primaryAction, 'click', callback));
 		return primaryAction;
@@ -1390,18 +1393,18 @@ export class PluginListWidget extends Disposable {
 		const availableEntries = availableItems.map(item => ({ type: 'marketplace-item' as const, item }));
 		const definitions = [
 			{
-				id: 'workspace',
-				label: localize('workspacePluginsGroup', "Workspace"),
-				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
-				icon: Codicon.folder,
-				children: workspaceEntries,
-			},
-			{
 				id: 'user',
 				label: localize('userPluginsGroup', "User"),
 				description: localize('userPluginsGroupDescription', "Plugins installed for your profile and available across workspaces."),
 				icon: Codicon.account,
 				children: userEntries,
+			},
+			{
+				id: 'workspace',
+				label: localize('workspacePluginsGroup', "Workspace"),
+				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
+				icon: Codicon.folder,
+				children: workspaceEntries,
 			},
 			{
 				id: 'remote',
@@ -2154,7 +2157,8 @@ export class PluginListWidget extends Disposable {
 
 	private getInstalledPluginActions(item: IInstalledPluginItem, disposables: DisposableStore): IAction[] {
 		const actions: IAction[] = [];
-		const groups = getInstalledPluginContextMenuActions(item.plugin, this.instantiationService);
+		const removePlugin = () => removePluginWithMarketplaceOwnership(item.plugin, this.marketplaceInstallService);
+		const groups = getInstalledPluginContextMenuActions(item.plugin, this.instantiationService, removePlugin);
 		for (const menuActions of groups) {
 			for (const menuAction of menuActions) {
 				actions.push(menuAction);

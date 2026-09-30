@@ -115,7 +115,7 @@ export function makeSession(resource: URI, opts?: {
 		createdAt: chat.createdAt,
 		workspace: observableValue('workspace', workspace),
 		title: chat.title,
-		updatedAt: chat.updatedAt,
+		updatedAt: constObservable(chat.updatedAt.get() ?? chat.createdAt),
 		status: chat.status,
 		modelId: chat.modelId,
 		mode: chat.mode,
