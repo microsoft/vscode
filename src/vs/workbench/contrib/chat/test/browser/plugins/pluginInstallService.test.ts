@@ -71,6 +71,7 @@ suite('PluginInstallService', () => {
 		/** Whether the terminal resolves the command completion at all */
 		terminalCompletes: boolean;
 		pullRepositoryCalls: { marketplace: IMarketplaceReference; options?: IPullRepositoryOptions }[];
+		pullRepositoryChanged: boolean;
 		updatePluginSourceCalls: { plugin: IMarketplacePlugin; options?: IPullRepositoryOptions }[];
 		/** Whether the marketplace is already trusted */
 		marketplaceTrusted: boolean;
@@ -124,6 +125,7 @@ suite('PluginInstallService', () => {
 			terminalExitCode: 0,
 			terminalCompletes: true,
 			pullRepositoryCalls: [],
+			pullRepositoryChanged: false,
 			updatePluginSourceCalls: [],
 			marketplaceTrusted: true,
 			strictMarketplacePolicyActive: false,
@@ -294,6 +296,7 @@ suite('PluginInstallService', () => {
 			},
 			pullRepository: async (marketplace: IMarketplaceReference, options?: IPullRepositoryOptions) => {
 				state.pullRepositoryCalls.push({ marketplace, options });
+				return state.pullRepositoryChanged;
 			},
 			getPluginSourceInstallUri: (descriptor: IPluginSourceDescriptor) => {
 				const key = descriptor.kind;
@@ -906,6 +909,36 @@ suite('PluginInstallService', () => {
 			}, {
 				pulled: [first.plugin.marketplaceReference.canonicalId],
 				fetched: [[first.plugin.marketplaceReference.canonicalId]],
+			});
+		});
+
+		test('applies a simulated repository marketplace update automatically', async () => {
+			const installed = installedPlugin('repository-plugin', 'microsoft/repository-plugins');
+			const updated = { ...installed.plugin, version: '2.0.0', description: 'updated' };
+			const { service, state } = createService({
+				installedPlugins: [installed],
+				fetchedMarketplacePlugins: [updated],
+				pullRepositoryChanged: true,
+				autoUpdateByMarketplace: new Map([[installed.plugin.marketplaceReference.canonicalId, true]]),
+			});
+
+			const result = await service.updateAllPlugins({
+				silent: true,
+				automatic: true,
+				marketplaceIds: new Set([installed.plugin.marketplaceReference.canonicalId]),
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				result,
+				pulled: state.pullRepositoryCalls.map(call => call.marketplace.canonicalId),
+				fetched: state.fetchMarketplaceCalls,
+			}, {
+				result: {
+					updatedNames: [installed.plugin.marketplaceReference.displayLabel],
+					failedNames: [],
+				},
+				pulled: [installed.plugin.marketplaceReference.canonicalId],
+				fetched: [[installed.plugin.marketplaceReference.canonicalId]],
 			});
 		});
 
