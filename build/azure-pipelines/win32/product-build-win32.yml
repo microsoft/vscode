@@ -25,7 +25,7 @@ parameters:
 # part of the same stage. The sign and test jobs run in parallel, but the
 # Publish stage only publishes the x64 product artifacts once all
 # Windows_<arch>_Test_<name> jobs have succeeded (see artifactsByGatingJob in
-# ../common/publishGating.ts).
+# ../common/publish.ts).
 jobs:
   - job: Windows_${{ parameters.VSCODE_ARCH }}_Compile
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - Compile

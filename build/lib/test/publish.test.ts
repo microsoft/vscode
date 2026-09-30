@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { getGatingJob, type TimelineRecord } from '../../azure-pipelines/common/publishGating.ts';
+import { getGatingJob, type TimelineRecord } from '../../azure-pipelines/common/publish.ts';
 
 function job(stage: string, name: string, state: string, result = ''): TimelineRecord {
 	return { name: `${name} (display name)`, identifier: `${stage}.${name}.__default`, type: 'Job', state, result };
