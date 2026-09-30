@@ -245,7 +245,7 @@
 
 .experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls {
 	justify-content: flex-start;
-	flex: 0 1 auto;
+	flex: 0 0 auto;
 	width: max-content;
 }
 
