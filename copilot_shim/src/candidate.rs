@@ -14,8 +14,8 @@ use crate::legacy::{classify_wrapper, LegacyClassification, LEGACY_INSPECTION_LI
 use crate::model::{DiscoveredCandidate, DiscoveredFileKind, SystemError};
 use crate::runtime::{EnvironmentEffects, FileSystemEffects, InspectedFileType, PathInspection};
 
-/// The shim binary is about 1 MB, so its marker is always within this prefix. Bounding the search keeps discovery
-/// from reading all of a large Copilot CLI executable (about 150 MB) on every launch.
+/// Only candidates up to this size are searched for the shim marker. The shim binary is about 1 MB, and skipping larger
+/// files keeps discovery from reading a large Copilot CLI executable (about 150 MB) on every launch.
 const SHIM_MARKER_SEARCH_LIMIT: u64 = 16 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -268,22 +268,24 @@ fn inspect_candidate<R: FileSystemEffects>(
 		return;
 	}
 
-	let reader = match runtime.open_file(&path) {
-		Ok(reader) => reader,
-		Err(error) => {
-			push_error(result, path, DiscoveryOperation::CandidateRead, &error);
-			return;
-		}
-	};
-	match contains_marker(reader.take(SHIM_MARKER_SEARCH_LIMIT), shim_marker) {
-		Ok(true) => {
-			push_exclusion(result, path, DiscoveryExclusion::RustShimMarker);
-			return;
-		}
-		Ok(false) => {}
-		Err(error) => {
-			push_error(result, path, DiscoveryOperation::CandidateRead, &error);
-			return;
+	if inspection.file_size <= SHIM_MARKER_SEARCH_LIMIT {
+		let reader = match runtime.open_file(&path) {
+			Ok(reader) => reader,
+			Err(error) => {
+				push_error(result, path, DiscoveryOperation::CandidateRead, &error);
+				return;
+			}
+		};
+		match contains_marker(reader.take(SHIM_MARKER_SEARCH_LIMIT), shim_marker) {
+			Ok(true) => {
+				push_exclusion(result, path, DiscoveryExclusion::RustShimMarker);
+				return;
+			}
+			Ok(false) => {}
+			Err(error) => {
+				push_error(result, path, DiscoveryOperation::CandidateRead, &error);
+				return;
+			}
 		}
 	}
 
@@ -1050,6 +1052,27 @@ mod tests {
 			&marker,
 		)
 		.expect("search marker"));
+	}
+
+	#[test]
+	fn large_candidates_are_not_scanned_for_rust_shim_marker() {
+		let directory = TestDirectory::new("large-candidate-marker");
+		let marker = shim_marker();
+		let current = create_current_executable(&directory, b"current");
+		let candidate_directory = directory.directory("candidate");
+		let candidate = candidate_directory.join(CANDIDATE);
+		let mut content = marker;
+		content.resize(candidate::SHIM_MARKER_SEARCH_LIMIT as usize + 1, b'x');
+		write_executable(&candidate, &content);
+		let runtime = TestRuntime::new(
+			Some(joined_path([candidate_directory])),
+			current,
+			directory.path.clone(),
+		);
+
+		let result = discover(&runtime, &shim_marker()).expect("discover candidates");
+
+		assert_eq!(candidate_paths(&result), vec![candidate]);
 	}
 
 	#[cfg(windows)]
