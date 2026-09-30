@@ -52,7 +52,7 @@ suite('dictation runtime', () => {
 		}
 	});
 
-	test('skips downloads when normalized dependency libraries are present', async () => {
+	test('downloads when normalized dependency libraries are present', async () => {
 		const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dictation-runtime-test-'));
 		try {
 			for (const target of ['linux-x64', 'darwin-arm64']) {
@@ -61,7 +61,10 @@ suite('dictation runtime', () => {
 				for (const name of requiredDependencyLibraryNames(target, dependencies)) {
 					fs.writeFileSync(path.join(targetDirectory, name), 'runtime');
 				}
-				await fetchDependencyLibraries(target, getStandardArtifacts(dependencies), targetDirectory, { feeds: [], skipIfPresent: true });
+				await assert.rejects(
+					fetchDependencyLibraries(target, getStandardArtifacts(dependencies), targetDirectory, { feeds: [] }),
+					/Failed to download Microsoft\.ML\.OnnxRuntime 1\.28\.0 from any feed/,
+				);
 			}
 		} finally {
 			fs.rmSync(directory, { recursive: true, force: true });

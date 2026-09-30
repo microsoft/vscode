@@ -94,7 +94,6 @@ export interface IFoundryDependencyVersions {
 
 export interface IFetchDependencyLibrariesOptions {
 	readonly feeds?: readonly string[];
-	readonly skipIfPresent?: boolean;
 }
 
 export function getStandardArtifacts(dependencies: IFoundryDependencyVersions): readonly INugetArtifact[] {
@@ -169,7 +168,7 @@ export async function fetchDependencyLibraries(target: string, artifacts: readon
 	try {
 		console.log(`[${SCRIPT}] Fetching native libraries for RID ${rid} (target ${target})...`);
 		for (const artifact of artifacts) {
-			await installPackage(artifact, target, rid, ext, tempDir, binDir, AdmZip, serviceIndexCache, feeds, options?.skipIfPresent ?? false);
+			await installPackage(artifact, rid, ext, tempDir, binDir, AdmZip, serviceIndexCache, feeds);
 		}
 	} finally {
 		fs.rmSync(tempDir, { recursive: true, force: true });
@@ -178,7 +177,6 @@ export async function fetchDependencyLibraries(target: string, artifacts: readon
 
 async function installPackage(
 	artifact: INugetArtifact,
-	target: string,
 	rid: string,
 	ext: string,
 	tempDir: string,
@@ -186,16 +184,7 @@ async function installPackage(
 	AdmZip: any,
 	serviceIndexCache: Map<string, unknown>,
 	feeds: readonly string[],
-	skipIfPresent: boolean,
 ): Promise<void> {
-	if (skipIfPresent) {
-		const expectedFile = expectedDependencyLibraryName(target, artifact);
-		if (expectedFile && fs.existsSync(path.join(binDir, expectedFile))) {
-			console.log(`[${SCRIPT}]   ${artifact.name}: already present, skipping download.`);
-			return;
-		}
-	}
-
 	let lastError: unknown;
 	for (let i = 0; i < feeds.length; i++) {
 		const feedUrl = feeds[i];
@@ -230,16 +219,6 @@ async function installPackage(
 	}
 	const feedHosts = feeds.map(feed => new URL(feed).host).join(', ');
 	throw new Error(`[${SCRIPT}] Failed to download ${artifact.name} ${artifact.version} from any feed (${feedHosts}): ${lastError instanceof Error ? lastError.message : lastError}`);
-}
-
-function expectedDependencyLibraryName(target: string, artifact: INugetArtifact): string | undefined {
-	if (artifact.name.includes('OnnxRuntimeGenAI')) {
-		return onnxRuntimeGenAiLibraryName(target);
-	}
-	if (artifact.name.includes('OnnxRuntime')) {
-		return onnxRuntimeLibraryName(target, artifact.version);
-	}
-	return undefined;
 }
 
 /**

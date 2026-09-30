@@ -112,7 +112,7 @@ async function stageDependencyLibraries(stagingDir: string, target: string): Pro
 	const artifacts = getStandardArtifacts(dependencies);
 
 	const targetDir = path.join(stagingDir, 'prebuilds', target);
-	await fetchDependencyLibraries(target, artifacts, targetDir, { skipIfPresent: true });
+	await fetchDependencyLibraries(target, artifacts, targetDir);
 	normalizeOrtLibraryName(targetDir, target, dependencies.onnxruntime.version);
 
 	for (const name of requiredDependencyLibraryNames(target, dependencies)) {
