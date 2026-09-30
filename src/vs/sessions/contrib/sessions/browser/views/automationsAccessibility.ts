@@ -48,6 +48,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 			] : []),
 			localize('automationsCustomView.help.sharing', "Use Import Automation in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. Open a saved Automation's context menu and choose Export to save a portable blueprint."),
 			localize('automationsCustomView.help.cards', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and Delete. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. Open a card's context menu{0} (for example Shift+F10). Duplicate opens a prefilled New automation dialog, Disable prevents scheduled runs, and Delete asks for confirmation. Run now starts a session immediately.", '<keybinding:editor.action.showContextMenu>'),
+			localize('automationsCustomView.help.delete', "The Delete confirmation includes a Delete run history checkbox, checked by default. Clear it to keep past runs and their sessions in Automations history after deleting the automation. Kept runs do not appear in the ordinary Sessions list. Leaving it checked permanently deletes the run sessions as well as the history."),
 			localize('automationsCustomView.help.dialog', "In the automation dialog, Target controls are above the prompt. Agent and model pickers are inside the prompt input, and execution mode and permission controls are below it. Use Tab and Shift+Tab to move between fields and pickers. When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required."),
 			localize('automationsCustomView.help.history', "Run history is grouped by date. While a run is waiting for its session, a lightweight row shows the automation name with a Working... description. Once the session is available, use Up Arrow and Down Arrow to navigate the Sessions list, Enter to open, and Tab to reach Stop, the configured Archive or Mark as Done action, or Delete when available. Open a row's context menu, for example with Shift+F10, to rename it, change its active or read state, or delete it. Delete permanently deletes the session and removes it from run history after confirmation."),
 			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read to clear all available unread runs."),
@@ -88,6 +89,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				automationService.catalogueState.get(),
 				readAutomationTemplates(agentPluginService.plugins.get()),
 				automationService.unavailableProviders.get(),
+				id => automationService.getAutomation(id)?.name,
 			),
 			restoreFocus,
 			AccessibilityVerbositySettingId.Automations,
@@ -106,7 +108,7 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = []): string {
+export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], getAutomationName?: (id: string) => string | undefined): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
 	const builtInTemplates = templates.filter(template => !template.source);
 	const pluginTemplates = templates.filter(template => !!template.source);
@@ -169,7 +171,7 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 			lines.push(localize(
 				'automationsAccessibleView.run',
 				"{0}, {1}, started {2}",
-				automationNames.get(run.automationId) ?? localize('automationsAccessibleView.unknown', "Unknown automation"),
+				automationNames.get(run.automationId) ?? getAutomationName?.(run.automationId) ?? localize('automationsAccessibleView.unknown', "Unknown automation"),
 				formatRunStatus(run),
 				new Date(run.startedAt).toLocaleString(),
 			));

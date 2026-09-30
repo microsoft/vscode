@@ -45,7 +45,7 @@ import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationT
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationService, ICreateAutomationOptions, type IDeleteAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
@@ -169,6 +169,8 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	beforeCreate: (() => Promise<void>) | undefined;
 	readonly createCalls: ICreateAutomationOptions[] = [];
 	readonly deleteCalls: string[] = [];
+	readonly deleteOptions: IDeleteAutomationOptions[] = [];
+	readonly historyOwners = new Map<string, IAutomationDescriptor>();
 	readonly guardedUpdateCalls: { id: string; patch: IUpdateAutomationOptions; expected: IAutomationDescriptor }[] = [];
 
 	setAutomations(value: readonly IAutomationDescriptor[]): void {
@@ -188,7 +190,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	}
 
 	override getAutomation(id: string): IAutomationDescriptor | undefined {
-		return this.automationValue.get().find(item => item.id === id);
+		return this.automationValue.get().find(item => item.id === id) ?? this.historyOwners.get(id);
 	}
 
 	override runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
@@ -249,14 +251,21 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return this.updateResult ?? { kind: 'updated', automation: await this.updateAutomation(id, patch) };
 	}
 
-	override async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
+	override async deleteAutomation(id: string, options: IDeleteAutomationOptions = { deleteHistory: true }, mutationGuard?: AutomationMutationGuard): Promise<void> {
 		mutationGuard?.();
 		this.deleteCalls.push(id);
+		this.deleteOptions.push(options);
 		if (this.deleteError) {
 			throw this.deleteError;
 		}
+		const automation = this.getAutomation(id);
+		if (!options.deleteHistory && automation !== undefined) {
+			this.historyOwners.set(id, automation);
+		}
 		this.setAutomations(this.automationValue.get().filter(item => item.id !== id));
-		this.setRuns(this.runValue.get().filter(run => run.automationId !== id));
+		if (options.deleteHistory) {
+			this.setRuns(this.runValue.get().filter(run => run.automationId !== id));
+		}
 	}
 
 	override canDeleteAutomation(): boolean {
@@ -2212,21 +2221,55 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			confirmations: dialogService.confirmations,
 			deleteCalls: automationService.deleteCalls,
+			deleteOptions: automationService.deleteOptions,
 			automations: automationService.automations.get(),
 			runs: automationService.runs.get(),
 		}, {
 			confirmations: [{
 				message: 'Delete automation "Daily review"?',
-				detail: 'This will permanently delete the automation and its run history.',
+				detail: 'This will stop future runs. Run history and its sessions will be deleted. Clear the checkbox to keep them in Automations.',
 				primaryButton: 'Delete',
+				checkbox: { label: 'Delete run history', checked: true },
 			}, {
 				message: 'Delete automation "Daily review"?',
-				detail: 'This will permanently delete the automation and its run history.',
+				detail: 'This will stop future runs. Run history and its sessions will be deleted. Clear the checkbox to keep them in Automations.',
 				primaryButton: 'Delete',
+				checkbox: { label: 'Delete run history', checked: true },
 			}],
 			deleteCalls: [source.id],
+			deleteOptions: [{ deleteHistory: true }],
 			automations: [],
 			runs: [],
+		});
+	});
+
+	test('clearing the deletion checkbox keeps named history and its sessions accessible', async () => {
+		const { automationService, dialogService, instantiationService, sessionsService, widget } = setup();
+		const source = automation();
+		const history = run({ automationId: source.id });
+		automationService.setAutomations([source]);
+		automationService.setRuns([history]);
+		dialogService.confirmResult = { confirmed: true, checkboxChecked: false };
+		const command = CommandsRegistry.getCommand('sessions.automations.delete');
+		assert.ok(command);
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list-row');
+		assert.ok(row);
+		sessionsService.openGate.complete();
+		row.click();
+		await sessionsService.openGate.p;
+		assert.deepStrictEqual({
+			deleteOptions: automationService.deleteOptions,
+			automations: automationService.automations.get(),
+			runs: automationService.runs.get(),
+			name: automationService.getAutomation(source.id)?.name,
+			openCalls: sessionsService.openCalls,
+		}, {
+			deleteOptions: [{ deleteHistory: false }],
+			automations: [],
+			runs: [history],
+			name: source.name,
+			openCalls: 1,
 		});
 	});
 
@@ -2830,6 +2873,15 @@ suite('AutomationsCardsWidget', () => {
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })], 'ready').includes('Daily review, Failed'),
 			true,
 		);
+	});
+
+	test('accessible view names kept history without presenting it as a saved automation', () => {
+		const owner = automation();
+		const content = buildAutomationsAccessibleContent([], [run()], 'ready', [], [], id => id === owner.id ? owner.name : undefined);
+		assert.deepStrictEqual({
+			history: content.includes('Daily review, Completed'),
+			saved: content.includes('Daily review, enabled'),
+		}, { history: true, saved: false });
 	});
 
 	test('accessible view summarizes templates without reading full prompts', () => {

@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationTargetAuthority, combineAutomationCatalogueStates, IAutomationProviderDescriptor, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, serializeAutomationEditableState, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationTargetAuthority, combineAutomationCatalogueStates, IAutomationProviderDescriptor, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, type IDeleteAutomationOptions, IGuardedAutomationUpdateResult, serializeAutomationEditableState, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
 
@@ -123,8 +123,8 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return store.updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
 	}
 
-	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
-		await this.requireAutomationStore(id).deleteAutomation(id, mutationGuard);
+	async deleteAutomation(id: string, options?: IDeleteAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<void> {
+		await this.requireAutomationStore(id).deleteAutomation(id, options, mutationGuard);
 		this.runsForCache.delete(id);
 	}
 

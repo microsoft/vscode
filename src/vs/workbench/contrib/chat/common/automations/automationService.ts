@@ -100,6 +100,10 @@ export interface IUpdateAutomationOptions {
 	readonly enabled?: boolean;
 }
 
+export interface IDeleteAutomationOptions {
+	readonly deleteHistory: boolean;
+}
+
 /**
  * Result of an optimistic automation update.
  * `current` is absent when the automation was deleted before the update committed.
@@ -175,7 +179,7 @@ export interface IAutomationStore {
 	/** All recorded runs across all automations, newest first. */
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 
-	/** Snapshot accessor (no observable dependency). */
+	/** Snapshot of an Automation or its retained history owner (no observable dependency). */
 	getAutomation(id: string): IAutomationDescriptor | undefined;
 
 	/** Runs for a single automation, newest first. */
@@ -189,8 +193,8 @@ export interface IAutomationStore {
 	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
 	 */
 	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
-	/** Deletes an automation and its retained run history; missing IDs are ignored. */
-	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
+	/** Deletes an Automation and, by default, its run history; missing IDs are ignored. */
+	deleteAutomation(id: string, options?: IDeleteAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<void>;
 
 	/** Requests a manual run, forwarding supported cancellation after admission even while session creation is pending. */
 	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult>;

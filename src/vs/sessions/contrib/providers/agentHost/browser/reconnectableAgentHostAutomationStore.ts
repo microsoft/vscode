@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { supportsAgentHostAutonomousAutomations } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationMutationGuard, type AutomationUnavailableReasonCode, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationMutationGuard, type AutomationUnavailableReasonCode, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IDeleteAutomationOptions, type IGuardedAutomationUpdateResult, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper, type IAgentHostAutomationConnection } from './agentHostAutomationStore.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -143,8 +143,8 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 		return this.requireStore().updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
 	}
 
-	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
-		return this.requireStore().deleteAutomation(id, mutationGuard);
+	deleteAutomation(id: string, options?: IDeleteAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<void> {
+		return this.requireStore().deleteAutomation(id, options, mutationGuard);
 	}
 
 	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult> {

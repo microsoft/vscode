@@ -17,6 +17,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { withAgentHostAutomationHistoryState } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -50,6 +51,7 @@ class TestAutomationConnection {
 
 	readonly initializeResult;
 	readonly runRequests: string[] = [];
+	readonly deleteRequests: { readonly resource: string; readonly deleteHistory: boolean; readonly legacySessions: readonly string[] }[] = [];
 	lastRunResource = '';
 	readonly dispatched: { readonly channel: string; readonly action: Parameters<IAgentConnection['dispatch']>[1] }[] = [];
 	subscribedChannel: string | undefined;
@@ -67,7 +69,7 @@ class TestAutomationConnection {
 			serverSeq: 0,
 			snapshots: [],
 			automations: { create: {}, runCancellation: {} },
-			_meta: getAgentHostExtensionInitializeResultMeta(),
+			_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, true),
 		});
 	}
 
@@ -220,6 +222,25 @@ class TestAutomationConnection {
 		await this.runRequested.complete();
 		await this.runAdmissionBarrier;
 		return { resource };
+	}
+
+	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions: readonly URI[] = []): Promise<void> {
+		this.deleteRequests.push({ resource, deleteHistory, legacySessions: legacySessions.map(session => session.toString()) });
+		this._catalog = {
+			...this._catalog,
+			entries: this._catalog.entries.flatMap(automation => {
+				if (automation.resource !== resource) {
+					return [automation];
+				}
+				return deleteHistory ? [] : [withAgentHostAutomationHistoryState({
+					...automation,
+					definition: { ...automation.definition, enabled: false, triggers: [] },
+					operations: [AutomationOperation.Remove],
+					nextRunAt: undefined,
+				}, 'retained')];
+			}),
+		};
+		this._onDidCatalogChange.fire(this._catalog);
 	}
 
 	setOperations(resource: string, operations: AutomationOperation[]): void {
@@ -450,6 +471,100 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	test('kept history remains openable and named after reconnect without a runnable definition', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const automation = await store.createAutomation(createOptions());
+		await store.runAutomation(automation.id);
+		connection.completeRun(connection.lastRunResource);
+		const history = store.runs.get();
+		await store.deleteAutomation(automation.id, { deleteHistory: false });
+		store.clearConnection();
+		store.setConnection(connection);
+		assert.deepStrictEqual({
+			automations: store.automations.get(),
+			history: store.runs.get(),
+			name: store.getAutomation(automation.id)?.name,
+			canRun: store.canRunAutomation(automation.id),
+			canUpdate: store.canUpdateAutomation(automation.id),
+			historyChoice: connection.deleteRequests.map(request => request.deleteHistory),
+		}, {
+			automations: [],
+			history,
+			name: automation.name,
+			canRun: false,
+			canUpdate: false,
+			historyChoice: [false],
+		});
+	});
+
+	test('older hosts cannot silently fall back to deletion without a history choice', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const automation = await store.createAutomation(createOptions());
+		const initialized = connection.initializeResult.get();
+		assert.ok(initialized);
+		connection.initializeResult.set({ ...initialized, _meta: getAgentHostExtensionInitializeResultMeta() }, undefined);
+		await assert.rejects(store.deleteAutomation(automation.id), /Update the Agent Host/);
+		assert.deepStrictEqual({
+			canDelete: store.canDeleteAutomation(automation.id),
+			requests: connection.deleteRequests,
+			actions: connection.dispatched.map(({ action }) => action.type),
+		}, { canDelete: false, requests: [], actions: [ActionType.AutomationCreateRequested] });
+	});
+
+	for (const { prefix, provider } of [
+		{ prefix: 'agent-host-', provider: 'copilotcli' },
+		{ prefix: 'remote-test-', provider: 'copilot' },
+	]) {
+		test(`deleting history maps ${prefix} archive sessions and preserves unrelated archive data`, async () => {
+			const connection = disposables.add(new TestAutomationConnection());
+			const storage = disposables.add(new InMemoryStorageService());
+			const store = disposables.add(new AgentHostAutomationStore('host', connection, {
+				toHost: resource => resource,
+				fromHost: resource => resource,
+				resourceSchemeForProvider: id => `${prefix}${id}`,
+				providerForResourceScheme: scheme => scheme.startsWith(prefix) ? scheme.slice(prefix.length) : undefined,
+				backendSessionScheme: id => id === provider ? 'copilotcli' : id,
+			}, new NullLogService(), storage));
+			const automation = await store.createAutomation(createOptions());
+			const creation = connection.dispatched[0].action;
+			assert.ok(creation.type === ActionType.AutomationCreateRequested);
+			const run = {
+				id: 'old-run', automationId: URI.parse(creation.resource).path.slice(1),
+				status: 'completed', trigger: 'manual', startedAt: '2026-01-01T00:00:00Z',
+				sessionResource: `${prefix}${provider}:/old-session`,
+			};
+			const unrelated = { ...run, id: 'unrelated', automationId: 'other', extra: 'preserved' };
+			const unrecognized = { future: 'also preserved' };
+			const archive = { version: 1, extra: 'top-level metadata', runs: [run, unrelated, unrecognized] };
+			storage.store('agentHostAutomation.legacyRunArchive.host', JSON.stringify(archive), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			await store.deleteAutomation(automation.id);
+			assert.deepStrictEqual({
+				requests: connection.deleteRequests,
+				archive: JSON.parse(storage.get('agentHostAutomation.legacyRunArchive.host', StorageScope.APPLICATION)!),
+			}, {
+				requests: [{ resource: creation.resource, deleteHistory: true, legacySessions: ['copilotcli:/old-session'] }],
+				archive: { ...archive, runs: [unrelated, unrecognized] },
+			});
+		});
+	}
+
+	test('unreadable legacy archives block destructive deletion before host dispatch', async () => {
+		const { store, storage } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const automation = await store.createAutomation(createOptions());
+		for (const raw of ['invalid JSON', JSON.stringify({ version: 2, runs: [] })]) {
+			storage.store('agentHostAutomation.legacyRunArchive.host', raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			await assert.rejects(store.deleteAutomation(automation.id), /unreadable legacy archive/);
+			assert.strictEqual(storage.get('agentHostAutomation.legacyRunArchive.host', StorageScope.APPLICATION), raw);
+		}
+		assert.deepStrictEqual(connection.deleteRequests, []);
+	});
+
 	test('cross-host targets are rejected before any host mutation', async () => {
 		const { store } = reconnectable();
 		const connection = disposables.add(new TestAutomationConnection());
@@ -508,7 +623,7 @@ suite('AgentHostAutomationStore', () => {
 				? store.createAutomation(createOptions(), guard)
 				: operation === 'update'
 					? store.updateAutomationIfUnchanged(automation.id, { name: 'Changed' }, automation, guard)
-					: store.deleteAutomation(automation.id, guard);
+					: store.deleteAutomation(automation.id, undefined, guard);
 			permitted = false;
 			await assert.rejects(pending, /Mutation cancelled/);
 		}
@@ -1424,6 +1539,7 @@ suite('AgentHostAutomationStore', () => {
 			remoteRequests: remoteConnection.runRequests,
 			localMutations: localConnection.dispatched.map(({ action }) => action.type === ActionType.AutomationUpdateRequested ? action.resource : action.type),
 			remoteMutations: remoteConnection.dispatched.map(({ action }) => action.type),
+			remoteDeletions: remoteConnection.deleteRequests,
 			remaining: service.automations.get().map(automation => automation.id),
 		}, {
 			catalogueIds: ['local:ahp-automation:/review', 'local:ahp-automation:/nested/review', 'remote:ahp-automation:/review'],
@@ -1433,7 +1549,8 @@ suite('AgentHostAutomationStore', () => {
 			localRequests: [],
 			remoteRequests: [resource],
 			localMutations: ['ahp-automation:/nested/review'],
-			remoteMutations: [ActionType.AutomationUpdateRequested, ActionType.AutomationUpdateRequested, ActionType.AutomationRemoved],
+			remoteMutations: [ActionType.AutomationUpdateRequested, ActionType.AutomationUpdateRequested],
+			remoteDeletions: [{ resource, deleteHistory: true, legacySessions: [] }],
 			remaining: ['local:ahp-automation:/review', 'local:ahp-automation:/nested/review'],
 		});
 	});

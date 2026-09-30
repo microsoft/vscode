@@ -19,12 +19,14 @@ import { NullTelemetryServiceShape, TelemetryTrustedValue } from '../../../telem
 import { AgentSession, type IAgent, type IAgentModelInfo } from '../../common/agent.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { readAgentHostAutomationHistoryState } from '../../common/meta/agentHostAutomationsMeta.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../common/automationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
+import { SessionOriginKind } from '../../common/state/protocol/channels-session/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
 import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
@@ -111,7 +113,10 @@ suite('AgentHostAutomationService', () => {
 		}();
 		const service = new AgentHostAutomationService({
 			isSessionTemplateAvailable: execution?.isSessionTemplateAvailable ?? (() => true),
+			createSessionResource: execution?.createSessionResource ?? (() => AgentSession.uri('mock', generateUuid())),
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
+			hasSession: execution?.hasSession ?? (async session => stateManager.getSessionState(session.toString()) !== undefined),
+			deleteSession: execution?.deleteSession ?? (async session => { stateManager.deleteSession(session.toString()); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
 		}, stateManager, storageService, new NullLogService(), telemetry, providers);
@@ -120,6 +125,34 @@ suite('AgentHostAutomationService', () => {
 
 	async function enableAndCreate(service: AgentHostAutomationService, resource = 'ahp-automation:/review-changes'): Promise<void> {
 		await service.handleCreate(createAction(resource));
+	}
+
+	async function storeCompletedHistory(count: number): Promise<AutomationRunState[]> {
+		const service = createService();
+		await enableAndCreate(service);
+		const automation = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.ok(automation);
+		service.dispose();
+		const runs = Array.from({ length: count }, (_, index): AutomationRunState => ({
+			resource: `ahp-automation-run:/history-${index}`,
+			automation: automation.resource,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: {
+				status: AutomationRunStatus.Completed,
+				createdAt: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString(),
+				startedAt: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString(),
+				completedAt: new Date(Date.UTC(2026, 0, 1, 0, index, 1)).toISOString(),
+			},
+			sessions: [`mock:/history-${index}`, `mock:/history-${index}-secondary`],
+			primarySession: `mock:/history-${index}`,
+		}));
+		await storageService.setAndFlush('automations', {
+			version: 1,
+			catalog: { automations: [automation] },
+			runs,
+			manualRunRequests: [],
+		});
+		return runs;
 	}
 
 	function terminalRun(resource: string): Promise<void> {
@@ -278,6 +311,7 @@ suite('AgentHostAutomationService', () => {
 		const release = new DeferredPromise<URI>();
 		const started = new DeferredPromise<void>();
 		const service = createService({
+			createSessionResource: () => URI.parse('copilotcli:/claimed-session'),
 			createSession: async () => release.p,
 			startSession: async () => { await started.complete(); },
 		});
@@ -317,6 +351,7 @@ suite('AgentHostAutomationService', () => {
 		const started = new DeferredPromise<void>();
 		const reporter = new AgentHostTelemetryReporter(telemetry);
 		const service = createService({
+			createSessionResource: () => session,
 			createSession: async () => session,
 			startSession: async (_, message) => {
 				reporter.userMessageSent(
@@ -567,6 +602,7 @@ suite('AgentHostAutomationService', () => {
 		let createCalls = 0;
 		let startedMessageKind: MessageKind | undefined;
 		const service = createService({
+			createSessionResource: () => session,
 			createSession: async () => {
 				createCalls++;
 				stateManager.createSession({
@@ -685,6 +721,7 @@ suite('AgentHostAutomationService', () => {
 					readinessModels.push(template.model);
 					return true;
 				},
+				createSessionResource: () => session,
 				createSession: async template => {
 					createdModel = template.model;
 					stateManager.createSession({
@@ -747,6 +784,7 @@ suite('AgentHostAutomationService', () => {
 			let sentModel: AutomationDefinition['message']['model'];
 			const service = createService({
 				isSessionTemplateAvailable: template => template.model?.id === model.id,
+				createSessionResource: () => URI.parse('mock:/byok-automation'),
 				createSession: async template => {
 					createdModel = template.model;
 					return URI.parse('mock:/byok-automation');
@@ -784,6 +822,7 @@ suite('AgentHostAutomationService', () => {
 		const createStarted = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
 		const service = createService({
+			createSessionResource: () => session,
 			createSession: async () => {
 				await createStarted.complete();
 				await release.p;
@@ -831,6 +870,7 @@ suite('AgentHostAutomationService', () => {
 	test('logs interruption once on restart with the previously linked session', async () => {
 		const started = new DeferredPromise<void>();
 		const service = createService({
+			createSessionResource: () => URI.parse('copilotcli:/interrupted-session'),
 			createSession: async () => URI.parse('copilotcli:/interrupted-session'),
 			startSession: async () => { await started.complete(); },
 		});
@@ -860,6 +900,7 @@ suite('AgentHostAutomationService', () => {
 			const session = URI.parse(`copilotcli:/${outcome}-session`);
 			const started = new DeferredPromise<void>();
 			const service = createService({
+				createSessionResource: () => session,
 				createSession: async () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'copilotcli', title: '', status: SessionStatus.Idle,
@@ -909,6 +950,240 @@ suite('AgentHostAutomationService', () => {
 			}]);
 		}));
 	}
+
+	test('session intent persistence failure prevents provider creation', async () => {
+		let createCalls = 0;
+		const service = createService({
+			createSessionResource: () => {
+				writeFailures = 1;
+				return URI.parse('mock:/reserved');
+			},
+			createSession: async (_template, _run, session) => {
+				createCalls++;
+				return session;
+			},
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'intent-failure' });
+		await terminalRun(run.resource);
+
+		assert.deepStrictEqual({
+			createCalls,
+			sessions: stateManager.getAutomationRunState(run.resource)?.sessions,
+			intent: storageService.get<Record<string, unknown>>('automations')?.sessionCreations,
+		}, { createCalls: 0, sessions: [], intent: undefined });
+	});
+
+	test('recovers the created session when the linkage write fails without sending the prompt', async () => {
+		const session = URI.parse('mock:/link-write-failure');
+		let startCalls = 0;
+		const service = createService({
+			createSessionResource: () => session,
+			createSession: async (_template, run, requestedSession) => {
+				assert.deepStrictEqual(storageService.get<Record<string, unknown>>('automations')?.sessionCreations, [
+					{ run: run.resource, session: session.toString() },
+				]);
+				writeFailures = 1;
+				return requestedSession;
+			},
+			hasSession: async () => true,
+			startSession: async () => { startCalls++; },
+		});
+		await enableAndCreate(service);
+		const result = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'link-failure' });
+		await terminalRun(result.resource);
+		const run = stateManager.getAutomationRunState(result.resource);
+
+		assert.deepStrictEqual({
+			startCalls,
+			status: run?.lifecycle.status,
+			sessions: run?.sessions,
+			primarySession: run?.primarySession,
+			intent: storageService.get<Record<string, unknown>>('automations')?.sessionCreations,
+		}, {
+			startCalls: 0,
+			status: AutomationRunStatus.Failed,
+			sessions: [session.toString()],
+			primarySession: session.toString(),
+			intent: undefined,
+		});
+	});
+
+	for (const sessionCreated of [false, true]) {
+		test(`restart ${sessionCreated ? 'recovers' : 'discards'} a session creation intent without replaying execution`, async () => {
+			const session = URI.parse('mock:/interrupted-creation');
+			const creating = new DeferredPromise<void>();
+			const release = new DeferredPromise<URI>();
+			let startCalls = 0;
+			const service = createService({
+				createSessionResource: () => session,
+				createSession: async () => {
+					creating.complete();
+					return release.p;
+				},
+				startSession: async () => { startCalls++; },
+			});
+			await enableAndCreate(service);
+			const result = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'interrupted-creation' });
+			await creating.p;
+			service.dispose();
+			const recovered = createService({ hasSession: async () => sessionCreated });
+			try {
+				await terminalRun(result.resource);
+			} finally {
+				await release.complete(session);
+			}
+			const run = stateManager.getAutomationRunState(result.resource);
+			assert.deepStrictEqual({
+				startCalls,
+				status: run?.lifecycle.status,
+				sessions: run?.sessions,
+				primarySession: run?.primarySession,
+				intent: storageService.get<Record<string, unknown>>('automations')?.sessionCreations,
+				available: recovered.isAvailable,
+			}, {
+				startCalls: 0,
+				status: AutomationRunStatus.Failed,
+				sessions: sessionCreated ? [session.toString()] : [],
+				primarySession: sessionCreated ? session.toString() : undefined,
+				intent: undefined,
+				available: true,
+			});
+		});
+	}
+
+	test('keeps deleted Automation history paginated and non-runnable after restart', async () => {
+		const runs = await storeCompletedHistory(60);
+		const deleted: string[] = [];
+		const service = createService({ deleteSession: async session => { deleted.push(session.toString()); } });
+		await service.deleteAutomation(runs[0].automation, false);
+		service.dispose();
+		const restored = createService();
+		await assert.rejects(restored.runAutomation({ channel: 'ahp-automations://', automation: runs[0].automation, requestId: 'deleted-automation' }), /operation 'run' is not available/);
+		await restored.fetchAutomationRuns({ channel: 'ahp-automations://', automation: runs[0].automation });
+		const automation = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.ok(automation);
+
+		assert.deepStrictEqual({
+			deleted,
+			historyState: readAgentHostAutomationHistoryState(automation),
+			enabled: automation.definition.enabled,
+			triggers: automation.definition.triggers,
+			operations: automation.operations,
+			runs: automation.runs.length,
+			cursor: automation.runsNextCursor,
+		}, {
+			deleted: [],
+			historyState: 'retained',
+			enabled: false,
+			triggers: [],
+			operations: [AutomationOperation.Remove],
+			runs: 60,
+			cursor: undefined,
+		});
+	});
+
+	test('restores discoverable history owners for Automations deleted by older hosts', async () => {
+		const runs = await storeCompletedHistory(60);
+		await storageService.setAndFlush('automations', { version: 1, catalog: { automations: [] }, runs });
+		const service = createService();
+		await service.handleConfigurationChanged();
+		await service.fetchAutomationRuns({ channel: 'ahp-automations://', automation: runs[0].automation });
+		const owner = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.ok(owner);
+		await assert.rejects(service.runAutomation({ channel: 'ahp-automations://', automation: owner.resource, requestId: 'orphan' }), /operation 'run' is not available/);
+		assert.deepStrictEqual({
+			title: owner.definition.title,
+			historyState: readAgentHostAutomationHistoryState(owner),
+			operations: owner.operations,
+			enabled: owner.definition.enabled,
+			runs: owner.runs.length,
+		}, {
+			title: 'Deleted Automation',
+			historyState: 'retained',
+			operations: [AutomationOperation.Remove],
+			enabled: false,
+			runs: 60,
+		});
+	});
+
+	test('retries interrupted creation cleanup when its provider becomes available', async () => {
+		const [run] = await storeCompletedHistory(1);
+		const stored = storageService.get<{ catalog: { automations: unknown[] } }>('automations');
+		assert.ok(stored);
+		await storageService.setAndFlush('automations', {
+			version: 1,
+			catalog: stored.catalog,
+			runs: [{ ...run, sessions: [], primarySession: undefined, lifecycle: { status: AutomationRunStatus.Running, createdAt: run.lifecycle.createdAt, startedAt: run.lifecycle.createdAt } }],
+			sessionCreations: [{ run: run.resource, session: 'mock:/unregistered' }],
+		});
+		const attempted = new DeferredPromise<void>();
+		let available = false;
+		const deleted: string[] = [];
+		const service = createService({
+			hasSession: async () => false,
+			deleteSession: async session => {
+				if (!available) {
+					attempted.complete();
+					throw new Error('Provider unavailable');
+				}
+				deleted.push(session.toString());
+			},
+		});
+		await attempted.p;
+		await service.handleConfigurationChanged();
+		assert.ok(storageService.get<Record<string, unknown>>('automations')?.sessionCreations);
+		available = true;
+		service.handleAgentsChanged();
+		await terminalRun(run.resource);
+		assert.deepStrictEqual({
+			deleted,
+			intent: storageService.get<Record<string, unknown>>('automations')?.sessionCreations,
+			sessions: stateManager.getAutomationRunState(run.resource)?.sessions,
+		}, { deleted: ['mock:/unregistered'], intent: undefined, sessions: [] });
+	});
+
+	test('deletes every run session across history pages and includes legacy archive sessions', async () => {
+		const runs = await storeCompletedHistory(60);
+		const deleted: string[] = [];
+		const service = createService({ deleteSession: async session => { deleted.push(session.toString()); } });
+		await service.deleteAutomation(runs[0].automation, true, [URI.parse(runs[0].sessions[0]), URI.parse('mock:/legacy-session')]);
+		service.dispose();
+		createService();
+
+		assert.deepStrictEqual({
+			deleted,
+			entries: stateManager.getAutomationCatalogState()?.entries,
+			run: stateManager.getAutomationRunState(runs[0].resource),
+			deletions: storageService.get<Record<string, unknown>>('automations')?.historyDeletions,
+		}, {
+			deleted: [...runs.flatMap(run => run.sessions), 'mock:/legacy-session'],
+			entries: [],
+			run: undefined,
+			deletions: undefined,
+		});
+	});
+
+	test('resumes interrupted history deletion from its durable targets', async () => {
+		const runs = await storeCompletedHistory(1);
+		const service = createService({ deleteSession: async () => { throw new Error('session deletion failed'); } });
+		await assert.rejects(service.deleteAutomation(runs[0].automation, true, [URI.parse('mock:/legacy-session')]), /session deletion failed/);
+		service.dispose();
+		const deleted: string[] = [];
+		const removed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.AutomationRemoved), disposables);
+		createService({ deleteSession: async session => { deleted.push(session.toString()); } });
+		await removed;
+
+		assert.deepStrictEqual({
+			deleted,
+			entries: stateManager.getAutomationCatalogState()?.entries,
+			deletions: storageService.get<Record<string, unknown>>('automations')?.historyDeletions,
+		}, {
+			deleted: [...runs[0].sessions, 'mock:/legacy-session'],
+			entries: [],
+			deletions: undefined,
+		});
+	});
 
 	test('run persistence failure prevents session side effects', async () => {
 		let createCalls = 0;
@@ -969,6 +1244,7 @@ suite('AgentHostAutomationService', () => {
 		const session = URI.parse('mock:/deferred-session');
 		const service = createService({
 			isSessionTemplateAvailable: () => available,
+			createSessionResource: () => session,
 			createSession: async () => {
 				createCalls++;
 				stateManager.createSession({
@@ -1022,6 +1298,7 @@ suite('AgentHostAutomationService', () => {
 		const started = new DeferredPromise<void>();
 
 		const service = createService({
+			createSessionResource: () => session,
 			createSession: async () => {
 				stateManager.createSession({
 					resource: session.toString(),
@@ -1073,6 +1350,7 @@ suite('AgentHostAutomationService', () => {
 		const cancelled = new DeferredPromise<void>();
 		let startCalls = 0;
 		const service = createService({
+			createSessionResource: () => session,
 			createSession: async () => {
 				await createStarted.complete();
 				await releaseCreate.p;
@@ -1134,6 +1412,7 @@ suite('AgentHostAutomationService', () => {
 		const started = new DeferredPromise<void>();
 
 		const service = createService({
+			createSessionResource: () => session,
 			createSession: async () => {
 				stateManager.createSession({
 					resource: session.toString(),
@@ -1200,6 +1479,7 @@ suite('AgentHostAutomationService', () => {
 		const started = new DeferredPromise<void>();
 
 		const service = createService({
+			createSessionResource: () => session,
 			createSession: async () => {
 				stateManager.createSession({
 					resource: session.toString(),
@@ -1283,6 +1563,7 @@ suite('AgentHostAutomationService', () => {
 			let createCalls = 0;
 			const service = createService({
 				isSessionTemplateAvailable: (_template, reader) => authenticated.read(reader),
+				createSessionResource: () => URI.parse('mock:/authenticated'),
 				createSession: async () => {
 					createCalls++;
 					const session = URI.parse('mock:/authenticated');
@@ -1330,6 +1611,7 @@ suite('AgentHostAutomationService', () => {
 	test('records an on-time scheduled run with schedule provenance', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
 		const started = new DeferredPromise<void>();
 		const service = createService({
+			createSessionResource: () => URI.parse('copilotcli:/scheduled-session'),
 			createSession: async () => URI.parse('copilotcli:/scheduled-session'),
 			startSession: async () => { await started.complete(); },
 		});
@@ -1397,6 +1679,7 @@ suite('AgentHostAutomationService', () => {
 		const session = URI.parse('mock:/multi-trigger-session');
 		const started = new DeferredPromise<void>();
 		createService({
+			createSessionResource: () => session,
 			createSession: async () => {
 				stateManager.createSession({
 					resource: session.toString(),
@@ -1478,6 +1761,7 @@ suite('AgentHostAutomationService', () => {
 		const started = new DeferredPromise<void>();
 
 		createService({
+			createSessionResource: () => session,
 			createSession: async () => {
 				stateManager.createSession({
 					resource: session.toString(),
@@ -1519,7 +1803,8 @@ suite('AgentHostAutomationService', () => {
 					startedAt: timestamp,
 					completedAt: timestamp,
 				},
-				sessions: [],
+				sessions: [AgentSession.uri('mock', `primary-${index}`).toString(), AgentSession.uri('mock', `secondary-${index}`).toString()],
+				primarySession: AgentSession.uri('mock', `primary-${index}`).toString(),
 			};
 		});
 		storageService.set('automations', {
@@ -1532,7 +1817,8 @@ suite('AgentHostAutomationService', () => {
 						automation: run.automation,
 						origin: run.origin,
 						lifecycle: run.lifecycle,
-						sessionCount: 0,
+						primarySession: run.primarySession,
+						sessionCount: run.sessions.length,
 					})),
 					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
 					createdAt: '2026-01-01T00:00:00.000Z',
@@ -1543,16 +1829,28 @@ suite('AgentHostAutomationService', () => {
 			manualRunRequests: [],
 		});
 		await storageService.whenIdle();
+		stateManager.dispatchServerAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false },
+		});
 		const service = createService();
 
 		assert.deepStrictEqual({
 			count: stateManager.getAutomationCatalogState()?.entries[0].runs.length,
 			cursor: stateManager.getAutomationCatalogState()?.entries[0].runsNextCursor,
+			oldestOrigins: runs[0].sessions.map(session => service.getLegacySessionOrigin(session)),
+			ordinaryOrigin: service.getLegacySessionOrigin(AgentSession.uri('mock', 'ordinary').toString()),
 		}, {
 			count: 50,
 			cursor: '50',
+			oldestOrigins: runs[0].sessions.map(() => ({ kind: SessionOriginKind.Automation, automation: automationResource, run: runs[0].resource })),
+			ordinaryOrigin: undefined,
 		});
 
+		stateManager.dispatchServerAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
+		});
 		await service.fetchAutomationRuns({
 			channel: 'ahp-automations://',
 			automation: automationResource,

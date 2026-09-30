@@ -112,7 +112,11 @@ The host owns:
 
 Definitions and run mutations are persisted before corresponding AHP state is published. An unreadable or unsupported host storage format must not be replaced with an empty writable catalogue.
 
+Automation-created sessions carry host-owned `SessionOrigin` identifying their Automation and run. The host persists this provenance before publishing the session and preserves it in session state, catalogue listings, and client caches. The ordinary Agents Window list omits sessions with Automation origin independently of run-history availability, pagination, or feature enablement; the sessions remain in the management catalogue for Automation history and explicit opening. Run membership, chat origin, and message origin do not replace session provenance. Sessions without recoverable provenance remain ordinary list entries.
+
 At most one non-terminal run occupies an Automation's active-run slot. `pending` and `running` are non-terminal; `completed` and `failed` are terminal in the Sessions projection. AHP cancellation projects as failed with its cancellation reason. A run exposes its session resource only once the host links that session.
+
+Before creating a run session, the host persists its allocated identity with the run claim. The initial prompt is sent only after session membership is persisted. Recovery links an existing, registered, non-provisional session or cleans up incomplete creation before clearing that intent; it never replays an interrupted prompt. Failed recovery remains retryable when the provider becomes available.
 
 Run Now submits a manual request to this authority and observes dispatch and completion. An existing active run is reported without creating another session. Pre-dispatch cancellation prevents the request; supported in-flight cancellation is forwarded to the host. Observation failure or window closure cannot synthesize a terminal run or move execution elsewhere.
 
@@ -122,7 +126,11 @@ Disabling scheduled execution on a definition preserves manual Run Now. Disablin
 
 Canonical definitions, schedule cursors, manual request IDs, and run state live in Agent Host storage.
 
-Already-migrated historical runs may also exist in a provider-scoped `agentHostAutomation.legacyRunArchive.*` value. The projection reads these archives solely for history, merging them with authoritative host runs. It does not add to or rewrite them. Historical rows never claim an active-run slot or dispatch execution; malformed non-terminal archive rows are represented as interrupted history, not active host runs.
+Deletion offers a history choice through the capability-gated `vscode/deleteAutomation` extension. Keeping history removes the runnable definition from client projections but retains an inert host-owned history entry with no Run or Update authority. Its runs remain paginated and openable from Automations, never promoted to the ordinary Sessions list. Older persisted runs whose definition is already gone receive an inert history owner during restoration.
+
+Deleting history also deletes its run sessions through normal host session cleanup. The host journals all retained run members, including those outside the visible history page, before starting cleanup. A failed or interrupted deletion retains its targets and can resume after restart or provider registration. The definition and run records are removed only after cleanup succeeds. Clients must not fall back to older deletion semantics when the host lacks the history-choice capability.
+
+Already-migrated historical runs may also exist in a provider-scoped `agentHostAutomation.legacyRunArchive.*` value. The projection reads these archives solely for history, merging them with authoritative host runs. It does not add to them. Explicit history deletion is the only mutation: matching sessions are sent to the owning host for cleanup, then matching archive rows are removed without discarding unrelated or unrecognized data. Unreadable archive formats block destructive dispatch. Historical rows never claim an active-run slot or dispatch execution; malformed non-terminal archive rows are represented as interrupted history, not active host runs.
 
 Obsolete global and provider browser definition ledgers are outside the supported runtime contract. They are not read, imported, executed, or rewritten. Their persisted values are left untouched rather than destructively removed. There is no browser definition migration, interruption recovery, pending-import acknowledgement, or window-leadership path.
 
@@ -136,7 +144,7 @@ Existing AHP definitions and history are not deleted because an obsolete migrati
 4. Browser startup, clocks, and window leadership cannot dispatch an Automation run.
 5. UI, tools, imports, templates, and duplication share the same AHP capability and mutation boundaries.
 6. Saved configuration is revalidated under current provider schema and policy, never treated as a grant.
-7. Retained historical archives are read-only presentation data, not execution state.
+7. Retained historical archives are presentation data, not execution state; only explicit history deletion may remove their rows.
 8. Cross-host edit rejection preserves the original definition and history without partial writes.
 
 ## Related specifications
