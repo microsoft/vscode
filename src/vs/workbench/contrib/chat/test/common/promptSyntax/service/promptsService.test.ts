@@ -2774,8 +2774,7 @@ suite('PromptsService', () => {
 				identifier: { value: 'test.my-extension' },
 				enabledApiProposals: ['chatParticipantPrivate']
 			} as unknown as IExtensionDescription;
-			// Block standalone files so the filesystem branches cannot report the
-			// cancellation, leaving the provider as the only cancellation source.
+			// Block standalone files so the provider is the only cancellation source.
 			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
 			fireConfigChange(testConfigService, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
 
