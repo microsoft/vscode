@@ -7,12 +7,13 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { ONBOARDING_TARGET_ATTR } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_GROUP_STYLE_SETTING, SessionsListGroupStyle } from '../../../../common/sessionConfig.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionPaletteColor, SessionTextColorMode } from '../../../../services/sessions/common/sessionColors.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING } from '../../browser/automationsNewBadge.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
-import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
+import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureColors, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
 
 //#region Data
 
@@ -122,6 +123,37 @@ const RELEASE_GROUP: ISessionsListFixtureGroup = { id: 'release', name: 'Release
 const TRIAGE_GROUP: ISessionsListFixtureGroup = { id: 'triage', name: 'Triage', sessions: ['flaky'] };
 const DOCS_GROUP: ISessionsListFixtureGroup = { id: 'docs', name: 'Docs refresh', sessions: ['guide'] };
 const EMPTY_GROUP: ISessionsListFixtureGroup = { id: 'later', name: 'Later' };
+
+/** Sessions for the colored group and collection fixtures. */
+const COLOR_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'corpus', title: 'vscode-corpus', workspace: 'vscode-engineering', minutesAgo: 120, pinned: true },
+	{ id: 'endgame', title: '1.140.0 Endgame · Issue #338302', workspace: 'vscode', minutesAgo: 6, isRead: false },
+	{ id: 'signing', title: 'Verify Windows ARM64 signing', workspace: 'vscode', minutesAgo: 9, status: SessionStatus.InProgress, description: 'Running build validation' },
+	{ id: 'testplan', title: 'Test plan item: sessions list colors', workspace: 'vscode', minutesAgo: 14, status: SessionStatus.NeedsInput, description: 'Waiting for your input' },
+	{ id: 'ci', title: 'Run PR CI unit tests with a product quality build', workspace: 'vscode', minutesAgo: 22, changesSummary: { files: 3, additions: 48, deletions: 6 } },
+	{ id: 'flaky-fixture', title: 'Skip flaky sessionsListHierarchy fixture', workspace: 'vscode', minutesAgo: 60 },
+	{ id: 'heatmap', title: 'Add a latency heatmap to the device page', workspace: 'netmon', minutesAgo: 30 },
+	{ id: 'legend', title: 'Add a legend to the heatmap', workspace: 'netmon', minutesAgo: 45, status: SessionStatus.NeedsInput },
+	{ id: 'label', title: 'VS Code team label', minutesAgo: 50, isQuickChat: true },
+	{ id: 'garden', title: 'Plan the vegetable garden', workspace: 'home', minutesAgo: 200 },
+];
+const ENDGAME_GROUP: ISessionsListFixtureGroup = { id: 'endgame', name: 'endgame', sessions: ['endgame', 'signing', 'testplan'], color: SessionPaletteColor.Yellow };
+const CI_GROUP: ISessionsListFixtureGroup = { id: 'ci', name: 'engineering + CI', sessions: ['ci', 'flaky-fixture'], color: SessionPaletteColor.Purple };
+const CUSTOM_GROUP: ISessionsListFixtureGroup = { id: 'hackathon', name: 'after hackathon', sessions: ['heatmap'], color: '#1f5f99', textColor: SessionTextColorMode.Auto };
+const COLORED_SECTIONS: ISessionsListFixtureColors = {
+	sections: {
+		pinned: { color: SessionPaletteColor.Red },
+		quickchats: { color: SessionPaletteColor.Cyan },
+		netmon: { color: SessionPaletteColor.Green },
+	},
+};
+const COLLECTIONS: ISessionsListFixtureColors = {
+	...COLORED_SECTIONS,
+	collections: [
+		{ id: 'personal', name: 'Personal', icon: 'home', color: SessionPaletteColor.Green, workspaces: ['home'] },
+		{ id: 'misc', name: 'Misc', icon: 'briefcase', color: SessionPaletteColor.Orange, sessions: ['label'] },
+	],
+};
 
 //#endregion
 
@@ -260,6 +292,72 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	//#endregion
 
 	//#region Custom groups
+
+	SessionsList_ColoredGroups: defineSessionsListFixture({
+		sessions: COLOR_SESSIONS,
+		groups: [ENDGAME_GROUP, CI_GROUP, CUSTOM_GROUP],
+		colors: COLORED_SECTIONS,
+		view: { expanded: [{ section: 'pinned' }, { section: 'quickchats' }], height: 720, width: 320 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Pinned, Chats, the three custom groups and the netmon workspace render as solid color pills with a matching rail beside their sessions. Text on each pill has readable contrast.'],
+	}),
+	SessionsList_ColoredGroups_Collapsed: defineSessionsListFixture({
+		sessions: COLOR_SESSIONS,
+		groups: [ENDGAME_GROUP, CI_GROUP, CUSTOM_GROUP],
+		colors: COLORED_SECTIONS,
+		view: { collapsed: 'all', reducedMotion: true, width: 320 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['Every colored header is collapsed to a pill showing its session count; endgame and netmon show a needs-input status.'],
+	}),
+	SessionsList_ColoredGroups_Outline: defineSessionsListFixture({
+		sessions: COLOR_SESSIONS,
+		groups: [ENDGAME_GROUP, CI_GROUP],
+		colors: COLORED_SECTIONS,
+		settings: { [SESSIONS_LIST_GROUP_STYLE_SETTING]: SessionsListGroupStyle.Outline },
+		view: { height: 640, width: 320 },
+	}, { labels: { kind: 'screenshot' } }),
+	SessionsList_ColoredGroups_Tint: defineSessionsListFixture({
+		sessions: COLOR_SESSIONS,
+		groups: [ENDGAME_GROUP, CI_GROUP],
+		colors: COLORED_SECTIONS,
+		settings: { [SESSIONS_LIST_GROUP_STYLE_SETTING]: SessionsListGroupStyle.Tint },
+		view: { height: 640, width: 320 },
+	}, { labels: { kind: 'screenshot' } }),
+	SessionsList_ColoredGroups_Dot: defineSessionsListFixture({
+		sessions: COLOR_SESSIONS,
+		groups: [ENDGAME_GROUP, CI_GROUP],
+		colors: COLORED_SECTIONS,
+		settings: { [SESSIONS_LIST_GROUP_STYLE_SETTING]: SessionsListGroupStyle.Dot },
+		view: { height: 640, width: 320 },
+	}, { labels: { kind: 'screenshot' } }),
+	SessionsList_ColoredGroups_Compact: defineSessionsListFixture({
+		sessions: COLOR_SESSIONS,
+		groups: [ENDGAME_GROUP, CI_GROUP, CUSTOM_GROUP],
+		colors: COLORED_SECTIONS,
+		view: { compact: true, height: 520, width: 320 },
+	}, { labels: { kind: 'screenshot' } }),
+	SessionsList_Collections_Default: defineSessionsListFixture({
+		sessions: COLOR_SESSIONS,
+		groups: [ENDGAME_GROUP, CI_GROUP],
+		colors: COLLECTIONS,
+		view: { height: 640, width: 320 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The General collection shows its groups and workspaces; the home workspace and the VS Code team label chat are absent because they belong to other collections.'],
+	}),
+	SessionsList_Collections_Personal: defineSessionsListFixture({
+		sessions: COLOR_SESSIONS,
+		groups: [ENDGAME_GROUP, CI_GROUP],
+		colors: { ...COLLECTIONS, activeCollection: 'personal' },
+		view: { height: 320, width: 320 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Only the Personal collection is shown: the home workspace with its garden session.'],
+	}),
 
 	SessionsList_CustomGroup: defineSessionsListFixture({
 		sessions: GROUPED_SESSIONS,

@@ -898,8 +898,13 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(groupHeader);
 			const labelContainer = groupHeader.querySelector<HTMLElement>('.session-section-label-container');
 			assert.ok(labelContainer);
+			// The uncolored header pill uses `display: contents`, so the label container still lays out in the header row.
+			let flexParent = labelContainer.parentElement;
+			while (flexParent && mainWindow.getComputedStyle(flexParent).display === 'contents') {
+				flexParent = flexParent.parentElement;
+			}
 			assert.deepStrictEqual({
-				labelContainerParent: labelContainer.parentElement?.classList.contains('session-group'),
+				labelContainerParent: flexParent?.classList.contains('session-group'),
 				labelParent: labelContainer.querySelector('.session-section-label')?.parentElement?.classList.contains('session-section-label-container'),
 				flexGrow: mainWindow.getComputedStyle(labelContainer).flexGrow,
 			}, {

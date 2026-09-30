@@ -1153,6 +1153,299 @@
 	display: block;
 }
 
+/*
+ * Colored headers (groups, workspaces, Pinned and Chats). The pill wraps the
+ * chevron, icon and label and only has a box when the header is colored, so
+ * uncolored headers keep their exact layout. Colors come from theme variables
+ * set per row: `--session-group-fill` and `--session-group-text`.
+ */
+.session-header-pill {
+	display: contents;
+}
+
+.session-section.session-header-colored {
+	position: relative;
+	align-items: flex-end;
+	padding: 0 var(--vscode-spacing-size40);
+
+	.session-header-pill {
+		position: relative;
+		display: inline-flex;
+		flex: 0 1 auto;
+		align-items: center;
+		gap: var(--vscode-spacing-size60);
+		min-width: 0;
+		height: 26px;
+		padding: 0 var(--vscode-spacing-size100);
+		box-sizing: border-box;
+		border-radius: var(--vscode-cornerRadius-medium);
+		background-color: var(--session-group-fill);
+		color: var(--session-group-text);
+		line-height: 1;
+	}
+
+	/* Hover tint in the text color, so it reads on any fill. */
+	.session-header-pill::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background-color: currentColor;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 120ms ease-out;
+	}
+
+	.session-section-chevron.collapsible,
+	.session-section-chevron.collapsible + .session-section-icon {
+		display: flex;
+		align-items: center;
+		margin-right: 0;
+		height: auto;
+		color: inherit;
+	}
+
+	.session-section-icon {
+		width: auto;
+		height: auto;
+		margin-right: 0;
+		font-size: var(--vscode-codiconFontSize-compact, 12px);
+		color: inherit;
+		opacity: 0.85;
+	}
+
+	.session-section-label-container {
+		flex: 0 1 auto;
+	}
+
+	.session-section-label {
+		line-height: 16px;
+	}
+
+	.session-header-pill-count {
+		flex: none;
+		font-size: var(--vscode-fontSize-label2, 11px);
+		font-weight: var(--vscode-fontWeight-regular, 400);
+		font-variant-numeric: tabular-nums;
+		opacity: 0.8;
+	}
+
+	.session-header-pill-count:empty {
+		display: none;
+	}
+
+	.session-header-pill-status {
+		flex: none;
+		display: none;
+		align-items: center;
+	}
+
+	.session-header-pill-status.visible {
+		display: flex;
+	}
+
+	/* Status glyphs follow the pill text so they keep its contrast. */
+	.session-header-pill-status .codicon,
+	.session-header-pill-status .codicon * {
+		color: inherit !important;
+		font-size: var(--vscode-codiconFontSize-compact, 12px);
+	}
+
+	.session-section-toolbar {
+		align-self: flex-end;
+		margin-bottom: var(--vscode-spacing-size20);
+		margin-left: auto;
+	}
+}
+
+.sessions-list-control.compact .session-section.session-header-colored .session-header-pill {
+	height: 24px;
+}
+
+.session-group.session-header-colored .session-section-icon {
+	display: none !important;
+}
+
+.sessions-list-control .monaco-list-row:is(:hover, .hovered) .session-section.session-header-colored .session-header-pill::after {
+	opacity: 0.1;
+}
+
+.sessions-list-control .monaco-list-row .session-section.session-header-colored .session-section-label,
+.sessions-list-control .monaco-list-row:is(:hover, .hovered) .session-section.session-header-colored .session-section-label,
+.sessions-list-control .monaco-list-row.focused .session-section.session-header-colored .session-section-label {
+	color: inherit;
+}
+
+.hc-black .session-section.session-header-colored .session-header-pill,
+.hc-light .session-section.session-header-colored .session-header-pill {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+}
+
+/* The rail beside the rows of a colored header. */
+.session-in-colored-group {
+	isolation: isolate;
+}
+
+.session-group-rail {
+	position: absolute;
+	z-index: -1;
+	top: 0;
+	/* Bridge the gap below inset rows so the rail reads as one line. */
+	bottom: calc(-1 * var(--vscode-spacing-size20));
+	left: var(--vscode-spacing-size40);
+	width: 3px;
+	background-color: var(--session-group-fill);
+	pointer-events: none;
+}
+
+.session-rail-first > .session-group-rail {
+	top: var(--vscode-spacing-size40);
+	border-top-left-radius: var(--vscode-cornerRadius-xSmall, 2px);
+	border-top-right-radius: var(--vscode-cornerRadius-xSmall, 2px);
+}
+
+.session-rail-last > .session-group-rail {
+	bottom: var(--vscode-spacing-size60);
+	border-bottom-left-radius: var(--vscode-cornerRadius-xSmall, 2px);
+	border-bottom-right-radius: var(--vscode-cornerRadius-xSmall, 2px);
+}
+
+.sessions-list-control .session-item.session-in-colored-group,
+.sessions-list-control.compact .session-item.session-in-colored-group:not(.quick-chat),
+.sessions-list-control .session-placeholder.session-in-colored-group {
+	padding-left: var(--vscode-spacing-size160);
+}
+
+.sessions-list-control .monaco-list-row:has(.session-item.session-in-colored-group) .session-chat-twistie {
+	left: var(--vscode-spacing-size160);
+}
+
+.hc-black .session-group-rail,
+.hc-light .session-group-rail {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+}
+
+/* Dot: a quiet header with a colored dot, and a thinner rail. */
+.sessions-list-control[data-group-style="dot"] {
+	.session-section.session-header-colored .session-header-pill {
+		background-color: transparent;
+		color: var(--vscode-foreground);
+		padding-left: var(--vscode-spacing-size80);
+	}
+
+	.session-section.session-header-colored .session-header-pill::before {
+		content: '';
+		order: 1;
+		flex: none;
+		width: 8px;
+		height: 8px;
+		border-radius: var(--vscode-cornerRadius-circle);
+		background-color: var(--session-group-fill);
+	}
+
+	.session-section.session-header-colored .session-section-chevron {
+		order: 0;
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.session-section.session-header-colored .session-section-icon,
+	.session-section.session-header-colored .session-section-label-container,
+	.session-section.session-header-colored .session-header-pill-count,
+	.session-section.session-header-colored .session-header-pill-status {
+		order: 2;
+	}
+
+	.session-group-rail {
+		width: 2px;
+		left: calc(var(--vscode-spacing-size40) + 1px);
+	}
+}
+
+/* Tint: the expanded header and its rows form a softly tinted card. */
+.sessions-list-control:is([data-group-style="tint"], [data-group-style="outline"]).session-list-row-spacing .monaco-list-row:has(> .monaco-tl-row .session-in-colored-group) {
+	/* Rounded rows would notch the card edges between rows. */
+	border-radius: 0;
+}
+
+.sessions-list-control[data-group-style="tint"] {
+	.session-section.session-header-colored:not(.session-header-collapsed) {
+		padding: var(--vscode-spacing-size20) 0 0;
+		background-color: color-mix(in srgb, var(--session-group-fill) 12%, transparent);
+		background-clip: content-box;
+		border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+		box-sizing: border-box;
+
+		.session-header-pill {
+			margin-left: var(--vscode-spacing-size40);
+		}
+
+		.session-section-toolbar {
+			margin-right: var(--vscode-spacing-size40);
+		}
+	}
+
+	.session-group-rail {
+		left: 0;
+		right: 0;
+		width: auto;
+		background-color: color-mix(in srgb, var(--session-group-fill) 12%, transparent);
+	}
+
+	.session-rail-first > .session-group-rail {
+		top: 0;
+		border-radius: 0;
+	}
+
+	.session-rail-last > .session-group-rail {
+		bottom: 0;
+		border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+	}
+}
+
+/* Outline: a solid expanded header with a colored outline around its rows. */
+.sessions-list-control[data-group-style="outline"] {
+	.session-section.session-header-colored:not(.session-header-collapsed) {
+		padding: 0;
+
+		.session-header-pill {
+			flex: 1 1 auto;
+			border-radius: var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0 0;
+		}
+
+		.session-section-toolbar {
+			position: absolute;
+			right: var(--vscode-spacing-size80);
+			bottom: var(--vscode-spacing-size20);
+			margin: 0;
+			color: var(--session-group-text);
+		}
+
+		.session-section-toolbar .action-label {
+			color: inherit;
+		}
+	}
+
+	.session-group-rail {
+		left: 0;
+		right: 0;
+		width: auto;
+		background-color: transparent;
+		border-left: var(--vscode-strokeThickness) solid var(--session-group-fill);
+		border-right: var(--vscode-strokeThickness) solid var(--session-group-fill);
+	}
+
+	.session-rail-first > .session-group-rail {
+		top: 0;
+		border-radius: 0;
+	}
+
+	.session-rail-last > .session-group-rail {
+		bottom: 0;
+		border-bottom: var(--vscode-strokeThickness) solid var(--session-group-fill);
+		border-radius: 0 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium);
+	}
+}
+
 /* Header-only feedback while dragging sessions into a group or Pinned. */
 .sessions-list-control .monaco-list-row.drop-target:has(.session-section),
 .sessions-list-control .monaco-list-row:has(.session-header-drop-target) {

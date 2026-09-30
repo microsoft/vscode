@@ -66,6 +66,10 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
+import { ISessionSectionColorsService, SessionSectionColorsService } from '../../../../services/sessions/browser/sessionSectionColorsService.js';
+import { ISessionCollectionsService, SessionCollectionsService } from '../../../../services/sessions/browser/sessionCollectionsService.js';
+import { SessionColor, SessionPaletteColor, SessionTextColorMode } from '../../../../services/sessions/common/sessionColors.js';
+import { SESSIONS_LIST_COLLECTIONS_SETTING, SESSIONS_LIST_GROUP_COLORS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
@@ -111,6 +115,34 @@ export interface ISessionsListFixtureGroup {
 	readonly name: string;
 	/** Ids of the member sessions. */
 	readonly sessions?: readonly string[];
+	/** The group color; groups otherwise receive the next unused palette color. */
+	readonly color?: SessionColor;
+	readonly textColor?: SessionTextColorMode;
+	/** Fixture id of the collection the group belongs to. */
+	readonly collection?: string;
+}
+
+/** A user-defined collection that partitions the list. */
+export interface ISessionsListFixtureCollection {
+	/** Fixture-local id. */
+	readonly id: string;
+	readonly name: string;
+	readonly icon: string;
+	readonly color: SessionPaletteColor;
+	/** Ids of sessions assigned to this collection. */
+	readonly sessions?: readonly string[];
+	/** Workspace labels whose sessions belong to this collection. */
+	readonly workspaces?: readonly string[];
+}
+
+/** Colors and collections, the presentation state behind colored groups. */
+export interface ISessionsListFixtureColors {
+	/** Colors of workspace sections by workspace label, and of the `pinned` and `quickchats` sections by id. */
+	readonly sections?: Readonly<Record<string, { readonly color: SessionColor; readonly textColor?: SessionTextColorMode }>>;
+	/** Collections after the default one. The list shows the active one. */
+	readonly collections?: readonly ISessionsListFixtureCollection[];
+	/** Fixture id of the active collection; the default collection when omitted. */
+	readonly activeCollection?: string;
 }
 
 /**
@@ -179,6 +211,8 @@ export interface ISessionsListFixtureHeader {
 export interface ISessionsListFixtureState {
 	readonly sessions: readonly ISessionsListFixtureSession[];
 	readonly groups?: readonly ISessionsListFixtureGroup[];
+	/** Group, section and collection colors. Setting this enables colored groups and, with collections, collections. */
+	readonly colors?: ISessionsListFixtureColors;
 	readonly view?: ISessionsListFixtureView;
 	readonly interaction?: ISessionsListFixtureInteraction;
 	/** Renders the Sessions header above the list. */
@@ -589,6 +623,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
+			reg.define(ISessionSectionColorsService, SessionSectionColorsService);
+			reg.define(ISessionCollectionsService, SessionCollectionsService);
 			const reducedMotion = view.reducedMotion;
 			if (reducedMotion !== undefined) {
 				reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
@@ -676,6 +712,12 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	await configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
 	for (const [key, value] of Object.entries(state.settings ?? {})) {
 		await configurationService.setUserConfiguration(key, value);
+	}
+	if (state.colors) {
+		await configurationService.setUserConfiguration(SESSIONS_LIST_GROUP_COLORS_SETTING, true);
+		if (state.colors.collections?.length) {
+			await configurationService.setUserConfiguration(SESSIONS_LIST_COLLECTIONS_SETTING, true);
+		}
 	}
 	disposableStore.add(acquireArchiveActions());
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
@@ -803,10 +845,36 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 	}
 
 	const groupsService = instantiationService.get(ISessionGroupsService);
+	const collectionsService = instantiationService.get(ISessionCollectionsService);
+	const colorsService = instantiationService.get(ISessionSectionColorsService);
+	const collectionIds = new Map<string, string>();
+	for (const collection of state.colors?.collections ?? []) {
+		const created = collectionsService.createCollection({ name: collection.name, icon: collection.icon, color: collection.color });
+		collectionIds.set(collection.id, created.id);
+		for (const workspace of collection.workspaces ?? []) {
+			collectionsService.moveWorkspaceToCollection(`workspace:${workspace}`, created.id, []);
+		}
+		collectionsService.moveSessionsToCollection((collection.sessions ?? []).map(id => getSession(id).session), created.id);
+	}
+	for (const [section, value] of Object.entries(state.colors?.sections ?? {})) {
+		const sectionId = section === 'pinned' || section === 'quickchats' ? section : `workspace:${section}`;
+		colorsService.setColor(sectionId, { color: value.color, textColor: value.textColor ?? SessionTextColorMode.Auto });
+	}
 	const groupIds = new Map<string, string>();
 	for (const group of state.groups ?? []) {
 		const created = groupsService.createGroup(group.name, (group.sessions ?? []).map(id => getSession(id).session.sessionId));
 		groupIds.set(group.id, created.id);
+		if (group.color) {
+			colorsService.setColor(`group:${created.id}`, { color: group.color, textColor: group.textColor ?? SessionTextColorMode.Auto });
+		}
+		const collectionId = group.collection ? collectionIds.get(group.collection) : undefined;
+		if (collectionId) {
+			collectionsService.moveGroupToCollection(created.id, collectionId);
+		}
+	}
+	const activeCollectionId = state.colors?.activeCollection ? collectionIds.get(state.colors.activeCollection) : undefined;
+	if (activeCollectionId) {
+		collectionsService.setActiveCollection(activeCollectionId);
 	}
 	// Groups created together share a timestamp, so persist the listed order explicitly.
 	const orderIds = [...groupIds.values()].map(id => `group:${id}`);

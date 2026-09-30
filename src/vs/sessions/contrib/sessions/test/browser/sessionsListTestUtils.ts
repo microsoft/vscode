@@ -22,6 +22,9 @@ import { IAgentHostFilterService } from '../../../../services/agentHostFilter/co
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
+import { ISessionSectionColor, ISessionSectionColorsService } from '../../../../services/sessions/browser/sessionSectionColorsService.js';
+import { ISessionCollection, ISessionCollectionsService } from '../../../../services/sessions/browser/sessionCollectionsService.js';
+import { SessionPaletteColor } from '../../../../services/sessions/common/sessionColors.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
@@ -200,6 +203,15 @@ export interface IListHarnessOptions {
 	readonly groups?: readonly ISessionGroup[];
 	readonly memberships?: ReadonlyMap<string, string>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
+	/** Stored header colors by section id (`group:<id>`, `workspace:<label>`, `pinned`, `quickchats`). */
+	readonly sectionColors?: ReadonlyMap<string, ISessionSectionColor>;
+	/** Collections, the active one, and the collection of each session and group (others belong to the first). */
+	readonly collections?: {
+		readonly collections: readonly ISessionCollection[];
+		readonly activeCollectionId: string;
+		readonly sessionCollections?: ReadonlyMap<string, string>;
+		readonly groupCollections?: ReadonlyMap<string, string>;
+	};
 }
 
 type ConfigureListHarness = (instantiationService: TestInstantiationService) => void;
@@ -253,6 +265,28 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override resolveOrder(ids: readonly string[]) { return [...ids]; }
 		override isPromoted() { return false; }
 		override retain(): void { }
+	});
+	const sectionColors = options.sectionColors ?? new Map<string, ISessionSectionColor>();
+	instantiationService.stub(ISessionSectionColorsService, new class extends mock<ISessionSectionColorsService>() {
+		override readonly colors = constObservable<ReadonlyMap<string, ISessionSectionColor>>(sectionColors);
+		override getColor(sectionId: string) { return sectionColors.get(sectionId); }
+		override setColor(): void { }
+		override getNextColor() { return SessionPaletteColor.Blue; }
+	});
+	const collectionsOption = options.collections ?? { collections: [{ id: 'default', name: 'General', icon: 'layers', color: SessionPaletteColor.Blue }], activeCollectionId: 'default' };
+	const defaultCollectionId = collectionsOption.collections[0].id;
+	instantiationService.stub(ISessionCollectionsService, new class extends mock<ISessionCollectionsService>() {
+		override readonly collections = constObservable(collectionsOption.collections);
+		override readonly activeCollectionId = constObservable(collectionsOption.activeCollectionId);
+		override readonly defaultCollectionId = constObservable(defaultCollectionId);
+		override readonly onDidChangeMembership = Event.None;
+		override getCollection(collectionId: string) { return collectionsOption.collections.find(collection => collection.id === collectionId); }
+		override getSessionCollection(session: ISession) {
+			const groupId = memberships.get(session.sessionId);
+			return (groupId ? collectionsOption.groupCollections?.get(groupId) : undefined) ?? collectionsOption.sessionCollections?.get(session.sessionId) ?? defaultCollectionId;
+		}
+		override getGroupCollection(groupId: string) { return collectionsOption.groupCollections?.get(groupId) ?? defaultCollectionId; }
+		override getWorkspaceCollection() { return defaultCollectionId; }
 	});
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 		override readonly onDidChange = Event.None;
