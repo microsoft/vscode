@@ -66,11 +66,11 @@ import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type Mes
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
-import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
+import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
-import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, mergeByokSessionConfig, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
@@ -1173,6 +1173,9 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionUsageMetricsRefreshThrottler = this._register(new Throttler());
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
+	/** BYOK providers and models registered on {@link _wrapper}; seeded at launch and grown by {@link syncByokModels}. */
+	private _registeredByokConfig: ICopilotByokSessionConfig = {};
+	private readonly _byokSync = new Sequencer();
 	private _workingDirectoryMutationInProgress = false;
 	private _requiresRestartAfterWorkingDirectoryChange = false;
 	private _requiresRestartAfterModelChange = false;
@@ -2714,6 +2717,7 @@ export class CopilotAgentSession extends Disposable {
 			throw new CancellationError();
 		}
 		this._wrapper = this._register(wrapper);
+		this._registeredByokConfig = wrapper.launchByokConfig;
 		this._canvasByInstanceId.clear();
 		this._ignoredRestoredCanvasInstanceIds.clear();
 		if (this._launchPlan.kind === 'resume') {
@@ -4195,7 +4199,42 @@ export class CopilotAgentSession extends Disposable {
 		await this._disposeShellInitScript();
 	}
 
+	/**
+	 * Registers BYOK models that the renderer reported after this SDK session
+	 * launched, e.g. for a chat restored before the renderer's first BYOK
+	 * snapshot reached the agent host. Additive (see {@link mergeByokSessionConfig})
+	 * and a no-op when nothing new was reported. Serialized so concurrent
+	 * callers observe each other's registrations.
+	 */
+	syncByokModels(): Promise<void> {
+		return this._byokSync.queue(async () => {
+			const wrapper = this._wrapper;
+			if (this._store.isDisposed || !wrapper) {
+				return;
+			}
+			const current = await this._sessionLauncher.resolveByokSessionConfig(this.sessionId);
+			const merged = mergeByokSessionConfig(this._registeredByokConfig, current);
+			// A restart across the await swapped in a wrapper with its own launch
+			// config, so `merged` is no longer a valid basis for that session.
+			if (!merged || this._store.isDisposed || this._wrapper !== wrapper) {
+				return;
+			}
+			this._logService.info(`[Copilot:${this.sessionId}] Registering BYOK models on live session: models=${merged.models?.length ?? 0}, previouslyRegistered=${this._registeredByokConfig.models?.length ?? 0}`);
+			await this._awaitControlPlaneRpc('rpc.provider.sync', wrapper.session.rpc.provider.sync(merged));
+			this._registeredByokConfig = merged;
+		});
+	}
+
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: AutoModeTier | null): Promise<void> {
+		// The runtime rejects a BYOK model that is not registered on the session.
+		try {
+			await this.syncByokModels();
+		} catch (err) {
+			// Deliberately non-fatal: let `setModel` report the runtime's own error
+			// rather than this one. Note a timed-out `provider.sync` still marks the
+			// session control-plane desynchronized, so the failure is not dropped.
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to register BYOK models before changing model`, err);
+		}
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
 		await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
 			reasoningEffort,

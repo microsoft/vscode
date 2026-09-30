@@ -145,6 +145,8 @@ export enum ChatConfiguration {
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
 
+export const CHAT_ATTACH_CONTEXT_ACTION_ID = 'workbench.action.chat.attachContext';
+
 export const enum CopilotHarnessIntroductionMode {
 	Off = 'off',
 	NewSession = 'newSession',
