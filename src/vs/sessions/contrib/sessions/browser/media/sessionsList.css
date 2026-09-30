@@ -1087,6 +1087,11 @@
 		white-space: nowrap;
 	}
 
+	.session-section-count-badge {
+		flex-shrink: 0;
+		margin-left: var(--vscode-spacing-size40);
+	}
+
 	.session-section-migration-indicator {
 		display: none;
 		flex-shrink: 0;
@@ -1119,11 +1124,6 @@
 		margin-right: 4px;
 	}
 
-	&.session-section-customizations .session-section-count {
-		font-size: var(--vscode-fontSize-label2);
-		font-weight: var(--vscode-fontWeight-regular);
-	}
-
 	.session-section-new-badge {
 		display: none;
 		align-items: center;
@@ -1141,6 +1141,20 @@
 		text-transform: uppercase;
 		white-space: nowrap;
 		pointer-events: none;
+	}
+
+	.session-section-keybinding {
+		display: none;
+		flex-shrink: 0;
+		margin-left: var(--vscode-spacing-size40);
+
+		&.visible {
+			display: inline-flex;
+		}
+	}
+
+	&.session-section-new-session {
+		color: var(--vscode-foreground);
 	}
 
 	.session-section-new-badge-accent {

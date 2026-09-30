@@ -35,6 +35,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
@@ -140,6 +141,7 @@ suite('Sessions - SessionsList', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const noHeaderStatusTrigger = { pending: constObservable(false), includeExpanded: constObservable(false), report: () => { } };
+	const noKeybindingService = new class extends mock<IKeybindingService>() { };
 
 	suite('SessionSectionRenderer', () => {
 
@@ -170,6 +172,8 @@ suite('Sessions - SessionsList', () => {
 				},
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -227,6 +231,8 @@ suite('Sessions - SessionsList', () => {
 					override readonly activeCustomView = constObservable(undefined);
 				},
 				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -288,6 +294,8 @@ suite('Sessions - SessionsList', () => {
 					override readonly activeCustomView = constObservable(undefined);
 				},
 				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -480,6 +488,7 @@ suite('Sessions - SessionsList', () => {
 			const treatmentNavigationLabels = Array.from(container.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
 			const treatmentAriaLabels = Array.from(container.querySelectorAll('.monaco-list-rows > .monaco-list-row'), element => element.getAttribute('aria-label'));
 			const shortcutActionTargets = Array.from(container.querySelectorAll('.session-section-shortcut'), element => element.querySelectorAll('a, button').length);
+			const newSessionKeybindingVisible = container.querySelector('.session-section-new-session .session-section-keybinding')?.classList.contains('visible');
 			const shortcutCollapseStates = Array.from(container.querySelectorAll('.session-section-shortcut'), element => ({
 				ariaExpanded: element.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 				hasChevron: element.querySelector('.session-section-chevron.collapsible') !== null,
@@ -489,8 +498,10 @@ suite('Sessions - SessionsList', () => {
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
 			const customizationsLabel = customizationsSection?.querySelector('.session-section-label');
 			const migrationIndicator = customizationsSection?.querySelector('.session-section-migration-indicator');
+			const countBadge = customizationsSection?.querySelector('.session-section-count-badge .monaco-count-badge');
 			const customizationsPresentation = {
-				count: customizationsSection?.querySelector('.session-section-count')?.textContent,
+				countBadge: countBadge?.textContent,
+				countBadgeNextToLabel: countBadge?.parentElement?.previousElementSibling === customizationsLabel,
 				migrationIndicatorVisible: migrationIndicator?.classList.contains('visible'),
 				migrationIndicatorOutsideLabel: !!migrationIndicator && !customizationsLabel?.contains(migrationIndicator),
 				hasExtensionsIcon: customizationsSection?.querySelector('.session-section-icon')?.classList.contains('codicon-extensions'),
@@ -518,6 +529,7 @@ suite('Sessions - SessionsList', () => {
 				treatmentNavigationLabels,
 				treatmentAriaLabels,
 				shortcutActionTargets,
+				newSessionKeybindingVisible,
 				shortcutCollapseStates,
 				headerInTreatment,
 				customizationsPresentation,
@@ -531,16 +543,19 @@ suite('Sessions - SessionsList', () => {
 				findInput,
 				focusBeforeSwitch: findInput,
 				focusInTreatment: findInput,
-				treatmentNavigationLabels: ['Automations', 'Customizations'],
-				treatmentAriaLabels: ['Automations', 'Customizations, 7 customizations, customization migrations available', 'Sessions'],
-				shortcutActionTargets: [0, 0],
+				treatmentNavigationLabels: ['New', 'Automations', 'Customizations'],
+				treatmentAriaLabels: ['New Session', 'Automations', 'Customizations, 7 customizations, customization migrations available', 'Sessions'],
+				shortcutActionTargets: [0, 0, 0],
+				newSessionKeybindingVisible: true,
 				shortcutCollapseStates: [
+					{ ariaExpanded: null, hasChevron: false },
 					{ ariaExpanded: null, hasChevron: false },
 					{ ariaExpanded: null, hasChevron: false },
 				],
 				headerInTreatment: true,
 				customizationsPresentation: {
-					count: '7',
+					countBadge: '7',
+					countBadgeNextToLabel: true,
 					migrationIndicatorVisible: true,
 					migrationIndicatorOutsideLabel: true,
 					hasExtensionsIcon: true,
@@ -611,7 +626,7 @@ suite('Sessions - SessionsList', () => {
 					findInput,
 					headerInTree: true,
 					treeHeaderAriaHidden: 'true',
-					shortcutLabels: ['Automations', 'Customizations'],
+					shortcutLabels: ['New', 'Automations', 'Customizations'],
 					sessionRows: 0,
 				});
 			} finally {
@@ -724,7 +739,7 @@ suite('Sessions - SessionsList', () => {
 				stickyHeaderText: 'Sessions',
 				stickyHeaderOwnsDistinctDom: true,
 				stickyHeaderAriaLabel: 'Sessions',
-				stickySectionLabels: ['Recent'],
+				stickySectionLabels: ['New', 'Recent'],
 				navigationVisibleAfterScroll: false,
 				stickyHeaderRestoredAfterZeroHeight: 'Sessions',
 				stableFindHeaderUnmoved: true,
@@ -780,6 +795,8 @@ suite('Sessions - SessionsList', () => {
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
 			);
 			const runResource = URI.parse('test-session:/workspace/automation');
 			const statuses: (SessionStatus | undefined)[] = [];
@@ -850,6 +867,8 @@ suite('Sessions - SessionsList', () => {
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
 			);
 			runs.set([
 				{

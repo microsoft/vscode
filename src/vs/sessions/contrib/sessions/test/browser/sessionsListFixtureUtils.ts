@@ -60,7 +60,7 @@ import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/serv
 import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -168,7 +168,7 @@ export interface ISessionsListFixtureHeader {
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly automations?: boolean;
 	readonly automationRunStatus?: IAutomationRun['status'];
-	/** Shows Automations and Customizations as navigation rows above the Sessions header. */
+	/** Shows New, Automations, and Customizations as navigation rows above the Sessions header. */
 	readonly navigationShortcuts?: boolean;
 	/** Count shown on the Customizations navigation row. */
 	readonly customizationsCount?: number;
@@ -688,6 +688,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+	SessionsListRearrangeContext.bindTo(contextKeyService).set(header?.navigationShortcuts ?? false);
 	// Phone layout drives both the visual CSS class and the tree delegate's row heights.
 	if (view.phone) {
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
