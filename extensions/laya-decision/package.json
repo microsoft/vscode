@@ -1,0 +1,68 @@
+{
+  "name": "laya-decision",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.0.1",
+  "publisher": "vscode",
+  "license": "MIT",
+  "preview": true,
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "extensionKind": [
+    "ui"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onCommand:layaDecisionModel.route",
+    "onCommand:_layaDecisionModel.routeChatInput",
+    "onCommand:layaDecisionModel.unload"
+  ],
+  "scripts": {
+    "compile": "gulp compile-extension:laya-decision",
+    "watch": "gulp watch-extension:laya-decision",
+    "bundle": "node ./esbuild.mts"
+  },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "layaDecisionModel.route",
+        "title": "%command.route.title%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "layaDecisionModel.unload",
+        "title": "%command.unload.title%",
+        "category": "%command.category%"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "layaDecisionModel.route",
+          "when": "chatIsEnabled"
+        },
+        {
+          "command": "layaDecisionModel.unload",
+          "when": "chatIsEnabled"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "@receptron/laya": "0.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "24.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

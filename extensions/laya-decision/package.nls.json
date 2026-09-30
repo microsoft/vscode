@@ -1,0 +1,7 @@
+{
+	"displayName": "Laya Decision Model",
+	"description": "Prototype for running the Laya decision model locally in VS Code.",
+	"command.category": "Laya",
+	"command.route.title": "Run Model Routing Prototype",
+	"command.unload.title": "Unload Decision Model"
+}

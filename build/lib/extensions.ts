@@ -155,7 +155,8 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 	// Extensions built with esbuild can still externalize runtime dependencies.
 	// Ensure those externals are included in the packaged built-in extension.
 	const packagedDependenciesByExtension: Record<string, string[]> = {
-		'git': ['@vscode/fs-copyfile']
+		'git': ['@vscode/fs-copyfile'],
+		'laya-decision': ['onnxruntime-common', 'onnxruntime-node'],
 	};
 	const packagedDependencies = packagedDependenciesByExtension[extensionName] ?? [];
 

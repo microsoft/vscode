@@ -21,6 +21,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -918,6 +919,29 @@ class SendToNewChatAction extends Action2 {
 	}
 }
 
+class ChooseChatModelWithLayaAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.chooseModelWithLaya',
+			title: localize2('chat.chooseModelWithLaya.label', "Choose Model with Laya"),
+			precondition: ChatContextKeys.enabled,
+			category: CHAT_CATEGORY,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const widget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		const prompt = widget?.getInput().trim();
+		if (!prompt) {
+			accessor.get(INotificationService).warn(localize('chat.chooseModelWithLaya.noInput', "Enter a prompt in chat before choosing a model with Laya."));
+			return;
+		}
+
+		await accessor.get(ICommandService).executeCommand('_layaDecisionModel.routeChatInput', prompt);
+	}
+}
+
 export const CancelChatActionId = 'workbench.action.chat.cancel';
 export class CancelAction extends Action2 {
 	static readonly ID = CancelChatActionId;
@@ -1202,6 +1226,7 @@ export function registerChatExecuteActions(): DisposableStore {
 	store.add(registerAction2(SubmitWithoutDispatchingAction));
 	store.add(registerAction2(CancelAction));
 	store.add(registerAction2(SendToNewChatAction));
+	store.add(registerAction2(ChooseChatModelWithLayaAction));
 	store.add(registerAction2(ChatSubmitWithCodebaseAction));
 	store.add(registerAction2(ToggleChatModeAction));
 	store.add(registerAction2(SwitchToNextModelAction));
