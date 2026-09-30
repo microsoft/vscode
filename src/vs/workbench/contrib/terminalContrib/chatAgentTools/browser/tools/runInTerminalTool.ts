@@ -107,9 +107,8 @@ function getRiskAssessmentParserLanguage(shell: string, os: OperatingSystem): Tr
 		case 'fish':
 		case 'ksh':
 		case 'sh':
-			return TreeSitterCommandParserLanguage.Bash;
 		case 'zsh':
-			return undefined;
+			return TreeSitterCommandParserLanguage.Bash;
 		default:
 			return undefined;
 	}
