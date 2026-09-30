@@ -356,7 +356,7 @@ suite('Product test checkpoint templates', () => {
 			productTestIds: [],
 			copilotSetup: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'copilot\'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}'],
 			copilotTests: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'copilot\'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}'],
-			agentHostSmoke: ['${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(ne(parameters.VSCODE_CIBUILD, true), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'))) }}'],
+			agentHostSmoke: ['${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'))) }}'],
 			selectedIds: availableIds,
 			selectionsMatchTests: true,
 			copilotCheckpoints: ['copilot-extension', 'copilot-completions-core', 'copilot-sanity'],
@@ -406,7 +406,9 @@ suite('Product test checkpoint templates', () => {
 				selectedIds: selectedIds.map(({ selectedId }) => selectedId).sort(),
 				selectionsMatchTests: selectedIds.every(({ selectedId, testId }) => selectedId === testId),
 				agentHostSmokeFollowsTest: records(compileTemplate).some(record => Object.keys(record).some(key =>
-					key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\')') && key.includes('ne(parameters.VSCODE_CIBUILD, true)'))),
+					key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\')')
+					&& key.includes('eq(length(parameters.VSCODE_TEST_IDS), 0)')
+					&& key.includes('ne(parameters.VSCODE_CIBUILD, true)'))),
 				copilotSetup: Object.keys(setup.steps.find(step => records(step).some(record => record.template === '../../copilot/pull-test-cache.yml@self')) ?? {}),
 				copilotTests: Object.keys(steps.find(step => records(step).some(record => record.template === '../../copilot/test-integration-steps.yml@self')) ?? {}),
 				remoteNode: Object.keys(steps.find(step => records(step).some(record => record.displayName === 'Download Node.js')) ?? {}),
@@ -520,6 +522,42 @@ suite('Product test checkpoint templates', () => {
 				],
 			};
 		}));
+	});
+
+	test('flaky-smoke builds keep the packaged Agent Host check without running product test steps', () => {
+		const platforms = ['win32', 'linux', 'darwin'] as const;
+		const observed = platforms.map(platform => {
+			const flaky = readTemplate(`${platform}/product-smoke-flaky-${platform}.yml`);
+			const compileCall = records(flaky).find(record => record.template === `./steps/product-build-${platform}-compile.yml@self`);
+			const compileParameters = compileCall?.parameters as Record<string, unknown> | undefined;
+			const compile = readTemplate(`${platform}/steps/product-build-${platform}-compile.yml`);
+			const packagedHostGuards = records(compile.steps).flatMap(record => Object.entries(record)
+				.filter(([key, branch]) => key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\')')
+					&& records(branch).some(step => step.displayName === '🧪 Smoke test packaged Agent Host'))
+				.map(([key]) => key));
+			const productTestGuards = compile.steps.flatMap(step => Object.entries(step)
+				.filter(([, branch]) => records(branch).some(record => record.template === `product-build-${platform}-test.yml@self`))
+				.map(([key]) => key));
+			return {
+				platform,
+				ciBuild: compileParameters?.VSCODE_CIBUILD,
+				noProductTestSelection: ['VSCODE_TEST_IDS', 'VSCODE_RUN_ELECTRON_TESTS', 'VSCODE_RUN_BROWSER_TESTS', 'VSCODE_RUN_REMOTE_TESTS']
+					.every(name => !Object.hasOwn(compileParameters ?? {}, name)),
+				defaultTestIds: compile.parameters?.find(parameter => parameter.name === 'VSCODE_TEST_IDS')?.default,
+				packagedHostGuards,
+				productTestGuards,
+				repeatedTestJobs: records(flaky).filter(record => record.template === '../common/product-smoke-flaky-test.yml@self').length,
+			};
+		});
+		assert.deepStrictEqual(observed, platforms.map(platform => ({
+			platform,
+			ciBuild: true,
+			noProductTestSelection: true,
+			defaultTestIds: [],
+			packagedHostGuards: [`\${{ if and(eq(parameters.VSCODE_ARCH, '${platform === 'darwin' ? 'arm64' : 'x64'}'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'))) }}`],
+			productTestGuards: ['${{ if or(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}'],
+			repeatedTestJobs: 3,
+		})));
 	});
 
 	test('the Linux policy fixture is skipped with the Electron smoke test', () => {
