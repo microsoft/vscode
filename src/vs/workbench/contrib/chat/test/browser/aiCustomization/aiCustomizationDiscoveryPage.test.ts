@@ -304,7 +304,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			ariaLabel: 'Add a customization',
 			expanded: 'false',
 		});
-	}
+	});
 
 	for (const [action, type] of [
 		['newAgent', PromptsType.agent],
