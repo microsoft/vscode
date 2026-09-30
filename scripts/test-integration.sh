@@ -58,7 +58,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Known suite names (used for help text and validation)
-KNOWN_SUITES="api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication copilot css html json"
+KNOWN_SUITES="api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base laya-decision ipynb notebook-renderers configuration-editing github-authentication copilot css html json"
 
 if $HELP; then
 	echo "Usage: $0 [options]"
@@ -286,6 +286,14 @@ echo
 echo "### Git Base tests"
 echo
 npm run test-extension -- -l git-base "${GREP_ARGS[@]}"
+kill_app
+fi
+
+if should_run_suite laya-decision; then
+echo
+echo "### Laya Decision tests"
+echo
+npm run test-extension -- -l laya-decision "${GREP_ARGS[@]}"
 kill_app
 fi
 

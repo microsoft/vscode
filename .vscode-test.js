@@ -72,6 +72,10 @@ const extensions = [
 		mocha: { timeout: 60_000 }
 	},
 	{
+		label: 'laya-decision',
+		mocha: { timeout: 60_000 }
+	},
+	{
 		label: 'vscode-api-tests-folder',
 		extensionDevelopmentPath: `extensions/vscode-api-tests`,
 		workspaceFolder: `extensions/vscode-api-tests/testWorkspace`,

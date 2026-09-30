@@ -147,6 +147,25 @@ function fromLocalNormal(extensionPath: string): Stream {
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
+/**
+ * Packages such as `onnxruntime-node` ship prebuilt binaries for every platform under
+ * `bin/napi-v<n>/<platform>/<arch>/`. Keep only the ones for the platform being built. On macOS
+ * both architectures are kept, because the universal build merges x64 and arm64 packages and
+ * requires them to contain the same files.
+ */
+function isPrebuiltBinaryForTarget(parts: string[]): boolean {
+	const binIndex = parts.indexOf('bin');
+	if (binIndex === -1 || !/^napi-v\d+$/.test(parts[binIndex + 1] ?? '') || parts.length <= binIndex + 3) {
+		return true;
+	}
+	const platform = parts[binIndex + 2];
+	const arch = parts[binIndex + 3];
+	if (platform !== process.platform) {
+		return false;
+	}
+	return process.platform === 'darwin' || arch === (process.env['VSCODE_ARCH'] ?? process.arch);
+}
+
 function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const result = es.through();
@@ -155,7 +174,8 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 	// Extensions built with esbuild can still externalize runtime dependencies.
 	// Ensure those externals are included in the packaged built-in extension.
 	const packagedDependenciesByExtension: Record<string, string[]> = {
-		'git': ['@vscode/fs-copyfile']
+		'git': ['@vscode/fs-copyfile'],
+		'laya-decision': ['onnxruntime-node', 'onnxruntime-common']
 	};
 	const packagedDependencies = packagedDependenciesByExtension[extensionName] ?? [];
 
@@ -195,7 +215,7 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 						if (buildIndex !== -1) {
 							return filePath.endsWith('.node');
 						}
-						return true;
+						return isPrebuiltBinaryForTarget(parts);
 					})
 			);
 
@@ -312,6 +332,7 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
  */
 const nativeExtensions = [
 	'git',
+	'laya-decision',
 	'microsoft-authentication',
 ];
 

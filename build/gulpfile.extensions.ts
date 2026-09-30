@@ -70,6 +70,7 @@ const compilations = [
 	'extensions/jake/tsconfig.json',
 	'extensions/json-language-features/client/tsconfig.json',
 	'extensions/json-language-features/server/tsconfig.json',
+	'extensions/laya-decision/tsconfig.json',
 	'extensions/markdown-language-features/tsconfig.json',
 	'extensions/markdown-math/tsconfig.json',
 	'extensions/media-preview/tsconfig.json',

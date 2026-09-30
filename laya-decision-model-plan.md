@@ -1,6 +1,6 @@
 # Plan: Run the Laya Decision Model in a Built-in VS Code Extension
 
-> Status: **Plan only — not implemented.**
+> Status: **Phases 1 (code only) and 4 implemented** in `extensions/laya-decision`. See [Implementation status](#11-implementation-status).
 
 ## 1. Goal
 
@@ -166,3 +166,24 @@ Model input limits (callers must respect):
 - Is the multilingual checkpoint required, or English-only initially?
 - Should the model run on the UI side only (simpler caching) or also on remote hosts?
 - Vendor `@receptron/laya` core vs depend on the package?
+
+## 11. Implementation status
+
+Implemented in `extensions/laya-decision`:
+
+- **Worker** (`src/node/worker.ts`) — child process started with `ELECTRON_RUN_AS_NODE`, loads `@receptron/laya` with the CPU execution provider, serializes requests.
+- **Client** (`src/node/layaWorkerClient.ts`) — lazy start on first `decide()`, one shared (non-cancellable) load for concurrent callers, per-request cancellation that drops late results, idle unload (`laya.idleUnloadMinutes`), crash detection with exponential restart backoff (1 s → 30 s).
+- **Model locator** (`src/node/modelLocator.ts`) — validates a local bundle (`laya.modelPath`), and a manifest-driven download into global storage with per-file size + SHA-256 verification, `.part` temp files and a verified stamp. `DEFAULT_MODEL_MANIFEST` is intentionally **unset** until the int8 bundle is hosted, so today a local bundle is required.
+- **Extension** (`src/extension.ts`) — exported API `{ isEnabled, decide(state, questions, token) }`, commands *Laya: Show Model Status* / *Laya: Unload Model*, unload on setting changes. Gated by `laya.enabled` (default `false`) and `chat.disableAIFeatures`.
+- **Build** — registered in `build/npm/dirs.ts`, `build/gulpfile.extensions.ts`, native extension list and packaged dependencies in `build/lib/extensions.ts`; `onnxruntime-node` binaries are pruned to the target platform/arch (both arches kept on macOS for universal builds), ~34 MB per platform.
+- **Tests** — `src/test/*.test.ts` (worker lifecycle with a fake worker; download verification against a loopback server), wired into `.vscode-test.js` and `scripts/test-integration.{sh,bat}` as suite `laya-decision`.
+
+Defaults chosen for the open questions (revisit before shipping): generic `decide()` API with no LM tool; English checkpoint; runs wherever the extension host is (`extensionKind: ["ui", "workspace"]`); depend on the pinned package (`@receptron/laya@0.1.2`, `onnxruntime-node@1.23.2` — the last version with darwin-x64 binaries; its install script is disabled via `allowScripts`).
+
+Remaining follow-ups:
+
+- Export, quantize (int8), validate and host the bundle; set `DEFAULT_MODEL_MANIFEST`; add the model weights to `cgmanifest.json`.
+- Golden-output parity tests against the Python reference (needs the real model).
+- `onnxruntime-web` fallback for web and unsupported platforms (e.g. Alpine, armhf).
+- Administrator policy for `laya.enabled` (requires the distro `extensionConfigurationPolicy` entry and `npm run export-policy-data`).
+- Telemetry for load time, inference latency and failures.
