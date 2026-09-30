@@ -132,6 +132,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly collapsedChats = new Set<string>();
 	private readonly selectedCards = new Set<string>();
 	private readonly cardCheckboxes = new Map<string, Checkbox>();
+	private readonly cardDoneButtons = new Map<string, Button>();
 	private markingDone = false;
 	private selectionCount: HTMLElement | undefined;
 	private markDoneButton: Button | undefined;
@@ -967,6 +968,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.activeChatLabels.clear();
 		this.monitoredChildLabels.clear();
 		this.cardCheckboxes.clear();
+		this.cardDoneButtons.clear();
 		this.controlElements.clear();
 		this.selectionCount = undefined;
 		this.markDoneButton = undefined;
@@ -1254,6 +1256,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 		if (this.clearSelectionButton) {
 			this.clearSelectionButton.enabled = this.selectedCards.size > 0 && !this.markingDone;
+		}
+		for (const button of this.cardDoneButtons.values()) {
+			button.enabled = !this.markingDone;
 		}
 		for (const [id, checkbox] of this.cardCheckboxes) {
 			checkbox.checked = this.selectedCards.has(id);
@@ -2011,7 +2016,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 		};
 		this.cardElements.set(`draft:${draft.id}`, element);
-		this.createDeleteButton(document, element, localize('projectBoard.deleteDraft', "Delete Session Draft"), async () => {
+		this.createCardActionButton(document, element, localize('projectBoard.deleteDraft', "Delete Session Draft"), Codicon.trash, async () => {
 			const confirmed = await this.dialogService.confirm({
 				message: localize('projectBoard.deleteDraftConfirm', "Are you sure you want to delete this session draft?"),
 				detail: localize('projectBoard.deleteDraftDetail', "This action cannot be undone."),
@@ -2080,31 +2085,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.activeChatLabels.set(card.id, activeChatLabel);
 		element.appendChild(activeChatLabel);
 
-		if (card.session.capabilities.get().supportsDelete) {
-			this.createDeleteButton(document, element, localize('projectBoard.deleteSession', "Delete Session"), async () => {
-				const confirmed = await this.dialogService.confirm({
-					message: localize('projectBoard.deleteSessionConfirm', "Are you sure you want to delete this session?"),
-					detail: localize('projectBoard.deleteSessionEverywhere', "This deletes the session and its chats from every board. This action cannot be undone."),
-					primaryButton: localize('projectBoard.delete', "Delete"),
-				});
-				if (!confirmed.confirmed) {
-					return;
-				}
-				const prefix = `${getProjectBoardSessionKey(card.session)}\0`;
-				const cardIds = this.catalog.boards.get().flatMap(board => board.configuration.placements)
-					.filter(placement => placement.cardId.startsWith(prefix)).map(placement => placement.cardId);
-				try {
-					await this.sessionsManagementService.deleteSession(card.session);
-				} catch (error) {
-					this.logService.error('[ProjectBoard] Failed to delete session', error);
-					this.notificationService.error(localize('projectBoard.deleteSessionFailed', "The session could not be deleted."));
-					return;
-				}
-				if (cardIds.length) {
-					this.changeBoard(() => this.catalog.removeCardPlacements(cardIds));
-				}
-				status(localize('projectBoard.sessionDeleted', "Session deleted."));
-			}, store);
+		if (this.canMarkDone(card)) {
+			const button = this.createCardActionButton(document, element, localize('projectBoard.markDone', "Mark as Done"), Codicon.check,
+				() => this.markCardsDone([card.id]), store);
+			const controlId = `done:${card.id}`;
+			button.element.dataset.boardControl = controlId;
+			button.element.setAttribute('aria-description', localize('projectBoard.cardDoneScope', "Archives this conversation's entire session, including its other chats. Stops active requests without deleting conversations or board placements."));
+			this.controlElements.set(controlId, button.element);
+			this.cardDoneButtons.set(card.id, button);
 		}
 
 		if (card.workspace) {
@@ -2333,7 +2321,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return element;
 	}
 
-	private createDeleteButton(document: Document, card: HTMLElement, label: string, run: () => Promise<void>, store: DisposableStore): void {
+	private createCardActionButton(document: Document, card: HTMLElement, label: string, icon: ThemeIcon, run: () => Promise<void>, store: DisposableStore): Button {
 		const actions = document.createElement('div');
 		actions.className = 'project-board-card-actions';
 		const button = store.add(new Button(actions, {
@@ -2342,13 +2330,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			title: label,
 			secondary: true,
 		}));
-		button.icon = Codicon.trash;
+		button.icon = icon;
 		store.add(button.onDidClick(event => {
 			event.preventDefault();
 			event.stopPropagation();
 			void run();
 		}));
 		card.appendChild(actions);
+		return button;
 	}
 
 	private createContextLink(container: HTMLElement, label: string, uri: URI, key: string, store: DisposableStore): void {
