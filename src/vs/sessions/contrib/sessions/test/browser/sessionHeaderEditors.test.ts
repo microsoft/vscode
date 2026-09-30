@@ -10,7 +10,8 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ISessionCollectionsService } from '../../../../services/sessions/browser/sessionCollectionsService.js';
+import { ISessionCollection, ISessionCollectionsService } from '../../../../services/sessions/browser/sessionCollectionsService.js';
+import { SessionPaletteColor } from '../../../../services/sessions/common/sessionColors.js';
 import { SessionHeaderEditors } from '../../browser/views/sessionHeaderEditors.js';
 
 suite('SessionHeaderEditors', () => {
@@ -50,5 +51,33 @@ suite('SessionHeaderEditors', () => {
 			afterOutsideClick: false,
 			closeCount: 1,
 		});
+	});
+
+	test('a new collection popover stays at the anchor that was detached by creating the collection', () => {
+		let delegate: IContextViewDelegate | undefined;
+		const anchor = mainWindow.document.createElement('button');
+		anchor.style.cssText = 'position: fixed; left: 120px; top: 40px; width: 20px; height: 20px;';
+		mainWindow.document.body.appendChild(anchor);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IContextViewService, new class extends mock<IContextViewService>() {
+			override showContextView(contextViewDelegate: IContextViewDelegate): IOpenContextView {
+				delegate = contextViewDelegate;
+				return { close: () => contextViewDelegate.onHide?.() };
+			}
+		});
+		instantiationService.stub(ISessionCollectionsService, new class extends mock<ISessionCollectionsService>() {
+			override createCollection(): ISessionCollection {
+				// The switcher re-renders when a collection is added.
+				anchor.remove();
+				return { id: 'new', name: 'Collection 2', icon: 'graph', color: SessionPaletteColor.Red };
+			}
+		});
+		const editors = store.add(instantiationService.createInstance(SessionHeaderEditors));
+
+		editors.showCollectionEditor({ anchor });
+		const resolved = delegate?.getAnchor();
+		editors.close();
+
+		assert.deepStrictEqual(resolved, { x: 120, y: 40, width: 20, height: 20 });
 	});
 });

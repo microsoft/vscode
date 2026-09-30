@@ -77,6 +77,7 @@ abstract class SessionCollectionsSwitcherBase extends Disposable {
 	protected readonly renderStore = this._register(new DisposableStore());
 	private readonly keybindingUpdate: IObservable<void>;
 	private readonly buttonsByCollectionId = new Map<string, HTMLElement>();
+	private addButton: HTMLElement | undefined;
 
 	constructor(
 		protected readonly container: HTMLElement,
@@ -106,24 +107,32 @@ abstract class SessionCollectionsSwitcherBase extends Disposable {
 
 	protected abstract get buttonClass(): string;
 	protected abstract renderButtonContent(button: HTMLElement, collection: ISessionCollection): void;
-	protected abstract renderAddButton(): void;
 
+	/** Updates the buttons in place, reusing each collection's button, so anchors and focus survive collection edits. */
 	protected render(reader: IReader): void {
 		this.renderStore.clear();
-		this.buttonsByCollectionId.clear();
-		DOM.clearNode(this.container);
 		const collections = this.collectionsService.collections.read(reader);
 		const active = this.collectionsService.activeCollectionId.read(reader);
+		const collectionIds = new Set(collections.map(collection => collection.id));
+		for (const [collectionId, button] of this.buttonsByCollectionId) {
+			if (!collectionIds.has(collectionId)) {
+				button.remove();
+				this.buttonsByCollectionId.delete(collectionId);
+			}
+		}
+		let nextSibling: ChildNode | null = this.container.firstChild;
 		for (const [index, collection] of collections.entries()) {
 			const activeCollection = collection.id === active;
-			const button = DOM.append(this.container, DOM.$(`button.${this.buttonClass}`, {
-				type: 'button',
-				role: 'tab',
-				'aria-selected': String(activeCollection),
-				'aria-label': collectionAriaLabel(collection, SessionCollectionAttention.None),
-				'data-collection-id': collection.id,
-			}));
+			const button = this.buttonsByCollectionId.get(collection.id) ?? DOM.$(`button.${this.buttonClass}`, { type: 'button', role: 'tab', 'data-collection-id': collection.id });
 			this.buttonsByCollectionId.set(collection.id, button);
+			if (button === nextSibling) {
+				nextSibling = button.nextSibling;
+			} else {
+				this.container.insertBefore(button, nextSibling);
+			}
+			DOM.clearNode(button);
+			button.setAttribute('aria-selected', String(activeCollection));
+			button.setAttribute('aria-label', collectionAriaLabel(collection, SessionCollectionAttention.None));
 			button.classList.toggle('active', activeCollection);
 			button.tabIndex = activeCollection ? 0 : -1;
 			button.style.setProperty('--session-collection-accent', collectionAccent(collection));
@@ -154,20 +163,23 @@ abstract class SessionCollectionsSwitcherBase extends Disposable {
 			}));
 			this.registerDropTarget(button, collection.id, activeCollection);
 		}
-		this.renderAddButton();
+		this.addButton ??= this.createAddButton();
+		if (this.addButton !== this.container.lastChild) {
+			this.container.appendChild(this.addButton);
+		}
 	}
 
-	protected createAddButton(className: string): HTMLElement {
-		const button = DOM.append(this.container, DOM.$(`button.${className}.session-collections-add`, {
+	private createAddButton(): HTMLElement {
+		const button = DOM.$(`button.${this.buttonClass}.session-collections-add`, {
 			type: 'button',
 			'aria-label': localize('newCollection', "New Collection"),
-		}));
+		});
 		DOM.append(button, DOM.$(`span${ThemeIcon.asCSSSelector(Codicon.add)}`));
-		this.renderStore.add(this.hoverService.setupDelayedHover(button, {
+		this._register(this.hoverService.setupDelayedHover(button, {
 			content: localize('newCollectionHover', "New Collection..."),
 			appearance: { compact: true },
 		}));
-		this.renderStore.add(DOM.addDisposableListener(button, DOM.EventType.CLICK, () => this.delegate.showNewCollectionEditor(button)));
+		this._register(DOM.addDisposableListener(button, DOM.EventType.CLICK, () => this.delegate.showNewCollectionEditor(button)));
 		return button;
 	}
 
@@ -266,10 +278,6 @@ export class SessionCollectionsIconStrip extends SessionCollectionsSwitcherBase 
 		const icon = DOM.append(button, DOM.$('span.session-collections-switcher-icon'));
 		renderSessionCollectionIcon(icon, collection.icon);
 	}
-
-	protected override renderAddButton(): void {
-		this.createAddButton('session-collections-strip-button');
-	}
 }
 
 export class SessionCollectionsTabs extends SessionCollectionsSwitcherBase {
@@ -295,15 +303,12 @@ export class SessionCollectionsTabs extends SessionCollectionsSwitcherBase {
 		renderSessionCollectionIcon(icon, collection.icon);
 		DOM.append(button, DOM.$('span.session-collections-tab-label', undefined, collection.name));
 	}
-
-	protected override renderAddButton(): void {
-		this.createAddButton('session-collections-tab');
-	}
 }
 
 export class SessionCollectionTitleButton extends Disposable {
 
 	private readonly renderStore = this._register(new DisposableStore());
+	private button: HTMLElement | undefined;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -316,15 +321,10 @@ export class SessionCollectionTitleButton extends Disposable {
 		this._register(autorun(reader => this.render(reader)));
 	}
 
+	/** Updates the button in place so it stays a valid anchor and keeps focus while collections change. */
 	private render(reader: IReader): void {
 		this.renderStore.clear();
-		DOM.clearNode(this.container);
-		if (!this.options.shouldShow(reader)) {
-			this.container.textContent = localize('sessionsHeader', "Sessions");
-			return;
-		}
-
-		const collections = this.collectionsService.collections.read(reader);
+		const collections = this.options.shouldShow(reader) ? this.collectionsService.collections.read(reader) : [];
 		const activeCollectionId = this.collectionsService.activeCollectionId.read(reader);
 		const collection = collections.find(collection => collection.id === activeCollectionId);
 		if (!collection) {
@@ -332,12 +332,13 @@ export class SessionCollectionTitleButton extends Disposable {
 			return;
 		}
 
-		const button = DOM.append(this.container, DOM.$('button.session-collections-title-button', {
-			type: 'button',
-			'aria-haspopup': 'menu',
-			'aria-label': localize('switchCollectionAria', "Collection: {0}. Switch Collection", collection.name),
-			'data-collection-id': collection.id,
-		}));
+		const button = this.button ??= DOM.$('button.session-collections-title-button', { type: 'button', 'aria-haspopup': 'menu' });
+		if (button.parentElement !== this.container) {
+			DOM.reset(this.container, button);
+		}
+		DOM.clearNode(button);
+		button.setAttribute('aria-label', localize('switchCollectionAria', "Collection: {0}. Switch Collection", collection.name));
+		button.dataset.collectionId = collection.id;
 		button.style.setProperty('--session-collection-accent', collectionAccent(collection));
 		const icon = DOM.append(button, DOM.$('span.session-collections-title-icon'));
 		renderSessionCollectionIcon(icon, collection.icon);

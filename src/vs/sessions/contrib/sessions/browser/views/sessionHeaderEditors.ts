@@ -7,7 +7,7 @@ import '../media/sessionHeaderEditors.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { AnchorAlignment, AnchorPosition } from '../../../../../base/browser/ui/contextview/contextview.js';
+import { AnchorAlignment, AnchorPosition, getAnchorRect, IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { Radio } from '../../../../../base/browser/ui/radio/radio.js';
 import { Color } from '../../../../../base/common/color.js';
@@ -101,8 +101,9 @@ export class SessionHeaderEditors extends Disposable {
 		this.setOpened(true);
 
 		const dismissal = this.createOutsideClickDismissal(session);
+		const getAnchor = trackAnchor(options.anchor);
 		const view = this.contextViewService.showContextView({
-			getAnchor: () => options.anchor,
+			getAnchor,
 			anchorAlignment: AnchorAlignment.LEFT,
 			anchorPosition: AnchorPosition.BELOW,
 			render: container => {
@@ -122,6 +123,8 @@ export class SessionHeaderEditors extends Disposable {
 	}
 
 	showCollectionEditor(options: ISessionCollectionEditorOptions): void {
+		// Track the anchor before creating a collection: switchers re-render when collections change.
+		const getAnchor = trackAnchor(options.anchor);
 		const collection = options.collectionId ? this.collectionsService.getCollection(options.collectionId) : this.collectionsService.createCollection();
 		if (!collection) {
 			options.onDidClose?.();
@@ -133,13 +136,13 @@ export class SessionHeaderEditors extends Disposable {
 		this.setOpened(true);
 
 		const restoreFocus = () => {
-			if (DOM.isHTMLElement(options.anchor)) {
+			if (DOM.isHTMLElement(options.anchor) && options.anchor.isConnected) {
 				options.anchor.focus();
 			}
 		};
 		const dismissal = this.createOutsideClickDismissal(session);
 		const view = this.contextViewService.showContextView({
-			getAnchor: () => options.anchor,
+			getAnchor,
 			anchorAlignment: AnchorAlignment.LEFT,
 			anchorPosition: AnchorPosition.BELOW,
 			render: container => {
@@ -808,6 +811,29 @@ class SessionCollectionEditorBody extends Disposable {
 	private getSessionCount(): number {
 		return this.sessionsManagementService.getSessions().filter(session => this.collectionsService.getSessionCollection(session) === this.options.collectionId).length;
 	}
+}
+
+/**
+ * Returns a popover anchor resolver that keeps the last known position of an
+ * element anchor. Rows and switcher buttons can be re-rendered while their
+ * popover is open; a detached element would otherwise position the popover at
+ * the window origin.
+ */
+function trackAnchor(anchor: HTMLElement | IAnchor): () => HTMLElement | IAnchor {
+	if (!DOM.isHTMLElement(anchor)) {
+		return () => anchor;
+	}
+	let lastKnown: IAnchor | undefined;
+	const resolve = () => {
+		if (!anchor.isConnected) {
+			return lastKnown ?? anchor;
+		}
+		const rect = getAnchorRect(anchor);
+		lastKnown = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+		return anchor;
+	};
+	resolve();
+	return resolve;
 }
 
 function renderCollectionIcon(container: HTMLElement, icon: string): void {
