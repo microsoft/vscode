@@ -75,7 +75,7 @@ suite('ChatPetTools', () => {
 	test('sends mistakes back to the agent, then teaches and previews the corrected lesson in the calling chat', async () => {
 		const { chatPetService, teach, widget, played } = createTools();
 		const session = URI.parse('agent-host-copilotcli:/session');
-		const reaction = { when: 'when I tell you to execute on our plan', phrases: ['do it', 'go ahead'], play: 'YES SIR', chance: 1 };
+		const reaction = { when: 'when I tell you to execute on our plan', phrases: ['do it', 'go ahead'], play: 'YES SIR' };
 
 		const invalid = await teach.invoke(invocation({ moves: [{ ...salute, colors: { Y: 'gold' } }], reactions: [reaction] }, session), async () => 0, { report: () => { } }, CancellationToken.None);
 		const afterInvalid = { moves: chatPetService.moves.get().length, reactions: chatPetService.reactions.get().length };
@@ -99,6 +99,7 @@ suite('ChatPetTools', () => {
 				'The pet learned:',
 				'- Learned yes-sir: plays once (0.6 s)',
 				`- New reaction ${added.id}: plays yes-sir when a message contains "do it", "go ahead"`,
+				'The user can see and edit all of it in the pet\'s Sprites and Interactions pages (the pet\'s context menu) or as text in pets.md.',
 				'It is playing yes-sir now.',
 			].join('\n'),
 			validMessage: undefined,

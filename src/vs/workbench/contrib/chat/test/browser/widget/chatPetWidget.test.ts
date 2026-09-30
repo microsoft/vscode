@@ -28,7 +28,7 @@ import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetServi
 import '../../../browser/widget/media/chat.css';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSweptPlatformTop, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetReactionRequest, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetClickInteractions, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSweptPlatformTop, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetReactionRequest, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -2223,6 +2223,14 @@ suite('ChatPetWidget', () => {
 	});
 
 	/** A shown pet on the input of a chat, to see how it reacts to what happens there. */
+	/** A pet whose rolls are fixed, so the test knows which reaction a click or a message picks. */
+	class RiggedChatPetWidget extends ChatPetWidget {
+		roll = 0;
+		protected override _random(): number {
+			return this.roll;
+		}
+	}
+
 	function createChatPet(model: IChatModel) {
 		const parent = mainWindow.document.createElement('div');
 		const input = mainWindow.document.createElement('div');
@@ -2235,7 +2243,7 @@ suite('ChatPetWidget', () => {
 		}));
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		service.toggle();
-		const widget = disposables.add(new ChatPetWidget(
+		const widget = disposables.add(new RiggedChatPetWidget(
 			{ ...createPetHost(parent, input, movementBounds), model: constObservable(model) },
 			undefined,
 			service,
@@ -2288,9 +2296,9 @@ suite('ChatPetWidget', () => {
 			override readonly lastRequestObs = lastRequest;
 		}();
 		let sentCount = 0;
-		const send = (text: string, attempt = 0) => lastRequest.set(new class extends mock<IChatRequestModel>() {
+		const send = (text: string, attempt = 0, sentAt = Date.now()) => lastRequest.set(new class extends mock<IChatRequestModel>() {
 			override readonly id = `request-${++sentCount}`;
-			override readonly requestTimestamp = Date.now() + sentCount;
+			override readonly requestTimestamp = sentAt;
 			override readonly attempt = attempt;
 			override readonly isSystemInitiated = false;
 			override readonly isCompleteAddedRequest = false;
@@ -2308,7 +2316,7 @@ suite('ChatPetWidget', () => {
 			'frame 100',
 			...ChatPetMovePoses.crouch.map((row, index) => `${row}${index === 0 ? 'YY' : '..'}`),
 		].join('\n')));
-		service.addReaction({ when: 'when I tell you to execute on our plan', phrases: ['do it', 'go ahead'], play: 'yes-sir', chance: 1 });
+		service.addReaction({ trigger: 'message', when: 'when I tell you to execute on our plan', phrases: ['do it', 'go ahead'], play: 'yes-sir' });
 		const button = parent.querySelector<HTMLElement>('.chat-pet-button')!;
 		button.classList.remove('entering');
 		await waitForPetAnimation(() => button.dataset.state === 'idle', 'Expected the pet to start idle');
@@ -2320,7 +2328,23 @@ suite('ChatPetWidget', () => {
 		send('Looks good, do it!');
 		await waitForPetAnimation(() => button.dataset.state === 'custom', 'Expected the taught move to play');
 		const canvasWidths = [...button.querySelectorAll<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) > .chat-pet-canvas')].map(canvas => canvas.width);
+		const sheetsAfterFirstPlay = Reflect.get(widget, '_customMoveSources') as Map<string, unknown>;
+		const firstSheets = [...sheetsAfterFirstPlay.values()];
 		await waitForPetAnimation(() => button.dataset.state === 'idle', 'Expected the pet to return to idle');
+		// Two messages sent in the same millisecond are two messages: the second still reacts.
+		const sameMoment = Date.now();
+		send('Hello there', 0, sameMoment);
+		send('Looks good, do it!', 0, sameMoment);
+		await waitForPetAnimation(() => button.dataset.state === 'custom', 'Expected a message sent in the same millisecond as another to react');
+		// The move played again keeps the sheets it drew the first time.
+		const sheetsKept = [...sheetsAfterFirstPlay.values()].every((sheets, index) => sheets === firstSheets[index]);
+		await waitForPetAnimation(() => button.dataset.state === 'idle', 'Expected the pet to return to idle');
+		// Seeing a request again, as when the pet comes back to its chat, doesn't replay it.
+		const seen = lastRequest.get();
+		lastRequest.set(undefined, undefined);
+		lastRequest.set(seen, undefined);
+		await timeout(300);
+		const afterSeenAgain = transientState();
 		// A message sent while the pet can't react, as while it falls onto a new session's input, plays once it can.
 		const isDragging = Reflect.get(widget, '_isDragging');
 		isDragging.set(true, undefined);
@@ -2341,6 +2365,8 @@ suite('ChatPetWidget', () => {
 			afterCommand,
 			afterRetry,
 			canvasWidths,
+			sheetsKept,
+			afterSeenAgain,
 			whileBusy,
 			afterSupersede,
 			unknown: widget.playReaction('unknown-move'),
@@ -2348,10 +2374,85 @@ suite('ChatPetWidget', () => {
 			afterCommand: 'idle',
 			afterRetry: 'idle',
 			canvasWidths: [112],
+			sheetsKept: true,
+			afterSeenAgain: undefined,
 			whileBusy: undefined,
 			afterSupersede: 'cool',
 			unknown: false,
 		});
+	});
+
+	test('a click plays a taught click reaction or a built-in one, at random from one pool', async () => {
+		const model = new class extends mock<IChatModel>() {
+			override readonly hasActiveRequest = constObservable(false);
+			override readonly lastRequestObs = constObservable<IChatRequestModel | undefined>(undefined);
+		}();
+		const { parent, service, widget } = createChatPet(model);
+		service.learnMove(parseChatPetMove([
+			'name: bow',
+			'loop: no',
+			'',
+			'frame 100',
+			...ChatPetMovePoses.idle,
+			'',
+			'frame 100',
+			...ChatPetMovePoses.crouch,
+		].join('\n')));
+		service.addReaction({ trigger: 'click', when: 'when I click you', phrases: [], play: 'bow' });
+		const button = parent.querySelector<HTMLElement>('.chat-pet-button')!;
+		button.classList.remove('entering');
+		await waitForPetAnimation(() => button.dataset.state === 'idle', 'Expected the pet to start idle');
+
+		// Six built-in click animations and the taught move make a pool of seven: a roll past the rare easter eggs, in the last seventh, lands on the move.
+		widget.roll = 0.9;
+		button.click();
+		await waitForPetAnimation(() => button.dataset.state === 'custom', 'Expected the taught move to play on click');
+		const taughtPlayed = button.dataset.state;
+		await waitForPetAnimation(() => button.dataset.state === 'idle', 'Expected the pet to return to idle');
+		// The same roll again skips what just played, so a built-in one plays.
+		button.click();
+		await waitForPetAnimation(() => button.dataset.state !== 'idle', 'Expected a built-in reaction to play on click');
+
+		const builtInStates: readonly string[] = [...ChatPetClickInteractions, 'complete', 'yapping'];
+		assert.deepStrictEqual({ taughtPlayed, builtIn: builtInStates.includes(button.dataset.state ?? '') }, { taughtPlayed: 'custom', builtIn: true });
+	});
+
+	test('a base state plays the sprite assigned to its trigger in place of its own animation, a move or one of the pet\'s own reactions, held while the state lasts, or nothing once the trigger is off', async () => {
+		const hasActiveRequest = observableValue('hasActiveRequest', false);
+		const model = new class extends mock<IChatModel>() {
+			override readonly hasActiveRequest = hasActiveRequest;
+			override readonly lastRequestObs = constObservable<IChatRequestModel | undefined>(undefined);
+		}();
+		const { parent, service } = createChatPet(model);
+		service.learnMove(parseChatPetMove(['name: think-hard', 'loop: yes', '', 'frame 100', ...ChatPetMovePoses.idle, '', 'frame 100', ...ChatPetMovePoses.crouch].join('\n')));
+		const button = parent.querySelector<HTMLElement>('.chat-pet-button')!;
+		button.classList.remove('entering');
+		await waitForPetAnimation(() => button.dataset.state === 'idle', 'Expected the pet to start idle');
+
+		// Out of the box, a request in progress shows the pet thinking.
+		hasActiveRequest.set(true, undefined);
+		await waitForPetAnimation(() => button.dataset.state === 'rendering', 'Expected the built-in thinking animation');
+		// A move assigned to the trigger takes over while the request lasts, in place of the thinking animation; it loops rather than timing out.
+		service.addReaction({ trigger: 'responding', when: '', phrases: [], play: 'think-hard' });
+		await waitForPetAnimation(() => button.dataset.state === 'custom', 'Expected the taught move to show while responding');
+		await timeout(600);
+		const heldAfterPlayback = button.dataset.state;
+		const holds = [...button.querySelectorAll<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img.chat-pet-spritesheet')].length > 0;
+		// One of the pet's own reactions holds as well: its state shows in place of thinking.
+		service.setTriggerSprite('responding', { kind: 'sprite', play: 'love' });
+		await waitForPetAnimation(() => button.dataset.state === 'love', 'Expected the love reaction to show while responding');
+		// The request ends: back to idle, and the next request plays the built-in animation again once the sprite is gone.
+		hasActiveRequest.set(false, undefined);
+		await waitForPetAnimation(() => button.dataset.state === 'idle', 'Expected the pet to return to idle');
+		service.setTriggerSprite('responding', { kind: 'own' });
+		hasActiveRequest.set(true, undefined);
+		await waitForPetAnimation(() => button.dataset.state === 'rendering', 'Expected the built-in thinking animation again');
+		// With the trigger off, nothing shows: the pet stays idle while responding.
+		service.setTriggerSprite('responding', { kind: 'nothing' });
+		await waitForPetAnimation(() => button.dataset.state === 'idle', 'Expected nothing to play while responding');
+		hasActiveRequest.set(false, undefined);
+
+		assert.deepStrictEqual({ heldAfterPlayback, holds }, { heldAfterPlayback: 'custom', holds: true });
 	});
 
 	test('maps exceptional body geometry to canonical accessory rig poses and anchors', () => {

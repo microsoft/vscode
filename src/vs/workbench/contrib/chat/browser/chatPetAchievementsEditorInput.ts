@@ -33,7 +33,7 @@ export class ChatPetAchievementsEditorInput extends EditorInput implements IModa
 	}
 
 	override getName(): string {
-		return localize('chatPet.achievements.editorName', "Achievements");
+		return localize('chatPet.achievements.editorName', "VS Code Pet");
 	}
 
 	override getIcon(): ThemeIcon {

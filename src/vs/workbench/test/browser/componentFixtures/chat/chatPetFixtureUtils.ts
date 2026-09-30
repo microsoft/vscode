@@ -6,10 +6,10 @@
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ChatPetAccessoryId, ChatPetAchievementId } from '../../../../contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetMove } from '../../../../contrib/chat/browser/chatPetMoves.js';
-import { IChatPetReaction, IChatPetReactionInput } from '../../../../contrib/chat/browser/chatPetReactions.js';
+import { ChatPetBuiltInAnimation, ChatPetBuiltInTrigger, ChatPetBuiltInTriggerAnimations, getChatPetBuiltInReactionKey, IChatPetReaction, IChatPetReactionInput } from '../../../../contrib/chat/browser/chatPetReactions.js';
 import { ChatPetVariant, IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 
 export interface IChatPetFixtureOptions {
@@ -18,6 +18,9 @@ export interface IChatPetFixtureOptions {
 	readonly unseenAchievements?: readonly ChatPetAchievementId[];
 	readonly selectedAccessory?: ChatPetAccessoryId;
 	readonly variant?: ChatPetVariant;
+	readonly moves?: readonly IChatPetMove[];
+	readonly reactions?: readonly IChatPetReaction[];
+	readonly disabledBuiltInReactions?: readonly string[];
 }
 
 export class FixtureChatPetService extends Disposable implements IChatPetService {
@@ -41,8 +44,12 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 	private readonly selectedAccessoryValue: ISettableObservable<ChatPetAccessoryId | undefined>;
 	readonly selectedAccessory: IObservable<ChatPetAccessoryId | undefined>;
 	readonly onDidUnlockAchievement = Event.None;
-	readonly moves: IObservable<readonly IChatPetMove[]> = constObservable([]);
-	readonly reactions: IObservable<readonly IChatPetReaction[]> = constObservable([]);
+	private readonly movesValue: ISettableObservable<readonly IChatPetMove[]>;
+	readonly moves: IObservable<readonly IChatPetMove[]>;
+	private readonly reactionsValue: ISettableObservable<readonly IChatPetReaction[]>;
+	readonly reactions: IObservable<readonly IChatPetReaction[]>;
+	private readonly disabledBuiltInReactionsValue: ISettableObservable<readonly string[]>;
+	readonly disabledBuiltInReactions: IObservable<readonly string[]>;
 
 	constructor(options: IChatPetFixtureOptions) {
 		super();
@@ -56,6 +63,12 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 		this.unseenAchievements = this.unseenAchievementsValue;
 		this.selectedAccessoryValue = observableValue<ChatPetAccessoryId | undefined>(this, options.selectedAccessory);
 		this.selectedAccessory = this.selectedAccessoryValue;
+		this.movesValue = observableValue<readonly IChatPetMove[]>(this, options.moves ?? []);
+		this.moves = this.movesValue;
+		this.reactionsValue = observableValue<readonly IChatPetReaction[]>(this, options.reactions ?? []);
+		this.reactions = this.reactionsValue;
+		this.disabledBuiltInReactionsValue = observableValue<readonly string[]>(this, options.disabledBuiltInReactions ?? []);
+		this.disabledBuiltInReactions = this.disabledBuiltInReactionsValue;
 	}
 
 	toggle(): boolean {
@@ -111,18 +124,56 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 		this.selectedAccessoryValue.set(undefined, undefined);
 	}
 
-	learnMove(): void { }
+	learnMove(move: IChatPetMove): void {
+		this.movesValue.set([...this.movesValue.get().filter(existing => existing.name !== move.name), move], undefined);
+	}
 
-	forgetMove(): boolean {
-		return false;
+	forgetMove(name: string): boolean {
+		this.movesValue.set(this.movesValue.get().filter(move => move.name !== name), undefined);
+		this.reactionsValue.set(this.reactionsValue.get().filter(reaction => reaction.play !== name), undefined);
+		return true;
 	}
 
 	addReaction(reaction: IChatPetReactionInput): IChatPetReaction {
-		return { id: '', ...reaction };
+		const added: IChatPetReaction = { id: `fixture-${this.reactionsValue.get().length + 1}`, ...reaction, enabled: reaction.enabled ?? true };
+		this.reactionsValue.set([...this.reactionsValue.get(), added], undefined);
+		return added;
 	}
 
-	removeReaction(): boolean {
-		return false;
+	updateReaction(id: string, reaction: IChatPetReactionInput): boolean {
+		this.reactionsValue.set(this.reactionsValue.get().map(existing => existing.id === id ? { id, ...reaction, enabled: reaction.enabled ?? existing.enabled } : existing), undefined);
+		return true;
+	}
+
+	setReactionEnabled(id: string, enabled: boolean): boolean {
+		this.reactionsValue.set(this.reactionsValue.get().map(existing => existing.id === id ? { ...existing, enabled } : existing), undefined);
+		return true;
+	}
+
+	removeReaction(id: string): boolean {
+		this.reactionsValue.set(this.reactionsValue.get().filter(reaction => reaction.id !== id), undefined);
+		return true;
+	}
+
+	setBuiltInReactionEnabled(trigger: ChatPetBuiltInTrigger, animation: ChatPetBuiltInAnimation, enabled: boolean): void {
+		const key = getChatPetBuiltInReactionKey(trigger, animation);
+		this.disabledBuiltInReactionsValue.set([...this.disabledBuiltInReactionsValue.get().filter(candidate => candidate !== key), ...(enabled ? [] : [key])], undefined);
+	}
+
+	setTriggerSprite(trigger: ChatPetBuiltInTrigger, sprite: { readonly kind: 'own' | 'nothing' } | { readonly kind: 'sprite'; readonly play: string }): void {
+		const remaining = this.reactionsValue.get().filter(reaction => reaction.trigger !== trigger);
+		this.reactionsValue.set(sprite.kind === 'sprite' ? [...remaining, { id: `fixture-${this.reactionsValue.get().length + 1}`, trigger, when: '', phrases: [], play: sprite.play, enabled: true }] : remaining, undefined);
+		this.setBuiltInReactionEnabled(trigger, ChatPetBuiltInTriggerAnimations[trigger][0], sprite.kind !== 'nothing');
+	}
+
+	resetBuiltInReactions(): void {
+		this.reactionsValue.set(this.reactionsValue.get().filter(reaction => reaction.trigger === 'message'), undefined);
+		this.disabledBuiltInReactionsValue.set([], undefined);
+	}
+
+	replaceTaught(moves: readonly IChatPetMove[], reactions: readonly IChatPetReactionInput[]): void {
+		this.movesValue.set(moves, undefined);
+		this.reactionsValue.set(reactions.map((reaction, index): IChatPetReaction => ({ id: `fixture-${index + 1}`, ...reaction, enabled: reaction.enabled ?? true })), undefined);
 	}
 }
 

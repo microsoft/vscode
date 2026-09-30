@@ -17,13 +17,22 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { ChatPetAchievementsWidget } from './chatPetAchievementsWidget.js';
+import { ChatPetAchievementsTab, ChatPetAchievementsWidget } from './chatPetAchievementsWidget.js';
 import { ChatPetAchievementsEditorInput } from './chatPetAchievementsEditorInput.js';
 import { IChatPetService } from './chatPetService.js';
 
 export const ChatPetAchievementsContextKeys = {
 	focused: new RawContextKey<boolean>('chatPetAchievementsFocused', false, localize('chatPet.achievements.context.focused', "Whether the chat pet Achievements modal is focused")),
 };
+
+/** Options for opening the pet's modal on a page, and on the Sprites page, on a sprite. */
+export interface IChatPetAchievementsEditorOptions extends IEditorOptions {
+	readonly tab?: ChatPetAchievementsTab;
+	/** The name of a sprite to select; it shows on the Sprites page. */
+	readonly move?: string;
+	/** The row id of an interaction to select on the Interactions page, such as `trigger:click`. */
+	readonly interaction?: string;
+}
 
 export class ChatPetAchievementsEditor extends EditorPane {
 
@@ -67,11 +76,14 @@ export class ChatPetAchievementsEditor extends EditorPane {
 		}));
 	}
 
-	override async setInput(input: ChatPetAchievementsEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: ChatPetAchievementsEditorInput, options: IChatPetAchievementsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		if (!this.chatPetService.enabled.get()) {
 			await this.group.closeEditor(input);
 			return;
+		}
+		if (options?.tab) {
+			this.widget?.showTab(options.move ? 'sprites' : options.tab, options.move ?? (options.tab === 'interactions' ? options.interaction : undefined));
 		}
 		if (this.dimension) {
 			this.layout(this.dimension);

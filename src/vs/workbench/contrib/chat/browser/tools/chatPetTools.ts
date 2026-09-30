@@ -21,6 +21,7 @@ import { IChatWidgetService } from '../chat.js';
 import { getChatPetBuiltInMoveNames, getChatPetBuiltInMoves } from '../chatPetBuiltInMoves.js';
 import { ChatPetMoveEyes, ChatPetMoveRamps } from '../chatPetMoveLayers.js';
 import { ChatPetMovePoses, getChatPetMoveDuration, getChatPetMoveStillIndex, IChatPetMove, toChatPetMoveName } from '../chatPetMoves.js';
+import { ChatPetBuiltInTriggers } from '../chatPetReactions.js';
 import { ChatPetContextKeys, ChatPetVariant, IChatPetService } from '../chatPetService.js';
 import { describeChatPetMove, describeChatPetReaction, getChatPetMoveGuide, getChatPetMovesGuide, IChatPetLesson, validateChatPetLesson } from '../chatPetTeaching.js';
 import { renderChatPetMovePreview } from '../widget/chatPetMoveSprites.js';
@@ -119,7 +120,7 @@ export const ChatPetTeachToolData: IToolData = {
 	icon: ThemeIcon.fromId(Codicon.sparkle.id),
 	displayName: localize('tool.teachPet.displayName', "Teach the VS Code Pet"),
 	userDescription: localize('tool.teachPet.userDescription', "Teach the VS Code pet new moves and reactions to your messages."),
-	modelDescription: 'Teach the VS Code pet, the pixel-art robot on the chat input, new or changed moves, or reactions that play a move when a message the user sends contains a phrase; or make it forget or play one. Use it when the user types /pet or asks to create, change, play or forget a pet move, or to make the pet react to their messages, for example "whenever I say do it, play YES SIR". Not for animations, pets or characters in the user\'s own project or web pages. To play or forget a move the pet knows, call it right away with "play" or "forgetMoves" and the user\'s words, without petGuide: an unknown name comes back with the moves the pet knows. To create or change moves or reactions, call petGuide first. Check new and changed moves with "preview": true, which returns a picture of every frame and saves nothing, then call teachPet again without it to save them: the newest move plays right away. Moves and reactions are saved for the user across windows. If the lesson has mistakes, nothing is saved and the result lists them: fix them and call teachPet again with the whole corrected lesson.',
+	modelDescription: 'Teach the VS Code pet, the pixel-art robot on the chat input, new or changed moves, or reactions that play a move when a message the user sends contains a phrase or when the user clicks the pet; or make it forget or play one. Use it when the user types /pet or asks to create, change, play or forget a pet move, or to make the pet react to their messages or clicks, for example "whenever I say do it, play YES SIR", "when I click you, get angry" or "when a request finishes, do the SHIP IT move". Not for animations, pets or characters in the user\'s own project or web pages. To play or forget a move the pet knows, call it right away with "play" or "forgetMoves" and the user\'s words, without petGuide: an unknown name comes back with the moves the pet knows. To create or change moves or reactions, call petGuide first. Check new and changed moves with "preview": true, which returns a picture of every frame and saves nothing, then call teachPet again without it to save them: the newest move plays right away. Moves and reactions are saved for the user across windows, and the user can see and edit them in the pet\'s Sprites and Interactions pages or as text in pets.md. If the lesson has mistakes, nothing is saved and the result lists them: fix them and call teachPet again with the whole corrected lesson.',
 	source: ToolDataSource.Internal,
 	when: chatPetToolsWhen,
 	inputSchema: {
@@ -132,12 +133,12 @@ export const ChatPetTeachToolData: IToolData = {
 				items: {
 					type: 'object',
 					properties: {
+						trigger: { type: 'string', enum: ['message', ...ChatPetBuiltInTriggers], description: '"message" (the default) plays when a message the user sends contains one of the phrases. The others are the pet\'s own events: click (the user clicks the pet), requestDone (the agent finishes answering), confirmation (the agent asks the user to confirm), dizzy (the mouse darts back and forth over the pet), sleep (nothing happened for a while), typing (the user types), responding (the agent works). A move on click joins the pet\'s own animations for it, and one of them plays at random. On any other event, the move is the one sprite that plays, in place of the pet\'s own animation and of a move taught for it before, held for as long as the event lasts.' },
 						when: { type: 'string', description: 'The situation, in the user\'s words.' },
-						phrases: { type: 'array', items: { type: 'string' }, description: 'Short phrases the user would type in that situation.' },
+						phrases: { type: 'array', items: { type: 'string' }, description: 'Short phrases the user would type in that situation. Message reactions need at least one; click reactions take none.' },
 						play: { type: 'string', description: 'A move name or a built-in reaction.' },
-						chance: { type: 'number', description: 'From 0.01 to 1. Defaults to 1.' },
 					},
-					required: ['phrases', 'play'],
+					required: ['play'],
 				},
 			},
 			forgetMoves: { type: 'array', items: { type: 'string' }, description: 'Names of taught moves to forget, with the reactions that play them.' },
@@ -254,13 +255,13 @@ export class ChatPetTeachTool implements IToolImpl {
 			return this._preview(result.lesson);
 		}
 		const changes = this._apply(result.lesson);
-		const lines = changes.length ? ['The pet learned:', ...changes.map(change => `- ${change}`)] : [];
+		const lines = changes.length ? ['The pet learned:', ...changes.map(change => `- ${change}`), 'The user can see and edit all of it in the pet\'s Sprites and Interactions pages (the pet\'s context menu) or as text in pets.md.'] : [];
 		const play = result.lesson.play ?? result.lesson.moves.at(-1)?.name;
 		if (play) {
 			const owner = invocation.context ? this.chatWidgetService.getWidgetBySessionResource(invocation.context.sessionResource) : undefined;
 			lines.push(this.chatPetWidgetService.playReaction(play, owner)
 				? `It is playing ${play} now.`
-				: `It couldn't play ${play} right now, for example because it is being dragged. The user can play it from the pet's context menu, with Taught Moves.`);
+				: `It couldn't play ${play} right now, for example because it is being dragged. The user can play it with /pet-play ${play}.`);
 		}
 		return createToolSimpleTextResult(lines.join('\n'));
 	}
