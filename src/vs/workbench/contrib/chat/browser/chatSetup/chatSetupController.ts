@@ -33,13 +33,11 @@ import { ChatSetupAnonymous, ChatSetupError, ChatSetupStep, ChatSetupResultValue
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, GheParseResultKind, gitHubEnterpriseUrisSetting, isValidGitHubEnterpriseUri, parseGheInstanceInput } from '../../../../services/accounts/common/githubEnterprise.js';
-import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' }, microsoft: { id: '', name: '' } },
-	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? 'github-enterprise.uri',
+	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? '',
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 };
 
@@ -75,7 +73,6 @@ export class ChatSetupController extends Disposable {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -322,17 +319,12 @@ export class ChatSetupController extends Disposable {
 				},
 				[defaultChat.providerUriSetting]: {
 					'type': 'string'
-				},
-				[gitHubEnterpriseUrisSetting]: {
-					'type': 'array',
-					'items': { 'type': 'string' },
-					'restricted': true
 				}
 			}
 		});
 
 		if (options.useEnterpriseProvider) {
-			const success = await this.handleEnterpriseInstance(options.cancellationToken);
+			const success = await this.handleEnterpriseInstance();
 			if (!success) {
 				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedEnterpriseSetup', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
 				return success; // not properly configured, abort
@@ -362,47 +354,61 @@ export class ChatSetupController extends Disposable {
 		return this.setup({ ...options, forceSignIn: true });
 	}
 
-	private async handleEnterpriseInstance(cancellationToken?: CancellationToken): Promise<ChatSetupResultValue> {
-		while (!cancellationToken?.isCancellationRequested) {
-			const uris = getConfiguredGitHubEnterpriseUris(this.configurationService, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting);
-			const invalidUri = uris.find(uri => !isValidGitHubEnterpriseUri(uri));
-			const hasCloudInstance = uris.some(uri => parseGheInstanceInput(uri).kind === GheParseResultKind.FullUri);
-			if (hasCloudInstance && invalidUri === undefined) {
-				return true;
-			}
+	private async handleEnterpriseInstance(): Promise<ChatSetupResultValue> {
+		const domainRegEx = /^[a-zA-Z\-_]+$/;
+		const fullUriRegEx = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
 
-			const result = await this.quickInputService.input({
-				prompt: localize('enterpriseInstance', "What is your {0} instance?", defaultChat.provider.enterprise.name),
-				placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
-				ignoreFocusLost: true,
-				value: invalidUri,
-				validateInput: async value => {
-					const parsed = parseGheInstanceInput(value);
-					if (parsed.kind === GheParseResultKind.SingleWord) {
-						return {
-							content: localize('willResolveTo', "Will resolve to {0}", parsed.resolvedUri),
-							severity: Severity.Info
-						};
-					}
-					if (parsed.kind === GheParseResultKind.Invalid) {
-						return {
-							content: localize('invalidEnterpriseInstance', "Enter a GHE.com instance name or HTTPS URL."),
-							severity: Severity.Error
-						};
-					}
+		const uri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
+		if (typeof uri === 'string' && fullUriRegEx.test(uri)) {
+			return true; // already setup with a valid URI
+		}
+
+		let isSingleWord = false;
+		const result = await this.quickInputService.input({
+			prompt: localize('enterpriseInstance', "What is your {0} instance?", defaultChat.provider.enterprise.name),
+			placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
+			ignoreFocusLost: true,
+			value: uri,
+			validateInput: async value => {
+				isSingleWord = false;
+				if (!value) {
 					return undefined;
 				}
-			}, cancellationToken);
 
-			if (!result || cancellationToken?.isCancellationRequested) {
+				if (domainRegEx.test(value)) {
+					isSingleWord = true;
+					return {
+						content: localize('willResolveTo', "Will resolve to {0}", `https://${value}.ghe.com`),
+						severity: Severity.Info
+					};
+				} if (!fullUriRegEx.test(value)) {
+					return {
+						content: localize('invalidEnterpriseInstance', 'You must enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.provider.enterprise.name),
+						severity: Severity.Error
+					};
+				}
+
 				return undefined;
 			}
-			const parsed = parseGheInstanceInput(result);
-			if (parsed.kind === GheParseResultKind.Empty || parsed.kind === GheParseResultKind.Invalid) {
-				throw new Error(localize('invalidEnterpriseInstance', "Enter a GHE.com instance name or HTTPS URL."));
-			}
-			await addGitHubEnterpriseUri(this.configurationService, parsed.resolvedUri, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting, invalidUri);
+		});
+
+		if (!result) {
+			return undefined; // canceled
 		}
-		return undefined;
+
+		let resolvedUri = result;
+		if (isSingleWord) {
+			resolvedUri = `https://${resolvedUri}.ghe.com`;
+		} else {
+			const normalizedUri = result.toLowerCase();
+			const hasHttps = normalizedUri.startsWith('https://');
+			if (!hasHttps) {
+				resolvedUri = `https://${result}`;
+			}
+		}
+
+		await this.configurationService.updateValue(defaultChat.providerUriSetting, resolvedUri, ConfigurationTarget.USER);
+
+		return true;
 	}
 }

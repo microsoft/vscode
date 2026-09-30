@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { GheParseResultKind, parseGheInstanceInput } from '../../common/githubEnterprise.js';
+import { GheParseResultKind, parseGheInstanceInput } from '../../common/onboardingTypes.js';
 
 suite('parseGheInstanceInput', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,6 +49,8 @@ suite('parseGheInstanceInput', () => {
 	test('invalid input returns Invalid', () => {
 		assert.deepStrictEqual(parseGheInstanceInput('not a valid url'), { kind: GheParseResultKind.Invalid });
 		assert.deepStrictEqual(parseGheInstanceInput('https://github.com'), { kind: GheParseResultKind.Invalid });
+		assert.deepStrictEqual(parseGheInstanceInput('https://octocat.example.com'), { kind: GheParseResultKind.Invalid });
+		assert.deepStrictEqual(parseGheInstanceInput('http://octocat.ghe.com'), { kind: GheParseResultKind.Invalid });
 		assert.deepStrictEqual(parseGheInstanceInput('ftp://octocat.ghe.com'), { kind: GheParseResultKind.Invalid });
 	});
 
@@ -64,17 +66,7 @@ suite('parseGheInstanceInput', () => {
 		assert.deepStrictEqual(parseGheInstanceInput('https://octocat.ghe.com/'), { kind: GheParseResultKind.FullUri, resolvedUri: 'https://octocat.ghe.com/' });
 	});
 
-	for (const uri of ['https://github.example.com', 'http://ghe.local:8080/Team', 'https://ghe.local/Team%20One/', 'HTTPS://GHE.LOCAL:443/Team', 'http://octocat.ghe.com']) {
-		test(`Copilot enrollment rejects a non-GHE.com HTTPS instance (${uri})`, () => {
-			assert.deepStrictEqual(parseGheInstanceInput(uri), { kind: GheParseResultKind.Invalid });
-		});
-	}
-
-	test('Copilot enrollment rejects paths and query strings on GHE.com', () => {
-		assert.deepStrictEqual(['https://tenant.ghe.com/other', 'https://tenant.ghe.com?query', 'https://tenant.ghe.com#fragment'].map(parseGheInstanceInput), [
-			{ kind: GheParseResultKind.Invalid },
-			{ kind: GheParseResultKind.Invalid },
-			{ kind: GheParseResultKind.Invalid }
-		]);
+	test('URI with path segments is invalid', () => {
+		assert.deepStrictEqual(parseGheInstanceInput('https://octocat.ghe.com/api/v3'), { kind: GheParseResultKind.Invalid });
 	});
 });

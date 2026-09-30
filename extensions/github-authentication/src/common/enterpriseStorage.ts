@@ -52,7 +52,7 @@ async function readStorage(context: vscode.ExtensionContext, key: string): Promi
 	};
 }
 
-function selectLegacyStorage(sources: readonly EnterpriseStorage[], originalKey: string | undefined, uri: vscode.Uri): EnterpriseStorage | undefined {
+function selectLegacyStorage(sources: readonly EnterpriseStorage[], originalKey: string, uri: vscode.Uri): EnterpriseStorage | undefined {
 	if (sources.length < 2) {
 		return sources[0];
 	}
@@ -63,7 +63,7 @@ function selectLegacyStorage(sources: readonly EnterpriseStorage[], originalKey:
 	return source;
 }
 
-async function migrateStorage(context: vscode.ExtensionContext, sources: readonly EnterpriseStorage[], target: EnterpriseStorage, originalKey: string | undefined, uri: vscode.Uri): Promise<void> {
+async function migrateStorage(context: vscode.ExtensionContext, sources: readonly EnterpriseStorage[], target: EnterpriseStorage, originalKey: string, uri: vscode.Uri): Promise<void> {
 	const tokenSource = target.tokens === undefined ? selectLegacyStorage(sources.filter(source => source.tokens !== undefined), originalKey, uri) : undefined;
 	const linkSource = target.links === undefined ? selectLegacyStorage(sources.filter(source => source.links !== undefined), originalKey, uri) : undefined;
 	if (linkSource?.links !== undefined) {
@@ -83,16 +83,15 @@ async function migrateStorage(context: vscode.ExtensionContext, sources: readonl
 	}
 }
 
-export async function migrateEnterpriseStorage(context: vscode.ExtensionContext, uri: vscode.Uri, configuredUris: readonly vscode.Uri[] = [uri], legacyUri?: vscode.Uri): Promise<void> {
-	const hostKey = getEnterpriseUriKey(uri);
+export async function migrateEnterpriseStorage(context: vscode.ExtensionContext, uri: vscode.Uri): Promise<void> {
 	const keys = new Set([
 		...await context.secrets.keys(),
 		...context.globalState.keys().filter(key => key.endsWith(accountLinksSuffix)).map(key => key.slice(0, -accountLinksSuffix.length))
 	]);
 	const sources: EnterpriseStorage[] = [];
 	for (const key of keys) {
-		const storedUri = getLegacyStorageUri(key, uri.scheme);
-		if (storedUri && getEnterpriseUriKey(storedUri) === hostKey) {
+		const legacyUri = getLegacyStorageUri(key, uri.scheme);
+		if (legacyUri && getEnterpriseUriKey(legacyUri) === getEnterpriseUriKey(uri)) {
 			const source = await readStorage(context, key);
 			if (source.tokens !== undefined || source.links !== undefined) {
 				sources.push(source);
@@ -103,23 +102,7 @@ export async function migrateEnterpriseStorage(context: vscode.ExtensionContext,
 	if (!sources.length) {
 		return;
 	}
-	const original = legacyUri ?? (configuredUris.length === 1 ? configuredUris[0] : undefined);
-	const originalMatches = original && getEnterpriseUriKey(original.with({ scheme: uri.scheme })) === hostKey;
-	if (originalMatches && getEnterpriseUriKey(original) !== hostKey) {
-		return;
-	}
-	const matchingHosts = new Set(configuredUris
-		.filter(candidate => getEnterpriseUriKey(candidate.with({ scheme: uri.scheme })) === hostKey)
-		.map(getEnterpriseUriKey));
-	if (!originalMatches && matchingHosts.size > 1) {
-		const needsTokens = target.tokens === undefined && sources.some(source => source.tokens !== undefined);
-		const needsLinks = target.links === undefined && sources.some(source => source.links !== undefined);
-		if (!needsTokens && !needsLinks) {
-			return;
-		}
-		throw new Error(vscode.l10n.t('Saved authentication for {0} does not identify its URL scheme. Set {1} to the original instance before migrating its saved sign-in.', uri.authority, enterpriseUriSetting));
-	}
-	const originalKey = originalMatches ? `${original.authority}${original.path}${tokenSuffix}` : undefined;
+	const originalKey = `${uri.authority}${uri.path}${tokenSuffix}`;
 	await migrateStorage(context, sources, target, originalKey, uri);
 }
 

@@ -306,10 +306,10 @@ suite('ExtHostAuthentication', () => {
 
 		suite('multi-server sessions', () => {
 			const sessions: AuthenticationSession[] = [authorizationServer, otherAuthorizationServer].map((server, index) => ({
-				id: `native-session-${index}`,
+				id: `host-${index}:session`,
 				accessToken: `host-${index}-token`,
 				account: {
-					id: '42',
+					id: `host-${index}:account`,
 					label: `octocat (${server.toString()})`,
 					icon: URI.joinPath(server, 'avatar.png')
 				},
@@ -330,7 +330,7 @@ suite('ExtHostAuthentication', () => {
 						lookups.push(options);
 						return storedSessions.filter(session =>
 							(!scopes || scopes.every(scope => session.scopes.includes(scope)))
-							&& (!options.account || options.account.id === session.account.id && options.account.label === session.account.label)
+							&& (!options.account || options.account.id === session.account.id)
 							&& (!options.authorizationServer || isEqual(options.authorizationServer, session.authorizationServer)));
 					},
 					createSession: async (scopes, options = {}) => {

@@ -6,8 +6,6 @@
 import * as vscode from 'vscode';
 import { GitHubSessionEngine, UriEventHandler } from './github';
 import { GitHubEnterpriseAuthenticationProvider } from './githubEnterprise';
-import { enterpriseUrisSetting, getEnterpriseUris } from './common/enterpriseConfiguration';
-import { enterpriseUriSetting } from './common/enterpriseStorage';
 
 export async function activate(context: vscode.ExtensionContext) {
 	const uriHandler = new UriEventHandler();
@@ -24,32 +22,23 @@ export async function activate(context: vscode.ExtensionContext) {
 	const githubEnterpriseAuthProvider = new GitHubEnterpriseAuthenticationProvider(context, uriHandler);
 	context.subscriptions.push(githubEnterpriseAuthProvider);
 	const updateEnterpriseConfiguration = async () => {
-		const configuration = vscode.workspace.getConfiguration();
-		let uris: vscode.Uri[];
+		const setting = vscode.workspace.getConfiguration().get<string>('github-enterprise.uri');
+		let uri: vscode.Uri | undefined;
 		try {
-			uris = getEnterpriseUris(configuration, vscode.workspace.isTrusted);
+			uri = setting ? vscode.Uri.parse(setting, true) : undefined;
 		} catch (error) {
-			await githubEnterpriseAuthProvider.update([], { error: error.message });
-			void vscode.window.showErrorMessage(error.message);
+			const message = vscode.l10n.t('GitHub Enterprise Server URI is not a valid URI: {0}', error.message ?? error);
+			await githubEnterpriseAuthProvider.update(undefined, message);
+			void vscode.window.showErrorMessage(message);
 			return;
 		}
-		const legacy = configuration.get<string>(enterpriseUriSetting);
-		const legacyUri = typeof legacy === 'string' && /^https?:\/\//i.test(legacy) ? vscode.Uri.parse(legacy) : undefined;
-		await githubEnterpriseAuthProvider.update(uris, { legacyUri });
-	};
-	const refreshEnterpriseConfiguration = async () => {
-		try {
-			await updateEnterpriseConfiguration();
-		} catch (error) {
-			void vscode.window.showErrorMessage(vscode.l10n.t('Could not update GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error)));
-		}
+		await githubEnterpriseAuthProvider.update(uri);
 	};
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
-		if (e.affectsConfiguration(enterpriseUrisSetting) || e.affectsConfiguration(enterpriseUriSetting)) {
-			void refreshEnterpriseConfiguration();
+		if (e.affectsConfiguration('github-enterprise.uri')) {
+			void updateEnterpriseConfiguration().catch(error => vscode.window.showErrorMessage(vscode.l10n.t('Could not update GitHub Enterprise authentication: {0}', error.message)));
 		}
 	}));
-	context.subscriptions.push(vscode.workspace.onDidGrantWorkspaceTrust(refreshEnterpriseConfiguration));
 	try {
 		await updateEnterpriseConfiguration();
 	} catch (error) {

@@ -43,7 +43,7 @@ suite('GitHub session persistence', () => {
 		let secretWrites = 0;
 		const secretChangeReads: Promise<vscode.AuthenticationSession[]>[] = [];
 
-		const provider: TestGitHubAuthenticationProvider = Object.assign(Object.create(GitHubSessionEngine.prototype), {
+		const provider: TestGitHubAuthenticationProvider = {
 			_keychain: {
 				getToken: async () => storedSessions,
 				deleteToken: async () => { }
@@ -73,7 +73,7 @@ suite('GitHub session persistence', () => {
 					secretChangeReads.push(provider.readSessions());
 				}
 			}
-		} satisfies TestGitHubAuthenticationProvider);
+		};
 
 		const sessions = await provider.readSessions();
 		await Promise.all(secretChangeReads);
@@ -115,8 +115,6 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 	const SCOPES = ['read:user', 'repo'];
 	const MICROSOFT_ACCOUNT: vscode.AuthenticationSessionAccountInformation = { id: 'entra-oid', label: 'mona@contoso.com' };
 	const GITHUB_ACCOUNT: IGitHubUserInfo = { id: '42', accountName: 'mona_contoso', avatarUrl: undefined };
-	const ACCOUNT_LABEL_SUFFIX = type === AuthProviderType.githubEnterprise ? ` - ${baseUri.authority}${baseUri.path.replace(/\/+$/, '')}` : '';
-	const GITHUB_ACCOUNT_LABEL = `${GITHUB_ACCOUNT.accountName}${ACCOUNT_LABEL_SUFFIX}`;
 
 	interface ITransientSession {
 		readonly session: vscode.AuthenticationSession;
@@ -126,7 +124,6 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 	/** Just enough of the provider's own state for the paths under test to run against. */
 	interface IProviderState {
 		_logger: Log;
-		_accountLabelSuffix: string | undefined;
 		_accountLinks: AccountLinks;
 		_accountsSeen: Set<string>;
 		_persistedSessionsPromise: Promise<vscode.AuthenticationSession[]>;
@@ -166,7 +163,7 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 	});
 
 	function sessionFor(account: string, id: string, accessToken: string): vscode.AuthenticationSession {
-		return { id, accessToken, account: { id: '42', label: `${account}${ACCOUNT_LABEL_SUFFIX}` }, scopes: SCOPES, authorizationServer: vscode.Uri.parse(authorizationServer) };
+		return { id, accessToken, account: { id: '42', label: account }, scopes: SCOPES, authorizationServer: vscode.Uri.parse(authorizationServer) };
 	}
 
 	function createHarness(overrides: {
@@ -190,7 +187,6 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 
 		const state: IProviderState = {
 			_logger: logger,
-			_accountLabelSuffix: ACCOUNT_LABEL_SUFFIX || undefined,
 			_accountLinks: accountLinks,
 			_accountsSeen: new Set<string>(),
 			_persistedSessionsPromise: Promise.resolve([...overrides.persisted ?? []]),
@@ -246,55 +242,6 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 		};
 	}
 
-	test('host labels preserve broker identity, restoration and native account-link names', async () => {
-		const harness = createHarness({
-			renew: async (_call, renewal) => ({
-				token: 'gho_restored', expiresAfter: 7_200_000, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES
-			})
-		});
-		await harness.accountLinks.link(MICROSOFT_ACCOUNT.label, { id: GITHUB_ACCOUNT.id, label: GITHUB_ACCOUNT.accountName });
-		const [restored] = await harness.provider.getSessions([...SCOPES], {});
-		const [queried] = await harness.provider.getSessions([...SCOPES], { account: restored.account });
-		const [cached] = await harness.provider.getCachedSessions();
-		const links = harness.accountLinks.linkedAccounts();
-		await harness.provider.removeSession(restored.id);
-		assert.deepStrictEqual({
-			accountId: restored.account.id,
-			label: restored.account.label,
-			queriedId: queried.id,
-			cachedId: cached.id,
-			cachedLabel: cached.account.label,
-			restores: harness.renewals.length,
-			linkedNames: links.map(link => link.gitHubAccountLabel),
-			remainingLinks: harness.accountLinks.linkedAccounts()
-		}, {
-			accountId: GITHUB_ACCOUNT.id,
-			label: GITHUB_ACCOUNT_LABEL,
-			queriedId: restored.id,
-			cachedId: restored.id,
-			cachedLabel: GITHUB_ACCOUNT_LABEL,
-			restores: 1,
-			linkedNames: [GITHUB_ACCOUNT.accountName],
-			remainingLinks: []
-		});
-	});
-
-	test('host labels do not interfere with renewing expired broker sessions', async () => {
-		const oldSession = sessionFor(GITHUB_ACCOUNT.accountName, 'native-session-id', 'expired-token');
-		const harness = createHarness({ transient: [[oldSession, -1]] });
-		await harness.accountLinks.link(MICROSOFT_ACCOUNT.label, { id: GITHUB_ACCOUNT.id, label: GITHUB_ACCOUNT.accountName });
-		const [renewed] = await harness.provider.getSessions([...SCOPES], { account: { id: GITHUB_ACCOUNT.id, label: GITHUB_ACCOUNT_LABEL } });
-		assert.deepStrictEqual({
-			id: renewed.id,
-			account: renewed.account,
-			renewals: harness.renewals.map(request => ({ id: request.gitHubAccountId, microsoftAccount: request.microsoftAccount.label }))
-		}, {
-			id: 'native-session-id',
-			account: { id: GITHUB_ACCOUNT.id, label: GITHUB_ACCOUNT_LABEL },
-			renewals: [{ id: GITHUB_ACCOUNT.id, microsoftAccount: MICROSOFT_ACCOUNT.label }]
-		});
-	});
-
 	test('publishes the lifetime reported by an interactive Microsoft exchange', async () => {
 		const harness = createHarness();
 
@@ -311,7 +258,7 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 			authorizationServer,
 			expiresAfter: 7_200_000,
 			logins: [{ scopes: SCOPES, options: { microsoftAccount: undefined } }],
-			announced: [`added ${GITHUB_ACCOUNT_LABEL}`],
+			announced: ['added mona_contoso'],
 		});
 	});
 
@@ -369,7 +316,7 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 			sameSession: true,
 			account: native.account,
 			nativeAccount: native.account,
-			announced: [`added ${GITHUB_ACCOUNT_LABEL}`, `removed ${GITHUB_ACCOUNT_LABEL}`],
+			announced: ['added mona_contoso', 'removed mona_contoso'],
 			links: [],
 			remaining: []
 		});
@@ -387,7 +334,7 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 			links: harness.accountLinks.linkedAccounts().length
 		}, {
 			sessions: [],
-			announced: [`removed ${GITHUB_ACCOUNT_LABEL}`],
+			announced: ['removed mona_contoso'],
 			held: [],
 			links: 1
 		});
@@ -409,12 +356,12 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 			held: harness.heldSessions(),
 			hasUsableLifetime: sessions.every(session => session.expiresAfter !== undefined && session.expiresAfter > 0 && session.expiresAfter <= 3_600_000),
 		}, {
-			accounts: [GITHUB_ACCOUNT_LABEL],
+			accounts: ['mona_contoso'],
 			authorizationServers: [authorizationServer],
 			scopes: [SCOPES],
 			renewals: [{ scopes: SCOPES, gitHubAccountId: '42', microsoftAccount: MICROSOFT_ACCOUNT }],
-			announced: [`added ${GITHUB_ACCOUNT_LABEL}`],
-			held: [`${GITHUB_ACCOUNT_LABEL} live`],
+			announced: ['added mona_contoso'],
+			held: ['mona_contoso live'],
 			hasUsableLifetime: true
 		});
 	});
@@ -524,12 +471,12 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 			tokens: sessions.map(session => session.accessToken).sort(),
 			expirations: sessions.map(session => [session.account.label, session.expiresAfter]).sort(),
 		}, {
-			accounts: [`hubot${ACCOUNT_LABEL_SUFFIX}`, GITHUB_ACCOUNT_LABEL],
+			accounts: ['hubot', 'mona_contoso'],
 			authorizationServers: [authorizationServer, authorizationServer],
-			held: [`${GITHUB_ACCOUNT_LABEL} live`],
-			announced: [`changed ${GITHUB_ACCOUNT_LABEL}`],
+			held: ['mona_contoso live'],
+			announced: ['changed mona_contoso'],
 			tokens: ['gho_1', 'gho_persisted'],
-			expirations: [[`hubot${ACCOUNT_LABEL_SUFFIX}`, undefined], [GITHUB_ACCOUNT_LABEL, 3_600_000]]
+			expirations: [['hubot', undefined], ['mona_contoso', 3_600_000]]
 		});
 	});
 
@@ -550,7 +497,7 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 		}, {
 			tokens: ['gho_still_valid'],
 			hasUsableLifetime: true,
-			held: [`${GITHUB_ACCOUNT_LABEL} live`],
+			held: ['mona_contoso live'],
 			announced: [],
 			renewals: 1
 		});
