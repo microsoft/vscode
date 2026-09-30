@@ -355,11 +355,20 @@
 }
 
 .customization-discovery-show-all:focus-visible,
-.customization-discovery-card-primary:focus-visible,
-.customization-discovery-result-primary:focus-visible {
+.customization-discovery-card-primary:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.customization-discovery-list .monaco-list-row.focused > .customization-discovery-result-content,
+.customization-discovery-result-content:has(> .customization-discovery-result-primary:focus) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .customization-discovery-result-primary:focus {
+	outline: none;
 }
 
 .customization-discovery-results {

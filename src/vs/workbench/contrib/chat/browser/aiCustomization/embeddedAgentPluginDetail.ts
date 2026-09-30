@@ -69,39 +69,6 @@ export class PluginReadmeRenderGuard {
 	}
 }
 
-export interface IMarketplacePluginPreview {
-	readonly contributions: readonly IPluginContributionEntry[];
-	readonly readme: IPluginReadme | undefined;
-}
-
-export class MarketplacePluginPreviewLoader {
-
-	constructor(
-		@IAgentPluginRepositoryService private readonly agentPluginRepositoryService: IAgentPluginRepositoryService,
-		@IFileService private readonly fileService: IFileService,
-		@IRequestService private readonly requestService: IRequestService,
-		@IPathService private readonly pathService: IPathService,
-		@ILogService private readonly logService: ILogService,
-	) { }
-
-	async load(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Marketplace }>, token: CancellationToken): Promise<IMarketplacePluginPreview> {
-		const contributions = await loadMarketplacePluginContributionEntries(
-			item,
-			this.agentPluginRepositoryService,
-			this.fileService,
-			this.pathService,
-			this.logService,
-			token,
-		);
-		if (token.isCancellationRequested) {
-			return { contributions: [], readme: undefined };
-		}
-		const pluginUri = this.agentPluginRepositoryService.getPluginInstallUri(toMarketplacePlugin(item));
-		const readme = await loadPluginReadme({ ...item, readmeUri: joinPath(pluginUri, 'README.md') }, this.fileService, this.requestService);
-		return { contributions, readme };
-	}
-}
-
 export async function loadPluginReadme(
 	item: IAgentPluginItem,
 	fileService: Pick<IFileService, 'readFile'>,

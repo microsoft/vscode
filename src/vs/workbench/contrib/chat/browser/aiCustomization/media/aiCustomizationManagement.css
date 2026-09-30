@@ -1985,14 +1985,11 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .mcp-detail-editor-container {
+	position: absolute;
+	inset: 0;
 	box-sizing: border-box;
-	min-height: 100%;
 	display: flex;
 	justify-content: center;
-}
-
-.ai-customization-management-editor .mcp-detail-editor-scrollable {
-	height: 100%;
 }
 
 .ai-customization-management-editor .mcp-detail-body {
@@ -2185,17 +2182,24 @@ per-word capitalization does not survive translation. */
 	min-height: 0;
 }
 
-.ai-customization-management-editor .marketplace-detail-scrollable {
-	height: 100%;
+.ai-customization-management-editor .mcp-detail-editor-scrollable,
+.ai-customization-management-editor .marketplace-detail-scrollable,
+.ai-customization-management-editor .plugin-detail-editor-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	width: 100%;
 }
 
-.ai-customization-management-editor .marketplace-detail-scrollable > .scrollbar > .slider {
+.ai-customization-management-editor .marketplace-detail-scrollable > .scrollbar > .slider,
+.ai-customization-management-editor .plugin-detail-editor-scrollable > .scrollbar > .slider {
 	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 .ai-customization-management-editor .marketplace-detail-editor-container {
+	position: absolute;
+	inset: 0;
 	box-sizing: border-box;
-	min-height: 100%;
 	display: flex;
 	justify-content: center;
 }
@@ -2231,7 +2235,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-header {
 	display: grid;
-	grid-template-columns: auto minmax(0, 1fr);
+	grid-template-columns: auto auto minmax(0, 1fr);
 	row-gap: var(--vscode-spacing-size80);
 }
 
@@ -2241,29 +2245,36 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-header-text {
-	grid-column: 2;
+	grid-column: 3;
 	grid-row: 1;
 }
 
 .ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-title-actions {
-	grid-column: 2;
+	grid-column: 3;
 	grid-row: 2;
 	justify-content: flex-start;
 	margin-left: 0;
 }
 
-.ai-customization-management-editor .plugin-detail-editor-scrollable {
-	flex: 1;
-	min-height: 0;
-	width: 100%;
+.ai-customization-management-editor .marketplace-detail-icon {
+	margin-inline-end: var(--vscode-spacing-size120);
 }
 
-.ai-customization-management-editor .plugin-detail-editor-scrollable > .scrollbar > .slider {
-	border-radius: var(--vscode-cornerRadius-circle);
+.ai-customization-management-editor .marketplace-detail-icon > .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.ai-customization-management-editor .marketplace-detail-icon > img {
+	width: 100%;
+	height: 100%;
+	border-radius: var(--vscode-cornerRadius-small);
+	object-fit: contain;
 }
 
 .ai-customization-management-editor .plugin-detail-editor-container {
-	min-height: 100%;
+	position: absolute;
+	inset: 0;
+	box-sizing: border-box;
 	display: flex;
 	justify-content: center;
 }
@@ -2556,7 +2567,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-row:not(:last-child) {
-	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border);
+	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-label,
@@ -2649,7 +2660,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-flat-list {
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
 }
@@ -2663,7 +2674,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-section + .plugin-detail-contribution-section {
-	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-widget-border);
+	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-group {
@@ -3323,10 +3334,18 @@ per-word capitalization does not survive translation. */
 	flex: 1;
 }
 
-.plugin-list-widget .customization-card-primary-action:focus-visible,
 .plugin-list-widget .plugin-remote-item:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
+}
+
+.plugin-list-widget .plugin-home-row:has(> .customization-card-primary-action:focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .plugin-list-widget .plugin-home-row > .customization-card-primary-action:focus {
+	outline: none;
 }
 
 .plugin-list-widget .plugin-home-row:not(:last-child) {

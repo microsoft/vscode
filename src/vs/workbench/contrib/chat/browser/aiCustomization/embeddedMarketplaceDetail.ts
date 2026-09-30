@@ -11,14 +11,18 @@ import { getErrorMessage, isCancellationError } from '../../../../../base/common
 import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { asTextOrError, IRequestService } from '../../../../../platform/request/common/request.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
-import { IMarketplacePluginPreview } from './embeddedAgentPluginDetail.js';
+import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 
 const $ = DOM.$;
 
@@ -26,7 +30,6 @@ export interface IEmbeddedMarketplaceDetailOptions {
 	readonly getSourceLabel: (sourceId: string) => string;
 	readonly install: (resource: ICustomizationMarketplaceResource) => Promise<void>;
 	readonly openExternal: (resource: URI | string) => Promise<void>;
-	readonly loadPluginPreview?: (resource: ICustomizationMarketplaceResource, token: CancellationToken) => Promise<IMarketplacePluginPreview | undefined>;
 }
 
 export class EmbeddedMarketplaceDetail extends Disposable {
@@ -36,17 +39,17 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 
 	private readonly root: HTMLElement;
 	private readonly leadingSlotEl: HTMLElement;
+	private readonly iconEl: HTMLElement;
 	private readonly titleEl: HTMLElement;
 	private readonly titleActionsEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
 	private readonly stateEl: HTMLElement;
 	private readonly queriesEl: HTMLElement;
 	private readonly factsEl: HTMLElement;
-	private readonly containsEl: HTMLElement;
-	private readonly containsListEl: HTMLElement;
 	private readonly readmeEl: HTMLElement;
 	private readonly readmeContentEl: HTMLElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
+	private readonly iconDisposables = this._register(new DisposableStore());
 	private readonly previewDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private renderGeneration = 0;
 	private current: ICustomizationMarketplaceResource | undefined;
@@ -57,11 +60,14 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		@ICustomizationMarketplaceInstallService private readonly installService: ICustomizationMarketplaceInstallService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IRequestService private readonly requestService: IRequestService,
 	) {
 		super();
 		this.root = DOM.append(parent, $('article.ai-customization-embedded-detail.embedded-marketplace-detail'));
 		const header = DOM.append(this.root, $('header.embedded-detail-header.marketplace-detail-header'));
 		this.leadingSlotEl = DOM.append(header, $('.embedded-detail-leading-slot'));
+		this.iconEl = DOM.append(header, $('.embedded-detail-icon.marketplace-detail-icon'));
 		const identity = DOM.append(header, $('.embedded-detail-header-text'));
 		const nameRow = DOM.append(identity, $('.embedded-detail-name-row'));
 		this.titleEl = DOM.append(nameRow, $('h2.embedded-detail-name'));
@@ -78,10 +84,6 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		DOM.append(factsSection, $('h3.embedded-detail-section-title')).textContent = localize('marketplaceDetail.details', "Details");
 		this.factsEl = DOM.append(factsSection, $('dl.embedded-detail-facts.plugin-detail-flat-list.marketplace-detail-facts'));
 
-		this.containsEl = DOM.append(this.root, $('section.embedded-detail-section.plugin-detail-contributions'));
-		DOM.append(this.containsEl, $('h3.embedded-detail-section-title')).textContent = localize('marketplaceDetail.contains', "Contains");
-		this.containsListEl = DOM.append(this.containsEl, $('.embedded-detail-chip-list.plugin-detail-flat-list'));
-
 		this.readmeEl = DOM.append(this.root, $('section.embedded-detail-section.plugin-detail-readme'));
 		const readmeTitle = DOM.append(this.readmeEl, $('h3.plugin-detail-contribution-group-title'));
 		DOM.append(readmeTitle, $('span.plugin-detail-contribution-title-label')).textContent = localize('marketplaceDetail.pluginReadme', "Plugin README");
@@ -92,6 +94,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 				this.render(true);
 			}
 		}));
+		this._register(this.themeService.onDidColorThemeChange(() => this.renderIcon()));
 	}
 
 	get leadingSlot(): HTMLElement {
@@ -111,12 +114,12 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.titleEl.textContent = '';
 		this.descriptionEl.textContent = '';
 		this.stateEl.textContent = '';
+		this.iconDisposables.clear();
+		DOM.clearNode(this.iconEl);
 		DOM.clearNode(this.titleActionsEl);
 		DOM.clearNode(this.queriesEl);
 		DOM.clearNode(this.factsEl);
-		DOM.clearNode(this.containsListEl);
 		DOM.clearNode(this.readmeContentEl);
-		this.containsEl.style.display = 'none';
 		this.readmeEl.style.display = 'none';
 	}
 
@@ -153,6 +156,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		DOM.clearNode(this.factsEl);
 
 		this.titleEl.textContent = resource.displayName;
+		this.renderIcon();
 		this.descriptionEl.textContent = resource.description || localize('marketplaceDetail.noDescription', "No description provided.");
 		const state = this.installService.getInstallState(resource);
 		this.stateEl.textContent = getInstallStateLabel(state);
@@ -184,9 +188,26 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		}
 
 		if (loadPreview) {
-			this.renderPluginPreview(resource);
+			this.renderReadme(resource);
 		}
 		this._onDidChangeContent.fire();
+	}
+
+	private renderIcon(): void {
+		const resource = this.current;
+		this.iconDisposables.clear();
+		if (!resource) {
+			DOM.clearNode(this.iconEl);
+			return;
+		}
+		const fallbackIcon = resource.mediaType === CustomizationMarketplaceMediaType.McpServer
+			? Codicon.server
+			: isPlugin(resource)
+				? Codicon.extensions
+				: resource.mediaType === CustomizationMarketplaceMediaType.Skill
+					? Codicon.lightbulb
+					: Codicon.file;
+		renderCustomizationMarketplaceIcon(this.iconEl, fallbackIcon, resource.icon, this.themeService.getColorTheme().type, this.iconDisposables);
 	}
 
 	private renderQueries(queries: readonly string[]): void {
@@ -259,77 +280,59 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		return link;
 	}
 
-	private renderPluginPreview(resource: ICustomizationMarketplaceResource): void {
+	private renderReadme(resource: ICustomizationMarketplaceResource): void {
 		this.previewDisposables.clear();
-		DOM.clearNode(this.containsListEl);
 		DOM.clearNode(this.readmeContentEl);
-		const loadPreview = this.options.loadPluginPreview;
-		if (!loadPreview || !isPlugin(resource)) {
-			this.containsEl.style.display = 'none';
+		if (!isPlugin(resource) || !resource.readmeUri) {
 			this.readmeEl.style.display = 'none';
 			return;
 		}
 
-		this.containsEl.style.display = '';
 		this.readmeEl.style.display = '';
-		DOM.append(this.containsListEl, $('.plugin-detail-contribution-empty')).textContent = localize('marketplaceDetail.containsLoading', "Loading contained items...");
 		DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message')).textContent = localize('marketplaceDetail.readmeLoading', "Loading plugin README...");
 
 		const generation = ++this.renderGeneration;
 		const disposables = new DisposableStore();
 		this.previewDisposables.value = disposables;
 		const cancellation = disposables.add(new CancellationTokenSource());
-		void loadPreview(resource, cancellation.token).then(preview => {
-			if (!preview || !this.isCurrent(resource, generation)) {
+		void this.loadReadme(resource.readmeUri, cancellation.token).then(readme => {
+			if (!this.isCurrent(resource, generation)) {
 				return;
 			}
-			this.renderContains(preview);
-			this.renderReadme(preview);
+			this.renderReadmeContent(readme.content, readme.baseUri);
 			this._onDidChangeContent.fire();
 		}, error => {
 			if (isCancellationError(error) || cancellation.token.isCancellationRequested || !this.isCurrent(resource, generation)) {
 				return;
 			}
-			DOM.clearNode(this.containsListEl);
-			DOM.append(this.containsListEl, $('.plugin-detail-contribution-empty')).textContent = localize('marketplaceDetail.containsError', "Could not load contained items. {0}", getErrorMessage(error));
 			DOM.clearNode(this.readmeContentEl);
 			DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message')).textContent = localize('marketplaceDetail.readmeLoadError', "The plugin README could not be loaded.");
 			this._onDidChangeContent.fire();
 		});
 	}
 
-	private renderContains(preview: IMarketplacePluginPreview): void {
-		DOM.clearNode(this.containsListEl);
-		const entries = preview.contributions.filter(entry => entry.kind === 'skills' || entry.kind === 'mcp');
-		this.containsEl.style.display = entries.length ? '' : 'none';
-		for (const entry of entries) {
-			const section = DOM.append(this.containsListEl, $('.plugin-detail-contribution-section'));
-			const header = DOM.append(section, $('.plugin-detail-contribution-group-title'));
-			DOM.append(header, $('span.plugin-detail-contribution-title-label')).textContent = entry.kind === 'skills'
-				? localize('marketplaceDetail.skills', "Skills")
-				: localize('marketplaceDetail.mcpServers', "MCP Servers");
-			DOM.append(header, $('span.plugin-detail-contribution-title-count')).textContent = String(entry.items.length);
-			const group = DOM.append(section, $('.plugin-detail-contribution-group'));
-			const list = DOM.append(group, $('.plugin-detail-contribution-list'));
-			for (const item of entry.items) {
-				DOM.append(DOM.append(list, $('.plugin-detail-contribution-row')), $('.plugin-detail-contribution-name')).textContent = item.name;
-			}
+	private async loadReadme(readmeUri: URI, token: CancellationToken): Promise<{ readonly content: string; readonly baseUri: URI }> {
+		if (readmeUri.scheme !== Schemas.https) {
+			throw new Error(`Unsupported marketplace README scheme: ${readmeUri.scheme}`);
 		}
+		let fetchedUri = readmeUri;
+		const githubBlobMatch = readmeUri.toString().match(/^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/blob\/(?<rest>.+)$/);
+		if (githubBlobMatch?.groups) {
+			fetchedUri = URI.parse(`https://raw.githubusercontent.com/${githubBlobMatch.groups['owner']}/${githubBlobMatch.groups['repo']}/${githubBlobMatch.groups['rest']}`);
+		}
+		const context = await this.requestService.request({ type: 'GET', url: fetchedUri.toString(), callSite: 'aiCustomizationMarketplaceDetail.fetchReadme' }, token);
+		return { content: await asTextOrError(context) ?? '', baseUri: fetchedUri };
 	}
 
-	private renderReadme(preview: IMarketplacePluginPreview): void {
+	private renderReadmeContent(content: string, baseUri: URI): void {
 		DOM.clearNode(this.readmeContentEl);
 		this.readmeEl.style.display = '';
-		if (!preview.readme) {
-			DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message')).textContent = localize('marketplaceDetail.readmeMissing', "No README was provided for this plugin.");
-			return;
-		}
-		if (!preview.readme.content.trim()) {
+		if (!content.trim()) {
 			DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message')).textContent = localize('marketplaceDetail.readmeEmpty', "The plugin README is empty.");
 			return;
 		}
-		const markdown = new MarkdownString(preview.readme.content, { supportHtml: false });
-		markdown.baseUri = preview.readme.baseUri;
+		const markdown = new MarkdownString(content, { supportHtml: false });
+		markdown.baseUri = baseUri;
 		const rendered = this.renderDisposables.add(this.markdownRendererService.render(markdown, {
 			asyncRenderCallback: () => this._onDidChangeContent.fire(),
 		}));

@@ -9,7 +9,7 @@ import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
@@ -815,6 +815,7 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 		capabilities: ['Inspect design systems', 'Export assets'],
 		representativeQueries: ['Review the components in this Figma file'],
 		repository: URI.parse('https://github.com/example/figma-plugin'),
+		readmeUri: URI.parse('https://raw.githubusercontent.com/example/figma-plugin/main/README.md'),
 		installation: { kind: 'plugin', repository: 'example/figma-plugin', ref: 'main', path: '' },
 	},
 	{
@@ -1082,10 +1083,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
-	fileContents.set(URI.file('/home/dev/.vscode/agent-plugins/figma-plugin/.plugin/plugin.json'), JSON.stringify({ name: 'figma-plugin' }));
-	fileContents.set(URI.file('/home/dev/.vscode/agent-plugins/figma-plugin/skills/design-review/SKILL.md'), '---\nname: design-review\ndescription: Review a design for consistency\n---');
-	fileContents.set(URI.file('/home/dev/.vscode/agent-plugins/figma-plugin/.mcp.json'), JSON.stringify({ mcpServers: { figma: { command: 'figma-mcp' } } }));
-	fileContents.set(URI.file('/home/dev/.vscode/agent-plugins/figma-plugin/README.md'), '# Figma Plugin\n\nInspect design systems, review components, and export implementation-ready assets.\n\n## Workflows\n\n- Review component consistency\n- Inspect design tokens\n- Export assets\n\n## Usage\n\nAsk the agent to review the components in your Figma file.');
 	const delayedReadFiles = new ResourceSet();
 	if (options.pluginReadmeContent !== undefined) {
 		const pluginReadmeUri = URI.file('/workspace/.copilot/plugins/circleci/README.md');
@@ -1613,7 +1610,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override get lastFocusedWidget() { return undefined; }
 				override async reveal() { return false; }
 			}());
-			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
+			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() {
+				override async request(): Promise<IRequestContext> {
+					const readme = '# Figma Plugin\n\nInspect design systems, review components, and export implementation-ready assets.\n\n## Workflows\n\n- Review component consistency\n- Inspect design tokens\n- Export assets\n\n## Usage\n\nAsk the agent to review the components in your Figma file.\n\n## Design review checklist\n\n' + Array.from({ length: 18 }, (_, index) => `${index + 1}. Validate the component against the shared design system and accessibility guidance.`).join('\n');
+					return { res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(readme)) };
+				}
+			}());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(options.copilotConnectorsEnabled ?? false, options.copilotConnectors));
@@ -1855,10 +1857,57 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const detail = row.querySelector('.customization-discovery-result-detail')?.textContent;
 			return detail?.includes('Marketplace 1') || detail?.includes('Marketplace 2') || detail?.includes('Copilot Connectors');
 		}), 'Marketplace results must show their source name.');
+		const availablePrimaryAction = availableRows[0]?.querySelector<HTMLButtonElement>(':scope > .customization-discovery-result-primary');
+		if (availableRows[0] && availablePrimaryAction) {
+			availablePrimaryAction.focus();
+			const targetWindow = DOM.getWindow(availableRows[0]);
+			assert(targetWindow.getComputedStyle(availableRows[0]).outlineStyle === 'solid', 'Focused Discover results must outline the entire item, including its actions.');
+			assert(targetWindow.getComputedStyle(availablePrimaryAction).outlineStyle === 'none', 'Focused Discover results must not retain an inner primary-action outline.');
+			availablePrimaryAction.blur();
+		}
 		if (options.selectDiscoveryResult) {
 			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
-			resultRows[resultRows.length - 1]?.querySelector<HTMLButtonElement>('.customization-discovery-result-primary')?.click();
-			await Promise.resolve();
+			const selectedRow = resultRows[resultRows.length - 1];
+			(selectedRow?.querySelector<HTMLElement>('.customization-discovery-result-aside')
+				?? selectedRow?.querySelector<HTMLButtonElement>('.customization-discovery-result-primary'))?.click();
+			let detailContainer: HTMLElement | null = null;
+			let scrollHost: HTMLElement | null = null;
+			for (let attempt = 0; attempt < 40; attempt++) {
+				await timeout(50);
+				detailContainer = ctx.container.querySelector('.marketplace-detail-container');
+				scrollHost = detailContainer?.querySelector('.marketplace-detail-scrollable') ?? null;
+				const pluginPreviewReady = options.discoveryQuery !== 'figma'
+					|| !!detailContainer?.querySelector('.plugin-detail-readme-content h1');
+				if (detailContainer?.style.display !== 'none' && scrollHost && pluginPreviewReady) {
+					break;
+				}
+			}
+			assert(detailContainer !== null && scrollHost !== null, 'Marketplace detail must render inside its page scroll host.');
+			assert(
+				scrollHost.getBoundingClientRect().bottom <= detailContainer.getBoundingClientRect().bottom + 1,
+				'Marketplace detail scroll host must remain inside the detail page bounds.',
+			);
+			if (options.discoveryQuery === 'figma') {
+				const scrollContent = scrollHost.querySelector<HTMLElement>('.marketplace-detail-editor-container');
+				if (!scrollContent) {
+					throw new Error('Marketplace detail scroll content did not render');
+				}
+				assert(scrollContent.scrollHeight > scrollContent.clientHeight, 'Loaded plugin README content must extend the marketplace detail scroll range.');
+				const verticalScrollbar = scrollHost.querySelector<HTMLElement>('.scrollbar.vertical');
+				const scrollbarSlider = verticalScrollbar?.querySelector<HTMLElement>('.slider');
+				if (!verticalScrollbar || !scrollbarSlider) {
+					throw new Error('Marketplace detail scrollbar did not render');
+				}
+				assert(!verticalScrollbar.classList.contains('invisible'), 'Loaded plugin README content must show the marketplace detail scrollbar.');
+				assert(
+					scrollbarSlider.getBoundingClientRect().height < verticalScrollbar.getBoundingClientRect().height,
+					'Marketplace detail scrollbar thumb must represent the visible portion of the loaded plugin README.',
+				);
+				scrollContent.scrollTop = scrollContent.scrollHeight;
+				await timeout(50);
+				assert(scrollContent.scrollTop > 0, 'Marketplace detail scroll content must accept a scroll position after plugin preview content loads.');
+				scrollContent.scrollTop = 0;
+			}
 		}
 		if (options.discoveryQuery.includes('@installed')) {
 			assert(customizationMarketplaceQueryCount === 1, 'The Installed filter must not issue another catalog query.');
@@ -1918,6 +1967,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			input.dispatchEvent(new InputEvent('input', { bubbles: true, data: options.mcpSearchQuery, inputType: 'insertText' }));
 			await new Promise(resolve => setTimeout(resolve, 600));
 			input.blur();
+			const marketplaceRow = ctx.container.querySelector<HTMLElement>('.mcp-content-container .plugin-marketplace-home-row');
+			const marketplacePrimaryAction = marketplaceRow?.querySelector<HTMLButtonElement>(':scope > .customization-card-primary-action');
+			if (marketplaceRow && marketplacePrimaryAction) {
+				marketplacePrimaryAction.focus();
+				const targetWindow = DOM.getWindow(marketplaceRow);
+				assert(targetWindow.getComputedStyle(marketplaceRow).outlineStyle === 'solid', 'Focused marketplace MCP rows must outline the entire item.');
+				assert(targetWindow.getComputedStyle(marketplacePrimaryAction).outlineStyle === 'none', 'Focused marketplace MCP rows must not retain an inner primary-action outline.');
+				marketplacePrimaryAction.blur();
+			}
 			for (const scrollbar of ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container .scrollbar')) {
 				scrollbar.style.visibility = 'hidden';
 			}
@@ -2008,23 +2066,36 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 		if (options.pluginReadmeContent !== undefined) {
 			let pluginDetailScrollHost: HTMLElement | null = null;
+			let pluginDetailScrollContent: HTMLElement | null = null;
 			let overflowingCodeBlock: HTMLElement | null = null;
-			for (let attempt = 0; attempt < 40 && (!pluginDetailScrollHost || !overflowingCodeBlock); attempt++) {
+			for (let attempt = 0; attempt < 40 && (!pluginDetailScrollHost || !pluginDetailScrollContent || !overflowingCodeBlock); attempt++) {
 				await timeout(50);
 				const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
 				const scrollHost = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-scrollable');
 				const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
 				const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
-				if (pluginDetailView?.style.display !== 'none' && scrollHost && scrollHost.scrollHeight > scrollHost.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
+				if (pluginDetailView?.style.display !== 'none' && scrollHost && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
 					pluginDetailScrollHost = scrollHost;
+					pluginDetailScrollContent = detailContainer;
 					overflowingCodeBlock = codeBlock;
 				}
 			}
-			if (!pluginDetailScrollHost || !overflowingCodeBlock) {
+			if (!pluginDetailScrollHost || !pluginDetailScrollContent || !overflowingCodeBlock) {
 				throw new Error('Overflowing plugin detail did not render');
 			}
-			pluginDetailScrollHost.scrollTop = pluginDetailScrollHost.scrollHeight;
+			const verticalScrollbar = pluginDetailScrollHost.querySelector<HTMLElement>('.scrollbar.vertical');
+			const scrollbarSlider = verticalScrollbar?.querySelector<HTMLElement>('.slider');
+			if (!verticalScrollbar || !scrollbarSlider) {
+				throw new Error('Installed plugin detail scrollbar did not render');
+			}
+			assert(!verticalScrollbar.classList.contains('invisible'), 'Overflowing installed plugin detail must show its vertical scrollbar.');
+			assert(
+				scrollbarSlider.getBoundingClientRect().height < verticalScrollbar.getBoundingClientRect().height,
+				'Installed plugin detail scrollbar thumb must represent the visible portion of its README.',
+			);
+			pluginDetailScrollContent.scrollTop = pluginDetailScrollContent.scrollHeight;
 			await timeout(50);
+			assert(pluginDetailScrollContent.scrollTop > 0, 'Installed plugin detail scroll content must accept a scroll position.');
 		}
 	}
 
@@ -3348,7 +3419,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverAvailableSearchResult: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Opening an available skill keeps discovery inside VS Code and shows a compact header with Back and Install, a subtle Try this section, and an ordered Details table with linked source and repository metadata.'],
+		expectedVisualDescriptions: ['Opening an available skill keeps discovery inside VS Code and shows Back, the skill icon beside its title, and Install in a compact header, followed by a subtle Try this section and an ordered Details table with linked source and repository metadata.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -3370,7 +3441,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverAvailableSearchResultNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['At a narrow width, the available marketplace detail keeps Back, title, install state, and Install readable while Try this and the ordered Details table remain aligned in one column.'],
+		expectedVisualDescriptions: ['At a narrow width, the available marketplace detail keeps Back, the resource icon, title, install state, and Install readable while Try this and the ordered Details table remain aligned in one scrollable column.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -3394,7 +3465,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverPluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['An available plugin shows Try this, ordered linked metadata, Skills and MCP Servers in the Contains table, and its README inline beneath one theme-aware page scrollbar.'],
+		expectedVisualDescriptions: ['An available plugin shows its icon beside the title, Try this, ordered linked metadata, and its remotely loaded README inline beneath one theme-aware page scrollbar. There is no Contains section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,

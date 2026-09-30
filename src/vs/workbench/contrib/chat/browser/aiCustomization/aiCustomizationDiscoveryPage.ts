@@ -416,22 +416,26 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			: localize('customizationDiscovery.openDetails', "View details for {0}", name));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.description, { content: description }));
-		if (installed) {
+		const registerOpenListeners = (open: () => void) => {
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.root, DOM.EventType.CLICK, open));
 			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
 				event.stopPropagation();
+				open();
+			}));
+		};
+		if (element.kind === 'installed') {
+			registerOpenListeners(() => {
 				if (element.promptDetail || element.pluginDetail || element.mcpDetail || !element.catalogResource) {
 					this.onOpenInstalled(element);
-				} else {
-					this.onOpenDetails(element.catalogResource);
+					return;
 				}
-			}));
+				this.onOpenDetails(element.catalogResource);
+			});
+		} else {
+			registerOpenListeners(() => this.onOpenDetails(element.resource));
 		}
 
 		if (!installed) {
-			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
-				event.stopPropagation();
-				this.onOpenDetails(element.resource);
-			}));
 			if (element.resource.stars !== undefined) {
 				const starsLabel = localize('customizationDiscovery.stars', "{0} stars", element.resource.stars.toLocaleString());
 				templateData.stats.setAttribute('aria-label', starsLabel);

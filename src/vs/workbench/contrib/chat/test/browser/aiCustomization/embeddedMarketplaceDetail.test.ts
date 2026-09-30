@@ -6,20 +6,23 @@
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../../base/common/async.js';
+import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IRequestContext } from '../../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { EmbeddedMarketplaceDetail, type IEmbeddedMarketplaceDetailOptions } from '../../../browser/aiCustomization/embeddedMarketplaceDetail.js';
+import { EmbeddedMarketplaceDetail } from '../../../browser/aiCustomization/embeddedMarketplaceDetail.js';
 import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 
 suite('EmbeddedMarketplaceDetail', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function render(resource: ICustomizationMarketplaceResource, loadPluginPreview?: IEmbeddedMarketplaceDetailOptions['loadPluginPreview']) {
+	function render(resource: ICustomizationMarketplaceResource, readmeContent?: string) {
 		const parent = DOM.append(document.body, DOM.$('.embedded-marketplace-detail-test'));
 		store.add({ dispose: () => parent.remove() });
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -28,11 +31,18 @@ suite('EmbeddedMarketplaceDetail', () => {
 			override readonly onDidChange = Event.None;
 			override getInstallState() { return { kind: 'available' as const }; }
 		}());
+		instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
+			override async request(): Promise<IRequestContext> {
+				return {
+					res: { statusCode: 200, headers: {} },
+					stream: bufferToStream(VSBuffer.fromString(readmeContent ?? '')),
+				};
+			}
+		}());
 		const detail = store.add(instantiationService.createInstance(EmbeddedMarketplaceDetail, parent, {
 			getSourceLabel: () => 'Marketplace',
 			install: async () => { },
 			openExternal: async () => { },
-			loadPluginPreview,
 		}));
 		detail.setInput(resource);
 		return { detail, parent };
@@ -53,9 +63,11 @@ suite('EmbeddedMarketplaceDetail', () => {
 			representativeQueries: ['Review this change'],
 			url: URI.parse('https://example.com/review'),
 			repository: URI.parse('https://github.com/example/review'),
+			icon: URI.parse('https://example.com/review.svg'),
 		});
 		assert.deepStrictEqual({
 			heading: parent.querySelector('h2')?.textContent,
+			icon: parent.querySelector<HTMLImageElement>('.marketplace-detail-icon img')?.getAttribute('src'),
 			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
 			queries: [...parent.querySelectorAll('.marketplace-detail-query-list li')].map(element => element.textContent),
 			links: [...parent.querySelectorAll('.embedded-detail-fact-link')].map(element => element.textContent),
@@ -63,6 +75,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 			accessible: detail.getAccessibilityContent(),
 		}, {
 			heading: 'Repository review',
+			icon: 'https://example.com/review.svg',
 			facts: ['Type', 'Skill', 'Publisher', 'Example', 'Version', '1.2.0', 'Source', 'Marketplace', 'Tags', 'review', 'Repository', 'example/review'],
 			queries: ['Review this change'],
 			links: ['Marketplace', 'example/review'],
@@ -95,7 +108,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 		});
 	});
 
-	test('renders plugin contains and README inline', async () => {
+	test('fetches and renders the plugin README inline without a Contains section', async () => {
 		const { parent } = render({
 			sourceId: 'test',
 			identifier: 'frontend-design',
@@ -106,22 +119,16 @@ suite('EmbeddedMarketplaceDetail', () => {
 			capabilities: [],
 			representativeQueries: [],
 			installation: { kind: 'plugin', repository: 'example/frontend-design', ref: 'main', path: '' },
-		}, async () => ({
-			contributions: [
-				{ kind: 'skills', label: 'Skills', items: [{ name: 'frontend-design' }] },
-				{ kind: 'mcp', label: 'MCP Servers', items: [{ name: 'figma' }] },
-				{ kind: 'agents', label: 'Agents', items: [{ name: 'designer' }] },
-			],
-			readme: { content: '# Frontend Design\n\nUse the design system.', baseUri: URI.parse('https://example.com/README.md') },
-		}));
+			readmeUri: URI.parse('https://raw.githubusercontent.com/example/frontend-design/main/README.md'),
+		}, '# Frontend Design\n\nUse the design system.');
 
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			contains: [...parent.querySelectorAll('.plugin-detail-contribution-section')].map(section => section.textContent),
+			contains: parent.querySelector('.plugin-detail-contributions')?.textContent,
 			readme: parent.querySelector('.plugin-detail-readme-content')?.textContent,
 		}, {
-			contains: ['Skills1frontend-design', 'MCP Servers1figma'],
+			contains: undefined,
 			readme: 'Frontend Design\nUse the design system.',
 		});
 	});
