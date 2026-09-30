@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
@@ -84,6 +84,7 @@ suite('AgentHostSessionTaskRunner', () => {
 	let terminalCwd: { initial: string; current: string } | undefined;
 	let pendingCommandMarks: number;
 	let clearedTerminals: ITerminalInstance[];
+	let backgroundedTerminals: ITerminalInstance[];
 	let showPanelBarrier: DeferredPromise<void> | undefined;
 	let firstShowPanelCall: DeferredPromise<void> | undefined;
 	let secondShowPanelCall: DeferredPromise<void> | undefined;
@@ -91,16 +92,19 @@ suite('AgentHostSessionTaskRunner', () => {
 
 	function createFakeTerminal(): ITerminalInstance {
 		const instanceStore = store.add(new DisposableStore());
+		const onDisposed = instanceStore.add(new Emitter<ITerminalInstance>());
 		let isDisposed = false;
 		const instance = {
 			get isDisposed() { return isDisposed; },
 			store: instanceStore,
+			onDisposed: onDisposed.event,
 			sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); },
 			clearBuffer: () => { clearedTerminals.push(instance); },
 			dispose: () => {
 				if (!isDisposed) {
 					isDisposed = true;
 					disposedTerminals.push(instance);
+					onDisposed.fire(instance);
 					instanceStore.dispose();
 				}
 			},
@@ -119,6 +123,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		terminalCwd = { initial: '/x', current: '/x' };
 		pendingCommandMarks = 0;
 		clearedTerminals = [];
+		backgroundedTerminals = [];
 		showPanelBarrier = undefined;
 		firstShowPanelCall = undefined;
 		secondShowPanelCall = undefined;
@@ -164,6 +169,9 @@ suite('AgentHostSessionTaskRunner', () => {
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
 			override setActiveInstance() { /* no-op */ }
+			override get foregroundInstances() {
+				return createdTerminals.map(t => t.instance).filter(instance => !backgroundedTerminals.includes(instance));
+			}
 		});
 
 		instantiationService.stub(ITerminalGroupService, new class extends mock<ITerminalGroupService>() {
@@ -271,13 +279,60 @@ suite('AgentHostSessionTaskRunner', () => {
 
 		assert.deepStrictEqual({
 			createdTerminals: createdTerminals.map(t => t.options?.name),
-			sentText: sentText.map(t => t.text),
+			sentText,
 			pendingCommandMarks,
 		}, {
 			createdTerminals: ['Task: build', 'Task: test'],
-			sentText: ['echo hi', 'echo hi', 'echo test'],
+			sentText: [
+				{ text: 'echo hi', shouldExecute: true },
+				{ text: '\x03', shouldExecute: false },
+				{ text: 'echo hi', shouldExecute: true },
+				{ text: 'echo test', shouldExecute: true },
+			],
 			pendingCommandMarks: 3,
 		});
+	});
+
+	test('does not reuse a terminal that was moved to the background', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		commandExecuting = false;
+
+		const handles = [await runner.runTask(shellTask(), session)];
+		backgroundedTerminals.push(createdTerminals[0].instance);
+		handles.push(await runner.runTask(shellTask(), session));
+		handles.forEach(handle => handle?.dispose());
+
+		assert.strictEqual(createdTerminals.length, 2);
+	});
+
+	test('creates a new terminal once the reused terminal is disposed', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		commandExecuting = false;
+
+		(await runner.runTask(shellTask(), session))?.dispose();
+		(await runner.runTask(shellTask(), session))?.dispose();
+
+		assert.deepStrictEqual({
+			createdTerminals: createdTerminals.length,
+			disposedTerminals: disposedTerminals.length,
+		}, {
+			createdTerminals: 2,
+			disposedTerminals: 2,
+		});
+	});
+
+	test('compares working directories case-insensitively on Windows-style paths', async () => {
+		const session = makeSession({ providerId: 'agenthost-myhost', cwd: toAgentHostUri(URI.file('/x'), 'remote') });
+		commandExecuting = false;
+
+		const handles = [await runner.runTask(shellTask(), session)];
+		terminalCwd = { initial: 'C:\\x', current: 'c:\\X\\' };
+		handles.push(await runner.runTask(shellTask(), session));
+		terminalCwd = { initial: '/x', current: '/X' };
+		handles.push(await runner.runTask(shellTask(), session));
+		handles.forEach(handle => handle?.dispose());
+
+		assert.strictEqual(createdTerminals.length, 2);
 	});
 
 	test('does not reuse a terminal whose shell left the task working directory', async () => {

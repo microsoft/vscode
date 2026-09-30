@@ -5,7 +5,8 @@
 
 import { localize } from '../../../../nls.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { OS } from '../../../../base/common/platform.js';
+import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { timeout } from '../../../../base/common/async.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -34,6 +35,13 @@ const LOCAL_AGENT_HOST_ADDRESS = '__local__';
 /** Strips trailing path separators (except for a root) so equivalent cwd paths compare equal. */
 function normalizeCwd(cwd: string): string {
 	return cwd.replace(/(?<=[^\\/:])[\\/]+$/, '');
+}
+
+/** Whether two cwd paths reported by the host refer to the same directory. */
+function isEqualCwd(a: string, b: string, ignoreCase: boolean): boolean {
+	a = normalizeCwd(a);
+	b = normalizeCwd(b);
+	return ignoreCase ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 /** Tracks one reusable terminal and its current task launch. */
@@ -106,7 +114,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		const terminalKey = JSON.stringify([address, cwd?.toString(), task.label]);
 		const presentation = this._getPresentation(task);
 		const shouldReuse = !(typeof presentation?.panel === 'string' && presentation.panel.toLowerCase() === 'new');
-		let taskTerminal = shouldReuse ? this._getReusableTerminal(terminalKey) : undefined;
+		let taskTerminal = shouldReuse ? this._getReusableTerminal(terminalKey, address) : undefined;
 		const isReused = !!taskTerminal;
 		if (!taskTerminal) {
 			const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
@@ -120,7 +128,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			taskTerminal = { instance, isLaunching: false, executionId: 0 };
 			if (shouldReuse) {
 				this._taskTerminals.set(terminalKey, taskTerminal);
-				instance.store.add(toDisposable(() => {
+				instance.store.add(instance.onDisposed(() => {
 					if (this._taskTerminals.get(terminalKey) === taskTerminal) {
 						this._taskTerminals.delete(terminalKey);
 					}
@@ -134,6 +142,12 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		try {
 			this._terminalService.setActiveInstance(instance);
 			await this._terminalGroupService.showPanel(true);
+			if (isReused) {
+				// Discard anything typed at the prompt since the last run so it is
+				// not prepended to the task command, like `ITerminalInstance.runCommand`.
+				await instance.sendText('\x03', /*shouldExecute*/ false);
+				await timeout(100);
+			}
 			if (isReused && presentation?.clear === true) {
 				instance.clearBuffer();
 			}
@@ -155,10 +169,12 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 	 * when it can run the task again, mirroring how the workbench task system
 	 * reuses task terminals. A terminal is only reused when it is known to be
 	 * idle, so that the command is never typed into a still running process,
-	 * and when the shell is still in the directory the terminal started in, so
-	 * that the command runs from the task's working directory.
+	 * when the shell is still in the directory the terminal started in, so
+	 * that the command runs from the task's working directory, and when it is
+	 * not hidden in the background (e.g. after switching sessions), since only
+	 * foreground terminals can be activated.
 	 */
-	private _getReusableTerminal(key: string): ITaskTerminal | undefined {
+	private _getReusableTerminal(key: string, address: string): ITaskTerminal | undefined {
 		const taskTerminal = this._taskTerminals.get(key);
 		if (!taskTerminal) {
 			return undefined;
@@ -171,11 +187,17 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		if (taskTerminal.isLaunching || this._agentHostTerminalService.isCommandExecuting(instance) !== false) {
 			return undefined;
 		}
-		const terminalCwd = this._agentHostTerminalService.getCwd(instance);
-		if (!terminalCwd || normalizeCwd(terminalCwd.current) !== normalizeCwd(terminalCwd.initial)) {
+		if (!this._terminalService.foregroundInstances.includes(instance)) {
 			return undefined;
 		}
-		return taskTerminal;
+		const terminalCwd = this._agentHostTerminalService.getCwd(instance);
+		if (!terminalCwd) {
+			return undefined;
+		}
+		// Local Windows and macOS file systems are case-insensitive; a remote
+		// host's OS is unknown, so only treat Windows-style paths as such.
+		const ignoreCase = address === LOCAL_AGENT_HOST_ADDRESS ? OS !== OperatingSystem.Linux : /^[a-zA-Z]:[\\/]/.test(terminalCwd.initial);
+		return isEqualCwd(terminalCwd.current, terminalCwd.initial, ignoreCase) ? taskTerminal : undefined;
 	}
 
 	/**
