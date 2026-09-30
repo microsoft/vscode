@@ -1544,6 +1544,19 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('a failed BYOK registration does not block the model change (#337742)', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			resolveByokSessionConfig: () => { throw new Error('bridge unavailable'); },
+		});
+
+		await session.setModel('copilot/auto');
+
+		assert.deepStrictEqual({ providerSyncCalls: mockSession.providerSyncCalls, setModelCalls: mockSession.setModelCalls.map(([model]) => model) }, {
+			providerSyncCalls: [],
+			setModelCalls: ['copilot/auto'],
+		});
+	});
+
 	test('times out non-settling SDK control-plane RPCs', async () => {
 		const neverSettles = new Promise<void>(() => { });
 		const { session, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 1 });

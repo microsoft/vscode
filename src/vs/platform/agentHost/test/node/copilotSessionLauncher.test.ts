@@ -41,7 +41,7 @@ import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHu
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
-import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, resolveByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 
@@ -350,7 +350,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
  * consumable end-to-end: provider `baseUrl` + `Bearer <nonce>.<sessionId>` +
  * `model = id` route through the proxy to the renderer bridge.
  */
-suite('resolveByokSessionConfig', () => {
+suite('synthesizeByokSessionConfig', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -387,7 +387,7 @@ suite('resolveByokSessionConfig', () => {
 		const registry = new ByokLmBridgeRegistry();
 		const proxy = countingProxy();
 
-		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
 
 		assert.deepStrictEqual(config, {});
 		assert.strictEqual(proxy.starts, 0);
@@ -398,7 +398,7 @@ suite('resolveByokSessionConfig', () => {
 		const registration = registry.register('client-1', connectionOf([]));
 		const proxy = countingProxy();
 
-		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
 		registration.dispose();
 
 		assert.deepStrictEqual(config, {});
@@ -412,7 +412,7 @@ suite('resolveByokSessionConfig', () => {
 		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: Event.None });
 		const proxy = countingProxy();
 
-		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
 		registration.dispose();
 
 		assert.deepStrictEqual(config, {});
@@ -428,7 +428,7 @@ suite('resolveByokSessionConfig', () => {
 		]));
 		const proxy = countingProxy();
 
-		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
 		registration.dispose();
 
 		assert.strictEqual(proxy.starts, 1);
@@ -453,7 +453,7 @@ suite('resolveByokSessionConfig', () => {
 		]));
 		const proxy = countingProxy();
 
-		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
 		registration.dispose();
 
 		assert.deepStrictEqual(config.models, [
@@ -475,7 +475,7 @@ suite('resolveByokSessionConfig', () => {
 		const service = new ByokLmProxyService(log, registry);
 		let handle: IByokLmProxyHandle | undefined;
 
-		const config = await resolveByokSessionConfig(sessionId, registry, async () => (handle = await service.start()), log);
+		const config = await synthesizeByokSessionConfig(sessionId, registry, async () => (handle = await service.start()), log);
 		const provider = config.providers![0];
 		const model = config.models![0];
 		try {
@@ -510,7 +510,7 @@ suite('resolveByokSessionConfig', () => {
 		emitter.fire([]);
 		emitter.fire([{ vendor: 'acme', id: 'claude', name: 'Acme Claude' }]);
 
-		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
 		registration.dispose();
 
 		assert.deepStrictEqual(config.models, [{ id: 'claude', provider: 'acme', name: 'Acme Claude' }]);

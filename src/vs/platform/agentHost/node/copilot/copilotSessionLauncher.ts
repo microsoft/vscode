@@ -6,6 +6,7 @@
 import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -235,8 +236,8 @@ export interface ICopilotSessionLauncher {
 
 	/**
 	 * Resolves the BYOK providers and models that a session launched now would
-	 * register (see {@link resolveByokSessionConfig}). Empty when BYOK is gated off
-	 * or the renderer reports no BYOK models.
+	 * register (see {@link synthesizeByokSessionConfig}). Empty when BYOK is gated
+	 * off or the renderer reports no BYOK models.
 	 */
 	resolveByokSessionConfig(sessionId: string): Promise<ICopilotByokSessionConfig>;
 }
@@ -554,7 +555,7 @@ function toSdkCapiSessionOptions(autoTier: AutoModeTier | undefined): Pick<Sessi
  * unit-testable without instantiating the launcher; the launcher passes a
  * `startProxy` thunk that memoizes the single shared proxy handle.
  */
-export async function resolveByokSessionConfig(
+export async function synthesizeByokSessionConfig(
 	sessionId: string,
 	bridgeRegistry: IByokLmBridgeRegistry,
 	startProxy: () => Promise<IByokLmProxyHandle>,
@@ -637,7 +638,7 @@ export function mergeByokSessionConfig(applied: ICopilotByokSessionConfig, curre
 	}
 	const merged: ICopilotByokSessionConfig = { providers: [...providers.values()], models: [...models.values()] };
 	const registered: ICopilotByokSessionConfig = { providers: applied.providers ?? [], models: applied.models ?? [] };
-	return JSON.stringify(merged) === JSON.stringify(registered) ? undefined : merged;
+	return objectsEqual(merged, registered) ? undefined : merged;
 }
 
 /** Applies sandbox configuration, returning false when the runtime retains its policy after a managed conflict. */
@@ -666,7 +667,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	/**
 	 * Memoized handle for the single shared BYOK loopback proxy, started lazily
 	 * on the first session launch that surfaces BYOK models (see
-	 * {@link resolveByokSessionConfig}). Held as a promise so concurrent
+	 * {@link synthesizeByokSessionConfig}). Held as a promise so concurrent
 	 * launches share one bind. Released and cleared by
 	 * {@link disposeByokProxyHandle} when the owning Copilot client/runtime is
 	 * stopped, so the next start mints a fresh nonce.
@@ -895,7 +896,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	/**
-	 * Launcher-bound wrapper over {@link resolveByokSessionConfig}: supplies the
+	 * Launcher-bound wrapper over {@link synthesizeByokSessionConfig}: supplies the
 	 * active bridge registry and a `startProxy` thunk that memoizes the single
 	 * shared proxy handle for this launcher (started lazily on first use).
 	 */
@@ -906,7 +907,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (!enabled) {
 			return Promise.resolve({});
 		}
-		return resolveByokSessionConfig(sessionId, this._byokLmBridgeRegistry, () => {
+		return synthesizeByokSessionConfig(sessionId, this._byokLmBridgeRegistry, () => {
 			if (!this._byokProxyHandle) {
 				this._byokProxyHandle = this._byokLmProxyService.start();
 			}
@@ -949,7 +950,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// createSession and resumeSession advertise the models to the runtime.
 		const byok = await this.resolveByokSessionConfig(plan.sessionId);
 		if (byok.models?.length) {
-			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${byok.models.length} BYOK model(s) across ${byok.providers?.length ?? 0} provider(s) via loopback proxy`);
+			// The provider base URL carries the proxy's host:port, which correlates a
+			// session with its `ByokLmProxyService` bind when reading logs.
+			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${byok.models.length} BYOK model(s) across ${byok.providers?.length ?? 0} provider(s) via loopback proxy ${byok.providers?.[0]?.baseUrl}`);
 		}
 		const hydraFusionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;

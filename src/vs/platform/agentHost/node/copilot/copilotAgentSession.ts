@@ -4208,16 +4208,19 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	syncByokModels(): Promise<void> {
 		return this._byokSync.queue(async () => {
-			if (this._store.isDisposed || !this._wrapper) {
+			const wrapper = this._wrapper;
+			if (this._store.isDisposed || !wrapper) {
 				return;
 			}
 			const current = await this._sessionLauncher.resolveByokSessionConfig(this.sessionId);
 			const merged = mergeByokSessionConfig(this._registeredByokConfig, current);
-			if (!merged || this._store.isDisposed) {
+			// A restart across the await swapped in a wrapper with its own launch
+			// config, so `merged` is no longer a valid basis for that session.
+			if (!merged || this._store.isDisposed || this._wrapper !== wrapper) {
 				return;
 			}
 			this._logService.info(`[Copilot:${this.sessionId}] Registering BYOK models on live session: models=${merged.models?.length ?? 0}, previouslyRegistered=${this._registeredByokConfig.models?.length ?? 0}`);
-			await this._awaitControlPlaneRpc('rpc.provider.sync', this._wrapper.session.rpc.provider.sync(merged));
+			await this._awaitControlPlaneRpc('rpc.provider.sync', wrapper.session.rpc.provider.sync(merged));
 			this._registeredByokConfig = merged;
 		});
 	}
@@ -4227,6 +4230,9 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			await this.syncByokModels();
 		} catch (err) {
+			// Deliberately non-fatal: let `setModel` report the runtime's own error
+			// rather than this one. Note a timed-out `provider.sync` still marks the
+			// session control-plane desynchronized, so the failure is not dropped.
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to register BYOK models before changing model`, err);
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
