@@ -131,7 +131,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		const repoDir = this.getRepositoryUri(marketplace, options?.marketplaceType);
 		return this._cloneSequencer.queue(repoDir.fsPath, async () => {
 			const repoExists = await this._fileService.exists(repoDir);
-			if (repoExists) {
+			if (repoExists && await this._isValidRepository(repoDir, marketplace)) {
 				const refreshedAt = this._isRefreshDue(marketplace, options)
 					? await this._refreshRepository(repoDir, marketplace, options?.token)
 					: undefined;
@@ -143,12 +143,30 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 				throw new Error(`Local marketplace repository does not exist: ${repoDir.fsPath}`);
 			}
 
+			if (repoExists) {
+				await this._fileService.del(repoDir, { recursive: true, useTrash: false });
+			}
+
 			const progressTitle = options?.progressTitle ?? localize('preparingMarketplace', "Preparing plugin marketplace '{0}'...", marketplace.displayLabel);
 			const failureLabel = options?.failureLabel ?? marketplace.displayLabel;
 			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel, marketplace.ref, options?.token);
 			this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType, Date.now());
 			return repoDir;
 		});
+	}
+
+	private async _isValidRepository(repoDir: URI, marketplace: IMarketplaceReference): Promise<boolean> {
+		if (marketplace.kind === MarketplaceReferenceKind.LocalFileUri) {
+			return true;
+		}
+
+		try {
+			await this._pluginGit.revParse(repoDir, 'HEAD');
+			return true;
+		} catch (error) {
+			this._logService.warn(`[AgentPluginRepositoryService] Removing invalid repository cache '${repoDir.toString()}':`, error);
+			return false;
+		}
 	}
 
 	/**

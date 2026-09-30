@@ -62,12 +62,14 @@ suite('AgentPluginRepositoryService', () => {
 		onExists?: (resource: URI) => Promise<boolean>,
 		onExecuteCommand?: (id: string, ...args: unknown[]) => void,
 		pluginGitStub?: Partial<IPluginGitService>,
+		fileServiceStub?: Partial<IFileService>,
 	): AgentPluginRepositoryService {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		const fileService = {
 			exists: async (resource: URI) => onExists ? onExists(resource) : true,
 			createFolder: async () => undefined,
+			...fileServiceStub,
 		} as unknown as IFileService;
 
 		const progressService = {
@@ -141,6 +143,35 @@ suite('AgentPluginRepositoryService', () => {
 
 		assert.strictEqual(checkedPath, '/cache/agentPlugins/github.com/microsoft/vscode');
 		assert.strictEqual(uri.path, '/cache/agentPlugins/github.com/microsoft/vscode');
+	});
+
+	test('reclones an existing non-repository cache directory', async () => {
+		const operations: string[] = [];
+		const service = createService(async () => true, undefined, {
+			revParse: async (repoDir, ref) => {
+				operations.push(`validate:${repoDir.path}:${ref}`);
+				throw new Error('not a repository');
+			},
+			cloneRepository: async (_cloneUrl, targetDir) => {
+				operations.push(`clone:${targetDir.path}`);
+			},
+		}, {
+			del: async (resource, options) => {
+				operations.push(`delete:${resource.path}:${options?.recursive}:${options?.useTrash}`);
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		const uri = await service.ensureRepository(plugin.marketplaceReference, { marketplaceType: plugin.marketplaceType });
+
+		assert.deepStrictEqual({ operations, uri: uri.path }, {
+			operations: [
+				'validate:/cache/agentPlugins/github.com/microsoft/vscode:HEAD',
+				'delete:/cache/agentPlugins/github.com/microsoft/vscode:true:false',
+				'clone:/cache/agentPlugins/github.com/microsoft/vscode',
+			],
+			uri: '/cache/agentPlugins/github.com/microsoft/vscode',
+		});
 	});
 
 	test('refreshes an existing repository without a recorded refresh timestamp', async () => {
