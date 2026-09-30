@@ -394,20 +394,20 @@
  * the label. Keep perimeter padding off colored edge containers so both surfaces
  * share an edge; the label owns the equivalent inset to avoid moving its content.
  */
-.monaco-workbench.floating-panels:not(.modern-ui-compact) .part.statusbar > .items-container > .statusbar-item.left.first-visible-item.has-background-color {
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item.has-background-color {
 	padding-left: var(--vscode-spacing-sizeNone);
 }
 
-.monaco-workbench.floating-panels:not(.modern-ui-compact) .part.statusbar > .items-container > .statusbar-item.left.first-visible-item.has-background-color > .statusbar-item-label {
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item.has-background-color > .statusbar-item-label {
 	padding-left: var(--vscode-spacing-size80);
 	padding-right: var(--vscode-spacing-size60);
 }
 
-.monaco-workbench.floating-panels:not(.modern-ui-compact) .part.statusbar > .items-container > .statusbar-item.right.last-visible-item.has-background-color {
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.right.last-visible-item.has-background-color {
 	padding-right: var(--vscode-spacing-sizeNone);
 }
 
-.monaco-workbench.floating-panels:not(.modern-ui-compact) .part.statusbar > .items-container > .statusbar-item.right.last-visible-item.has-background-color > .statusbar-item-label {
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.right.last-visible-item.has-background-color > .statusbar-item-label {
 	padding-left: var(--vscode-spacing-size60);
 	padding-right: var(--vscode-spacing-size80);
 }
