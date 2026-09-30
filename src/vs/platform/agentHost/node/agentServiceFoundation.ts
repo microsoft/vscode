@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { createGitHubClientMetadata } from '../../github/common/githubRequestMetadata.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
+import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
-import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
+import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
 import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -84,7 +87,7 @@ export interface IAgentServiceFoundation {
 	readonly proxyResolver: IAgentHostProxyResolver;
 	readonly requestService: IRequestService;
 	readonly fetchFn: typeof globalThis.fetch;
-	readonly gitHubServiceOptions: GitHubServiceOptions;
+	readonly gitHubServiceOptions: Omit<GitHubServiceOptions, 'credentialProvider'>;
 }
 
 export interface ICreateAgentServiceFoundationOptions {
@@ -142,13 +145,11 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 		requestService,
 		fetchFn,
 		gitHubServiceOptions: {
-			endpoint: gitHubEndpointService,
-			tokenProvider: {
-				getToken: () => {
-					const resource = gitHubEndpointService.getRepoResource();
-					return authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-			},
+			telemetrySource: 'agentHost',
+			clientMetadata: createGitHubClientMetadata(options.productService, 'agent-host', 'node'),
+			onDidChangeTelemetryLevel: Event.filter<TelemetryLevel, undefined>(Event.map(configurationService.onDidRootConfigChange, () =>
+				agentHostConfigValueToTelemetryLevel(configurationService.getRootConfigValues()[AgentHostTelemetryLevelConfigKey])
+				, options.owned), (level): level is TelemetryLevel => level !== undefined, options.owned),
 			fetch: fetchFn,
 		},
 	};

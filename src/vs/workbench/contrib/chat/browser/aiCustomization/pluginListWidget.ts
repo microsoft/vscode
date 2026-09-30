@@ -31,7 +31,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
-import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement } from '../agentPluginActions.js';
+import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -809,6 +810,7 @@ export class PluginListWidget extends Disposable {
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget'); // reuse MCP shell, add plugin-specific row styling
@@ -1390,18 +1392,18 @@ export class PluginListWidget extends Disposable {
 		const availableEntries = availableItems.map(item => ({ type: 'marketplace-item' as const, item }));
 		const definitions = [
 			{
-				id: 'workspace',
-				label: localize('workspacePluginsGroup', "Workspace"),
-				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
-				icon: Codicon.folder,
-				children: workspaceEntries,
-			},
-			{
 				id: 'user',
 				label: localize('userPluginsGroup', "User"),
 				description: localize('userPluginsGroupDescription', "Plugins installed for your profile and available across workspaces."),
 				icon: Codicon.account,
 				children: userEntries,
+			},
+			{
+				id: 'workspace',
+				label: localize('workspacePluginsGroup', "Workspace"),
+				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
+				icon: Codicon.folder,
+				children: workspaceEntries,
 			},
 			{
 				id: 'remote',
@@ -2154,7 +2156,8 @@ export class PluginListWidget extends Disposable {
 
 	private getInstalledPluginActions(item: IInstalledPluginItem, disposables: DisposableStore): IAction[] {
 		const actions: IAction[] = [];
-		const groups = getInstalledPluginContextMenuActions(item.plugin, this.instantiationService);
+		const removePlugin = () => removePluginWithMarketplaceOwnership(item.plugin, this.marketplaceInstallService);
+		const groups = getInstalledPluginContextMenuActions(item.plugin, this.instantiationService, removePlugin);
 		for (const menuActions of groups) {
 			for (const menuAction of menuActions) {
 				actions.push(menuAction);

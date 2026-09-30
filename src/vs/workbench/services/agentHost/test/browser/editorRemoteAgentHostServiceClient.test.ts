@@ -9,8 +9,11 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/common/ipc.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
@@ -22,6 +25,7 @@ import type { IClientTransport } from '../../../../../platform/agentHost/common/
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService, type ResourceLabelFormatter } from '../../../../../platform/label/common/label.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import type { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import type { PersistentConnectionEvent } from '../../../../../platform/remote/common/remoteAgentConnection.js';
@@ -112,12 +116,21 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			dispose: () => { },
 		};
 		const registeredAuthorities: string[] = [];
+		const registeredFormatters: ResourceLabelFormatter[] = [];
 		const agentHostEnabled = observableValue('agentHostEnabled', false);
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
 			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled, managedSandboxEnforced: constObservable(false) }],
 			[ILogService, new NullLogService()],
 			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+			[ILabelService, upcastPartial<ILabelService>({
+				registerFormatter: formatter => {
+					if (hasKey(formatter, { scheme: true })) {
+						registeredFormatters.push(formatter);
+					}
+					return Disposable.None;
+				},
+			})],
 			[IAgentHostFileSystemService, {
 				_serviceBrand: undefined,
 				registerAuthority: (authority: string) => {
@@ -136,7 +149,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		agentHostEnabled.set(true, undefined);
 		const beforeReady = connectCalls;
 
-		remoteAgentService.environmentReady.complete(null);
+		remoteAgentService.environmentReady.complete(upcastPartial<IRemoteAgentEnvironment>({ os: OperatingSystem.Windows }));
 		while (connectCalls === 0) {
 			await Promise.resolve();
 		}
@@ -151,12 +164,18 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			afterReady: connectCalls,
 			clientInfo: protocolClientCall?.args[3]?.clientInfo,
 			registeredAuthorities,
+			registeredFormatters: registeredFormatters.map(formatter => formatter.formatting),
 			mapsRemoteDirectories: transport instanceof EditorRemoteAgentHostTransport,
 		}, {
 			beforeReady: 0,
 			afterReady: 1,
 			clientInfo: editorWindowAgentHostClientInfo,
 			registeredAuthorities: [agentHostAuthority('vscode-remote://ssh-remote+test')],
+			registeredFormatters: [{
+				label: '${path}',
+				separator: '\\',
+				normalizeDriveLetter: true,
+			}],
 			mapsRemoteDirectories: true,
 		});
 	});
@@ -182,6 +201,9 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
 			[ILogService, new NullLogService()],
 			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+			[ILabelService, upcastPartial<ILabelService>({
+				registerFormatter: () => Disposable.None,
+			})],
 			[IAgentHostFileSystemService, {
 				_serviceBrand: undefined,
 				registerAuthority: () => Disposable.None,

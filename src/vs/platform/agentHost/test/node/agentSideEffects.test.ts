@@ -1094,7 +1094,7 @@ suite('AgentSideEffects', () => {
 			return server?.type === CustomizationType.McpServer ? server.state : undefined;
 		}
 
-		test('forwards background requests without changing provider-owned state', async () => {
+		test('forwards background requests and optimistically clears blocking state', async () => {
 			const calls: Array<{ session: URI; id: string }> = [];
 			Object.assign(agent, {
 				backgroundMcpServerStartup: async (session: URI, id: string) => {
@@ -1110,7 +1110,7 @@ suite('AgentSideEffects', () => {
 				state: serverState(),
 			}, {
 				calls: [{ session: sessionUri.toString(), id: 'server' }],
-				state: { kind: McpServerStatus.Starting, blocking: true },
+				state: { kind: McpServerStatus.Starting, blocking: false },
 			});
 		});
 
@@ -1139,7 +1139,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(ids, ['missing']);
 		});
 
-		test('retains blocking state when the provider rejects', async () => {
+		test('retains optimistic non-blocking state when the provider rejects', async () => {
 			Object.assign(agent, {
 				backgroundMcpServerStartup: async () => { throw new Error('SDK rejected'); },
 			});
@@ -1147,7 +1147,7 @@ suite('AgentSideEffects', () => {
 			requestBackground();
 			await timeout(0);
 
-			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: true });
+			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: false });
 		});
 	});
 
