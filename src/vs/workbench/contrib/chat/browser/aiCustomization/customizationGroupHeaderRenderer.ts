@@ -35,6 +35,7 @@ interface ICustomizationGroupHeaderTemplateData {
 	readonly chevron: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
+	readonly description: HTMLElement;
 	readonly count: HTMLElement;
 	readonly infoIcon: HTMLElement;
 	readonly actions: HTMLElement;
@@ -52,6 +53,7 @@ export class CustomizationGroupHeaderRenderer<T extends ICustomizationGroupHeade
 		readonly templateId: string,
 		private readonly hoverService: IHoverService,
 		private readonly renderActions?: (entry: T, container: HTMLElement, disposables: DisposableStore) => void,
+		private readonly renderDescription?: (entry: T, container: HTMLElement, disposables: DisposableStore) => void,
 	) { }
 
 	renderTemplate(container: HTMLElement): ICustomizationGroupHeaderTemplateData {
@@ -63,12 +65,13 @@ export class CustomizationGroupHeaderRenderer<T extends ICustomizationGroupHeade
 		const icon = DOM.append(container, $('.group-icon'));
 		const labelGroup = DOM.append(container, $('.group-label-group'));
 		const label = DOM.append(labelGroup, $('.group-label'));
+		const description = DOM.append(labelGroup, $('.group-description'));
 		const count = DOM.append(container, $('.group-count'));
 		const infoIcon = DOM.append(container, $('.group-info'));
 		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 		const actions = DOM.append(container, $('.group-actions'));
 
-		return { container, chevron, icon, label, count, infoIcon, actions, disposables, elementDisposables };
+		return { container, chevron, icon, label, description, count, infoIcon, actions, disposables, elementDisposables };
 	}
 
 	renderElement(element: T, _index: number, templateData: ICustomizationGroupHeaderTemplateData): void {
@@ -82,6 +85,9 @@ export class CustomizationGroupHeaderRenderer<T extends ICustomizationGroupHeade
 
 		templateData.label.textContent = element.label;
 		templateData.count.textContent = `${element.count}`;
+		DOM.clearNode(templateData.description);
+		this.renderDescription?.(element, templateData.description, templateData.elementDisposables);
+		templateData.description.style.display = templateData.description.hasChildNodes() ? '' : 'none';
 		DOM.clearNode(templateData.actions);
 		this.renderActions?.(element, templateData.actions, templateData.elementDisposables);
 
