@@ -216,7 +216,7 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
 	 * and auto-sizes its width to match. Defaults to `'above'`.
 	 */
-	anchorPosition?: 'above' | 'overlay';
+	anchorPosition?: 'above' | 'below' | 'overlay';
 
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
@@ -384,7 +384,7 @@ export interface IQuickInput extends IDisposable {
 	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
 	 * and auto-sizes its width to match. Defaults to `'above'`.
 	 */
-	anchorPosition?: 'above' | 'overlay';
+	anchorPosition?: 'above' | 'below' | 'overlay';
 
 	/**
 	 * Shows the quick input.

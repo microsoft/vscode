@@ -7,8 +7,9 @@ import assert from 'assert';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -95,9 +96,15 @@ suite('Customizations toolbar', () => {
 			override readonly availableHarnesses = constObservable([harnessDescriptor]);
 			override getActiveDescriptor() { return harnessDescriptor; }
 		};
+		const customizationsChanged = disposables.add(new Emitter<void>());
+		const refreshedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		let migrationCheckCount = 0;
 		const migrationService = new class extends mock<ICustomizationMigrationService>() {
-			override readonly onDidChangeCustomizations = Event.None;
+			override readonly onDidChangeCustomizations = customizationsChanged.event;
 			override async computeMigrationHint(): Promise<ICustomizationMigrationHint | undefined> {
+				if (migrationCheckCount++ > 0) {
+					return refreshedHint.p;
+				}
 				return { migrationFlowId: 'flow', message: 'Migrations available', counts: [] };
 			}
 		};
@@ -123,10 +130,18 @@ suite('Customizations toolbar', () => {
 			totalCount: state.totalCount.get(),
 			migrationAvailable: state.migrationAvailable.get(),
 		};
+		customizationsChanged.fire();
+		const refreshingState = state.migrationAvailable.get();
+		await refreshedHint.complete(undefined);
+		await refreshedHint.p;
+		await Promise.resolve();
+		const refreshedState = state.migrationAvailable.get();
 		enabled.set(false, undefined);
 
 		assert.deepStrictEqual({
 			enabledState,
+			refreshingState,
+			refreshedState,
 			disabledState: {
 				totalCount: state.totalCount.get(),
 				migrationAvailable: state.migrationAvailable.get(),
@@ -136,6 +151,8 @@ suite('Customizations toolbar', () => {
 				totalCount: 9,
 				migrationAvailable: true,
 			},
+			refreshingState: true,
+			refreshedState: false,
 			disabledState: {
 				totalCount: 0,
 				migrationAvailable: false,

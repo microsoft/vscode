@@ -39,6 +39,15 @@ export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProvi
 }
 
 export interface IQuickAccessOptions {
+	/**
+	 * An optional anchor for the picker.
+	 */
+	readonly anchor?: unknown /* HTMLElement */ | { x: number; y: number };
+
+	/**
+	 * Placement of the picker relative to {@link anchor}.
+	 */
+	readonly anchorPosition?: 'above' | 'below' | 'overlay';
 
 	/**
 	 * Allows to enable quick navigate support in quick input.

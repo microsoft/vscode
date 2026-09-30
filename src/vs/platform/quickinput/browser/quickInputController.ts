@@ -837,7 +837,18 @@ export class QuickInputController extends Disposable {
 			if (!container.classList.contains(QUICK_INPUT_OVERLAY_CLASS) && dom.hasParentWithClass(container, QUICK_INPUT_MOTION_ANCESTOR_CLASSES)) {
 				container.inert = true;
 				container.classList.add(QUICK_INPUT_MOTION_CLOSING_CLASS);
-				this.closeAnimation.value = disposableTimeout(() => this.completeCloseAnimation(), QUICK_INPUT_CLOSE_ANIMATION_DURATION);
+				const animationDisposables = new DisposableStore();
+				this.closeAnimation.value = animationDisposables;
+				// CSS can suppress motion independently of the workbench classes.
+				const [animation] = container.getAnimations();
+				if (animation) {
+					for (const event of ['finish', 'cancel']) {
+						animationDisposables.add(dom.addDisposableListener(animation, event, () => this.completeCloseAnimation()));
+					}
+					animationDisposables.add(disposableTimeout(() => this.completeCloseAnimation(), QUICK_INPUT_CLOSE_ANIMATION_DURATION));
+				} else {
+					this.completeCloseAnimation();
+				}
 			} else {
 				container.style.display = 'none';
 			}
@@ -972,13 +983,15 @@ export class QuickInputController extends Disposable {
 					preferredAnchorPosition = AnchorPosition.BELOW;
 				} else {
 					width = 380;
+					preferredAnchorPosition = this.controller.anchorPosition === 'below' ? AnchorPosition.BELOW : AnchorPosition.ABOVE;
 				}
 
 				listHeight = this.dimension ? Math.min(this.dimension.height * listHeightRatio, maxListHeight) : maxListHeight;
 
 				// Beware:
 				// We need to add some extra pixels to the height to account for the input and padding.
-				const containerHeight = Math.floor(listHeight) + verticalPadding;
+				const anchorGap = this.controller.anchorPosition === 'overlay' ? 0 : 4;
+				const containerHeight = Math.floor(listHeight) + verticalPadding + anchorGap;
 				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: preferredAnchorPosition });
 
 				if (anchorAlignment === AnchorAlignment.RIGHT) {
@@ -990,10 +1003,10 @@ export class QuickInputController extends Disposable {
 				}
 
 				if (anchorPosition === AnchorPosition.ABOVE) {
-					style.bottom = `${bottom}px`;
+					style.bottom = `${bottom + anchorGap}px`;
 					style.top = 'initial';
 				} else {
-					style.top = `${top}px`;
+					style.top = `${top + anchorGap}px`;
 					style.bottom = 'initial';
 				}
 
