@@ -28,6 +28,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileOperationResult, FileSystemProviderCapabilities, IFileService, toFileOperationResult } from '../../../files/common/files.js';
+import { gitHubMcpServerUrl } from '../../../github/common/githubEndpoints.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
@@ -37,7 +38,6 @@ import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilo
 import type { AutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
-import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { getSessionSandboxOverrides } from '../sessionSandbox.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';

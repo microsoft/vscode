@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { deriveGitHubEndpoints } from '../../../../github/common/githubEndpoints.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { AgentHostOctoKitService, type FetchFunction } from '../../../node/shared/agentHostOctoKitService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
-import { deriveGitHubEndpoints } from '../../../common/githubEndpoints.js';
 import type { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 
 type Captured = { url: string; init: RequestInit | undefined };
