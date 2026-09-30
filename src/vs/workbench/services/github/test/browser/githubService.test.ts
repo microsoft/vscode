@@ -183,6 +183,107 @@ suite('Workbench GitHub service', () => {
 		});
 	});
 
+	for (const change of ['scopes', 'issuer', 'removed'] as const) {
+		test(`retries a pending session lookup after ${change} change instead of acquiring its stale grant`, async () => {
+			const staleSession = session();
+			const currentSession = {
+				...staleSession,
+				...(change === 'scopes' ? { scopes: ['repo', 'gist'] }
+					: change === 'issuer' ? { authorizationServer: URI.parse('https://enterprise.example.test/login/oauth') } : {}),
+			};
+			const currentSessions = change === 'removed' ? [] : [currentSession];
+			const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
+			let requested = false;
+			const { service, changed, calls } = setup(undefined, undefined, () => {
+				if (!requested) {
+					requested = true;
+					return lookup.p;
+				}
+				return Promise.resolve(currentSessions);
+			});
+			const pending = service.acquireSessionClient('github', 'session', signal());
+			const result = change === 'removed' ? assert.rejects(pending, { kind: 'authentication' }) : pending;
+			changed.fire({
+				providerId: 'github', label: 'GitHub',
+				event: { added: [], changed: change === 'removed' ? [] : [currentSession], removed: change === 'removed' ? [staleSession] : [] },
+			});
+			await lookup.complete([staleSession]);
+			const reference = await result;
+			if (reference) {
+				store.add(reference);
+				assert.deepStrictEqual(reference.object.authorization, {
+					providerId: 'github', sessionId: 'session', scopes: [...currentSession.scopes].sort(),
+					...(currentSession.authorizationServer ? { authorizationServer: currentSession.authorizationServer.toString() } : {}),
+				});
+			}
+			assert.deepStrictEqual(calls, [
+				{ providerId: 'github', options: { silent: true } },
+				{ providerId: 'github', options: { silent: true } },
+			]);
+		});
+	}
+
+	test('retries a pending token-only renewal without retiring the existing default client', async () => {
+		const original = session();
+		const renewed = { ...original, accessToken: 'renewed-token' };
+		const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
+		let call = 0;
+		const { service, changed, calls } = setup(undefined, undefined, () => {
+			switch (++call) {
+				case 1: return Promise.resolve([original]);
+				case 2: return lookup.p;
+				default: return Promise.resolve([renewed]);
+			}
+		});
+		const first = store.add(await service.acquireDefaultAccountClient(signal())).object;
+		let invalidations = 0;
+		store.add(first.onDidInvalidate(() => invalidations++));
+		const pending = service.acquireDefaultAccountClient(signal());
+		changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], changed: [renewed], removed: [] } });
+		await lookup.complete([original]);
+		const reference = store.add(await pending);
+		assert.deepStrictEqual({ lookups: calls.length, sameClient: reference.object === first, invalidations }, {
+			lookups: 3, sameClient: true, invalidations: 0,
+		});
+	});
+
+	test('does not retry a pending session lookup for another provider change', async () => {
+		const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
+		const { service, changed, calls } = setup(undefined, undefined, () => lookup.p);
+		const pending = service.acquireSessionClient('github', 'session', signal());
+		changed.fire({ providerId: 'github-enterprise', label: 'Enterprise', event: { added: [], changed: [session()], removed: [] } });
+		await lookup.complete([session()]);
+		const reference = store.add(await pending);
+		assert.deepStrictEqual({ lookups: calls.length, providerId: reference.object.authorization.providerId }, {
+			lookups: 1, providerId: 'github',
+		});
+	});
+
+	test('session lookup retries remain cancellable without another provider call', async () => {
+		const first = new DeferredPromise<readonly AuthenticationSession[]>();
+		const second = new DeferredPromise<readonly AuthenticationSession[]>();
+		let call = 0;
+		const { service, changed } = setup(undefined, undefined, () => {
+			if (++call === 1) {
+				return first.p;
+			}
+			return second.p;
+		});
+		const controller = new AbortController();
+		const reason = new Error('cancelled');
+		const pending = service.acquireSessionClient('github', 'session', controller.signal).then(
+			reference => { store.add(reference); return undefined; },
+			error => error,
+		);
+		changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], changed: [session('session', 'account', ['repo', 'gist'])], removed: [] } });
+		await first.complete([session()]);
+		await timeout(0);
+		controller.abort(reason);
+		const result = await pending;
+		await second.complete([session()]);
+		assert.deepStrictEqual({ calls: call, cancelled: result === reason }, { calls: 2, cancelled: true });
+	});
+
 	for (const selection of ['default', 'explicit'] as const) {
 		test(`${selection} client survives same-session token renewal`, async () => {
 			const { service, sessions, changed } = setup([session('session', 'account', ['repo', 'user:email'])]);

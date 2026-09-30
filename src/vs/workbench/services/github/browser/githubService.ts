@@ -71,13 +71,16 @@ class WorkbenchGitHubCredentialProvider extends Disposable implements IGitHubCre
 			state = { version: 0, grants: new Map() };
 			this._sessions.set(providerId, state);
 		}
-		const version = state.version;
-		const sessions = await this._authenticationService.getSessions(providerId, [], { silent: true }, true);
-		signal.throwIfAborted();
-		if (state.version === version) {
+		while (true) {
+			const version = state.version;
+			const sessions = await this._authenticationService.getSessions(providerId, [], { silent: true }, true);
+			signal.throwIfAborted();
+			if (state.version !== version) {
+				continue;
+			}
 			state.grants = new Map(sessions.map(session => [session.id, sessionGrant(session)]));
+			return sessions;
 		}
-		return sessions;
 	}
 
 	async getToken(context: GitHubAuthorizationContext, signal: AbortSignal): Promise<string | undefined> {
