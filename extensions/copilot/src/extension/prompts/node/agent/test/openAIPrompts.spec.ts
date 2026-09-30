@@ -51,7 +51,7 @@ suite('OpenAI prompt fallback', () => {
 		['preview-model', 'OpenAI'],
 		['preview-model', 'openai'],
 	])('%s from %s inherits the entire latest prompt bundle', async (family, provider) => {
-		expect(await resolve(createEndpoint(family, provider))).toEqual(await resolve(createEndpoint('gpt-5.6')));
+		expect(await resolve(createEndpoint(family, provider))).toEqual(await resolve(createEndpoint('gpt-6-astra')));
 	});
 
 	test.each([

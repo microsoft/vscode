@@ -16,6 +16,11 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 		throw new Error('Path contains terminal control characters');
 	}
 	switch (shellType) {
+		case PosixShellType.Csh:
+			if (path.includes('!')) {
+				throw new Error('Path contains csh history expansion');
+			}
+			return `'${path.replaceAll('\'', '\'\\\'\'')}'`;
 		case PosixShellType.Bash:
 		case PosixShellType.Sh:
 		case PosixShellType.Zsh:

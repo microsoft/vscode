@@ -7,8 +7,8 @@
  * Pins every field of the model request body the bundled Copilot CLI sends per
  * model.
  *
- * The prompt is compiled into the `@github/copilot` binary and only becomes
- * observable when the CLI serializes it onto the wire, so it is read off a
+ * The prompt is compiled into the SDK-owned Copilot runtime and only becomes
+ * observable when the runtime serializes it onto the wire, so it is read off a
  * *replayed* turn — deterministic and tokenless. Recording is the
  * nondeterministic direction: it reaches live CAPI for the model catalog and
  * experiment assignment, either of which moves the prompt for reasons this
@@ -75,9 +75,9 @@ const SNAPSHOT_MODELS = [
 	'claude-sonnet-4.6',
 	'claude-opus-4.6',
 	'claude-opus-4.7',
-	'claude-opus-4.8',
 	'claude-sonnet-5',
 	'claude-opus-5',
+	'claude-opus-5.5',
 	'gemini-2.0-flash',
 ] as const;
 
@@ -157,7 +157,7 @@ suite('Agent Host E2E — Copilot prompts', function () {
 
 	// The rendered Windows system message has separate PowerShell-only sections,
 	// so keep this prompt-shape assertion on the same POSIX scope as the snapshots.
-	(process.platform === 'win32' ? test.skip : test)('skill character budget includes 24 skills instead of 14', async function () {
+	(process.platform === 'win32' ? test.skip : test)('skill character budget caps descriptions while keeping all skills available', async function () {
 		this.timeout(120_000);
 
 		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-skill-budget-`);
@@ -213,8 +213,8 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			default15000Budget: defaultBudgetCounts,
 			configured25000Budget: configuredBudgetCounts,
 		}, {
-			default15000Budget: { skills: 14, descriptions: 14 },
-			configured25000Budget: { skills: 24, descriptions: 24 },
+			default15000Budget: { skills: 40, descriptions: 14 },
+			configured25000Budget: { skills: 40, descriptions: 24 },
 		});
 	});
 });
@@ -230,10 +230,11 @@ function setSkillCharBudget(c: TestProtocolClient, budget: number, clientSeq: nu
 function countIncludedBudgetSkills(rawBody: string): { skills: number; descriptions: number } {
 	const request = JSON.parse(rawBody) as IWireRequest;
 	const system = extractText(request.instructions ?? request.system);
-	const skillBlocks = system.match(/<skill>[\s\S]*?<\/skill>/g)?.filter(block => block.includes('<name>budget-skill-')) ?? [];
+	const skillSurface = `${system}\n${JSON.stringify(request.tools ?? [])}`;
+	const countUnique = (pattern: RegExp) => new Set([...skillSurface.matchAll(pattern)].map(match => match[1])).size;
 	return {
-		skills: skillBlocks.length,
-		descriptions: skillBlocks.filter(block => block.includes('<description>BUDGET_SKILL_DESCRIPTION_')).length,
+		skills: countUnique(/budget-skill-(\d{2})/g),
+		descriptions: countUnique(/BUDGET_SKILL_DESCRIPTION_(\d{2})/g),
 	};
 }
 

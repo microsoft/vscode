@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -13,21 +14,36 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { withMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { createSessionState, RootState, SessionState, SessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
+import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
+import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHostSkillDiscoveryTestUtils.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
+	readonly startCalls: string[] = [];
+	readonly authenticateCalls: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+	readonly operationLog: string[] = [];
+	authenticateResult: unknown = { authenticated: true };
+	startError: Error | undefined;
 
 	constructor(
 		readonly customizations: readonly Customization[],
@@ -41,12 +57,27 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 		return this._isBundledMcpServer(pluginUri, serverName);
 	}
 
-	authenticate(): Promise<unknown> { return Promise.resolve(undefined); }
+	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown> {
+		this.operationLog.push('authenticate');
+		this.authenticateCalls.push(request);
+		return Promise.resolve(this.authenticateResult);
+	}
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void {
 		this.enablementChanges.push({ rawId, enablement });
 	}
-	startMcpServer(): Promise<void> { return Promise.resolve(); }
+	startMcpServer(rawId: string): Promise<void> {
+		this.operationLog.push('start');
+		this.startCalls.push(rawId);
+		if (this.startError) {
+			throw this.startError;
+		}
+		return Promise.resolve();
+	}
 	stopMcpServer(): Promise<void> { return Promise.resolve(); }
+	backgroundMcpServer(rawId: string): Promise<void> {
+		this.operationLog.push(`background:${rawId}`);
+		return Promise.resolve();
+	}
 	setRootConfigValue(): void { /* no-op */ }
 }
 
@@ -77,6 +108,7 @@ class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationSe
 	protected override _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined {
 		return this._targets.get(sessionResource);
 	}
+
 }
 
 class TestSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
@@ -105,9 +137,24 @@ class TestSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
 suite('AbstractAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSut(): TestAgentHostCustomizationService {
+	function createSut(authenticationError?: Error): TestAgentHostCustomizationService {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILabelService, { getHostLabel: () => 'Test Host' });
+		instantiationService.stub(IAuthenticationService, {
+			getOrActivateProviderIdForServer: async () => 'test-provider',
+			getSessions: async () => {
+				if (authenticationError) {
+					throw authenticationError;
+				}
+				return [{ id: 'test-session', accessToken: 'token', scopes: [], account: { id: 'test-account', label: 'Test Account' } }];
+			},
+		});
+		instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+		instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(IOutputService, {
 			getChannel: () => undefined,
 			getChannelDescriptor: () => undefined,
@@ -115,6 +162,26 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 		return store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService()));
 	}
+
+	test('backgrounds blocking servers through the required target operation', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const target = new FakeTarget([
+			{ ...mcpServer('blocking', 'Blocking'), state: { kind: McpServerStatus.Starting, blocking: true } },
+			{ ...mcpServer('background', 'Background'), state: { kind: McpServerStatus.Starting, blocking: false } },
+		]);
+		sut.setTarget(session, target);
+		const servers = sut.getMcpServers(session);
+		await servers[0].background?.();
+
+		assert.deepStrictEqual({
+			operations: target.operationLog,
+			actions: servers.map(server => !!server.background),
+		}, {
+			operations: ['background:blocking'],
+			actions: [true, false],
+		});
+	});
 
 	for (const authority of ['local', 'remote-test']) {
 		test(`maps ordered ${authority} roots without changing workspace enablement URIs`, () => {
@@ -225,6 +292,21 @@ suite('AbstractAgentHostCustomizationService', () => {
 		]);
 	});
 
+	test('preserves host-only MCP configuration sources without requiring a source file', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const sources = ['user', 'workspace', 'plugin', 'builtin', 'managed'] as const;
+		sut.setTarget(session, new FakeTarget(sources.map(source => ({
+			...mcpServer(source, source),
+			uri: `mcp-top-level:copilot:session-1:${source}`,
+			_meta: withMcpServerSourceMeta(undefined, source),
+		}))));
+
+		assert.deepStrictEqual(sut.getMcpServers(session).map(server => ({
+			source: server.source, sourceUri: server.sourceUri,
+		})), sources.map(source => ({ source, sourceUri: undefined })));
+	});
+
 	test('preserves global and session decisions when re-enabling workspace enablement', () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');
@@ -282,6 +364,75 @@ suite('AbstractAgentHostCustomizationService', () => {
 		}, {
 			enabled: false,
 			disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Session },
+		});
+	});
+
+	test('starts an unchanged auth-required server before forwarding root authentication results', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const target = new FakeTarget([{
+			...mcpServer('server-1', 'Server One'),
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.Required,
+				resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+			},
+		}]);
+		sut.setTarget(session, target);
+
+		const firstAuthentication = await sut.authenticateMcpServer(session, 'server-1');
+		target.authenticateResult = {};
+		const secondAuthentication = await sut.authenticateMcpServer(session, 'server-1');
+
+		assert.deepStrictEqual({
+			authentication: [firstAuthentication, secondAuthentication],
+			startCalls: target.startCalls,
+			operationLog: target.operationLog,
+			authenticateCalls: target.authenticateCalls,
+		}, {
+			authentication: [true, true],
+			startCalls: ['server-1', 'server-1'],
+			operationLog: ['start', 'authenticate', 'start', 'authenticate'],
+			authenticateCalls: [
+				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+			],
+		});
+
+		target.startError = new Error('start cancelled');
+		const failedAuthentication = await sut.authenticateMcpServer(session, 'server-1');
+		assert.deepStrictEqual({
+			failedAuthentication,
+			operationLog: target.operationLog,
+			authenticateCalls: target.authenticateCalls,
+		}, {
+			failedAuthentication: false,
+			operationLog: ['start', 'authenticate', 'start', 'authenticate', 'start'],
+			authenticateCalls: [
+				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+			],
+		});
+	});
+
+	test('does not forward credentials or repeat the start when sign-in is cancelled', async () => {
+		const sut = createSut(new CancellationError());
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const target = new FakeTarget([{
+			...mcpServer('server-1', 'Server One'),
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.Required,
+				resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+			},
+		}]);
+		sut.setTarget(session, target);
+
+		const result = await sut.authenticateMcpServer(session, 'server-1');
+		assert.deepStrictEqual({ result, operations: target.operationLog, tokens: target.authenticateCalls }, {
+			result: false,
+			operations: ['start'],
+			tokens: [],
 		});
 	});
 
@@ -348,6 +499,102 @@ suite('AbstractAgentHostCustomizationService', () => {
 suite('WorkbenchAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('notifies when customization enablement changes', () => {
+		const sessionResource = URI.parse('untitled:chat');
+		const backendSession = URI.parse('copilot:/session');
+		const server = mcpServer('file:///workspace/.mcp.json#mcp=component-explorer', 'component-explorer');
+		const subscription = new TestSessionSubscription();
+		subscription.setSnapshot({
+			...createSessionState({
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+			}),
+			customizations: [server],
+		});
+		const actions = store.add(new Emitter<ActionEnvelope>());
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
+			override readonly onDidAction = actions.event;
+			override readonly rootState = {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: Event.None,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			} satisfies IAgentSubscription<RootState>;
+
+			override getSubscription<T>(_kind: StateComponents): IReference<IAgentSubscription<T>> {
+				return {
+					object: subscription as unknown as IAgentSubscription<T>,
+					dispose: () => { },
+				};
+			}
+		}();
+		const enablementChanges: Array<[string, ContributionEnablementState]> = [];
+		const mcpService = {
+			servers: {
+				get: () => [{
+					definition: {
+						id: 'component-explorer',
+						label: 'component-explorer',
+					},
+				}],
+			},
+			enablementModel: {
+				setEnabled: (id: string, state: ContributionEnablementState) => enablementChanges.push([id, state]),
+			},
+		} as unknown as IMcpService;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+		instantiationService.stub(IOutputService, {
+			getChannel: () => undefined,
+			getChannelDescriptor: () => undefined,
+			showChannel: async () => { },
+		});
+		const service = store.add(new WorkbenchAgentHostCustomizationService(
+			new class extends mock<IAgentHostConnectionsService>() {
+				override readonly ambientConnection = connection;
+			}(),
+			new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+				override readonly onDidChange = Event.None;
+				override get(): URI {
+					return backendSession;
+				}
+			}(),
+			instantiationService,
+			new NullLogService(),
+			new class extends mock<IChatService>() {
+				override readonly onDidDisposeSession = Event.None;
+			}(),
+			new class extends mock<IAgentHostActiveClientService>() { }(),
+			mcpService,
+		));
+		let changes = 0;
+		store.add(service.onDidChangeCustomizations(() => changes++));
+		const visibleCustomizations = service.getCustomizations(sessionResource).map(customization => customization.id);
+
+		actions.fire({
+			channel: backendSession.toString(),
+			action: {
+				type: ActionType.SessionCustomizationToggled,
+				id: server.id,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			},
+			serverSeq: 1,
+			origin: undefined,
+		});
+
+		assert.deepStrictEqual({ visibleCustomizations, changes, enablementChanges }, {
+			visibleCustomizations: [server.id],
+			changes: 1,
+			enablementChanges: [['component-explorer', ContributionEnablementState.DisabledProfile]],
+		});
+	});
+
 	test('uses provisional roots only until authoritative session state is available', () => {
 		const sessionResource = URI.parse('untitled:chat');
 		const backendSession = URI.parse('copilot:/session');
@@ -399,6 +646,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				override readonly onDidDisposeSession = Event.None;
 			}(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
+			new class extends mock<IMcpService>() { }(),
 		));
 		const createState = (workingDirectories: readonly URI[]): SessionState => createSessionState({
 			resource: backendSession.toString(),
@@ -526,6 +774,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				override readonly onDidDisposeSession = Event.None;
 			}(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
+			new class extends mock<IMcpService>() { }(),
 		));
 		const directory: Customization = {
 			type: CustomizationType.Directory,

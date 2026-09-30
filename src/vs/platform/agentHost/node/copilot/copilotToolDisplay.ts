@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PermissionRequest, SkillInvokedData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, PermissionRequest, SkillInvokedData } from '@github/copilot-sdk';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -231,11 +231,10 @@ interface ICopilotLongRunningSearchToolArgs {
 export type ToolAgentNameResolver = (agentId: string) => string | undefined;
 
 /**
- * Resolves opaque SDK agent ids to their display names for presentation only; invocation
- * arguments are untouched. Unknown ids and blank names fall back to the raw id.
+ * Resolves SDK agent ids to their subagent chat titles for presentation without changing invocation arguments.
+ * Unknown ids and blank titles fall back to the raw id.
  */
-function getAgentLabel(parameters: Record<string, unknown> | undefined, resolveAgentName: ToolAgentNameResolver | undefined): string | undefined {
-	const agentId = parameters?.agent_id;
+function getAgentLabel(agentId: unknown, resolveAgentName: ToolAgentNameResolver | undefined): string | undefined {
 	if (typeof agentId !== 'string' || agentId.length === 0) {
 		return undefined;
 	}
@@ -461,15 +460,15 @@ export function getTaskCompleteSummary(parameters: Record<string, unknown> | und
 }
 
 /**
- * Formats the Autopilot completion summary as the markdown response part
- * content, including the localized prefix.
+ * Formats the Autopilot completion summary with a separate localized label
+ * paragraph to preserve block markdown in the summary.
  */
 export function getTaskCompleteMarkdown(parameters: Record<string, unknown> | undefined, toolOutput: string | undefined): string | undefined {
 	const summary = getTaskCompleteSummary(parameters, toolOutput);
 	if (!summary) {
 		return undefined;
 	}
-	return '\n\n' + localize('toolMarkdown.taskComplete', "**Task completed:** {0}", summary);
+	return '\n\n' + localize('toolMarkdown.taskComplete', "**Task completed:**\n\n{0}", summary);
 }
 
 /**
@@ -568,7 +567,8 @@ export function parseCopilotStreamingToolInput(raw: string): unknown {
 	return parsePartialToolInput(raw) ?? raw;
 }
 
-export function getToolDisplayName(toolName: string): string {
+/** Preserves built-in labels and uses SDK titles or original MCP names for external tools. */
+export function getToolDisplayName(toolName: string, metadata?: Pick<AssistantMessageToolRequest, 'toolTitle' | 'mcpToolName'>): string {
 	const serverDisplay = getServerToolDisplay(toolName, undefined)?.displayName;
 	if (serverDisplay !== undefined) {
 		return serverDisplay;
@@ -627,7 +627,7 @@ export function getToolDisplayName(toolName: string): string {
 		case CopilotToolName.McpReload: return localize('toolName.mcpReload', "Reload MCP Config");
 		case CopilotToolName.McpValidate: return localize('toolName.mcpValidate', "Validate MCP Config");
 		case CopilotToolName.ToolSearchToolRegex: return localize('toolName.toolSearchToolRegex', "Search Tools");
-		default: return toolName;
+		default: return metadata?.toolTitle?.trim() || metadata?.mcpToolName?.trim() || toolName;
 	}
 }
 
@@ -782,16 +782,31 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		case CopilotToolName.ListAgents:
 			return localize('toolInvoke.listAgents', "List agents");
 		case CopilotToolName.ReadAgent: {
-			const agentLabel = getAgentLabel(parameters, resolveAgentName);
+			const agentLabel = getAgentLabel(parameters?.agent_id, resolveAgentName);
 			if (agentLabel) {
 				return md(localize('toolInvoke.readAgent', "Read agent {0}", appendEscapedMarkdownInlineCode(agentLabel)));
 			}
 			return localize('toolInvoke.readAgentGeneric', "Read agent");
 		}
 		case CopilotToolName.WriteAgent: {
-			const agentLabel = getAgentLabel(parameters, resolveAgentName);
+			const agentLabel = getAgentLabel(parameters?.agent_id, resolveAgentName);
 			if (agentLabel) {
 				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", appendEscapedMarkdownInlineCode(agentLabel)));
+			}
+			const agentLabels = Array.isArray(parameters?.agent_ids)
+				? parameters.agent_ids.map(agentId => getAgentLabel(agentId, resolveAgentName)).filter(label => label !== undefined)
+				: [];
+			if (agentLabels.length === 1) {
+				return md(localize('toolInvoke.writeAgent', "Write to agent {0}", appendEscapedMarkdownInlineCode(agentLabels[0])));
+			}
+			if (agentLabels.length > 1) {
+				return md(localize('toolInvoke.writeAgents', "Write to agents {0}", agentLabels.map(label => appendEscapedMarkdownInlineCode(label)).join(', ')));
+			}
+			if (parameters?.scope === 'children') {
+				return localize('toolInvoke.writeChildAgents', "Write to child agents");
+			}
+			if (parameters?.scope === 'siblings') {
+				return localize('toolInvoke.writeSiblingAgents', "Write to sibling agents");
 			}
 			return localize('toolInvoke.writeAgentGeneric', "Write to agent");
 		}
@@ -1040,15 +1055,16 @@ export function getToolKind(toolName: string, parameters?: Record<string, unknow
  *
  * Only call this for tools where {@link getToolKind} returned `'subagent'`.
  */
-export function getSubagentMetadata(parameters: Record<string, unknown> | undefined): { agentName?: string; description?: string } {
-	if (!parameters) {
+export function getSubagentMetadata(parameters: unknown): { agentName?: string; description?: string } {
+	if (!isObject(parameters)) {
 		return {};
 	}
-	const agentName = typeof parameters.agent_type === 'string' && parameters.agent_type.length > 0
-		? parameters.agent_type
+	const metadata = parameters as Record<string, unknown>;
+	const agentName = typeof metadata.agent_type === 'string' && metadata.agent_type.length > 0
+		? metadata.agent_type
 		: undefined;
-	const description = typeof parameters.description === 'string' && parameters.description.length > 0
-		? parameters.description
+	const description = typeof metadata.description === 'string' && metadata.description.length > 0
+		? metadata.description
 		: undefined;
 	return { agentName, description };
 }
@@ -1212,12 +1228,12 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 			};
 		}
 		case 'mcp': {
-			const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
+			const title = request.toolTitle?.trim() || toolName || localize('copilot.permission.mcp.defaultTool', "MCP Tool");
 			return {
 				confirmationTitle: serverName
 					? localize('copilot.permission.mcp.title', "Allow tool from {0}?", serverName)
 					: localize('copilot.permission.default.title', "Allow tool call?"),
-				invocationMessage: serverName ? `${serverName}: ${title}` : title,
+				invocationMessage: serverName ? localize('copilot.permission.mcp.invocation', "{0}: {1}", serverName, title) : title,
 				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
 				permissionKind: 'mcp',
 				permissionPath: path,

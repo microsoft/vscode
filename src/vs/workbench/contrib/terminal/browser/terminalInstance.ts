@@ -209,6 +209,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _shellIntegrationInjectionInfo: ShellIntegrationInjectionFailureReason | undefined;
 	get shellIntegrationInjectionFailureReason(): ShellIntegrationInjectionFailureReason | undefined { return this._shellIntegrationInjectionInfo; }
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
+	private _lineDataEventAddonLoaded = false;
 	private readonly _scopedContextKeyService: IContextKeyService;
 	private _resizeDebouncer?: TerminalResizeDebouncer;
 
@@ -371,7 +372,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	private readonly _onLineData = this._register(new Emitter<string>({
-		onDidAddFirstListener: async () => (this.xterm ?? await this._xtermReadyPromise)?.raw.loadAddon(this._lineDataEventAddon!)
+		onDidAddFirstListener: async () => {
+			const xterm = this.xterm ?? await this._xtermReadyPromise;
+			if (xterm && this._lineDataEventAddon && !this._lineDataEventAddonLoaded) {
+				xterm.raw.loadAddon(this._lineDataEventAddon);
+				this._lineDataEventAddonLoaded = true;
+			}
+		}
 	}));
 	readonly onLineData = this._onLineData.event;
 
@@ -1317,7 +1324,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._wrapperElement.xterm = undefined;
 		}
 		if (this._horizontalScrollbar) {
-			this._horizontalScrollbar.dispose();
+			this._store.delete(this._horizontalScrollbar);
 			this._horizontalScrollbar = undefined;
 		}
 
@@ -1424,11 +1431,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
+		let preparedPath: string;
 		try {
-			await this.sendText(await this.preparePathForShell(originalPath, shouldExecute), shouldExecute);
+			preparedPath = await this.preparePathForShell(originalPath, shouldExecute);
 		} catch (error) {
 			this._logService.warn('Could not prepare terminal path', error);
+			return;
 		}
+		await this.sendText(preparedPath, shouldExecute);
 	}
 
 	async preparePathForShell(originalPath: string | URI, shouldExecute: boolean = false): Promise<string> {
@@ -2318,7 +2328,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._horizontalScrollbar.getDomNode().remove();
-		this._horizontalScrollbar.dispose();
+		this._store.delete(this._horizontalScrollbar);
 		this._horizontalScrollbar = undefined;
 		this._wrapperElement.remove();
 		this._wrapperElement.classList.remove('fixed-dims');

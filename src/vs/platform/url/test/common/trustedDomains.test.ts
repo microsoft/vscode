@@ -106,10 +106,87 @@ suite('trustedDomains', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('https://sub.api.github.com'), ['https://*.github.com']), true);
 		});
 
+		test('IDN trusted domains match equivalent spellings without trusting unrelated hosts', () => {
+			const hosts = ['bücher.example.test', 'xn--bcher-kva.example.test'];
+			const patterns = ['bücher.example.test', 'xn--bcher-kva.example.test'];
+
+			assert.deepStrictEqual(
+				hosts.map(host => patterns.map(pattern => ({
+					exact: isURLDomainTrusted(URI.parse(`https://${host}/page`), [`https://${pattern}`]),
+					wildcard: isURLDomainTrusted(URI.parse(`https://x.${host}/page`), [`https://*.${pattern}`]),
+					unrelated: isURLDomainTrusted(URI.parse('https://other.example.test'), [`https://*.${pattern}`]),
+					suffix: isURLDomainTrusted(URI.parse(`https://${host}.evil.test`), [`https://*.${pattern}`]),
+					userInfo: isURLDomainTrusted(URI.parse(`https://${host}%2F@evil.test`), [`https://*.${pattern}`]),
+					outsidePath: isURLDomainTrusted(URI.parse(`https://${host}/allowed/../outside`), [`https://${pattern}/allowed`]),
+				}))),
+				hosts.map(() => patterns.map(() => ({
+					exact: true,
+					wildcard: true,
+					unrelated: false,
+					suffix: false,
+					userInfo: false,
+					outsidePath: false,
+				})))
+			);
+		});
+
 		test('path matching', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('https://example.com/api/v1'), ['https://example.com/api/*']), true);
 			// Path without trailing content doesn't match a wildcard pattern requiring more path segments
 			assert.strictEqual(isURLDomainTrusted(URI.parse('https://example.com/api'), ['https://example.com/api/*']), false);
+		});
+
+		test('path-scoped trust matches the resolved destination', () => {
+			const paths = [
+				'/allowed/../outside',
+				'/allowed/%2e%2e/outside',
+				'/allowed/.\t./outside',
+				'/allowed/.\n./outside',
+				'/allowed/.\r./outside',
+				'/outside',
+				'/allowed/child/../page',
+			];
+			const rules = ['https://example.com/allowed', 'https://example.com/allowed/*'];
+
+			assert.deepStrictEqual(
+				paths.map(path => rules.map(rule => isURLDomainTrusted(URI.parse(`https://example.com${path}`), [rule]))),
+				[
+					[false, false],
+					[false, false],
+					[false, false],
+					[false, false],
+					[false, false],
+					[false, false],
+					[true, true],
+				]
+			);
+		});
+
+		test('unpaired surrogates preserve path-scoped trust decisions', () => {
+			const surrogates = ['\uD800', '\uDC00'];
+			const trustedDomains = ['https://example.com/allowed'];
+
+			assert.deepStrictEqual(
+				surrogates.map(surrogate => ({
+					allowed: isURLDomainTrusted(URI.parse(`https://example.com/allowed/${surrogate}/page`), trustedDomains),
+					outside: isURLDomainTrusted(URI.parse(`https://example.com/allowed/${surrogate}/../../outside`), trustedDomains),
+				})),
+				surrogates.map(() => ({ allowed: true, outside: false }))
+			);
+		});
+
+		test('resolving paths preserves user information guards and explicit trust all', () => {
+			const url = URI.parse('https://example.com:user@other.example/allowed/../outside');
+
+			assert.deepStrictEqual([
+				isURLDomainTrusted(url, ['https://example.com:*']),
+				isURLDomainTrusted(url, ['*']),
+				isURLDomainTrusted(URI.parse('https://example.com/allowed/../outside'), []),
+			], [
+				false,
+				true,
+				false,
+			]);
 		});
 
 		test('scheme must match', () => {

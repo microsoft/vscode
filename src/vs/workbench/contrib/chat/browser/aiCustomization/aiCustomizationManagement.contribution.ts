@@ -38,10 +38,13 @@ import { IWorkbenchExtensionManagementService } from '../../../../services/exten
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ICustomizationMigrationHint } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationTelemetryService } from '../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
@@ -59,10 +62,12 @@ import {
 	AICustomizationManagementSyntheticItemMenuId,
 	AICustomizationManagementSection,
 	AICustomizationSource,
+	DELETE_AI_CUSTOMIZATION_ID,
 	resolveAICustomizationManagementOpenEditorTarget,
 } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
 
 //#region Telemetry
@@ -132,6 +137,7 @@ type AICustomizationContext = {
 	name?: string;
 	promptType?: PromptsType;
 	storage?: PromptsStorage;
+	skipMarketplaceUninstall?: boolean;
 	[key: string]: unknown;
 } | URI | string;
 
@@ -194,6 +200,10 @@ function extractItemId(context: AICustomizationContext): string | undefined {
 		return undefined;
 	}
 	return typeof context.itemId === 'string' ? context.itemId : undefined;
+}
+
+function shouldSkipMarketplaceUninstall(context: AICustomizationContext): boolean {
+	return !URI.isUri(context) && typeof context !== 'string' && context.skipMarketplaceUninstall === true;
 }
 
 /**
@@ -287,7 +297,6 @@ registerAction2(class extends Action2 {
 });
 
 // Delete action
-const DELETE_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.delete';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -312,6 +321,14 @@ registerAction2(class extends Action2 {
 		const itemId = extractItemId(context);
 		const isSkill = promptType === PromptsType.skill;
 		const isHook = promptType === PromptsType.hook;
+		if (isSkill && !shouldSkipMarketplaceUninstall(context)) {
+			const marketplaceInstallService = accessor.get(ICustomizationMarketplaceInstallService);
+			const marketplace = marketplaceInstallService.installations.get().findByTarget({ kind: 'skill', uri });
+			if (marketplace) {
+				await marketplaceInstallService.uninstall(marketplace.resource);
+				return;
+			}
+		}
 		// For skills, use the parent folder name since skills are structured as <skillname>/SKILL.md.
 		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
@@ -772,12 +789,15 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			run(accessor: ServicesAccessor): void {
+			run(accessor: ServicesAccessor, options?: { readonly hint?: ICustomizationMigrationHint }): void {
 				const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
 				if (!sessionResource) {
 					throw new Error('Expected an active chat session when dismissing customization migration hints');
 				}
 				const sessionType = getChatSessionType(sessionResource);
+				if (options?.hint) {
+					accessor.get(ICustomizationMigrationTelemetryService).hintClicked(options.hint, 'dismiss');
+				}
 				accessor.get(IStorageService).store(
 					getCustomizationMigrationHintDismissedStorageKey(sessionType),
 					true,
@@ -805,12 +825,15 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
 				const widget = chatWidgetService.lastFocusedWidget;
-				const { section, revealUri, sessionResource, migration, migrationCategory } = resolveAICustomizationManagementOpenEditorTarget(
+				const { section, revealUri, sessionResource, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
 					target,
 					widget?.input.pendingDelegationTarget,
 					widget?.viewModel?.sessionResource,
 					sessionType => harnessService.getSessionResourceForHarness(sessionType),
 				);
+				if (migrationHint) {
+					accessor.get(ICustomizationMigrationTelemetryService).hintClicked(migrationHint, 'review');
+				}
 				if (sessionResource) {
 					harnessService.setActiveSession(sessionResource);
 				}
@@ -822,7 +845,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				);
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (migration && pane instanceof AICustomizationManagementEditor) {
-					await pane.showCustomizationMigrationPage(migrationCategory);
+					await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
 				} else if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
 					if (revealUri) {

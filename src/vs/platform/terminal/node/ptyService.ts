@@ -1028,7 +1028,7 @@ class MutationLogger<T> {
 	}
 }
 
-class XtermSerializer implements ITerminalSerializer {
+export class XtermSerializer implements ITerminalSerializer {
 	private readonly _xterm: XtermTerminal;
 	private readonly _shellIntegrationAddon: ShellIntegrationAddon;
 	private _unicodeAddon?: XtermUnicode11Addon;
@@ -1089,10 +1089,14 @@ class XtermSerializer implements ITerminalSerializer {
 			options.excludeModes = true;
 		}
 		let serialized: string;
-		if (restoreToLastReviveBuffer && this._rawReviveBuffer) {
-			serialized = this._rawReviveBuffer;
-		} else {
-			serialized = serialize.serialize(options);
+		try {
+			if (restoreToLastReviveBuffer && this._rawReviveBuffer) {
+				serialized = this._rawReviveBuffer;
+			} else {
+				serialized = serialize.serialize(options);
+			}
+		} finally {
+			serialize.dispose();
 		}
 		return {
 			events: [
