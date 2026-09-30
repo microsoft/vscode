@@ -8,6 +8,7 @@ import { SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import * as touch from '../../../../../base/browser/touch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
@@ -700,6 +701,59 @@ suite('WorkspacePicker - Connection Status', () => {
 			{ force: false, sameAnchor: true, preferredGroup: SESSION_WORKSPACE_GROUP_REMOTE, attachesContext: undefined },
 			{ force: true, sameAnchor: true, preferredGroup: SESSION_WORKSPACE_GROUP_REMOTE, attachesContext: undefined },
 		]);
+	});
+
+	test('ignores the ghost click that follows a touch tap so a single tap does not re-close the picker', () => {
+		class ClockPicker extends WorkspacePicker {
+			now = 1000;
+			protected override _now(): number {
+				return this.now;
+			}
+		}
+		providersService.setProviders([createMockProvider('local-1')]);
+		let visible = false;
+		let showCount = 0;
+		let hideCount = 0;
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			undefined,
+			ClockPicker,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			upcastPartial<IActionWidgetService>({
+				get isVisible() { return visible; },
+				show: () => { visible = true; showCount++; },
+				hide: () => { visible = false; hideCount++; },
+				updateItems: () => { },
+			}),
+		) as ClockPicker;
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [
+			{ label: 'Folder', ariaLabel: 'Choose a folder', icon: Codicon.folder, group: SESSION_WORKSPACE_GROUP_LOCAL },
+		]);
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+
+		// A touch tap opens the picker; the browser ghost click that follows must be ignored.
+		picker.now = 1000;
+		trigger.dispatchEvent(new CustomEvent(touch.EventType.Tap, { bubbles: true, cancelable: true }));
+		picker.now = 1200;
+		trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const afterTapAndGhostClick = { visible, showCount, hideCount };
+
+		// A deliberate mouse click (no preceding tap) after the guard window still toggles it closed.
+		picker.now = 5000;
+		trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const afterDeliberateClick = { visible, showCount, hideCount };
+
+		assert.deepStrictEqual({ afterTapAndGhostClick, afterDeliberateClick }, {
+			afterTapAndGhostClick: { visible: true, showCount: 1, hideCount: 0 },
+			afterDeliberateClick: { visible: false, showCount: 1, hideCount: 1 },
+		});
 	});
 
 	test('keeps the unified remote submenu open when session types change while open', () => {
