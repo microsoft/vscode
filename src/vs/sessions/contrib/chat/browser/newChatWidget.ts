@@ -68,7 +68,7 @@ import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTrac
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
@@ -1399,7 +1399,13 @@ export class NewChatWidget extends Disposable {
 	 * across sessions.
 	 */
 	private _restoreAndPersistSessionOptionsExpanded(): void {
-		this._sessionOptionsExpanded.set(this.storageService.getBoolean(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE, true), undefined);
+		const storedExpanded = this.storageService.getBoolean(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE);
+		let initialExpanded = storedExpanded ?? true;
+		if (storedExpanded === undefined && isExperimentalSessionComposerLayoutEnabled(this.configurationService)) {
+			logSettingExperimentTrigger(this.telemetryService, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING);
+			initialExpanded = this.configurationService.getValue<boolean>(NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING);
+		}
+		this._sessionOptionsExpanded.set(initialExpanded, undefined);
 		this._register(autorun(reader => {
 			this.storageService.store(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, this._sessionOptionsExpanded.read(reader), StorageScope.PROFILE, StorageTarget.USER);
 		}));

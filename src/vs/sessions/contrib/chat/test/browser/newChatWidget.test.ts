@@ -24,7 +24,7 @@ import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING } from '../../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -209,6 +209,10 @@ interface ISessionCountHarness {
 
 interface ISessionOptionsPersistenceHarness {
 	readonly storageService: IStorageService;
+	readonly configurationService: {
+		getValue<T>(key: string): T;
+	};
+	readonly telemetryService: ITelemetryService;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
 	_register<T extends IDisposable>(disposable: T): T;
 }
@@ -339,24 +343,39 @@ suite('NewChatWidget', () => {
 
 	test('remembers the session options expanded state across composers', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
-		const restore = (initial: boolean) => {
+		const telemetryService = new TestExperimentTriggerTelemetryService();
+		const restore = (initial: boolean, expandedByDefault: boolean) => {
 			const expanded = observableValue('sessionOptionsExpanded', initial);
 			restoreAndPersistSessionOptionsExpanded.call({
 				storageService,
+				configurationService: {
+					getValue: <T>(key: string) => ({
+						[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
+						[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
+						[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING]: expandedByDefault,
+					})[key] as T,
+				},
+				telemetryService,
 				_sessionOptionsExpanded: expanded,
 				_register: disposable => disposables.add(disposable),
 			});
 			return expanded;
 		};
 
-		// No stored preference restores the expanded default, then collapsing is persisted and
-		// restored by the next composer.
-		const first = restore(false);
-		const defaultExpanded = first.get();
-		first.set(false, undefined);
-		const restoredCollapsed = restore(true).get();
+		const first = restore(true, false);
+		const configuredDefault = first.get();
+		first.set(true, undefined);
+		const restoredUserChoice = restore(false, false).get();
 
-		assert.deepStrictEqual({ defaultExpanded, restoredCollapsed }, { defaultExpanded: true, restoredCollapsed: false });
+		assert.deepStrictEqual({
+			configuredDefault,
+			restoredUserChoice,
+			triggers: telemetryService.triggers,
+		}, {
+			configuredDefault: false,
+			restoredUserChoice: true,
+			triggers: [`config.${NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING}`],
+		});
 	});
 
 	test('workspace remains visible while repository and harness controls expand without being recreated', () => {
