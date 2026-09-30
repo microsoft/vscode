@@ -57,6 +57,15 @@ export interface ChatState {
 	/** How this chat came into existence */
 	origin?: ChatOrigin;
 	/**
+	 * Whether this chat is eligible to be the source of `moveChat`, including
+	 * same-session ordering.
+	 *
+	 * The host is authoritative. Absence means `false`. A `true` value does not
+	 * guarantee that a particular request will succeed. A chat referenced by its
+	 * owning session's `defaultChat` MUST NOT be movable.
+	 */
+	movable?: boolean;
+	/**
 	 * How the user can interact with this chat. See {@link ChatInteractivity}.
 	 *
 	 * Supports agent-team patterns where worker chats are read-only or hidden.
@@ -156,6 +165,13 @@ export interface ChatSummary {
 	changes?: ChangesSummary;
 	/** How this chat came into existence */
 	origin?: ChatOrigin;
+	/**
+	 * Whether this chat is structurally eligible to be the source of
+	 * `moveChat`. Absence means `false`.
+	 *
+	 * See {@link ChatState.movable} for the full semantics.
+	 */
+	movable?: boolean;
 	/**
 	 * How the user can interact with this chat. See {@link ChatInteractivity}.
 	 *
@@ -298,8 +314,9 @@ export interface SideChatSelection {
 }
 
 /**
- * How a chat came into existence. Clients MAY use it to render
- * contextual UI (parent indicators, fork markers, "spawned by tool" badges).
+ * How a chat came into existence. Clients MAY use it to render creation
+ * provenance (fork markers and "spawned by tool" badges). Any host-internal
+ * hierarchy used to move a complete chat subtree is not exposed by AHP.
  *
  * Fork and side-chat origins both carry a stable top-level `turnId` alongside
  * their discriminated `kind` value instead of snapshotting whether that turn

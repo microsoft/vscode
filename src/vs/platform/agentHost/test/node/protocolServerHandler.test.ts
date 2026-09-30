@@ -23,7 +23,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { AgentCanvasAvailability, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
-import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
+import { ChatMoveDestinationKind, ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
@@ -2731,6 +2731,30 @@ suite('ProtocolServerHandler', () => {
 				result: null,
 				disposed: [{ session: sessionUri, chat: peerChat }],
 				inCatalog: false,
+			});
+		});
+
+		test('moveChat rejects every chat because none are movable', async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.addChat(sessionUri, peerChat);
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'moveChat', {
+				channel: peerChat,
+				destination: { kind: ChatMoveDestinationKind.Session, session: sessionUri },
+			}));
+			const resp = await responsePromise as { error?: { code: number; message: string } };
+
+			assert.deepStrictEqual({
+				code: resp.error?.code,
+				message: resp.error?.message,
+				catalog: stateManager.getSessionState(sessionUri)?.chats.map(c => c.resource),
+			}, {
+				code: JsonRpcErrorCodes.InvalidParams,
+				message: `Chat is not movable: ${peerChat}`,
+				catalog: [buildDefaultChatUri(sessionUri), peerChat],
 			});
 		});
 	});

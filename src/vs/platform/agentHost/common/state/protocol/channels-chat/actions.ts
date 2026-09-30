@@ -556,6 +556,24 @@ export interface ChatBackgroundWorkRemovedAction {
 }
 
 /**
+ * Whether this chat is structurally eligible to be the source of `moveChat`
+ * changed.
+ *
+ * The host is authoritative and MUST also update the owning session's chat
+ * catalog with `session/chatUpdated` so `ChatSummary.movable` stays in sync.
+ * A chat referenced by its owning session's `defaultChat` MUST always carry
+ * `movable: false`.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatMovableChangedAction {
+	type: ActionType.ChatMovableChanged;
+	/** Whether this chat is structurally eligible to be moved. */
+	movable: boolean;
+}
+
+/**
  * The {@link Changeset | catalogue of changesets} the agent host advertises
  * for this chat changed. Replaces
  * {@link ChatState.changesets | `state.changesets`} entirely
@@ -897,6 +915,7 @@ export type ChatAction =
 	| ChatActivityChangedAction
 	| ChatBackgroundWorkSetAction
 	| ChatBackgroundWorkRemovedAction
+	| ChatMovableChangedAction
 	| ChatChangesetsChangedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction
