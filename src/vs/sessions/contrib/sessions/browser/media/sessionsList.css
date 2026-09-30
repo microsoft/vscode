@@ -1202,6 +1202,10 @@
 	border-color: var(--vscode-contrastBorder);
 }
 
+.monaco-tree-sticky-row .session-section-new-session .session-section-keybinding {
+	margin-right: var(--vscode-spacing-size80);
+}
+
 .monaco-list-row:is(:hover, .hovered) .session-section .session-section-toolbar,
 .monaco-list-row.focused .session-section .session-section-toolbar,
 .monaco-list-row .session-section.dropdown-active .session-section-toolbar {
