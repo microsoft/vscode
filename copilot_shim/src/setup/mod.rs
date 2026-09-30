@@ -149,6 +149,11 @@ impl<R: EnvironmentEffects> EnvironmentEffects for SearchPathRuntime<'_, R> {
 	fn environment_variable(&self, name: &str) -> Option<OsString> {
 		self.inner.environment_variable(name)
 	}
+
+	#[cfg(unix)]
+	fn is_root(&self) -> bool {
+		self.inner.is_root()
+	}
 }
 
 impl<R: FileSystemEffects> FileSystemEffects for SearchPathRuntime<'_, R> {

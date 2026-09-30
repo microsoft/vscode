@@ -20,6 +20,7 @@ const CODE_PAGE_UNICODE: u16 = 0x04b0;
 
 fn main() {
 	println!("cargo:rerun-if-changed=build.rs");
+	println!("cargo:rerun-if-changed=Cargo.toml");
 	if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows")
 		|| env::var("CARGO_CFG_TARGET_ENV").as_deref() != Ok("msvc")
 	{

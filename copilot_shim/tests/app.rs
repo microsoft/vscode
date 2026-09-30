@@ -67,7 +67,10 @@ fn windows_binary_embeds_the_package_version() {
 			fixed.dwFileVersionMS & 0xFFFF,
 			fixed.dwFileVersionLS >> 16,
 		],
-		expected
+		expected,
+		"the Windows version resource in {} must match Cargo.toml version {}",
+		env!("CARGO_BIN_EXE_copilot"),
+		env!("CARGO_PKG_VERSION"),
 	);
 }
 

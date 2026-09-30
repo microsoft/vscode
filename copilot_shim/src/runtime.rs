@@ -47,6 +47,11 @@ pub(crate) trait EnvironmentEffects {
 	fn environment_variable(&self, _name: &str) -> Option<OsString> {
 		None
 	}
+
+	#[cfg(unix)]
+	fn is_root(&self) -> bool {
+		false
+	}
 }
 
 pub(crate) trait FileSystemEffects {
@@ -68,6 +73,10 @@ pub(crate) trait UserInteractionEffects {
 	fn prompt(&self) -> io::Result<PromptResponse>;
 
 	fn write_diagnostic(&self, _message: &str) {}
+
+	fn write_message(&self, message: &str) {
+		self.write_diagnostic(message);
+	}
 }
 
 pub(crate) trait ProcessEffects {
@@ -140,6 +149,11 @@ impl EnvironmentEffects for NativeRuntime {
 
 	fn environment_variable(&self, name: &str) -> Option<OsString> {
 		std::env::var_os(name)
+	}
+
+	#[cfg(unix)]
+	fn is_root(&self) -> bool {
+		unsafe { libc::geteuid() == 0 }
 	}
 }
 
@@ -269,6 +283,10 @@ impl UserInteractionEffects for NativeRuntime {
 		if self.diagnostics_enabled.get() {
 			eprintln!("{message}");
 		}
+	}
+
+	fn write_message(&self, message: &str) {
+		eprintln!("{message}");
 	}
 }
 
