@@ -22,7 +22,6 @@ import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -46,7 +45,7 @@ import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../searc
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry, OmittedState } from '../../common/attachments/chatVariableEntries.js';
-import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatAgentLocation, ChatConfiguration, isSupportedChatFileScheme } from '../../common/constants.js';
+import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
@@ -535,16 +534,18 @@ export class AttachContextAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const keybindingService = accessor.get(IKeybindingService);
 		const contextPickService = accessor.get(IChatContextPickService);
-		const configurationService = accessor.get(IConfigurationService);
+		const quickInputService = accessor.get(IQuickInputService);
 
 		const context = args[0] as (IChatExecuteActionContext & { placeholder?: string; anchor?: HTMLElement }) | undefined;
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget || widget.isTranscriptProgressActive) {
 			return;
 		}
-		const anchor = configurationService.getValue<boolean>(ChatConfiguration.AnchoredContextPicker)
-			? context?.anchor ?? widget.inputPart.attachContextButtonElement
-			: undefined;
+		const anchor = context?.anchor ?? widget.inputPart.attachContextButtonElement;
+		if (anchor && quickInputService.currentQuickInput?.anchor === anchor) {
+			await quickInputService.cancel();
+			return;
+		}
 
 		const quickPickItems: IContextPickItemItem[] = [];
 

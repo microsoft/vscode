@@ -54,6 +54,7 @@ const updateInitializationLoadingState = Reflect.get(NewChatInputWidget.prototyp
 const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_setLoadingSpinnerVisible') as (this: ILoadingSpinnerHarness, visible: boolean) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
 const showContextPicker = Reflect.get(NewChatInputWidget.prototype, '_showContextPicker') as (this: IContextPickerHarness) => void;
+const showAttachmentPicker = Reflect.get(NewChatContextAttachments.prototype, 'showPicker') as (this: IAttachmentPickerHarness, folderUri?: URI, contextActions?: readonly [], anchor?: HTMLElement) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
 
@@ -141,9 +142,6 @@ interface IInitializationLoadingHarness {
 }
 
 interface IContextPickerHarness {
-	readonly configurationService: {
-		getValue<T>(key: string): T;
-	};
 	readonly options: {
 		readonly getContextFolderUri: () => URI | undefined;
 		readonly getContextPickerActions?: () => readonly [];
@@ -151,6 +149,13 @@ interface IContextPickerHarness {
 	readonly _attachButton: HTMLElement | undefined;
 	readonly _contextAttachments: {
 		showPicker(folderUri?: URI, contextActions?: readonly [], anchor?: HTMLElement): void;
+	};
+}
+
+interface IAttachmentPickerHarness {
+	readonly quickInputService: {
+		readonly currentQuickInput: { readonly anchor?: unknown } | undefined;
+		cancel(): Promise<void>;
 	};
 }
 
@@ -287,15 +292,11 @@ suite('NewChatInputWidget', () => {
 		});
 	});
 
-	test('anchors the context picker to the attach button only when configured', () => {
+	test('anchors the context picker to the attach button', () => {
 		const attachButton = document.createElement('div');
 		const folderUri = URI.file('/workspace');
 		const calls: Array<{ folderUri: URI | undefined; anchor: HTMLElement | undefined }> = [];
-		const anchoredContextPicker = { enabled: false };
 		const harness: IContextPickerHarness = {
-			configurationService: {
-				getValue: <T>() => anchoredContextPicker.enabled as T,
-			},
 			options: {
 				getContextFolderUri: () => folderUri,
 				getContextPickerActions: () => [],
@@ -307,16 +308,28 @@ suite('NewChatInputWidget', () => {
 		};
 
 		showContextPicker.call(harness);
-		anchoredContextPicker.enabled = true;
-		showContextPicker.call(harness);
 
 		assert.deepStrictEqual(calls.map(call => ({
 			folderUri: call.folderUri?.toString(),
 			anchor: call.anchor === attachButton ? 'attachButton' : undefined,
 		})), [
-			{ folderUri: folderUri.toString(), anchor: undefined },
 			{ folderUri: folderUri.toString(), anchor: 'attachButton' },
 		]);
+	});
+
+	test('hides the anchored context picker when its button is activated again', () => {
+		const attachButton = document.createElement('div');
+		let cancelCount = 0;
+		const harness: IAttachmentPickerHarness = {
+			quickInputService: {
+				currentQuickInput: { anchor: attachButton },
+				cancel: async () => { cancelCount++; },
+			},
+		};
+
+		showAttachmentPicker.call(harness, undefined, [], attachButton);
+
+		assert.strictEqual(cancelCount, 1);
 	});
 
 	test('shows loading in the send button slot', () => {

@@ -27,7 +27,6 @@ export const enum BYOKUtilityModelDefault {
 }
 
 export enum ChatConfiguration {
-	AnchoredContextPicker = 'chat.experimental.anchoredContextPicker',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
