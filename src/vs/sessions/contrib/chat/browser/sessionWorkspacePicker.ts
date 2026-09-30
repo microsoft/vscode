@@ -669,6 +669,11 @@ export class WorkspacePicker extends Disposable {
 		// A touch tap fires a Gesture Tap and then a browser ghost click; ignore that click so a
 		// single tap does not open and immediately re-close the picker.
 		let lastTapAt = 0;
+		triggerDisposables.add(dom.addDisposableListener(dom.getWindow(trigger).document, dom.EventType.CLICK, e => {
+			if (this._now() - lastTapAt < GHOST_CLICK_GUARD_MS) {
+				dom.EventHelper.stop(e, true);
+			}
+		}, true));
 		triggerDisposables.add(dom.addDisposableListener(trigger, touch.EventType.Tap, (e) => {
 			lastTapAt = this._now();
 			dom.EventHelper.stop(e, true);

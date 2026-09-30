@@ -703,7 +703,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		]);
 	});
 
-	test('ignores the ghost click that follows a touch tap so a single tap does not re-close the picker', () => {
+	test('ignores the retargeted ghost click that follows a touch tap so a single tap does not re-close the picker', () => {
 		class ClockPicker extends WorkspacePicker {
 			now = 1000;
 			protected override _now(): number {
@@ -733,17 +733,26 @@ suite('WorkspacePicker - Connection Status', () => {
 			}),
 		) as ClockPicker;
 		const container = document.createElement('div');
+		const popupItem = document.createElement('button');
+		let popupSelectionCount = 0;
+		popupItem.addEventListener('click', () => popupSelectionCount++);
+		document.body.append(container, popupItem);
+		disposables.add(toDisposable(() => {
+			container.remove();
+			popupItem.remove();
+		}));
 		picker.renderCategoryTriggers(container, [
 			{ label: 'Folder', ariaLabel: 'Choose a folder', icon: Codicon.folder, group: SESSION_WORKSPACE_GROUP_LOCAL },
 		]);
 		const trigger = container.querySelector<HTMLElement>('.action-label')!;
 
-		// A touch tap opens the picker; the browser ghost click that follows must be ignored.
+		// The popup opens before the browser's ghost click, so the click can land on a popup item
+		// that replaced the trigger beneath the touch point.
 		picker.now = 1000;
 		trigger.dispatchEvent(new CustomEvent(touch.EventType.Tap, { bubbles: true, cancelable: true }));
 		picker.now = 1200;
-		trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-		const afterTapAndGhostClick = { visible, showCount, hideCount };
+		popupItem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const afterTapAndGhostClick = { visible, showCount, hideCount, popupSelectionCount };
 
 		// A deliberate mouse click (no preceding tap) after the guard window still toggles it closed.
 		picker.now = 5000;
@@ -751,7 +760,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		const afterDeliberateClick = { visible, showCount, hideCount };
 
 		assert.deepStrictEqual({ afterTapAndGhostClick, afterDeliberateClick }, {
-			afterTapAndGhostClick: { visible: true, showCount: 1, hideCount: 0 },
+			afterTapAndGhostClick: { visible: true, showCount: 1, hideCount: 0, popupSelectionCount: 0 },
 			afterDeliberateClick: { visible: false, showCount: 1, hideCount: 1 },
 		});
 	});
