@@ -120,7 +120,7 @@
 	position: absolute;
 	top: 100%;
 	right: 0;
-	left: 0;
+	left: var(--vscode-cornerRadius-large);
 	height: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-editorWidget-background, var(--session-view-background));
 	pointer-events: none;
