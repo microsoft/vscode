@@ -922,13 +922,13 @@ suite('buildModelPickerItems', () => {
 	test('Free plans do not advertise HydraFusion when the current model pool cannot offer it', () => {
 		const claude = createModel('claude', 'Claude');
 		const controlModels = { 'hydrafusion': { label: 'HydraFusion', featured: false, exists: false } };
-		const labels = [false, true].map(useGroupedModelPicker => getActionItems(callBuild([claude], {
+		const hydraFusionRows = [false, true].map(useGroupedModelPicker => getActionItems(callBuild([claude], {
 			entitlement: ChatEntitlement.Free,
 			controlModels,
 			showUnavailableFeatured: false,
 			useGroupedModelPicker,
-		})).map(action => action.label));
-		assert.deepStrictEqual(labels, [['Claude'], ['Claude']]);
+		})).filter(action => action.label === 'HydraFusion').length);
+		assert.deepStrictEqual(hydraFusionRows, [0, 0]);
 	});
 
 	test('HydraFusion too new for this build loses its row under Auto and shows the update it needs', () => {

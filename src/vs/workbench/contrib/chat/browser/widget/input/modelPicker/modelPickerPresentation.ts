@@ -38,7 +38,12 @@ export function filterModelPickerControlModelsForEntitlement(
 	const hydraFusion = controlModels[COPILOT_HYDRA_FUSION_MODEL_ID];
 	const liveHydraFusion = models.find(model => isHydraFusionModel(model) && !isUserProvidedModel(model, languageModelsService));
 	if (!liveHydraFusion) {
-		return controlModels;
+		if (!hydraFusion) {
+			return controlModels;
+		}
+		const modelsWithoutHydraFusion = { ...controlModels };
+		delete modelsWithoutHydraFusion[COPILOT_HYDRA_FUSION_MODEL_ID];
+		return modelsWithoutHydraFusion;
 	}
 	return {
 		...controlModels,

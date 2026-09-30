@@ -548,6 +548,7 @@ function renderInputPicker(context: ComponentFixtureContext, initialModel = COPI
 		{
 			currentModel: selected,
 			setModel: model => selected.set(model, undefined),
+			setModelProgrammatically: model => selected.set(model, undefined),
 			getModels: () => COPILOT_ONLY_MODELS,
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true, showManageModelsAction: false, showUnavailableFeatured: false,
