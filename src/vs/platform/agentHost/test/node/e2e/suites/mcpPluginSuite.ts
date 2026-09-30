@@ -15,7 +15,7 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, customizationId, CustomizationType, ResponsePartKind, ROOT_STATE_URI, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
-import { createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -234,6 +234,16 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
 			.filter(({ envelope, action }) => envelope.channel === buildDefaultChatUri(sessionUri) && action.turnId === turnId)
 			.map(({ action }) => textFromContent(action.result.content ?? []));
+	}
+
+	function assertProbeToolSucceeded(sessionUri: string, turnId: string): void {
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId,
+			toolNames: ['customization_probe_server-customization_probe'],
+			expected: [/MCP_PLUGIN_RESULT/],
+			success: true,
+		});
 	}
 
 	async function waitForHook(hookLog: string | undefined, hookType: NonNullable<IPluginSessionOptions['hookType']>): Promise<string> {
@@ -479,13 +489,8 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 			const hookContent = await waitForHook(hookLog, 'PreToolUse');
 
-			assert.deepStrictEqual({
-				hookSawTool: hookContent.includes('customization_probe'),
-				toolSucceeded: toolResultTexts(sessionUri, turnId).includes('MCP_PLUGIN_RESULT'),
-			}, {
-				hookSawTool: true,
-				toolSucceeded: true,
-			});
+			assertProbeToolSucceeded(sessionUri, turnId);
+			assert.ok(hookContent.includes('customization_probe'));
 		});
 
 		pluginHookTest('plugin PostToolUse hook runs after an MCP tool result', async function () {
@@ -497,13 +502,8 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 			const hookContent = await waitForHook(hookLog, 'PostToolUse');
 
-			assert.deepStrictEqual({
-				hookSawResult: hookContent.includes('MCP_PLUGIN_RESULT'),
-				toolSucceeded: toolResultTexts(sessionUri, turnId).includes('MCP_PLUGIN_RESULT'),
-			}, {
-				hookSawResult: true,
-				toolSucceeded: true,
-			});
+			assertProbeToolSucceeded(sessionUri, turnId);
+			assert.ok(hookContent.includes('MCP_PLUGIN_RESULT'));
 		});
 
 		pluginHookTest('plugin SessionEnd hook runs when the session is disposed', async function () {
@@ -536,13 +536,8 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			const result = await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 
 			await waitForHook(hookLog, 'PostToolUse');
-			assert.deepStrictEqual({
-				responseIncludesResult: result.responseText.includes('MCP_PLUGIN_RESULT'),
-				toolSucceeded: toolResultTexts(sessionUri, turnId).includes('MCP_PLUGIN_RESULT'),
-			}, {
-				responseIncludesResult: true,
-				toolSucceeded: true,
-			});
+			assertProbeToolSucceeded(sessionUri, turnId);
+			assert.ok(result.responseText.includes('MCP_PLUGIN_RESULT'));
 		});
 
 		test('plugin MCP tool executes and returns its result to the model', async function () {
