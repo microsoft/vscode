@@ -529,6 +529,7 @@ export interface SessionChatSummary {
 	 * backward compatibility.
 	 */
 	interactivity?: ChatInteractivity;
+	archived?: boolean;
 }
 
 /**
