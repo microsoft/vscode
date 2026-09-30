@@ -739,7 +739,7 @@ mod tests {
 	#[cfg(unix)]
 	#[test]
 	fn native_runtime_uses_process_supervisor() {
-		let runtime = NativeRuntime;
+		let runtime = NativeRuntime::default();
 
 		let outcome = runtime
 			.supervise(
