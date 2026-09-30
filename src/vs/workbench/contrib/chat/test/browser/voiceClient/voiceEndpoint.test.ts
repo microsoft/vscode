@@ -100,8 +100,8 @@ suite('Voice endpoint', () => {
 			voice: getVoiceWebSocketUrl(configurationService, productService),
 			transcription: getTranscriptionWebSocketUrl(configurationService, productService),
 		}, {
-			voice: 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice',
-			transcription: 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/transcription',
+			voice: 'wss://voice.test/voice-code/api/v1/realtime/voice?product=stable',
+			transcription: 'wss://voice.test/voice-code/api/v1/realtime/transcription?product=stable',
 		});
 	});
 

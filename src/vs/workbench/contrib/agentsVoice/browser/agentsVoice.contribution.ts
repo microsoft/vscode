@@ -686,7 +686,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentsVoiceSettingId.GptLiveBackendUrl]: {
 			type: 'string',
-			description: nls.localize('agents.voice.gptLive.backendUrl', "GPT Live voice backend WebSocket URL used when `agents.voice.gptLive.enabled` is enabled. Leave empty to use the default GPT Live backend."),
+			description: nls.localize('agents.voice.gptLive.backendUrl', "Optional GPT Live voice backend WebSocket URL override used when `agents.voice.gptLive.enabled` is enabled. Leave empty to use the standard hosted Voice Mode endpoint."),
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,

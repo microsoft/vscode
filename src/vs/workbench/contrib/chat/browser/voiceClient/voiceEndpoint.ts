@@ -28,7 +28,7 @@ function getHostedVoiceWebSocketUrl(configurationService: IConfigurationService,
 	if (isGptLiveEnabled(configurationService)) {
 		const configured = configurationService.getValue<string>(AgentsVoiceSettingId.GptLiveBackendUrl);
 		const configuredUrl = typeof configured === 'string' ? configured.trim() : '';
-		return configuredUrl || GPT_LIVE_VOICE_WS_URL;
+		return configuredUrl || productService.voiceWsUrl || GPT_LIVE_VOICE_WS_URL;
 	}
 	return productService.voiceWsUrl || '';
 }
