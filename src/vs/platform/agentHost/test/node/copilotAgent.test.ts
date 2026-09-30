@@ -79,6 +79,7 @@ import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHos
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
+import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import { GITHUB_MCP_SERVER_NAME } from '../../node/shared/githubMcpServer.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
@@ -823,6 +824,7 @@ interface ICredentialUpdateSession {
 }
 
 class MockCopilotSession {
+	readonly openCanvases: CopilotSession['openCanvases'] = [];
 	readonly mcpStartCalls: string[] = [];
 	readonly mcpStopCalls: string[] = [];
 	mcpStartGate: Promise<void> | undefined;
@@ -856,6 +858,12 @@ class MockCopilotSession {
 			read: async () => ({ events: [], cursor: 'end', hasMore: false, cursorStatus: 'ok' as const }),
 			registerInterest: async () => ({ handle: 'sampling-interest' }),
 			releaseInterest: async () => ({ success: true }),
+		},
+		extensions: {
+			list: async () => ({ extensions: [] }),
+		},
+		canvas: {
+			list: async () => ({ canvases: [] }),
 		},
 		options: {
 			update: async () => ({ success: true }),
@@ -1137,6 +1145,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		const sessionUri = AgentSession.uri('copilotcli', sessionId);
 		const emitter = (this as unknown as { _onDidChatProgress: { fire(s: AgentSignal): void } })._onDidChatProgress;
 		let turnId = '';
+		let extensionLaunchAdmission: IDisposable | undefined;
 		// `_chatEntriesBySdkId` is a DisposableMap, so it will dispose() the entry on
 		// teardown. The fields below are the only ones touched by sendMessage
 		// and getSessionMessages in the code under test.
@@ -1144,7 +1153,12 @@ class TestableCopilotAgent extends CopilotAgent {
 			send: fake.send,
 			getMessages: fake.getMessages,
 			appliedSnapshot: undefined,
-			dispose: fake.dispose,
+			extensionLaunchDirectories: [],
+			setExtensionLaunchAdmission: (admission: IDisposable) => { extensionLaunchAdmission = admission; },
+			dispose: () => {
+				extensionLaunchAdmission?.dispose();
+				fake.dispose();
+			},
 			onDidRequireAuth: Event.None,
 			hasRunningDetachedShells: async () => false,
 			resetTurnState: (newTurnId: string) => { turnId = newTurnId; },
@@ -1279,6 +1293,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 			},
 			resumeSession: async (_id, options) => { reportManagedSettings(options); return mockSession as unknown as CopilotSession; },
 		},
+		extensionSdkPath: '/copilot-sdk',
 		// Production always launches with the owning session's live registry
 		// (`activeClient.toolSet`), so default to it here too; a test that
 		// needs an isolated registry passes its own.
@@ -1786,6 +1801,61 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('shutdown during extension launch admission cancels before SDK initialization', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const admissionStarted = new DeferredPromise<void>();
+			const releaseAdmission = new DeferredPromise<void>();
+			let admissionDisposed = false;
+			let sessionDisposed = false;
+			let admissionAttached = false;
+			let initializationCalls = 0;
+			let registered = false;
+			const internals = agent as unknown as {
+				_acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable>;
+				_initializeAndRegisterSession(session: CopilotAgentSession, register: () => void): Promise<void>;
+			};
+			internals._acquireExtensionLaunchAdmission = async () => {
+				admissionStarted.complete();
+				await releaseAdmission.p;
+				return toDisposable(() => { admissionDisposed = true; });
+			};
+			const session = {
+				extensionLaunchDirectories: [URI.file('/workspace')],
+				setExtensionLaunchAdmission: () => { admissionAttached = true; },
+				initializeSession: async () => { initializationCalls++; },
+				dispose: () => { sessionDisposed = true; },
+			} as unknown as CopilotAgentSession;
+
+			try {
+				const initialization = assert.rejects(
+					() => internals._initializeAndRegisterSession(session, () => { registered = true; }),
+					(error: unknown) => isCancellationError(error),
+				);
+				await admissionStarted.p;
+				const shutdown = agent.shutdown();
+				releaseAdmission.complete();
+				await initialization;
+				await shutdown;
+
+				assert.deepStrictEqual({
+					admissionDisposed,
+					sessionDisposed,
+					admissionAttached,
+					initializationCalls,
+					registered,
+				}, {
+					admissionDisposed: true,
+					sessionDisposed: true,
+					admissionAttached: false,
+					initializationCalls: 0,
+					registered: false,
+				});
+			} finally {
+				releaseAdmission.complete();
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	test('selects provider-native autonomous session config, preserves allow all, and respects policy', async () => {
@@ -1834,16 +1904,39 @@ suite('CopilotAgent', () => {
 		const agent = createTestAgent(disposables, { copilotClient: client }) as TestableCopilotAgent;
 		try {
 			await agent.listChatsToMigrate();
-			const connection = getCreatedClientOptions(agent).at(-1)?.connection;
+			const clientOptions = getCreatedClientOptions(agent).at(-1);
+			const connection = clientOptions?.connection;
 			const runtimePath = connection?.kind === 'stdio' ? connection.path?.replaceAll('\\', '/') : undefined;
+			const launch = await clientOptions?.extensionLaunchProvider?.resolve({
+				id: 'user:preview',
+				name: 'preview',
+				modulePath: '/user/extensions/preview/extension.mjs',
+				source: 'user',
+			});
+			const deniedProjectLaunch = await clientOptions?.extensionLaunchProvider?.resolve({
+				id: 'project:preview',
+				name: 'preview',
+				modulePath: '/workspace/.github/extensions/preview/extension.mjs',
+				source: 'project',
+			});
 			assert.deepStrictEqual({
 				kind: connection?.kind,
 				sdkRuntime: runtimePath?.includes('/node_modules/@github/copilot-sdk-'),
 				runtimeExecutable: runtimePath?.endsWith(process.platform === 'win32' ? '/copilot-runtime.exe' : '/copilot-runtime'),
+				extensionExecutable: launch?.launch?.executable,
+				extensionBootstrap: launch?.launch?.args[0].replaceAll('\\', '/').endsWith('/preloads/extension_bootstrap.mjs'),
+				extensionPath: launch?.launch?.env.EXTENSION_PATH,
+				canvasDataDirectory: launch?.launch?.env.VSCODE_CANVAS_DATA_DIR?.replaceAll('\\', '/').startsWith('/mock-userdata/agentHostCanvasData/'),
+				projectLaunchDenied: deniedProjectLaunch?.launch === undefined,
 			}, {
 				kind: 'stdio',
 				sdkRuntime: true,
 				runtimeExecutable: true,
+				extensionExecutable: process.execPath,
+				extensionBootstrap: true,
+				extensionPath: '/user/extensions/preview/extension.mjs',
+				canvasDataDirectory: true,
+				projectLaunchDenied: true,
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -3664,8 +3757,11 @@ suite('CopilotAgent', () => {
 		const initializeStarted = new DeferredPromise<void>();
 		const initializeGate = new DeferredPromise<void>();
 		const calls: string[] = [];
+		let extensionLaunchAdmission: IDisposable | undefined;
 		const session = {
 			sessionId: 'initializing-connector-session',
+			extensionLaunchDirectories: [],
+			setExtensionLaunchAdmission(admission: IDisposable) { extensionLaunchAdmission = admission; },
 			async initializeSession() {
 				calls.push('initialize');
 				initializeStarted.complete();
@@ -3673,7 +3769,7 @@ suite('CopilotAgent', () => {
 				calls.push('initialized');
 			},
 			markConnectorConfigurationChanged() { calls.push('refresh'); },
-			dispose() { },
+			dispose() { extensionLaunchAdmission?.dispose(); },
 		} as unknown as CopilotAgentSession;
 		try {
 			const initialization = (agent as unknown as {
@@ -3695,6 +3791,7 @@ suite('CopilotAgent', () => {
 			});
 		} finally {
 			initializeGate.complete();
+			session.dispose();
 			await disposeAgent(agent);
 		}
 	});
@@ -9813,10 +9910,12 @@ suite('CopilotAgent', () => {
 				sessionUri: AgentSession.uri('copilotcli', launchPlan.sessionId),
 				chatChannelUri,
 				sessionId: launchPlan.sessionId,
+				extensionLaunchDirectories: [],
 				appliedSnapshot: { tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
 				mcpServerStates: observableValue('test', []),
+				setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 				async initializeSession(): Promise<void> { },
 				async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> { remaps.push(mapping); },
 				async getMessages(): Promise<readonly Turn[]> { return []; },
@@ -11366,10 +11465,12 @@ suite('CopilotAgent', () => {
 					sessionUri: AgentSession.uri('copilotcli', launchPlan.sessionId),
 					chatChannelUri: identity?.chatChannelUri,
 					sessionId: launchPlan.sessionId,
+					extensionLaunchDirectories: [],
 					appliedSnapshot: { tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
 					mcpServerStates: observableValue('test', []),
+					setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 					async initializeSession(): Promise<void> {
 						if (shouldFail) {
 							throw new Error(message);
@@ -12370,7 +12471,7 @@ suite('CopilotAgent', () => {
 
 				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, defaultChatUri(result.session), result.session));
 
-				assert.deepStrictEqual(capturedConfig?.tools?.map(tool => tool.name), []);
+				assert.deepStrictEqual(capturedConfig?.tools?.map(tool => tool.name), [CopilotExtensionsReloadToolName]);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -13392,6 +13493,7 @@ suite('CopilotAgent', () => {
 				sessionUri,
 				chatChannelUri: sessionUri,
 				sessionId: sdkSessionId,
+				extensionLaunchDirectories: [],
 				appliedSnapshot: { tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 				appliedAdditionalDirectories: [],
 				appliedDisabledRootMcpServers: [],
@@ -13403,6 +13505,7 @@ suite('CopilotAgent', () => {
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
 				mcpServerStates: observableValue('test', []),
+				setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 				async initializeSession(): Promise<void> { rec.initialized = true; },
 				async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> { rec.remapCalls.push(mapping); },
 				async send(prompt: string, _attachments: unknown, turnId: string | undefined, mode: unknown, senderClientId: string | undefined): Promise<void> {
@@ -15413,10 +15516,12 @@ suite('CopilotAgent', () => {
 					sessionUri,
 					chatChannelUri,
 					sessionId: launchPlan.sessionId,
+					extensionLaunchDirectories: [],
 					appliedSnapshot: { tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
 					mcpServerStates: observableValue('test', []),
+					setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 					async initializeSession(): Promise<void> { },
 					async remapTurnIds(): Promise<void> { },
 					async getMessages(): Promise<readonly Turn[]> { return []; },
