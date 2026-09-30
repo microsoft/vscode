@@ -8793,7 +8793,7 @@ suite('CopilotAgentSession', () => {
 					diagnostics: dispatchedActions.filter(action => action.type === ActionType.SessionMetaChanged).map(action => readAgentSandboxDiagnostics(action)),
 					sandbox: mockSession.sandboxConfigUpdates.at(-1),
 				}, {
-					queries: 2,
+					queries: 3,
 					diagnostics: [['Unsupported sandbox.']],
 					sandbox: expectedSessionSandboxConfig(platform, sandbox),
 				});
