@@ -85,9 +85,11 @@ The entries are intentionally unset. WSL/SSH requires a build on the remote
 host matching its OS, architecture, and libc. This development integration
 does not discover or download production artifacts.
 
-The extension prepends that storage directory using the original
-`copilot-cli` terminal PATH contributor. Copilot-created terminals invoke the
-stored binary directly; ordinary terminals can resolve it by typing `copilot`.
+The extension appends that storage directory to the terminal `PATH` using the
+original `copilot-cli` terminal PATH contributor, like the shipped shim's
+folder, so a Copilot CLI already on `PATH` is found first. Copilot-created
+terminals invoke the stored binary directly; ordinary terminals can resolve it
+by typing `copilot`.
 The `chat.copilotCliCommand.enabled` setting and policy still control the
 contribution and invocation. Without a configured/usable shim, or when
 disabled, terminals use the ordinary `copilot` PATH fallback.

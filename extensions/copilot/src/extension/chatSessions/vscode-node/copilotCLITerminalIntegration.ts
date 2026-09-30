@@ -149,15 +149,15 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 	}
 
 	/**
-	 * Uses the native shim, and adds its directory to the terminal PATH, unless it is missing or
-	 * `chat.copilotCliCommand.enabled` (or its `CopilotCliCommand` policy) turns it off. A Copilot CLI on PATH keeps
-	 * working either way.
+	 * Uses the native shim, and adds its directory to the end of the terminal PATH, unless it is missing or
+	 * `chat.copilotCliCommand.enabled` (or its `CopilotCliCommand` policy) turns it off. Like the entry Windows setup
+	 * adds, it comes after the user's PATH, so a Copilot CLI on PATH is found first and keeps working either way.
 	 */
 	private updateCopilotCommand(): void {
 		const enabled = this.configurationService.getNonExtensionConfig<boolean>(COPILOT_CLI_COMMAND_ENABLED_SETTING) !== false;
 		if (enabled && this.nativeShimPath) {
 			this.copilotCommand = this.nativeShimPath;
-			this.terminalService.contributePath('copilot-cli', path.dirname(this.nativeShimPath), { command: COPILOT_CLI_COMMAND }, true);
+			this.terminalService.contributePath('copilot-cli', path.dirname(this.nativeShimPath), { command: COPILOT_CLI_COMMAND });
 			return;
 		}
 
