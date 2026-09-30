@@ -6680,7 +6680,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				before,
 				after: session.chats.get().map(chat => chat.backgroundShells?.get()),
 			}, {
-				before: [[{ id: 'same-id', description: 'Run tests', command: 'npm test', startedAt, attachmentMode: 'attached' }], [peerShell]],
+				before: [[{ id: 'shell:same-id', shellId: 'same-id', description: 'Run tests', command: 'npm test', startedAt, attachmentMode: 'attached' }], [peerShell]],
 				after: [[], [peerShell]],
 			});
 		});

@@ -94,6 +94,27 @@ suite('SessionBackgroundShellsControl', () => {
 		assert.strictEqual(control.sections.get()[0].entries[0].badge, '0ms');
 	}));
 
+	test('keys rows by entry id and shows the shell ID only when the agent reports one', () => {
+		const startedAt = new Date(0).toISOString();
+		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [
+			{ id: 'shell:3', shellId: '3', description: 'Run tests', command: 'npm test', startedAt },
+			{ id: 'build', description: 'Build', command: 'npm run build', startedAt },
+		]);
+		const control = store.add(new SessionBackgroundShellsControl(constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
+
+		assert.deepStrictEqual(control.sections.get()[0].entries.map(entry => {
+			const details = entry.hover?.content;
+			return {
+				id: entry.id,
+				described: entry.ariaDescription?.split('\n').filter(line => line.startsWith('Shell ID')),
+				shown: isHTMLElement(details) ? details.textContent?.includes('Shell ID') : undefined,
+			};
+		}), [
+			{ id: 'shell:3', described: ['Shell ID: 3'], shown: true },
+			{ id: 'build', described: [], shown: false },
+		]);
+	});
+
 	test('does not show shells from a previously viewed chat or an unsupported provider', () => {
 		const createChat = (command: string): IChatBackgroundShellsSource => ({
 			backgroundShells: constObservable<readonly IChatBackgroundShell[]>([{

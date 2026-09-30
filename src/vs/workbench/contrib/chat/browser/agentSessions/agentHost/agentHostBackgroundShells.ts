@@ -15,9 +15,11 @@ export function toChatBackgroundShells(work: readonly BackgroundWork[] | undefin
 		if (entry.kind !== BackgroundWorkKind.Shell) {
 			continue;
 		}
+		const shellId = readCopilotShellId(entry);
 		const attachmentMode = readCopilotShellAttachment(entry);
 		shells.push({
-			id: readCopilotShellId(entry) ?? entry.id,
+			id: entry.id,
+			...(shellId !== undefined ? { shellId } : {}),
 			description: entry.label,
 			command: entry.command,
 			startedAt: entry.startedAt,

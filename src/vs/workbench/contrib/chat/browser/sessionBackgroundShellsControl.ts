@@ -90,20 +90,23 @@ export class SessionBackgroundShellsControl extends Disposable {
 		const badge = attachment && duration
 			? localize('backgroundShells.attachmentWithDuration', "{0}, {1}", attachment, duration)
 			: attachment ?? duration;
-		const facts = localize('backgroundShells.facts', "Command: {0}\nShell ID: {1}\nStarted: {2}", shell.command, shell.id, shell.startedAt);
+		const facts = shell.shellId !== undefined
+			? localize('backgroundShells.facts', "Command: {0}\nShell ID: {1}\nStarted: {2}", shell.command, shell.shellId, shell.startedAt)
+			: localize('backgroundShells.factsWithoutId', "Command: {0}\nStarted: {1}", shell.command, shell.startedAt);
 		const detail = badge ? localize('backgroundShells.details', "{0}\n\n{1}", badge, facts) : facts;
 		const content = this._details.get(shell.id) ?? createShellDetails();
 		this._details.set(shell.id, content);
 		for (const [element, text] of [
 			[content.summary, badge ?? ''],
 			[content.command, localize('backgroundShells.command', "Command: {0}", shell.command)],
-			[content.shellId, localize('backgroundShells.id', "Shell ID: {0}", shell.id)],
+			[content.shellId, shell.shellId !== undefined ? localize('backgroundShells.id', "Shell ID: {0}", shell.shellId) : ''],
 			[content.startedAt, localize('backgroundShells.startedAt', "Started: {0}", shell.startedAt)],
 		] as const) {
 			if (element.textContent !== text) {
 				element.textContent = text;
 			}
 		}
+		content.shellId.hidden = shell.shellId === undefined;
 		return {
 			id: shell.id,
 			label: name,
