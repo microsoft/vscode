@@ -54,6 +54,7 @@ interface IQueuedRequest {
 	priority: GitHubRequestPriority;
 	readonly run: () => void;
 	readonly cancel: (reason: unknown) => void;
+	readonly expire: () => void;
 }
 
 export class GitHubRequestQueue extends Disposable {
@@ -82,7 +83,8 @@ export class GitHubRequestQueue extends Disposable {
 		}
 	}
 
-	enqueue<T>(context: GitHubRequestContext, task: (signal: AbortSignal, onDispatch: () => void) => Promise<T>): Promise<T> {
+	/** Calls onAdmitted synchronously only after retaining a request slot. */
+	enqueue<T>(context: GitHubRequestContext, task: (signal: AbortSignal, onDispatch: () => void) => Promise<T>, onAdmitted?: () => void): Promise<T> {
 		if (context.signal.aborted) {
 			return Promise.reject(context.signal.reason);
 		}
@@ -153,15 +155,17 @@ export class GitHubRequestQueue extends Disposable {
 					controller.abort(reason);
 					finish(() => reject(reason), gitHubRequestOutcome(reason, true));
 				},
+				expire: () => request.cancel(new GitHubRequestTimeoutError(dispatched)),
 			};
 			const onAbort = () => request.cancel(context.signal.reason);
 			store.add(toDisposable(() => context.signal.removeEventListener('abort', onAbort)));
 			context.signal.addEventListener('abort', onAbort, { once: true });
 			store.add(this._scheduler.schedule(
-				() => request.cancel(new GitHubRequestTimeoutError(dispatched)),
+				request.expire,
 				context.deadline - this._scheduler.now(),
 			));
 			this._pending.push(request);
+			onAdmitted?.();
 			this._telemetry?.recordQueueSize(this._active.size, this._pending.length);
 			this._drain();
 		});
@@ -205,9 +209,9 @@ export class GitHubRequestQueue extends Disposable {
 		try {
 			this._wake.clear();
 			// Wall-clock deadlines can expire before their timers fire after suspend or a clock adjustment.
-			for (const request of [...this._pending]) {
+			for (const request of [...this._pending, ...this._active]) {
 				if (request.context.deadline <= this._scheduler.now()) {
-					request.cancel(new GitHubRequestTimeoutError());
+					request.expire();
 				}
 			}
 			// Selection and wake-up scheduling must use the same cooldown sample.
@@ -253,7 +257,7 @@ export class GitHubRequestQueue extends Disposable {
 		for (let index = 0; index < this._pending.length; index++) {
 			const candidate = this._pending[index];
 			if (candidate.context.deadline <= this._scheduler.now()) {
-				candidate.cancel(new GitHubRequestTimeoutError());
+				candidate.expire();
 				index--;
 				continue;
 			}

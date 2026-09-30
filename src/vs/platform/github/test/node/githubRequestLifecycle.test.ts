@@ -23,6 +23,28 @@ suite('GitHub request lifecycle', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const kind of ['rest', 'graphql'] as const) {
+		test(`${kind}: bounds retained timers during a synchronous rejected-request burst`, async () => {
+			const scheduler = store.add(new FakeGitHubScheduler());
+			const transport = store.add(new GitHubTransport(async () => new Promise<Response>(() => { }), scheduler, false, undefined, {
+				queue: { maximumRequests: 4, maximumAccountRequests: 4, maximumCallerRequests: 4, reservedInteractiveRequests: 0 },
+			}));
+			const read = (index: number) => (kind === 'rest'
+				? transport.rest(account, 'token', { method: 'GET', url: `${url}?page=${index}` }, new AbortController().signal)
+				: transport.graphql(account, 'token', url, 'query Read($page: Int!) { value }', { page: index }, new AbortController().signal)
+			).then(() => 'completed', error => error instanceof GitHubRequestError ? error.kind : 'unexpected');
+			const requests = Array.from({ length: 100 }, (_, index) => read(index));
+			const burstTimers = scheduler.pendingCount;
+			requests.push(read(0));
+			const coalescedTimers = scheduler.pendingCount;
+			transport.clear();
+			const outcomes = await Promise.all(requests);
+			assert.deepStrictEqual({
+				burstTimers, coalescedTimers,
+				overloaded: outcomes.filter(outcome => outcome === 'overloaded').length,
+				timers: scheduler.pendingCount,
+			}, { burstTimers: 8, coalescedTimers: 9, overloaded: 96, timers: 0 });
+		});
+
 		test(`${kind}: classifies oversized HTTP failures before the response size error`, async () => {
 			const transport = store.add(new GitHubTransport(async () => new Response('invalid credential details', { status: 401 }), undefined, false, undefined, { maximumResponseBytes: 4 }));
 			await assert.rejects(request(transport, kind), { kind: 'authentication', statusCode: 401, responseBody: 'inva' });
@@ -146,13 +168,14 @@ suite('GitHub request lifecycle', () => {
 			const busy = transport.rest(account, 'token', {
 				method: 'GET', url: 'https://github.example.test/busy',
 			}, new AbortController().signal);
+			const rejectedBusy = assert.rejects(busy, { kind: 'timeout' });
 			await started.p;
 			const expired = request(transport, kind);
 			const outcome = expired.then(() => 'success', error => error instanceof GitHubRequestError ? error.kind : 'unexpected');
 			scheduler.advanceWallClockBy(1_000);
 			const fresh = request(transport, kind);
 			await release.complete(new Response('{}'));
-			await busy;
+			await rejectedBusy;
 			const result = await fresh;
 			assert.deepStrictEqual({ outcome: await outcome, calls, data: result.data, timers: scheduler.pendingCount }, {
 				outcome: 'timeout', calls: ['/busy', kind === 'rest' ? '/repos/owner/repo' : '/graphql'], data: { value: 'fresh' }, timers: 0,

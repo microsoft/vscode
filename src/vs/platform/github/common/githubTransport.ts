@@ -168,7 +168,11 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		if (!shared) {
 			const controller = new AbortController();
 			const requestDeadline = this._deadline({});
-			const promise = this._executeRest<unknown>(account, token, { ...request, deadline: requestDeadline }, controller.signal, cacheKey);
+			let admitted = false;
+			const promise = this._executeRest<unknown>(account, token, { ...request, deadline: requestDeadline }, controller.signal, cacheKey, () => { admitted = true; });
+			if (!admitted) {
+				return await promise as GitHubRestResponse<T>;
+			}
 			shared = { controller, deadline: requestDeadline, waiters: new Set() };
 			this._inFlight.set(coalescingKey, shared);
 			const created = shared;
@@ -375,7 +379,11 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		if (!shared) {
 			const controller = new AbortController();
 			const requestDeadline = this._deadline({});
-			const promise = this._executeGraphQL<unknown>(account, token, url, query, variables, controller.signal, priority, { caller: options.caller, deadline: requestDeadline });
+			let admitted = false;
+			const promise = this._executeGraphQL<unknown>(account, token, url, query, variables, controller.signal, priority, { caller: options.caller, deadline: requestDeadline }, () => { admitted = true; });
+			if (!admitted) {
+				return await promise as GitHubGraphQLResponse<T>;
+			}
 			shared = { controller, deadline: requestDeadline, waiters: new Set() };
 			this._graphQlInFlight.set(key, shared);
 			const created = shared;
@@ -424,6 +432,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		signal: AbortSignal,
 		priority: GitHubRequestPriority,
 		options: GitHubRequestOptions,
+		onAdmitted?: () => void,
 	): Promise<GitHubGraphQLResponse<T>> {
 		const operation = graphQLOperationName(query);
 		return this._logRequest('GraphQL', operation, account, priority, signal, () => this._enqueueWithRateLimit(account, 'graphql', priority, signal, async (signal, onDispatch) => {
@@ -460,7 +469,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			this._logRateLimit(account, 'graphql');
 			this._logService?.trace(`[GitHubTransport] GraphQL ${operation} returned ${errors.length} error(s)`);
 			return { data: json.data, errors, observedAt: this._scheduler.now() };
-		}, options, 'graphql'));
+		}, options, 'graphql', onAdmitted));
 	}
 
 	invalidateAccount(account: GitHubAccountHandle, reason?: unknown): void {
@@ -519,6 +528,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		request: GitHubRestRequest,
 		signal: AbortSignal,
 		cacheKey: string,
+		onAdmitted?: () => void,
 	): Promise<GitHubRestResponse<T>> {
 		const priority = request.priority ?? (request.method === 'GET' ? 'interactive' : 'mutation');
 		const operation = `${request.method} ${formatRequestUrl(request.url)}`;
@@ -617,7 +627,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				link: response.headers.get('link') ?? undefined,
 				observedAt: this._scheduler.now(),
 			};
-		}, request, 'rest'));
+		}, request, 'rest', onAdmitted));
 	}
 
 	private _enqueueWithRateLimit<T>(
@@ -628,6 +638,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		task: (signal: AbortSignal, onDispatch: () => void) => Promise<T>,
 		options: GitHubRequestOptions,
 		kind: GitHubRequestKind,
+		onAdmitted?: () => void,
 	): Promise<T> {
 		const context: GitHubRequestContext = {
 			account, resource, priority, signal, kind,
@@ -635,7 +646,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			deadline: this._deadline(options),
 		};
 		this._rateLimits.retainAccount(account);
-		return this._queue.enqueue(context, task);
+		return this._queue.enqueue(context, task, onAdmitted);
 	}
 
 	private async _fetchRestWithRedirects(account: GitHubAccountHandle, initialUrl: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined, onDispatch: () => void): Promise<Response> {

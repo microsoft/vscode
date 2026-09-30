@@ -232,6 +232,36 @@ suite('GitHubRequestQueue', () => {
 		});
 	});
 
+	for (const dispatched of [false, true]) {
+		test(`reclaims expired active work after a wall-clock jump (dispatched: ${dispatched})`, async () => {
+			const scheduler = store.add(new FakeGitHubScheduler());
+			const queue = store.add(new GitHubRequestQueue(scheduler, undefined, { maximumRequests: 1 }));
+			const started = new DeferredPromise<AbortSignal>();
+			const release = new DeferredPromise<void>();
+			const active = queue.enqueue(context({ deadline: 100 }), async (signal, onDispatch) => {
+				if (dispatched) {
+					onDispatch();
+				}
+				await started.complete(signal);
+				await release.p;
+			});
+			const rejected = assert.rejects(active, { kind: 'timeout', requestDispatched: dispatched });
+			const signal = await started.p;
+			scheduler.advanceWallClockBy(1_000);
+			let freshDispatched = false;
+			const fresh = queue.enqueue(context({ deadline: 2_000 }), async () => { freshDispatched = true; })
+				.then(() => 'completed', error => error instanceof GitHubRequestError ? error.kind : 'unexpected');
+			await new Promise(resolve => setTimeout(resolve, 0));
+			const dispatchedBeforeTimer = freshDispatched;
+			scheduler.advanceBy(100);
+			await rejected;
+			await release.complete();
+			assert.deepStrictEqual({ aborted: signal.aborted, dispatchedBeforeTimer, outcome: await fresh, timers: scheduler.pendingCount }, {
+				aborted: true, dispatchedBeforeTimer: true, outcome: 'completed', timers: 0,
+			});
+		});
+	}
+
 	test('aborts active requests at their deadline and releases capacity', async () => {
 		const scheduler = store.add(new FakeGitHubScheduler());
 		const queue = store.add(new GitHubRequestQueue(scheduler));
