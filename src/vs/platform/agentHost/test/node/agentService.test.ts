@@ -8168,12 +8168,19 @@ suite('AgentService (node dispatcher)', () => {
 					_readableProviderCatalogs: Set<string>;
 					_initialProviderMigrationsNeedingRetry: Set<string>;
 				};
+				const notifications: INotification[] = [];
+				disposables.add(svc.onDidNotification(notification => notifications.push(notification)));
 
 				const beforeReconciliation = await svc.listSessions();
+				publishListResult(svc, beforeReconciliation);
 				const outcomes = await runCatalogReconciliationPass(svc);
+				await (svc as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
 				const afterReconciliation = await svc.listSessions();
 				const orphanOutcomes = outcomes.filter((outcome): outcome is { readonly session: string; readonly status: string; readonly reason: string } =>
 					typeof outcome === 'object' && outcome !== null && 'session' in outcome && outcome.session === orphan.toString());
+				const removed = notifications
+					.filter((notification): notification is INotification & { readonly type: 'root/sessionRemoved'; readonly session: string } => notification.type === 'root/sessionRemoved')
+					.map(notification => notification.session);
 
 				assert.deepStrictEqual({
 					backfillMarker: await orchestratorDatabase.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
@@ -8182,6 +8189,7 @@ suite('AgentService (node dispatcher)', () => {
 					beforeReconciliation: beforeReconciliation.map(metadata => metadata.session.toString()).sort(),
 					orphanOutcomes,
 					provisionalMarkersIncludeOrphan: (await orchestratorDatabase.listProvisionalSessions()).includes(orphan.toString()),
+					removed,
 					afterReconciliation: afterReconciliation.map(metadata => metadata.session.toString()).sort(),
 				}, {
 					backfillMarker: true,
@@ -8190,6 +8198,7 @@ suite('AgentService (node dispatcher)', () => {
 					beforeReconciliation: [healthy.toString(), orphan.toString()].sort(),
 					orphanOutcomes: [{ session: orphan.toString(), status: 'retry', reason: 'sourceUnresolvable' }],
 					provisionalMarkersIncludeOrphan: true,
+					removed: [orphan.toString()],
 					afterReconciliation: [healthy.toString()],
 				});
 			});
