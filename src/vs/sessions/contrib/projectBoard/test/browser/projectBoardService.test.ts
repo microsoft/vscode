@@ -13,6 +13,7 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAction, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -21,7 +22,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -30,7 +31,7 @@ import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbe
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ProjectBoardService } from '../../browser/projectBoardService.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
 import { IProjectBoardNewSessionOptions, ProjectBoardNewSessionDialog } from '../../browser/projectBoardNewSessionDialog.js';
@@ -63,7 +64,7 @@ class TestChat extends mock<IChat>() {
 	override readonly status = observableValue<SessionStatus>('status', SessionStatus.InProgress);
 	override readonly changes = constObservable([]);
 	override readonly changesets = constObservable([]);
-	override readonly workspace = constObservable(undefined);
+	override readonly workspace = observableValue<ISessionWorkspace | undefined>('chatWorkspace', undefined);
 	override readonly isRead = observableValue('read', false);
 	override readonly isArchived = observableValue('archived', false);
 	override readonly interactivity = observableValue('interactivity', ChatInteractivity.Full);
@@ -202,8 +203,9 @@ suite('ProjectBoardService', () => {
 		}());
 		const openedContext: string[] = [];
 		instantiationService.stub(IOpenerService, {
-			open: async (resource, options) => {
-				assert.deepStrictEqual(options, { fromUserGesture: true, allowCommands: false });
+			open: async (resource, options: OpenOptions | undefined) => {
+				const external = options?.openExternal;
+				assert.deepStrictEqual(options, { fromUserGesture: true, allowCommands: false, ...(external ? { openExternal: true } : {}) });
 				openedContext.push(resource.toString());
 				return true;
 			},
@@ -3953,7 +3955,7 @@ suite('ProjectBoardService', () => {
 			link: URI.parse('https://github.com/example/project/pull/12'), isArtifact: true,
 		}], undefined);
 		await service.open();
-		const context = container.querySelector('[aria-label="Shared session context"]')!;
+		const context = container.querySelector('[aria-label="Associated pull requests"]')!;
 		const link = context.querySelector('a')!;
 		link.click();
 		link.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
@@ -3963,6 +3965,67 @@ suite('ProjectBoardService', () => {
 		}, {
 			label: 'example/project#12', opened: [], openedContext: ['https://github.com/example/project/pull/12'], read: false,
 		});
+	});
+
+	test('PR cards reuse owned associations, live icons and titles from the exact chat workspace without loading history', async () => {
+		const chats = Array.from({ length: 17 }, (_, index) => new TestChat(`PR ${index.toString().padStart(2, '0')}`));
+		const target = chats[16];
+		const h = createBoard(mainWindow.document, chats);
+		const uri = URI.parse('https://github.com/example/project/pull/12');
+		const info = observableValue<IGitHubInfo | undefined>('github', undefined);
+		const resolve = sinon.spy(() => info.set({
+			owner: 'example', repo: 'project', pullRequests: [
+				{ owner: 'example', repo: 'project', number: 12, uri, title: 'Fix the issue', icon: Codicon.gitPullRequestDraft, createdByThisSession: true },
+				{ owner: 'example', repo: 'project', number: 99, uri: URI.parse('https://github.com/example/project/pull/99'), createdByThisSession: false },
+			],
+		}, undefined));
+		target.workspace.set({
+			uri: URI.file('/project'), label: 'Chat worktree', icon: Codicon.folder, isVirtualWorkspace: false, requiresWorkspaceTrust: false,
+			folders: [{
+				root: URI.file('/project'), workingDirectory: URI.file('/project'), name: 'project', description: undefined,
+				gitRepository: { uri: URI.file('/project'), workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: info, resolveGitHubInfo: resolve },
+			}],
+		}, undefined);
+		h.session.artifacts.set([{ id: 'same-pr', kind: SessionArtifactKind.PullRequest, label: 'Recorded PR', link: uri, isArtifact: true }], undefined);
+		await h.service.open();
+		await timeout(0);
+		const card = () => [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === target.resource.toString())!;
+		const pr = () => card().querySelector<HTMLElement>('.project-board-card-pull-requests a')!;
+		const open = sinon.spy(h.instantiationService.get(IOpenerService), 'open');
+		store.add(toDisposable(() => open.restore()));
+		pr().click();
+		pr().dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		assert.deepStrictEqual({
+			resolve: resolve.callCount, label: pr().textContent, icon: !!pr().querySelector('.codicon-git-pull-request-draft'),
+			description: pr().getAttribute('aria-label'), duplicates: card().querySelectorAll(`a[href="${uri}"]`).length,
+			associated: card().querySelectorAll('.project-board-card-pull-requests a').length,
+			reference: !!card().querySelector('.project-board-card-context a[href$="/99"]'),
+			pending: !!card().querySelector('[data-board-control^="refresh:"]'),
+			opened: h.opened, read: target.isRead.get(), options: open.firstCall.args[1],
+		}, {
+			resolve: 1, label: 'example/project#12', icon: true,
+			description: 'example/project#12: Fix the issue, Draft', duplicates: 1,
+			associated: 1, reference: true,
+			pending: true, opened: [], read: false, options: { fromUserGesture: true, allowCommands: false, openExternal: true },
+		});
+		info.set({ owner: 'example', repo: 'project', pullRequest: { number: 12, uri, title: 'Merged fix', liveState: 'merged', icon: { ...Codicon.gitPullRequestDone, color: { id: 'gitDecoration.addedResourceForeground' } } } }, undefined);
+		assert.ok(pr().querySelector('.codicon-git-pull-request-done'));
+		assert.ok(pr().getAttribute('aria-label')?.includes('Merged'));
+		assert.strictEqual(pr().querySelector<HTMLElement>('.codicon')?.style.color, 'var(--vscode-gitDecoration-addedResourceForeground)');
+		assert.ok(h.service.getAccessibleContent().includes('example/project#12: Merged fix'));
+		assert.strictEqual(resolve.callCount, 1);
+		for (const [state, icon, label] of [
+			['open', 'git-pull-request', 'Open'],
+			['closed', 'git-pull-request-closed', 'Closed'],
+		] as const) {
+			info.set({ owner: 'example', repo: 'project', pullRequest: { number: 12, uri, state } }, undefined);
+			assert.ok(pr().querySelector(`.codicon-${icon}`));
+			assert.strictEqual(pr().getAttribute('aria-label'), `example/project#12, ${label}`);
+		}
+		info.set(undefined, undefined);
+		assert.strictEqual(pr().getAttribute('aria-label'), 'Recorded PR, State unavailable');
+		h.session.artifacts.set([], undefined);
+		assert.strictEqual(card().querySelector('.project-board-card-pull-requests'), null);
 	});
 
 	test('PB-06/PB-10 edited axes and placements survive reconstruction and cancelled deletion retains archived placements', async () => {
@@ -4068,8 +4131,9 @@ suite('ProjectBoardService', () => {
 		h.metadata.set({ kind: 'ready', prompt: 'A submitted prompt', submittedAt: 1000, context: [] }, undefined);
 		await h.service.open();
 		assert.strictEqual(h.container.querySelectorAll('[data-submitted-at="1000"]').length, 16);
-		assert.ok(h.container.textContent?.includes('Metadata preview limit reached'));
-		assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-card-prompt')].map(element => element.textContent), [...Array(16).fill('A submitted prompt'), 'Prompt unavailable']);
+		assert.ok(!h.container.textContent?.includes('Metadata preview limit reached'));
+		assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-card-prompt')].map(element => element.textContent), Array(16).fill('A submitted prompt'));
+		assert.strictEqual(h.container.querySelector('[data-board-control^="refresh:"]')?.textContent, 'Pending refresh');
 		chats[0].title.set('Agent-updated title', undefined);
 		chats[0].isRead.set(true, undefined);
 		assert.strictEqual(h.container.querySelector('[data-submitted-at]')?.getAttribute('data-submitted-at'), '1000');
@@ -4077,6 +4141,77 @@ suite('ProjectBoardService', () => {
 		await timeout(0);
 		assert.strictEqual(h.container.querySelector('[data-submitted-at]'), null);
 		assert.ok(h.container.textContent?.includes('Recency unavailable'));
+	});
+
+	for (const surface of ['embedded', 'standalone'] as const) {
+		test(`${surface} Pending refresh loads the clicked card at capacity across cooperating views without navigation`, async () => {
+			const chats = Array.from({ length: 17 }, (_, index) => new TestChat(`Refresh ${index.toString().padStart(2, '0')}`));
+			const { document } = createBoardDocument();
+			const h = createBoard(document, chats);
+			chats[0].status.set(SessionStatus.NeedsInput, undefined);
+			const carousel = new ChatQuestionCarouselData([{
+				id: 'choice', type: 'singleSelect', title: 'Choice', options: [{ id: 'one', label: 'One', value: 'one' }], allowFreeformInput: true,
+			}], false, 'protected-question');
+			h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
+			h.questionCarousels.set([{ carousel, requestId: 'protected-request' }], undefined);
+			h.metadata.set({ kind: 'ready', prompt: 'Loaded prompt', context: [] }, undefined);
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const other = h.catalog.createBoard('Other');
+			await h.service.open(other);
+			const origin = h.container.querySelector<HTMLElement>(`.project-board[data-board-id="${DEFAULT_PROJECT_BOARD_ID}"]`)!;
+			const otherBoard = h.currentContainer.querySelector<HTMLElement>(`.project-board[data-board-id="${other}"]`)!;
+			const textarea = origin.querySelector<HTMLTextAreaElement>('textarea')!;
+			const otherTextarea = otherBoard.querySelector('textarea');
+			textarea.value = 'Keep my draft';
+			textarea.setSelectionRange(1, 4);
+			textarea.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			const target = chats[16];
+			const card = (container: HTMLElement, chat: IChat) => [...container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === chat.resource.toString())!;
+			const button = card(origin, target).querySelector<HTMLElement>('[data-board-control^="refresh:"]')!;
+			button.focus();
+			assert.strictEqual(document.activeElement, button);
+			button.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true, cancelable: true }));
+			await timeout(0);
+			assert.deepStrictEqual({
+				prompt: card(origin, target).querySelector('.project-board-card-prompt')?.textContent,
+				sharedPrompt: card(otherBoard, target).querySelector('.project-board-card-prompt')?.textContent,
+				firstDeferred: card(origin, chats[1]).querySelector('[data-board-control^="refresh:"]')?.textContent,
+				sharedDeferred: card(otherBoard, chats[1]).querySelector('[data-board-control^="refresh:"]')?.textContent,
+				loaded: origin.querySelectorAll('.project-board-card-prompt').length,
+				opened: h.opened, read: target.isRead.get(), deleted: h.state.deletedSessions,
+			}, { prompt: 'Loaded prompt', sharedPrompt: 'Loaded prompt', firstDeferred: 'Pending refresh', sharedDeferred: 'Pending refresh', loaded: 16, opened: [], read: false, deleted: [] });
+			assert.deepStrictEqual({
+				inputRetained: origin.querySelector('textarea') === textarea, otherInputRetained: otherBoard.querySelector('textarea') === otherTextarea,
+				input: textarea.value, selection: [textarea.selectionStart, textarea.selectionEnd], answers: h.submittedAnswers,
+				focus: document.activeElement === card(origin, target),
+			}, { inputRetained: true, otherInputRetained: true, input: 'Keep my draft', selection: [1, 4], answers: [], focus: true });
+		});
+	}
+
+	test('refresh loading is disabled while genuine metadata errors and missing user prompts remain explicit', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Loading details')]);
+		h.metadata.set({ kind: 'loading' }, undefined);
+		await h.service.open();
+		const button = h.container.querySelector<HTMLElement>('[data-board-control^="refresh:"]')!;
+		assert.deepStrictEqual({
+			label: button.textContent, disabled: button.getAttribute('aria-disabled'), busy: button.getAttribute('aria-busy'),
+			prompt: h.container.querySelector('.project-board-card-prompt'), warnings: h.container.querySelectorAll('.project-board-card-warning').length,
+		}, { label: 'Refreshing…', disabled: 'true', busy: 'true', prompt: null, warnings: 0 });
+		for (const metadata of [
+			{ kind: 'error', message: 'History load failed', error: 'History load failed' },
+			{ kind: 'unavailable', message: 'No submitted user prompt available.' },
+		] as const) {
+			h.metadata.set(metadata, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({
+				button: h.container.querySelector('[data-board-control^="refresh:"]'),
+				message: h.container.querySelector('.project-board-card-warning')?.textContent,
+			}, { button: null, message: metadata.message });
+		}
 	});
 
 	test('PB-11 empty prompt metadata is informational rather than an agent failure warning', async () => {
