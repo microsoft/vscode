@@ -274,9 +274,15 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 	if (rowStatus === SessionStatus.NeedsInput) {
 		return rowStatus;
 	}
+	const chats = session.chats.read(reader);
+	let excludedSideChatInProgress = false;
 	// Side chats have no list rows of their own, even when peer chats are expanded.
-	for (const chat of session.chats.read(reader)) {
-		if (chat.origin?.kind !== ChatOriginKind.SideChat || chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
+	for (const chat of chats) {
+		if (chat.origin?.kind !== ChatOriginKind.SideChat) {
+			continue;
+		}
+		if (chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
+			excludedSideChatInProgress ||= collapsed && sessionStatus === SessionStatus.InProgress && chat.status.read(reader) === SessionStatus.InProgress;
 			continue;
 		}
 		const status = chat.status.read(reader);
@@ -291,7 +297,9 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 		return rowStatus;
 	}
 	if (collapsed && sessionStatus === SessionStatus.InProgress) {
-		return SessionStatus.InProgress;
+		if (!excludedSideChatInProgress || chats.some(chat => chat.origin?.kind !== ChatOriginKind.SideChat && chat.status.read(reader) === SessionStatus.InProgress)) {
+			return SessionStatus.InProgress;
+		}
 	}
 	return rowStatus;
 }
