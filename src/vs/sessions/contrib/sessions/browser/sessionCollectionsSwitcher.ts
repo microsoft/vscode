@@ -6,7 +6,7 @@
 import './media/sessionCollections.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { IAction, Action } from '../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -180,12 +180,8 @@ abstract class SessionCollectionsSwitcherBase extends Disposable {
 
 	private getCollectionContextActions(collection: ISessionCollection, anchor: HTMLElement): IAction[] {
 		return [
-			new Action('sessions.collections.edit.context', localize('editCollection', "Edit Collection..."), undefined, true, () => {
-				this.delegate.showEditCollectionEditor(collection.id, anchor);
-			}),
-			new Action('sessions.collections.new.context', localize('newCollectionContext', "New Collection..."), undefined, true, () => {
-				this.delegate.showNewCollectionEditor(anchor);
-			}),
+			toAction({ id: 'sessions.collections.edit.context', label: localize('editCollection', "Edit Collection..."), run: () => this.delegate.showEditCollectionEditor(collection.id, anchor) }),
+			toAction({ id: 'sessions.collections.new.context', label: localize('newCollectionContext', "New Collection..."), run: () => this.delegate.showNewCollectionEditor(anchor) }),
 		];
 	}
 

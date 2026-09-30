@@ -6,7 +6,7 @@
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IContextMenuDelegate } from '../../../../base/browser/contextmenu.js';
-import { IAction, Action, Separator } from '../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -335,17 +335,23 @@ export class SessionCollectionsController extends Disposable implements IWorkben
 	showCollectionMenu(anchor: HTMLElement): void {
 		const active = this.collectionsService.activeCollectionId.get();
 		const collections = this.collectionsService.collections.get();
+		// Menu entries show the keybinding of the matching switch command.
+		const keybindingCommands = new Map<string, string>();
 		const actions: IAction[] = collections.map((collection, index) => {
-			const commandId = index < 9 ? `${SWITCH_COLLECTION_TO_INDEX_COMMAND_PREFIX}${index + 1}` : SWITCH_COLLECTION_COMMAND_ID;
-			const action = new Action(commandId, collection.name, undefined, true, () => this.switchTo(collection.id));
-			action.checked = collection.id === active;
-			return action;
+			const id = `sessions.collections.menu.switch.${collection.id}`;
+			if (index < 9) {
+				keybindingCommands.set(id, `${SWITCH_COLLECTION_TO_INDEX_COMMAND_PREFIX}${index + 1}`);
+			}
+			return toAction({ id, label: collection.name, checked: collection.id === active, run: () => this.switchTo(collection.id) });
 		});
 		actions.push(new Separator());
-		actions.push(new Action(NEW_COLLECTION_COMMAND_ID, localize('newCollectionMenu', "New Collection..."), undefined, true, () => this.showNewCollectionEditor(anchor)));
-		actions.push(new Action(EDIT_COLLECTION_COMMAND_ID, localize('editCollectionMenu', "Edit Collection..."), undefined, true, () => this.showEditCollectionEditor(active, anchor)));
+		actions.push(toAction({ id: 'sessions.collections.menu.new', label: localize('newCollectionMenu', "New Collection..."), run: () => this.showNewCollectionEditor(anchor) }));
+		actions.push(toAction({ id: 'sessions.collections.menu.edit', label: localize('editCollectionMenu', "Edit Collection..."), run: () => this.showEditCollectionEditor(active, anchor) }));
+		keybindingCommands.set('sessions.collections.menu.new', NEW_COLLECTION_COMMAND_ID);
+		keybindingCommands.set('sessions.collections.menu.edit', EDIT_COLLECTION_COMMAND_ID);
 		this.contextMenuForAnchor(anchor, actions, action => {
-			return this.keybindingService.lookupKeybinding(action.id) ?? undefined;
+			const commandId = keybindingCommands.get(action.id);
+			return commandId ? this.keybindingService.lookupKeybinding(commandId) ?? undefined : undefined;
 		});
 	}
 

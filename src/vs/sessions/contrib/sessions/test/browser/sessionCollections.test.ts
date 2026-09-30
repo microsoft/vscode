@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -161,6 +164,7 @@ suite('SessionCollections', () => {
 		const sessionsService = new TestSessionsService();
 		instantiationService.stub(ISessionCollectionsService, collectionsService);
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
+		const shownMenus: IAction[][] = [];
 		const controller = store.add(new SessionCollectionsController(
 			configurationService,
 			contextKeyService,
@@ -173,14 +177,33 @@ suite('SessionCollections', () => {
 			new class extends mock<IContextMenuService>() {
 				override readonly onDidShowContextMenu = Event.None;
 				override readonly onDidHideContextMenu = Event.None;
-				override showContextMenu(): void { }
+				override showContextMenu(delegate: IContextMenuDelegate): void {
+					shownMenus.push([...delegate.getActions()]);
+				}
 			},
 			upcastPartial<IWorkbenchLayoutService>({}),
 			new MockKeybindingService(),
 			new NullLogService(),
 		));
-		return { controller, collectionsService, sessionsManagementService, sessionsService };
+		return { controller, collectionsService, sessionsManagementService, sessionsService, shownMenus };
 	}
+
+	test('the header collection menu switches collections', async () => {
+		const { controller, collectionsService, shownMenus } = setup();
+		controller.showCollectionMenu(mainWindow.document.body);
+		const personal = shownMenus[0].find(action => action.label === 'Personal');
+		await personal?.run();
+
+		assert.deepStrictEqual({
+			labels: shownMenus[0].map(action => action.label),
+			checked: shownMenus[0].filter(action => action.checked).map(action => action.label),
+			activeCollection: collectionsService.activeCollectionId.get(),
+		}, {
+			labels: ['Engineering', 'Personal', 'Misc', '', 'New Collection...', 'Edit Collection...'],
+			checked: ['Engineering'],
+			activeCollection: 'personal',
+		});
+	});
 
 	test('switching opens the remembered session or the new-session composer', async () => {
 		const { controller, collectionsService, sessionsManagementService, sessionsService } = setup();

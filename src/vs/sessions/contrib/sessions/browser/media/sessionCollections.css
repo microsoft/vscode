@@ -6,7 +6,9 @@
 .session-collections-strip {
 	display: inline-flex;
 	align-items: center;
+	align-self: flex-start;
 	gap: var(--vscode-spacing-size20);
+	width: fit-content;
 	max-width: 240px;
 	padding: var(--vscode-spacing-size20);
 	overflow: hidden;
@@ -195,4 +197,15 @@
 .monaco-workbench.hc-black .session-collections-tab.session-collections-drop-target,
 .monaco-workbench.hc-light .session-collections-tab.session-collections-drop-target {
 	outline-color: var(--vscode-contrastActiveBorder);
+}
+
+/* The title bar tints toolbar codicons with the icon foreground; collection icons keep their collection color. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item:not(.disabled) .session-collections-strip .codicon {
+	color: inherit;
+}
+
+.session-collections-titlebar-host {
+	display: flex;
+	align-items: center;
+	-webkit-app-region: no-drag;
 }
