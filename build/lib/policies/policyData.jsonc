@@ -458,7 +458,7 @@
             "key": "chat.copilotCliCommand.enabled",
             "name": "CopilotCliCommand",
             "category": "InteractiveSession",
-            "minimumVersion": "1.140",
+            "minimumVersion": "1.141",
             "localization": {
                 "description": {
                     "key": "chat.copilotCliCommand.enabled.policy",
