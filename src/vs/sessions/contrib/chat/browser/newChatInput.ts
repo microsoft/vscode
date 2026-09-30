@@ -574,6 +574,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	// Attached context
 	private readonly _contextAttachments: NewChatContextAttachments;
+	private _attachButton: HTMLElement | undefined;
 
 	// Slash commands
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
@@ -1297,7 +1298,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _createAttachButton(container: HTMLElement): void {
-		const attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
+		const attachButton = this._attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
 		const attachButtonLabel = localize('addContext', "Add Context...");
 		attachButton.tabIndex = 0;
 		attachButton.role = 'button';
@@ -1314,7 +1315,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _showContextPicker(): void {
-		this._contextAttachments.showPicker(this.options.getContextFolderUri(), this.options.getContextPickerActions?.());
+		const anchor = this.options.useExperimentalLayout?.get() ? this._attachButton : undefined;
+		this._contextAttachments.showPicker(this.options.getContextFolderUri(), this.options.getContextPickerActions?.(), anchor);
 	}
 
 	private _createInputToolbar(container: HTMLElement): void {

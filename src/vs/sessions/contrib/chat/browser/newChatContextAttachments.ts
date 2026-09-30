@@ -260,12 +260,13 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 
 	// --- Picker ---
 
-	showPicker(folderUri?: URI, contextActions: readonly IWorkspacePickerContextAction[] = []): void {
+	showPicker(folderUri?: URI, contextActions: readonly IWorkspacePickerContextAction[] = [], anchor?: HTMLElement): void {
 		const picker = this.quickInputService.createQuickPick<IContextQuickPickItem>({ useSeparators: true });
 		const disposables = new DisposableStore();
 		picker.placeholder = localize('chatContext.attach.placeholder', "Attach as context...");
 		picker.matchOnDescription = true;
 		picker.sortByLabel = false;
+		picker.anchor = anchor;
 
 		const staticPicks = this._getStaticPicks(contextActions);
 

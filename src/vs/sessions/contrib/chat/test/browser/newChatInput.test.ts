@@ -53,6 +53,7 @@ const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_update
 const updateInitializationLoadingState = Reflect.get(NewChatInputWidget.prototype, '_updateInitializationLoadingState') as (this: IInitializationLoadingHarness, loading: boolean) => void;
 const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_setLoadingSpinnerVisible') as (this: ILoadingSpinnerHarness, visible: boolean) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
+const showContextPicker = Reflect.get(NewChatInputWidget.prototype, '_showContextPicker') as (this: IContextPickerHarness) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
 
@@ -136,6 +137,18 @@ interface IInitializationLoadingHarness {
 	readonly _initializationLoadingDelayDisposable: MutableDisposable<IDisposable>;
 	readonly options: {
 		readonly loading: { get(): boolean };
+	};
+}
+
+interface IContextPickerHarness {
+	readonly options: {
+		readonly getContextFolderUri: () => URI | undefined;
+		readonly getContextPickerActions?: () => readonly [];
+		readonly useExperimentalLayout?: { get(): boolean };
+	};
+	readonly _attachButton: HTMLElement | undefined;
+	readonly _contextAttachments: {
+		showPicker(folderUri?: URI, contextActions?: readonly [], anchor?: HTMLElement): void;
 	};
 }
 
@@ -270,6 +283,36 @@ suite('NewChatInputWidget', () => {
 			focused: { input: true, stack: true },
 			blurred: { input: false, stack: false },
 		});
+	});
+
+	test('anchors the context picker to the attach button only in the experimental layout', () => {
+		const attachButton = document.createElement('div');
+		const folderUri = URI.file('/workspace');
+		const calls: Array<{ folderUri: URI | undefined; anchor: HTMLElement | undefined }> = [];
+		const experimentalLayout = { enabled: false };
+		const harness: IContextPickerHarness = {
+			options: {
+				getContextFolderUri: () => folderUri,
+				getContextPickerActions: () => [],
+				useExperimentalLayout: { get: () => experimentalLayout.enabled },
+			},
+			_attachButton: attachButton,
+			_contextAttachments: {
+				showPicker: (folderUri, _contextActions, anchor) => calls.push({ folderUri, anchor }),
+			},
+		};
+
+		showContextPicker.call(harness);
+		experimentalLayout.enabled = true;
+		showContextPicker.call(harness);
+
+		assert.deepStrictEqual(calls.map(call => ({
+			folderUri: call.folderUri?.toString(),
+			anchor: call.anchor === attachButton ? 'attachButton' : undefined,
+		})), [
+			{ folderUri: folderUri.toString(), anchor: undefined },
+			{ folderUri: folderUri.toString(), anchor: 'attachButton' },
+		]);
 	});
 
 	test('shows loading in the send button slot', () => {
