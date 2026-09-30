@@ -15,6 +15,10 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { inQuickPickContext, getQuickNavigateHandler } from '../../../browser/quickaccess.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { QuickInputAccessibilityHelp } from './quickInputAccessibilityHelp.js';
+
+AccessibleViewRegistry.register(new QuickInputAccessibilityHelp());
 
 //#region Quick Access Proviers
 

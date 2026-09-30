@@ -71,6 +71,7 @@ export const enum AccessibilityVerbositySettingId {
 	ReleaseNotes = 'accessibility.verbosity.releaseNotes',
 	SourceControl = 'accessibility.verbosity.sourceControl',
 	Find = 'accessibility.verbosity.find',
+	QuickInput = 'accessibility.verbosity.quickInput',
 	SessionsChat = 'accessibility.verbosity.sessionsChat',
 	SessionWorktreeCleanup = 'accessibility.verbosity.sessionWorktreeCleanup',
 	NewSessionWelcome = 'accessibility.verbosity.newSessionWelcome',
@@ -230,6 +231,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Find]: {
 			description: localize('verbosity.find', 'Provide information about how to access the find accessibility help menu when the find input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.QuickInput]: {
+			description: localize('verbosity.quickInput', "Provide information about keyboard navigation and resizing when a quick input is focused."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionsChat]: {
