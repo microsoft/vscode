@@ -593,9 +593,9 @@ where
 						.map(|path| format!(" at {}", path.display()))
 						.unwrap_or_default()
 				),
-				_ => runtime.write_diagnostic(&format!(
-					"GitHub Copilot CLI could not be installed ({}): {}",
-					outcome.status.name(),
+				// The reason is shown without verbose mode; the parent shim adds the manual install link.
+				_ => runtime.write_message(&format!(
+					"GitHub Copilot CLI couldn't be installed: {}",
 					outcome.reason
 				)),
 			}
