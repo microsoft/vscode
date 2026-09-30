@@ -502,6 +502,20 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
+	test('refreshes live sessions when the active account gains connector authorization', async () => {
+		const fixture = createFixture([{ body: catalogResponse('connected') }]);
+		const unscoped = { ...fixture.initialSession, scopes: ['read:user'] };
+		fixture.setSessions([unscoped]);
+		await fixture.service.refresh(CancellationToken.None);
+
+		const upscoped = { ...unscoped, scopes: [...unscoped.scopes, 'write:plugin_gateway_connections'] };
+		fixture.setSessions([upscoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, changed: [upscoped], removed: undefined } });
+		await timeout(0);
+
+		assert.deepStrictEqual(fixture.reconciliations.length, 1);
+	});
+
 	for (const outcome of ['cancelled', 'denied', 'wrong-account', 'missing-scope']) {
 		test(`authorization ${outcome} does not make connector mutations or switch the active account`, async () => {
 			const fixture = createFixture([{ body: catalogResponse('connected') }]);

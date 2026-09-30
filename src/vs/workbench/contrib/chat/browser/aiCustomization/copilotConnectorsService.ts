@@ -417,6 +417,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 					[event.added, event.changed, event.removed].some(sessions => sessions?.some(session =>
 						session.id === account.sessionId || session.account.id === this.authenticationAccountId && hasConnectorScope(session, true)))) {
 					this.resetCatalogContext();
+					void this.refreshAgentHostConnectorSessions();
 				}
 			}));
 			this.updateAccountIdentity(this.defaultAccountService.currentDefaultAccount);
