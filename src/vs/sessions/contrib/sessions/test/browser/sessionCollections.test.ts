@@ -11,7 +11,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
-import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -23,6 +23,10 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
+import { KeybindingResolver } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -35,6 +39,8 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { buildTestSession, ITestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { SessionCollectionAttention } from '../../browser/sessionCollectionsSwitcher.js';
 import { SessionCollectionsController } from '../../browser/sessionCollections.js';
+// Registers the Open Session at Index keybindings that collection shortcuts must not collide with.
+import '../../browser/views/sessionsViewActions.js';
 
 suite('SessionCollections', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -173,7 +179,7 @@ suite('SessionCollections', () => {
 		const keybindingService = new class extends MockKeybindingService {
 			override lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
 				const index = Number(commandId.match(/^sessions\.collections\.switchTo(?<index>\d)$/)?.groups?.index);
-				return index ? createUSLayoutResolvedKeybinding(KeyMod.WinCtrl | (KeyCode.Digit0 + index), OperatingSystem.Macintosh) : undefined;
+				return index ? createUSLayoutResolvedKeybinding(KeyMod.WinCtrl | KeyMod.Alt | (KeyCode.Digit0 + index), OperatingSystem.Macintosh) : undefined;
 			}
 		};
 		const controller = store.add(new SessionCollectionsController(
@@ -207,9 +213,9 @@ suite('SessionCollections', () => {
 			activeCollection: collectionsService.activeCollectionId.get(),
 		}, {
 			rows: [
-				['Engineering', '⌃1', true],
-				['Personal', '⌃2', false],
-				['Misc', '⌃3', false],
+				['Engineering', '⌃⌥1', true],
+				['Personal', '⌃⌥2', false],
+				['Misc', '⌃⌥3', false],
 				['', undefined, undefined],
 				['New Collection...', undefined, undefined],
 				['Edit Collection...', undefined, undefined],
@@ -372,5 +378,17 @@ suite('SessionCollections', () => {
 			withUnread: SessionCollectionAttention.Unread,
 			archivedOnly: SessionCollectionAttention.None,
 		});
+	});
+
+	test('collection switch shortcuts are not shadowed by the open session at index shortcuts', () => {
+		const commands = [1, 2, 9].flatMap(index => [`sessions.collections.switchTo${index}`, `sessionsViewPane.openSessionAtIndex${index}`]);
+		const items = KeybindingsRegistry.getDefaultKeybindings()
+			.filter(item => item.command && commands.includes(item.command) && item.keybinding)
+			.flatMap(item => USLayoutResolvedKeybinding.resolveKeybinding(item.keybinding!, OS).map(resolved => new ResolvedKeybindingItem(resolved, item.command, item.commandArgs, item.when ?? undefined, true, null, false)));
+		const resolver = new KeybindingResolver(items, [], () => { });
+
+		const bound = commands.map(command => [command, resolver.lookupKeybindings(command).length > 0]);
+
+		assert.deepStrictEqual(bound, commands.map(command => [command, true]));
 	});
 });

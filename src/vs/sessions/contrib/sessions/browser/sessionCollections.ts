@@ -21,6 +21,7 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext, IsMacContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -29,7 +30,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getWorkbenchContribution, IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
@@ -138,11 +139,12 @@ function registerSwitchToIndexAction(index: number): void {
 				category: SessionsCategories.Sessions,
 				precondition: MULTIPLE_COLLECTIONS_CONTEXT,
 				keybinding: {
-					// Wins over Open Editor at Index on the same keys, except while an editor has focus.
-					weight: KeybindingWeight.WorkbenchContrib + 1,
-					primary: KeyMod.Alt | (KeyCode.Digit0 + index),
-					mac: { primary: KeyMod.WinCtrl | (KeyCode.Digit0 + index) },
-					when: ContextKeyExpr.and(MULTIPLE_COLLECTIONS_CONTEXT, EditorAreaFocusContext.negate()),
+					// Ctrl/Alt+1..9 open the Nth session. Ctrl+Alt is AltGr on many Windows and Linux
+					// layouts, so there it only applies outside text inputs; Ctrl+Option never types on macOS.
+					weight: KeybindingWeight.SessionsContrib,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | (KeyCode.Digit0 + index),
+					mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | (KeyCode.Digit0 + index) },
+					when: ContextKeyExpr.and(MULTIPLE_COLLECTIONS_CONTEXT, ContextKeyExpr.or(IsMacContext, InputFocusedContext.negate())),
 				},
 			});
 		}
