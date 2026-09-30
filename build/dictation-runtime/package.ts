@@ -90,15 +90,12 @@ async function stageSdkNativeFiles(stagingDir: string, target: string): Promise<
 	}
 	const targetDir = path.join(stagingDir, 'prebuilds', target);
 	fs.mkdirSync(targetDir, { recursive: true });
-	for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
-		if (entry.isFile() && isNativeRuntimeFile(entry.name)) {
-			fs.copyFileSync(path.join(sourceDir, entry.name), path.join(targetDir, entry.name));
-		}
-	}
 	for (const name of requiredSdkNativeFileNames(target)) {
-		if (!fs.existsSync(path.join(targetDir, name))) {
+		const sourceFile = path.join(sourceDir, name);
+		if (!fs.existsSync(sourceFile)) {
 			throw new Error(`[${SCRIPT}] SDK native file '${name}' not found for ${target} in ${sourceDir}.`);
 		}
+		fs.copyFileSync(sourceFile, path.join(targetDir, name));
 	}
 }
 
@@ -135,10 +132,6 @@ function requiredSdkNativeFileNames(target: string): readonly string[] {
 		foundryLocalLibrary,
 		...(isWindows ? ['Microsoft.Windows.AI.MachineLearning.dll'] : []),
 	];
-}
-
-function isNativeRuntimeFile(name: string): boolean {
-	return name.endsWith('.node') || name.endsWith('.dll') || name.includes('.dylib') || name.includes('.so');
 }
 
 /**

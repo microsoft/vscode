@@ -206,8 +206,6 @@ async function installPackage(
 			}
 			for (const entry of entries) {
 				zip.extractEntryTo(entry, binDir, false, true);
-				// adm-zip applies 0666 after extraction; match the 0644 mode used by the SDK's NuGet installer.
-				fs.chmodSync(path.join(binDir, entry.name), 0o644);
 				console.log(`[${SCRIPT}]     Extracted ${entry.name}`);
 			}
 			return;
