@@ -64,7 +64,7 @@ import { SessionTitleContribution } from '../../node/chatContributions/sessionTi
 import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
 import { TurnDelegationContribution } from '../../node/chatContributions/turnDelegation/turnDelegationContribution.js';
 import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
-import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, IAgentHostSessionMetadataPersistence, persistSessionMetadataValues, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -925,6 +925,10 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		sendTurnMessage: () => observed?.push('queueDrain'),
 	};
 	disposables.add(service.registerHost(host));
+	services.set(IAgentHostSessionMetadataPersistence, {
+		_serviceBrand: undefined,
+		persist: (session, values) => persistSessionMetadataValues(sessionDataService, session.toString(), values),
+	});
 	disposables.add(registerBuiltInChatContributions(service));
 	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService };
 }

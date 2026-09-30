@@ -25,7 +25,8 @@ import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../..
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { withSessionIsPromoted } from '../../../../../../platform/agentHost/common/meta/agentSessionPromotionMeta.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -224,7 +225,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this.setChannelState(AgentSession.uri(provider, rawId), state);
 	}
 
-	setChannelState(resource: URI, state: SessionState | ChatState | ChangesetState): void {
+	setChannelState(resource: URI, state: SessionState | ChatState | ChangesetState | AutomationState): void {
 		const key = resource.toString();
 		this._sessionStateValues.set(key, state);
 		this._sessionStateEmitters.get(key)?.fire(state);
@@ -443,6 +444,42 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- Provider identity -------
+
+	test('remote automation sessions retain identity when host metadata promotes them', async () => {
+		const connection = new class extends MockAgentConnection {
+			override readonly initializeResult = constObservable({
+				protocolVersion: '1', serverSeq: 0, snapshots: [],
+				automations: { create: {}, schedules: {}, runCancellation: {} },
+				_meta: getAgentHostExtensionInitializeResultMeta(),
+			});
+		}();
+		disposables.add(toDisposable(() => connection.dispose()));
+		const metadata = createSession('automation-run');
+		connection.addSession(metadata);
+		connection.setChannelState(URI.parse('ahp-automations://'), { entries: [{
+			resource: 'ahp-automation:/test',
+			definition: { title: 'Test', message: { text: 'seed', origin: { kind: MessageKind.Automation } }, session: {}, triggers: [], enabled: false },
+			operations: [],
+			createdAt: '2026-09-30T00:00:00Z', modifiedAt: '2026-09-30T00:00:00Z',
+			runs: [{
+				resource: 'ahp-automation-run:/test', automation: 'ahp-automation:/test',
+				origin: { kind: AutomationRunOriginKind.Manual },
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: '2026-09-30T00:00:00Z', startedAt: '2026-09-30T00:00:00Z', completedAt: '2026-09-30T00:00:01Z' },
+				primarySession: metadata.session.toString(), sessionCount: 1,
+			}],
+		}] });
+		const provider = createProvider(disposables, connection, { configurationService: new TestConfigurationService({ chat: { automations: { enabled: true } } }) });
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		const before = { automation: session.isAutomation?.get(), promoted: session.isPromoted?.get() };
+		connection.fireNotification({
+			type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://',
+			session: metadata.session.toString(), changes: { _meta: withSessionIsPromoted(undefined) },
+		});
+		assert.deepStrictEqual({ before, after: { automation: session.isAutomation?.get(), promoted: session.isPromoted?.get() } }, {
+			before: { automation: true, promoted: false }, after: { automation: true, promoted: true },
+		});
+	});
 
 	test('derives id and label from config, and session types from rootState agents', () => {
 		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host', isWebPlatform: false });

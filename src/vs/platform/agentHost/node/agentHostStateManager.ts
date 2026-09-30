@@ -10,6 +10,7 @@ import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
+import { readSessionIsPromoted, withSessionIsPromoted } from '../common/meta/agentSessionPromotionMeta.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isPassiveSessionMetadataAction, type AuthRequiredParams, type ClientAutomationAction, type ClientAutomationRunAction, type ProgressParams, type SessionSummaryChangedParams, type SessionSummaryChanges } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, automationReducer, automationRunReducer } from '../common/state/sessionReducers.js';
@@ -1766,6 +1767,9 @@ export class AgentHostStateManager extends Disposable {
 	 * for terminal actions, an expanded changeset URI for changeset actions.
 	 */
 	dispatchServerAction(channel: URI, action: StateAction): void {
+		if (action.type === ActionType.SessionMetaChanged && readSessionIsPromoted(this.getSessionState(channel))) {
+			action = { ...action, _meta: withSessionIsPromoted(action._meta) };
+		}
 		this._applyAndEmit(channel, action, undefined);
 	}
 

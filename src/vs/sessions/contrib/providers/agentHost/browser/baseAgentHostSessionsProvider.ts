@@ -35,6 +35,7 @@ import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/gi
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
+import { readSessionIsPromoted, withSessionIsPromoted } from '../../../../../platform/agentHost/common/meta/agentSessionPromotionMeta.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
@@ -76,7 +77,7 @@ import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference }
 import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderAutomations, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -246,6 +247,7 @@ interface ISerializedSessionMetadata {
 	 */
 	readonly workspaceless?: boolean;
 	readonly external?: boolean;
+	readonly isPromoted?: boolean;
 	readonly multiRoot?: ISessionMultiRootMetadata;
 	readonly createdBySession?: IProtocolSessionCreationReference;
 	readonly remoteOrigin?: IRemoteSessionOrigin;
@@ -290,6 +292,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 		workingDirectoryScopeIds: workingDirectoryScopeIds.size > 0 ? Object.fromEntries(workingDirectoryScopeIds) : undefined,
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
 		external: readSessionExternal(meta._meta) || undefined,
+		isPromoted: readSessionIsPromoted(meta) || undefined,
 		multiRoot: readSessionMultiRootMetadata(meta._meta),
 		createdBySession: readSessionCreationReference(meta._meta),
 		remoteOrigin: readRemoteSessionOrigin(meta),
@@ -323,6 +326,9 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 	try {
 		let _meta = withSessionWorkspaceless(undefined, raw.workspaceless === true);
 		_meta = withSessionExternal(_meta, raw.external === true);
+		if (raw.isPromoted === true) {
+			_meta = withSessionIsPromoted(_meta);
+		}
 		_meta = withSessionMultiRootMetadata(_meta, readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: raw.multiRoot }));
 		_meta = withSessionGitHubData(_meta, parseSessionGitHubData(raw.githubData));
 		for (const [workingDirectory, folderKey] of Object.entries(raw.workingDirectoryKeys ?? {})) {
@@ -1107,6 +1113,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	readonly isQuickChat: IObservable<boolean>;
 	readonly isAutomation = observableValue('isAutomation', false);
+	readonly isPromoted: IObservable<boolean>;
 	readonly isExternal: IObservable<boolean>;
 	readonly remoteConnectionStatus: IObservable<SessionRemoteConnectionStatus> | undefined;
 	readonly createdBySession: IObservable<ISessionCreationReference | undefined>;
@@ -1327,6 +1334,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
+		this.isPromoted = derived(this, reader => readSessionIsPromoted({ _meta: this._metaObs.read(reader) }));
 		this.isExternal = _options.externalSessionState?.(this.resource, this._store)
 			?? derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
 		const connectionStatus = _options.connectionStatus;
@@ -3329,6 +3337,29 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Cache of adapted sessions, keyed by raw session ID. */
 	protected readonly _sessionCache = new Map<string, AgentHostSessionAdapter>();
+	private _automationSessionResources = new ResourceSet();
+
+	protected bindAutomationSessionMarkers(automations: ISessionsProviderAutomations): void {
+		this._register(autorun(reader => {
+			this._automationSessionResources = new ResourceSet(automations.runs.read(reader).flatMap(run => run.sessionResource ? [run.sessionResource] : []));
+			const changed = this.syncAutomationSessionMarkers();
+			if (changed.length > 0) {
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed });
+			}
+		}));
+	}
+
+	private syncAutomationSessionMarkers(): ISession[] {
+		const changed: ISession[] = [];
+		for (const session of this._sessionCache.values()) {
+			const isAutomation = this._automationSessionResources.has(session.resource);
+			if (session.isAutomation.get() !== isAutomation) {
+				session.setIsAutomation(isAutomation);
+				changed.push(session);
+			}
+		}
+		return changed;
+	}
 
 	protected _refreshSessionWorkspaces(): void {
 		const changed = [...this._sessionCache.values()].filter(session => session.refreshWorkspace());
@@ -3952,6 +3983,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getSessions(): ISession[] {
 		this._ensureSessionCache();
+		this.syncAutomationSessionMarkers();
 		// Filter at read time (rather than evicting from the cache) so a gate
 		// flip is instant in both directions: hidden sessions stay cached and
 		// reappear immediately when the preference flips back. The default gate

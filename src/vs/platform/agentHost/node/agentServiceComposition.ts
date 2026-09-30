@@ -42,7 +42,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
-import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
+import { IAgentHostSessionMetadataPersistence, persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 
@@ -194,6 +194,10 @@ export function createAgentServiceComposition(
 			serverToolHost,
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
+		services.set(IAgentHostSessionMetadataPersistence, {
+			_serviceBrand: undefined,
+			persist: (session, values) => agentService!.persistSessionMetadataWithCatalog(session, values),
+		});
 		owned.add(new AgentHostSessionLifecycle(
 			{
 				listCandidates: (archiveCutoff, deleteCutoff) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff),

@@ -64,6 +64,7 @@ import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } f
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
+import { withSessionIsPromoted } from '../../../../../../platform/agentHost/common/meta/agentSessionPromotionMeta.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
@@ -2053,6 +2054,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ branch: undefined, isArchived: false },
 			{ branch: 'feature', isArchived: true },
 		]);
+	}));
+
+	test('projects promotion from another client through summary updates and cached restart', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		agentHost.addSession(createSession('promoted-run'));
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const observed: boolean[] = [];
+		disposables.add(autorun(reader => observed.push(session.isPromoted?.read(reader) ?? false)));
+		fireSessionSummaryChanged(agentHost, 'promoted-run', { _meta: withSessionIsPromoted(undefined) });
+		await storageService.flush();
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const restored = createProvider(disposables, nextHost, undefined, { storageService }).getSessions()[0];
+		assert.deepStrictEqual({ observed, restored: restored.isPromoted?.get() }, { observed: [false, true], restored: true });
 	}));
 
 	test('a summaryChanged notification publishes the change chip and _meta as one atomic update', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

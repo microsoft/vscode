@@ -12,6 +12,7 @@ import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
+import { readSessionIsPromoted, SESSION_IS_PROMOTED_METADATA_KEY, withSessionIsPromoted } from '../../common/meta/agentSessionPromotionMeta.js';
 import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
@@ -109,6 +110,27 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const preferPersisted of [false, true]) {
+		for (const fromLive of [false, true]) {
+			test(`preserves promotion in the validated catalog (persisted=${preferPersisted}, live=${fromLive})`, async () => {
+				const state = sourceState();
+				const result = await createResolver({ [SESSION_IS_PROMOTED_METADATA_KEY]: fromLive ? '' : 'true' }).buildCatalogSyncRequest(
+					session,
+					{ ...state, meta: fromLive ? withSessionIsPromoted(state.meta) : state.meta },
+					{},
+					preferPersisted,
+				);
+				const encoded = encodeAgentHostCatalogPayload(result.data);
+				assert.ok(encoded.ok);
+				assert.deepStrictEqual({
+					promoted: readSessionIsPromoted(result.data),
+					persisted: result.legacyMetadata[SESSION_IS_PROMOTED_METADATA_KEY],
+					encoded: readSessionIsPromoted(encoded.value.data),
+				}, { promoted: true, persisted: 'true', encoded: true });
+			});
+		}
+	}
 
 	test('does not persist temporary input restrictions as read-only chats', async () => {
 		const state = sourceState();

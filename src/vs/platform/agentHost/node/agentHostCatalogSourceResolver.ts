@@ -7,6 +7,7 @@ import { URI } from '../../../base/common/uri.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readChatInputState } from '../common/meta/agentHostChatInputState.js';
 import { parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
+import { readSessionIsPromoted, SESSION_IS_PROMOTED_METADATA_KEY } from '../common/meta/agentSessionPromotionMeta.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
 import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -82,6 +83,7 @@ const sessionMetadata = {
 	title: stringSessionMetadataKey(SESSION_CUSTOM_TITLE_KEY),
 	titleSource: stringSessionMetadataKey(SESSION_CUSTOM_TITLE_SOURCE_KEY),
 	isRead: parsedSessionMetadataKey(AH_META_IS_READ_DB_KEY, value => value === 'true'),
+	isPromoted: parsedSessionMetadataKey(SESSION_IS_PROMOTED_METADATA_KEY, value => value === 'true'),
 	isArchived: parsedSessionMetadataKey(AH_META_IS_ARCHIVED_DB_KEY, value => value === 'true'),
 	isDone: parsedSessionMetadataKey(AH_META_IS_DONE_DB_KEY, value => value === 'true'),
 	creationReference: parsedSessionMetadataKey(AH_META_CREATED_BY_SESSION_DB_KEY, parseSessionCreationReference),
@@ -199,6 +201,7 @@ export class AgentHostCatalogSourceResolver {
 		const worktreeProject = this._dependencies.worktreeProjectFromRepositoryRoot(sessionMetadata.worktreeRepositoryRoot.read(metadata));
 		const ehcliAdoptable = readSessionEhcliAdoptable(state.meta);
 		const ehcliAdopted = readSessionEhcliAdopted(state.meta) || sessionMetadata.ehcliAdopted.read(metadata) === true;
+		const isPromoted = readSessionIsPromoted({ _meta: state.meta }) || sessionMetadata.isPromoted.read(metadata) === true;
 		const persistedDevContainerWorktree = sessionMetadata.devContainerWorktree.read(metadata);
 		const devContainerWorktree = preferPersistedMetadata && sessionMetadata.devContainerWorktree.has(metadata)
 			? persistedDevContainerWorktree
@@ -216,6 +219,7 @@ export class AgentHostCatalogSourceResolver {
 			...(workspaceless ? { [SESSION_META_WORKSPACELESS_KEY]: true } : undefined),
 			...(ehcliAdoptable ? { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } : undefined),
 			...(ehcliAdopted ? { [SESSION_META_EHCLI_ADOPTED_KEY]: true } : undefined),
+			...(isPromoted ? { [SESSION_IS_PROMOTED_METADATA_KEY]: true } : undefined),
 			...(devContainerWorktree ? { [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: devContainerWorktree } : undefined),
 		};
 		const data: AgentHostCatalogData = {
@@ -274,6 +278,9 @@ export class AgentHostCatalogSourceResolver {
 		}
 		if (remoteOrigin) {
 			legacyMetadata[REMOTE_SESSION_ORIGIN_METADATA_KEY] = JSON.stringify(remoteOrigin);
+		}
+		if (isPromoted) {
+			legacyMetadata[SESSION_IS_PROMOTED_METADATA_KEY] = 'true';
 		}
 		// The persisted marker also identifies host-created sessions, so it is never backfilled for an external one.
 		if ((workspaceless && !readSessionExternal(state.meta)) || metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {

@@ -4,8 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
+
+export const IAgentHostSessionMetadataPersistence = createDecorator<IAgentHostSessionMetadataPersistence>('agentHostSessionMetadataPersistence');
+
+/** Persists session metadata together with the durable session-catalog projection. */
+export interface IAgentHostSessionMetadataPersistence {
+	readonly _serviceBrand: undefined;
+	persist(session: URI, values: Readonly<Record<string, string>>): Promise<void>;
+}
 
 export const SESSION_CUSTOM_TITLE_KEY = 'customTitle';
 export const SESSION_CUSTOM_TITLE_SOURCE_KEY = 'customTitleSource';

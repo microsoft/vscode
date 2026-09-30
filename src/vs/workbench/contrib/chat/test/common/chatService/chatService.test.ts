@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { readMessageRetryOf } from '../../../../../../platform/agentHost/common/meta/agentMessageRetryMeta.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -271,6 +272,25 @@ suite('ChatService', () => {
 		});
 
 		assert.strictEqual(await captured.p, true);
+	});
+
+	test('resends carry retry identity so automation promotion can exclude them', async () => {
+		const retries: (string | undefined)[] = [];
+		testDisposables.add(chatAgentService.registerAgent('retryAgent', getAgentData('retryAgent')));
+		testDisposables.add(chatAgentService.registerAgentImplementation('retryAgent', {
+			async invoke(request) {
+				retries.push(readMessageRetryOf({ _meta: request.metadata }));
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const first = await service.sendRequest(model.sessionResource, 'seed', { agentId: 'retryAgent', agentHostMessageOrigin: { kind: MessageKind.Automation } });
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+		const original = model.getRequests()[0];
+		await service.resendRequest(original, { agentId: 'retryAgent' });
+		assert.deepStrictEqual(retries, [undefined, original.id]);
 	});
 
 	test('acceptance counts submissions once, not rejections, system messages, retries or queue drains', async () => {

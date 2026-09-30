@@ -38,6 +38,8 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 
 The provider-neutral store exposes definition mutations and a manual run request, not run-claim or lifecycle-write APIs. The manual runner has no Sessions session-creation dependency.
 
+The VS Code Agent Host promotes a session when it accepts a human message in any of that session's chats, including queued and steering messages. The host persists `vscode.session.isPromoted` in session metadata before publishing promotion through session state and catalog summaries. Promotion survives restart and later cancellation or history truncation. It applies only to the messaged session, not other sessions in the run, and does not change automation provenance or run lifecycle. Clients without the optional marker retain their existing list behavior; clients reconnecting to the same host recover it through the session catalog.
+
 `IAutomationService` and `ISessionsProviderAutomations` each extend `IAutomationStore`; neither extends the other. The provider contract describes one host's catalogue and observable creation eligibility, while the injected service adds provider lists and creation checks by provider ID. The common interfaces live in Workbench, and the provider specialization lives in Sessions, preserving the layer direction.
 
 `ProviderAutomationService` aggregates the objects exposed by `ISessionsProvider.automations`. For AHP providers, that object is a stable `ReconnectableAgentHostAutomationStore`; its inner `AgentHostAutomationStore` lasts only for one usable connection. Neither client-side object is the host-process `AgentHostAutomationService`, which owns execution and durable storage.

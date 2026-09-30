@@ -33,6 +33,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
+import { readSessionIsPromoted, SESSION_IS_PROMOTED_METADATA_KEY } from '../../common/meta/agentSessionPromotionMeta.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -1425,6 +1426,58 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
+		test('promotion from a human follow-up survives catalog listing and host restart', async () => {
+			const database = new TestSessionDatabase();
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const sessionData = createSessionDataService(database);
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionData, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const svc = createService();
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session.toString());
+			const stateManager = getStateManager(svc);
+			const promoted = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope,
+				envelope => envelope.channel === session.toString() && envelope.action.type === ActionType.SessionMetaChanged && readSessionIsPromoted(envelope.action)));
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'human-followup', startedAt: '2026-09-29T00:00:00Z',
+				message: { text: 'Please continue', origin: { kind: MessageKind.User } },
+			}, 'other-client', 1);
+			await promoted;
+			const persisted = await database.getMetadata(SESSION_IS_PROMOTED_METADATA_KEY);
+			const central = readSessionIsPromoted(catalogDataOf(await catalogDatabase.getSessionV2(session.toString())));
+			const restarted = createService();
+			registerTestAgentProvider(restarted, copilotAgent);
+			const listed = await restarted.listSessions();
+			await restarted.restoreSession(session);
+			assert.deepStrictEqual({
+				persisted,
+				central,
+				listed: readSessionIsPromoted(listed.find(item => item.session.toString() === session.toString())),
+				restored: readSessionIsPromoted(getStateManager(restarted).getSessionState(session.toString())),
+			}, { persisted: 'true', central: true, listed: true, restored: true });
+		});
+
+		test('rejected human turns do not promote archived automation sessions', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const stateManager = getStateManager(service);
+			const chat = buildDefaultChatUri(session.toString());
+			stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'rejected-human', startedAt: '2026-09-29T00:00:00Z',
+				message: { text: 'Old user turn', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'rejected-human', duration: 1 });
+			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			service.dispatchAction(buildDefaultChatUri(session.toString()), {
+				type: ActionType.ChatTurnStarted, turnId: 'rejected-human', startedAt: '2026-09-29T00:00:00Z',
+				message: { text: 'Hello', origin: { kind: MessageKind.User } },
+			}, 'other-client', 1);
+			assert.strictEqual(readSessionIsPromoted(stateManager.getSessionState(session.toString())), false);
+		});
+
 		test('restricted pull-request associations replace the central payload without restoring removed links', async () => {
 			const database = new TestSessionDatabase();
 			const catalogDatabase = new TestAgentHostOrchestratorDatabase();

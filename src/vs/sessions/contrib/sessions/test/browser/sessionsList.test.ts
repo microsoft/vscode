@@ -93,6 +93,7 @@ function createSession(id: string, opts: {
 	isArchived?: boolean;
 	isRead?: boolean;
 	isAutomation?: boolean;
+	isPromoted?: boolean;
 	isExternal?: boolean;
 	resource?: URI;
 }): ISession & { readonly isArchived: ISettableObservable<boolean, void> } {
@@ -117,6 +118,7 @@ function createSession(id: string, opts: {
 		} : undefined),
 		isQuickChat: observableValue(`isQuickChat-${id}`, opts.workspaceLabel === undefined),
 		isAutomation: observableValue(`isAutomation-${id}`, opts.isAutomation === true),
+		isPromoted: observableValue(`isPromoted-${id}`, opts.isPromoted === true),
 		isExternal: observableValue(`isExternal-${id}`, opts.isExternal === true),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
@@ -2465,6 +2467,52 @@ suite('Sessions - SessionsList', () => {
 			})), [
 				{ id: 'workspace:Gamma', sessions: ['visible'] },
 			]);
+		});
+
+		test('promoted automation sessions follow normal placement without losing automation identity', () => {
+			const sessions = [
+				createSession('pinned', { workspaceLabel: 'Alpha', isAutomation: true, isPromoted: true }),
+				createSession('quick', { isAutomation: true, isPromoted: true }),
+				createSession('workspace', { workspaceLabel: 'Beta', isAutomation: true, isPromoted: true }),
+				createSession('archived', { isArchived: true, isAutomation: true, isPromoted: true }),
+				createSession('hidden', { isAutomation: true }),
+			];
+			const sections = groupSessionsForList(sessions, SessionsGrouping.Workspace, SessionsSorting.Created, session => session.sessionId === 'pinned');
+			assert.deepStrictEqual({
+				sections: sections.map(section => ({ id: section.id, sessions: section.sessions.map(session => session.sessionId) })),
+				automation: sessions.every(session => session.isAutomation?.get()),
+			}, {
+				sections: [
+					{ id: 'pinned', sessions: ['pinned'] },
+					{ id: 'quickchats', sessions: ['quick'] },
+					{ id: 'workspace:Beta', sessions: ['workspace'] },
+					{ id: 'archived', sessions: ['archived'] },
+				],
+				automation: true,
+			});
+		});
+	});
+
+	suite('Automation promotion', () => {
+		test('adds a promoted automation to the visible list without refreshing the catalog', () => {
+			const isPromoted = observableValue('isPromoted', false);
+			const session: ISession = {
+				...createTestSession('Automation').session,
+				isAutomation: constObservable(true),
+				isPromoted,
+			};
+			const harness = createListHarness(disposables, [session]);
+			harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const before = list.getVisibleSessions().map(session => session.title.get());
+			isPromoted.set(true, undefined);
+			const after = list.getVisibleSessions().map(session => session.title.get());
+			assert.deepStrictEqual({ before, after }, { before: [], after: ['Automation'] });
 		});
 	});
 

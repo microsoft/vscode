@@ -10,6 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IValidator, ValidationError, ValidatorBase, ValidatorType, vArray, vBoolean, vEnum, vObj, vOptionalProp } from '../../../base/common/validation.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
+import { SESSION_IS_PROMOTED_METADATA_KEY } from '../common/meta/agentSessionPromotionMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../common/sessionArtifacts.js';
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
@@ -356,6 +357,7 @@ const metadataValidator = plainObject(vObj({
 	[SESSION_META_ARTIFACTS_KEY]: vOptionalProp(artifactsValidator),
 	[SESSION_META_CREATED_BY_SESSION_KEY]: vOptionalProp(creationReferenceValidator),
 	[REMOTE_SESSION_ORIGIN_METADATA_KEY]: vOptionalProp(remoteSessionOriginValidator),
+	[SESSION_IS_PROMOTED_METADATA_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_WORKSPACELESS_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTABLE_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTED_KEY]: vOptionalProp(vBoolean()),

@@ -4059,6 +4059,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			for (const session of this.sessions) {
 				getSessionListChats(session, reader, !this._excludeArchived);
 				session.isExternal?.read(reader);
+				session.isPromoted?.read(reader);
 			}
 			if (initialized && this.visible) {
 				this.update();
@@ -4083,7 +4084,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Scope to the selected host's providers; an empty set (a declared
 		// group with no members yet) matches nothing rather than everything.
-		let filtered = this.sessions.filter(session => !isAutomationSession(session));
+		let filtered = this.sessions.filter(session => !isUnpromotedAutomationSession(session));
 		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
 		if (scopedProviderIds) {
 			const scoped = new Set(scopedProviderIds);
@@ -4109,7 +4110,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Keep the active user-facing session visible even when another filter excludes it.
 		for (const revealedSession of [activeSession, onboardingSession]) {
 			if (revealedSession && !filtered.some(s => s.sessionId === revealedSession.sessionId)) {
-				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && !isAutomationSession(s));
+				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && !isUnpromotedAutomationSession(s));
 				if (match) {
 					filtered = [...filtered, match];
 				}
@@ -5346,7 +5347,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			id: 'sessionsViewPane.markAllInSectionRead',
 			label: localize('markAllInSectionRead', "Mark All as Read"),
 			run: () => {
-				const sessions = getSessions().filter(session => !isAutomationSession(session) && !session.isArchived.get() && !session.isRead.get());
+				const sessions = getSessions().filter(session => !isUnpromotedAutomationSession(session) && !session.isArchived.get() && !session.isRead.get());
 				return this._sessionsManagementService.markAllRead(sessions);
 			},
 		});
@@ -5937,6 +5938,10 @@ export function isAutomationSession(session: ISession): boolean {
 	return session.isAutomation?.get() ?? false;
 }
 
+function isUnpromotedAutomationSession(session: ISession): boolean {
+	return isAutomationSession(session) && !(session.isPromoted?.get() ?? false);
+}
+
 export function groupSessionsForList(
 	sessions: ISession[],
 	grouping: SessionsGrouping,
@@ -5946,7 +5951,7 @@ export function groupSessionsForList(
 	archivedSectionLabel: string = getChatSessionArchivedSectionLabel(ChatSessionArchiveActionWording.MarkAsDone),
 	groupExternalSessions = true,
 ): ISessionSection[] {
-	const sorted = sortSessions(sessions.filter(session => !isAutomationSession(session)), sorting, getSortKey);
+	const sorted = sortSessions(sessions.filter(session => !isUnpromotedAutomationSession(session)), sorting, getSortKey);
 
 	// Archived and explicit pins take precedence over the automatic buckets.
 	const pinned: ISession[] = [];

@@ -24,7 +24,7 @@ List-owned state is local presentation state. It is not synchronized back to a p
 
 The list consumes sessions from `ISessionsManagementService`. Providers decide whether a model represents a workspace session, quick chat, automation, or archived session through provider-neutral fields.
 
-Automation runs are excluded from the primary Sessions list. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
+Automation sessions are excluded from the primary Sessions list unless their host reports `ISession.isPromoted`. Promotion does not remove automation provenance or run-history membership. Promoted sessions follow the normal placement and filtering rules. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
 
 ## Placement precedence
 

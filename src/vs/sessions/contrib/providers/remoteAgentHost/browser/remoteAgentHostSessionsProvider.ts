@@ -338,6 +338,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			},
 		}));
 		this.automations = this._automationStore;
+		this.bindAutomationSessionMarkers(this.automations);
 
 		this._browseActions = [{
 			label: localize('folders', "Folders"),
