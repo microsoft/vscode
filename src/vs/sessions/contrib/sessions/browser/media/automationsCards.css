@@ -130,6 +130,7 @@
 
 /* Individual Card */
 .automations-card {
+	position: relative;
 	display: flex;
 	flex-direction: row;
 	align-items: flex-start;
@@ -179,13 +180,15 @@
 	flex-direction: row;
 	align-items: center;
 	gap: 8px;
+	min-height: var(--vscode-spacing-size240);
+	padding-right: calc(2 * var(--vscode-spacing-size240) + var(--vscode-spacing-size40) + var(--vscode-spacing-size80));
 }
 
 .automations-card-name-text {
 	flex: 1 1 0;
 	min-width: 0;
-	font-size: 13px;
-	font-weight: 600;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	white-space: nowrap;
@@ -204,11 +207,11 @@
 	flex-direction: row;
 	align-items: center;
 	gap: 6px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1);
 	color: var(--vscode-descriptionForeground);
 	min-width: 0;
 	margin-top: auto;
-	padding-top: var(--vscode-spacing-size120);
+	padding-top: var(--vscode-spacing-size80);
 }
 
 .automations-card-meta-item {
@@ -250,7 +253,7 @@
 
 /* Card Prompt */
 .automations-card-prompt {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	margin-top: var(--vscode-spacing-size20);
 	line-height: 1.4;
@@ -264,6 +267,9 @@
 
 /* Card Action Buttons (icon-only, matching native pattern) */
 .automations-card-actions {
+	position: absolute;
+	top: var(--vscode-spacing-size120);
+	right: var(--vscode-spacing-size160);
 	display: flex;
 	flex-direction: row;
 	gap: 4px;
@@ -315,8 +321,8 @@
 	align-items: center;
 	justify-content: center;
 	text-align: center;
-	padding: 48px 20px;
-	gap: 8px;
+	padding: var(--vscode-spacing-size320) var(--vscode-spacing-size200);
+	gap: var(--vscode-spacing-size80);
 	flex: 1;
 }
 
@@ -328,9 +334,9 @@
 }
 
 .automations-cards-empty-description {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
-	margin: 0 0 12px;
+	margin: 0 0 var(--vscode-spacing-size80);
 	max-width: 320px;
 	line-height: 1.4;
 }
@@ -563,8 +569,7 @@
 
 .automations-template-card-badge,
 .automations-template-card-source,
-.automations-template-card-schedule,
-.automations-template-card-prompt {
+.automations-template-card-schedule {
 	font-size: var(--vscode-fontSize-label1);
 	color: var(--vscode-descriptionForeground);
 }
@@ -580,6 +585,8 @@
 }
 
 .automations-template-card-prompt {
+	font-size: var(--vscode-fontSize-body1);
+	color: var(--vscode-descriptionForeground);
 	display: -webkit-box;
 	overflow: hidden;
 	margin-top: var(--vscode-spacing-size20);
@@ -588,6 +595,11 @@
 	word-break: break-word;
 	-webkit-line-clamp: 2;
 	-webkit-box-orient: vertical;
+}
+
+.automations-template-card-schedule {
+	margin-top: auto;
+	padding-top: var(--vscode-spacing-size80);
 }
 
 /* Run History */

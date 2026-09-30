@@ -970,16 +970,35 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			titles: widget.element.querySelectorAll('.automations-cards-empty-title').length,
 			descriptions: widget.element.querySelectorAll('.automations-cards-empty-description').length,
+			description: widget.element.querySelector('.automations-cards-empty-description')?.textContent,
 			buttons: widget.element.querySelectorAll('.automations-cards-create-button').length,
 			templateSections: widget.element.querySelectorAll('.automations-templates').length,
 			templateNames: Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent),
 		}, {
 			titles: 1,
 			descriptions: 1,
+			description: 'Describe what you want to automate, then choose when it runs.',
 			buttons: 1,
 			templateSections: 1,
 			templateNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
 		});
+	});
+
+	test('template cards put the prompt before the schedule', () => {
+		const { widget } = setup();
+		const cards = Array.from(widget.element.querySelectorAll('.automations-template-card'));
+		assert.deepStrictEqual(cards.map(card => {
+			const descriptionId = card.getAttribute('aria-describedby');
+			return {
+				name: card.querySelector('.automations-template-card-name-text')?.textContent,
+				order: Array.from(card.children, element => element.className),
+				promptDescribed: !!descriptionId && descriptionId === card.querySelector('.automations-template-card-prompt')?.id,
+			};
+		}), ['Catch up on main', 'Issue triage', 'Find bugs'].map(name => ({
+			name,
+			order: ['automations-template-card-name', 'automations-template-card-prompt', 'automations-template-card-schedule'],
+			promptDescribed: true,
+		})));
 	});
 
 	test('shows enabled plugin Automation templates and opens them disabled by default', async () => {
