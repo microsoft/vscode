@@ -79,6 +79,7 @@ export class QuickInputController extends Disposable {
 
 	private controller: IQuickInput | null = null;
 	get currentQuickInput() { return this.controller ?? undefined; }
+	private readonly quickInputAnchorScopes: { readonly anchor: IQuickInput['anchor']; readonly anchorPosition: IQuickInput['anchorPosition']; consumed: boolean }[] = [];
 
 	private _container: HTMLElement;
 	get container() { return this._container; }
@@ -675,6 +676,19 @@ export class QuickInputController extends Disposable {
 		return new QuickPick<T, typeof options>(ui);
 	}
 
+	async withQuickInputAnchor<T>(anchor: IQuickInput['anchor'], anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T> {
+		const scope = { anchor, anchorPosition, consumed: false };
+		this.quickInputAnchorScopes.push(scope);
+		try {
+			return await operation();
+		} finally {
+			const index = this.quickInputAnchorScopes.indexOf(scope);
+			if (index !== -1) {
+				this.quickInputAnchorScopes.splice(index, 1);
+			}
+		}
+	}
+
 	createInputBox(): IInputBox {
 		const ui = this.getUI(true);
 		return new InputBox(ui);
@@ -699,6 +713,17 @@ export class QuickInputController extends Disposable {
 
 	private show(controller: IQuickInput) {
 		this.completeCloseAnimation();
+		if (controller.anchor === undefined) {
+			for (let index = this.quickInputAnchorScopes.length - 1; index >= 0; index--) {
+				const scope = this.quickInputAnchorScopes[index];
+				if (!scope.consumed) {
+					scope.consumed = true;
+					controller.anchor = scope.anchor;
+					controller.anchorPosition = scope.anchorPosition;
+					break;
+				}
+			}
+		}
 		const ui = this.getUI(true);
 		const oldController = this.controller;
 		this.controller = controller;

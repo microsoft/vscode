@@ -1947,6 +1947,10 @@ export class TestQuickInputService implements IQuickInputService {
 	readonly quickAccess = undefined!;
 	backButton!: IQuickInputButton;
 
+	withQuickInputAnchor<T>(_anchor: IQuickInput['anchor'], _anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T> {
+		return operation();
+	}
+
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {

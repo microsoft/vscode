@@ -386,6 +386,43 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		});
 	});
 
+	test('scoped anchors apply only to the next unanchored quick pick', async () => {
+		const anchor = document.createElement('div');
+		const explicitAnchor = document.createElement('div');
+		fixture.appendChild(anchor);
+		fixture.appendChild(explicitAnchor);
+		let explicit;
+		let inherited;
+		await controller.withQuickInputAnchor(anchor, 'below', async () => {
+			explicit = store.add(controller.createQuickPick());
+			explicit.anchor = explicitAnchor;
+			explicit.anchorPosition = 'above';
+			explicit.show();
+			explicit.hide();
+			inherited = store.add(controller.createQuickPick());
+			inherited.show();
+		});
+		inherited?.hide();
+		const subsequent = store.add(controller.createQuickPick());
+		subsequent.show();
+
+		assert.deepStrictEqual({
+			explicitAnchor: explicit?.anchor === explicitAnchor,
+			explicitPosition: explicit?.anchorPosition,
+			inheritedAnchor: inherited?.anchor === anchor,
+			inheritedPosition: inherited?.anchorPosition,
+			subsequentAnchor: subsequent.anchor,
+			subsequentPosition: subsequent.anchorPosition,
+		}, {
+			explicitAnchor: true,
+			explicitPosition: 'above',
+			inheritedAnchor: true,
+			inheritedPosition: 'below',
+			subsequentAnchor: undefined,
+			subsequentPosition: undefined,
+		});
+	});
+
 	test('pick - basecase', async () => {
 		const item = { label: 'foo' };
 

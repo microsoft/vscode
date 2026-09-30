@@ -334,7 +334,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 			picker.hide();
 
 			if (selected.contextAction) {
-				await selected.contextAction.run();
+				await this.quickInputService.withQuickInputAnchor(anchor, anchor ? 'below' : undefined, () => selected.contextAction!.run());
 			} else if (selected.id === 'sessions.filesAndFolders') {
 				await this._handleFileDialog();
 			} else if (selected.id === 'sessions.imageFromClipboard') {
