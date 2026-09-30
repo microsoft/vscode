@@ -1355,6 +1355,34 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('keeps the first colored status bar item hover surface flush with its background', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
+		root.style.cssText = '--vscode-spacing-size40: 4px; --vscode-spacing-size80: 8px;';
+		store.add(toDisposable(() => root.remove()));
+		const statusbar = appendElement(root, 'part statusbar');
+		const items = appendElement(statusbar, 'left-items items-container');
+		const item = appendElement(items, 'statusbar-item left first-visible-item has-background-color');
+		const label = appendElement(item, 'statusbar-item-label');
+
+		const measure = (compact: boolean) => {
+			root.classList.toggle('modern-ui-compact', compact);
+			const itemStyle = getWindow(item).getComputedStyle(item);
+			const labelStyle = getWindow(label).getComputedStyle(label);
+			return {
+				itemPaddingLeft: itemStyle.paddingLeft,
+				labelPaddingLeft: labelStyle.paddingLeft,
+			};
+		};
+
+		assert.deepStrictEqual({
+			defaultDensity: measure(false),
+			compactDensity: measure(true),
+		}, {
+			defaultDensity: { itemPaddingLeft: '0px', labelPaddingLeft: '8px' },
+			compactDensity: { itemPaddingLeft: '0px', labelPaddingLeft: '0px' },
+		});
+	});
+
 	test('compact status bar keeps its horizontal padding independently of the panel perimeter', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-compact floating-panels');
 		root.style.setProperty('--vscode-spacing-size40', '4px');

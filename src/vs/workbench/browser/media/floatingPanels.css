@@ -384,9 +384,12 @@
 	padding-right: var(--vscode-spacing-size40);
 }
 
-.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item,
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
+	padding-left: var(--vscode-spacing-sizeNone);
+}
+
 .monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
-	padding-left: var(--modern-ui-floating-card-margin);
+	padding-left: calc(var(--modern-ui-floating-card-margin) + var(--modern-ui-floating-card-margin));
 }
 /*
  * When the status bar is hidden every floating card sits directly against the window
