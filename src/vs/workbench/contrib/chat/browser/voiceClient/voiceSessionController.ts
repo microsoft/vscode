@@ -22,6 +22,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceFatalDisconnect, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal, isVoiceCheckpointId, VoiceCheckpointId, VoiceConfirmationType, VoiceNarrationKind, IVoiceSessionPending, IVoicePendingQuestion, derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, restoreResolvedPendingId, VOICE_AGENT_PROGRESS_SETTING } from '../../common/voiceClient/voiceClientService.js';
 import { voiceCloseCodeInfo, VoiceCloseCode } from '../../common/voiceClient/voiceCloseCodes.js';
@@ -806,6 +807,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _telemetryFirstTranscriptionMs: number | undefined;
 	private _telemetryTtsInterrupted = false;
 	private _entitlementCheckScheduled = false;
+	private _didNotifyGptLiveByok = false;
 
 	// --- Transcript persistence (local-only) ---
 	/** Cached GitHub login resolved on connect; used as transcript partition key. */
@@ -1313,6 +1315,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Connection state → start mic + send start session
 		this._voiceEventDisposables.add(this.voiceClientService.onDidChangeConnectionState(async connected => {
 			if (connected) {
+				if (hasGptLiveByok && !this._didNotifyGptLiveByok) {
+					const modelId = this.configurationService.getValue<string>(AgentsVoiceSettingId.UseBYOKVoiceModel)?.trim();
+					if (modelId) {
+						this._didNotifyGptLiveByok = true;
+						this.notificationService.info(localize('voiceMode.usingOpenAIModel', "Using {0} from your OpenAI provider for Voice Mode.", modelId));
+					}
+				}
 				const sessionInitializationGeneration = ++this._sessionInitializationGeneration;
 				// Every socket open, including reconnects, gets a full timeout window
 				// covering voice instructions, mic warm-up, and the session command.

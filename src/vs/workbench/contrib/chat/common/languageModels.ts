@@ -1775,9 +1775,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 				await this._languageModelsConfigurationService.configureLanguageModels({ group: saved, snippet });
 			}
 
-			if (!existing && isString(configuration?.apiKey)) {
-				this._notificationService.info(localize('chat.languageModels.apiKeyAdded', "{0} API key added successfully.", vendor.displayName));
-			}
 		} catch (error) {
 			if (isCancellationError(error)) {
 				return;

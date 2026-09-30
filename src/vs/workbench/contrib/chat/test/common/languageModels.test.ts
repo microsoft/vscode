@@ -15,7 +15,7 @@ import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
-import { INotificationHandle, IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
+import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -1622,7 +1622,6 @@ suite('LanguageModels - Provider Group Management', function () {
 	let configureCalls: (ConfigureLanguageModelsOptions | undefined)[];
 	let acceptedInputValues: string[];
 	let secretStorageService: TestSecretStorageService;
-	let notificationMessages: string[];
 
 	setup(function () {
 		providerGroups = [{
@@ -1635,7 +1634,6 @@ suite('LanguageModels - Provider Group Management', function () {
 		configureCalls = [];
 		acceptedInputValues = [];
 		secretStorageService = new TestSecretStorageService();
-		notificationMessages = [];
 
 		languageModelsService = new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
@@ -1656,10 +1654,6 @@ suite('LanguageModels - Provider Group Management', function () {
 					providerGroups = providerGroups.map(group => group === from ? to : group);
 					return to;
 				}
-				override async addLanguageModelsProviderGroup(group: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
-					providerGroups.push(group);
-					return group;
-				}
 				override async configureLanguageModels(options?: ConfigureLanguageModelsOptions): Promise<void> {
 					configureCalls.push(options);
 				}
@@ -1676,12 +1670,7 @@ suite('LanguageModels - Provider Group Management', function () {
 			secretStorageService,
 			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
 			new class extends mock<IRequestService>() { },
-			new class extends TestNotificationService {
-				override info(message: string): INotificationHandle {
-					notificationMessages.push(message);
-					return super.info(message);
-				}
-			},
+			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
 		);
@@ -1769,14 +1758,6 @@ suite('LanguageModels - Provider Group Management', function () {
 			secretKeys: ['existing-secret'],
 			secretValue: 'old-api-key'
 		});
-	});
-
-	test('configureLanguageModelsProviderGroup confirms a newly added API key', async function () {
-		acceptedInputValues.push('New Group', 'new-api-key');
-
-		await languageModelsService.configureLanguageModelsProviderGroup('custom-vendor');
-
-		assert.deepStrictEqual(notificationMessages, ['Custom Vendor API key added successfully.']);
 	});
 
 	test('addLanguageModelsProviderGroupModel inserts a models property when the group does not have one', async function () {

@@ -28,6 +28,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../service
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestChatEntitlementService } from '../../../../../test/common/workbenchTestServices.js';
+import { AgentsVoiceSettingId } from '../../../../agentsVoice/common/agentsVoice.js';
 import { IVoiceTranscriptStore, IVoiceTranscriptTurn } from '../../../../agentsVoice/common/voiceTranscriptStore.js';
 import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
@@ -125,11 +126,12 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private connected = false;
 	private resuming = false;
 	private reconnecting = false;
+	gptLiveByok = false;
 
 	override get isConnected(): boolean { return this.connected; }
 	override get isResuming(): boolean { return this.resuming; }
 	override get willReconnect(): boolean { return this.reconnecting; }
-	override hasGptLiveByok(): Promise<boolean> { return Promise.resolve(false); }
+	override hasGptLiveByok(): Promise<boolean> { return Promise.resolve(this.gptLiveByok); }
 	override disconnect(): void { this.connected = false; }
 	override async connect(): Promise<void> { }
 	readonly wireEvents: ({ type: 'session_context'; context: IVoiceSessionContext } | { type: 'request_narration'; kind: VoiceNarrationKind; text: string; confirmationType?: VoiceConfirmationType })[] = [];
@@ -973,6 +975,30 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(controller.isConnecting.get(), false);
 		assert.strictEqual(controller.isConnected.get(), false);
 		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Voice Mode requires a paid GitHub Copilot plan.']);
+	});
+
+	test('confirms the OpenAI model when GPT-Live connects', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveByok = true;
+		const notificationService = new VoiceTestNotificationService();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new TestConfigurationService({ [AgentsVoiceSettingId.UseBYOKVoiceModel]: 'gpt-live-1' }),
+			undefined,
+			undefined,
+			undefined,
+			notificationService,
+		);
+
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		voiceClientService.fireConnectionState(true);
+
+		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Using gpt-live-1 from your OpenAI provider for Voice Mode.']);
 	});
 
 	test('does not connect when Voice Mode is disabled', async () => {
