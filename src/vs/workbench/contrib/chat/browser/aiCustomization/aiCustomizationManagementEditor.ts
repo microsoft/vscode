@@ -1944,9 +1944,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const candidates = homepageMigrationCategories.flatMap(id => this.getMigrationCandidates(getCustomizationMigrationCategory(id)));
 		const count = candidates.filter(candidate => !this.migrationWorkspaceSkipped || this.getMigrationCandidateStorage(candidate) !== PromptsStorage.local).length;
-		const enabled = isAgentHostTarget(this.harnessService.activeHarness.get())
+		const visible = count > 0
+			&& isAgentHostTarget(this.harnessService.activeHarness.get())
 			&& homepageMigrationCategories.some(id => this.isMigrationCategoryEnabled(getCustomizationMigrationCategory(id)));
-		this.migrationShortcutContainer.style.display = enabled ? '' : 'none';
+		this.migrationShortcutContainer.style.display = visible ? '' : 'none';
 		this.migrationShortcutCount.textContent = count > 0 ? String(count) : '';
 		this.migrationShortcutButton.setAttribute(
 			'aria-label',
