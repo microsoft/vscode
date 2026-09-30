@@ -173,7 +173,7 @@ suite('Automation blueprints', () => {
 	test('retains the strict version 1 schema and upgrades exports that add conditions', () => {
 		const legacy = '---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.';
 		assert.throws(() => parseAutomationBlueprint(legacy.replace('schedule:', 'disableConditions: []\nschedule:')),
-			{ code: 'unknownProperty', property: 'disableConditions' });
+			/^Error: unknownProperty: disableConditions$/);
 		const blueprint = parseAutomationBlueprint(legacy);
 		assert.deepStrictEqual({
 			legacy: parseAutomationBlueprint(serializeAutomationBlueprint(blueprint)).version,
@@ -202,7 +202,7 @@ suite('Automation blueprints', () => {
 		});
 		assert.throws(() => automationToBlueprint({
 			...automation, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }],
-		}), { code: 'invalidField', property: 'disableConditions' });
+		}), /^Error: invalidField: disableConditions$/);
 	});
 
 	test('exports only portable automation state', () => {
