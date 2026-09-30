@@ -71,6 +71,9 @@ import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/com
 import { MeteredConnectionChannel } from '../../platform/meteredConnection/electron-main/meteredConnectionChannel.js';
 import { MeteredConnectionMainService } from '../../platform/meteredConnection/electron-main/meteredConnectionMainService.js';
 import { IProductService } from '../../platform/product/common/productService.js';
+import { FETCH_CHANNEL_NAME } from '../../platform/request/common/fetch.js';
+import { FetchChannel } from '../../platform/request/common/fetchIpc.js';
+import { NodeFetchService } from '../../platform/request/node/fetchService.js';
 import { getRemoteAuthority } from '../../platform/remote/common/remoteHosts.js';
 import { SharedProcess } from '../../platform/sharedProcess/electron-main/sharedProcess.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
@@ -1397,13 +1400,24 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
 
 		// Native host (main & shared process)
-		this.nativeHostMainService = accessor.get(INativeHostMainService);
+		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
 		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables, {
 			// This event has main-process consumers but no IPC consumer, so its buffer would never drain.
 			unbufferedEvents: ['onDidBlurMainWindow']
 		});
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
+
+		const fetchService = disposables.add(accessor.get(IInstantiationService).createInstance(NodeFetchService, {
+			resolveProxy: url => session.defaultSession.resolveProxy(url),
+			lookupAuthorization: authInfo => nativeHostMainService.lookupAuthorization(undefined, authInfo),
+			lookupKerberosAuthorization: url => nativeHostMainService.lookupKerberosAuthorization(undefined, url),
+			loadCertificates: () => nativeHostMainService.loadCertificates(undefined),
+		}, undefined, undefined));
+		mainProcessElectronServer.registerChannel(FETCH_CHANNEL_NAME, disposables.add(new FetchChannel(
+			(input, init) => fetchService.fetch(input, init),
+			this.logService,
+		)));
 
 		// Web Content Extractor
 		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(IWebContentExtractorService), disposables);

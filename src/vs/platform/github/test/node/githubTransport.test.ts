@@ -853,7 +853,7 @@ suite('GitHubTransport', () => {
 			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 1_000,
 		}, signal());
 		assert.deepStrictEqual({ text: result.text, locked: stream.locked, warnings }, {
-			text: 'abc', locked: false, warnings: ['[GitHubTransport] Failed to cancel a download body'],
+			text: 'abc', locked: false, warnings: ['[GitHubTransport] Failed to cancel a response body'],
 		});
 	});
 

@@ -10,6 +10,7 @@ import { GitHubService, IGitHubService } from '../../../../platform/github/commo
 import { IGitHubEndpointProvider, IGitHubTokenProvider } from '../../../../platform/github/common/githubTypes.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IFetchService } from '../../../../platform/request/common/fetch.js';
 import { IAuthenticationService } from '../../authentication/common/authentication.js';
 
 class WorkbenchGitHubEndpointProvider implements IGitHubEndpointProvider {
@@ -94,10 +95,12 @@ export class WorkbenchGitHubService extends GitHubService {
 		@IAuthenticationService authenticationService: IAuthenticationService,
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 		@ILogService logService: ILogService,
+		@IFetchService fetchService: IFetchService,
 	) {
 		super({
 			endpoint: new WorkbenchGitHubEndpointProvider(defaultAccountService),
 			tokenProvider: new WorkbenchGitHubTokenProvider(authenticationService, defaultAccountService, logService),
+			fetch: (input, init) => fetchService.fetch(input, init),
 		}, logService);
 	}
 }

@@ -240,7 +240,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 					}
 					if ([301, 302, 307, 308].includes(response.status)) {
 						if (response.body) {
-							cancelDownloadBody(response.body, this._logService);
+							cancelResponseBody(response.body, this._logService);
 						}
 						const location = response.headers.get('location');
 						if (!location) {
@@ -260,7 +260,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 					}
 					if (!response.ok) {
 						if (response.body) {
-							cancelDownloadBody(response.body, this._logService);
+							cancelResponseBody(response.body, this._logService);
 						}
 						throw new GitHubRequestError(`GitHub download failed - HTTP ${response.status}`, classifyHttpError(response.status, ''), response.status);
 					}
@@ -561,6 +561,9 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				}
 				return response;
 			}
+			if (response.body) {
+				cancelResponseBody(response.body, this._logService);
+			}
 			const location = response.headers.get('location');
 			if (!location) {
 				throw new GitHubRequestError('GitHub redirect was missing a Location header', 'malformedResponse', response.status);
@@ -580,6 +583,9 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			try {
 				const response = await this._fetch(url, init);
 				if (retry && attempt === 0 && response.status >= 500) {
+					if (response.body) {
+						cancelResponseBody(response.body, this._logService);
+					}
 					this._logService?.debug(`[GitHubTransport] Retrying ${formatRequestUrl(url)} after HTTP ${response.status}`);
 					await schedulerDelay(this._scheduler, 100 + this._scheduler.jitter(200), init.signal as AbortSignal);
 					continue;
@@ -883,15 +889,15 @@ async function readBoundedResponse(
 	} finally {
 		signal.removeEventListener('abort', onAbort);
 		if (!complete) {
-			cancelDownloadBody(reader, logService);
+			cancelResponseBody(reader, logService);
 		}
 		reader.releaseLock();
 	}
 }
 
-function cancelDownloadBody(body: { cancel(): Promise<void> }, logService?: ILogService): void {
+function cancelResponseBody(body: { cancel(): Promise<void> }, logService?: ILogService): void {
 	// Cancellation must not block the deadline on an unresponsive underlying source.
-	void body.cancel().catch(() => logService?.warn('[GitHubTransport] Failed to cancel a download body'));
+	void body.cancel().catch(() => logService?.warn('[GitHubTransport] Failed to cancel a response body'));
 }
 
 function concatenateBytes(chunks: readonly Uint8Array[], length: number): Uint8Array {
