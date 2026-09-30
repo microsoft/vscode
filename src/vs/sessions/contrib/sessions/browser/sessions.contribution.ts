@@ -13,6 +13,7 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
+import { SessionsAccountTelemetryContribution } from './sessionsAccountTelemetry.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
@@ -158,5 +159,6 @@ registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessi
 registerWorkbenchContribution2(SessionListActionsExperimentContribution.ID, SessionListActionsExperimentContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsMouseNavigationContribution.ID, SessionsMouseNavigationContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTelemetryContribution.ID, SessionsTelemetryContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionsAccountTelemetryContribution.ID, SessionsAccountTelemetryContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsWindowNotifier.ID, SessionsWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionConversationActionsContribution.ID, SessionConversationActionsContribution, WorkbenchPhase.AfterRestored);
