@@ -54,6 +54,7 @@ Moving a card changes only its placement on the current board. The same conversa
 - Switching embedded boards retains their local folding, scrolling and pending answer inputs. Inactive views stop discovering/loading new previews; shared bounded preview leases preserve pending interactions without multiplying transcript references per board.
 - Selection-only changes retain board/configuration identities and do not reactivate unrelated views. Burst history/prompt-preview updates coalesce their DOM rendering, while direct user changes and pending actions remain immediate.
 - Ready metadata previews may stay warm without active leases inside the existing sixteen-model budget. Idle entries yield to active demand in least-recently-used order; optional credit/configuration observation is disabled while idle. Unfinished loads still cancel, and closing the last Hub surface clears idle previews.
+- Cards without a metadata slot offer **Pending refresh**, not duplicate prompt-unavailable/preview-limit warnings. An explicit refresh loads that exact chat's existing history without navigation, read-state changes or inference. It prefers idle slots, then revokes the least-recently-acquired noninteractive preview across all views, retaining the same sixteen-model bound. Pending questions and approvals never yield their slots; when every slot is protected, report the restriction explicitly and leave refresh retryable. Loading displays disabled **Refreshing...**; genuine provider failures, absent user requests and empty stored text retain their distinct messages.
 - Async pickers and management actions retain their originating board ID; deleted IDs are rejected rather than redirected to another board.
 
 ### Layout and placement
@@ -98,6 +99,7 @@ Moving a card changes only its placement on the current board. The same conversa
 - Selecting, displaying, expanding or moving a card does not mark it read. Explicit opening follows provider-owned read marking.
 - A disconnected provider is a separate stale/unavailable warning, not a replacement runtime state or an empty successful board.
 - Opening a context link opens that resource without also opening the chat. Session-level artifacts are labeled shared context.
+- Associated pull requests have a dedicated card row with repository/number links, provider-reported state icons/colors, and available titles/states on hover and accessible labels. Reuse native Sessions provenance filtering: session-owned associations and legacy primary PRs qualify, while inherited checkout PRs and mere references stay ordinary shared context. Read the represented chat's workspace (falling back to its session) plus explicitly recorded session PR artifacts, deduplicate by URI, and observe provider updates without loading chat history or starting separate PR polling. PR links open externally with command execution disabled.
 
 ### Recency, overflow and archive
 
@@ -208,11 +210,11 @@ Delivery phases are independent of the editable P0/P1/P2/P3 column labels.
 ### P1: useful persistent board
 
 - **PB-06:** Persistence, Editor-to-Agents handoff, singleton behavior and corrupt-state recovery.
-- **PB-07:** Genuine prompt recency and honest missing/historical metadata.
+- **PB-07:** Genuine prompt recency and honest missing/historical metadata; user-priority Pending refresh at the shared quota, revocation across views, protected pending inputs, loading/error states and no navigation/read/inference side effects.
 - **PB-08:** Eight-card expansion: 3 + 5 hidden, then 6 + 2 hidden, then 8; correct attention counts.
 - **PB-09:** Chat-level and session-level archive filtering without lost placements; single-card Mark as Done in embedded and standalone boards, session-wide worker/sibling scope, restoration, multi-card selection, bulk Mark as Done, stale selection and partial-failure retry.
 - **PB-10:** Stable editable axes, confirmed deletion and archived-placement accounting.
-- **PB-11:** Accurate shared context, keyboard accessibility, non-color state and reachable content.
+- **PB-11:** Accurate shared context and associated PR provenance, chat-scoped workspace data, deduplication, live icon/title updates, safe external opening, keyboard accessibility, non-color state and reachable content.
 - **PB-15:** Interactive Ask User, custom answers, validation, exactly-once submission and refresh-safe input.
 - **PB-16:** Shared New Session composer with Project Path and no footer action, empty-cell double-click with preselected destination, isolated modal workspace/configuration/draft state, dismissal and trust, immediate embedded side-panel/standalone-window handoff after submission, original-board canonical placement, hidden Agents drafts and publication without duplicates.
 - **PB-17:** Cleanup only of untouched owned drafts; preserve entered, attached, pending, failed and submitted work.
