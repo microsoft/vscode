@@ -628,7 +628,7 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
-	test('persists automatic selection without marking it as chosen', () => {
+	test('persists programmatic selection without marking it as a user action', () => {
 		const testSession = createSession('provider', SessionStatus.Completed, first.identifier);
 		const sources: ChatModelSource[] = [];
 		const provider = disposables.add(createProvider('provider', (_modelIdentifier, source) => sources.push(source)));
@@ -653,7 +653,37 @@ suite('SessionModelSelection', () => {
 			selected: true,
 			current: second.identifier,
 			stored: second.identifier,
-			sources: [ChatModelSource.CarriedOver],
+			sources: [ChatModelSource.Chosen],
+		});
+	});
+
+	test('programmatic selection is not replaced by the configured default on refresh', () => {
+		const third = model('test/third');
+		const testSession = createSession('provider', SessionStatus.Untitled);
+		const provider = disposables.add(createProvider('provider'));
+		provider.models = [first, third];
+		provider.modelsResolved = false;
+		const storage = disposables.add(new InMemoryStorageService());
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			{},
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(third.metadata.id),
+			disposables.add(new NullLogService()),
+		));
+
+		assert.strictEqual(selection.selectModel(first.identifier, false), true);
+		provider.modelChanges.fire();
+
+		assert.deepStrictEqual({
+			current: selection.state.get().currentModel?.identifier,
+			stored: storage.get(selectedModelStorageKey, StorageScope.PROFILE),
+			writes: provider.writes,
+		}, {
+			current: first.identifier,
+			stored: first.identifier,
+			writes: [third.identifier, first.identifier],
 		});
 	});
 

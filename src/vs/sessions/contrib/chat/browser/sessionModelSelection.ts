@@ -197,10 +197,15 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const storageKey = getSelectedModelStorageKey(ChatAgentLocation.Chat, snapshot.modelTarget);
 		const conversation = this._conversation();
 		try {
-			this._controller.applySelection(model, () => {
-				provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, isUserAction ? ChatModelSource.Chosen : ChatModelSource.CarriedOver);
+			if (isUserAction) {
+				this._controller.applySelection(model, () => {
+					provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.Chosen);
+					storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
+				}, true, true);
+			} else {
+				this._controller.applyProgrammaticSelection(model);
 				storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
-			}, isUserAction, true);
+			}
 		} catch (error) {
 			this._diagnostics.report('provider-selection-failed', {
 				requestedModel: modelIdentifier,
