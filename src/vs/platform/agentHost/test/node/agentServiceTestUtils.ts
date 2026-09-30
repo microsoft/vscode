@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -203,7 +204,12 @@ export function createTestAgentService(
 	services.set(IAgentHostFileMonitorService, effectiveFileMonitorService);
 	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 	services.set(IAgentHostOTelService, NullAgentHostOTelService);
-	services.set(IAgentPluginManager, new AgentPluginManager(URI.file('/agentHostTestData'), fileService, logService));
+	// Automation startup cleanup touches the plugin directory, so back it with a provider even when callers pass a bare file service.
+	const pluginDataPath = URI.from({ scheme: 'agent-host-test-plugins', path: '/agentHostTestData' });
+	if (!fileService.hasProvider(pluginDataPath)) {
+		foundationDisposables.add(fileService.registerProvider(pluginDataPath.scheme, foundationDisposables.add(new InMemoryFileSystemProvider())));
+	}
+	services.set(IAgentPluginManager, new AgentPluginManager(pluginDataPath, fileService, logService));
 	services.set(INativeEnvironmentService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }));
 	if (startupPerformance) {
 		services.set(IAgentHostStartupPerformance, startupPerformance);
