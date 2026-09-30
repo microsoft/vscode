@@ -2402,7 +2402,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 *
 	 * Each model is surfaced under the provider-qualified id `vendor/[group/]id` so a
 	 * selection round-trips to the per-session provider config synthesized by
-	 * `resolveByokSessionConfig`.
+	 * `synthesizeByokSessionConfig`.
 	 */
 	private _refreshByokModels(): void {
 		if (this._shutdownPromise) {
@@ -2433,6 +2433,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 		this._logService.trace(`[Copilot] Found ${this._byokModels.length} BYOK models${this._byokModels.length ? ': ' + this._byokModels.map(m => m.name).join(', ') : ''}`);
 		this._publishModels();
+		if (this._byokModels.length) {
+			// Sessions launched before these models were reported (notably chats
+			// restored during startup) must register them before they can select them.
+			// A session still mid-launch is not in `_chatEntriesBySdkId` yet and is
+			// missed here; `CopilotAgentSession.setModel` syncs again, which covers it.
+			for (const entry of this._chatEntriesBySdkId.values()) {
+				entry.chatSession.syncByokModels().catch(err =>
+					this._logService.warn(`[Copilot:${entry.chatSession.sessionId}] Failed to register BYOK models on live session`, err)
+				);
+			}
+		}
 	}
 
 	/**
