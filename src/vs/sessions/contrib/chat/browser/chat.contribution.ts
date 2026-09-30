@@ -72,6 +72,7 @@ import { FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPAC
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
+import { SESSION_MCP_AUTH_PILL_SETTING } from './sessionMcpServers.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, SessionsChatBackgroundTint, ToggleChatBackgroundTintAction } from './chatBackgroundTint.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { sessionStorageCleanupSuggestionConfigurationMigration } from '../../sessionInputBanners/browser/sessionStorageCleanupConfiguration.js';
@@ -502,6 +503,14 @@ AccessibleViewRegistry.register(new SessionWorktreeCleanupAccessibilityHelp());
 // register configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
+		[SESSION_MCP_AUTH_PILL_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			description: localize('chat.agentSessions.mcpAuthPill.enabled', "Shows MCP servers requiring authentication above the chat input in the Agents Window."),
+		},
 		[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: {
 			type: 'boolean',
 			default: false,

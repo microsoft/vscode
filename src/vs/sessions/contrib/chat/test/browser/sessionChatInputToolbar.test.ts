@@ -7,7 +7,7 @@ import assert from 'assert';
 import { isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { SubmenuAction, type IAction } from '../../../../../base/common/actions.js';
@@ -15,7 +15,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -24,8 +27,10 @@ import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { IAgentHostMcpServer } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
@@ -40,12 +45,14 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubIssueModel } from '../../../github/browser/models/githubIssueModel.js';
 import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
+import { SESSION_MCP_AUTH_PILL_SETTING } from '../../browser/sessionMcpServers.js';
 
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createServices() {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IAgentHostCustomizationService, new NullAgentHostCustomizationService());
 		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
 			onDidChangeBrowserViews: Event.None,
 			getKnownBrowserViews: () => new Map(),
@@ -732,6 +739,80 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('shows MCP sign-in only when opted in and the session has servers requiring authentication', async () => {
+		const { instantiationService, visibility } = createServices();
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		// A pre-existing saved visibility list must not bypass the experiment gate.
+		visibility.toggle(SessionChatPillKind.Customizations);
+		const changed = store.add(new Emitter<void>());
+		let servers: readonly IAgentHostMcpServer[] = [];
+		const authentications: string[] = [];
+		instantiationService.stub(IAgentHostCustomizationService, new class extends NullAgentHostCustomizationService {
+			override readonly onDidChangeCustomizations = changed.event;
+			override getMcpServers(): readonly IAgentHostMcpServer[] { return servers; }
+			override async authenticateMcpServer(resource: URI, id: string): Promise<boolean> {
+				authentications.push(`${resource.toString()}/${id}`);
+				return true;
+			}
+		});
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:main'),
+			title: constObservable('Main chat'),
+			status: constObservable(SessionStatus.InProgress),
+			workspace,
+			changesets: constObservable([]),
+			changes: constObservable([]),
+		});
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'provider:session',
+			capabilities: constObservable({ supportsMultipleChats: false }),
+			resource: URI.parse('session:1'),
+			chats: constObservable([chat]),
+			workspace,
+		});
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		const read = () => ({
+			visible: toolbar.visible,
+			labels: [...toolbar.element.querySelectorAll('.chat-pill-label')].map(label => label.textContent),
+		});
+		const empty = read();
+		servers = [upcastPartial<IAgentHostMcpServer>({
+			id: 'github', name: 'GitHub', enabled: true, status: McpServerStatus.AuthRequired,
+			state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required, resource: { resource: 'https://github.example.com' } },
+		})];
+		changed.fire();
+		const defaultLabels = read().labels;
+		await configuration.setUserConfiguration(SESSION_MCP_AUTH_PILL_SETTING, true);
+		configuration.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: section => section === SESSION_MCP_AUTH_PILL_SETTING,
+			affectedKeys: new Set([SESSION_MCP_AUTH_PILL_SETTING]),
+			source: ConfigurationTarget.USER,
+			change: { keys: [SESSION_MCP_AUTH_PILL_SETTING], overrides: [] },
+		});
+		const single = read();
+		toolbar.element.querySelector<HTMLElement>('.chat-pill-button')?.click();
+		servers = [...servers, upcastPartial<IAgentHostMcpServer>({
+			id: 'slack', name: 'Slack', enabled: true, status: McpServerStatus.AuthRequired,
+			state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.InsufficientScope, resource: { resource: 'https://slack.example.com' } },
+		})];
+		changed.fire();
+		const multiple = read();
+		servers = servers.map(server => ({ ...server, status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready } }));
+		changed.fire();
+		assert.deepStrictEqual({ empty, defaultLabels, single, multiple, resolved: read(), authentications }, {
+			empty: { visible: false, labels: [] },
+			defaultLabels: [],
+			single: { visible: true, labels: ['Sign In to GitHub'] },
+			multiple: { visible: true, labels: ['2 MCP Servers Need Attention'] },
+			resolved: { visible: false, labels: [] },
+			authentications: ['session:1/github'],
+		});
+	});
+
 	test('hides the pills in a subagent chat', () => {
 		const { instantiationService, visibility } = createServices();
 		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
@@ -1331,6 +1412,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('pull request artifact removal reacts to capabilities, targets the owning session, and reports errors without hiding data', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IAgentHostCustomizationService, new NullAgentHostCustomizationService());
 		const ref: IGitHubPullRequestRef = { owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1'), recordedReferenceId: 'pr-artifact' };
 		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [{
 			id: 'pr-artifact', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true, link: ref.uri,
@@ -1417,6 +1499,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('keeps derived changes and browser pills out of session record removal', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IAgentHostCustomizationService, new NullAgentHostCustomizationService());
 		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [{
 			id: 'durable-artifact', kind: SessionArtifactKind.File, label: 'Plan', isArtifact: true, uri: URI.file('/repo/plan.md'),
 		}]);

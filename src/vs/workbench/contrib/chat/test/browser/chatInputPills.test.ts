@@ -86,6 +86,7 @@ suite('StandardChatInputPillSources', () => {
 			artifacts: { sections },
 			references: { sections },
 			customizations: { sections },
+			mcpServers: { sections },
 			browsers: { sections },
 			subagents: { sections },
 		};
@@ -134,6 +135,7 @@ suite('StandardChatInputPillSources', () => {
 			artifacts: { sections },
 			references: { sections },
 			customizations: { sections },
+			mcpServers: { sections },
 			browsers: { sections },
 			subagents: { sections },
 		}, SESSION_CHAT_PILL_KINDS));
@@ -150,7 +152,7 @@ suite('StandardChatInputPillSources', () => {
 			pill.click();
 		}
 
-		assert.deepStrictEqual(placements, Array.from({ length: 7 }, () => ({
+		assert.deepStrictEqual(placements, Array.from({ length: 8 }, () => ({
 			preferred: AnchorPosition.ABOVE,
 			fixed: undefined,
 		})));
@@ -436,6 +438,7 @@ suite('StandardChatInputPillSources', () => {
 			artifacts: { sections },
 			references: { sections },
 			customizations: { sections },
+			mcpServers: { sections },
 			browsers: { sections },
 			subagents: { sections },
 		});
@@ -452,7 +455,7 @@ suite('StandardChatInputPillSources', () => {
 		await submenu.actions[0].run();
 		const restoredOptions = pills.openContextMenu(pills.inputPills.getPillElements()[0])
 			.filter(action => action instanceof SubmenuAction).map(action => action.label);
-		const otherKinds = ['Issues', 'Artifacts', 'References', 'Customizations', 'Browsers', 'Subagents'];
+		const otherKinds = ['Issues', 'Artifacts', 'References', 'Customizations', 'MCP Servers', 'Browsers', 'Subagents'];
 		const toggles = ['Pull Requests', ...otherKinds];
 		const expectedMenus = [
 			['Pull Requests Options', '', ...toggles],
