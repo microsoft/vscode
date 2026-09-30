@@ -15,6 +15,9 @@ export interface IGitHubIssueReference {
 
 /** Matches public issue URLs, including links with trailing paths, queries or comment fragments. */
 const ISSUE_URL_PATTERN = /^https?:\/\/(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+)\/issues\/(\d+)\b/i;
+const PULL_REQUEST_URL_PATTERN = /^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/;
+const PULL_REQUEST_PATH_PATTERN = /^\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/;
+const COMMIT_PATH_PATTERN = /^\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/commit\/(?<sha>[^/]+)(?:\/|$)/;
 
 /** Parses a public GitHub issue URL into its parts, or `undefined` when it is not one. */
 export function parseGitHubIssueUrl(url: string): IGitHubIssueReference | undefined {
@@ -28,7 +31,7 @@ export function parseGitHubIssueUrl(url: string): IGitHubIssueReference | undefi
 
 /** Parses a canonical `https://github.com` pull request URL, without a query or fragment. */
 export function parseGitHubPullRequestUrl(url: string): { readonly owner: string; readonly repo: string; readonly number: number } | undefined {
-	const match = /^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
+	const match = PULL_REQUEST_URL_PATTERN.exec(url);
 	const groups = match?.groups;
 	return groups ? { owner: groups.owner, repo: groups.repo, number: Number(groups.number) } : undefined;
 }
@@ -49,7 +52,7 @@ export function parsePullRequestUrl(value: string): IParsedPullRequestUrl | unde
 	} catch {
 		return undefined;
 	}
-	const match = /^\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url.pathname);
+	const match = PULL_REQUEST_PATH_PATTERN.exec(url.pathname);
 	const number = Number(match?.groups?.number);
 	if (!match?.groups || !Number.isSafeInteger(number) || number <= 0) {
 		return undefined;
@@ -76,7 +79,7 @@ export function parseGitHubCommitTarget(resource: URI): IGitHubCommitTarget | un
 	if (resource.authority.toLowerCase() !== 'github.com') {
 		return undefined;
 	}
-	const match = /^\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/commit\/(?<sha>[^/]+)(?:\/|$)/.exec(resource.path);
+	const match = COMMIT_PATH_PATTERN.exec(resource.path);
 	const owner = match?.groups?.owner;
 	const repo = match?.groups?.repo;
 	const sha = match?.groups?.sha;
