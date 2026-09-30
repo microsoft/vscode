@@ -263,7 +263,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 	async recordCreatedPullRequest(event: PullRequestCreatedEvent): Promise<void> {
 		const sessionKey = event.sessionKey;
 
-		const chat = resolveChangesetOwnerScope(this._stateManager, event.ownerUri).sourceUri;
+		const chat = event.conversationChat ?? resolveChangesetOwnerScope(this._stateManager, event.ownerUri).sourceUri;
 		const artifacts = new SessionArtifacts(this._stateManager, sessionKey, chat, async (session, entries) => {
 			await persistSessionMetadataValues(this._sessionDataService, session, {
 				[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(entries),

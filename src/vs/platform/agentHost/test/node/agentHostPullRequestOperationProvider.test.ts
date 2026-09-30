@@ -291,6 +291,56 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		});
 	});
 
+	test('records a created PR under the initiating chat when chats share a folder', async () => {
+		const sessionKey = 'agent:/session';
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.restoreSession({
+			resource: sessionKey,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
+			workingDirectories: ['file:///repo'],
+		}, []);
+		const peerChat = buildChatUri(sessionKey, 'peer');
+		stateManager.addChat(sessionKey, peerChat, { workingDirectories: ['file:///repo'] });
+		const sharedFolderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///repo']));
+		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
+			stateManager,
+			disposables.add(new InstantiationService()),
+			nullGitStateService,
+			createStatusService(),
+			new class extends mock<IAgentConfigurationService>() {
+				override readonly onDidRootConfigChange = Event.None;
+				override getRootValue() { return undefined as never; }
+			}(),
+			createSessionDataService(new TestSessionDatabase()),
+			new NullLogService(),
+		));
+
+		await contribution.recordCreatedPullRequest({
+			sessionKey,
+			ownerUri: sharedFolderOwner,
+			conversationChat: peerChat,
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/8',
+			pullRequestNumber: 8,
+			pullRequestTitle: 'Peer chat PR',
+			branchName: 'feature/peer',
+		});
+
+		assert.deepStrictEqual(readSessionArtifacts(stateManager.getSessionState(sessionKey)?._meta).map(({ id: _id, ...artifact }) => artifact), [
+			{
+				chat: peerChat,
+				type: SessionArtifactType.PullRequest,
+				label: 'Peer chat PR',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/8',
+				isGitHub: true,
+			},
+		]);
+	});
+
 	test('advertises PR operations for GitHub branches with uncommitted changes', () => {
 		const provider = createContribution();
 
