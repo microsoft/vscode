@@ -5,24 +5,27 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout, SequencerByKey } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, observableFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { getEntryAddress, getEntryTypeConfig, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService, IDevContainerAgentHostTarget } from '../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { resolveRemoteAgentHostEntryAuthority } from '../../../../browser/openInVSCodeUtils.js';
+import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from './devContainerSource.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
 const DEV_CONTAINER_AGENT_HOSTS_STORAGE_KEY = 'devContainerAgentHost.connections';
@@ -44,6 +47,9 @@ interface IActiveDevContainerAgentHost {
 	readonly address: string;
 	readonly provider: RemoteAgentHostSessionsProvider;
 	readonly target: Omit<IDevContainerAgentHostTarget, 'release'>;
+	readonly connector: IDevContainerAgentHostConnector;
+	readonly workspaceUri: URI;
+	state: 'running' | 'stopping' | 'stopped' | 'removing' | 'removed' | 'connecting';
 	references: number;
 }
 
@@ -86,13 +92,14 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 		// single attempt.
 	}
 
-	stageConnection(connector: IDevContainerAgentHostConnector, workspaceUri: URI, connection: IDevContainerAgentHostConnection): IRemoteAgentHostEntry {
+	stageConnection(connector: IDevContainerAgentHostConnector, workspaceUri: URI, connection: IDevContainerAgentHostConnection, hostAuthority?: string): IRemoteAgentHostEntry {
 		const entry: IRemoteAgentHostEntry = {
 			name: connection.name,
 			connection: {
 				type: RemoteAgentHostEntryType.DevContainer,
 				address: connection.address,
-				hostPath: workspaceUri.fsPath,
+				hostPath: connection.hostWorkspaceFolder ?? devContainerSourcePath(workspaceUri),
+				...(hostAuthority ? { hostAuthority } : {}),
 			},
 		};
 		this._stagedConnections.set(connection.address, { entry, connector, workspaceUri, initialConnection: connection });
@@ -107,7 +114,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 		this._updateEntries();
 	}
 
-	async createConnection(entry: IRemoteAgentHostEntry, _options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
+	async createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
 		if (entry.connection.type !== RemoteAgentHostEntryType.DevContainer) {
 			throw new Error(`Dev Container factory cannot create a ${entry.connection.type} connection.`);
 		}
@@ -120,6 +127,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 			staged.workspaceUri,
 			entry.connection.address,
 			CancellationToken.None,
+			{ resume: options.userInitiated },
 		);
 		try {
 			const authority = agentHostAuthority(entry.connection.address);
@@ -162,6 +170,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	private readonly _pendingConnections = new Map<string, IPendingDevContainerAgentHost>();
 	private readonly _storedConnections = new Map<string, IStoredDevContainerAgentHost>();
 	private readonly _connectionFactory: DevContainerConnectionFactory;
+	private readonly _lifecycleOperations = new SequencerByKey<string>();
+	private readonly _lifecycleTokenSource = this._register(new CancellationTokenSource());
 	private readonly _onDidRegisterConnector = this._register(new Emitter<IDevContainerAgentHostConnector>());
 	private readonly _onDidChangeAvailability = this._register(new Emitter<void>());
 	readonly onDidChangeAvailability = this._onDidChangeAvailability.event;
@@ -172,13 +182,25 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this._connectionFactory = this._register(new DevContainerConnectionFactory(this._instantiationService));
 		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcileConnections()));
+		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._onDidChangeAvailability.fire()));
+		this._register(this._sessionsProvidersService.onDidChangeProviders(() => this._initializeProviders()));
 		this._restoreProviders();
+		this._initializeProviders();
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, DEV_CONTAINER_AGENT_HOSTS_STORAGE_KEY, this._store)(() => this._restoreProviders()));
+	}
+
+	private _initializeProviders(): void {
+		for (const provider of this._sessionsProvidersService.getProviders()) {
+			if (provider instanceof RemoteAgentHostSessionsProvider) {
+				provider.initializeDevContainerSupport(this, this._sessionsProvidersService, this._workspaceTrustRequestService);
+			}
+		}
 	}
 
 	registerConnector(connector: IDevContainerAgentHostConnector): IDisposable {
@@ -200,15 +222,32 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		return this._connector?.isAvailable(workspaceUri) ?? Promise.resolve(false);
 	}
 
-	connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostTarget> {
-		return this._ensureConnection(workspaceUri, token).then(active => this._acquireConnection(getComparisonKey(workspaceUri), active));
+	async connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostTarget> {
+		const key = getComparisonKey(workspaceUri);
+		const active = this._activeConnections.get(key);
+		const target = active && this._acquireConnection(key, active);
+		try {
+			const connected = await this._ensureConnection(workspaceUri, token);
+			return target ?? this._acquireConnection(key, connected);
+		} catch (error) {
+			await target?.release();
+			throw error;
+		}
+	}
+
+	async showLog(workspaceUri: URI): Promise<void> {
+		const connector = this._connector ?? await this._waitForConnector(CancellationToken.None);
+		await connector.showLog(workspaceUri);
 	}
 
 	private _ensureConnection(workspaceUri: URI, token: CancellationToken): Promise<IActiveDevContainerAgentHost> {
 		const key = getComparisonKey(workspaceUri);
 		const active = this._activeConnections.get(key);
-		if (active && this._isConnectedOrReconnecting(active.address)) {
-			return Promise.resolve(active);
+		if (active) {
+			if (active.state === 'running' && this._isConnectedOrReconnecting(active.address)) {
+				return this._waitForReconnection(active, token);
+			}
+			return raceCancellationError(this._ensureActiveConnection(key, active), token).then(() => active);
 		}
 		const pending = this._pendingConnections.get(key);
 		if (pending) {
@@ -217,7 +256,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 
 		this._providers.get(key)?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
 		const tokenSource = new CancellationTokenSource(token);
-		const promise = this._replaceConnectionAndConnect(workspaceUri, key, active, tokenSource.token);
+		const promise = this._connectWhenReady(workspaceUri, key, tokenSource.token);
 		const pendingConnection = { promise, tokenSource };
 		this._pendingConnections.set(key, pendingConnection);
 		void promise.then(
@@ -225,6 +264,23 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			() => this._completePendingConnection(key, pendingConnection),
 		);
 		return promise;
+	}
+
+	private async _waitForReconnection(active: IActiveDevContainerAgentHost, token: CancellationToken): Promise<IActiveDevContainerAgentHost> {
+		const { connection, canceled } = await waitForState(
+			observableFromEvent(this, Event.any(this._remoteAgentHostService.onDidChangeConnections, listener => token.onCancellationRequested(listener)), () => ({
+				connection: this._remoteAgentHostService.connections.find(connection => connection.address === active.address),
+				canceled: token.isCancellationRequested,
+			})),
+			({ connection, canceled }) => canceled || !connection || (!RemoteAgentHostConnectionStatus.isReconnecting(connection.status) && !RemoteAgentHostConnectionStatus.isConnecting(connection.status)),
+		);
+		if (canceled) {
+			throw new CancellationError();
+		}
+		if (!connection || !RemoteAgentHostConnectionStatus.isConnected(connection.status)) {
+			throw new Error(localize('devContainerAgentHost.reconnectionFailed', "The Dev Container Agent Host disconnected while reconnecting."));
+		}
+		return active;
 	}
 
 	private _completePendingConnection(key: string, pending: IPendingDevContainerAgentHost): void {
@@ -237,16 +293,12 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		pending.tokenSource.dispose();
 	}
 
-	private async _replaceConnectionAndConnect(
+	private async _connectWhenReady(
 		workspaceUri: URI,
 		key: string,
-		active: IActiveDevContainerAgentHost | undefined,
 		token: CancellationToken,
 	): Promise<IActiveDevContainerAgentHost> {
 		const connector = this._connector ?? await this._waitForConnector(token);
-		if (active) {
-			await this._disconnectActiveConnection(key, active);
-		}
 		return this._connect(connector, workspaceUri, key, token);
 	}
 
@@ -270,7 +322,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const connected = await connector.createConnection(workspaceUri, devContainerAddress(workspaceUri), token);
+		const connected = await connector.createConnection(workspaceUri, devContainerAddress(workspaceUri), token, { resume: true });
 		if (token.isCancellationRequested) {
 			connected.transportDisposable?.dispose();
 			throw new CancellationError();
@@ -280,7 +332,8 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		try {
 			const provider = this._ensureProvider(workspaceUri, connected.name, connected.address);
 
-			const entry = this._connectionFactory.stageConnection(connector, workspaceUri, connected);
+			const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
+			const entry = this._connectionFactory.stageConnection(connector, workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry));
 			const address = getEntryAddress(entry);
 			stagedAddress = address;
 			if (token.isCancellationRequested) {
@@ -300,7 +353,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			}
 
 			const target = { providerId: provider.id, workspaceUri: connected.workspaceUri };
-			const active = { address, provider, target, references: 0 };
+			const active: IActiveDevContainerAgentHost = { address, provider, target, connector, workspaceUri, state: 'running', references: 0 };
 			this._activeConnections.set(key, active);
 			return active;
 		} catch (error) {
@@ -334,6 +387,9 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				released = true;
 				active.references--;
 				if (active.references === 0 && this._activeConnections.get(key) === active) {
+					if (active.connector.stopContainer) {
+						return;
+					}
 					await this._disconnectActiveConnection(key, active);
 					if (active.provider.getSessions().length === 0) {
 						this._removeStoredConnection(key);
@@ -352,15 +408,26 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		}
 
 		const store = new DisposableStore();
+		const connectOnDemand = async () => {
+			await this._ensureConnection(workspaceUri, CancellationToken.None);
+		};
 		const provider = store.add(this._createProvider({
 			address,
 			name,
-			devContainerWorktreeScope: key,
+			devContainerSourceWorkspaceUri: workspaceUri,
+			devContainerWorktreeScope: getComparisonKey(fromAgentHostUri(workspaceUri)),
+			resolveDevContainerWorktreeConnection: workspaceUri.scheme === AGENT_HOST_SCHEME
+				? () => resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, CancellationToken.None)
+				: undefined,
 			omitHostFromWorkspaceLabel: true,
-			connectOnDemand: async () => {
-				await this._ensureConnection(workspaceUri, CancellationToken.None);
+			devContainerLifecycle: {
+				connect: connectOnDemand,
+				stop: () => this._stopContainer(key),
+				remove: () => this._removeContainer(key),
 			},
+			connectOnDemand,
 			disconnectOnDemand: () => this.disconnect(workspaceUri),
+			showConnectionLog: () => this.showLog(workspaceUri),
 		}));
 		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
@@ -369,7 +436,10 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				this._storeConnection(workspaceUri, name);
 			}
 		}));
-		store.add(toDisposable(() => this._providers.delete(key)));
+		store.add(toDisposable(() => {
+			this._providers.delete(key);
+			this._activeConnections.delete(key);
+		}));
 		this._providers.set(key, provider);
 		this._providerStores.set(key, store);
 		return provider;
@@ -426,6 +496,103 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		active.provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 	}
 
+	private _stopContainer(key: string): Promise<boolean> {
+		return this._lifecycleOperations.queue(key, async () => {
+			const active = this._activeConnections.get(key);
+			if (!active || active.state === 'stopped' || active.state === 'removed') {
+				return true;
+			}
+			if (!active.connector.stopContainer) {
+				return false;
+			}
+			active.state = 'stopping';
+			try {
+				const stopped = await active.connector.stopContainer(active.workspaceUri);
+				if (!stopped) {
+					active.state = 'running';
+					return false;
+				}
+				await this._disconnectActiveTransport(active);
+				active.state = 'stopped';
+				if (active.references === 0 && active.provider.getSessions().length === 0) {
+					this._removeStoredConnection(key);
+					this._removeProvider(key);
+				}
+				return stopped;
+			} catch (error) {
+				await this._connectActive(active);
+				throw error;
+			}
+		});
+	}
+
+	private _removeContainer(key: string): Promise<boolean> {
+		return this._lifecycleOperations.queue(key, async () => {
+			const active = this._activeConnections.get(key);
+			if (!active || active.state === 'removed') {
+				return true;
+			}
+			if (!active.connector.removeContainer) {
+				return false;
+			}
+			active.state = 'removing';
+			try {
+				const removed = await active.connector.removeContainer(active.workspaceUri);
+				if (!removed) {
+					active.state = 'running';
+					return false;
+				}
+				await this._disconnectActiveTransport(active);
+				active.state = 'removed';
+				return removed;
+			} catch (error) {
+				await this._connectActive(active);
+				throw error;
+			}
+		});
+	}
+
+	private _ensureActiveConnection(key: string, active: IActiveDevContainerAgentHost): Promise<void> {
+		return this._lifecycleOperations.queue(key, async () => {
+			if (this._isConnectedOrReconnecting(active.address)) {
+				active.state = 'running';
+				return;
+			}
+			await this._connectActive(active);
+		});
+	}
+
+	private async _connectActive(active: IActiveDevContainerAgentHost): Promise<void> {
+		const previousState = active.state;
+		active.state = 'connecting';
+		try {
+			const connected = await active.connector.createConnection(active.workspaceUri, active.address, this._lifecycleTokenSource.token, { resume: true });
+			const sourceEntry = getDevContainerSourceEntry(active.workspaceUri, this._remoteAgentHostService);
+			this._connectionFactory.stageConnection(active.connector, active.workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry));
+			this._remoteAgentHostService.reconnect(active.address, true);
+			const connectionInfo = await this._remoteAgentHostService.waitForConnection(active.address);
+			const connection = this._remoteAgentHostService.getConnection(connectionInfo.address);
+			if (!connection) {
+				throw new Error(localize('devContainerAgentHost.connectionUnavailable', "Dev Container Agent Host connection was not available after connecting."));
+			}
+			active.provider.setConnection(connection, connected.defaultDirectory ?? connectionInfo.defaultDirectory);
+			active.provider.setConnectionStatus(connectionInfo.status);
+			active.state = 'running';
+		} catch (error) {
+			this._connectionFactory.unstageConnection(active.address);
+			await this._remoteAgentHostService.removeRemoteAgentHost(active.address);
+			active.state = previousState;
+			throw error;
+		}
+	}
+
+	private async _disconnectActiveTransport(active: IActiveDevContainerAgentHost): Promise<void> {
+		this._connectionFactory.unstageConnection(active.address);
+		active.provider.clearConnection();
+		active.provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		await this._remoteAgentHostService.removeRemoteAgentHost(active.address);
+	}
+
 	private _isConnectedOrReconnecting(address: string): boolean {
 		return this._remoteAgentHostService.connections.some(connection =>
 			connection.address === address
@@ -437,6 +604,10 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		for (const [key, active] of this._activeConnections) {
 			const connectionInfo = this._remoteAgentHostService.connections.find(connection => connection.address === active.address);
 			if (!connectionInfo) {
+				if (active.state !== 'running') {
+					active.provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+					continue;
+				}
 				this._activeConnections.delete(key);
 				this._connectionFactory.unstageConnection(active.address);
 				active.provider.clearConnection();
@@ -489,7 +660,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 					continue;
 				}
 				const uri = URI.parse(candidate.workspaceUri);
-				if (uri.scheme !== Schemas.file || candidate.name.length === 0) {
+				if ((uri.scheme !== Schemas.file && (uri.scheme !== AGENT_HOST_SCHEME || !uri.authority)) || candidate.name.length === 0) {
 					continue;
 				}
 				result.set(getComparisonKey(uri), { workspaceUri: uri.toString(), name: candidate.name });
@@ -535,6 +706,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	}
 
 	override dispose(): void {
+		this._lifecycleTokenSource.cancel();
 		for (const pending of this._pendingConnections.values()) {
 			pending.tokenSource.cancel();
 			pending.tokenSource.dispose();

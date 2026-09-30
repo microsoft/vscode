@@ -365,11 +365,29 @@
 	max-width: 180px;
 }
 
+.automations-cards-unavailable .automations-cards-state-description,
+.automations-cards-partial-state-message {
+	white-space: pre-line;
+}
+
+.automations-unavailable-reasons {
+	margin: 0 auto;
+	padding: 0 0 0 var(--vscode-spacing-size200);
+	width: fit-content;
+	max-width: 100%;
+	box-sizing: border-box;
+	text-align: left;
+}
+
+.automations-unavailable-reasons > li + li {
+	margin-top: var(--vscode-spacing-size40);
+}
+
 .automations-cards-partial-state {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
-	margin-bottom: var(--vscode-spacing-size120);
+	margin-top: var(--vscode-spacing-size120);
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
 	border-radius: var(--vscode-cornerRadius-small);

@@ -31,6 +31,7 @@ interface IGitHubPRResponse {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly merged_at: string | null;
+	readonly closed_at?: string | null;
 	readonly mergeable: boolean | null;
 	readonly mergeable_state: string;
 	readonly merged: boolean;
@@ -87,6 +88,7 @@ interface IGitHubGraphQLReviewThreadNode {
 	readonly id: string;
 	readonly isResolved: boolean;
 	readonly path: string;
+	readonly startLine: number | null;
 	readonly line: number | null;
 	readonly comments: {
 		readonly nodes: readonly IGitHubGraphQLReviewCommentNode[];
@@ -132,6 +134,7 @@ const GET_REVIEW_THREADS_QUERY = [
 	'          id',
 	'          isResolved',
 	'          path',
+	'          startLine',
 	'          line',
 	'          comments(first: 100) {',
 	'            nodes {',
@@ -169,8 +172,8 @@ const RESOLVE_REVIEW_THREAD_MUTATION = [
 ].join('\n');
 
 const ADD_REVIEW_THREAD_MUTATION = [
-	'mutation AddReviewThread($reviewId: ID!, $body: String!, $path: String!, $line: Int!) {',
-	'  addPullRequestReviewThread(input: { pullRequestReviewId: $reviewId, body: $body, path: $path, line: $line, side: RIGHT }) {',
+	'mutation AddReviewThread($input: AddPullRequestReviewThreadInput!) {',
+	'  addPullRequestReviewThread(input: $input) {',
 	'    thread {',
 	'      id',
 	'    }',
@@ -314,13 +317,23 @@ export class GitHubPRFetcher {
 		commitId: string,
 		path: string,
 		line: number,
+		startLine: number | undefined,
 		pendingReview?: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'>,
 	): Promise<void> {
 		if (pendingReview) {
 			const data = await this._apiClient.graphql<IGitHubGraphQLAddReviewThreadResponse>(
 				ADD_REVIEW_THREAD_MUTATION,
 				'githubApi.addPullRequestReviewThread',
-				{ reviewId: pendingReview.nodeId, body, path, line },
+				{
+					input: {
+						pullRequestReviewId: pendingReview.nodeId,
+						body,
+						path,
+						line,
+						side: 'RIGHT',
+						...(startLine !== undefined ? { startLine, startSide: 'RIGHT' } : {}),
+					}
+				},
 			);
 			if (!data.addPullRequestReviewThread?.thread) {
 				throw new Error(`Failed to add review comment to pending review on ${owner}/${repo}#${prNumber}`);
@@ -335,7 +348,13 @@ export class GitHubPRFetcher {
 			{
 				data: {
 					commit_id: commitId,
-					comments: [{ body, path, line, side: 'RIGHT' }],
+					comments: [{
+						body,
+						path,
+						line,
+						side: 'RIGHT',
+						...(startLine !== undefined ? { start_line: startLine, start_side: 'RIGHT' } : {}),
+					}],
 				}
 			}
 		);
@@ -467,6 +486,7 @@ function mapPullRequest(data: IGitHubPRResponse): IGitHubPullRequest {
 		createdAt: data.created_at,
 		updatedAt: data.updated_at,
 		mergedAt: data.merged_at ?? undefined,
+		...(data.closed_at ? { closedAt: data.closed_at } : {}),
 		mergeable: data.mergeable ?? undefined,
 		mergeableState: data.mergeable_state,
 	};
@@ -501,6 +521,7 @@ function mapReviewThread(thread: IGitHubGraphQLReviewThreadNode): IGitHubPullReq
 		id: thread.id,
 		isResolved: thread.isResolved,
 		path: thread.path,
+		startLine: thread.startLine ?? undefined,
 		line: thread.line ?? undefined,
 		comments: thread.comments.nodes.flatMap(comment => mapGraphQLReviewComment(comment, thread)),
 	};

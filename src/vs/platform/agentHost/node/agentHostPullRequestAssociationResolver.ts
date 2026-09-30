@@ -114,6 +114,8 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		branchName: string,
 		authToken: string,
 		allowedPullRequestUrls?: readonly string[],
+		workingDirectory: string | undefined = state.workingDirectories?.[0],
+		requireHeadBranch = false,
 	): Promise<CreatedPullRequest | undefined> {
 		const githubHeadOwner = gitState?.githubHeadOwner;
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
@@ -122,11 +124,10 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const signal = this._abortController.signal;
 
 		const pullRequestByBranch = await this._octoKitService.findPullRequestByHeadBranch(owner, repo, headBranch, authToken, signal, headOwner, allowedPullRequestUrls);
-		if (pullRequestByBranch) {
+		if (pullRequestByBranch || requireHeadBranch) {
 			return pullRequestByBranch;
 		}
 
-		const workingDirectory = state.workingDirectories?.[0];
 		if (!workingDirectory) {
 			return undefined;
 		}
@@ -135,6 +136,24 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		return headSha
 			? this._octoKitService.findPullRequestByHeadSha(owner, repo, headSha, authToken, signal, allowedPullRequestUrls)
 			: undefined;
+	}
+
+	/**
+	 * Whether restricted reconciliation would drop pull requests that automatic association keeps,
+	 * because they are neither artifacts nor explicitly associated.
+	 */
+	wouldRestrictPullRequests(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState): boolean {
+		const { candidateKeys } = this._getRestrictedCandidates(meta, gitHubState);
+		return [...gitHubState.pullRequestUrls ?? [], ...gitHubState.initialPullRequestUrls ?? []].some(url => !candidateKeys.has(getSessionPullRequestUrlKey(url)));
+	}
+
+	/**
+	 * Whether the pull request of the checked-out branch is already resolved and explicitly
+	 * associated. Restricted reconciliation then keeps it without resolving it again, just as
+	 * automatic association stops looking once the branch has a pull request.
+	 */
+	hasExplicitCurrentPullRequest(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState, branchName: string): boolean {
+		return this._getCurrentAssociation(this._getRestrictedCandidates(meta, gitHubState), branchName).explicitlyAssociated;
 	}
 
 	/** Reconciles branch-aware GitHub state against artifact and explicit-association candidates. */
@@ -263,7 +282,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		if (!sessionState || gitState?.branchName !== branchName || !context.isRestrictedMode()) {
 			return undefined;
 		}
-		const gitHubState = readSessionGitHubState(sessionState._meta);
+		const gitHubState = readSessionGitHubState(sessionState._meta, sessionState.workingDirectories?.[0]);
 		if (gitHubState?.owner !== owner || gitHubState.repo !== repo) {
 			return undefined;
 		}

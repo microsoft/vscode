@@ -74,6 +74,7 @@ export interface IGitHubPullRequest {
 	readonly createdAt: string;
 	readonly updatedAt: string;
 	readonly mergedAt: string | undefined;
+	readonly closedAt?: string;
 	readonly mergeable: boolean | undefined;
 	readonly mergeableState: string;
 }
@@ -262,6 +263,7 @@ export interface IGitHubPullRequestReviewThread {
 	readonly id: string;
 	readonly isResolved: boolean;
 	readonly path: string;
+	readonly startLine: number | undefined;
 	readonly line: number | undefined;
 	readonly comments: readonly IGitHubPRComment[];
 }

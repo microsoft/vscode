@@ -517,6 +517,9 @@ export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 /** Root config key forwarded from the renderer for the GitHub MCP server. */
 export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled';
 
+/** Root config key forwarded from the renderer for Copilot connector discovery. */
+export const AgentHostMcpConnectorsEnabledConfigKey = 'mcpConnectorsEnabled';
+
 /**
  * Independently synchronized proxy settings retain their VS Code `http.*`
  * names, matching other flat namespaced root keys such as `agentMerge.*`.
@@ -548,11 +551,12 @@ const agentHostProxyConfigDefinition = {
 };
 export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
 
-/** Root config key forwarded from the renderer for active-agent title generation. */
-export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
-
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
+
+/** Root config key controlling agent session creation, messaging, and recursion limits. */
+export const AgentHostAgentOrchestrationLimitsConfigKey = 'agentOrchestrationLimits';
+export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
@@ -564,6 +568,11 @@ export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests'
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
 export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
+
+// Root config key forwarded from the renderer when the `chat.agentHost.sessionCatalog.enabled`
+// setting changes. When `false`, the host lists sessions from provider metadata and per-session
+// storage instead of the central catalog, and performs no catalog import or background repair.
+export const AgentHostSessionCatalogEnabledConfigKey = 'sessionCatalogEnabled';
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
@@ -867,10 +876,10 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.githubMcpServerEnabled.description', "Whether agent sessions include a GitHub MCP server by default."),
 		default: true,
 	}),
-	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
+	[AgentHostMcpConnectorsEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.activeAgentTitleGeneration.title', "Active Agent Title Generation"),
-		description: localize('agentHost.config.activeAgentTitleGeneration.description', "Whether the active agent names sessions and chats with rename tools instead of utility-model title generation."),
+		title: localize('agentHost.config.mcpConnectorsEnabled.title', "Copilot Connectors"),
+		description: localize('agentHost.config.mcpConnectorsEnabled.description', "Whether Copilot agent sessions expose MCP servers provided by connected Copilot Connectors."),
 		default: false,
 	}),
 	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
@@ -878,6 +887,17 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.markdownPlanRichLinks.title', "Markdown Plan Rich Links"),
 		description: localize('agentHost.config.markdownPlanRichLinks.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
 		default: false,
+	}),
+	[AgentHostAgentOrchestrationLimitsConfigKey]: schemaProperty<AgentHostAgentOrchestrationLimits>({
+		type: 'string',
+		title: localize('agentHost.config.agentOrchestrationLimits.title', "Agent Orchestration Limits"),
+		description: localize('agentHost.config.agentOrchestrationLimits.description', "Controls creation, messaging, and recursion safety limits for Agent Host session tools."),
+		enum: ['on', 'off'],
+		enumDescriptions: [
+			localize('agentHost.config.agentOrchestrationLimits.on', "Enforce agent orchestration safety limits."),
+			localize('agentHost.config.agentOrchestrationLimits.off', "Do not enforce agent orchestration safety limits."),
+		],
+		default: 'on',
 	}),
 	[AgentHostArtifactToolsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -896,6 +916,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
 		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
 		default: false,
+	}),
+	[AgentHostSessionCatalogEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.sessionCatalogEnabled.title', "Session Catalog"),
+		description: localize('agentHost.config.sessionCatalogEnabled.description', "Whether the session list is served from the central catalog. When disabled, sessions are listed from provider metadata and per-session storage instead."),
+		default: true,
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',

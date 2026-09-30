@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type SessionCatalogSyncWriteResult } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
@@ -154,9 +154,52 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 	},
 	{
 		version: 12,
-		sql: `INSERT OR REPLACE INTO session_metadata (key, value)
+		// Repeat the table creation so pre-release databases that used v11 for
+		// catalog synchronization converge before the marker backfill.
+		sql: [`CREATE TABLE IF NOT EXISTS turn_workspace_transition (
+			turn_id    TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			transition TEXT NOT NULL
+		)`,
+			`INSERT OR REPLACE INTO session_metadata (key, value)
 			SELECT '${AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY}', 'true'
-			WHERE EXISTS (SELECT 1 FROM turn_workspace_transition)`,
+			WHERE EXISTS (SELECT 1 FROM turn_workspace_transition)`].join(';\n'),
+	},
+	{
+		version: 13,
+		// Pre-release builds used v10 for catalog synchronization, while the
+		// released v10 owns turn delegation. Recreate both tables so either
+		// schema converges after the workspace-transition migrations.
+		sql: [`CREATE TABLE IF NOT EXISTS turn_delegation (
+			turn_id    TEXT PRIMARY KEY NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			delegation TEXT NOT NULL
+		)`,
+			`CREATE TABLE IF NOT EXISTS catalog_sync_snapshot (
+			singleton_id       INTEGER PRIMARY KEY NOT NULL CHECK (singleton_id = 1),
+			session_generation TEXT NOT NULL CHECK (length(session_generation) > 0),
+			source_revision    INTEGER NOT NULL CHECK (source_revision >= 0),
+			projection_version INTEGER NOT NULL CHECK (projection_version >= 0),
+			acknowledged_hash  TEXT,
+			pending_hash       TEXT,
+			pending_payload    TEXT,
+			CHECK (acknowledged_hash IS NULL OR length(acknowledged_hash) > 0),
+			CHECK (
+				(pending_hash IS NULL AND pending_payload IS NULL)
+				OR (length(pending_hash) > 0 AND pending_payload IS NOT NULL)
+			),
+			CHECK (acknowledged_hash IS NOT NULL OR pending_hash IS NOT NULL)
+		)`].join(';\n'),
+	},
+	{
+		version: 14,
+		sql: `CREATE TABLE IF NOT EXISTS terminal_outputs (
+			tool_call_id TEXT PRIMARY KEY NOT NULL,
+			turn_id      TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+			output       BLOB NOT NULL
+		)`,
+	},
+	{
+		version: 15,
+		sql: `ALTER TABLE local_turns ADD COLUMN kind TEXT NOT NULL DEFAULT 'local'`,
 	},
 ];
 
@@ -218,6 +261,70 @@ function dbOpen(path: string): Promise<Database> {
 			});
 		}, reject);
 	});
+}
+
+function validateCatalogSyncInteger(name: string, value: number): void {
+	if (!Number.isSafeInteger(value) || value < 0) {
+		throw new Error(`Catalog sync ${name} must be a non-negative safe integer`);
+	}
+}
+
+function validateCatalogSyncIdentity(name: string, value: unknown): asserts value is string {
+	if (typeof value !== 'string' || value.length === 0) {
+		throw new Error(`Catalog sync ${name} must be nonempty`);
+	}
+}
+
+function validateCatalogSyncSnapshot(snapshot: ISessionCatalogSyncPendingSnapshot): void {
+	validateCatalogSyncIdentity('sessionGeneration', snapshot.sessionGeneration);
+	validateCatalogSyncInteger('sourceRevision', snapshot.sourceRevision);
+	validateCatalogSyncInteger('projectionVersion', snapshot.projectionVersion);
+	validateCatalogSyncIdentity('payload', snapshot.payload);
+	validateCatalogSyncIdentity('payloadHash', snapshot.payloadHash);
+}
+
+function validateCatalogSyncAcknowledgement(acknowledgement: ISessionCatalogSyncAcknowledgement): void {
+	validateCatalogSyncIdentity('sessionGeneration', acknowledgement.sessionGeneration);
+	validateCatalogSyncInteger('sourceRevision', acknowledgement.sourceRevision);
+	validateCatalogSyncInteger('projectionVersion', acknowledgement.projectionVersion);
+	validateCatalogSyncIdentity('payloadHash', acknowledgement.payloadHash);
+}
+
+function toCatalogSyncSnapshot(row: Record<string, unknown>): ISessionCatalogSyncSnapshot {
+	validateCatalogSyncIdentity('sessionGeneration', row.session_generation);
+	validateCatalogSyncInteger('sourceRevision', row.source_revision as number);
+	validateCatalogSyncInteger('projectionVersion', row.projection_version as number);
+	const acknowledgedHash = row.acknowledged_hash;
+	let validatedAcknowledgedHash: string | undefined;
+	if (acknowledgedHash !== null) {
+		validateCatalogSyncIdentity('acknowledgedHash', acknowledgedHash);
+		validatedAcknowledgedHash = acknowledgedHash;
+	}
+	if (row.pending_hash !== null) {
+		validateCatalogSyncIdentity('pendingHash', row.pending_hash);
+		if (typeof row.pending_payload !== 'string') {
+			throw new Error('Catalog sync pending payload must be a string');
+		}
+		return {
+			sessionGeneration: row.session_generation,
+			sourceRevision: row.source_revision as number,
+			projectionVersion: row.projection_version as number,
+			payload: row.pending_payload,
+			payloadHash: row.pending_hash,
+			acknowledgedHash: validatedAcknowledgedHash,
+			state: 'pending',
+		};
+	}
+	validateCatalogSyncIdentity('acknowledgedHash', acknowledgedHash);
+	return {
+		sessionGeneration: row.session_generation,
+		sourceRevision: row.source_revision as number,
+		projectionVersion: row.projection_version as number,
+		payload: undefined,
+		payloadHash: acknowledgedHash,
+		acknowledgedHash,
+		state: 'acknowledged',
+	};
 }
 
 /**
@@ -324,6 +431,10 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._track(() => this._turnUsageSequencer.queue(() => this._queueMutation(operation)));
 	}
 
+	private _queueTurnData<T>(operation: (db: Database) => Promise<T>): Promise<T> {
+		return this._turnUsageSequencer.queue(() => this._queueOperation(operation));
+	}
+
 	/**
 	 * Runs an atomic mutation touching metadata and sequenced turn data.
 	 * Always acquire sequencers in metadata, turn-data, mutation order.
@@ -425,6 +536,7 @@ export class SessionDatabase implements ISessionDatabase {
 	deleteTurn(turnId: string): Promise<void> {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			// Turn-owned file edits, usage, and workspace transitions cascade-delete.
+			await dbRun(db, 'DELETE FROM local_turns WHERE turn_id = ?', [turnId]);
 			await dbRun(db, 'DELETE FROM turns WHERE id = ?', [turnId]);
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
@@ -472,6 +584,13 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._queueOperation(async db => {
 			const row = await dbGet(db, 'SELECT event_id FROM turns ORDER BY rowid LIMIT 1', []);
 			return row?.event_id as string | undefined ?? undefined;
+		});
+	}
+
+	hasConversationTurns(): Promise<boolean> {
+		return this._queueOperation(async db => {
+			const row = await dbGet(db, `SELECT EXISTS(SELECT 1 FROM turns LIMIT 1) AS has_turns, EXISTS(SELECT 1 FROM local_turns LIMIT 1) AS has_persisted_turns`, []);
+			return !!row?.has_turns || !!row?.has_persisted_turns;
 		});
 	}
 
@@ -621,6 +740,12 @@ export class SessionDatabase implements ISessionDatabase {
 			// Delete the target turn and all turns inserted after it (by rowid order).
 			// Turn-owned child records cascade-delete via their foreign keys.
 			await dbRun(db,
+				`DELETE FROM local_turns WHERE turn_id IN (
+					SELECT id FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)
+				)`,
+				[turnId],
+			);
+			await dbRun(db,
 				`DELETE FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
 			);
@@ -633,6 +758,12 @@ export class SessionDatabase implements ISessionDatabase {
 			// Delete all turns inserted after the given turn (by rowid order),
 			// keeping the given turn itself. Turn-owned child records cascade-delete.
 			await dbRun(db,
+				`DELETE FROM local_turns WHERE turn_id IN (
+					SELECT id FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)
+				)`,
+				[turnId],
+			);
+			await dbRun(db,
 				`DELETE FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
 			);
@@ -644,25 +775,31 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			// Turn-owned child records cascade-delete via their foreign keys.
 			await dbExec(db, 'DELETE FROM turns');
+			await dbExec(db, 'DELETE FROM local_turns');
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
 	}
 
-	// ---- Local (host-injected) turns ------------------------------------
+	// ---- Host-persisted turns -------------------------------------------
 
-	insertLocalTurn(record: ILocalTurnRecord): Promise<void> {
+	insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
 		return this._mutate(async db => {
+			if (record.kind === 'failed') {
+				await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [record.turnId]);
+			}
 			await dbRun(db,
-				'INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload) VALUES (?, ?, ?, ?, ?)',
-				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq, record.payload],
+				`INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload, kind)
+				VALUES (?, ?, ?, COALESCE(?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM local_turns)), ?, ?)`,
+				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq ?? null, record.payload, record.kind],
 			);
 		});
 	}
 
-	async getLocalTurns(): Promise<ILocalTurnRecord[]> {
+	async getPersistedTurns(): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
 		const db = await this._ensureDb();
-		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload FROM local_turns ORDER BY seq', []);
+		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload, kind FROM local_turns ORDER BY seq', []);
 		return rows.map(r => ({
+			kind: r.kind as IPersistedTurnRecord['kind'],
 			turnId: r.turn_id as string,
 			chatUri: r.chat_uri as string,
 			anchorTurnId: (r.anchor_turn_id as string | null) ?? undefined,
@@ -671,7 +808,7 @@ export class SessionDatabase implements ISessionDatabase {
 		}));
 	}
 
-	deleteLocalTurns(turnIds: readonly string[]): Promise<void> {
+	deletePersistedTurns(turnIds: readonly string[]): Promise<void> {
 		return this._track(() => {
 			if (turnIds.length === 0) {
 				return Promise.resolve();
@@ -761,7 +898,10 @@ export class SessionDatabase implements ISessionDatabase {
 			db,
 			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines
 				FROM file_edits
-				WHERE turn_id = ?
+				WHERE turn_id = COALESCE(
+					(SELECT id FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1),
+					?1
+				)
 				ORDER BY rowid`,
 			[turnId],
 		);
@@ -793,6 +933,57 @@ export class SessionDatabase implements ISessionDatabase {
 				beforeContent: row.before_content ? toUint8Array(row.before_content) : undefined,
 				afterContent: row.after_content ? toUint8Array(row.after_content) : undefined,
 			};
+		});
+	}
+
+	// ---- Terminal outputs -----------------------------------------------
+
+	storeTerminalOutput(turnId: string, toolCallId: string, content: Uint8Array): Promise<void> {
+		if (content.byteLength > MAX_TERMINAL_OUTPUT_BYTES) {
+			return Promise.reject(new Error(`Terminal output exceeds the ${MAX_TERMINAL_OUTPUT_BYTES}-byte limit`));
+		}
+		return this._mutateTurnUsage(async db => {
+			const result = await dbRun(
+				db,
+				`INSERT INTO terminal_outputs (tool_call_id, turn_id, output)
+					SELECT ?, ?, ?
+					WHERE EXISTS (SELECT 1 FROM turns WHERE id = ?)
+					ON CONFLICT(tool_call_id) DO UPDATE SET
+						turn_id = excluded.turn_id,
+						output = excluded.output`,
+				[toolCallId, turnId, Buffer.from(content), turnId],
+			);
+			if (result.changes === 0) {
+				throw new Error(`Cannot store terminal output for missing turn '${turnId}'`);
+			}
+		});
+	}
+
+	deleteTerminalOutput(toolCallId: string): Promise<void> {
+		return this._mutateTurnUsage(async db => {
+			await dbRun(db, 'DELETE FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);
+		});
+	}
+
+	getTerminalOutputSize(toolCallId: string): Promise<number | undefined> {
+		return this._queueTurnData(async db => {
+			const row = await dbGet(db, 'SELECT length(output) AS size FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);
+			return row?.size as number | undefined ?? undefined;
+		});
+	}
+
+	readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined> {
+		return this._queueTurnData(async db => {
+			const sizeRow = await dbGet(db, 'SELECT length(output) AS size FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);
+			if (!sizeRow) {
+				return undefined;
+			}
+			const size = sizeRow.size as number;
+			if (size > MAX_TERMINAL_OUTPUT_BYTES) {
+				throw new Error(`Stored terminal output exceeds the ${MAX_TERMINAL_OUTPUT_BYTES}-byte limit`);
+			}
+			const row = await dbGet(db, 'SELECT output FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);
+			return row ? toUint8Array(row.output) : undefined;
 		});
 	}
 
@@ -851,6 +1042,81 @@ export class SessionDatabase implements ISessionDatabase {
 		}));
 	}
 
+	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+		validateCatalogSyncSnapshot(snapshot);
+		return this._track(() => this._metadataSequencer.queue(async () => {
+			const db = await this._ensureDb();
+			return this._mutationSequencer.queue(async () => {
+				await dbExec(db, 'BEGIN TRANSACTION');
+				try {
+					const existingRow = await dbGet(db, 'SELECT session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload FROM catalog_sync_snapshot WHERE singleton_id = 1', []);
+					const existing = existingRow ? toCatalogSyncSnapshot(existingRow) : undefined;
+					if (existing && snapshot.sessionGeneration !== existing.sessionGeneration) {
+						throw new Error(`Catalog sync snapshot generation ${snapshot.sessionGeneration} does not match stored generation ${existing.sessionGeneration}`);
+					}
+					if (existing && snapshot.sourceRevision < existing.sourceRevision) {
+						throw new Error(`Catalog sync snapshot revision ${snapshot.sourceRevision} is stale; current revision is ${existing.sourceRevision}`);
+					}
+					if (existing && snapshot.sourceRevision === existing.sourceRevision) {
+						const isExactReplay = snapshot.sessionGeneration === existing.sessionGeneration
+							&& snapshot.projectionVersion === existing.projectionVersion
+							&& snapshot.payloadHash === existing.payloadHash
+							&& (existing.state === 'acknowledged' || snapshot.payload === existing.payload);
+						if (!isExactReplay) {
+							throw new Error(`Catalog sync snapshot revision ${snapshot.sourceRevision} conflicts with the stored snapshot`);
+						}
+					}
+
+					const result: SessionCatalogSyncWriteResult = existing?.sourceRevision === snapshot.sourceRevision ? 'replayed' : 'applied';
+					if (result === 'replayed') {
+						await dbExec(db, 'COMMIT');
+						return result;
+					}
+					for (const [key, value] of Object.entries(values)) {
+						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+					}
+					await this._writeCatalogSyncSnapshot(db, snapshot, existing?.acknowledgedHash);
+					await dbExec(db, 'COMMIT');
+					return result;
+				} catch (err) {
+					await dbExec(db, 'ROLLBACK');
+					throw err;
+				}
+			});
+		}));
+	}
+
+	async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean> {
+		validateCatalogSyncIdentity('expectedSessionGeneration', expectedSessionGeneration);
+		validateCatalogSyncSnapshot(snapshot);
+		if (snapshot.sessionGeneration === expectedSessionGeneration) {
+			throw new Error(`Catalog sync generation transition must change the session generation`);
+		}
+		return this._track(() => this._metadataSequencer.queue(async () => {
+			const db = await this._ensureDb();
+			return this._mutationSequencer.queue(async () => {
+				await dbExec(db, 'BEGIN TRANSACTION');
+				try {
+					const existingRow = await dbGet(db, 'SELECT session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload FROM catalog_sync_snapshot WHERE singleton_id = 1', []);
+					const existing = existingRow ? toCatalogSyncSnapshot(existingRow) : undefined;
+					if (!existing || existing.sessionGeneration !== expectedSessionGeneration) {
+						await dbExec(db, 'COMMIT');
+						return false;
+					}
+					for (const [key, value] of Object.entries(values)) {
+						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
+					}
+					await this._writeCatalogSyncSnapshot(db, snapshot, undefined);
+					await dbExec(db, 'COMMIT');
+					return true;
+				} catch (err) {
+					await dbExec(db, 'ROLLBACK');
+					throw err;
+				}
+			});
+		}));
+	}
+
 	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}): Promise<boolean> {
 		return this._track(() => this._metadataSequencer.queue(() =>
 			this._queueTransaction(async db => {
@@ -867,6 +1133,58 @@ export class SessionDatabase implements ISessionDatabase {
 				return true;
 			})
 		));
+	}
+
+	getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined> {
+		return this._metadataSequencer.queue(async () => {
+			const db = await this._ensureDb();
+			const row = await dbGet(db, 'SELECT session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload FROM catalog_sync_snapshot WHERE singleton_id = 1', []);
+			return row ? toCatalogSyncSnapshot(row) : undefined;
+		});
+	}
+
+	async acknowledgeCatalogSyncSnapshot(acknowledgement: ISessionCatalogSyncAcknowledgement): Promise<boolean> {
+		validateCatalogSyncAcknowledgement(acknowledgement);
+		return this._track(() => this._metadataSequencer.queue(async () => {
+			const db = await this._ensureDb();
+			return this._mutationSequencer.queue(async () => {
+				const result = await dbRun(db, `UPDATE catalog_sync_snapshot
+					SET acknowledged_hash = pending_hash,
+						pending_hash = NULL,
+						pending_payload = NULL
+					WHERE singleton_id = 1
+						AND session_generation = ?
+						AND source_revision = ?
+						AND projection_version = ?
+						AND pending_hash = ?`, [
+					acknowledgement.sessionGeneration,
+					acknowledgement.sourceRevision,
+					acknowledgement.projectionVersion,
+					acknowledgement.payloadHash,
+				]);
+				return result.changes === 1;
+			});
+		}));
+	}
+
+	private async _writeCatalogSyncSnapshot(db: Database, snapshot: ISessionCatalogSyncPendingSnapshot, acknowledgedHash: string | undefined): Promise<void> {
+		await dbRun(db, `INSERT INTO catalog_sync_snapshot (
+			singleton_id, session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload
+		) VALUES (1, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(singleton_id) DO UPDATE SET
+			session_generation = excluded.session_generation,
+			source_revision = excluded.source_revision,
+			projection_version = excluded.projection_version,
+			acknowledged_hash = excluded.acknowledged_hash,
+			pending_hash = excluded.pending_hash,
+			pending_payload = excluded.pending_payload`, [
+			snapshot.sessionGeneration,
+			snapshot.sourceRevision,
+			snapshot.projectionVersion,
+			acknowledgedHash,
+			snapshot.payloadHash,
+			snapshot.payload,
+		]);
 	}
 
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
@@ -944,11 +1262,15 @@ export class SessionDatabase implements ISessionDatabase {
 					oldIds,
 				);
 			}
+			const failedTurns = oldIds.length === 0
+				? []
+				: await dbAll(db, `SELECT turn_id, anchor_turn_id, payload FROM local_turns WHERE kind = 'failed'`, []);
 
 			// Remap the remaining turn IDs to their new values
 			for (const [oldId, newId] of mapping) {
 				await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE terminal_outputs SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 			}
 			for (const [turnId, eventId] of eventIds ?? []) {
 				await dbRun(db, 'UPDATE turns SET event_id = ? WHERE id = ?', [eventId, turnId]);
@@ -962,8 +1284,8 @@ export class SessionDatabase implements ISessionDatabase {
 				);
 			}
 			for (const [oldId, newId] of mapping) {
-				await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
-				await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ? AND kind = ?', [newId, oldId, 'local']);
+				await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ? AND kind = ?', [newId, oldId, 'local']);
 			}
 
 			// Rows past the fork point were already removed by the `turns`
@@ -974,6 +1296,20 @@ export class SessionDatabase implements ISessionDatabase {
 				await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_delegation SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_workspace_transition SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+			}
+			for (const failedTurn of failedTurns) {
+				const oldId = failedTurn.turn_id as string;
+				const newId = mapping.get(oldId);
+				if (!newId) {
+					continue;
+				}
+				const payload = remapPersistedTurnPayload(failedTurn.payload as string, oldId, newId);
+				const anchorTurnId = failedTurn.anchor_turn_id as string | null;
+				await dbRun(db,
+					`UPDATE local_turns SET turn_id = ?, anchor_turn_id = ?, payload = ?
+					WHERE turn_id = ? AND kind = 'failed'`,
+					[newId, anchorTurnId === null ? null : mapping.get(anchorTurnId) ?? null, payload, oldId],
+				);
 			}
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
@@ -1020,6 +1356,23 @@ export class SessionDatabase implements ISessionDatabase {
 	dispose(): void {
 		this.close();
 	}
+}
+
+function remapPersistedTurnPayload(payload: string, oldId: string, newId: string): string {
+	let value: unknown;
+	try {
+		value = JSON.parse(payload);
+	} catch {
+		throw new Error(`Cannot remap persisted turn ${oldId}: invalid JSON`);
+	}
+	if (!isRecord(value) || value.id !== oldId) {
+		throw new Error(`Cannot remap persisted turn ${oldId}: payload id does not match record id`);
+	}
+	return JSON.stringify({ ...value, id: newId });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function toReviewedFileRecord(row: Record<string, unknown>): IReviewedFileRecord {

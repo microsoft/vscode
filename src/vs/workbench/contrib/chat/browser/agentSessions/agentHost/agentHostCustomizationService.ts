@@ -16,6 +16,7 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -33,6 +34,8 @@ import { IAgentHostActiveClientService } from './agentHostActiveClientService.js
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
+import { IMcpService } from '../../../../../contrib/mcp/common/mcpTypes.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
 
 export const IAgentHostCustomizationService = createDecorator<IAgentHostCustomizationService>('agentHostCustomizationService');
 
@@ -165,6 +168,7 @@ export interface IAgentHostCustomizationTarget {
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
 	startMcpServer(rawId: string): Promise<void>;
 	stopMcpServer(rawId: string): Promise<void>;
+	backgroundMcpServer(rawId: string): Promise<void>;
 	setRootConfigValue(property: string, value: unknown): void;
 }
 
@@ -246,6 +250,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				return {
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
+					source: readMcpServerSource(server),
 					enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
 					enablement: server.enablement,
 					isPluginProvided: plugin !== undefined,
@@ -260,6 +265,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
 					start: () => target.startMcpServer(server.id),
 					stop: () => target.stopMcpServer(server.id),
+					...(server.state.kind === McpServerStatus.Starting && server.state.blocking ? { background: () => target.backgroundMcpServer(server.id) } : {}),
 				};
 			});
 	}
@@ -335,12 +341,12 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!server || server.state.kind !== McpServerStatus.AuthRequired) {
 			return false;
 		}
-		const scopedServerId = agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource);
 		try {
+			await target.startMcpServer(server.id);
 			return await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, server.state.resource, {
 				allowInteraction: true,
 				logPrefix: '[AgentHost]',
-				mcpServerId: scopedServerId,
+				mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource),
 				mcpServerName: server.name,
 				mcpServerUrl: server.state.resource.resource,
 				oauthClient: server.state.oauthClient,
@@ -504,6 +510,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		@ILogService logService: ILogService,
 		@IChatService private readonly _chatService: IChatService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IMcpService private readonly _mcpService: IMcpService,
 	) {
 		super(instantiationService, logService);
 
@@ -512,6 +519,13 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 				case ActionType.SessionCustomizationsChanged:
 				case ActionType.SessionCustomizationUpdated:
 				case ActionType.SessionMcpServerStateChanged:
+					this._fireCustomizationsChanged();
+					this._fireCustomAgentsChanged();
+					break;
+				case ActionType.SessionCustomizationToggled:
+					if (!envelope.rejectionReason) {
+						this._syncClientMcpEnablement(envelope.channel, envelope.action.id, envelope.action.enablement);
+					}
 					this._fireCustomizationsChanged();
 					this._fireCustomAgentsChanged();
 					break;
@@ -535,6 +549,35 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			this._fireCustomizationsChanged();
 			this._fireCustomAgentsChanged();
 		}));
+	}
+
+	private _syncClientMcpEnablement(channel: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void {
+		const global = enablement.find(entry => entry.kind === CustomizationEnablementKind.Global);
+		if (!global) {
+			return;
+		}
+		const subscription = [...this._sessionStateSubscriptions.values()]
+			.find(entry => entry.backendSession.toString() === channel)?.sub;
+		const value = subscription?.value;
+		const state = value && !(value instanceof Error) ? value : subscription?.verifiedValue;
+		const entry = flattenMcpServerCustomizations(state?.customizations ?? [])
+			.find(candidate => candidate.server.id === customizationId);
+		if (!entry || (entry.plugin && !this._activeClientService.isBundledMcpServer(entry.plugin.uri, entry.server.name))) {
+			return;
+		}
+		const localServers = this._mcpService.servers.get()
+			.filter(server => server.definition.id === entry.server.name || server.definition.label === entry.server.name);
+		if (localServers.length === 0) {
+			return;
+		}
+		if (localServers.length > 1) {
+			this._logService.warn(`[AgentHostCustomizationService] Cannot synchronize global enablement for '${entry.server.name}' because multiple local MCP servers match.`);
+			return;
+		}
+		this._mcpService.enablementModel.setEnabled(
+			localServers[0].definition.id,
+			global.enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile,
+		);
 	}
 
 	protected override _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined {
@@ -581,6 +624,13 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			stopMcpServer: rawId => {
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionMcpServerStopRequested,
+					id: rawId,
+				});
+				return Promise.resolve();
+			},
+			backgroundMcpServer: rawId => {
+				target.connection.dispatch(channel, {
+					type: ActionType.SessionMcpServerBackgroundRequested,
 					id: rawId,
 				});
 				return Promise.resolve();

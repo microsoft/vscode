@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, automationRootConfigSchema } from '../../common/automationConfig.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
@@ -308,6 +309,30 @@ suite('AgentConfigurationService', () => {
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
+
+	for (const enabled of [true, false]) {
+		test(`restores Automation enablement ${enabled} and timeout without a client reconnect`, async () => {
+			const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
+			try {
+				const resource = URI.file(join(directory, 'agent-host-config.json'));
+				const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+				const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+				firstService.updateRootConfig({
+					[AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: enabled,
+					[AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY]: 42,
+				});
+				await firstService.whenIdle();
+				const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+				const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+				assert.deepStrictEqual({
+					enabled: restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY),
+					timeout: restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY),
+				}, { enabled, timeout: 42 });
+			} finally {
+				fs.rmSync(directory, { recursive: true, force: true });
+			}
+		});
+	}
 
 	test('does not restore client-owned approval settings when the host restarts', async () => {
 		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));

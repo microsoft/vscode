@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { transaction } from '../../../../../../base/common/observable.js';
@@ -11,6 +12,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { TextEdit } from '../../../../../../editor/common/languages.js';
+import { PieceTreeTextBuffer } from '../../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer.js';
+import { PieceTreeTextBufferBuilder } from '../../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -38,7 +42,7 @@ suite('ChatEditingCheckpointTimeline', function () {
 		feature: undefined,
 	});
 
-	function createTextEditOperation(uri: URI, requestId: string, epoch: number, edits: { range: Range; text: string }[]): FileOperation {
+	function createTextEditOperation(uri: URI, requestId: string, epoch: number, edits: readonly TextEdit[]): FileOperation {
 		return upcastPartial<FileOperation>({
 			type: FileOperationType.TextEdit,
 			uri,
@@ -110,6 +114,7 @@ suite('ChatEditingCheckpointTimeline', function () {
 
 	teardown(() => {
 		store.clear();
+		sinon.restore();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -1001,9 +1006,133 @@ suite('ChatEditingCheckpointTimeline', function () {
 		// Navigate to see all edits applied
 		const initialCheckpoint = timeline.getStateForPersistence().checkpoints[0];
 		await timeline.navigateToCheckpoint(initialCheckpoint.checkpointId);
+		const buffersCreated = sinon.spy(PieceTreeTextBufferBuilder.prototype, 'finish');
+		const buffersDisposed = sinon.spy(PieceTreeTextBuffer.prototype, 'dispose');
 		await timeline.navigateToCheckpoint(timeline.getCheckpointIdForRequest('req1', 'all-edits')!);
 
-		assert.strictEqual(fileContents.get(uri), 'LINE1\nLINE2\nLINE3');
+		assert.deepStrictEqual({
+			content: fileContents.get(uri),
+			buffersCreated: buffersCreated.callCount,
+			buffersDisposed: buffersDisposed.callCount,
+		}, {
+			content: 'LINE1\nLINE2\nLINE3',
+			buffersCreated: 1,
+			buffersDisposed: 1,
+		});
+	});
+
+	suite('text edit replay', () => {
+		function recordEdits(content: string, editGroups: readonly (readonly TextEdit[])[]): URI {
+			const uri = URI.parse('file:///test.txt');
+			timeline.createCheckpoint('req1', undefined, 'Start');
+			timeline.recordFileBaseline({
+				uri, requestId: 'req1', content,
+				epoch: timeline.incrementEpoch(),
+				telemetryInfo: DEFAULT_TELEMETRY_INFO,
+			});
+			for (const [index, edits] of editGroups.entries()) {
+				timeline.recordFileOperation(createTextEditOperation(uri, 'req1', timeline.incrementEpoch(), edits));
+				timeline.createCheckpoint('req1', `stop${index}`, `Edit ${index}`);
+			}
+			timeline.createCheckpoint('req1', 'end', 'End');
+			return uri;
+		}
+
+		for (const eol of ['\n', '\r\n']) {
+			test(`preserves dependent edit batches and ${JSON.stringify(eol)} line endings`, async () => {
+				const uri = recordEdits(['alpha', 'beta', 'gamma'].join(eol), [
+					[
+						{ range: new Range(3, 1, 3, 6), text: 'GAMMA' },
+						{ range: new Range(1, 1, 1, 1), text: 'prefix\n' },
+					],
+					[{ range: new Range(3, 1, 3, 5), text: 'BETA' }],
+				]);
+
+				assert.strictEqual(await timeline.getContentAtStop('req1', uri, 'end'), ['prefix', 'alpha', 'BETA', 'GAMMA'].join(eol));
+			});
+		}
+
+		test('preserves empty content and UTF-16 edit coordinates', async () => {
+			const uri = recordEdits('', [
+				[{ range: new Range(1, 1, 1, 1), text: '\u{1F600}\ntext' }],
+				[{ range: new Range(1, 3, 1, 3), text: '!' }],
+			]);
+
+			assert.strictEqual(await timeline.getContentAtStop('req1', uri, 'end'), '\u{1F600}!\ntext');
+		});
+
+		test('uses the default EOL after a batch removes all line breaks', async () => {
+			const uri = recordEdits('a\r\nb', [
+				[{ range: new Range(1, 1, 2, 2), text: 'one' }],
+				[{ range: new Range(1, 4, 1, 4), text: '\ntwo' }],
+			]);
+
+			assert.strictEqual(await timeline.getContentAtStop('req1', uri, 'end'), 'one\ntwo');
+		});
+
+		test('preserves BOM handling between batches', async () => {
+			const uri = recordEdits('\uFEFFone\n', [
+				[{ range: new Range(1, 1, 1, 1), text: '\uFEFF' }],
+				[{ range: new Range(1, 1, 1, 1), text: 'A' }],
+			]);
+
+			assert.strictEqual(await timeline.getContentAtStop('req1', uri, 'end'), 'Aone\n');
+		});
+
+		test('leaves content untouched when there are no text edits', async () => {
+			const content = '\uFEFFa\r\nb\nc';
+			const uri = recordEdits(content, []);
+			const buffersCreated = sinon.spy(PieceTreeTextBufferBuilder.prototype, 'finish');
+
+			assert.deepStrictEqual({
+				content: await timeline.getContentAtStop('req1', uri, 'end'),
+				buffersCreated: buffersCreated.callCount,
+			}, { content, buffersCreated: 0 });
+		});
+
+		test('isolates concurrent checkpoint reconstructions', async () => {
+			const uri = recordEdits('a\nb', [
+				[{ range: new Range(1, 1, 1, 2), text: 'A' }],
+				[{ range: new Range(2, 1, 2, 2), text: 'B' }],
+			]);
+
+			assert.deepStrictEqual(await Promise.all([
+				timeline.getContentAtStop('req1', uri, 'stop0'),
+				timeline.getContentAtStop('req1', uri, 'end'),
+			]), ['A\nb', 'A\nB']);
+		});
+
+		test('releases the buffer when a later edit batch fails', async () => {
+			const uri = recordEdits('abc', [
+				[{ range: new Range(1, 1, 1, 2), text: 'A' }],
+				[
+					{ range: new Range(1, 1, 1, 3), text: 'X' },
+					{ range: new Range(1, 2, 1, 4), text: 'Y' },
+				],
+			]);
+			const buffersCreated = sinon.spy(PieceTreeTextBufferBuilder.prototype, 'finish');
+			const buffersDisposed = sinon.spy(PieceTreeTextBuffer.prototype, 'dispose');
+
+			await assert.rejects(timeline.getContentAtStop('req1', uri, 'end'), /Overlapping ranges/);
+			assert.deepStrictEqual({
+				buffersCreated: buffersCreated.callCount,
+				buffersDisposed: buffersDisposed.callCount,
+			}, { buffersCreated: 1, buffersDisposed: 1 });
+		});
+
+		test('reconstructs edits after file recreation from the new content', async () => {
+			const uri = recordEdits('old', [[{ range: new Range(1, 1, 1, 4), text: 'OLD' }]]);
+			timeline.recordFileOperation(createFileDeleteOperation(uri, 'req1', timeline.incrementEpoch(), 'OLD'));
+			timeline.recordFileOperation(createFileCreateOperation(uri, 'req1', timeline.incrementEpoch(), 'new\nfile'));
+			timeline.recordFileOperation(createTextEditOperation(uri, 'req1', timeline.incrementEpoch(), [{ range: new Range(1, 1, 1, 4), text: 'NEW' }]));
+			timeline.recordFileOperation(createTextEditOperation(uri, 'req1', timeline.incrementEpoch(), [{ range: new Range(2, 1, 2, 5), text: 'FILE' }]));
+			timeline.createCheckpoint('req1', 'recreated', 'Recreated');
+
+			assert.deepStrictEqual(await Promise.all([
+				timeline.getContentAtStop('req1', uri, 'end'),
+				timeline.getContentAtStop('req1', uri, 'recreated'),
+			]), ['OLD', 'NEW\nFILE']);
+		});
 	});
 
 	test('checkpoint with same requestId and undoStopId is not duplicated', function () {

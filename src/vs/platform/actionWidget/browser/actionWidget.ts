@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 import * as dom from '../../../base/browser/dom.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
+import { hasRequiredAncestorClasses, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { IAction } from '../../../base/common/actions.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import './actionWidget.css';
 import { localize, localize2 } from '../../../nls.js';
-import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, IActionListOptions, previewSelectedActionCommand } from './actionList.js';
+import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions, previewSelectedActionCommand } from './actionList.js';
 import { Action2, registerAction2 } from '../../actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
@@ -21,6 +21,7 @@ import { KeybindingWeight } from '../../keybinding/common/keybindingsRegistry.js
 import { inputActiveOptionBackground, registerColor } from '../../theme/common/colorRegistry.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
+import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS, finishActionWidgetOpeningAnimation } from './actionWidgetMotion.js';
 
 registerColor(
 	'actionBar.toggledBackground',
@@ -41,14 +42,19 @@ export const IActionWidgetService = createDecorator<IActionWidgetService>('actio
 export interface IActionWidgetService {
 	readonly _serviceBrand: undefined;
 
-	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions): void;
+	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions, contextViewLayer?: number): void;
 
 	/**
 	 * Replaces the items of the currently shown widget in place, without closing
 	 * or repositioning it. Preserves the current filter. When `focusItemId` is
 	 * provided, focuses that item; otherwise preserves the focused item.
 	 */
-	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void;
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void;
+
+	/**
+	 * The item currently focused in the shown widget, if any.
+	 */
+	getFocusedElement<T>(): IActionListItem<T> | undefined;
 
 	/**
 	 * Focuses the item with the given id in the currently shown widget, without
@@ -81,7 +87,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		super();
 	}
 
-	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions): void {
+	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions, contextViewLayer?: number): void {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider, listOptions, anchor);
 		this._contextViewService.showContextView({
@@ -96,6 +102,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 			},
 			get anchorPosition() { return list.anchorPosition; },
 			focus: () => list.focus(),
+			layer: contextViewLayer,
 		}, container, false);
 	}
 
@@ -103,8 +110,15 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		this._list.value?.acceptSelected(preview);
 	}
 
-	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void {
-		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId);
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
+		if (this._widgetElement) {
+			finishActionWidgetOpeningAnimation(this._widgetElement);
+		}
+		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId, options);
+	}
+
+	getFocusedElement<T>(): IActionListItem<T> | undefined {
+		return (this._list.value as ActionList<T> | undefined)?.getFocusedElement();
 	}
 
 	focusItemById(itemId: string): void {
@@ -143,7 +157,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		}
 
 		const closeAnimation = list.closeAnimation;
-		if (!widget || !closeAnimation || closeAnimation.duration <= 0 || !this._hasRequiredAncestorClasses(widget, closeAnimation.requiredAncestorClasses)) {
+		if (!widget || !closeAnimation || closeAnimation.duration <= 0 || !hasRequiredAncestorClasses(widget, closeAnimation.requiredAncestorClasses)) {
 			this._closingList = list;
 			list.hide(didCancel);
 			return;
@@ -153,6 +167,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		const computedStyle = dom.getWindow(widget).getComputedStyle(widget);
 		widget.style.setProperty(ACTION_WIDGET_CLOSE_START_OPACITY_VARIABLE, computedStyle.opacity);
 		widget.style.setProperty(ACTION_WIDGET_CLOSE_START_TRANSFORM_VARIABLE, computedStyle.transform);
+		widget.classList.remove(ACTION_WIDGET_ANIMATED_CLASS);
 		widget.classList.add(closeAnimation.className);
 		list.hide(didCancel, false);
 		this._closeAnimation.value = disposableTimeout(() => {
@@ -176,7 +191,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		widget.classList.add('action-widget');
 		const widgetClassNames = list.widgetClassName?.split(/\s+/).filter(Boolean);
 		if (widgetClassNames?.length) {
-			widget.classList.add(...widgetClassNames);
+			widget.classList.add(...widgetClassNames.filter(className => className !== ACTION_WIDGET_DROPDOWN_MOTION_CLASS));
 		}
 		element.appendChild(widget);
 		this._widgetElement = widget;
@@ -212,6 +227,10 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		if (headerContainer) {
 			renderDisposables.add(dom.addDisposableGenericMouseDownListener(headerContainer, e => e.preventDefault()));
 		}
+		let suppressBlurHideUntil = 0;
+		renderDisposables.add(dom.addDisposableGenericMouseDownListener(widget, () => {
+			suppressBlurHideUntil = Date.now() + 1000;
+		}));
 
 		// Invisible div to block mouse interaction in the rest of the UI
 		const menuBlock = document.createElement('div');
@@ -243,15 +262,30 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		}
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
+		const pendingBlurHide = renderDisposables.add(new MutableDisposable<IDisposable>());
+		renderDisposables.add(focusTracker.onDidFocus(() => pendingBlurHide.clear()));
 		renderDisposables.add(focusTracker.onDidBlur(() => {
-			// Don't hide if focus moved to a hover or submenu that belongs to this action widget
-			const activeElement = dom.getActiveElement();
-			if (activeElement?.closest('.action-widget-hover') || activeElement?.closest('.action-list-submenu-panel')) {
-				return;
-			}
-			this.hide(true);
+			const runBlurHide = () => {
+				const remainingSuppression = suppressBlurHideUntil - Date.now();
+				if (remainingSuppression > 0) {
+					pendingBlurHide.value = disposableTimeout(runBlurHide, remainingSuppression);
+					return;
+				}
+				// Don't hide if focus moved to a hover or submenu that belongs to this action widget
+				const activeElement = dom.getActiveElement();
+				if (activeElement && (element.contains(activeElement) || activeElement.closest('.action-widget-hover') || activeElement.closest('.action-list-submenu-panel'))) {
+					return;
+				}
+				this.hide(true);
+			};
+			pendingBlurHide.value = disposableTimeout(runBlurHide, 75);
 		}));
 
+		// Measure the popup before applying its entrance transform.
+		if (widgetClassNames?.length) {
+			widget.classList.add(...widgetClassNames);
+		}
+		widget.classList.add(ACTION_WIDGET_ANIMATED_CLASS);
 		return renderDisposables;
 	}
 
@@ -264,18 +298,6 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		const actionBar = new ActionBar(container);
 		actionBar.push(actions, { icon: false, label: true });
 		return actionBar;
-	}
-
-	private _hasRequiredAncestorClasses(element: HTMLElement, classNames: readonly string[] | undefined): boolean {
-		if (!classNames?.length) {
-			return true;
-		}
-		for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
-			if (classNames.every(className => candidate.classList.contains(className))) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private _onWidgetClosed(didCancel?: boolean): void {

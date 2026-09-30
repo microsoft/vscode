@@ -11,7 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
+import { createPullRequestChatMeta, createPullRequestConversationMeta, createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { AgentHostPullRequestCreation } from '../../browser/agentHostPullRequestCreation.js';
 
 suite('AgentHostPullRequestCreation', () => {
@@ -31,12 +31,50 @@ suite('AgentHostPullRequestCreation', () => {
 		const creation = new AgentHostPullRequestCreation(() => connection, () => channel, (operationId, metadata) =>
 			connection.invokeChangesetOperation({ operationId, channel: channel.toString(), _meta: metadata }));
 		const chatRequest = await creation.prepareChatRequest('Create the PR', { ...options, expectedContext: context });
-		assert.deepStrictEqual(chatRequest, { query: 'Create the PR', metadata: createPullRequestOperationMeta({ ...options, expectedContext: context }) });
+		assert.deepStrictEqual(chatRequest, {
+			query: 'Create the PR',
+			metadata: { 'vscode.pullRequest': { draft: false, agentMerge: false, expectedContext: context } },
+		});
 		await creation.create({ ...options, expectedContext: context });
 		assert.deepStrictEqual(invocations, [
 			{ channel: channel.toString(), operationId: PREPARE_PULL_REQUEST_OPERATION_ID, _meta: createPullRequestValidationMeta(context) },
 			{ channel: channel.toString(), operationId: 'create-pr', _meta: createPullRequestOperationMeta({ ...options, expectedContext: context }) },
 		]);
+	});
+
+	test('names the backend chat the form was opened from when preparing and creating', async () => {
+		const invocations: InvokeChangesetOperationParams[] = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+				invocations.push(params);
+				return { followUp: { content: { uri: `data:application/json,${encodeURIComponent(JSON.stringify({ ...context, title: '', description: '', repository: context.repository, autoMergeAllowed: false, mergeMethods: [], agentMergeAvailable: false }))}`, contentType: 'application/json' } } };
+			}
+		}();
+		const peerChat = URI.parse('agent-host-copilot:/session-1#peer');
+		const backendChat = URI.parse('ahp-chat://peer/c2Vzc2lvbi0x');
+		const creation = new AgentHostPullRequestCreation(() => connection, () => channel, (operationId, metadata) =>
+			connection.invokeChangesetOperation({ operationId, channel: channel.toString(), _meta: metadata }),
+			chat => chat.toString() === peerChat.toString() ? backendChat : undefined);
+
+		await creation.prepare(CancellationToken.None, peerChat);
+		await creation.create(options, peerChat);
+		await creation.prepare(CancellationToken.None, URI.parse('agent-host-copilot:/session-1#unknown'));
+		await creation.create(options);
+
+		assert.deepStrictEqual(invocations.map(({ operationId, _meta }) => ({ operationId, _meta })), [
+			{ operationId: PREPARE_PULL_REQUEST_OPERATION_ID, _meta: createPullRequestConversationMeta(backendChat.toString()) },
+			{ operationId: 'create-pr', _meta: { ...createPullRequestOperationMeta(options), ...createPullRequestConversationMeta(backendChat.toString()) } },
+			{ operationId: PREPARE_PULL_REQUEST_OPERATION_ID, _meta: undefined },
+			{ operationId: 'create-pr', _meta: createPullRequestOperationMeta(options) },
+		]);
+	});
+
+	test('prepares a chat request without waiting for generated details', async () => {
+		const creation = new AgentHostPullRequestCreation(() => assert.fail('Must not prepare details'), () => channel, async () => assert.fail('Must not create directly'));
+		const options = { draft: true, agentMerge: false };
+		assert.deepStrictEqual(await creation.prepareChatRequest('Create the PR', options), {
+			query: 'Create the PR', metadata: createPullRequestChatMeta(options),
+		});
 	});
 
 	test('reports an unavailable connection or channel', async () => {

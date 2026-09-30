@@ -43,18 +43,28 @@ export class DocumentSemanticTokensFeature extends Disposable {
 
 		const register = (model: ITextModel) => {
 			this._watchers.get(model.uri)?.dispose();
-			this._watchers.set(model.uri, new ModelSemanticColoring(model, semanticTokensStylingService, themeService, languageFeatureDebounceService, languageFeaturesService));
+			this._watchers.set(model.uri, new ModelSemanticColoring(model, semanticTokensStylingService, languageFeatureDebounceService, languageFeaturesService));
 		};
 		const deregister = (model: ITextModel, modelSemanticColoring: ModelSemanticColoring) => {
 			modelSemanticColoring.dispose();
 			this._watchers.delete(model.uri);
 		};
-		const handleSettingOrThemeChange = () => {
+		const handleSettingOrThemeChange = (themeChanged: boolean) => {
 			for (const model of modelService.getModels()) {
+				// Updating tokens can synchronously dispose another model in this snapshot.
+				if (model.isDisposed()) {
+					continue;
+				}
 				const curr = this._watchers.get(model.uri);
 				if (isSemanticColoringEnabled(model, themeService, configurationService)) {
 					if (!curr) {
 						register(model);
+					} else if (themeChanged) {
+						try {
+							curr.handleThemeChange();
+						} catch (err) {
+							errors.onUnexpectedError(err);
+						}
 					}
 				} else {
 					if (curr) {
@@ -95,10 +105,10 @@ export class DocumentSemanticTokensFeature extends Disposable {
 		}));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SEMANTIC_HIGHLIGHTING_SETTING_ID)) {
-				handleSettingOrThemeChange();
+				handleSettingOrThemeChange(false);
 			}
 		}));
-		this._register(themeService.onDidColorThemeChange(handleSettingOrThemeChange));
+		this._register(themeService.onDidColorThemeChange(() => handleSettingOrThemeChange(true)));
 		bindProviderChangeListeners();
 		this._register(provider.onDidChange(() => {
 			bindProviderChangeListeners();
@@ -134,7 +144,6 @@ class ModelSemanticColoring extends Disposable {
 	constructor(
 		model: ITextModel,
 		@ISemanticTokensStylingService private readonly _semanticTokensStylingService: ISemanticTokensStylingService,
-		@IThemeService themeService: IThemeService,
 		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
@@ -175,13 +184,12 @@ class ModelSemanticColoring extends Disposable {
 			this._fetchDocumentSemanticTokens.schedule(0);
 		}));
 
-		this._register(themeService.onDidColorThemeChange(_ => {
-			// clear out existing tokens
-			this._setDocumentSemanticTokens(null, null, null, []);
-			this._fetchDocumentSemanticTokens.schedule(this._debounceInformation.get(this._model));
-		}));
-
 		this._fetchDocumentSemanticTokens.schedule(0);
+	}
+
+	public handleThemeChange(): void {
+		this._setDocumentSemanticTokens(null, null, null, []);
+		this._fetchDocumentSemanticTokens.schedule(this._debounceInformation.get(this._model));
 	}
 
 	public handleRegistryChange(): void {

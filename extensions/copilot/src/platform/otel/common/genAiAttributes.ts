@@ -179,6 +179,9 @@ export type EditOutcome = 'accepted' | 'rejected' | 'saved' | 'unknown';
  * Standard OTel attributes used alongside GenAI attributes.
  */
 export const StdAttr = {
+	USER_NAME: 'user.name',
+	PROCESS_USER_NAME: 'process.user.name',
+	HOST_NAME: 'host.name',
 	ERROR_TYPE: 'error.type',
 	SERVER_ADDRESS: 'server.address',
 	SERVER_PORT: 'server.port',
