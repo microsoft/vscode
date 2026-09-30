@@ -593,9 +593,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			'The tray must precede the prompt in reading and keyboard order.');
 		if (!phoneLayout) {
 			assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
-				'The collapsed tray must join the top of the prompt.');
+				'The collapsed options row must join the top of the prompt.');
 		}
-		assert(collapsedTrayBounds.width < promptBounds.width, 'The collapsed tray must fit its controls, not the prompt width.');
+		assert(Math.abs(collapsedTrayBounds.width - promptBounds.width) < 1,
+			'The collapsed options row must span the prompt width.');
 		if (collapsedSessionOptionsShowIcons) {
 			const detailLabels = [...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')];
 			const detailControls = [...sessionOptions.querySelectorAll<HTMLElement>('.action-label[role="button"]')].filter(control => control.checkVisibility());
@@ -611,7 +612,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				animation.finish();
 			}
 			await nextFrame();
-			assert(optionsTray.getBoundingClientRect().width > collapsedTrayBounds.width, 'The tray must grow with its revealed controls.');
+			assert(Math.abs(optionsTray.getBoundingClientRect().width - collapsedTrayBounds.width) < 1,
+				'Revealing controls must not change the options row width.');
 		}
 		const trayBounds = optionsTray.getBoundingClientRect();
 		if (expandSessionOptions && withControlPickers && !phoneLayout) {
@@ -623,9 +625,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				'The tray must remain joined to the top of the prompt after expansion.');
 		}
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
-		assert(parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0
+		assert(trayStyle.borderTopLeftRadius === '0px' && trayStyle.borderTopRightRadius === '0px'
 			&& trayStyle.borderBottomLeftRadius === '0px' && trayStyle.borderBottomRightRadius === '0px',
-			'The tray must round its outer top corners and keep its joined bottom edge square.');
+			'The flat options row must keep every corner square.');
 		assert(trayBounds.left >= promptBounds.left - 1 && trayBounds.right <= promptBounds.right + 1,
 			'The tray must fit within the prompt width.');
 		if (phoneLayout) {
