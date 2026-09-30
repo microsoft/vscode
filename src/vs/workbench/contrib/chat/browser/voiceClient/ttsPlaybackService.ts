@@ -57,6 +57,14 @@ function decodePcm16Chunk(ctx: AudioContext, bytes: Uint8Array): AudioBuffer | u
 	if (bytes.byteLength < 2) {
 		return undefined;
 	}
+
+	function binaryToBytes(binary: string): Uint8Array {
+		const bytes = new Uint8Array(binary.length);
+		for (let i = 0; i < binary.length; i++) {
+			bytes[i] = binary.charCodeAt(i);
+		}
+		return bytes;
+	}
 	const sampleCount = Math.floor(bytes.byteLength / 2);
 	if (sampleCount <= 0) {
 		return undefined;
@@ -124,8 +132,7 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 		const turn = this._ensurePlayTurn(window);
 		const gen = this._playbackGen;
 		const binary = window.atob(audio);
-		const bytes = new Uint8Array(binary.length);
-		for (let i = 0; i < binary.length; i++) { bytes[i] = binary.charCodeAt(i); }
+		const bytes = binaryToBytes(binary);
 		const arrayBuf = bytes.buffer;
 		turn.writeChain = turn.writeChain.then(async () => {
 			if (gen !== this._playbackGen) { return; }
@@ -135,7 +142,10 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 				try {
 					decoded = await ctx.decodeAudioData(arrayBuf);
 				} catch {
-					decoded = decodePcm16Chunk(ctx, bytes);
+					// decodeAudioData may detach/transcode its input buffer even on
+					// failure. Reconstruct bytes from the original base64 payload so
+					// PCM fallback always sees intact samples.
+					decoded = decodePcm16Chunk(ctx, binaryToBytes(binary));
 				}
 				if (!decoded || gen !== this._playbackGen) { return; }
 				this._writeToPlayBuffer(decoded);
