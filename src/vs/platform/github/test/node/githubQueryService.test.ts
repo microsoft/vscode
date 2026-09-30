@@ -252,6 +252,100 @@ suite('GitHubQueryService', () => {
 		});
 	});
 
+	for (const failure of ['batch', 'entry'] as const) {
+		test(`recovers an observed repository after ${failure}-level hydration failure`, async () => {
+			await withServer(async server => {
+				server.enqueue(
+					gitHubGraphQLStep({
+						queryIncludes: 'HydrateGitHubResources',
+						response: failure === 'batch'
+							? gitHubGraphQLResponse(undefined, [{ message: 'denied', type: 'FORBIDDEN' }])
+							: gitHubGraphQLResponse({ r0: {} }),
+					}),
+					gitHubRestStep({ method: 'GET', path: '/repos/octo/repo', response: gitHubJsonResponse(repositoryResponse('octo/repo')) }),
+				);
+				const { ref, clock, service } = setup(server);
+				const repository = disposables.add(service.subscribeRepository(ref, { priority: 'visible' }));
+				const hydration = service.hydrateResources([{ kind: 'repository', ref }], signal());
+				if (failure === 'batch') {
+					await assert.rejects(hydration, { kind: 'authorization' });
+				} else {
+					await hydration;
+				}
+				const failed = repository.resource.state.get();
+				const retryAt = clock.nextDueTime;
+				clock.flushDue();
+				await repository.refresh();
+				assert.deepStrictEqual({
+					status: failed.status, complete: failed.complete, error: failed.error?.kind, retryAt,
+					recovered: repository.resource.state.get().value?.nameWithOwner,
+					requests: server.requests.map(request => request.graphQl ? 'graphql' : request.servicePath),
+				}, {
+					status: 'error', complete: false, error: failure === 'batch' ? 'authorization' : 'malformedResponse', retryAt: 0,
+					recovered: 'octo/repo', requests: ['graphql', '/repos/octo/repo'],
+				});
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	test('marks missing repository and issue hydration results incomplete without polling them', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: 'HydrateGitHubResources',
+				response: gitHubGraphQLResponse({ r0: null, r1: { issue: null } }),
+			}));
+			const { ref, clock, service } = setup(server);
+			const issueRef = { ...ref, number: 7 };
+			const repository = disposables.add(service.subscribeRepository(ref, { priority: 'visible' }));
+			const issue = disposables.add(service.subscribeIssue(issueRef, { priority: 'visible' }));
+			await service.hydrateResources([{ kind: 'repository', ref }, { kind: 'issue', ref: issueRef }], signal());
+			assert.deepStrictEqual({
+				states: [repository.resource.state.get(), issue.resource.state.get()].map(state => ({
+					status: state.status, complete: state.complete, error: state.error?.kind, value: state.value,
+				})),
+				issueRef: issue.resource.ref,
+				timers: clock.pendingCount,
+				requests: server.requests.length,
+			}, {
+				states: [
+					{ status: 'error', complete: false, error: 'notFound', value: undefined },
+					{ status: 'error', complete: false, error: 'notFound', value: undefined },
+				],
+				issueRef, timers: 0, requests: 1,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('updates entity polling cadence and rejects updates after disposal', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubRestStep({ method: 'GET', path: '/repos/octo/repo', response: gitHubJsonResponse(repositoryResponse('octo/repo')) }),
+				gitHubRestStep({ method: 'GET', path: '/repos/octo/repo', response: gitHubJsonResponse(repositoryResponse('octo/repo')) }),
+			);
+			const { ref, clock, service } = setup(server);
+			const repository = disposables.add(service.subscribeRepository(ref, { priority: 'background' }));
+			await repository.refresh();
+			const dueTimes = [clock.nextDueTime];
+			repository.update({ priority: 'visible' });
+			dueTimes.push(clock.nextDueTime);
+			clock.advanceBy(10);
+			await repository.refresh();
+			dueTimes.push(clock.nextDueTime);
+			repository.update({ priority: 'background' });
+			dueTimes.push(clock.nextDueTime);
+			clock.advanceBy(10);
+			repository.dispose();
+			assert.throws(() => repository.update({ priority: 'visible' }), /disposed/);
+			clock.advanceBy(20);
+			assert.deepStrictEqual({ dueTimes, requests: server.requests.length, timers: clock.pendingCount }, {
+				dueTimes: [100, 10, 20, 110], requests: 2, timers: 0,
+			});
+			server.assertSatisfied();
+		});
+	});
+
 	test('does not overwrite a newer REST refresh with stale hydration data', async () => {
 		await withServer(async server => {
 			const hydrationStarted = new DeferredPromise<void>();
@@ -386,6 +480,43 @@ suite('GitHubQueryService', () => {
 			canonical.dispose();
 			issueA.dispose();
 			issueB.dispose();
+			server.assertSatisfied();
+		});
+	});
+
+	test('loads and shares immutable commit resources without polling', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubRestStep({
+				method: 'GET',
+				path: '/repos/octo/repo/commits/abc123',
+				response: gitHubJsonResponse({
+					sha: 'abc123',
+					html_url: 'https://example.test/octo/repo/commit/abc123',
+					author: { id: 2, login: 'author' },
+					commit: {
+						message: 'Commit subject\n\nCommit body',
+						author: { name: 'Author Name', date: '2026-09-22T12:00:00Z' },
+					},
+				}, { etag: '"commit"' }),
+			}));
+			const { account, clock, service } = setup(server);
+			const commitA = service.subscribeCommit({ ...account, owner: 'octo', repo: 'repo', sha: 'abc123' }, { priority: 'visible' });
+			const commitB = service.subscribeCommit({ ...account, owner: 'OCTO', repo: 'REPO', sha: 'ABC123' }, { priority: 'background' });
+
+			assert.strictEqual(commitA.resource, commitB.resource);
+			await commitA.refresh();
+			clock.advanceBy(1_000);
+
+			assert.deepStrictEqual(commitA.resource.state.get().value, {
+				sha: 'abc123',
+				message: 'Commit subject\n\nCommit body',
+				url: 'https://example.test/octo/repo/commit/abc123',
+				author: { id: '2', login: 'author' },
+				committedAt: '2026-09-22T12:00:00Z',
+			});
+			assert.deepStrictEqual(server.requests.map(request => request.servicePath), ['/repos/octo/repo/commits/abc123']);
+			commitA.dispose();
+			commitB.dispose();
 			server.assertSatisfied();
 		});
 	});

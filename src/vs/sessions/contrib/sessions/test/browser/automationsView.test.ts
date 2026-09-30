@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
-import { EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -39,11 +39,13 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
@@ -76,6 +78,20 @@ const SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-1');
 const SECOND_SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-2');
 const FOLDER = URI.parse('file:///workspace');
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
+
+function isTelemetryData(data: unknown): data is Record<string, unknown> {
+	return typeof data === 'object' && data !== null;
+}
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName && isTelemetryData(data)) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -110,7 +126,6 @@ function run(overrides: Partial<IAutomationRun> = {}): IAutomationRun {
 		status: 'completed',
 		trigger: 'manual',
 		startedAt: new Date().toISOString(),
-		leaderWindowId: 0,
 		sessionResource: SESSION_RESOURCE,
 		...overrides,
 	};
@@ -145,7 +160,6 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	override readonly unavailableProviders: IObservable<readonly IAutomationProviderDescriptor[]> = this.unavailableProvidersValue;
 	updateResult: IGuardedAutomationUpdateResult | undefined;
 	updateCalls = 0;
-	deleteRunCalls = 0;
 	createError: Error | undefined;
 	deleteError: Error | undefined;
 	canDelete = true;
@@ -156,7 +170,6 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	readonly createCalls: ICreateAutomationOptions[] = [];
 	readonly deleteCalls: string[] = [];
 	readonly guardedUpdateCalls: { id: string; patch: IUpdateAutomationOptions; expected: IAutomationDescriptor }[] = [];
-	readonly deleteRunCompleted = new DeferredPromise<void>();
 
 	setAutomations(value: readonly IAutomationDescriptor[]): void {
 		this.automationValue.set(value, undefined);
@@ -254,19 +267,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return this.canUpdate;
 	}
 
-	override async recordRunStart(): Promise<IAutomationRunClaim> {
-		return { claimed: true, run: run() };
-	}
-
-	override async updateRun(_runId: string, _patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
-		return undefined;
-	}
-
-	override async deleteRun(runId: string): Promise<void> {
-		this.deleteRunCalls++;
-		this.setRuns(this.runValue.get().filter(run => run.id !== runId));
-		this.deleteRunCompleted.complete();
-	}
+	override canRunAutomation(): boolean { return true; }
 }
 
 class TestContextMenuService extends mock<IContextMenuService>() {
@@ -361,7 +362,7 @@ class FakeRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
 	runCalls = 0;
 
-	override runOnce(_automation: IAutomationDescriptor, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): IAutomationRunOperation {
+	override runOnce(_automation: IAutomationDescriptor, _token?: CancellationToken): IAutomationRunOperation {
 		this.runCalls++;
 		return { whenDispatched: this.whenDispatched, whenCompleted: Promise.resolve() };
 	}
@@ -423,8 +424,6 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		isRead: this.isRead,
 		capabilities: this.capabilities,
 		status: this.sessionStatus,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -432,7 +431,10 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
+		mainChat: constObservable(upcastPartial<IChat>({
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		})),
 	});
 	readonly secondSession = upcastPartial<ISession>({
 		resource: SECOND_SESSION_RESOURCE,
@@ -455,8 +457,6 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		isRead: this.secondIsRead,
 		capabilities: this.capabilities,
 		status: this.sessionStatus,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
@@ -464,7 +464,10 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
-		mainChat: constObservable(new class extends mock<IChat>() { }),
+		mainChat: constObservable(upcastPartial<IChat>({
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		})),
 	});
 	markAllReadCalls = 0;
 	markAllReadSessionCount = 0;
@@ -608,6 +611,7 @@ suite('AutomationsCardsWidget', () => {
 		const logService = new TestLogService();
 		const commandService = new TestCommandService();
 		const keybindingService = new TestKeybindingService();
+		const telemetryService = new TestTelemetryService();
 		const store = disposables.add(new DisposableStore());
 		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -637,6 +641,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IKeybindingService, keybindingService);
 		instantiationService.stub(IHoverService, hoverService);
 		instantiationService.stub(ILogService, logService);
+		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 			override readonly onDidChange = Event.None;
 			override isSessionPinned(): boolean { return false; }
@@ -667,8 +672,16 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, widget };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget };
 	}
+
+	test('reports the Automations view when rendered', () => {
+		const { telemetryService } = setup();
+
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'automation.viewShown', data: { surface: 'agentsWindow' } },
+		]);
+	});
 
 	function dispatchContextMenu(target: HTMLElement): void {
 		target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
@@ -1379,7 +1392,7 @@ suite('AutomationsCardsWidget', () => {
 			templatesDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
 		}, {
 			loadingMessage: 'Loading additional automations...',
-			unavailableMessage: 'Automations from Remote build host are unavailable.',
+			unavailableMessage: 'Automations are unavailable on Remote build host.',
 			errorMessage: 'Some automations could not be loaded.',
 			savedCards: 1,
 			appearsAfterCards: true,
@@ -1396,6 +1409,55 @@ suite('AutomationsCardsWidget', () => {
 
 		assert.strictEqual(automationDialogService.showCalls, 1);
 	});
+
+	for (const hasSavedAutomations of [false, true]) {
+		test(`groups unavailable providers into visual and accessible bullet lists ${hasSavedAutomations ? 'with' : 'without'} saved automations`, () => {
+			const { automationService, widget } = setup();
+			const automations = hasSavedAutomations ? [automation()] : [];
+			automationService.setAutomations(automations);
+			const providers: IAutomationProviderDescriptor[] = [
+				{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' },
+				{ id: 'host2', label: 'Host 2', unavailableReasonCode: 'unsupported' },
+				{ id: 'host3', label: 'Host 3', unavailableReasonCode: 'disconnected' },
+			];
+			automationService.setUnavailableProviders(providers);
+			automationService.setCatalogueState('unavailable');
+			const selector = hasSavedAutomations ? '.automations-cards-partial-state-message' : '.automations-cards-unavailable .automations-cards-state-description';
+			const description = widget.element.querySelector<HTMLElement>(selector)!;
+			const reasons = [
+				'The agent host is disconnected on Host 1, Host 3.',
+				'Automations are not supported on Host 2.',
+			];
+			const readMessage = () => ({
+				hasSummary: !!description.querySelector(':scope > div'),
+				hasList: !!description.querySelector('ul'),
+				reasons: description.querySelector('ul')
+					? [...description.querySelectorAll('ul > li')].map(item => item.textContent)
+					: [description.textContent],
+			});
+			const initial = {
+				message: readMessage(),
+				whiteSpace: getWindow(description).getComputedStyle(description).whiteSpace,
+				textAlign: getWindow(description).getComputedStyle(description.querySelector('li')!).textAlign,
+				accessible: buildAutomationsAccessibleContent(automations, [], 'unavailable', [], providers).includes(reasons.map(reason => `- ${reason}`).join('\n')),
+			};
+			automationService.setUnavailableProviders(providers.map(provider => ({ ...provider, unavailableReasonCode: 'disabled' })));
+			const updated = readMessage();
+			automationService.setUnavailableProviders([providers[0]]);
+			const singleProvider = readMessage();
+			automationService.setUnavailableProviders(providers.map(provider => ({ id: provider.id, label: provider.label })));
+			const withoutReasons = readMessage();
+			automationService.setUnavailableProviders([]);
+
+			assert.deepStrictEqual({ initial, updated, singleProvider, withoutReasons, hasEmptyList: !!description.querySelector('ul') }, {
+				initial: { message: { hasSummary: false, hasList: true, reasons }, whiteSpace: 'pre-line', textAlign: 'left', accessible: true },
+				updated: { hasSummary: false, hasList: false, reasons: ['Automations are disabled on Host 1, Host 2, Host 3.'] },
+				singleProvider: { hasSummary: false, hasList: false, reasons: ['The agent host is disconnected on Host 1.'] },
+				withoutReasons: { hasSummary: false, hasList: false, reasons: ['Automations are unavailable on Host 1, Host 2, Host 3.'] },
+				hasEmptyList: false,
+			});
+		});
+	}
 
 	test('collapses built-in templates when saved automations become available', () => {
 		const { automationService, widget } = setup();
@@ -2832,6 +2894,17 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('accessibility help explains prompt-only automation creation', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+		assert.ok(provider);
+		disposables.add(provider);
+		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
+	});
+
 	test('accessible view distinguishes loading, unavailable, and error from confirmed empty', () => {
 		assert.deepStrictEqual({
 			loading: buildAutomationsAccessibleContent([], [], 'loading').split('\n').slice(0, 2),
@@ -2839,9 +2912,18 @@ suite('AutomationsCardsWidget', () => {
 			error: buildAutomationsAccessibleContent([], [], 'error').split('\n').slice(0, 2),
 		}, {
 			loading: ['Automations', 'Loading automations.'],
-			unavailable: ['Automations', 'Automations from Remote build host are unavailable.'],
+			unavailable: ['Automations', 'Automations are unavailable on Remote build host.'],
 			error: ['Automations', 'Unable to load automations.'],
 		});
+	});
+
+	test('accessible view explains incompatible host upgrade requirements', () => {
+		const reason = 'Update this Agent Host to support autonomous automations.';
+		const providers = [{ id: 'remote', label: 'Remote host', unavailableReason: reason }];
+		const content = buildAutomationsAccessibleContent([], [], 'unavailable', [], providers);
+		assert.deepStrictEqual(content.split('\n').slice(0, 2), [
+			'Automations', `Automations are unavailable on Remote host. ${reason}`,
+		]);
 	});
 
 	test('accessible view offers templates without claiming an incomplete catalogue is empty', () => {
@@ -2870,8 +2952,8 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			loadingIncluded: loadingContent.includes('Additional automations are loading.'),
 			loadingAfterAutomation: loadingContent.indexOf('Daily review, enabled') < loadingContent.indexOf('Additional automations are loading.'),
-			unavailableIncluded: content.includes('Automations from Remote build host are unavailable.'),
-			unavailableAfterAutomation: content.indexOf('Daily review, enabled') < content.indexOf('Automations from Remote build host are unavailable.'),
+			unavailableIncluded: content.includes('Automations are unavailable on Remote build host.'),
+			unavailableAfterAutomation: content.indexOf('Daily review, enabled') < content.indexOf('Automations are unavailable on Remote build host.'),
 			errorIncluded: errorContent.includes('Some automations could not be loaded.'),
 			errorAfterAutomation: errorContent.indexOf('Daily review, enabled') < errorContent.indexOf('Some automations could not be loaded.'),
 		}, {

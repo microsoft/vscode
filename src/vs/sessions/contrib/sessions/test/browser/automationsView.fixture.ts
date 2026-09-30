@@ -94,7 +94,9 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 		this.unavailableProviders = constObservable(unavailableProviders);
 	}
 
-	override async deleteRun(): Promise<void> { }
+	override canRunAutomation(): boolean { return true; }
+	override canUpdateAutomation(): boolean { return true; }
+	override canDeleteAutomation(): boolean { return true; }
 }
 
 class FixtureSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -135,8 +137,6 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 					: run.status === 'completed'
 						? SessionStatus.Completed
 						: SessionStatus.InProgress),
-				changesets: constObservable([]),
-				changes: constObservable([]),
 				modelId: constObservable(undefined),
 				mode: constObservable(undefined),
 				loading: constObservable(false),
@@ -144,7 +144,10 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 				description: constObservable(undefined),
 				lastTurnEnd: constObservable(undefined),
 				chats: constObservable<readonly IChat[]>([]),
-				mainChat: constObservable(new class extends mock<IChat>() { }()),
+				mainChat: constObservable(upcastPartial<IChat>({
+					changes: constObservable([]),
+					changesets: constObservable([]),
+				})),
 			}));
 		}
 	}
@@ -174,6 +177,14 @@ interface IAutomationsFixtureOptions {
 	readonly pluginTemplate?: boolean;
 	readonly showDropTarget?: boolean;
 }
+
+const UNAVAILABLE_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
+	{ id: 'remote-build-host', label: 'Remote build host', unavailableReasonCode: 'disconnected' },
+	{ id: 'remote-test-host', label: 'Remote test host', unavailableReasonCode: 'disconnected' },
+	{ id: 'windows-host', label: 'Windows host', unavailableReasonCode: 'disabled' },
+	{ id: 'linux-host', label: 'Linux host', unavailableReasonCode: 'unsupported' },
+	{ id: 'mac-host', label: 'Mac host', unavailableReasonCode: 'incompatible' },
+];
 
 export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	Populated: defineComponentFixture({
@@ -211,7 +222,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	Unavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: [{ id: 'remote-build-host', label: 'Remote build host' }] }),
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]] }),
+	}),
+	UnavailableMultipleReasons: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS }),
 	}),
 	NarrowUnavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -222,7 +237,17 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	}),
 	PartialUnavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: [{ id: 'remote-build-host', label: 'Remote build host' }] }),
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]] }),
+	}),
+	PartialUnavailableMultipleReasons: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, {
+			width: 1000,
+			height: 720,
+			populated: true,
+			catalogueState: 'unavailable',
+			unavailableProviders: UNAVAILABLE_PROVIDERS,
+		}),
 	}),
 	PartialError: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -414,6 +439,5 @@ function createRun(id: string, automationId: string, status: IAutomationRun['sta
 		startedAt: startedAt.toISOString(),
 		completedAt: status === 'completed' || status === 'failed' ? startedAt.toISOString() : undefined,
 		errorMessage,
-		leaderWindowId: 1,
 	};
 }

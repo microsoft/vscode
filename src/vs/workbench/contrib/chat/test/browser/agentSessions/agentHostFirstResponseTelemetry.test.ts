@@ -19,8 +19,8 @@ suite('AgentHostFirstResponseTiming', () => {
 		timing.observeText('answer');
 		elapsed = 900;
 		timing.observeText('duplicate');
-		assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false }), {
-			schemaVersion: 1, requestId: 'turn', provider: 'copilot', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false,
+		assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', agentSessionId: 'session', chatId: 'chat', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false }), {
+			schemaVersion: 1, requestId: 'turn', provider: 'copilot', agentSessionId: 'session', chatId: 'chat', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false,
 			firstResponseTextMs: 250, rootToolCallsBeforeFirstText: 0, totalElapsedMs: 900, hasResponseText: true,
 		});
 	});

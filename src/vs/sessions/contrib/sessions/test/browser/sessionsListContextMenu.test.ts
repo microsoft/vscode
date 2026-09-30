@@ -5,26 +5,38 @@
 
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { IAction, SubmenuAction } from '../../../../../base/common/actions.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IMenu, IMenuService, isIMenuItem, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Menus } from '../../../../browser/menus.js';
-import { RENAME_SESSION_LIST_CHAT_ACTION_ID, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createSession, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 
@@ -69,6 +81,13 @@ function dispatchContextMenu(target: HTMLElement): void {
 	target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
 }
 
+function selectRow(target: HTMLElement, additive = false): void {
+	const options = { bubbles: true, cancelable: true, button: 0, ctrlKey: additive, metaKey: additive };
+	target.dispatchEvent(new MouseEvent('mousedown', options));
+	target.dispatchEvent(new MouseEvent('mouseup', options));
+	target.dispatchEvent(new MouseEvent('click', options));
+}
+
 function snapshotActions(actions: readonly IAction[]): { ids: string[]; disposableIds: string[] } {
 	const allActions = actions.flatMap(action => action instanceof SubmenuAction ? [action, ...action.actions] : [action]);
 	return {
@@ -82,11 +101,12 @@ suite('Sessions list context menus', () => {
 	const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
 	const targetGroup: ISessionGroup = { id: 'target', name: 'Target', createdAt: 2 };
 
-	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActions: readonly { id: string; run: () => void }[] = []) {
+	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActions: readonly { id: string; run: () => void }[] = [], showNavigationShortcuts = false) {
 		const contextMenuService = new TestContextMenuService();
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		let menuDisposed = false;
 		const harness = createListHarness(disposables, sessions, instantiationService => {
-			const contextKeyService = instantiationService.get(IContextKeyService);
+			instantiationService.stub(IContextKeyService, contextKeyService);
 			const commandService = instantiationService.get(ICommandService);
 			instantiationService.stub(IContextMenuService, contextMenuService);
 			instantiationService.stub(ISessionGroupsService, new TestSessionGroupsService(
@@ -94,7 +114,7 @@ suite('Sessions list context menus', () => {
 				grouped ? new Map(sessions.map(session => [session.sessionId, group.id])) : new Map(),
 			));
 			instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
-				override createMenu(): IMenu {
+				override createMenu(id: MenuId, menuContextKeyService: IContextKeyService): IMenu {
 					const disposable = toDisposable(() => menuDisposed = true);
 					const extensionAction = new MenuItemAction({
 						id: 'extension.action',
@@ -125,6 +145,14 @@ suite('Sessions list context menus', () => {
 		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 			grouping: () => grouping,
 			sorting: () => SessionsSorting.Created,
+			showNavigationShortcuts: () => showNavigationShortcuts,
+			createSessionsHeader: (parent, disposables) => {
+				const sessionsHeader = mainWindow.document.createElement('div');
+				sessionsHeader.textContent = 'Sessions';
+				parent.append(sessionsHeader);
+				disposables.add(toDisposable(() => sessionsHeader.remove()));
+				return sessionsHeader;
+			},
 			onSessionOpen: () => { },
 		}));
 		list.layout(300, 400);
@@ -169,6 +197,62 @@ suite('Sessions list context menus', () => {
 		}
 	});
 
+	test('multiselection disables single-session context menu actions', async () => {
+		const first = createTestSession('First');
+		const second = createTestSession('Second');
+		for (const session of [first, second]) {
+			session.capabilities.set({ ...session.capabilities.get(), supportsMultipleChats: true, supportsRename: true }, undefined);
+		}
+		const harness = createListHarness(disposables, [first.session, second.session]);
+		const contextKeyService = harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		harness.instantiationService.stub(IContextKeyService, contextKeyService);
+		harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
+		const contextMenuService = new TestContextMenuService();
+		harness.instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer();
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Date,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(300, 400);
+		await timeout(0);
+
+		const rows = container.querySelectorAll<HTMLElement>('.session-item');
+		assert.strictEqual(rows.length, 2);
+		selectRow(rows[0]);
+		selectRow(rows[1], true);
+		dispatchContextMenu(rows[1]);
+
+		const actions = contextMenuService.delegate!.getActions();
+		assert.deepStrictEqual([
+			actions.find(action => action.id === 'sessions.chatCompositeBar.addChat'),
+			actions.find(action => action.id === RENAME_SESSION_COMMAND_ID),
+		].map(action => ({ id: action?.id, enabled: action?.enabled })), [{
+			id: 'sessions.chatCompositeBar.addChat',
+			enabled: false,
+		}, {
+			id: RENAME_SESSION_COMMAND_ID,
+			enabled: false,
+		}]);
+		contextMenuService.delegate!.onHide?.(false);
+	});
+
+	test('navigation shortcuts and Sessions header have no context menus', () => {
+		const { container, contextMenuService } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
+		const customizationsRow = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
+			.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
+		const sessionsHeader = container.querySelector<HTMLElement>('.sessions-list-header');
+		assert.ok(customizationsRow);
+		assert.ok(sessionsHeader);
+
+		dispatchContextMenu(customizationsRow);
+		dispatchContextMenu(sessionsHeader);
+
+		assert.strictEqual(contextMenuService.delegate, undefined);
+	});
+
 	test('session and chat rename context menu actions start inline editing', async () => {
 		let fallbackRuns = 0;
 		const session = createSession('Session').session;
@@ -184,33 +268,37 @@ suite('Sessions list context menus', () => {
 		sessionList.contextMenuService.delegate!.onHide?.(false);
 		const sessionInput = sessionList.container.querySelector<HTMLInputElement>('.session-title-input input')?.value;
 
-		const mainChat = upcastPartial<IChat>({
-			resource: URI.parse('test-chat:/main'),
-			status: constObservable(SessionStatus.Completed),
-			interactivity: constObservable(ChatInteractivity.Full),
-		});
+		const { session: baseChatSession } = createSession('Session with chat');
+		const mainChat = baseChatSession.mainChat.get();
 		const peerChat = upcastPartial<IChat>({
 			resource: URI.parse('test-chat:/peer'),
+			workspace: constObservable(undefined),
 			title: constObservable('Peer'),
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename: true, canDelete: true }),
+			isArchived: constObservable(false),
+			isRead: constObservable(true),
+			description: constObservable(undefined),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
+			changes: constObservable([]),
+			changesets: constObservable([]),
 		});
 		const chatSession: ISession = {
-			...createSession('Session with chat').session,
+			...baseChatSession,
 			chats: constObservable([mainChat, peerChat]),
 			mainChat: constObservable(mainChat),
 		};
 		const chatRenameAction = {
-			id: RENAME_SESSION_LIST_CHAT_ACTION_ID,
+			id: RENAME_CHAT_COMMAND_ID,
 			run: () => fallbackRuns++,
 		};
 		const chatList = createList(false, false, SessionsGrouping.Date, [chatSession], [chatRenameAction]);
 		const chatRow = chatList.container.querySelector<HTMLElement>('.session-chat-item');
 		assert.ok(chatRow);
 		dispatchContextMenu(chatRow);
-		const chatRename = chatList.contextMenuService.delegate!.getActions().find(action => action.id === RENAME_SESSION_LIST_CHAT_ACTION_ID);
+		const chatRename = chatList.contextMenuService.delegate!.getActions().find(action => action.id === RENAME_CHAT_COMMAND_ID);
+		assert.ok(chatRename);
 		chatList.managementService.sessions = [{
 			...chatSession,
 			chats: constObservable([mainChat, peerChat]),
@@ -242,6 +330,103 @@ suite('Sessions list context menus', () => {
 			ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			disposableIds: [],
 		});
+	});
+
+	test('External menus offer Import before Mark as Done without New Chat', async () => {
+		const external = createTestSession('External', { isExternal: true });
+		const second = createTestSession('Second external', { isExternal: true }).session;
+		const regular = createTestSession('Regular').session;
+		external.capabilities.set({ ...external.capabilities.get(), supportsMultipleChats: true, supportsImport: true }, undefined);
+		const harness = createListHarness(disposables, [external.session, second, regular]);
+		const { instantiationService, store, commandService, managementService } = harness;
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+		const contextKeyService = store.add(new ContextKeyService(configurationService));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		SessionsListPromoteNewChatActionContext.bindTo(contextKeyService).set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm() { return { confirmed: true }; }
+		}());
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override getViewWithId() { return null; }
+		}());
+		store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
+		const contextMenuService = new TestContextMenuService();
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer(400, 500);
+		const list = store.add(instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(500, 400);
+		await timeout(100);
+		const header = [...container.querySelectorAll<HTMLElement>('.session-section')]
+			.find(element => element.querySelector('.session-section-label')?.textContent === 'External');
+		assert.ok(header);
+		dispatchContextMenu(header);
+		const sectionActions = contextMenuService.delegate!.getActions();
+		const configure = sectionActions.find(action => action instanceof SubmenuAction);
+		const markAllDone = sectionActions.find(action => action.id === 'sessionsView.sectionArchive');
+		assert.ok(markAllDone);
+		await markAllDone.run();
+		const call = commandService.calls.find(call => call.commandId === markAllDone.id);
+		assert.ok(call);
+		const command = CommandsRegistry.getCommand(call.commandId);
+		assert.ok(command);
+		await instantiationService.invokeFunction(command.handler, ...call.args);
+
+		const row = [...container.querySelectorAll<HTMLElement>('.session-item')]
+			.find(element => element.querySelector('.session-title')?.textContent === 'External');
+		assert.ok(row);
+		dispatchContextMenu(row);
+		const rowActions = contextMenuService.delegate!.getActions();
+		const toolbarLabels = [...row.querySelectorAll('.session-title-toolbar .action-label')].map(action => action.getAttribute('aria-label'));
+		const importAction = rowActions.find(action => action.id === 'sessionsViewPane.importSession');
+		assert.ok(importAction);
+		await importAction.run();
+		const importCall = commandService.calls.find(call => call.commandId === importAction.id);
+		assert.ok(importCall);
+		const importCommand = CommandsRegistry.getCommand(importCall.commandId);
+		assert.ok(importCommand);
+		await instantiationService.invokeFunction(importCommand.handler, ...importCall.args);
+		await instantiationService.invokeFunction(importCommand.handler, [external.session, second, regular]);
+
+		assert.deepStrictEqual({
+			configure: configure?.label,
+			options: configure instanceof SubmenuAction ? configure.actions.map(action => action.label) : [],
+			archived: managementService.archived.map(session => session.sessionId).sort(),
+			newRowAction: rowActions.some(action => action.id === 'sessions.chatCompositeBar.addChat'),
+			rowDone: rowActions.find(action => action.id === ARCHIVE_SESSION_COMMAND_ID)?.label,
+			imported: managementService.imported.map(session => session.sessionId),
+			toolbarLabels,
+		}, {
+			configure: 'Configure External Sessions',
+			options: ['None', 'Recent', 'Last 24 Hours', 'Last 7 Days', 'Last 30 Days'],
+			archived: ['External', 'Second external'],
+			newRowAction: false,
+			rowDone: 'Mark as Done',
+			imported: ['External', 'External'],
+			toolbarLabels: ['Import', 'Mark as Done'],
+		});
+		contextMenuService.delegate!.onHide?.(false);
+
+		const importVisibility = [];
+		for (const variant of ['owned', 'unsupported', 'disabled', 'archived', 'external']) {
+			transaction(tx => {
+				external.isExternal.set(variant !== 'owned', tx);
+				external.capabilities.set({ ...external.capabilities.get(), supportsImport: variant !== 'unsupported' }, tx);
+				external.isArchived.set(variant === 'archived', tx);
+			});
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(variant !== 'disabled');
+			await timeout(100);
+			const updatedRow = [...container.querySelectorAll<HTMLElement>('.session-item')]
+				.find(element => element.querySelector('.session-title')?.textContent === 'External');
+			importVisibility.push(!!updatedRow?.querySelector('[aria-label="Import"]'));
+		}
+		assert.deepStrictEqual(importVisibility, [false, false, false, false, true]);
 	});
 
 	test('workspace and custom-group headers mark all unfiltered unread sessions as read', async () => {
@@ -281,11 +466,17 @@ suite('Sessions list context menus', () => {
 	test('chat rows expose capability-gated rename, side-open, and deletion', async () => {
 		const createChat = (title: string, canRename: boolean, canDelete: boolean): IChat => upcastPartial<IChat>({
 			resource: URI.parse(`test-chat:/${title}`),
+			workspace: constObservable(undefined),
 			title: constObservable(title),
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename, canDelete }),
+			isArchived: constObservable(false),
+			isRead: constObservable(true),
+			description: constObservable(undefined),
+			capabilities: constObservable({ canRename, canArchive: true, canDelete }),
+			changes: constObservable([]),
+			changesets: constObservable([]),
 		});
 		const main = createChat('Session', true, true);
 		const peer = createChat('Peer', true, true);
@@ -330,7 +521,7 @@ suite('Sessions list context menus', () => {
 				}
 			});
 		});
-		const coreActionIds = new Set(['sessions.list.renameChat', 'sessions.list.openChatToSide', 'sessions.list.deleteChat']);
+		const coreActionIds = new Set([RENAME_CHAT_COMMAND_ID, 'sessions.list.openChatToSide', 'sessions.list.deleteChat']);
 		const menuItems = MenuRegistry.getMenuItems(Menus.SessionChatItemContext)
 			.filter(isIMenuItem)
 			.filter(item => coreActionIds.has(item.command.id));
@@ -341,16 +532,16 @@ suite('Sessions list context menus', () => {
 			order: item.order,
 			when: item.when?.serialize(),
 		})), [
-			{ id: 'sessions.list.renameChat', title: 'Rename...', group: '1_chat', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
+			{ id: RENAME_CHAT_COMMAND_ID, title: 'Rename...', group: '1_chat', order: 1, when: 'sessionChatItem.canRename && !sessionChatItem.isUntitled' },
 			{ id: 'sessions.list.openChatToSide', title: 'Open to the Side', group: '1_chat', order: 2, when: undefined },
 			{ id: 'sessions.list.deleteChat', title: 'Delete...', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
 		]);
 		const chatContext = { session, chat: peer };
-		for (const actionId of ['sessions.list.renameChat', 'sessions.list.openChatToSide', 'sessions.list.deleteChat']) {
+		for (const actionId of [RENAME_CHAT_COMMAND_ID, 'sessions.list.openChatToSide', 'sessions.list.deleteChat']) {
 			await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(actionId)!.handler, chatContext);
 		}
 		const readOnlyContext = { session, chat: nonDeletable };
-		await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('sessions.list.renameChat')!.handler, readOnlyContext);
+		await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(RENAME_CHAT_COMMAND_ID)!.handler, readOnlyContext);
 		await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('sessions.list.deleteChat')!.handler, readOnlyContext);
 
 		assert.deepStrictEqual({

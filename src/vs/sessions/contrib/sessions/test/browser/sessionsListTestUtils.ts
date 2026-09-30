@@ -44,8 +44,11 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	override readonly onDidChangeSessions = Event.None;
 	sessions: ISession[];
 	readonly readSessions: ISession[] = [];
+	readonly readChats: { readonly session: ISession; readonly chat: IChat }[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
 	readonly archived: ISession[] = [];
+	readonly cancelled: ISession[] = [];
+	readonly imported: ISession[] = [];
 	readonly renamedChats: { readonly session: ISession; readonly chatResource: URI; readonly title: string }[] = [];
 	readonly deletedChats: { readonly session: ISession; readonly chatResource: URI }[] = [];
 	readonly deleteChatOptions: (IDeleteChatOptions | undefined)[] = [];
@@ -65,6 +68,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.readSessions.push(session);
 	}
 
+	override async markChatRead(session: ISession, chat: IChat): Promise<void> {
+		this.readChats.push({ session, chat });
+	}
+
 	override async markAllRead(sessions: readonly ISession[]): Promise<void> {
 		this.readSessions.push(...sessions);
 	}
@@ -80,9 +87,18 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.archived.push(session);
 	}
 
-	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<void> {
+	override async cancelCurrentRequest(session: ISession): Promise<void> {
+		this.cancelled.push(session);
+	}
+
+	override async importSession(session: ISession): Promise<void> {
+		this.imported.push(session);
+	}
+
+	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		this.deletedChats.push({ session, chatResource });
 		this.deleteChatOptions.push(options);
+		return true;
 	}
 
 	override async renameChat(session: ISession, chatResource: URI, title: string): Promise<void> {
@@ -99,6 +115,7 @@ export interface ITestSession {
 	readonly status: ISettableObservable<SessionStatus, void>;
 	readonly isArchived: ISettableObservable<boolean, void>;
 	readonly isRead: ISettableObservable<boolean, void>;
+	readonly isExternal: ISettableObservable<boolean, void>;
 }
 
 export interface ITestSessionOptions {
@@ -108,6 +125,7 @@ export interface ITestSessionOptions {
 	readonly isArchived?: boolean;
 	readonly isRead?: boolean;
 	readonly isQuickChat?: boolean;
+	readonly isExternal?: boolean;
 	readonly changesSummary?: ISessionChangesSummary;
 }
 
@@ -117,12 +135,18 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 	const resource = URI.parse(`test-session://${resourceId}`);
 	const capabilities = observableValue<ISessionCapabilities>(`capabilities-${resourceId}`, { supportsMultipleChats: false, supportsRename: true });
 	const status = observableValue(`status-${resourceId}`, options.status ?? SessionStatus.Completed);
+	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = resource.with({ fragment: 'main' });
+		override readonly updatedAt = constObservable(now);
 		override readonly status = status;
+		override readonly isRead = isRead;
+		override readonly description = constObservable(undefined);
+		override readonly changes = constObservable([]);
+		override readonly changesets = constObservable([]);
 	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
-	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
+	const isExternal = observableValue(`external-${resourceId}`, options.isExternal ?? false);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
 	const isQuickChat = options.isQuickChat ?? false;
 	const session: ISession = {
@@ -144,21 +168,20 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		title: constObservable(title),
 		updatedAt: constObservable(now),
 		status,
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		changesSummary: constObservable(options.changesSummary),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
 		loading: constObservable(false),
 		isArchived,
 		isRead,
+		isExternal,
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
 		mainChat: constObservable(mainChat),
 		capabilities,
 	};
-	return { session, capabilities, status, isArchived, isRead };
+	return { session, capabilities, status, isArchived, isRead, isExternal };
 }
 
 export function createSession(title: string, resourceId: string = title): ITestSession {
@@ -220,8 +243,8 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override applySortChanges(_mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
 			sortChanges.push({ set: new Map(set), clear: [...clear] });
 		}
-		override getStatusIcon(status: SessionStatus, _isRead: boolean, _isArchived: boolean, completedStateIcon?: ThemeIcon) {
-			return status === SessionStatus.Error ? Codicon.error : completedStateIcon ?? Codicon.circleSmallFilled;
+		override getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon) {
+			return status === SessionStatus.Error ? Codicon.error : isArchived ? Codicon.passFilled : !isRead ? Codicon.circleFilled : completedStateIcon ?? Codicon.circleSmallFilled;
 		}
 	});
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {

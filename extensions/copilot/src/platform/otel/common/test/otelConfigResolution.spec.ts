@@ -18,6 +18,67 @@ function resolve(settings: TestOTelSettings, env: Record<string, string | undefi
 }
 
 describe('OTel config resolution', () => {
+	it('defaults identity off without conflating omission with explicit policy false', () => {
+		const settings = new TestOTelSettings();
+		settings.user = { enabled: true, captureIdentity: true };
+		expect(resolve(settings).config.captureIdentity).toBe(true);
+		settings.policy = { enabled: true };
+		expect(resolve(settings).config.captureIdentity).toBe(true);
+		settings.policy.captureIdentity = false;
+		expect(resolve(settings, { COPILOT_OTEL_CAPTURE_IDENTITY: 'true' }).config.captureIdentity).toBe(false);
+		expect(resolve(settings).hasEnterpriseSettings).toBe(true);
+		settings.policy = { enabled: true };
+		settings.user = {};
+		expect(resolve(settings).config.captureIdentity).toBe(false);
+		expect(resolve(settings, { COPILOT_OTEL_CAPTURE_IDENTITY: 'true' }).config.captureIdentity).toBe(true);
+	});
+
+	it('recognizes identity-only policy false even though capture is default-off', () => {
+		const settings = new TestOTelSettings();
+		settings.user = {
+			enabled: true, otlpEndpoint: 'https://personal.example',
+			headers: { personal: 'header' }, 'dbSpanExporter.enabled': true,
+		};
+		settings.policy = { captureIdentity: false };
+		expect(resolve(settings)).toMatchObject({
+			hasEnterpriseSettings: true,
+			config: {
+				enabled: false, captureIdentity: false, headers: {}, dbSpanExporter: false,
+				otlpEndpoint: '',
+			},
+		});
+		settings.policy = {};
+		expect(resolve(settings)).toMatchObject({ hasEnterpriseSettings: false, config: { enabled: true } });
+	});
+
+	it('identity policy true overrides environment denial without enabling content', () => {
+		const settings = new TestOTelSettings();
+		settings.policy = { enabled: true, captureIdentity: true, captureContent: false };
+		expect(resolve(settings, { COPILOT_OTEL_CAPTURE_IDENTITY: 'false' }).config).toMatchObject({
+			captureIdentity: true, captureContent: false,
+		});
+	});
+
+	it('recognizes identity revocation and withdrawal without changing startup resolution', () => {
+		const settings = new TestOTelSettings();
+		settings.policy = { enabled: true, captureIdentity: true };
+		const active = resolve(settings);
+		settings.policy.captureIdentity = false;
+		expect(classifyOTelConfigDrift(active, resolve(settings))).toBe(OTelConfigDrift.Policy);
+		expect(describeOTelConfigDrift(active.config, resolve(settings).config)).toEqual(['captureIdentity']);
+		delete settings.policy.captureIdentity;
+		expect(classifyOTelConfigDrift(active, resolve(settings))).toBe(OTelConfigDrift.Withdrawal);
+		expect(active.config.captureIdentity).toBe(true);
+	});
+
+	it('managed resource attributes override environment identity attributes', () => {
+		const settings = new TestOTelSettings();
+		settings.policy = { enabled: true, captureIdentity: true, resourceAttributes: { 'host.name': 'managed-host' } };
+		expect(resolve(settings, { OTEL_RESOURCE_ATTRIBUTES: 'host.name=env-host,process.user.name=env-user' }).config.resourceAttributes).toEqual({
+			'host.name': 'managed-host', 'process.user.name': 'env-user',
+		});
+	});
+
 	it('snapshots every OTel schema default, including settings outside the old six-key watcher', () => {
 		const otelProperties = Object.entries(properties).filter(([key]) => key.startsWith(prefix));
 		const defaults = Object.fromEntries(otelProperties
@@ -42,6 +103,21 @@ describe('OTel config resolution', () => {
 		const settings = new TestOTelSettings();
 		settings.policy = { enabled: false, otlpEndpoint: OTEL_SETTING_DEFAULTS.otlpEndpoint };
 		expect(resolve(settings).hasEnterpriseSettings).toBe(false);
+	});
+
+	it('does not claim policy provenance for the unconfigured shared endpoint policy slot', () => {
+		const settings = new TestOTelSettings();
+		settings.policySlotDefaults.otlpEndpoint = '';
+		expect(resolve(settings)).toMatchObject({
+			hasEnterpriseSettings: false,
+			defaultValues: { otlpEndpoint: OTEL_SETTING_DEFAULTS.otlpEndpoint },
+			config: { enabled: false, otlpEndpoint: '' },
+		});
+		settings.policy = { enabled: true, otlpEndpoint: 'https://managed.example' };
+		expect(resolve(settings)).toMatchObject({
+			hasEnterpriseSettings: true,
+			config: { enabled: true, otlpEndpoint: 'https://managed.example/' },
+		});
 	});
 
 	it('preserves existing effective-setting resolution and env precedence', () => {

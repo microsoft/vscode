@@ -22,6 +22,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { registerSharedProcessRemoteService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
+import product from '../../../../platform/product/common/product.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ViewContainerLocation } from '../../../common/views.js';
@@ -48,7 +49,7 @@ import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb
 import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
 import { confirmSessionShutdown, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from './chatLifecycle.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
-import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from './agentSessions/agentSessionsActions.js';
+import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, AgentsParallelWorkContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from './agentSessions/agentSessionsActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { NativePluginGitCommandService } from './pluginGitCommandService.js';
 
@@ -217,6 +218,9 @@ registerAction2(OpenWorkspaceInAgentsWindowTitleBarAction);
 registerAction2(ToggleOpenInAgentsWindowTitleBarAction);
 registerAction2(OpenAgentsWindowAction);
 registerAction2(OpenChatSessionInAgentsWindowAction);
+if (!product.quality) {
+	registerAction2(ResetCopilotHarnessIntroductionAction);
+}
 registerAction2(StartVoiceChatAction);
 
 registerAction2(VoiceChatInChatViewAction);
@@ -243,6 +247,7 @@ registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrot
 registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(OpenWorkspaceInAgentsContribution.ID, OpenWorkspaceInAgentsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentsHandoffInputTipContribution.ID, AgentsHandoffInputTipContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(AgentsParallelWorkContribution.ID, AgentsParallelWorkContribution, WorkbenchPhase.Eventually);
 
 // How long to wait for the agent host to surface an AgentInfo before
 // throwing an error. Long enough for normal startup, short enough to avoid

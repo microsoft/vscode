@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, latestUserInputCarriesTag, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 
 const WARMUP_SCENARIO_ID = 'smoke-chat-sandbox-warmup';
 const WARMUP_REPLY = 'MOCKED_CHAT_SANDBOX_WARMUP';
@@ -21,6 +21,7 @@ const NETWORK_ALLOWED_SCENARIO_ID = 'smoke-chat-sandbox-network-allowed';
 const HOME_READ_SCENARIO_ID = 'smoke-chat-sandbox-home-read';
 const HOME_READ_ALLOWED_SCENARIO_ID = 'smoke-chat-sandbox-home-read-allowed';
 const CHAT_RESPONSE_TIMEOUT = 120_000;
+const TERMINAL_TOOL_PATTERN = /run.?in.?terminal|execute.?command/i;
 const NETWORK_BLOCKED_PATTERN = /ECONNREFUSED|EPERM|EACCES|ENETUNREACH|EHOSTUNREACH|ENETDOWN|EAI_AGAIN/;
 const SANDBOX_EXIT_CODE_PATTERN = /SANDBOX_EXIT_CODE=(\d+)/;
 const TMPDIR_EXIT_CODE_PATTERN = /TMPDIR_EXIT_CODE=(\d+)/;
@@ -34,7 +35,7 @@ function terminalCommandScenario(command: string, finalReply?: string) {
 				kind: 'tool-calls',
 				toolCalls: [
 					{
-						toolNamePattern: /run.?in.?terminal|execute.?command/i,
+						toolNamePattern: TERMINAL_TOOL_PATTERN,
 						arguments: {
 							command,
 							explanation: 'Run a terminal command for a chat smoke test',
@@ -60,21 +61,56 @@ function quoteShellArgument(value: string): string {
 	return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-async function warmUpChat(chat: Chat, logger: Logger): Promise<void> {
+function hasTerminalTool(body: unknown): boolean {
+	if (!body || typeof body !== 'object') {
+		return false;
+	}
+	const tools = (body as Record<string, unknown>).tools;
+	if (!Array.isArray(tools)) {
+		return false;
+	}
+
+	return tools.some((tool: unknown) => {
+		if (!tool || typeof tool !== 'object') {
+			return false;
+		}
+		const definition = (tool as Record<string, unknown>).function ?? tool;
+		if (!definition || typeof definition !== 'object') {
+			return false;
+		}
+		const name = (definition as Record<string, unknown>).name;
+		return typeof name === 'string' && TERMINAL_TOOL_PATTERN.test(name);
+	});
+}
+
+async function warmUpChat(chat: Chat, mockServer: MockLlmServer, logger: Logger): Promise<void> {
+	const { ScenarioBuilder, registerScenario } = require(getMockLlmServerPath());
 	const deadline = Date.now() + 180_000;
 	let attempt = 0;
 	let lastError: unknown;
 
 	while (Date.now() < deadline) {
 		attempt++;
+		const scenarioId = `${WARMUP_SCENARIO_ID}-${attempt}`;
+		const scenarioTag = `[scenario:${scenarioId}]`;
+		const reply = `${WARMUP_REPLY}_${attempt}`;
+		registerScenario(scenarioId, new ScenarioBuilder().emit(reply).build());
 		try {
-			await chat.sendMessage(`warm up [scenario:${WARMUP_SCENARIO_ID}]`);
-			await chat.waitForResponseText(WARMUP_REPLY, 25_000);
+			const requestsBefore = mockServer.getRequests().length;
+			await chat.sendMessage(`warm up ${scenarioTag}`);
+			await chat.waitForResponseText(reply, 25_000);
+			// Warm-up text can arrive before terminal tools finish registering.
+			assert.ok(
+				mockServer.getRequests().slice(requestsBefore).some(request =>
+					latestUserInputCarriesTag(request.body, scenarioTag) && hasTerminalTool(request.body)),
+				'expected the terminal tool to be available in the warm-up model request'
+			);
 			logger.log(`[Chat Sandbox] warm-up succeeded on attempt ${attempt}`);
 			return;
 		} catch (error) {
 			lastError = error;
-			logger.log(`[Chat Sandbox] warm-up attempt ${attempt} not ready yet; retrying`);
+			logger.log(`[Chat Sandbox] warm-up attempt ${attempt} not ready yet; retrying: ${error instanceof Error ? error.message : String(error)}`);
+			await new Promise(resolve => setTimeout(resolve, 250));
 		}
 	}
 
@@ -126,7 +162,6 @@ export function setup(logger: Logger): void {
 			fs.rmSync(hostTempFilePath, { force: true });
 
 			registerScenario('text-only', new ScenarioBuilder().emit('OK').build());
-			registerScenario(WARMUP_SCENARIO_ID, new ScenarioBuilder().emit(WARMUP_REPLY).build());
 			registerScenario(SANDBOX_SCENARIO_ID, terminalCommandScenario(`echo ${sandboxReply}; status=$?; printf 'SANDBOX_EXIT_CODE=%s\n' "$status"; exit "$status"`));
 			registerScenario(TMPDIR_SCENARIO_ID, terminalCommandScenario(`echo test > "$TMPDIR/${tempFileName}"; status=$?; printf 'TMPDIR_EXIT_CODE=%s\n' "$status"; exit "$status"`));
 			// A denied host-temp write has no stable cross-platform output marker. Use a
@@ -134,7 +169,7 @@ export function setup(logger: Logger): void {
 			// checking from the smoke-test process that the host file was not created.
 			registerScenario(HOST_TMP_SCENARIO_ID, terminalCommandScenario(`host_tmp=${quoteShellArgument(hostTempFilePath)}; echo test > "$host_tmp"`, HOST_TMP_REPLY));
 
-			mockServer = await startServer(0, { logger: (message: string) => logger.log(`[mock-llm] ${message}`), verbose: true });
+			mockServer = await startServer(0, { logger: (message: string) => logger.log(`[mock-llm] ${message}`), verbose: true, captureRequests: true });
 			const encodedNetworkAllowedReply = Buffer.from(networkAllowedReply).toString('base64');
 			const networkProbe = `node -e "const http=require('http');const req=http.get('${mockServer.url}',res=>{res.resume();console.log(Buffer.from('${encodedNetworkAllowedReply}','base64').toString())});req.on('error',error=>console.log(error.code))"`;
 			registerScenario(NETWORK_SCENARIO_ID, terminalCommandScenario(networkProbe));
@@ -179,7 +214,7 @@ export function setup(logger: Logger): void {
 			const app = this.app as Application;
 			await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
 			await app.workbench.chat.waitForChatView();
-			await warmUpChat(app.workbench.chat, logger);
+			await warmUpChat(app.workbench.chat, mockServer, logger);
 		});
 
 		after(async function () {
@@ -193,7 +228,7 @@ export function setup(logger: Logger): void {
 		 * Expected result: The command is sandbox-wrapped and its output contains
 		 * `${sandboxReply}` and `SANDBOX_EXIT_CODE=0`.
 		 */
-		it.skip('runs terminal commands inside the sandbox', async function () {
+		it('runs terminal commands inside the sandbox', async function () {
 			const app = this.app as Application;
 
 			try {
@@ -214,7 +249,7 @@ export function setup(logger: Logger): void {
 				const terminalLog = fs.readFileSync(terminalLogPath, 'utf8');
 				assert.match(
 					terminalLog,
-					/RunInTerminalTool: Command rewritten by CommandLineSandboxRewriter: Wrapped command for sandbox execution/,
+					/RunInTerminalTool: Command rewritten by [^:]+: Wrapped command for sandbox execution/,
 					`expected sandbox-wrapped terminal execution in ${terminalLogPath}`
 				);
 			} catch (error) {

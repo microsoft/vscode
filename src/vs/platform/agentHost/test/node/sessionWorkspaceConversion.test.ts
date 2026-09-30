@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentWorkingDirectoryChangedError, type IAgent } from '../../common/agent.js';
 import type { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
+import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { isAgentWorkspaceContinuationMessage } from '../../common/meta/agentWorkspaceContinuationMeta.js';
@@ -30,7 +31,7 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { SessionWorkspaceConversionContribution } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { SessionWorkspaceConversionService, type ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import type { IAgentHostServerToolService } from '../../node/shared/agentServerToolHost.js';
-import { NullAgentHostWorktreeIsolation, type IIsolationConfigContribution, type IResolveIsolationConfigRequest, type IResolveWorkingDirectoryRequest, type ISessionWorktree } from '../../node/shared/worktreeIsolation.js';
+import { NullAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, type IIsolationConfigContribution, type IResolveIsolationConfigRequest, type IResolveWorkingDirectoryRequest, type ISessionWorktree } from '../../node/shared/worktreeIsolation.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
@@ -40,6 +41,7 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	readonly requests: IResolveWorkingDirectoryRequest[] = [];
 	readonly createdWorktrees: URI[] = [];
 	readonly removedWorktrees: ISessionWorktree[] = [];
+	readonly externalProjectRequests: URI[] = [];
 
 	constructor(readonly worktree: URI, readonly repository = URI.file('/workspace/project')) {
 		super();
@@ -62,6 +64,7 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 			}),
 			worktreeBranchPrefixProperty: undefined,
 			worktreeIncludeFilesProperty: undefined,
+			worktreeSymlinkFoldersProperty: undefined,
 			worktreeBranchTrackProperty: undefined,
 			worktreeCreateNewBranchProperty: undefined,
 			isolationValue: 'worktree',
@@ -70,7 +73,7 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 		};
 	}
 
-	override async resolveOnFirstSend(request: IResolveWorkingDirectoryRequest): Promise<URI> {
+	override async resolveForWorkspaceConversion(request: IResolveWorkingDirectoryRequest): Promise<URI> {
 		this.requests.push(request);
 		await request.onWillCreate?.({
 			repositoryRoot: this.repository,
@@ -84,6 +87,19 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 
 	override sessionWorktreeInfo(_sessionId: string) {
 		return { project: { uri: this.repository, displayName: 'project' }, workingDirectory: this.worktree, branchName: 'feature' };
+	}
+
+	override async resolveExternalWorktreeProject(workingDirectory: URI) {
+		this.externalProjectRequests.push(workingDirectory);
+		return workingDirectory.toString() === this.worktree.toString()
+			? {
+				project: { uri: this.repository, displayName: 'project' },
+				metadata: {
+					[WORKTREE_META_REPOSITORY_ROOT]: this.repository.toString(),
+					[META_DIFF_BASE_BRANCH]: 'main',
+				},
+			}
+			: undefined;
 	}
 
 	override async prepareSessionDeletion(_sessionUri: URI, _sessionId: string): Promise<ISessionWorktree> {
@@ -104,13 +120,16 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 class GatedConversionDatabase extends TestSessionDatabase {
 	readonly writeStarted = new DeferredPromise<void>();
 	readonly releaseWrite = new DeferredPromise<void>();
+	readonly conversionMetadata: Readonly<Record<string, string>>[] = [];
 
 	override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+		this.conversionMetadata.push(values);
 		await this._waitForRelease();
 		await super.setMetadataValues(values);
 	}
 
 	override async setWorkspaceConversion(turnId: string, transition: string, metadata: Readonly<Record<string, string>>): Promise<void> {
+		this.conversionMetadata.push(metadata);
 		await this._waitForRelease();
 		await super.setWorkspaceConversion(turnId, transition, metadata);
 	}
@@ -389,6 +408,7 @@ suite('SessionWorkspaceConversionService', () => {
 					severity: undefined,
 					workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
 					workspaceName: 'project',
+					fusionStatus: undefined,
 				},
 			}],
 			outcomeKindsAtContinuation: [[AgentSystemNotificationKind.WorkspaceTransition]],
@@ -536,6 +556,7 @@ suite('SessionWorkspaceConversionService', () => {
 						severity: undefined,
 						workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
 						workspaceName: 'project',
+						fusionStatus: undefined,
 					},
 				}, {
 					kind: ResponsePartKind.Markdown,
@@ -716,9 +737,39 @@ suite('SessionWorkspaceConversionService', () => {
 					severity: undefined,
 					workspaceKind: AgentSystemNotificationWorkspaceKind.Worktree,
 					workspaceName: 'project',
+					fusionStatus: undefined,
 				},
 			}],
 			continuationText: `The current session is now attached to ${worktreeIsolation.worktree.fsPath} in an isolated worktree. Continue the user's original task in this workspace. Do not request another session or workspace conversion.`,
+		});
+	});
+
+	test('sets the project when the selected workspace is an existing worktree', async () => {
+		const repository = URI.file('/workspace/project');
+		const worktree = URI.file('/workspace/project.worktrees/existing-feature');
+		const worktreeIsolation = new TestWorktreeIsolation(worktree, repository);
+		const harness = createHarness(worktreeIsolation);
+		harness.agent.setWorkingDirectory = async () => { };
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', worktree, false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+
+		await updateSessionWorkspace(harness);
+
+		const state = harness.stateManager.getSessionState(harness.session.toString());
+		assert.deepStrictEqual({
+			externalProjectRequests: worktreeIsolation.externalProjectRequests.map(uri => uri.toString()),
+			createdWorktrees: worktreeIsolation.createdWorktrees,
+			project: harness.stateManager.getSessionSummary(harness.session.toString())?.project,
+			workingDirectories: state?.workingDirectories,
+		}, {
+			externalProjectRequests: [worktree.toString()],
+			createdWorktrees: [],
+			project: {
+				uri: repository.toString(),
+				displayName: 'project',
+			},
+			workingDirectories: [worktree.toString()],
 		});
 	});
 
@@ -1266,7 +1317,10 @@ suite('SessionWorkspaceConversionService', () => {
 
 	test('quarantines without publishing when session state changes during conversion metadata persistence', async () => {
 		const database = new GatedConversionDatabase();
-		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, database);
+		const repository = URI.file('/workspace/project');
+		const worktree = URI.file('/workspace/project.worktrees/existing-feature');
+		const worktreeIsolation = new TestWorktreeIsolation(worktree, repository);
+		const harness = createHarness(worktreeIsolation, async () => true, database);
 		const disposedChats: { session: string; chat: string }[] = [];
 		const provider: IAgent = harness.agent;
 		provider.setWorkingDirectory = async () => { };
@@ -1274,7 +1328,7 @@ suite('SessionWorkspaceConversionService', () => {
 			disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		};
 		startTurn(harness.stateManager, harness.chat);
-		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', worktree, false, 'client-1');
 		completeTurn(harness.stateManager, harness.chat);
 
 		const conversion = updateSessionWorkspace(harness);
@@ -1290,15 +1344,23 @@ suite('SessionWorkspaceConversionService', () => {
 
 		const state = harness.stateManager.getSessionState(harness.session.toString());
 		assert.deepStrictEqual({
+			conversionMetadata: database.conversionMetadata,
 			pending: harness.service.isPending(harness.chat.toString()),
 			persistedQuarantine: await database.getMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY),
+			project: harness.stateManager.getSessionSummary(harness.session.toString())?.project,
 			workingDirectories: state?.workingDirectories,
 			workspaceless: readSessionWorkspaceless(state?._meta),
 			disposedChats,
 			continuations: harness.continuations,
 		}, {
+			conversionMetadata: [{
+				[AH_META_WORKSPACELESS_DB_KEY]: 'false',
+				[WORKTREE_META_REPOSITORY_ROOT]: repository.toString(),
+				[META_DIFF_BASE_BRANCH]: 'main',
+			}],
 			pending: true,
 			persistedQuarantine: 'true',
+			project: undefined,
 			workingDirectories: [replacement.toString()],
 			workspaceless: true,
 			disposedChats: [{

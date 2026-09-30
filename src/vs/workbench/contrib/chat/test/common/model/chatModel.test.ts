@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -17,6 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { SymbolKind } from '../../../../../../editor/common/languages.js';
+import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -29,11 +31,12 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatResponseResource, extractExportableSessionData, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, parseChatImport, Response, SerializedChatResponsePart, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
+import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ResponseModelState, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
@@ -287,6 +290,99 @@ suite('ChatModel', () => {
 			usage: { kind: 'usage', promptTokens: 10, completionTokens: 3 },
 			completionTokenCount: 5,
 			responseContent: '',
+		});
+	});
+
+	test('registered tool icons survive chat serialization and restoration', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'test', parts: [] }, { variables: [] }, 0);
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Run custom tool' },
+			{ id: 'custom_tool', displayName: 'Custom tool', modelDescription: 'Custom tool', source: ToolDataSource.Internal, icon: Codicon.beaker },
+			'custom-tool', undefined, {},
+		);
+		await tool.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, tool);
+		const serialized: ISerializableChatData3 = JSON.parse(JSON.stringify(model.toJSON()));
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serialized, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+		const invocation = restored.getRequests()[0].response?.entireResponse.value.find(part => part.kind === 'toolInvocationSerialized');
+		assert.deepStrictEqual(invocation?.icon, Codicon.beaker);
+	});
+
+	suite('Auto tier attribution', () => {
+		for (const isNotebook of [false, true]) {
+			test(`snapshots ${isNotebook ? 'notebook cell' : 'text'} edit tiers across rerouting and persistence`, () => {
+				const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				const request = model.addRequest({ text: 'edit', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'copilot/auto');
+				const uri = isNotebook ? CellUri.generate(URI.file('/test.ipynb'), 0) : URI.file('/test.ts');
+				const operationLog = new ChatSessionOperationLog();
+				const buffers = [operationLog.createInitial(model)];
+
+				for (const autoTier of [undefined, 'efficiency', 'intelligence', undefined, 'fast'] as const) {
+					model.acceptResponseProgress(request, {
+						kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit' }], done: false, autoTier,
+					}, true);
+					const mutation = operationLog.write(model);
+					if (mutation.op === 'replace') {
+						buffers.length = 0;
+					}
+					buffers.push(mutation.data);
+					operationLog.confirmWrite();
+				}
+
+				const serialized = [model.toJSON(), operationLog.read(VSBuffer.concat(buffers))];
+				assert.deepStrictEqual(serialized.map(value => {
+					const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+					return restored.getRequests()[0].response!.response.value.map(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup'
+						? { kind: part.kind, tiers: part.editMetadata?.map(metadata => metadata.autoTier), batches: part.edits.length }
+						: { kind: part.kind });
+				}), serialized.map(() => [{ kind: isNotebook ? 'notebookEditGroup' : 'textEditGroup', tiers: [undefined, 'efficiency', 'intelligence', undefined, 'fast'], batches: 5 }]));
+			});
+		}
+	});
+
+	test('retained terminal identity survives chat serialization and restoration', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'run', parts: [] }, { variables: [] }, 0);
+		const terminal = URI.parse('agenthost-terminal://shell/session/tool');
+		model.acceptResponseProgress(request, {
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'terminal-full-output',
+			toolName: 'bash',
+			isComplete: true,
+			invocationMessage: 'Running command',
+			pastTenseMessage: 'Ran command',
+			toolSpecificData: {
+				kind: 'terminal',
+				language: 'shellscript',
+				commandLine: { original: 'build' },
+				terminalCommandUri: terminal,
+				terminalCommandOutput: { text: 'Saved to: /artifact/output.txt', truncated: true, fullOutputPreview: 'preview' },
+			},
+		});
+		const serialized: ISerializableChatData3 = JSON.parse(JSON.stringify(model.toJSON()));
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serialized, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+		const invocation = restored.getRequests()[0].response?.entireResponse.value.find(part => part.kind === 'toolInvocationSerialized');
+		assert.ok(invocation?.kind === 'toolInvocationSerialized' && invocation.toolSpecificData?.kind === 'terminal');
+		const output = invocation.toolSpecificData.terminalCommandOutput;
+		assert.deepStrictEqual({
+			text: output?.text,
+			truncated: output?.truncated,
+			fullOutputPreview: output?.fullOutputPreview,
+			terminal: URI.revive(invocation.toolSpecificData.terminalCommandUri)?.toString(),
+		}, {
+			text: 'Saved to: /artifact/output.txt',
+			truncated: true,
+			fullOutputPreview: 'preview',
+			terminal: terminal.toString(),
 		});
 	});
 
@@ -767,6 +863,68 @@ suite('Response', () => {
 			{ kind: 'markdownContent', content: 'I\'ve launched a background agent.' },
 			{ kind: 'toolInvocation' },
 		]);
+	});
+
+	for (const restored of [false, true]) {
+		test(`child edits do not split parent code fences (restored=${restored})`, () => {
+			const prefix = { kind: 'markdownContent', content: new MarkdownString('Before\n\n```ts\nconst value = ') } as const;
+			const edit = {
+				kind: 'externalEdit', uri: URI.file('/workspace/child.ts'), editKind: 'edit',
+				subAgentInvocationId: 'parent-subagent', undoStopId: 'child-patch', diff: { added: 1, removed: 0 },
+			} as const;
+			const response = store.add(new Response(restored ? [prefix, edit] : []));
+			if (!restored) {
+				response.updateContent(prefix);
+				response.updateContent(edit);
+			}
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('42;\n```\nAfter') });
+
+			assert.deepStrictEqual(response.value.map(part => part.kind === 'markdownContent' ? { kind: part.kind, content: part.content.value } : part), [
+				{ kind: 'markdownContent', content: 'Before\n\n```ts\nconst value = 42;\n```\nAfter' },
+				edit,
+			]);
+		});
+	}
+
+	test('mergeable thinking across nested subagent progress', () => {
+		const clock = sinon.useFakeTimers({ now: 1000 });
+		try {
+			const response = store.add(new Response([]));
+			response.updateContent({ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid' });
+			clock.tick(500);
+			response.updateContent(ChatToolInvocation.createStreaming({
+				toolCallId: 'child-tool',
+				toolId: 'view',
+				toolData: {
+					id: 'view',
+					modelDescription: 'Read a file',
+					displayName: 'Reading',
+					source: ToolDataSource.Internal,
+				},
+				subagentInvocationId: 'parent-tool',
+			}));
+			clock.tick(250);
+			response.updateContent({
+				kind: 'externalEdit', uri: URI.file('/workspace/child.ts'), editKind: 'edit',
+				subAgentInvocationId: 'parent-tool',
+			});
+			clock.tick(250);
+			response.updateContent({ kind: 'thinking', id: 'reasoning', value: ' base stats.' });
+			clock.tick(1000);
+			// The parent's own content ends the section, so the timer covers the whole merged block.
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') });
+
+			assert.deepStrictEqual(response.value.map(part => part.kind === 'thinking'
+				? { kind: part.kind, id: part.id, value: part.value, reasoningDurationMs: part.reasoningDurationMs }
+				: { kind: part.kind }), [
+				{ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid base stats.', reasoningDurationMs: 2000 },
+				{ kind: 'toolInvocation' },
+				{ kind: 'externalEdit' },
+				{ kind: 'markdownContent' },
+			]);
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('not mergeable markdown', async () => {
@@ -1409,7 +1567,7 @@ suite('Response', () => {
 		});
 
 		const responseString = response.toString();
-		assert.strictEqual(responseString, 'Ran terminal command: print(1)\nCompleted with input: print(1)');
+		assert.strictEqual(responseString, 'Ran terminal command: print(1)\nCompleted with input: print(1)\nTool execution failed');
 		assert.ok(!responseString.includes('sandbox-runtime'));
 		assert.ok(!responseString.includes('ELECTRON_RUN_AS_NODE=1'));
 		assert.ok(!responseString.includes('python -c "print(1)"'));
@@ -1620,6 +1778,10 @@ suite('isExportableSessionData', () => {
 	test('invalid - undefined', () => {
 		assert.strictEqual(isExportableSessionData(undefined), false);
 	});
+});
+
+suite('parseChatImport', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('extracts only exportable session fields', () => {
 		const data = {
@@ -1631,11 +1793,169 @@ suite('isExportableSessionData', () => {
 			customTitle: 'Injected title',
 		};
 
-		assert.deepStrictEqual(extractExportableSessionData(data), {
+		assert.deepStrictEqual(parseChatImport(JSON.stringify(data)), {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'assistant',
 		});
+	});
+
+	for (const isTrusted of [true, false, { enabledCommands: ['test.chatImport'] }, 'true']) {
+		test(`removes nested trust permissions: ${JSON.stringify(isTrusted)}`, () => {
+			const createData = (trust: typeof isTrusted) => {
+				const markdown = { value: '[Details](command:test.chatImport)', isTrusted: trust };
+				return {
+					initialLocation: ChatAgentLocation.Chat,
+					responderUsername: 'assistant',
+					requests: [{
+						requestId: 'request',
+						message: 'hello',
+						variableData: { variables: [] },
+						response: [
+							markdown,
+							{ kind: 'markdownContent', content: markdown },
+							{ kind: 'markdownVuln', content: markdown, vulnerabilities: [] },
+							{
+								kind: 'toolInvocationSerialized',
+								toolId: 'test',
+								toolCallId: 'call',
+								invocationMessage: markdown,
+								pastTenseMessage: markdown,
+								originMessage: markdown,
+								isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: markdown },
+								isComplete: true,
+							},
+						],
+						result: { metadata: { nested: [null, { markdown }] } },
+					}],
+				};
+			};
+
+			assert.deepStrictEqual(parseChatImport(JSON.stringify(createData(isTrusted))), createData(false));
+		});
+	}
+
+	test('preserves ordinary content and revives resource URIs', () => {
+		const data: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				requestId: 'request',
+				message: 'hello',
+				variableData: { variables: [] },
+				response: [
+					{ value: '**Text** [website](https://example.com/)', supportHtml: false, supportThemeIcons: true },
+					{ kind: 'inlineReference', inlineReference: URI.file('/workspace/example.ts'), name: 'example.ts' },
+				],
+			}],
+		};
+
+		assert.deepStrictEqual(parseChatImport(JSON.stringify(data)), data);
+	});
+
+	test('rebuilds imported URIs without serialized cache state', () => {
+		const resource = URI.file('/workspace/example.ts');
+		const data = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				requestId: 'request',
+				message: 'hello',
+				variableData: { variables: [] },
+				response: [{
+					kind: 'workspaceEdit',
+					edits: [{
+						newResource: {
+							...resource.toJSON(),
+							external: 'file:///workspace/example.ts) [Details](command:test.chatImport',
+							fsPath: '/untrusted',
+							_sep: 1,
+						},
+					}],
+				}],
+			}],
+		};
+
+		const imported = parseChatImport(JSON.stringify(data));
+		const response = imported.requests[0].response?.[0];
+		if (!response || !hasKey(response, { kind: true }) || response.kind !== 'workspaceEdit') {
+			assert.fail('Expected a workspace edit');
+		}
+		const newResource = response.edits[0].newResource;
+		assert.deepStrictEqual({
+			uri: newResource?.toString(),
+			fsPath: newResource?.fsPath,
+		}, {
+			uri: resource.toString(),
+			fsPath: resource.fsPath,
+		});
+	});
+
+	test('rejects malformed imported URI components', () => {
+		const createData = (newResource: object) => ({
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				response: [{ kind: 'workspaceEdit', edits: [{ newResource }] }],
+			}],
+		});
+
+		assert.throws(() => parseChatImport(JSON.stringify(createData({ $mid: 1, scheme: 'file', path: 42 }))), /Invalid chat session data/);
+		assert.throws(() => parseChatImport(JSON.stringify(createData({ $mid: 1, scheme: '', path: '/workspace/example.ts' }))), /Scheme is missing/);
+	});
+
+	test('preserves unrelated isTrusted properties', () => {
+		const data: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'assistant',
+			requests: [{
+				requestId: 'request',
+				message: 'hello',
+				variableData: { variables: [] },
+				response: [],
+				result: {
+					metadata: {
+						isTrusted: true,
+						nested: [
+							{ isTrusted: { enabledCommands: ['test.metadata'] } },
+							{ value: 42, isTrusted: true },
+							{ value: null, isTrusted: 'metadata' },
+						],
+					},
+				},
+			}],
+		};
+
+		assert.deepStrictEqual(parseChatImport(JSON.stringify(data)), data);
+	});
+
+	for (const options of [{ supportThemeIcons: 'invalid' }, { supportAlertSyntax: 'invalid' }]) {
+		test(`removes markdown trust even with malformed options: ${JSON.stringify(options)}`, () => {
+			const data = {
+				initialLocation: ChatAgentLocation.Chat,
+				responderUsername: 'assistant',
+				requests: [{
+					requestId: 'request',
+					message: 'hello',
+					variableData: { variables: [] },
+					response: [{
+						kind: 'markdownContent',
+						content: { value: '[Details](command:test.chatImport)', isTrusted: true, ...options },
+					}],
+				}],
+			};
+			const imported = parseChatImport(JSON.stringify(data));
+			data.requests[0].response[0].content.isTrusted = false;
+
+			assert.deepStrictEqual(imported, data);
+		});
+	}
+
+	test('rejects invalid JSON and invalid session data', () => {
+		assert.throws(() => parseChatImport('{'), SyntaxError);
+		for (const data of [null, {}, { requests: [], responderUsername: 1 }, { requests: {}, responderUsername: 'assistant' }]) {
+			assert.throws(() => parseChatImport(JSON.stringify(data)), /Invalid chat session data/);
+		}
 	});
 });
 
@@ -1731,6 +2051,260 @@ suite('ChatResponseModel', () => {
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
+	});
+
+	suite('pending confirmations', () => {
+		teardown(() => sinon.restore());
+
+		function createResponse(content: SerializedChatResponsePart[] = []): ChatResponseModel {
+			const session = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			return testDisposables.add(new ChatResponseModel({ session, requestId: 'request', responseContent: content, codeBlockInfos: undefined }));
+		}
+
+		function createTool(toolCallId: string, title?: string): ChatToolInvocation {
+			return new ChatToolInvocation({
+				invocationMessage: toolCallId,
+				confirmationMessages: title === undefined ? undefined : { title, message: new MarkdownString(title) },
+			}, { id: 'test-tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+				toolCallId, undefined, {});
+		}
+
+		function pending(response: ChatResponseModel) {
+			return {
+				detail: response.isPendingConfirmation.get()?.detail,
+				tools: response.pendingToolInvocations.get().map(part => part.toolCallId),
+			};
+		}
+
+		test('an earlier executing tool can request confirmation ahead of a later pending tool', async () => {
+			const response = createResponse();
+			const first = createTool('first');
+			const second = createTool('second', 'Second approval');
+			response.updateContent(first);
+			response.updateContent(second);
+			const snapshots = [pending(response)];
+
+			first.requestConfirmation({ confirmationMessages: { title: 'First approval', message: new MarkdownString('Confirm') } });
+			snapshots.push(pending(response));
+			await first.didExecuteTool({ content: [] });
+			snapshots.push(pending(response));
+			IChatToolInvocation.confirmWith(second, { type: ToolConfirmKind.UserAction });
+			snapshots.push(pending(response));
+
+			assert.deepStrictEqual(snapshots, [
+				{ detail: 'Second approval', tools: ['second'] },
+				{ detail: 'First approval', tools: ['first', 'second'] },
+				{ detail: 'Second approval', tools: ['second'] },
+				{ detail: undefined, tools: [] },
+			]);
+		});
+
+		test('preserves the waiting interval when the first pending tool changes with the same title', () => {
+			const clock = sinon.useFakeTimers({ now: 1000 });
+			const response = createResponse();
+			const first = createTool('first', 'Approve');
+			const second = createTool('second', 'Approve');
+			response.updateContent(first);
+			clock.tick(100);
+			response.updateContent(second);
+			IChatToolInvocation.confirmWith(first, { type: ToolConfirmKind.UserAction });
+			const whileWaiting = response.isPendingConfirmation.get();
+			clock.tick(100);
+			IChatToolInvocation.confirmWith(second, { type: ToolConfirmKind.UserAction });
+
+			assert.deepStrictEqual({
+				whileWaiting,
+				after: pending(response),
+				adjustedTimestamp: response.confirmationAdjustedTimestamp.get(),
+			}, {
+				whileWaiting: { startedWaitingAt: 1000, detail: 'Approve' },
+				after: { detail: undefined, tools: [] },
+				adjustedTimestamp: 1200,
+			});
+		});
+
+		test('retains first-part semantics for empty and changing confirmation titles', () => {
+			const response = createResponse();
+			const first = createTool('first', 'First');
+			const second = createTool('second', 'Second');
+			response.updateContent(first);
+			response.updateContent(second);
+			first.updateConfirmationMessages({ title: '', message: new MarkdownString('Confirm') });
+			const emptyTitle = pending(response);
+			first.updateConfirmationMessages({ title: new MarkdownString('Updated'), message: new MarkdownString('Confirm') });
+
+			assert.deepStrictEqual([emptyTitle, pending(response)], [
+				{ detail: undefined, tools: ['first', 'second'] },
+				{ detail: 'Updated', tools: ['first', 'second'] },
+			]);
+		});
+
+		test('tracks restored confirmations, questions, plans, elicitations, and tools in response order', () => {
+			const confirmation: IChatConfirmation = { kind: 'confirmation', title: 'Confirm', message: '', data: undefined };
+			const carousel: IChatQuestionCarousel = { kind: 'questionCarousel', questions: [], allowSkip: true };
+			const plan: IChatPlanReview = { kind: 'planReview', title: 'Plan', content: '', actions: [], canProvideFeedback: true };
+			const elicitation = new ChatElicitationRequestPart(new MarkdownString('Elicit'), '', '', 'Accept', undefined, async () => ElicitationState.Accepted);
+			const response = createResponse([confirmation, carousel, plan]);
+			response.updateContent(elicitation);
+			response.updateContent(createTool('tool', 'Tool approval'));
+			const snapshots = [pending(response)];
+
+			for (const part of [confirmation, carousel, plan]) {
+				part.isUsed = true;
+				response.setResult({});
+				snapshots.push(pending(response));
+			}
+			elicitation.state.set(ElicitationState.Accepted, undefined);
+			snapshots.push(pending(response));
+
+			assert.deepStrictEqual(snapshots, [
+				{ detail: 'Confirm', tools: ['tool'] },
+				{ detail: 'Answer questions to continue...', tools: ['tool'] },
+				{ detail: 'Review the plan to continue...', tools: ['tool'] },
+				{ detail: 'Elicit', tools: ['tool'] },
+				{ detail: 'Tool approval', tools: ['tool'] },
+			]);
+		});
+
+		test('tracks authentication and post-approval on an existing tool', async () => {
+			const response = createResponse();
+			const tool = createTool('tool');
+			response.updateContent(tool);
+			tool.setAuthenticationRequired({ id: 'server', name: 'Test MCP', resource: 'https://example.com/mcp' });
+			const authentication = pending(response);
+			tool.requestConfirmation({ confirmationMessages: { title: 'Approve', message: new MarkdownString('Confirm'), confirmResults: true } });
+			IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
+			await tool.didExecuteTool({ content: [] });
+			const postApproval = pending(response);
+			IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
+
+			assert.deepStrictEqual([authentication, postApproval, pending(response)], [
+				{ detail: 'Authenticate Test MCP to continue...', tools: ['tool'] },
+				{ detail: 'Approve tool result?', tools: ['tool'] },
+				{ detail: undefined, tools: [] },
+			]);
+		});
+
+		test('tracks external tools that request confirmation after being added', () => {
+			const response = createResponse();
+			const update = { kind: 'externalToolInvocationUpdate', toolCallId: 'external', toolName: 'test-tool', invocationMessage: 'Running', isComplete: false } as const;
+			response.updateContent(update);
+			const tool = response.response.value[0];
+			assert.ok(tool instanceof ChatToolInvocation);
+			tool.requestConfirmation({ confirmationMessages: { title: 'External approval', message: new MarkdownString('Confirm') } });
+			const before = pending(response);
+			response.updateContent({ ...update, isComplete: true });
+
+			assert.deepStrictEqual([before, pending(response)], [
+				{ detail: 'External approval', tools: ['external'] },
+				{ detail: undefined, tools: [] },
+			]);
+		});
+
+		for (const retainTool of [false, true]) {
+			test(`drops truncated confirmations ${retainTool ? 'after the last tool' : 'without a previous tool'}`, async () => {
+				const response = createResponse();
+				const tool = createTool('retained', 'Retained approval');
+				if (retainTool) {
+					response.updateContent(tool);
+				}
+				const elicitation = new ChatElicitationRequestPart('Removed', '', '', 'Accept', undefined, async () => ElicitationState.Accepted);
+				response.updateContent(elicitation);
+				response.updateContent({ kind: 'clearToPreviousToolInvocation', reason: ChatResponseClearToPreviousToolInvocationReason.CopyrightContentRetry });
+				response.setResult({});
+				const afterTruncation = pending(response);
+				await tool.didExecuteTool({ content: [] });
+				elicitation.state.set(ElicitationState.Accepted, undefined);
+
+				assert.deepStrictEqual([afterTruncation, pending(response)], [
+					retainTool ? { detail: 'Retained approval', tools: ['retained'] } : { detail: undefined, tools: [] },
+					{ detail: undefined, tools: [] },
+				]);
+			});
+		}
+
+		test('clears candidates on redaction and starts fresh when reopened', () => {
+			const response = createResponse();
+			response.updateContent(createTool('redacted', 'Redacted approval'));
+			response.setResult({ errorDetails: { message: 'Redacted', responseIsRedacted: true } });
+			response.complete();
+			const redacted = pending(response);
+			response.reopen();
+			response.updateContent(createTool('new', 'New approval'));
+
+			assert.deepStrictEqual([redacted, pending(response)], [
+				{ detail: undefined, tools: [] },
+				{ detail: 'New approval', tools: ['new'] },
+			]);
+		});
+
+		test('inserting a notification before a streaming tool does not change confirmation order', () => {
+			const response = createResponse();
+			const first = ChatToolInvocation.createStreaming({
+				toolCallId: 'first', toolId: 'test-tool',
+				toolData: { id: 'test-tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			});
+			response.updateContent(first);
+			response.updateContent({ kind: 'systemNotification', content: new MarkdownString('Notification') });
+			response.updateContent(createTool('second', 'Second approval'));
+			first.requestConfirmation({ confirmationMessages: { title: 'First approval', message: new MarkdownString('Confirm') } });
+
+			assert.deepStrictEqual(pending(response), { detail: 'First approval', tools: ['first', 'second'] });
+		});
+
+		for (const restored of [false, true]) {
+			test(`does not revisit ${restored ? 'restored' : 'quietly appended'} history on subsequent notifications`, () => {
+				let historyReads = 0;
+				const history = Array.from({ length: 1000 }, () => ({
+					get kind(): 'warning' { historyReads++; return 'warning'; },
+					content: new MarkdownString('History'),
+				}));
+				const response = createResponse(restored ? history : []);
+				testDisposables.add(autorun(reader => response.pendingToolInvocations.read(reader)));
+				if (!restored) {
+					for (const part of history) {
+						response.updateContent(part, true);
+					}
+				}
+
+				historyReads = 0;
+				response.setResult({});
+				response.updateContent(createTool('pending', 'Approve'));
+				for (let i = 0; i < 100; i++) {
+					response.updateContent({ kind: 'warning', content: new MarkdownString('Streaming') });
+				}
+
+				assert.deepStrictEqual({ historyReads, pending: pending(response) }, {
+					historyReads: 0,
+					pending: { detail: 'Approve', tools: ['pending'] },
+				});
+			});
+		}
+
+		test('does not reread completed tool states while streaming', async () => {
+			const response = createResponse();
+			const completedTools: ChatToolInvocation[] = [];
+			for (let i = 0; i < 100; i++) {
+				const tool = createTool(`completed-${i}`);
+				response.updateContent(tool);
+				await tool.didExecuteTool({ content: [] });
+				completedTools.push(tool);
+			}
+			response.setResult({});
+			const reads = completedTools.map(tool => sinon.spy(tool.state, 'read'));
+			response.updateContent(createTool('pending', 'Approve'));
+			for (let i = 0; i < 100; i++) {
+				response.updateContent({ kind: 'markdownContent', content: new MarkdownString('token ') });
+			}
+
+			assert.deepStrictEqual({
+				completedStateReads: reads.reduce((total, spy) => total + spy.callCount, 0),
+				pending: pending(response),
+			}, {
+				completedStateReads: 0,
+				pending: { detail: 'Approve', tools: ['pending'] },
+			});
+		});
 	});
 
 	test('timestamp and confirmationAdjustedTimestamp', async () => {
@@ -1992,6 +2566,62 @@ suite('ChatResponseModel', () => {
 		assert.strictEqual(completedNotifications, 1);
 	});
 
+	for (const error of [undefined, false, true, 'Could not read tool input']) {
+		test(`preserves tool errors independently of result details (error=${error})`, async () => {
+			const invocation = new ChatToolInvocation({ invocationMessage: 'Ask questions' }, {
+				id: 'ask_user', displayName: 'Ask questions', modelDescription: 'Ask questions', source: ToolDataSource.Internal,
+			}, 'ask', undefined, {});
+			await invocation.didExecuteTool({ content: [], toolResultError: error });
+			const restored: IChatToolInvocationSerialized = JSON.parse(JSON.stringify(invocation.toJSON()));
+			const liveResponse = testDisposables.add(new Response([]));
+			liveResponse.updateContent(invocation);
+			const restoredResponse = testDisposables.add(new Response([restored]));
+			const text = 'Ask questions' + (error ? '\nTool execution failed' + (typeof error === 'string' ? `: ${error}` : '') : '');
+			assert.deepStrictEqual({
+				liveError: IChatToolInvocation.resultError(invocation),
+				restoredError: IChatToolInvocation.resultError(restored),
+				liveDetails: IChatToolInvocation.resultDetails(invocation),
+				restoredDetails: IChatToolInvocation.resultDetails(restored),
+				liveText: liveResponse.toString(),
+				restoredText: restoredResponse.toString(),
+			}, { liveError: error, restoredError: error, liveDetails: undefined, restoredDetails: undefined, liveText: text, restoredText: text });
+		});
+	}
+
+	for (const exitCode of [undefined, 0, 2]) {
+		test(`includes terminal failures in the response text (exit code: ${exitCode})`, async () => {
+			const invocation = new ChatToolInvocation({
+				invocationMessage: 'Run tests',
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm test' },
+					language: 'bash',
+					terminalCommandState: { exitCode },
+				},
+			}, {
+				id: 'terminal', displayName: 'Terminal', modelDescription: 'Run a command', source: ToolDataSource.Internal,
+			}, 'terminal', undefined, {});
+			await invocation.didExecuteTool(undefined);
+			const liveResponse = testDisposables.add(new Response([]));
+			liveResponse.updateContent(invocation);
+			const restoredResponse = testDisposables.add(new Response([invocation.toJSON()]));
+			const text = 'Ran terminal command: npm test' + (exitCode === 2 ? '\nTool execution failed with exit code 2' : '');
+			assert.deepStrictEqual([liveResponse.toString(), restoredResponse.toString()], [text, text]);
+		});
+	}
+
+	test('includes result-detail failures in the response text', async () => {
+		const invocation = new ChatToolInvocation({ invocationMessage: 'Read issue' }, {
+			id: 'read', displayName: 'Read', modelDescription: 'Read an issue', source: ToolDataSource.Internal,
+		}, 'read', undefined, {});
+		await invocation.didExecuteTool({ content: [], toolResultDetails: { input: '{}', output: [], isError: true } });
+		const liveResponse = testDisposables.add(new Response([]));
+		liveResponse.updateContent(invocation);
+		const restoredResponse = testDisposables.add(new Response([invocation.toJSON()]));
+		const text = 'Read issue\nCompleted with input: {}\nTool execution failed';
+		assert.deepStrictEqual([liveResponse.toString(), restoredResponse.toString()], [text, text]);
+	});
+
 	test('hasActiveRequest reflects last request isIncomplete', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
@@ -2250,6 +2880,40 @@ suite('ChatModel - Pending Requests', () => {
 
 		assert.strictEqual(restoredOptions.instructionContext?.modeKind, ChatModeKind.Agent);
 		assert.deepStrictEqual(restoredOptions.instructionContext?.enabledTools, enabledTools);
+	});
+
+	test('pending requests restore Agent Host message provenance', () => {
+		const model = createModel();
+		const provenance = {
+			agentHostMessageOrigin: { kind: MessageKind.SystemNotification },
+			metadata: { 'vscode.chat.systemInitiatedLabel': 'Background task completed' },
+			isSystemInitiated: true,
+			systemInitiatedLabel: 'Background task completed',
+		};
+		const request = new ChatRequestModel({
+			session: model,
+			message: { text: 'background task', parts: [] },
+			variableData: { variables: [] },
+			timestamp: 0,
+			isSystemInitiated: provenance.isSystemInitiated,
+			systemInitiatedLabel: provenance.systemInitiatedLabel,
+		});
+		model.addPendingRequest(request, ChatRequestQueueKind.Queued, provenance);
+		const operationLog = new ChatSessionOperationLog();
+		const serializedData = operationLog.read(operationLog.createInitial(model));
+		const restoredModel = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializedData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		const restored = restoredModel.getPendingRequests()[0].sendOptions;
+
+		assert.deepStrictEqual({
+			agentHostMessageOrigin: restored.agentHostMessageOrigin,
+			metadata: restored.metadata,
+			isSystemInitiated: restored.isSystemInitiated,
+			systemInitiatedLabel: restored.systemInitiatedLabel,
+		}, provenance);
 	});
 });
 

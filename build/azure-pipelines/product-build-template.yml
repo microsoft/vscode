@@ -113,6 +113,7 @@ stages:
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
+          displayName: Windows X64
           dependsOn: []
           pool:
             name: 1es-windows-2022-x64
@@ -125,28 +126,45 @@ stages:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-              - template: win32/product-build-win32-cli.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - template: win32/product-build-win32-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_TEST_SUITE: Electron
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_TEST_IDS:
+                    - unit-electron
+                    - unit-node
+                    - unit-browser-chromium
+                    - copilot
               - template: win32/product-build-win32-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_TEST_SUITE: Browser
+                  VSCODE_JOB_NAME: BrowserRemote
+                  VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                  VSCODE_TEST_IDS:
+                    - integration-browser-firefox
+                    - integration-remote
+                    - smoke-browser-chromium
+                    - smoke-remote
               - template: win32/product-build-win32-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_TEST_SUITE: Remote
+                  VSCODE_JOB_NAME: Integration
+                  VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-electron
+              - template: win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: Smoke
+                  VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - smoke-electron
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - template: win32/product-build-win32.yml@self
@@ -158,37 +176,98 @@ stages:
                   VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-              - template: win32/product-build-win32.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS_ARM64'], true) }}:
+        - stage: WindowsARM64
+          displayName: Windows ARM64
+          dependsOn: []
+          pool:
+            name: 1es-windows-2022-x64
+            os: windows
+          jobs:
+            - template: win32/product-build-win32-cli.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            - template: win32/product-build-win32.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-      - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
-        - stage: Linux
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}:
+        - stage: LinuxX64
+          displayName: Linux X64
           dependsOn: []
           pool:
             name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+            - template: linux/product-build-linux-cli.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+            - template: linux/product-build-linux-jobs.yml@self
+              parameters:
+                NPM_ARCH: x64
+                VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARM64'], true) }}:
+        - stage: LinuxARM64
+          displayName: Linux ARM64
+          dependsOn: []
+          pool:
+            name: 1es-ubuntu-22.04-x64
+            os: linux
+          jobs:
+            - template: linux/product-build-linux-cli.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+            - template: linux/product-build-linux-jobs.yml@self
+              parameters:
+                NPM_ARCH: arm64
+                VSCODE_ARCH: arm64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARMHF'], true) }}:
+        - stage: LinuxARMHF
+          displayName: Linux ARMHF
+          dependsOn: []
+          pool:
+            name: 1es-ubuntu-22.04-x64
+            os: linux
+          jobs:
+            - template: linux/product-build-linux-cli.yml@self
+              parameters:
+                VSCODE_ARCH: armhf
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+            - template: linux/product-build-linux-jobs.yml@self
+              parameters:
+                NPM_ARCH: arm
+                VSCODE_ARCH: armhf
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+      - ${{ if and(eq(variables['VSCODE_BUILD_STAGE_LINUX'], true), eq(variables['VSCODE_CIBUILD'], true)) }}:
+        - stage: Linux
+          displayName: Linux X64
+          dependsOn: []
+          pool:
+            name: 1es-ubuntu-22.04-x64
+            os: linux
+          jobs:
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], true), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
               - template: linux/product-build-linux-cli.yml@self
                 parameters:
                   VSCODE_ARCH: x64
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
-              - template: linux/product-build-linux-cli.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
-              - template: linux/product-build-linux-cli.yml@self
-                parameters:
-                  VSCODE_ARCH: armhf
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
@@ -196,45 +275,40 @@ stages:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_TEST_SUITE: Electron
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_TEST_IDS:
+                    - unit-electron
+                    - unit-node
+                    - unit-browser-chromium
+                    - copilot
               - template: linux/product-build-linux-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_TEST_SUITE: Browser
+                  VSCODE_JOB_NAME: BrowserRemote
+                  VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                  VSCODE_TEST_IDS:
+                    - integration-browser-chromium
+                    - integration-remote
+                    - smoke-browser-chromium
+                    - smoke-remote
               - template: linux/product-build-linux-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_TEST_SUITE: Remote
-
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}:
-              - template: linux/product-build-linux.yml@self
+                  VSCODE_JOB_NAME: Integration
+                  VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-electron
+              - template: linux/product-build-linux-ci.yml@self
                 parameters:
-                  NPM_ARCH: x64
-                  VSCODE_ARCH: x64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
-
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
-              - template: linux/product-build-linux.yml@self
-                parameters:
-                  NPM_ARCH: arm
-                  VSCODE_ARCH: armhf
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
-              - template: linux/product-build-linux.yml@self
-                parameters:
-                  NPM_ARCH: arm64
-                  VSCODE_ARCH: arm64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: Smoke
+                  VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - smoke-electron
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
         - stage: Alpine
@@ -257,8 +331,9 @@ stages:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
+      - ${{ if and(eq(variables['VSCODE_BUILD_STAGE_MACOS'], true), eq(variables['VSCODE_CIBUILD'], true)) }}:
         - stage: macOS
+          displayName: macOS ARM64
           dependsOn: []
           pool:
             name: AcesShared
@@ -274,44 +349,112 @@ stages:
                   VSCODE_ARCH: x64
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
+            - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
               - template: darwin/product-build-darwin-cli.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
+                  VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              - template: darwin/product-build-darwin-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_TEST_SUITE: Electron
-              - template: darwin/product-build-darwin-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_TEST_SUITE: Browser
-              - template: darwin/product-build-darwin-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_TEST_SUITE: Remote
+            - template: darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                VSCODE_TEST_IDS:
+                  - unit-electron
+                  - unit-node
+                  - unit-browser-webkit
+                  - copilot
+            - template: darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: BrowserRemote
+                VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                VSCODE_TEST_IDS:
+                  - integration-browser-webkit
+                  - integration-remote
+                  - smoke-browser-chromium
+                  - smoke-remote
+            - template: darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: Integration
+                VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-electron
+            - template: darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: Smoke
+                VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - smoke-electron
+                  - smoke-agents-pac-proxy
+                  - smoke-agents-kerberos-pac-proxy
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}:
-              - template: darwin/product-build-darwin.yml@self
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_X64'], true) }}:
+        - stage: macOSX64
+          displayName: macOS X64
+          dependsOn: []
+          pool:
+            name: AcesShared
+            os: macOS
+            demands:
+              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+          variables:
+            BUILDSECMON_OPT_IN: true
+          jobs:
+            - template: darwin/product-build-darwin-cli.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
-              - template: darwin/product-build-darwin.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+            - template: darwin/product-build-darwin.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true)) }}:
-              - template: darwin/product-build-darwin-universal.yml@self
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_ARM64'], true) }}:
+        - stage: macOSARM64
+          displayName: macOS ARM64
+          dependsOn: []
+          pool:
+            name: AcesShared
+            os: macOS
+            demands:
+              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+          variables:
+            BUILDSECMON_OPT_IN: true
+          jobs:
+            - template: darwin/product-build-darwin-cli.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+            - template: darwin/product-build-darwin.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+
+      # The universal job waits for the unsigned x64 and arm64 client artifacts
+      # instead of depending on their stages, so that it runs in parallel.
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_UNIVERSAL'], true) }}:
+        - stage: macOSUniversal
+          displayName: macOS UNIVERSAL
+          dependsOn: []
+          pool:
+            name: AcesShared
+            os: macOS
+            demands:
+              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+          variables:
+            BUILDSECMON_OPT_IN: true
+          jobs:
+            - template: darwin/product-build-darwin-universal.yml@self
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
         - stage: Web

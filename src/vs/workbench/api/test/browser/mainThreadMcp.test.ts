@@ -5,29 +5,63 @@
 
 import * as assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { IMcpServerMatcher } from '../../../../platform/mcp/common/allowedMcpServers.js';
+import { AllowedMcpServersService } from '../../../../platform/mcp/common/allowedMcpServersService.js';
+import { IAllowedMcpServersService, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchMcpGatewayService } from '../../../contrib/mcp/common/mcpGatewayService.js';
 import { IMcpHostDelegate, IMcpRegistry } from '../../../contrib/mcp/common/mcpRegistryTypes.js';
-import { McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../../../contrib/mcp/common/mcpTypes.js';
+import { McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, mcpOAuthClientSecretStorageKey } from '../../../contrib/mcp/common/mcpTypes.js';
+import { mcpEnterpriseManagedAuthIdpSection } from '../../../contrib/mcp/common/mcpConfiguration.js';
 import { IAuthenticationMcpAccessService } from '../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationService, IAuthenticationWwwAuthenticateRequest } from '../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { IMcpServerAuthContext, MainThreadMcp, McpServerAuthTracker } from '../../browser/mainThreadMcp.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails } from '../../common/extHost.protocol.js';
+import { CommonRequestInit, CommonResponse, McpHTTPHandle } from '../../common/extHostMcp.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+
+function createMainThreadMcp(disposables: Pick<DisposableStore, 'add'>, proxy: Partial<ExtHostMcpShape>, registry: IMcpRegistry, configure?: (services: TestInstantiationService) => void): MainThreadMcp {
+	const services = disposables.add(new TestInstantiationService());
+	services.stub(IMcpRegistry, registry);
+	services.stub(IDialogService, {});
+	services.stub(IAuthenticationService, { onDidChangeSessions: Event.None });
+	services.stub(IAuthenticationMcpService, {});
+	services.stub(IAuthenticationMcpAccessService, {});
+	services.stub(IAuthenticationMcpUsageService, {});
+	services.stub(IDynamicAuthenticationProviderStorageService, {});
+	services.stub(IExtensionService, new TestExtensionService());
+	services.stub(IContextKeyService, {});
+	services.stub(ITelemetryService, {});
+	services.stub(IWorkbenchMcpGatewayService, {});
+	services.stub(IConfigurationService, {});
+	services.stub(ISecretStorageService, {});
+	services.stub(IAllowedMcpServersService, {
+		onDidChangeAllowedMcpServers: Event.None,
+		isServerAllowed: () => true,
+	});
+	configure?.(services);
+	return disposables.add(services.createInstance(MainThreadMcp, SingleProxyRPCProtocol(proxy)));
+}
 
 suite('MainThreadMcp - McpServerAuthTracker', () => {
 
@@ -123,24 +157,7 @@ suite('MainThreadMcp - launch', () => {
 			}
 		};
 
-		disposables.add(new MainThreadMcp(
-			SingleProxyRPCProtocol(proxy),
-			mcpRegistry,
-			new class extends mock<IDialogService>() { },
-			new class extends mock<IAuthenticationService>() {
-				override readonly onDidChangeSessions = Event.None;
-			},
-			new class extends mock<IAuthenticationMcpService>() { },
-			new class extends mock<IAuthenticationMcpAccessService>() { },
-			new class extends mock<IAuthenticationMcpUsageService>() { },
-			new class extends mock<IDynamicAuthenticationProviderStorageService>() { },
-			new TestExtensionService(),
-			new class extends mock<IContextKeyService>() { },
-			new class extends mock<ITelemetryService>() { },
-			new class extends mock<IWorkbenchMcpGatewayService>() { },
-			new class extends mock<IConfigurationService>() { },
-			new class extends mock<ISecretStorageService>() { },
-		));
+		createMainThreadMcp(disposables, proxy, mcpRegistry);
 
 		const launch: McpServerLaunch = {
 			type: McpServerTransportType.HTTP,
@@ -181,13 +198,18 @@ suite('MainThreadMcp - re-validation', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	// Guards the #324925 regression end-to-end: an unrelated auth-session change must re-validate the
-	// tracked server by replaying the authorization server / client id / resource / audience it was
-	// established with, rather than dropping them (which fell back to the wrong tenant authority). The
-	// McpServerAuthTracker tests only prove the context is *stored*; this proves it is *forwarded*.
-	test('replays the tracked auth context to getSessions on an unrelated session change (#324925)', async () => {
+	async function assertRevalidationContext(enterpriseManaged: boolean, clientId: string | undefined): Promise<void> {
 		const authorizationServer = URI.parse('https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47');
-		const resource = 'api://icmmcpapi-prod/mcp.tools';
+		const configuredIssuer = URI.parse('https://sso.example/issuer');
+		const resource = 'https://resource.example/mcp';
+		const serverUrl = 'https://myserver.example/mcp';
+		const audience = enterpriseManaged ? 'https://resource-as.example' : undefined;
+		const secretStorageKey = clientId ? mcpOAuthClientSecretStorageKey(enterpriseManaged ? resource : serverUrl, clientId) : undefined;
+		const secrets = new Map<string, string>();
+		if (secretStorageKey) {
+			secrets.set(secretStorageKey, 'original-secret');
+		}
+		const secretStorageReads: string[] = [];
 		const session: AuthenticationSession = {
 			id: 'session-1',
 			accessToken: 'access-token',
@@ -195,16 +217,17 @@ suite('MainThreadMcp - re-validation', () => {
 			scopes: ['scope.read'],
 		};
 
-		// The options bag passed to getSessions on each call, in order. Index 0 is the initial
-		// acquisition; index 1 is the re-validation triggered by the unrelated session change.
 		const getSessionsOptions: Array<IAuthenticationGetSessionsOptions | undefined> = [];
-		const revalidated = new DeferredPromise<void>();
+		let revalidated = new DeferredPromise<void>();
 
 		const onDidChangeSessions = disposables.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
 
 		const authenticationService = new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override async getOrActivateProviderIdForServer(): Promise<string | undefined> {
+				return 'test-provider';
+			}
+			override async createOrGetXaaProvider(): Promise<string | undefined> {
 				return 'test-provider';
 			}
 			override isDynamicAuthenticationProvider(): boolean {
@@ -219,7 +242,7 @@ suite('MainThreadMcp - re-validation', () => {
 			}
 			override async getSessions(_id: string, _scopes?: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationGetSessionsOptions): Promise<ReadonlyArray<AuthenticationSession>> {
 				getSessionsOptions.push(options);
-				if (getSessionsOptions.length === 2) {
+				if (getSessionsOptions.length > 1) {
 					revalidated.complete();
 				}
 				return [session];
@@ -241,34 +264,27 @@ suite('MainThreadMcp - re-validation', () => {
 				return { dispose() { } };
 			}
 		};
+		const configurationService = new TestConfigurationService({
+			[mcpEnterpriseManagedAuthIdpSection]: { issuer: configuredIssuer.toString(true) }
+		});
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 
-		const mainThreadMcp = disposables.add(new MainThreadMcp(
-			SingleProxyRPCProtocol(proxy),
-			mcpRegistry,
-			new class extends mock<IDialogService>() { },
-			authenticationService,
-			new class extends mock<IAuthenticationMcpService>() {
-				override getAccountPreference(): string | undefined { return undefined; }
-			},
-			new class extends mock<IAuthenticationMcpAccessService>() {
-				override isAccessAllowedForUrl(): boolean { return true; }
-			},
-			new class extends mock<IAuthenticationMcpUsageService>() {
-				override addAccountUsage(): void { }
-			},
-			new class extends mock<IDynamicAuthenticationProviderStorageService>() { },
-			new TestExtensionService(),
-			new class extends mock<IContextKeyService>() { },
-			new class extends mock<ITelemetryService>() { },
-			new class extends mock<IWorkbenchMcpGatewayService>() { },
-			new class extends mock<IConfigurationService>() { },
-			new class extends mock<ISecretStorageService>() {
-				override async get(): Promise<string | undefined> { return undefined; }
-			},
-		));
+		const mainThreadMcp = createMainThreadMcp(disposables, proxy, mcpRegistry, services => {
+			services.stub(IAuthenticationService, authenticationService);
+			services.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+			services.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+			services.stub(IAuthenticationMcpUsageService, { addAccountUsage() { } });
+			services.stub(IConfigurationService, configurationService);
+			services.stub(ISecretStorageService, {
+				async get(key: string) {
+					secretStorageReads.push(key);
+					return secrets.get(key);
+				}
+			});
+		});
 
 		// Register a running HTTP server via the host delegate (the only path into the private maps).
-		const launch: McpServerLaunch = { type: McpServerTransportType.HTTP, uri: URI.parse('https://myserver.example/mcp'), headers: [] };
+		const launch: McpServerLaunch = { type: McpServerTransportType.HTTP, uri: URI.parse(serverUrl), headers: [] };
 		const serverDefinition: McpServerDefinition = { id: 'my-server', label: 'My Server', launch, cacheNonce: 'nonce-1' };
 		const collection: McpCollectionDefinition = {
 			remoteAuthority: null,
@@ -284,29 +300,202 @@ suite('MainThreadMcp - re-validation', () => {
 		capturedDelegate.start(collection, serverDefinition, launch, {});
 		mainThreadMcp.$onDidChangeState(1, { state: McpConnectionState.Kind.Running });
 
-		// Establish (and track) the session against the tenant-specific authority + resource.
 		const authDetails: IMcpAuthenticationDetails = {
 			authorizationServer,
 			authorizationServerMetadata: { issuer: authorizationServer.toString(), response_types_supported: ['code'], scopes_supported: ['scope.read'] },
-			resourceMetadata: { resource, scopes_supported: ['scope.read'] },
+			resourceMetadata: { resource, scopes_supported: ['scope.read'], authorization_servers: ['https://resource-as.example'] },
 			scopes: ['scope.read'],
-			clientId: 'client-abc',
+			clientId,
+			enterpriseManaged,
 		};
 		await mainThreadMcp.$getTokenFromServerMetadata(1, authDetails, {});
-		assert.strictEqual(getSessionsOptions.length, 1, 'the initial acquisition queried getSessions once');
 
-		// An unrelated Microsoft session change fires -> every tracked server is re-validated.
-		onDidChangeSessions.fire({ providerId: 'test-provider', label: 'Test Provider', event: { added: undefined, removed: undefined, changed: undefined } });
-		await revalidated.p;
+		for (const secret of ['rotated-secret', undefined]) {
+			if (secretStorageKey) {
+				if (secret === undefined) {
+					secrets.delete(secretStorageKey);
+				} else {
+					secrets.set(secretStorageKey, secret);
+				}
+			}
+			revalidated = new DeferredPromise<void>();
+			onDidChangeSessions.fire({ providerId: 'test-provider', label: 'Test Provider', event: { added: undefined, removed: undefined, changed: undefined } });
+			await revalidated.p;
+		}
 
-		// The re-validation call must carry the tracked context, not undefined. Dropping the
-		// authorization server here is exactly the #324925 regression (wrong-tenant token request).
-		assert.deepStrictEqual(getSessionsOptions[1], {
-			authorizationServer,
-			clientId: 'client-abc',
-			clientSecret: undefined,
-			resource,
-			audience: undefined,
+		const expectedSecrets = clientId ? ['original-secret', 'rotated-secret', undefined] : [undefined, undefined, undefined];
+		assert.deepStrictEqual({ getSessionsOptions, secretStorageReads }, {
+			getSessionsOptions: expectedSecrets.map((clientSecret, index) => ({
+				authorizationServer: enterpriseManaged ? configuredIssuer : authorizationServer,
+				clientId,
+				clientSecret,
+				resource,
+				audience,
+				silent: index > 0,
+			})),
+			secretStorageReads: secretStorageKey ? [secretStorageKey, secretStorageKey, secretStorageKey] : [],
 		});
+	}
+
+	test('replays the tracked auth context with a rotated or removed client secret (#324925)', async () => {
+		await assertRevalidationContext(false, 'client-abc');
+	});
+
+	test('replays XAA resource auth context with a rotated or removed client secret', async () => {
+		await assertRevalidationContext(true, 'resource-client');
+	});
+
+	test('revalidates clients without a secret-storage key without reading secret storage', async () => {
+		await assertRevalidationContext(false, undefined);
+	});
+});
+
+suite('MainThreadMcp - request policy', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const initialUrl = 'https://allowed.example/mcp';
+	const redirectedUrl = 'https://redirected.example/mcp';
+	const name = 'Configured MCP Server';
+
+	function createConnection(options: {
+		allowed?: readonly IMcpServerMatcher[];
+		denied?: readonly IMcpServerMatcher[];
+		access?: McpAccessValue;
+		destination?: string;
+	} = {}) {
+		const configuration = new TestConfigurationService({
+			[mcpAllowedServersConfig]: options.allowed,
+			[mcpDeniedServersConfig]: options.denied,
+			[mcpAccessConfig]: options.access,
+		});
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const policy = disposables.add(new AllowedMcpServersService(configuration));
+		const stopped: number[] = [];
+		const requests: string[] = [];
+		let delegate: IMcpHostDelegate | undefined;
+		const registry = new class extends mock<IMcpRegistry>() {
+			override readonly collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
+			override registerDelegate(value: IMcpHostDelegate) {
+				delegate = value;
+				return { dispose() { } };
+			}
+		};
+		const mainThread = createMainThreadMcp(disposables, {
+			$startMcp() { },
+			$stopMcp(id) {
+				stopped.push(id);
+				httpHandle.dispose();
+			},
+			$sendMessage() { },
+			$onDidChangeMcpServerDefinitions() { },
+		}, registry, services => {
+			services.stub(IConfigurationService, configuration);
+			services.stub(IAllowedMcpServersService, policy);
+		});
+		const launch = { type: McpServerTransportType.HTTP, uri: URI.parse(initialUrl), headers: [] } satisfies McpServerLaunch;
+		const definition: McpServerDefinition = { id: 'server', label: name, cacheNonce: 'nonce', launch };
+		const collection: McpCollectionDefinition = {
+			id: 'collection',
+			label: 'Collection',
+			remoteAuthority: null,
+			serverDefinitions: observableValue<readonly McpServerDefinition[]>('definitions', [definition]),
+			trustBehavior: McpServerTrust.Kind.Trusted,
+			scope: StorageScope.WORKSPACE,
+			configTarget: ConfigurationTarget.USER,
+			order: McpCollectionSortOrder.WorkspaceFolder,
+		};
+		assert.ok(delegate);
+		const transport = delegate.start(collection, definition, launch);
+		const destination = options.destination ?? redirectedUrl;
+		const httpHandle = disposables.add(new class extends McpHTTPHandle {
+			protected override async _fetchInternal(url: string, _init?: CommonRequestInit): Promise<CommonResponse> {
+				requests.push(url);
+				return url === initialUrl
+					? new Response(null, { status: 307, headers: { location: destination } })
+					: new Response(null, { status: 202 });
+			}
+		}(1, launch, mainThread, new NullLogService()));
+		return {
+			mainThread, policy, transport, stopped, requests,
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the private request boundary without widening the transport API.
+			fetch: () => httpHandle['_fetch'](initialUrl, { method: 'POST', headers: {} }),
+			async denyDestination() {
+				await configuration.setUserConfiguration(mcpDeniedServersConfig, [{ serverUrl: destination }]);
+				configuration.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([mcpDeniedServersConfig]),
+					change: { keys: [mcpDeniedServersConfig], overrides: [] },
+					affectsConfiguration: section => section === mcpDeniedServersConfig,
+				});
+			},
+		};
+	}
+
+	for (const destination of [redirectedUrl, 'https://allowed.example/private']) {
+		test(`enforces URL denials before dispatch to ${destination}`, async () => {
+			const { fetch, policy, requests, transport } = createConnection({ denied: [{ serverUrl: destination }], destination });
+			assert.strictEqual(policy.isServerAllowed({ name, url: initialUrl }), true);
+			const denial = policy.isServerAllowed({ name, url: destination });
+			assert.notStrictEqual(denial, true);
+			assert.ok(denial !== true);
+			await assert.rejects(fetch(), { message: denial.value });
+			assert.deepStrictEqual({ requests, state: transport.state.get() }, {
+				requests: [initialUrl],
+				state: { state: McpConnectionState.Kind.Error, message: denial.value },
+			});
+		});
+	}
+
+	test('requires a URL-allowlisted redirect destination to be separately allowed', async () => {
+		const { fetch, requests } = createConnection({ allowed: [{ serverUrl: initialUrl }] });
+		await assert.rejects(fetch(), /not in the list of servers allowed/);
+		assert.deepStrictEqual(requests, [initialUrl]);
+	});
+
+	test('preserves the configured server name for destination policy decisions', async () => {
+		const { fetch, requests } = createConnection({ allowed: [{ serverName: name }] });
+		await fetch();
+		assert.deepStrictEqual(requests, [initialUrl, redirectedUrl]);
+	});
+
+	test('a destination denial overrides a matching server name allowlist', async () => {
+		const { fetch, requests } = createConnection({ allowed: [{ serverName: name }], denied: [{ serverUrl: redirectedUrl }] });
+		await assert.rejects(fetch(), /blocked by your organization's policy/);
+		assert.deepStrictEqual(requests, [initialUrl]);
+	});
+
+	test('allows explicitly permitted redirect destinations', async () => {
+		const { fetch, requests } = createConnection({ allowed: [{ serverUrl: initialUrl }, { serverUrl: redirectedUrl }] });
+		await fetch();
+		assert.deepStrictEqual(requests, [initialUrl, redirectedUrl]);
+	});
+
+	test('enforces global MCP disablement before dispatch', async () => {
+		const { fetch, requests } = createConnection({ access: McpAccessValue.None });
+		await assert.rejects(fetch(), /Model Context Protocol servers are disabled/);
+		assert.deepStrictEqual(requests, []);
+	});
+
+	test('enforces configured server name denials before dispatch', async () => {
+		const { fetch, requests } = createConnection({ denied: [{ serverName: name }] });
+		await assert.rejects(fetch(), /blocked by your organization's policy/);
+		assert.deepStrictEqual(requests, []);
+	});
+
+	test('stops an active redirected transport when destination policy is revoked', async () => {
+		const { fetch, denyDestination, stopped, requests, transport } = createConnection();
+		await fetch();
+		await denyDestination();
+		assert.deepStrictEqual({ stopped, state: transport.state.get().state, requests }, {
+			stopped: [1],
+			state: McpConnectionState.Kind.Error,
+			requests: [initialUrl, redirectedUrl],
+		});
+	});
+
+	test('does not dispatch using a removed connection', async () => {
+		const { mainThread, fetch, requests } = createConnection();
+		mainThread.$onDidChangeState(1, { state: McpConnectionState.Kind.Stopped });
+		await assert.rejects(fetch(), isCancellationError);
+		assert.deepStrictEqual(requests, []);
 	});
 });

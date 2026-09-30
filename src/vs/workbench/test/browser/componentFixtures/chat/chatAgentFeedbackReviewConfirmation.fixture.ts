@@ -50,6 +50,7 @@ function createMockContext(sessionResource: URI): IChatContentPartRenderContext 
 		diffEditorPool: undefined!,
 		currentWidth: observableValue('currentWidth', 480),
 		onDidChangeVisibility: Event.None,
+		inToolConfirmationCarousel: true,
 	};
 }
 

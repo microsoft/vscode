@@ -52,6 +52,25 @@ suite('urlGlob', () => {
 			assert.strictEqual(testUrlMatchesGlob('https://example.com/path/to/resource', 'https://example.com/path/*/resource'), true);
 		});
 
+		test('preserves nonempty trailing wildcard and path-prefix semantics', () => {
+			assert.deepStrictEqual([
+				testUrlMatchesGlob('https://example.test/a', 'https://example.test/a*'),
+				testUrlMatchesGlob('https://example.test/ab', 'https://example.test/a*'),
+				testUrlMatchesGlob('https://example.test/ab', 'https://example.test/*b'),
+				testUrlMatchesGlob('https://example.test/ab', 'https://example.test/*b*'),
+				testUrlMatchesGlob('https://example.test/a/b', 'https://example.test/a'),
+				testUrlMatchesGlob('https://example.test/', 'https://example.test:*'),
+			], [false, true, true, false, true, true]);
+		});
+
+		test('matches long paths without recursive stack growth', () => {
+			const segment = 'x'.repeat(8192);
+			assert.deepStrictEqual([
+				testUrlMatchesGlob(`https://example.test/docs/${segment}/match`, 'https://example.test/docs/*/match'),
+				testUrlMatchesGlob(`https://example.test/docs/${segment}/miss`, 'https://example.test/docs/*/match'),
+			], [true, false]);
+		});
+
 		test('dot segments cannot escape a path-scoped glob', () => {
 			const paths = [
 				'/allowed/../outside',
@@ -197,6 +216,94 @@ suite('urlGlob', () => {
 			assert.strictEqual(testUrlMatchesGlob('https://sub.example.com', 'https://*.example.com'), true);
 			assert.strictEqual(testUrlMatchesGlob('https://sub.domain.example.com', 'https://*.example.com'), true);
 			assert.strictEqual(testUrlMatchesGlob('https://example.com', 'https://*.example.com'), true);
+		});
+
+		test('backslash URL authorities match only the browser destination', () => {
+			const cases = [
+				{ url: String.raw`https://evil.example\.github.com/collect?leak=<data>`, pattern: 'https://*.github.com', matches: false },
+				{ url: String.raw`https://evil.example\\.github.com/collect?leak=<data>`, pattern: 'https://*.github.com', matches: false },
+				{ url: String.raw`https://169.254.169.254\.github.com/latest/meta-data/`, pattern: '*.github.com', matches: false },
+				{ url: String.raw`https://169.254.169.254\\.github.com/latest/meta-data/`, pattern: '*.github.com', matches: false },
+				{ url: String.raw`http://127.0.0.2:38651\.github.com/exfil?data=fixture`, pattern: 'http://*.github.com:*', matches: false },
+				{ url: String.raw`https://github.com\.evil.example/resource`, pattern: 'https://*.github.com', matches: true },
+				{ url: 'https://api.github.com/resource', pattern: 'https://*.github.com', matches: true },
+				{ url: 'https://evil.example/resource', pattern: 'https://*.github.com', matches: false },
+				{ url: String.raw`custom://example.com\segment/resource`, pattern: String.raw`custom://example.com\segment`, matches: true },
+				{ url: String.raw`custom://example.com\segment/resource`, pattern: 'custom://example.com/segment', matches: false },
+			];
+
+			assert.deepStrictEqual(
+				cases.map(({ url, pattern }) => ({
+					url,
+					string: testUrlMatchesGlob(url, pattern),
+					uri: testUrlMatchesGlob(URI.parse(url), pattern),
+				})),
+				cases.map(({ url, matches }) => ({ url, string: matches, uri: matches }))
+			);
+		});
+
+		test('backslash URL patterns use browser path separators', () => {
+			const cases = [
+				{ url: 'https://example.com/.github.com/resource', pattern: String.raw`https://example.com\.github.com`, matches: true },
+				{ url: 'https://example.com/.github.com/resource', pattern: String.raw`example.com\.github.com`, matches: true },
+				{ url: 'https://example.com/path/resource', pattern: String.raw`https://example.com\path\*`, matches: true },
+				{ url: 'https://api.github.com/resource', pattern: String.raw`https://example.com\.github.com`, matches: false },
+			];
+
+			assert.deepStrictEqual(
+				cases.map(({ url, pattern }) => testUrlMatchesGlob(url, pattern)),
+				cases.map(({ matches }) => matches)
+			);
+		});
+
+		test('IDN literal hostname components match Unicode and Punycode spellings', () => {
+			const hosts = ['bücher.example.test', 'xn--bcher-kva.example.test', 'b%C3%BCcher.example.test', 'BÜCHER.EXAMPLE.TEST', 'XN--BCHER-KVA.EXAMPLE.TEST'];
+			const patterns = ['bücher.example.test', 'xn--bcher-kva.example.test'];
+
+			assert.deepStrictEqual(
+				hosts.map(host => patterns.map(pattern => ({
+					exact: testUrlMatchesGlob(`https://${host}`, `https://${pattern}`),
+					wildcard: testUrlMatchesGlob(`https://x.${host}`, `https://*.${pattern}`),
+					bare: testUrlMatchesGlob(`https://${host}`, `https://*.${pattern}`),
+					uri: testUrlMatchesGlob(URI.parse(`https://x.${host}`), `https://*.${pattern}`),
+				}))),
+				hosts.map(() => patterns.map(() => ({ exact: true, wildcard: true, bare: true, uri: true })))
+			);
+		});
+
+		test('IDN normalization preserves wildcard, scheme, port and path semantics', () => {
+			const cases = [
+				['https://api1.xn--bcher-kva.example.test', 'https://api*.bücher.example.test', true],
+				['https://xn--bcher-kva.a.example.test', 'https://bücher.*.example.test', true],
+				['https://x.xn--bcher-kva.example.test', '*.bücher.example.test', true],
+				['http://x.xn--bcher-kva.example.test', '*.bücher.example.test', true],
+				['https://x.xn--bcher-kva.example.test:8443/allowed/page', 'https://*.bücher.example.test:*/allowed/*', true],
+				['https://xn--bcher-kva.example.test/allowed/page', 'https://bücher.example.test:*/allowed', true],
+				['https://xn--bcher-kva.example.test:443', 'https://bücher.example.test:443', true],
+				['https://xn--bcher-kva.example.test:443', 'https://bücher.example.test', false],
+				['https://xn--bcher-kva.example.test', 'https://bücher.example.test:443', false],
+				['https://xn--bcher-kva.example.test:8443', 'https://bücher.example.test:8080', false],
+				['http://xn--bcher-kva.example.test', 'https://bücher.example.test', false],
+				['custom://xn--bcher-kva.example.test', '*.bücher.example.test', false],
+				['https://xn--bcher-kva.example.test/Allowed/page', 'https://bücher.example.test/allowed', false],
+				['https://xn--bcher-kva.example.test/allowed/../outside', 'https://bücher.example.test/allowed', false],
+				['https://xn--bcher-kva.example.test/allowed/child/../page', 'https://bücher.example.test/allowed', true],
+				['https://evilxn--bcher-kva.example.test', 'https://*.bücher.example.test', false],
+				['https://x.xn--bcher-kva.example.test.evil.test', 'https://*.bücher.example.test', false],
+				['https://x.other.example.test', 'https://*.bücher.example.test', false],
+				['https://bücher.example.test', 'https://bü*.example.test', true],
+				['https://x.bücher.example.test', 'https://＊.bücher.example.test', false],
+				['https://127.0.0.1', 'https://127.1', false],
+				['https://[::1]:8443', 'https://[::1]:*', true],
+			] as const;
+
+			assert.deepStrictEqual(
+				cases.map(([url, pattern]) => ({
+					string: testUrlMatchesGlob(url, pattern),
+					uri: testUrlMatchesGlob(URI.parse(url), pattern),
+				})),
+				cases.map(([, , expected]) => ({ string: expected, uri: expected }))
+			);
 		});
 
 		test('subdomain wildcard must match on dot boundary', () => {
