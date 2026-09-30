@@ -21,21 +21,22 @@ export class ColumnSelectionPasteCommand implements ICommand {
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		const visibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(this._selection.startLineNumber), this._selection.startColumn, this._tabSize);
+		const text = this._padTextToBlockWidth(visibleColumn);
 		const lineCount = model.getLineCount();
 		const ChosenReplaceCommand = this._overtype ? ReplaceOvertypeCommand : ReplaceCommand;
 
-		for (let i = 0; i < this._text.length; i++) {
+		for (let i = 0; i < text.length; i++) {
 			const lineNumber = this._selection.endLineNumber + i;
 			if (lineNumber > lineCount) {
 				const endColumn = model.getLineMaxColumn(lineCount);
 				const padding = ' '.repeat(visibleColumn);
-				const text = '\n' + padding + this._text.slice(i).join('\n' + padding);
-				builder.addTrackedEditOperation(new Range(lineCount, endColumn, lineCount, endColumn), text);
+				const appendedText = '\n' + padding + text.slice(i).join('\n' + padding);
+				builder.addTrackedEditOperation(new Range(lineCount, endColumn, lineCount, endColumn), appendedText);
 				break;
 			}
 
 			let range: Range;
-			let text = this._text[i];
+			let lineText = text[i];
 			if (i === 0) {
 				range = this._selection;
 			} else {
@@ -44,11 +45,26 @@ export class ColumnSelectionPasteCommand implements ICommand {
 				range = new Range(lineNumber, column, lineNumber, column);
 				if (column === model.getLineMaxColumn(lineNumber)) {
 					const endVisibleColumn = CursorColumns.visibleColumnFromColumn(lineContent, column, this._tabSize);
-					text = ' '.repeat(Math.max(0, visibleColumn - endVisibleColumn)) + text;
+					lineText = ' '.repeat(Math.max(0, visibleColumn - endVisibleColumn)) + lineText;
 				}
 			}
-			new ChosenReplaceCommand(range, text).getEditOperations(model, builder);
+			new ChosenReplaceCommand(range, lineText).getEditOperations(model, builder);
 		}
+	}
+
+	private _padTextToBlockWidth(visibleColumn: number): string[] {
+		const prefix = ' '.repeat(visibleColumn);
+		const endVisibleColumns: number[] = [];
+		let blockEndVisibleColumn = visibleColumn;
+
+		for (const text of this._text) {
+			const textWithPrefix = prefix + text;
+			const endVisibleColumn = CursorColumns.visibleColumnFromColumn(textWithPrefix, textWithPrefix.length + 1, this._tabSize);
+			endVisibleColumns.push(endVisibleColumn);
+			blockEndVisibleColumn = Math.max(blockEndVisibleColumn, endVisibleColumn);
+		}
+
+		return this._text.map((text, index) => text + ' '.repeat(blockEndVisibleColumn - endVisibleColumns[index]));
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {

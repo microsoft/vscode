@@ -63,7 +63,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right', 'left--right', 'left--right'],
 			selections: [new Selection(1, 5, 1, 5)],
-			expected: ['leftA--right', 'leftBC--right', 'leftD--right']
+			expected: ['leftA --right', 'leftBC--right', 'leftD --right']
 		});
 	});
 
@@ -71,7 +71,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right', 'left--right', 'left--right'],
 			selections: [new Selection(1, 5, 1, 7)],
-			expected: ['leftAright', 'leftBC--right', 'leftD--right']
+			expected: ['leftA right', 'leftBC--right', 'leftD --right']
 		});
 	});
 
@@ -79,7 +79,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right', 'left--right', 'left--right'],
 			selections: [new Selection(1, 7, 1, 5)],
-			expected: ['leftAright', 'leftBC--right', 'leftD--right']
+			expected: ['leftA right', 'leftBC--right', 'leftD --right']
 		});
 	});
 
@@ -87,7 +87,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right', 'left--right', 'left--right'],
 			selections: [new Selection(1, 5, 3, 7)],
-			expected: ['leftAright', '    BC', '    D']
+			expected: ['leftA right', '    BC', '    D ']
 		});
 	});
 
@@ -95,7 +95,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right', 'left--right', 'left--right'],
 			selections: [new Selection(3, 7, 1, 5)],
-			expected: ['leftAright', '    BC', '    D']
+			expected: ['leftA right', '    BC', '    D ']
 		});
 	});
 
@@ -103,7 +103,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['first', 'second', 'third', 'unselected'],
 			selections: [new Selection(1, 1, 4, 1)],
-			expected: ['Aunselected', 'BC', 'D']
+			expected: ['A unselected', 'BC', 'D ']
 		});
 	});
 
@@ -111,7 +111,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right', 'second', 'third', 'unselected'],
 			selections: [new Selection(4, 1, 1, 5)],
-			expected: ['leftAunselected', '    BC', '    D']
+			expected: ['leftA unselected', '    BC', '    D ']
 		});
 	});
 
@@ -119,7 +119,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right', 'left--right', 'last'],
 			selections: [new Selection(1, 5, 2, 7)],
-			expected: ['leftAright', 'lastBC', '    D']
+			expected: ['leftA right', 'lastBC', '    D ']
 		});
 	});
 
@@ -127,7 +127,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right', 'middle', 'middle', 'left--right'],
 			selections: [new Selection(1, 5, 4, 7)],
-			expected: ['leftAright', '    BC', '    D']
+			expected: ['leftA right', '    BC', '    D ']
 		});
 	});
 
@@ -135,7 +135,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right', 'x', ''],
 			selections: [new Selection(1, 5, 1, 5)],
-			expected: ['leftA--right', 'x   BC', '    D']
+			expected: ['leftA --right', 'x   BC', '    D ']
 		});
 	});
 
@@ -143,7 +143,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left--right'],
 			selections: [new Selection(1, 5, 1, 5)],
-			expected: ['leftA--right', '    BC', '    D']
+			expected: ['leftA --right', '    BC', '    D ']
 		});
 	});
 
@@ -151,7 +151,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['left'],
 			selections: [new Selection(1, 5, 1, 5)],
-			expected: ['leftA', '    BC', '    D']
+			expected: ['leftA ', '    BC', '    D ']
 		});
 	});
 
@@ -159,7 +159,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: [''],
 			selections: [new Selection(1, 1, 1, 1)],
-			expected: ['A', 'BC', 'D']
+			expected: ['A ', 'BC', 'D ']
 		});
 	});
 
@@ -168,7 +168,7 @@ suite('Column selection paste', () => {
 			text: ['left--right', 'left--right', 'left--right', 'left--right'],
 			selections: [new Selection(1, 5, 1, 5)],
 			pastedText: 'A\n\nD\n',
-			expected: ['leftA--right', 'left--right', 'leftD--right', 'left--right']
+			expected: ['leftA--right', 'left --right', 'leftD--right', 'left --right']
 		});
 	});
 
@@ -177,7 +177,7 @@ suite('Column selection paste', () => {
 			text: ['left', 'x', '', 'y'],
 			selections: [new Selection(1, 5, 1, 5)],
 			pastedText: 'A\n\nD\n',
-			expected: ['leftA', 'x   ', '    D', 'y   ']
+			expected: ['leftA', 'x    ', '    D', 'y    ']
 		});
 	});
 
@@ -186,7 +186,7 @@ suite('Column selection paste', () => {
 			text: ['left'],
 			selections: [new Selection(1, 5, 1, 5)],
 			pastedText: 'A\n\nD\n',
-			expected: ['leftA', '    ', '    D', '    ']
+			expected: ['leftA', '     ', '    D', '     ']
 		});
 	});
 
@@ -194,7 +194,7 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['\tleft', '    left', '  \tleft'],
 			selections: [new Selection(1, 2, 1, 2)],
-			expected: ['\tAleft', '    BCleft', '  \tDleft']
+			expected: ['\tA left', '    BCleft', '  \tD left']
 		});
 	});
 
@@ -203,7 +203,7 @@ suite('Column selection paste', () => {
 			text: ['\t--left', '\t', ''],
 			selections: [new Selection(1, 4, 1, 4)],
 			tabSize: 8,
-			expected: ['\t--Aleft', '\t  BC', '          D']
+			expected: ['\t--A left', '\t  BC', '          D ']
 		});
 	});
 
@@ -220,7 +220,17 @@ suite('Column selection paste', () => {
 		assertPaste({
 			text: ['\u{1F600}left', 'e\u0301xleft', '\u4E2Dleft'],
 			selections: [new Selection(1, 3, 1, 3)],
-			expected: ['\u{1F600}Aleft', 'e\u0301xBCleft', '\u4E2DDleft']
+			expected: ['\u{1F600}A left', 'e\u0301xBCleft', '\u4E2DD left']
+		});
+	});
+
+	test('pads copied rows to the same visible width', () => {
+		assertPaste({
+			text: ['left--right', 'left--right', 'left--right', 'left--right'],
+			selections: [new Selection(1, 5, 1, 5)],
+			pastedText: '\tX\n\u4E2D\n\u{1F600}\ne\u0301',
+			payload: { isBlock: false },
+			expected: ['left\tX--right', 'left\u4E2D   --right', 'left\u{1F600}   --right', 'lefte\u0301    --right']
 		});
 	});
 
@@ -229,7 +239,7 @@ suite('Column selection paste', () => {
 			text: ['left--right', 'left--right', 'left--right'],
 			selections: [new Selection(1, 5, 1, 5)],
 			options: { wordWrap: 'wordWrapColumn', wordWrapColumn: 6 },
-			expected: ['leftA--right', 'leftBC--right', 'leftD--right']
+			expected: ['leftA --right', 'leftBC--right', 'leftD --right']
 		});
 	});
 
@@ -238,7 +248,7 @@ suite('Column selection paste', () => {
 			text: ['left--right', 'left--right', 'left--right'],
 			selections: [new Selection(1, 5, 1, 5)],
 			options: { multiCursorLimit: 1 },
-			expected: ['leftA--right', 'leftBC--right', 'leftD--right']
+			expected: ['leftA --right', 'leftBC--right', 'leftD --right']
 		});
 	});
 
@@ -311,21 +321,21 @@ suite('Column selection paste', () => {
 		});
 	});
 
-	test('ordinary multi-cursor copies are not treated as blocks', () => {
+	test('ordinary multiline copies spread into a rectangle at a single cursor', () => {
 		assertPaste({
 			text: ['left--right', 'last'],
 			selections: [new Selection(1, 5, 1, 5)],
 			payload: { isBlock: false },
-			expected: ['leftA', 'BC', 'D--right', 'last']
+			expected: ['leftA --right', 'lastBC', '    D ']
 		});
 	});
 
-	test('missing block metadata retains normal paste', () => {
+	test('missing block metadata still spreads multiline text at a single cursor', () => {
 		assertPaste({
 			text: ['left--right', 'last'],
 			selections: [new Selection(1, 5, 1, 5)],
 			payload: { isBlock: undefined, multicursorText: null },
-			expected: ['leftA', 'BC', 'D--right', 'last']
+			expected: ['leftA --right', 'lastBC', '    D ']
 		});
 	});
 
@@ -394,8 +404,8 @@ suite('Column selection paste', () => {
 			const undone = { text: model.getLinesContent(), selections: editor.getSelections() };
 			model.redo();
 			const expected = {
-				text: ['\tsuffix', 'x   BC', '    '],
-				selections: [new Selection(3, 5, 3, 5)]
+				text: ['\t  suffix', 'x   BC', '      '],
+				selections: [new Selection(3, 7, 3, 7)]
 			};
 			assert.deepStrictEqual({ after, undone, redone: { text: model.getLinesContent(), selections: editor.getSelections() } }, {
 				after: expected,
@@ -410,17 +420,17 @@ suite('Column selection paste', () => {
 			editor.getModel().setEOL(EndOfLineSequence.CRLF);
 			editor.setPosition(new Position(1, 5));
 			paste(editor, 'A\r\nBC\r\nD');
-			assert.strictEqual(editor.getModel().getValue(), 'leftA\r\nx   BC\r\n    D');
+			assert.strictEqual(editor.getModel().getValue(), 'leftA \r\nx   BC\r\n    D ');
 		});
 	});
 
-	test('leaves the cursor on an empty trailing pasted row', () => {
+	test('leaves the cursor after rectangular padding on an empty trailing pasted row', () => {
 		withTestCodeEditor(['left', 'left', 'left'], { multiCursorPaste: 'spread' }, editor => {
 			editor.setPosition(new Position(1, 5));
 			paste(editor, 'A\nBC\n');
 			assert.deepStrictEqual({ text: editor.getModel().getLinesContent(), selections: editor.getSelections() }, {
-				text: ['leftA', 'leftBC', 'left'],
-				selections: [new Selection(2, 7, 2, 7)]
+				text: ['leftA ', 'leftBC', 'left  '],
+				selections: [new Selection(3, 7, 3, 7)]
 			});
 		});
 	});
@@ -430,8 +440,8 @@ suite('Column selection paste', () => {
 			editor.setPosition(new Position(1, 5));
 			paste(editor, 'A\nBC\n');
 			assert.deepStrictEqual({ text: editor.getModel().getLinesContent(), selections: editor.getSelections() }, {
-				text: ['leftA', 'x   BC', '    '],
-				selections: [new Selection(3, 5, 3, 5)]
+				text: ['leftA ', 'x   BC', '      '],
+				selections: [new Selection(3, 7, 3, 7)]
 			});
 		});
 	});
@@ -441,8 +451,8 @@ suite('Column selection paste', () => {
 			editor.setPosition(new Position(1, 5));
 			paste(editor, 'A\nBC\n');
 			assert.deepStrictEqual({ text: editor.getModel().getLinesContent(), selections: editor.getSelections() }, {
-				text: ['leftA', '    BC', '    '],
-				selections: [new Selection(3, 5, 3, 5)]
+				text: ['leftA ', '    BC', '      '],
+				selections: [new Selection(3, 7, 3, 7)]
 			});
 		});
 	});
@@ -458,9 +468,9 @@ suite('Column selection paste', () => {
 			const undone = { text: model.getLinesContent(), selections: editor.getSelections() };
 			model.redo();
 			assert.deepStrictEqual({ after, undone, redone: { text: model.getLinesContent(), selections: editor.getSelections() } }, {
-				after: { text: ['leftAright', 'x   BC', '    D'], selections: [new Selection(3, 6, 3, 6)] },
+				after: { text: ['leftA right', 'x   BC', '    D '], selections: [new Selection(3, 7, 3, 7)] },
 				undone: { text: ['left--right', 'x'], selections: [selection] },
-				redone: { text: ['leftAright', 'x   BC', '    D'], selections: [new Selection(3, 6, 3, 6)] }
+				redone: { text: ['leftA right', 'x   BC', '    D '], selections: [new Selection(3, 7, 3, 7)] }
 			});
 		});
 	});
@@ -472,9 +482,9 @@ suite('Column selection paste', () => {
 			editor.setPosition(new Position(1, 5));
 			paste(editor);
 			assert.deepStrictEqual(changes, [[
-				{ range: new Range(3, 1, 3, 1), text: '    D' },
+				{ range: new Range(3, 1, 3, 1), text: '    D ' },
 				{ range: new Range(2, 2, 2, 2), text: '   BC' },
-				{ range: new Range(1, 5, 1, 5), text: 'A' }
+				{ range: new Range(1, 5, 1, 5), text: 'A ' }
 			]]);
 		});
 	});
@@ -489,8 +499,8 @@ suite('Column selection paste', () => {
 			editor.setSelection(new Selection(1, 5, 2, 7));
 			paste(editor);
 			assert.deepStrictEqual(events, [
-				{ range: new Range(1, 5, 3, 6) },
-				{ range: new Range(1, 5, 3, 6) }
+				{ range: new Range(1, 5, 3, 7) },
+				{ range: new Range(1, 5, 3, 7) }
 			]);
 		});
 	});
@@ -510,9 +520,9 @@ suite('Column selection paste', () => {
 				defaultValue: 'spread',
 				invalidValue: 'spread',
 				results: [
-					['leftA', 'x   BC', '    D'],
+					['leftA ', 'x   BC', '    D '],
 					['leftA', 'BC', 'D', 'x', ''],
-					['leftA', 'x   BC', '    D']
+					['leftA ', 'x   BC', '    D ']
 				]
 			});
 		});
@@ -525,7 +535,7 @@ suite('Column selection paste', () => {
 			withTestCodeEditor(['left--right', 'left--right', 'x', ''], { multiCursorPaste: 'spread', overtypeOnPaste: true }, editor => {
 				editor.setPosition(new Position(1, 5));
 				paste(editor, 'A\nBC\nD\nE');
-				assert.deepStrictEqual(editor.getModel().getLinesContent(), ['leftA-right', 'leftBCright', 'x   D', '    E']);
+				assert.deepStrictEqual(editor.getModel().getLinesContent(), ['leftA right', 'leftBCright', 'x   D ', '    E ']);
 			});
 		} finally {
 			InputMode.setInputMode(previousInputMode);
@@ -643,6 +653,7 @@ suite('Column selection paste', () => {
 		});
 
 		test('pastes a copied rectangle into another editor using serialized metadata', () => {
+			let actual: string[] = [];
 			withTestCodeEditor(['<AA>', '<BB>', '<CC>'], {}, (source, viewModel) => {
 				selectColumn(viewModel, new Position(1, 2), new Position(3, 4));
 				const clipboardData = copy(viewModel);
@@ -651,12 +662,13 @@ suite('Column selection paste', () => {
 					target.setPosition(new Position(1, 5));
 					const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData }));
 					paste(target, event.text, { isBlock: event.metadata?.isBlock === true, multicursorText: event.metadata?.multicursorText ?? null });
-					assert.deepStrictEqual(target.getModel().getLinesContent(), ['leftAA--right', 'leftBB--right', 'leftCC--right']);
+					actual = target.getModel().getLinesContent();
 				});
 			});
+			assert.deepStrictEqual(actual, ['leftAA--right', 'leftBB--right', 'leftCC--right']);
 		});
 
-		test('older clipboard metadata without a block flag uses normal paste', () => {
+		test('older clipboard metadata without a block flag still spreads multiline text', () => {
 			const clipboardData = new DataTransfer();
 			clipboardData.setData('text/plain', block);
 			clipboardData.setData('vscode-editor-data', JSON.stringify({
@@ -666,7 +678,7 @@ suite('Column selection paste', () => {
 				editor.setPosition(new Position(1, 5));
 				const event = createClipboardPasteEvent(new ClipboardEvent('paste', { clipboardData }));
 				paste(editor, event.text, { isBlock: event.metadata?.isBlock === true });
-				assert.deepStrictEqual(editor.getModel().getLinesContent(), ['leftA', 'BC', 'D--right']);
+				assert.deepStrictEqual(editor.getModel().getLinesContent(), ['leftA --right', '    BC', '    D ']);
 			});
 		});
 	});
