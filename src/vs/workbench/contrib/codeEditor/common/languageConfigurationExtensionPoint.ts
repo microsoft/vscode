@@ -44,7 +44,7 @@ interface IOnEnterRule {
 	action: IEnterAction;
 }
 
-interface ISerializedAutoClosingPairConditional extends IAutoClosingPair {
+export interface ISerializedAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
 	beforeText?: string | IRegExp;
 }

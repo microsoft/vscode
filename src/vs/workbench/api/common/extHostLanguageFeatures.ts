@@ -2994,7 +2994,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 		return onEnterRules.map(ExtHostLanguageFeatures._serializeOnEnterRule);
 	}
 
-	private static _serializeAutoClosingPair(autoClosingPair: vscode.AutoClosingPair): NonNullable<extHostProtocol.ILanguageConfigurationDto['autoClosingPairs']>[number] {
+	private static _serializeAutoClosingPair(autoClosingPair: vscode.AutoClosingPair): extHostProtocol.IAutoClosingPairDto {
 		return {
 			open: autoClosingPair.open,
 			close: autoClosingPair.close,
@@ -3003,7 +3003,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 		};
 	}
 
-	private static _serializeAutoClosingPairs(autoClosingPairs: vscode.AutoClosingPair[]): NonNullable<extHostProtocol.ILanguageConfigurationDto['autoClosingPairs']> {
+	private static _serializeAutoClosingPairs(autoClosingPairs: vscode.AutoClosingPair[]): extHostProtocol.IAutoClosingPairDto[] {
 		return autoClosingPairs.map(ExtHostLanguageFeatures._serializeAutoClosingPair);
 	}
 

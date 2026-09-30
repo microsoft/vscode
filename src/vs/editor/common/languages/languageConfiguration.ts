@@ -299,7 +299,7 @@ export class StandardAutoClosingPairConditional {
 	constructor(source: IAutoClosingPairConditional) {
 		this.open = source.open;
 		this.close = source.close;
-		this.beforeText = source.beforeText ? new RegExp(source.beforeText.source, source.beforeText.flags) : undefined;
+		this.beforeText = source.beforeText;
 
 		// initially allowed in all tokens
 		this._inString = true;
@@ -329,9 +329,7 @@ export class StandardAutoClosingPairConditional {
 			return true;
 		}
 		this.beforeText.lastIndex = 0;
-		const result = this.beforeText.test(text);
-		this.beforeText.lastIndex = 0;
-		return result;
+		return this.beforeText.test(text);
 	}
 
 	public isOK(standardToken: StandardTokenType): boolean {

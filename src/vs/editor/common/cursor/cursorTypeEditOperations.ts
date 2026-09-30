@@ -345,7 +345,8 @@ export class AutoClosingOpenCharTypeOperation {
 						candidateIsMatch = false;
 						break;
 					}
-					if (candidate.beforeText && !candidate.shouldAutoCloseBefore(model.getLineContent(position.lineNumber).substring(0, position.column - 1) + ch)) {
+					const prefix = model.getValueInRange(new Range(position.lineNumber, 1, position.lineNumber, position.column));
+					if (candidate.beforeText && !candidate.shouldAutoCloseBefore(prefix + ch)) {
 						candidateIsMatch = false;
 						break;
 					}
