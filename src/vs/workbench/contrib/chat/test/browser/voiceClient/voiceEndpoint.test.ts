@@ -100,7 +100,7 @@ suite('Voice endpoint', () => {
 			voice: getVoiceWebSocketUrl(configurationService, productService),
 			transcription: getTranscriptionWebSocketUrl(configurationService, productService),
 		}, {
-			voice: 'wss://api.openai.com/v1/live/sessions',
+			voice: 'wss://api.openai.com/v1/realtime?model=gpt-realtime',
 			transcription: 'wss://voice.test/voice-code/api/v1/realtime/transcription?product=stable',
 		});
 	});
@@ -163,10 +163,10 @@ suite('Voice endpoint', () => {
 		);
 	});
 
-	test('uses OpenAI websocket subprotocol auth for the live sessions endpoint', () => {
+	test('uses OpenAI websocket subprotocol auth for supported OpenAI websocket endpoints', () => {
 		assert.strictEqual(shouldUseOpenAiWebSocketSubprotocolAuth('wss://api.openai.com/v1/live/sessions'), true);
 		assert.strictEqual(shouldUseOpenAiWebSocketSubprotocolAuth('wss://api.openai.com/v1/live/sessions/'), true);
-		assert.strictEqual(shouldUseOpenAiWebSocketSubprotocolAuth('wss://api.openai.com/v1/realtime?model=gpt-live-1'), true);
+		assert.strictEqual(shouldUseOpenAiWebSocketSubprotocolAuth('wss://api.openai.com/v1/realtime?model=gpt-realtime'), true);
 		assert.strictEqual(shouldUseOpenAiWebSocketSubprotocolAuth('wss://api.openai.com/v1/realtime'), true);
 		assert.strictEqual(shouldUseOpenAiWebSocketSubprotocolAuth('wss://custom.example/v1/live/sessions'), false);
 	});

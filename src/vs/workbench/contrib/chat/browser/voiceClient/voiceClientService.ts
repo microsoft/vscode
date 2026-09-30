@@ -57,8 +57,12 @@ const ASR_SUPPORTED_LANGUAGE_BASES = new Set([
 	'ja', 'ko', 'nb', 'nl', 'pl', 'pt', 'ro', 'ru', 'sv', 'th', 'tr', 'vi', 'zh',
 ]);
 const DEFAULT_LANGUAGE = 'en-US';
-const OPENAI_LIVE_MODEL = 'gpt-live-1';
-
+const OPENAI_REALTIME_VOICE_BY_AGENTS_VOICE: Record<string, string> = {
+	harper_neutral: 'alloy',
+	birch_neutral: 'alloy',
+	junho_neutral: 'echo',
+	oak_neutral: 'sage',
+};
 function asOptionalString(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
 }
@@ -219,6 +223,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private _getVoice(): string {
 		return normalizeAgentsVoiceId(this._configurationService.getValue<string>('agents.voice.voice'));
+	}
+
+	private _getOpenAiVoice(): string {
+		const voice = this._getVoice();
+		return OPENAI_REALTIME_VOICE_BY_AGENTS_VOICE[voice] ?? 'alloy';
 	}
 
 	private _sendSetVoice(): void {
@@ -518,8 +527,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					});
 					break;
 				}
-				case 'response.audio.delta': {
-					const responseId = asOptionalString((msg as { response_id?: string }).response_id) ?? 'openai-response';
+				case 'response.audio.delta':
+				case 'response.output_audio.delta': {
+					const responseId = getOpenAiResponseId(msg as { response_id?: unknown; response?: { id?: unknown } }) ?? 'openai-response';
 					const firstChunk = !this._openAiAudioChunkSeen.has(responseId);
 					this._openAiAudioChunkSeen.add(responseId);
 					this._onAudioResponse.fire({
@@ -530,8 +540,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					});
 					break;
 				}
-				case 'response.audio.done': {
-					const responseId = asOptionalString((msg as { response_id?: string }).response_id) ?? 'openai-response';
+				case 'response.audio.done':
+				case 'response.output_audio.done': {
+					const responseId = getOpenAiResponseId(msg as { response_id?: unknown; response?: { id?: unknown } }) ?? 'openai-response';
 					this._openAiAudioChunkSeen.delete(responseId);
 					this._onAudioResponse.fire({
 						audio: '',
@@ -568,7 +579,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					break;
 				}
 				case 'error':
-					this._onError.fire(asOptionalString((msg as { detail?: string; message?: string }).detail) ?? asOptionalString((msg as { message?: string }).message) ?? 'Unknown error');
+					const errorMessage = getVoiceErrorMessage(msg as {
+						detail?: string;
+						message?: string;
+						error?: { type?: unknown; code?: unknown; message?: unknown; param?: unknown };
+					});
+					this._logService.error(`[voice] OpenAI error payload=${stableStringify((msg as { error?: unknown }).error)}`);
+					this._logService.error(`[voice] error event: ${errorMessage}`);
+					this._onError.fire(errorMessage);
 					break;
 			}
 		};
@@ -972,14 +990,18 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			if (this._isOpenAiRealtimeMode()) {
-				this._logService.info('[voice] sending OpenAI session.start');
+				this._logService.info('[voice] sending OpenAI session.update');
 				this._ws.send(JSON.stringify({
-					type: 'session.start',
+					type: 'session.update',
 					session: {
-						model: OPENAI_LIVE_MODEL,
+						type: 'realtime',
 						instructions: voiceInstructions,
+						output_modalities: ['audio'],
 						audio: {
-							output: { voice: this._getVoice() },
+							output: {
+								voice: this._getOpenAiVoice(),
+								format: 'pcm16',
+							},
 						},
 					},
 				}));
@@ -1068,6 +1090,38 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 function stableStringify(value: unknown): string {
 	if (value === null || typeof value !== 'object') {
 		return JSON.stringify(value);
+	}
+
+	function getVoiceErrorMessage(message: {
+		detail?: string;
+		message?: string;
+		error?: { type?: unknown; code?: unknown; message?: unknown; param?: unknown };
+	}): string {
+		const topLevelMessage = asOptionalString(message.detail) ?? asOptionalString(message.message);
+		if (topLevelMessage) {
+			return topLevelMessage;
+		}
+
+		const nested = message.error;
+		if (!nested) {
+			return 'Unknown error';
+		}
+
+		const parts = [
+			asOptionalString(nested.type),
+			asOptionalString(nested.code),
+			asOptionalString(nested.message),
+			asOptionalString(nested.param),
+		].filter((value): value is string => !!value);
+
+		return parts.length > 0 ? parts.join(' | ') : 'Unknown error';
+	}
+
+	function getOpenAiResponseId(message: {
+		response_id?: unknown;
+		response?: { id?: unknown };
+	}): string | undefined {
+		return asOptionalString(message.response_id) ?? asOptionalString(message.response?.id);
 	}
 	if (Array.isArray(value)) {
 		return '[' + value.map(stableStringify).join(',') + ']';

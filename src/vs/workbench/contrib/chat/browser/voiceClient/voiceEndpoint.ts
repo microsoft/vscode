@@ -9,7 +9,7 @@ import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js
 
 const VOICE_PATH = '/realtime/voice';
 const TRANSCRIPTION_PATH = '/realtime/transcription';
-const GPT_LIVE_VOICE_WS_URL = 'wss://api.openai.com/v1/live/sessions';
+const GPT_LIVE_VOICE_WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-realtime';
 
 function isGptLiveEnabled(configurationService: IConfigurationService | undefined): boolean {
 	return configurationService?.getValue<boolean>(AgentsVoiceSettingId.GptLiveEnabled) === true;
