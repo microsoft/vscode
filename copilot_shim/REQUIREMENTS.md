@@ -573,7 +573,10 @@ install option, MUST:
    configuration.
 4. Compare the MSI's SHA-256 with its entry in `SHA256SUMS.txt`.
 5. Verify the MSI's Authenticode signature with `WinVerifyTrust` and require
-   the signer name `GitHub, Inc.`.
+   the signer name `GitHub, Inc.`. Revocation is checked for every
+   certificate in the chain except the root, so a revoked certificate fails
+   verification. When the revocation server can't be reached, the Windows
+   Authenticode policy decides; by default it accepts the signature.
 6. Run `%SystemRoot%\System32\msiexec.exe /i <msi> /qn /norestart /l*v
    %TEMP%\vscode-copilot-cli-install.log` without elevation. Exit codes `0` and
    `3010` mean success, and `1602` means the install was canceled.

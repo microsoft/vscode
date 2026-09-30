@@ -34,7 +34,8 @@ use windows_sys::Win32::Security::Cryptography::{
 use windows_sys::Win32::Security::WinTrust::{
 	WTHelperGetProvSignerFromChain, WTHelperProvDataFromStateData, WinVerifyTrust,
 	WINTRUST_ACTION_GENERIC_VERIFY_V2, WINTRUST_DATA, WINTRUST_DATA_0, WINTRUST_FILE_INFO,
-	WTD_CHOICE_FILE, WTD_REVOKE_NONE, WTD_STATEACTION_CLOSE, WTD_STATEACTION_VERIFY, WTD_UI_NONE,
+	WTD_CHOICE_FILE, WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT, WTD_REVOKE_WHOLECHAIN,
+	WTD_STATEACTION_CLOSE, WTD_STATEACTION_VERIFY, WTD_UI_NONE,
 };
 use windows_sys::Win32::System::Environment::ExpandEnvironmentStringsW;
 use windows_sys::Win32::System::LibraryLoader::{
@@ -555,6 +556,9 @@ impl Drop for Sha256 {
 // Authenticode
 
 /// Verifies the Authenticode signature of `path` and returns the signer's display name.
+///
+/// A revoked certificate anywhere in the chain below the root fails verification. When the revocation server can't be
+/// reached, the Windows Authenticode policy decides; by default it accepts the signature.
 pub(crate) fn authenticode_signer(path: &Path) -> io::Result<String> {
 	let path_wide = wide(path.as_os_str());
 	let mut file_info = WINTRUST_FILE_INFO {
@@ -566,12 +570,13 @@ pub(crate) fn authenticode_signer(path: &Path) -> io::Result<String> {
 	let mut data = WINTRUST_DATA {
 		cbStruct: std::mem::size_of::<WINTRUST_DATA>() as u32,
 		dwUIChoice: WTD_UI_NONE,
-		fdwRevocationChecks: WTD_REVOKE_NONE,
+		fdwRevocationChecks: WTD_REVOKE_WHOLECHAIN,
 		dwUnionChoice: WTD_CHOICE_FILE,
 		Anonymous: WINTRUST_DATA_0 {
 			pFile: &mut file_info,
 		},
 		dwStateAction: WTD_STATEACTION_VERIFY,
+		dwProvFlags: WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT,
 		..Default::default()
 	};
 	let mut action = WINTRUST_ACTION_GENERIC_VERIFY_V2;
