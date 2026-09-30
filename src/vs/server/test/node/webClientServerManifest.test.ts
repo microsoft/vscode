@@ -106,8 +106,8 @@ suite('WebClientServer manifest', () => {
 			statusCode: response.statusCode,
 			cacheControl: response.responseHeaders['Cache-Control'],
 			contentType: response.responseHeaders['Content-Type'],
-			etag: response.responseHeaders['Etag'],
-			vary: response.responseHeaders['Vary']
+			etag: response.responseHeaders.Etag,
+			vary: response.responseHeaders.Vary
 		}, {
 			statusCode: 200,
 			cacheControl: 'no-store',
@@ -123,7 +123,7 @@ suite('WebClientServer manifest', () => {
 		assert.deepStrictEqual({
 			statusCode: response.statusCode,
 			contentType: response.responseHeaders['Content-Type'],
-			hasEtag: typeof response.responseHeaders['Etag'] === 'string',
+			hasEtag: typeof response.responseHeaders.Etag === 'string',
 			hasBody: response.body.length > 0
 		}, {
 			statusCode: 200,
