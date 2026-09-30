@@ -118,6 +118,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _lastSessionId: string | undefined;
 	private _currentWsUrl: string | undefined;
 	private _openAiAudioChunkSeen = new Set<string>();
+	private _openAiCurrentResponseId: string | undefined;
+	private _openAiResponseCounter = 0;
+	private _openAiResponseRequestedForCurrentUtterance = false;
 
 	// --- Keep-alive ping/pong ---
 	private _pingTimer: ReturnType<Window['setInterval']> | undefined;
@@ -419,8 +422,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			} catch {
 				return;
 			}
+			const messageType = asOptionalString(msg.type)?.trim() ?? 'unknown';
+			if (this._isOpenAiRealtimeMode()) {
+				if (messageType.startsWith('response.') || messageType.startsWith('session.') || messageType === 'error') {
+					this._logService.info(`[voice] OpenAI inbound event type=${messageType}`);
+				}
+			}
 
-			switch (msg.type) {
+			switch (messageType) {
 				case 'pong':
 					this._clearPongTimeout();
 					break;
@@ -446,7 +455,15 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'speech_started':
+					if (this._isOpenAiRealtimeMode()) {
+						this._openAiResponseRequestedForCurrentUtterance = false;
+					}
 					this._onSpeechStarted.fire({ turnId: asOptionalString(msg.turn_id) });
+					break;
+				case 'input_audio_buffer.speech_stopped':
+					if (this._isOpenAiRealtimeMode()) {
+						this._requestOpenAiAudioResponse('speech_stopped');
+					}
 					break;
 				case 'barge_in':
 					this._onBargeIn.fire({
@@ -529,14 +546,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				}
 				case 'response.audio.delta':
 				case 'response.output_audio.delta': {
-					const responseId = getOpenAiResponseId(msg as { response_id?: unknown; response?: { id?: unknown } }) ?? 'openai-response';
+					const responseId = this._resolveOpenAiResponseId(msg as { response_id?: unknown; response?: { id?: unknown }; event_id?: unknown });
 					const firstChunk = !this._openAiAudioChunkSeen.has(responseId);
 					this._openAiAudioChunkSeen.add(responseId);
 					if (firstChunk) {
 						this._logService.info(`[voice] OpenAI audio stream started response=${responseId}`);
 					}
 					this._onAudioResponse.fire({
-						audio: asOptionalString((msg as { delta?: string }).delta) ?? '',
+						audio: getOpenAiAudioDelta(msg as { delta?: unknown; audio?: { delta?: unknown } }) ?? '',
 						isFirstChunk: firstChunk,
 						isFinal: false,
 						responseId,
@@ -545,9 +562,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				}
 				case 'response.audio.done':
 				case 'response.output_audio.done': {
-					const responseId = getOpenAiResponseId(msg as { response_id?: unknown; response?: { id?: unknown } }) ?? 'openai-response';
+					const responseId = this._resolveOpenAiResponseId(msg as { response_id?: unknown; response?: { id?: unknown }; event_id?: unknown });
 					this._openAiAudioChunkSeen.delete(responseId);
 					this._logService.info(`[voice] OpenAI audio stream completed response=${responseId}`);
+					this._openAiResponseRequestedForCurrentUtterance = false;
+					if (this._openAiCurrentResponseId === responseId) {
+						this._openAiCurrentResponseId = undefined;
+					}
 					this._onAudioResponse.fire({
 						audio: '',
 						isFirstChunk: false,
@@ -556,6 +577,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					});
 					break;
 				}
+				case 'response.created':
+					this._openAiCurrentResponseId = this._resolveOpenAiResponseId(msg as { response_id?: unknown; response?: { id?: unknown }; event_id?: unknown });
+					break;
+				case 'response.done':
+					this._openAiCurrentResponseId = undefined;
+					break;
 				case 'conversation.item.input_audio_transcription.completed':
 				case 'input_audio_buffer.transcription.completed': {
 					const text = asOptionalString((msg as { transcript?: string; text?: string }).transcript) ?? asOptionalString((msg as { text?: string }).text) ?? '';
@@ -590,6 +617,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					});
 					this._logService.error(`[voice] OpenAI error payload=${stableStringify((msg as { error?: unknown }).error)}`);
 					this._logService.error(`[voice] error event: ${errorMessage}`);
+					this._openAiResponseRequestedForCurrentUtterance = false;
 					this._onError.fire(errorMessage);
 					break;
 			}
@@ -743,22 +771,50 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendPttEnd(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			if (this._isOpenAiRealtimeMode()) {
-				this._ws.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
-				this._ws.send(JSON.stringify({
-					type: 'response.create',
-					response: {
-						modalities: ['audio', 'text'],
-						audio: {
-							voice: this._getOpenAiVoice(),
-							format: 'pcm16',
-						},
-					},
-				}));
-				this._logService.info(`[voice] OpenAI response.create requested voice=${this._getOpenAiVoice()} format=pcm16`);
+				this._requestOpenAiAudioResponse('ptt_end');
 				return;
 			}
 			this._ws.send(JSON.stringify({ type: 'ptt_end' }));
 		}
+	}
+
+	private _requestOpenAiAudioResponse(trigger: 'ptt_end' | 'speech_stopped'): void {
+		if (this._ws?.readyState !== WebSocket.OPEN) {
+			return;
+		}
+		if (this._openAiResponseRequestedForCurrentUtterance) {
+			return;
+		}
+		this._openAiResponseRequestedForCurrentUtterance = true;
+		this._openAiCurrentResponseId = undefined;
+		this._ws.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+		this._ws.send(JSON.stringify({
+			type: 'response.create',
+			response: {
+				modalities: ['audio'],
+				voice: this._getOpenAiVoice(),
+				output_audio_format: 'pcm16',
+				audio: {
+					voice: this._getOpenAiVoice(),
+					format: 'pcm16',
+				},
+			},
+		}));
+		this._logService.info(`[voice] OpenAI response.create requested trigger=${trigger} voice=${this._getOpenAiVoice()} output_audio_format=pcm16`);
+	}
+
+	private _resolveOpenAiResponseId(message: { response_id?: unknown; response?: { id?: unknown }; event_id?: unknown }): string {
+		const resolved = getOpenAiResponseId(message)
+			?? asOptionalString(message.event_id)
+			?? this._openAiCurrentResponseId;
+		if (resolved) {
+			this._openAiCurrentResponseId = resolved;
+			return resolved;
+		}
+		this._openAiResponseCounter++;
+		const fallback = `openai-response-${this._openAiResponseCounter}`;
+		this._openAiCurrentResponseId = fallback;
+		return fallback;
 	}
 
 	sendPttDiagnostic(turnId: string, metrics: Record<string, unknown>): void {
@@ -1105,43 +1161,50 @@ function stableStringify(value: unknown): string {
 	if (value === null || typeof value !== 'object') {
 		return JSON.stringify(value);
 	}
-
-	function getVoiceErrorMessage(message: {
-		detail?: string;
-		message?: string;
-		error?: { type?: unknown; code?: unknown; message?: unknown; param?: unknown };
-	}): string {
-		const topLevelMessage = asOptionalString(message.detail) ?? asOptionalString(message.message);
-		if (topLevelMessage) {
-			return topLevelMessage;
-		}
-
-		const nested = message.error;
-		if (!nested) {
-			return 'Unknown error';
-		}
-
-		const parts = [
-			asOptionalString(nested.type),
-			asOptionalString(nested.code),
-			asOptionalString(nested.message),
-			asOptionalString(nested.param),
-		].filter((value): value is string => !!value);
-
-		return parts.length > 0 ? parts.join(' | ') : 'Unknown error';
-	}
-
-	function getOpenAiResponseId(message: {
-		response_id?: unknown;
-		response?: { id?: unknown };
-	}): string | undefined {
-		return asOptionalString(message.response_id) ?? asOptionalString(message.response?.id);
-	}
 	if (Array.isArray(value)) {
 		return '[' + value.map(stableStringify).join(',') + ']';
 	}
 	const keys = Object.keys(value as Record<string, unknown>).sort();
 	return '{' + keys.map(k => JSON.stringify(k) + ':' + stableStringify((value as Record<string, unknown>)[k])).join(',') + '}';
+}
+
+function getVoiceErrorMessage(message: {
+	detail?: string;
+	message?: string;
+	error?: { type?: unknown; code?: unknown; message?: unknown; param?: unknown };
+}): string {
+	const topLevelMessage = asOptionalString(message.detail) ?? asOptionalString(message.message);
+	if (topLevelMessage) {
+		return topLevelMessage;
+	}
+
+	const nested = message.error;
+	if (!nested) {
+		return 'Unknown error';
+	}
+
+	const parts = [
+		asOptionalString(nested.type),
+		asOptionalString(nested.code),
+		asOptionalString(nested.message),
+		asOptionalString(nested.param),
+	].filter((value): value is string => !!value);
+
+	return parts.length > 0 ? parts.join(' | ') : 'Unknown error';
+}
+
+function getOpenAiResponseId(message: {
+	response_id?: unknown;
+	response?: { id?: unknown };
+}): string | undefined {
+	return asOptionalString(message.response_id) ?? asOptionalString(message.response?.id);
+}
+
+function getOpenAiAudioDelta(message: {
+	delta?: unknown;
+	audio?: { delta?: unknown };
+}): string | undefined {
+	return asOptionalString(message.delta) ?? asOptionalString(message.audio?.delta);
 }
 
 registerSingleton(IVoiceClientService, VoiceClientService, InstantiationType.Delayed);

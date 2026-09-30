@@ -53,6 +53,24 @@ type PlaybackTurn = {
 	writeChain: Promise<void>;
 };
 
+function decodePcm16Chunk(ctx: AudioContext, bytes: Uint8Array): AudioBuffer | undefined {
+	if (bytes.byteLength < 2) {
+		return undefined;
+	}
+	const sampleCount = Math.floor(bytes.byteLength / 2);
+	if (sampleCount <= 0) {
+		return undefined;
+	}
+	const audioBuffer = ctx.createBuffer(1, sampleCount, PLAYBACK_SAMPLE_RATE);
+	const channel = audioBuffer.getChannelData(0);
+	const view = new DataView(bytes.buffer, bytes.byteOffset, sampleCount * 2);
+	for (let i = 0; i < sampleCount; i++) {
+		const sample = view.getInt16(i * 2, true);
+		channel[i] = sample < 0 ? sample / 0x8000 : sample / 0x7fff;
+	}
+	return audioBuffer;
+}
+
 export class TtsPlaybackService extends Disposable implements ITtsPlaybackService {
 	declare readonly _serviceBrand: undefined;
 
@@ -113,8 +131,13 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 			if (gen !== this._playbackGen) { return; }
 			try {
 				const ctx = this.ensureContext(this._window!);
-				const decoded = await ctx.decodeAudioData(arrayBuf);
-				if (gen !== this._playbackGen) { return; }
+				let decoded: AudioBuffer | undefined;
+				try {
+					decoded = await ctx.decodeAudioData(arrayBuf);
+				} catch {
+					decoded = decodePcm16Chunk(ctx, bytes);
+				}
+				if (!decoded || gen !== this._playbackGen) { return; }
 				this._writeToPlayBuffer(decoded);
 				if (!this._playbackTurn?.started) {
 					this._startPlayback();
