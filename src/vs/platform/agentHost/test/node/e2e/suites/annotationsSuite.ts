@@ -19,7 +19,7 @@
 import assert from 'assert';
 import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
-import { retry } from '../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -211,6 +211,19 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 			}
 		}
 
+		async function waitForConversationRelease(): Promise<void> {
+			let resident: string[] = [];
+			// Each probe subscribes briefly, so widening gaps prevent it from continually cancelling the release it observes.
+			for (const delay of [100, 200, 400, 800, 1600, 2000]) {
+				await timeout(delay);
+				resident = await residentConversationResources();
+				if (resident.length === 0) {
+					return;
+				}
+			}
+			assert.deepStrictEqual(resident, [], 'annotations must not retain the conversation');
+		}
+
 		// A host-local command produces a completed, durable turn without model traffic.
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-annotations-residency', '/rename Annotation Residency', nextClientSeq());
 		const annotation = {
@@ -236,9 +249,7 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 		context.client.notify('unsubscribe', { channel: chatUri });
 		context.client.notify('unsubscribe', { channel: sessionUri });
 		// The harness uses zero idle-session capacity; the annotations subscription must not prevent release.
-		await retry(async () => {
-			assert.deepStrictEqual(await residentConversationResources(), [], 'annotations must not retain the conversation');
-		}, 100, 50);
+		await waitForConversationRelease();
 
 		context.client.clearReceived();
 		dispatchAnnotationAction(annotationsUri, { type: ActionType.AnnotationsUpdated, annotationId, resolved: true });

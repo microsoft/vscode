@@ -20,23 +20,18 @@ import { IAutomationService } from '../../../../workbench/contrib/chat/common/au
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING, DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AutomationDialogService } from './automationDialogService.js';
 import { AutomationRunner } from './automationRunner.js';
-import { AutomationScheduler } from './automationScheduler.js';
 import { ProviderAutomationService } from './providerAutomationService.js';
-import { BrowserAutomationStorageService } from './automationStorageService.js';
 import { AutomationToolsContribution } from './automationTools.js';
-import { IAutomationStorageService } from '../common/automationStorageService.js';
-import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../../../platform/agentHost/common/automationMigration.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../../../platform/agentHost/common/automationConfig.js';
 
 const initialProvidersSettled = observableFromPromise(
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored.then(() => true)
 ).map(result => result.value === true);
 
-registerSingleton(IAutomationStorageService, BrowserAutomationStorageService, InstantiationType.Delayed);
 registerSingleton(IAutomationService, new SyncDescriptor(ProviderAutomationService, [initialProvidersSettled], true));
 registerSingleton(IAutomationRunner, AutomationRunner, InstantiationType.Delayed);
 registerSingleton(IAutomationDialogService, AutomationDialogService, InstantiationType.Delayed);
 
-registerWorkbenchContribution2(AutomationScheduler.ID, AutomationScheduler, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AutomationToolsContribution.ID, AutomationToolsContribution, WorkbenchPhase.Eventually);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({

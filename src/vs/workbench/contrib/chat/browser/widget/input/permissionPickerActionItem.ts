@@ -31,6 +31,7 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 import { getCompactCodicon } from '../../chatIcons.js';
+import { getPermissionLevelBadge } from '../../agentSessions/agentHost/agentHostModePickerPresentation.js';
 
 export interface IExtensionPermissionState {
 	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
@@ -46,7 +47,7 @@ export interface IPermissionPickerDelegate {
 	/**
 	 * The ordered set of permission levels the picker should offer. When
 	 * omitted, the built-in Default/Bypass/Autopilot set is used. Agent-host
-	 * sessions override this to Default/Bypass (Autopilot lives on the
+	 * sessions override this to Default/Assisted/Bypass (Autopilot lives on the
 	 * orthogonal mode axis there).
 	 */
 	readonly availableLevels?: readonly ChatPermissionLevel[];
@@ -245,6 +246,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: meta.id,
 						label: meta.label,
+						...getPermissionLevelBadge(level),
 						detail: meta.detail,
 						icon: meta.icon,
 						checked: currentLevel === level,
@@ -255,11 +257,17 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 							content: hover,
 						},
 						run: async () => {
+							if (meta.elevated && isAutoApprovePolicyRestricted()) {
+								return;
+							}
 							// Elevated levels show a one-time confirmation warning.
 							if (meta.elevated && !await maybeConfirmElevatedPermissionLevel(level, this.dialogService, storageService, {
 								defaultSettingKey: delegate.defaultSettingKey,
 								levelLabel: meta.label,
 							})) {
+								return;
+							}
+							if (meta.elevated && isAutoApprovePolicyRestricted()) {
 								return;
 							}
 							delegate.setPermissionLevel(level);
@@ -308,6 +316,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
+				this.hide();
+			}
 			const settingId = this.getSandboxToggleSettingId();
 			const affectsSandboxToggle = e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
 				|| (settingId !== undefined && e.affectsConfiguration(settingId))

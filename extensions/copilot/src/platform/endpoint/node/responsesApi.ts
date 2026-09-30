@@ -128,7 +128,11 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
 		: undefined;
 	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
-	const promptCacheBreakpointsEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
+	// Opt-in endpoints (client-side BYOK) ignore the setting's default and experiment treatments:
+	// `isConfigured` is only true when the user has set the value in their settings.
+	const promptCacheBreakpointsEnabled = endpoint.promptCacheBreakpointsRequireOptIn
+		? configService.isConfigured(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled) && configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService)
+		: configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
 	const modelSupportsCacheBreakpoints = modelSupportCacheBreakPoints(endpoint);
 	const supportsCacheBreakpoints = promptCacheBreakpointsEnabled && modelSupportsCacheBreakpoints;
 	const body: IEndpointBody = {
@@ -606,7 +610,7 @@ function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): Resp
 		case Raw.ChatCompletionContentPartKind.Opaque: {
 			const maybeCast = part.value as ResponsesConvertibleContent;
 			if (maybeCast.type === 'input_text' || maybeCast.type === 'input_image' || maybeCast.type === 'input_file') {
-				return maybeCast;
+				return { ...maybeCast };
 			}
 		}
 	}

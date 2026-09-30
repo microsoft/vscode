@@ -28,7 +28,7 @@ Write a contribution when the behavior answers yes to this test:
 2. Can an explicitly registered, dependency-injected unit own it without changing protocol routing or provider mapping?
 3. Does it compose with other behavior in a defined order?
 
-Examples are admission gating, local-command interception, checkpoint and changeset work, queue draining, GitHub-reference attachment, title handling, persisted usage, session input-needed aggregation, session flag persistence, chat drafts, worktree announcements, unread state, rich-link guidance, artifact-tool guidance, and chat-surface guidance. Their directories under `node/chatContributions/` are the reference implementations.
+Examples are admission gating, local-command interception, checkpoint and changeset work, queue draining, GitHub-reference attachment, title handling, persisted usage, session input-needed aggregation, session flag persistence, chat drafts, worktree announcements, unread state, rich-link guidance, and chat-surface guidance. Their directories under `node/chatContributions/` are the reference implementations.
 
 Do **not** use a contribution for the following:
 
@@ -67,12 +67,12 @@ Give every contribution its own directory under `node/chatContributions/<feature
 - A constructor whose first parameter is `IAgentHostChatContributionContext`, followed by injected services.
 - A single registration in `node/chatContributions/builtInChatContributions.ts`.
 
-This is the complete shape of the existing artifact-tools contribution, adapted from `artifactTools/artifactToolsContribution.ts`:
+This is the complete shape of the existing Markdown plan rich-link contribution, adapted from `markdownPlanRichLinks/markdownPlanRichLinksContribution.ts`:
 
 ```ts
-export class ArtifactToolsContribution extends Disposable implements IAgentHostChatContribution {
-	static readonly id = 'artifactTools';
-	readonly order = 200;
+export class MarkdownPlanRichLinksContribution extends Disposable implements IAgentHostChatContribution {
+	static readonly id = 'markdownPlanRichLinks';
+	readonly order = 100;
 
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
@@ -81,15 +81,15 @@ export class ArtifactToolsContribution extends Disposable implements IAgentHostC
 		super();
 	}
 
-	onOutgoingTurn(): ISendContribution | undefined {
-		return this._agentConfigService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey)
-			? { instructions: [ARTIFACT_TOOLS_INSTRUCTION] }
+	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
+		return this._agentConfigService.getRootValue(platformRootSchema, AgentHostMarkdownPlanRichLinksEnabledConfigKey)
+			? { instructions: [createMarkdownPlanRichLinksInstruction(turn.chat)] }
 			: undefined;
 	}
 }
 ```
 
-Add its constructor to the one built-in list with `contributions.registerContribution(ArtifactToolsContribution)`. That list is activated by `activateAgentHostContributions` in `node/agentHostContributions.ts`; do not add a competing registration site. The dispatcher constructs each contribution through `IInstantiationService`, rejects duplicate ids, and disposes it on unregistration.
+Add its constructor to the one built-in list with `contributions.registerContribution(MarkdownPlanRichLinksContribution)`. That list is activated by `activateAgentHostContributions` in `node/agentHostContributions.ts`; do not add a competing registration site. The dispatcher constructs each contribution through `IInstantiationService`, rejects duplicate ids, and disposes it on unregistration.
 
 ## The seven hooks
 
@@ -99,7 +99,7 @@ Add its constructor to the one built-in list with `contributions.registerContrib
 | `onTurnEnd` | Any terminal outcome a started turn can reach, plus a request refused before its turn started. | Discriminate `rejected` from `error`: the former has no started turn to finalize and no checkpoint to capture. Do not throw. It does not fire for an agent-emitted terminal action arriving with no active turn, because the reducer no-ops for those. | `checkpointAndChangeset`, `queueDrain`, `githubReferences`, `sessionTitle`, `markUnread` |
 | `onDidApplyClientAction` | A client-dispatched action was applied to host state. | It never sees server-dispatched or rejected actions. Anything it sees definitely reduced. | `queueDrain` tracks queued senders; `sessionTitle` persists user title changes. |
 | `onDidDispatchAction` | Any action was dispatched and its outcome is known, from any origin. | It also delivers **rejected** actions that never reduced — check `rejectionReason`. Implementing this and `onDidApplyClientAction` together sees every client action twice. | `sessionInputNeeded`, `persistedTurnUsage`, `sessionFlags` |
-| `onOutgoingTurn` | Awaited after admission and provider lookup, before the turn is sent. | Rejected turns and `noAgent` failures never reach it. `IOutgoingTurn` carries the full `Message`; contributions can replace its text in order and add instructions, but cannot replace its already-committed attachments, model, agent, origin, or metadata. Prefer the message-text channel for context injection: changing instructions invalidates the provider prompt cache and increases user cost. Do not bypass the send path. | `markdownPlanRichLinks`, `artifactTools`, `chatSurface`, `sessionTitle`, `sideChat` |
+| `onOutgoingTurn` | Awaited after admission and provider lookup, before the turn is sent. | Rejected turns and `noAgent` failures never reach it. `IOutgoingTurn` carries the full `Message`; contributions can replace its text in order and add instructions, but cannot replace its already-committed attachments, model, agent, origin, or metadata. Prefer the message-text channel for context injection: changing instructions invalidates the provider prompt cache and increases user cost. Do not bypass the send path. | `markdownPlanRichLinks`, `chatSurface`, `sessionTitle`, `sideChat` |
 | `onHydrateTurns` | A provider has returned the complete restored turn list for a chat. | It is not limited to default chats and must return a list for the next stage. Do not assume its input is pristine provider output because earlier contributions may have transformed it. | `turnDelegation`, `persistedTurnUsage`, `worktreeAnnouncement`, `sideChat` |
 | `onHydrateChat` | A chat is being restored, eagerly, before it enters the session catalog. | It runs with no provider — it is a metadata-only read — and before the chat exists, so a chat memento taken here would outlive a failed registration. | `sessionTitle`, `chatDraft` |
 

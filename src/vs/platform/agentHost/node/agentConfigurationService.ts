@@ -16,6 +16,7 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHos
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
+import { automationRootConfigSchema } from '../common/automationConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
@@ -23,7 +24,8 @@ import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import type { ISessionSandboxPolicy } from './sessionSandbox.js';
+import { type ISessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
+import { ISessionSandboxState, readSessionSandboxState, withSessionSandboxState } from '../common/meta/agentSandboxStateMeta.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
 
@@ -115,6 +117,9 @@ export interface IAgentConfigurationService {
 	/** Runtime-owned sandbox floor; never accepted from client configuration. */
 	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined;
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void;
+	getSessionSandboxEnabled(session: ProtocolURI): boolean | undefined;
+	setSessionSandboxEnabled(session: ProtocolURI, enabled: boolean, error?: ISessionSandboxState['error']): void;
+	rejectSessionSandboxChange(session: ProtocolURI, values: Record<string, unknown> | undefined, origin: ActionOrigin, message: string): void;
 
 	/**
 	 * Returns the merged config values currently stored on `session`.
@@ -163,6 +168,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	private _rootConfigWrite = Promise.resolve();
 	private readonly _rootTransientValueKeys = new Set<string>();
 	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
+	private readonly _sessionSandboxChanges = new Map<ProtocolURI, Record<string, unknown> | undefined>();
 
 	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
@@ -184,24 +190,31 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const sandboxSchema = sandboxConfigSchema.toProtocol();
 		const copilotCliSchema = copilotCliConfigSchema.toProtocol();
 		const agentMergeSchema = agentMergeRootConfigSchema.toProtocol();
+		const automationSchema = automationRootConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties, ...automationSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
 		for (const registration of providerConfigurations) {
 			this.registerProviderConfiguration(registration);
 		}
-		this._register(this._stateManager.onDidRemoveSession(session => this._sessionSandboxPolicies.delete(session)));
+		this._register(this._stateManager.onDidRemoveSession(session => {
+			this._sessionSandboxPolicies.delete(session);
+			this._sessionSandboxChanges.delete(session);
+		}));
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {
 				this._onDidRootConfigChange.fire();
 			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
+				if (Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled)) {
+					this._sessionSandboxChanges.set(envelope.channel, this.getSessionConfigValues(envelope.channel));
+				}
 				const policy = this.getSessionSandboxPolicy(envelope.channel);
-				if (envelope.action.config[SessionConfigKey.SandboxEnabled] === 'off' && policy?.enabled && !policy.allowBypass) {
+				if (envelope.action.config[SessionConfigKey.SandboxEnabled] === 'off' && policy?.enabled && !policy.failClosed && !(policy.allowBypass && this.getSessionSandboxEnabled(envelope.channel) === false)) {
 					this.updateSessionConfig(envelope.channel, { [SessionConfigKey.SandboxEnabled]: 'default' });
 				}
 				this._onDidSessionConfigChange.fire({
@@ -251,11 +264,46 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void {
+		session = resolveAgentHostSession(URI.parse(session)).toString();
+		const previousPolicy = this._sessionSandboxPolicies.get(session);
 		this._sessionSandboxPolicies.set(session, policy);
-		if (policy.enabled && !policy.allowBypass && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off') {
+		const state = this._stateManager.getSessionState(session);
+		// A previously unmanaged Off is not an authorized bypass of a new floor.
+		const meta = policy.enabled && !previousPolicy?.enabled
+			? withSessionSandboxState(state?._meta, undefined)
+			: state?._meta;
+		this._stateManager.setSessionMeta(session, withSessionSandboxPolicy(meta, policy));
+		if (policy.enabled && !policy.failClosed && !(policy.allowBypass && this.getSessionSandboxEnabled(session) === false) && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off') {
 			this.updateSessionConfig(session, { [SessionConfigKey.SandboxEnabled]: 'default' });
 		}
 		this._onDidSessionConfigChange.fire({ session, config: { [SessionConfigKey.SandboxEnabled]: this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] }, origin: undefined });
+	}
+
+	getSessionSandboxEnabled(session: ProtocolURI): boolean | undefined {
+		return readSessionSandboxState(this._stateManager.getSessionState(session))?.enabled;
+	}
+
+	setSessionSandboxEnabled(session: ProtocolURI, enabled: boolean, error?: ISessionSandboxState['error']): void {
+		const state = this._stateManager.getSessionState(session);
+		const previous = readSessionSandboxState(state);
+		if (previous?.enabled === enabled && !previous.error && !error) {
+			return;
+		}
+		this._stateManager.setSessionMeta(session, withSessionSandboxState(state?._meta, { enabled, ...(error ? { error } : {}) }));
+	}
+
+	rejectSessionSandboxChange(session: ProtocolURI, values: Record<string, unknown> | undefined, origin: ActionOrigin, message: string): void {
+		const state = this._stateManager.getSessionState(session);
+		const previous = readSessionSandboxState(state);
+		if (!previous || this._sessionSandboxChanges.get(session) !== values) {
+			return;
+		}
+		// Publish the failure before rollback so clients can notify before reconciling the toggle.
+		this._stateManager.setSessionMeta(session, withSessionSandboxState(state?._meta, {
+			enabled: previous.enabled,
+			error: { clientId: origin.clientId, clientSeq: origin.clientSeq, message },
+		}));
+		this.updateSessionConfig(session, { [SessionConfigKey.SandboxEnabled]: previous.enabled ? 'on' : 'off' });
 	}
 
 	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {
@@ -398,6 +446,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				...sandboxConfigSchema.validateOrDefault(parsed, {}),
 				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
 				...agentMergeRootConfigSchema.validateOrDefault(parsed, {}),
+				...automationRootConfigSchema.validateOrDefault(parsed, {}),
 				...agentHostProxyConfigSchema.validateOrDefault(parsed, {}),
 			};
 		} catch (err) {
