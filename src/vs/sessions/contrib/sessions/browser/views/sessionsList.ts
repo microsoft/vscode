@@ -264,20 +264,36 @@ function getSessionListChatDiffStats(session: ISession, chat: IChat, activeSessi
 	return getSessionDiffStats(session, reader);
 }
 
-/** Preserves active main-chat states and uses the session aggregate for collapsed child progress. */
+/** Includes side-chat activity on the parent row and uses the session aggregate for collapsed peer progress. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
 	if (!deriveFromMainChat) {
 		return sessionStatus;
 	}
-	const mainChatStatus = session.mainChat.read(reader).status.read(reader);
-	if (mainChatStatus === SessionStatus.InProgress || mainChatStatus === SessionStatus.NeedsInput) {
-		return mainChatStatus;
+	let rowStatus = session.mainChat.read(reader).status.read(reader);
+	if (rowStatus === SessionStatus.NeedsInput) {
+		return rowStatus;
+	}
+	// Side chats have no list rows of their own, even when peer chats are expanded.
+	for (const chat of session.chats.read(reader)) {
+		if (chat.origin?.kind !== ChatOriginKind.SideChat || chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
+			continue;
+		}
+		const status = chat.status.read(reader);
+		if (status === SessionStatus.NeedsInput) {
+			return status;
+		}
+		if (status === SessionStatus.InProgress) {
+			rowStatus = status;
+		}
+	}
+	if (rowStatus === SessionStatus.InProgress) {
+		return rowStatus;
 	}
 	if (collapsed && sessionStatus === SessionStatus.InProgress) {
 		return SessionStatus.InProgress;
 	}
-	return mainChatStatus;
+	return rowStatus;
 }
 
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
