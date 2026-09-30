@@ -19,6 +19,8 @@ Reusable GitHub engine and cross-target architecture.
 
 These instances do not currently share application-wide request state.
 
+The [client inventory](client-inventory.md) maps runtime callers, migration boundaries, and remaining gaps.
+
 ### Request execution
 
 Internal requests carry caller attribution and a deadline. Current transport defaults, not public API guarantees:
