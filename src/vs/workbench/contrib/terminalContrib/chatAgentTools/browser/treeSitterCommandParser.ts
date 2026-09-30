@@ -171,6 +171,17 @@ export class TreeSitterCommandParser extends Disposable {
 		return (await this.getCommandFileWriteDetails(languageId, commandLine)).map(write => write.path);
 	}
 
+	async hasCommandFileWriteCommand(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<boolean> {
+		if (languageId !== TreeSitterCommandParserLanguage.Bash) {
+			return false;
+		}
+		const captures = await this._queryTree(languageId, commandLine, '(command) @command');
+		return captures.some(capture => {
+			const commandText = this._getCommandFileWriteParserText(commandLine, capture);
+			return this._commandFileWriteParsers.some(parser => parser.canHandle(commandText));
+		});
+	}
+
 	async getCommandFileWriteDetails(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<ICommandFileWrite[]> {
 		// Currently only bash-like shells are supported for command-specific parsing
 		if (languageId !== TreeSitterCommandParserLanguage.Bash) {
@@ -183,7 +194,7 @@ export class TreeSitterCommandParser extends Disposable {
 
 		const result: ICommandFileWrite[] = [];
 		for (const capture of captures) {
-			const commandText = capture.node.text;
+			const commandText = this._getCommandFileWriteParserText(commandLine, capture);
 			for (const parser of this._commandFileWriteParsers) {
 				if (parser.canHandle(commandText)) {
 					result.push(...(parser.extractFileWriteDetails?.(commandText) ?? parser.extractFileWrites(commandText).map(path => ({ path, hasUnquotedPathExpansion: true }))));
@@ -191,6 +202,11 @@ export class TreeSitterCommandParser extends Disposable {
 			}
 		}
 		return result;
+	}
+
+	private _getCommandFileWriteParserText(commandLine: string, capture: QueryCapture): string {
+		const commandStart = capture.node.namedChildren.find(child => child.type !== 'variable_assignment')?.startIndex ?? capture.node.startIndex;
+		return commandLine.substring(commandStart, capture.node.endIndex);
 	}
 
 	private async _queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {

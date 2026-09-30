@@ -41,16 +41,13 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		if (this._hasUnquotedZshNumericRange(options.commandLine, options.shell, options.os)) {
-			this._log('File writes blocked because the command contains an unquoted zsh numeric range');
-			return { isAutoApproveAllowed: false };
-		}
 		let fileWrites: FileWrite[];
 		let hasSequentialCommands: boolean;
 		let hasUnquotedPathExpansion: boolean;
 		let hasUnanalyzablePath: boolean;
+		let hasAmbiguousCommandFileWrite: boolean;
 		try {
-			({ fileWrites, hasUnquotedPathExpansion, hasUnanalyzablePath } = await this._getFileWrites(options));
+			({ fileWrites, hasUnquotedPathExpansion, hasUnanalyzablePath, hasAmbiguousCommandFileWrite } = await this._getFileWrites(options));
 			const parsedCommand = parseCommand(options.commandLine);
 			const executionUnitCount = await this._treeSitterCommandParser.countExecutionUnits(options.treeSitterLanguage, options.commandLine);
 			hasSequentialCommands =
@@ -63,16 +60,18 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				isAutoApproveAllowed: false
 			};
 		}
-		return this._getResult(options, fileWrites, hasSequentialCommands, hasUnquotedPathExpansion, hasUnanalyzablePath);
+		return this._getResult(options, fileWrites, hasSequentialCommands, hasUnquotedPathExpansion, hasUnanalyzablePath, hasAmbiguousCommandFileWrite);
 	}
 
-	private _hasUnquotedZshNumericRange(commandLine: string, shell: string, os: OperatingSystem): boolean {
+	private _maskUnquotedZshNumericRanges(commandLine: string, shell: string, os: OperatingSystem): string {
 		if (!isZsh(shell, os)) {
-			return false;
+			return commandLine;
 		}
 		let inSingleQuote = false;
 		let inDoubleQuote = false;
 		let inAnsiCQuote = false;
+		let result = '';
+		let lastIndex = 0;
 		for (let i = 0; i < commandLine.length; i++) {
 			const char = commandLine[i];
 			if (char === '\\' && (!inSingleQuote || inAnsiCQuote)) {
@@ -95,23 +94,34 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				inDoubleQuote = !inDoubleQuote;
 				continue;
 			}
-			if (char === '<' && !inSingleQuote && !inDoubleQuote && /^<\d*-\d*>/.test(commandLine.slice(i))) {
-				return true;
+			if (char === '<' && !inSingleQuote && !inDoubleQuote) {
+				const match = /^<\d*-\d*>/.exec(commandLine.slice(i));
+				if (match) {
+					result += commandLine.slice(lastIndex, i);
+					result += ' '.repeat(match[0].length);
+					i += match[0].length - 1;
+					lastIndex = i + 1;
+				}
 			}
 		}
-		return false;
+		return lastIndex === 0 ? commandLine : result + commandLine.slice(lastIndex);
 	}
 
-	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<{ fileWrites: FileWrite[]; hasUnquotedPathExpansion: boolean; hasUnanalyzablePath: boolean }> {
+	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<{ fileWrites: FileWrite[]; hasUnquotedPathExpansion: boolean; hasUnanalyzablePath: boolean; hasAmbiguousCommandFileWrite: boolean }> {
 		let fileWrites: FileWrite[] = [];
+		const commandLineForFileWriteParsing = this._maskUnquotedZshNumericRanges(options.commandLine, options.shell, options.os);
+		const hasUnquotedZshNumericRange = commandLineForFileWriteParsing !== options.commandLine;
 
 		// Get file writes from redirections (via tree-sitter grammar)
-		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine))
+		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, commandLineForFileWriteParsing))
 			.map(rawFileWrite => this._mapRawFileWrite(options, rawFileWrite, 'redirect'));
 
 		// Get file writes from command-specific parsers (e.g., sed -i in-place editing)
-		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWriteDetails(options.treeSitterLanguage, options.commandLine))
+		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWriteDetails(options.treeSitterLanguage, commandLineForFileWriteParsing))
 			.map(write => this._mapRawFileWrite(options, write.path, 'command', write.hasUnquotedPathExpansion));
+		const hasAmbiguousCommandFileWrite =
+			hasUnquotedZshNumericRange &&
+			await this._treeSitterCommandParser.hasCommandFileWriteCommand(options.treeSitterLanguage, commandLineForFileWriteParsing);
 
 		const allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
 		const zsh = isZsh(options.shell, options.os);
@@ -130,6 +140,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		let hasUnanalyzablePath =
 			bashPaths.some(path => path === undefined) ||
 			bashPaths.some(path => path?.hasHistoryExpansion) ||
+			hasAmbiguousCommandFileWrite ||
 			this._isCmdShell(options);
 
 		if (allCapturedFileWrites.length) {
@@ -191,7 +202,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			}
 		}
 		this._log('File writes detected', fileWrites.map(e => e.toString()));
-		return { fileWrites, hasUnquotedPathExpansion, hasUnanalyzablePath };
+		return { fileWrites, hasUnquotedPathExpansion, hasUnanalyzablePath, hasAmbiguousCommandFileWrite };
 	}
 
 	private _isCmdShell(options: ICommandLineAnalyzerOptions): boolean {
@@ -313,9 +324,9 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			: { value: rawFileWrite, source, hasUnquotedPathExpansion };
 	}
 
-	private async _getResult(options: ICommandLineAnalyzerOptions, fileWrites: FileWrite[], hasSequentialCommands: boolean, hasUnquotedPathExpansion: boolean, hasUnanalyzablePath: boolean): Promise<ICommandLineAnalyzerResult> {
+	private async _getResult(options: ICommandLineAnalyzerOptions, fileWrites: FileWrite[], hasSequentialCommands: boolean, hasUnquotedPathExpansion: boolean, hasUnanalyzablePath: boolean, hasAmbiguousCommandFileWrite: boolean): Promise<ICommandLineAnalyzerResult> {
 		let isAutoApproveAllowed = true;
-		if (fileWrites.length > 0) {
+		if (fileWrites.length > 0 || hasAmbiguousCommandFileWrite) {
 			const blockDetectedFileWrites = this._configurationService.getValue<string>(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites);
 			switch (blockDetectedFileWrites) {
 				case 'all': {

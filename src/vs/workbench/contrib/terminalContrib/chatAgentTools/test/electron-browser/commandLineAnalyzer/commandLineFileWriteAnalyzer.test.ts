@@ -415,6 +415,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				}
 				await t(`X=$'foo\\'' sed --follow-symlinks -i 's/x/y/' <5-5>`, 'outsideWorkspace', false, 0, [cwd], '/bin/zsh');
 				await t(`echo $'<5-5>'`, 'outsideWorkspace', true, 0, [cwd], '/bin/zsh');
+				await t(`echo <5-5>`, 'outsideWorkspace', true, 0, [cwd], '/bin/zsh');
+				await t(`sed --follow-symlinks -i 's/x/y/' <5-5>`, 'never', true, 0, [cwd], '/bin/zsh');
 				await t(`sed --follow-symlinks -i 's/x/y/' <5-5>`, 'outsideWorkspace', false, 0, [cwd], 'C:\\tools\\zsh.exe', OperatingSystem.Windows);
 			});
 			test('sed expanded backup path is blocked before normalization', () =>
