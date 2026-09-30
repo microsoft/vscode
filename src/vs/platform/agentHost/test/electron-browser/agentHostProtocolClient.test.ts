@@ -193,6 +193,9 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	readonly onDidReceiveData = this._onDidReceiveData.event;
+
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
@@ -204,6 +207,10 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 
 	fireMessage(message: ProtocolMessage): void {
 		this._onMessage.fire(message);
+	}
+
+	fireData(): void {
+		this._onDidReceiveData.fire();
 	}
 
 	fireExtensionNotification(message: JsonRpcNotification): void {
@@ -1335,6 +1342,31 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.strictEqual(closeCount, 0);
 			assert.ok(answered >= 4, `expected several pings to have been answered, got ${answered}`);
+			client.dispose();
+		});
+	});
+
+	test('liveness keeps the connection open while a large message is still arriving', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const lowLoad = { hasHighLoad: () => false };
+			const { client, transport } = createClient(undefined, undefined, lowLoad);
+			let closeCount = 0;
+			disposables.add(client.onDidClose(() => closeCount++));
+
+			// A message that takes a minute to download: bytes keep arriving, but none completes.
+			for (let second = 0; second < 60; second++) {
+				await timeout(1_000);
+				transport.fireData();
+			}
+			const whileDownloading = { closeCount, pings: transport.sentMessages.filter(isPingRequest).length };
+
+			// Once the bytes stop, the usual liveness window applies.
+			await timeout(30_000);
+
+			assert.deepStrictEqual({ whileDownloading, afterDownloadStalls: closeCount }, {
+				whileDownloading: { closeCount: 0, pings: 0 },
+				afterDownloadStalls: 1,
+			});
 			client.dispose();
 		});
 	});
@@ -5255,6 +5287,43 @@ suite('AgentHostProtocolClient', () => {
 					});
 					await flushMicrotasks();
 					assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog keeps a reconnect alive while its large response is still arriving', async () => {
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					await completeHandshake(transports[0], client.connect());
+					transports[0].fireClose();
+					const reconnectTransport = await waitForTransport(transports, 1);
+					reconnectTransport.connectDeferred.complete();
+					const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+
+					// The host answers promptly, but the response takes a minute to download.
+					for (let second = 0; second < 60; second++) {
+						await timeout(1_000);
+						reconnectTransport.fireData();
+					}
+					const whileDownloading = {
+						transports: transports.length,
+						connection: client.connectionState,
+						pings: reconnectTransport.sentMessages.filter(isPingRequest).length,
+					};
+
+					reconnectTransport.fireMessage({
+						jsonrpc: '2.0', id: reconnect.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+					});
+					await flushMicrotasks();
+
+					assert.deepStrictEqual({ whileDownloading, afterDownload: client.connectionState }, {
+						whileDownloading: { transports: 2, connection: AgentHostClientState.Reconnecting, pings: 0 },
+						afterDownload: AgentHostClientState.Connected,
+					});
 				} finally {
 					client.dispose();
 				}
