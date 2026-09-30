@@ -533,11 +533,12 @@ export interface ICopilotAgentSessionOptions {
 	readonly telemetryContext?: () => IAgentTelemetryContext | undefined;
 	/**
 	 * Invoked whenever this chat's in-flight turn ends — normal completion,
-	 * abort, or error — leaving the chat idle. Lets the agent run work that
-	 * must not interrupt a live turn, notably a CLI client restart deferred
-	 * while the turn was running. Called synchronously from the session's SDK
-	 * event handling, so the agent must schedule anything that could dispose
-	 * this session off the current stack.
+	 * abort, or error — leaving the chat idle, and again when its last
+	 * in-flight subagent settles after the turn ended. Lets the agent run work
+	 * that must not interrupt a live turn or subagent, notably a CLI client
+	 * restart deferred while they were running. Called synchronously from the
+	 * session's SDK event handling, so the agent must schedule anything that
+	 * could dispose this session off the current stack.
 	 */
 	readonly onTurnEnded?: () => void;
 
@@ -1031,6 +1032,13 @@ export class CopilotAgentSession extends Disposable {
 	 * non-destructive idle release to avoid disconnecting mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn.value !== undefined; }
+	/**
+	 * Whether a subagent is still in flight: started or resumed and not yet
+	 * confirmed complete. A background subagent can still be finishing after
+	 * the root turn goes idle, so work that tears down the SDK session must
+	 * wait for it as well.
+	 */
+	get hasActiveSubagents(): boolean { return this._activeSubagentAgentIds.size > 0; }
 	get usesStaticGitHubToken(): boolean { return this._launchPlan.githubCredentials.usesStaticToken; }
 	get chatUri(): URI { return this._chatChannelUri; }
 	get currentTurnId(): string | undefined { return this._currentTurn.value?.id; }
@@ -1787,7 +1795,15 @@ export class CopilotAgentSession extends Disposable {
 		} else if (!toolCallId) {
 			return;
 		}
-		const parentToolCallId = toolCallId ?? (agentId ? this._parentToolCallIdsByAgentId.get(agentId) : undefined);
+		this._publishSubagentTurnCompletion(toolCallId ?? (agentId ? this._parentToolCallIdsByAgentId.get(agentId) : undefined));
+		// A background subagent can settle after the root turn already went idle. Report idleness
+		// again so work deferred while it ran, such as a CLI client restart, is not stranded.
+		if (agentId && !this.hasActiveTurn && !this.hasActiveSubagents) {
+			this._reportTurnEnded();
+		}
+	}
+
+	private _publishSubagentTurnCompletion(parentToolCallId: string | undefined): void {
 		if (!parentToolCallId) {
 			return;
 		}
@@ -2207,6 +2223,10 @@ export class CopilotAgentSession extends Disposable {
 		this._agentMergeTurn = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
+		this._reportTurnEnded();
+	}
+
+	private _reportTurnEnded(): void {
 		try {
 			this._onTurnEnded();
 		} catch (err) {

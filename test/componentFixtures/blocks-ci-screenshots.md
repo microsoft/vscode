@@ -109,7 +109,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/56b9ac7ce8ad6692c3269e73900a765e59c5705d6dc93d35b3134cf9ff571cde)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionExperimentalComposerBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/3dc571db2e0b6e5be6162241ee49fef99d948ad70b06b7fd8fba88e1b3125705)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/4edfb07460717f1bc685c54bb3a800f6320f4cca0f93141d17dcb10cf78c34ce)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/bd4b7314d7d4e2bb7f1765f25901efdb6d4b6d08f6acc5766f95d597d87ea968)
@@ -136,7 +136,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b143a14c0a785fd33a98619f34607323a542186bbaef728e4cacef566686d013)
 
 #### sessions/sessionsList/SessionsList_ArchivedNestedChat/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/6a975a2335b0656826a9dd4978aca13514caf311952cf0c88f19a2d852f4e50e)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/dbff7b42263aeefe2b1e764cc1e8f2c376fdf5be642d9688e1ae2b1451419d1e)
 
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Accent/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/93ac2007264b2bf5116bd878d1bf624cca74caab1c071776870a6283ca8cf5ed)
@@ -193,10 +193,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/94d3c3c690cb7dcb4071b4fc87182794d92136d47d924c71d3aaafcd9a22a605)
 
 #### sessions/sessionsList/SessionsList_NestedChatHierarchyGuides/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/9da7a5f00935d0076e49fe5ba18cb3a342b24494219303a39461a87809d99ae2)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/eb46d9560bffe57e3f760e510764ec0c27d22ec8d02d8d64af90df16055122db)
 
 #### sessions/sessionsList/SessionsList_PeerChatInProgress/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/a6374010d66caedf4af81ccb4a0fefc81da1654837572294ae490e287beabbb7)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e06d7072dc8bee61e65b65b42a14b78fd73670b990e6b03f27448e8f68336671)
 
 #### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/257f79bc9e0a40b90ff53c9e523305055d4322303c593448b169e5a996def95d)

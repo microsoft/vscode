@@ -250,11 +250,12 @@ function createAuthenticationService(withCopilotToken = false): IAgentHostAuthen
 	};
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, gitHubClient: IGitHubClient, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: PullRequestMergeMethod; enableAgentMerge?: boolean; agentMergeAvailable?: boolean; sessionAgentMergeEnabled?: boolean; agentMergeDefaults?: Partial<AgentMergeConfiguration>; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; branchPrefix?: string; workingDirectory?: string; logService?: ILogService }): { handler: AgentHostPullRequestOperationHandler; session: URI; stateManager: AgentHostStateManager; createdEvents: string[]; createdOwners: string[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; sessionConfigValues: Record<string, unknown>; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, gitHubClient: IGitHubClient, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: PullRequestMergeMethod; enableAgentMerge?: boolean; agentMergeAvailable?: boolean; sessionAgentMergeEnabled?: boolean; agentMergeDefaults?: Partial<AgentMergeConfiguration>; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; branchPrefix?: string; workingDirectory?: string; logService?: ILogService }): { handler: AgentHostPullRequestOperationHandler; session: URI; stateManager: AgentHostStateManager; createdEvents: string[]; createdOwners: string[]; createdConversationChats: (string | undefined)[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; sessionConfigValues: Record<string, unknown>; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const createdEvents: string[] = [];
 	const createdOwners: string[] = [];
+	const createdConversationChats: (string | undefined)[] = [];
 	const createdBranches: string[] = [];
 	const sessionConfigUpdates: Record<string, unknown>[] = [];
 	stateManager.createSession({
@@ -338,6 +339,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			async event => {
 				createdEvents.push(`${event.sessionKey}:${event.pullRequestUrl}`);
 				createdOwners.push(event.ownerUri);
+				createdConversationChats.push(event.conversationChat);
 				createdBranches.push(event.branchName);
 			},
 			createAuthenticationService(options?.withCopilotToken), gitService, createTestGitHubService(gitHubClient), createTestGitHubEndpointService(), copilotApiService, branchNameGenerator, configurationService, options?.logService ?? new NullLogService(), stateManager),
@@ -345,6 +347,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		stateManager,
 		createdEvents,
 		createdOwners,
+		createdConversationChats,
 		createdBranches,
 		sessionConfigUpdates,
 		sessionConfigValues,
@@ -546,7 +549,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		});
 
 		test('create generates missing details and branch names from the requested chat', async () => {
-			const { handler, channel, gitService, gitHubClient, branchNameGenerator, generatedFrom, chats } = setupSharedFolder();
+			const { handler, channel, gitService, gitHubClient, branchNameGenerator, generatedFrom, chats, createdConversationChats } = setupSharedFolder();
 			gitService.gitState = { ...gitService.gitState, branchName: 'main' };
 			gitService.uncommitted = true;
 
@@ -556,10 +559,12 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				generatedFrom: generatedFrom(),
 				branchNameMessage: branchNameGenerator.requests[0]?.message,
 				title: gitHubClient.lastTitle,
+				createdConversationChats,
 			}, {
 				generatedFrom: [conversations[1]],
 				branchNameMessage: conversations[1],
 				title: 'Generated PR title',
+				createdConversationChats: [chats.peerChat],
 			});
 		});
 
@@ -570,6 +575,29 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				(error: unknown) => error instanceof ProtocolError && error.code === JsonRpcErrorCodes.InvalidParams,
 			);
 		});
+
+		for (const afterCreateFailure of [false, true]) {
+			test(`preserves the requesting chat when an existing PR is found${afterCreateFailure ? ' after create failure' : ''}`, async () => {
+				const { handler, channel, gitHubClient, chats, createdConversationChats } = setupSharedFolder();
+				const existing = createTestPullRequest(8);
+				if (afterCreateFailure) {
+					gitHubClient.createError = new Error('Already exists');
+					gitHubClient.existingAfterCreateFailure = existing;
+				} else {
+					gitHubClient.existing = existing;
+				}
+
+				await handler.invoke({ channel, operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR, _meta: createPullRequestConversationMeta(chats.peerChat) }, CancellationToken.None);
+
+				assert.deepStrictEqual({
+					createdConversationChats,
+					createCalls: gitHubClient.calls.filter(call => call.startsWith('createPullRequest:')).length,
+				}, {
+					createdConversationChats: [chats.peerChat],
+					createCalls: afterCreateFailure ? 1 : 0,
+				});
+			});
+		}
 	});
 
 	for (const agentMergeAvailable of [false, true]) {

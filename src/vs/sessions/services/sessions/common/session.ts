@@ -285,6 +285,8 @@ export interface ISessionArtifact {
 	readonly id: string;
 	readonly kind: SessionArtifactKind;
 	readonly label: string;
+	/** Chat that recorded this entry, when the provider exposes its provenance. */
+	readonly chat?: URI;
 	/**
 	 * `true` for an artifact — something the session produced — and `false` for
 	 * a reference, something it only points the user at.
@@ -698,8 +700,8 @@ export interface IChat {
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
-	/** When the chat was last updated. */
-	readonly updatedAt: IObservable<Date>;
+	/** When the chat was last updated. `undefined` while the provider resolves the exact per-chat timestamp; consumers should omit it rather than fall back to aggregate session time. */
+	readonly updatedAt: IObservable<Date | undefined>;
 	/** Current chat status. */
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */

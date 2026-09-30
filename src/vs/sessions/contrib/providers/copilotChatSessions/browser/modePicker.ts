@@ -273,22 +273,23 @@ export class ModePicker extends Disposable {
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
 				dom.EventHelper.stop(e, true);
-				this._showPicker();
+				this.showPicker();
 			}));
 		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				this._showPicker();
+				this.showPicker();
 			}
 		}));
 
 		return slot;
 	}
 
-	private _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible) {
+	showPicker(anchor?: HTMLElement): void {
+		const triggerElement = anchor ?? this._triggerElement;
+		if (!triggerElement || this.actionWidgetService.isVisible) {
 			return;
 		}
 
@@ -296,7 +297,6 @@ export class ModePicker extends Disposable {
 
 		const items = this._buildItems(modes);
 
-		const triggerElement = this._triggerElement;
 		const delegate: IActionListDelegate<ModePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
@@ -329,7 +329,7 @@ export class ModePicker extends Disposable {
 			false,
 			items,
 			delegate,
-			this._triggerElement,
+			triggerElement,
 			undefined,
 			[],
 			{

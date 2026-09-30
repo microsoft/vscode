@@ -55,6 +55,8 @@ export interface PullRequestCreatedEvent {
 	readonly sessionKey: string;
 	/** The changeset owner the pull request was created from; resolves the folder that owns it. */
 	readonly ownerUri: string;
+	/** The validated chat that initiated Create PR, when supplied by the client. */
+	readonly conversationChat?: string;
 	readonly pullRequestUrl: string;
 	readonly pullRequestNumber: number;
 	readonly pullRequestTitle?: string;
@@ -208,7 +210,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${parsed.ownerUri}`);
 		}
-		const conversationState = this._getConversationState(sessionUri, workingDirectoryStr, readPullRequestConversationMeta(params)) ?? sessionState;
+		const conversation = this._getConversation(sessionUri, workingDirectoryStr, readPullRequestConversationMeta(params));
+		const conversationState = conversation?.state ?? sessionState;
 
 		const gitHubFolder = resolveGitHubStateFolder(this._stateManager, parsed.ownerUri);
 		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionUri)?._meta ?? sessionState._meta, gitHubFolder.folderKey);
@@ -271,7 +274,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 		return {
 			sessionUri, sourceUri: scope.sourceUri, ownerUri: parsed.ownerUri, isSessionGitHubFolder: gitHubFolder.isSessionFolder,
-			sessionState, conversationState, workingDirectory, effectiveBaseBranch, gitState, branchName, baseBranchName, authToken,
+			sessionState, conversationState, conversationChat: conversation?.chat, workingDirectory, effectiveBaseBranch, gitState, branchName, baseBranchName, authToken,
 			gitHubState: repository, preparationContext,
 		};
 	}
@@ -283,11 +286,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	 * working in the changeset's folder, and only for conversation context:
 	 * working directory, branches and Git stay folder-scoped.
 	 */
-	private _getConversationState(sessionUri: string, workingDirectory: string, requestedChat: string | undefined): ISessionWithDefaultChat | undefined {
+	private _getConversation(sessionUri: string, workingDirectory: string, requestedChat: string | undefined): { readonly chat: string; readonly state: ISessionWithDefaultChat } | undefined {
 		if (!requestedChat || !isSessionChatInFolder(this._stateManager, sessionUri, requestedChat, getWorkingDirectoryKey(workingDirectory))) {
 			return undefined;
 		}
-		return this._getSessionState(requestedChat);
+		const state = this._getSessionState(requestedChat);
+		return state ? { chat: requestedChat, state } : undefined;
 	}
 
 	private _stalePreparationError(): ProtocolError {
@@ -304,7 +308,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		};
 		this._validateAgentMergeAvailable(options);
 		const context = await this._resolveContext(params, token, submitted?.expectedContext);
-		const { sessionUri, sourceUri, ownerUri, sessionState, conversationState, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
+		const { sessionUri, sourceUri, ownerUri, sessionState, conversationState, conversationChat, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
 		let { gitState, branchName } = context;
 		if (submitted?.autoMergeMethod) {
 			const { account } = await client.credentials.getCredential(signal);
@@ -388,7 +392,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const existing = await client.query.findPullRequestByHeadBranch(ref, headBranch, headOwner, signal);
 		if (existing) {
 			this._throwIfCancelled(token);
-			return await this._finalize(existing, true, sessionUri, ownerUri, gitHubState.owner, gitHubState.repo, branchName, client, signal, token, options);
+			return await this._finalize(existing, true, sessionUri, ownerUri, conversationChat, gitHubState.owner, gitHubState.repo, branchName, client, signal, token, options);
 		}
 		this._throwIfCancelled(token);
 
@@ -429,12 +433,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			}
 			if (foundAfterFailure) {
 				this._throwIfCancelled(token);
-				return await this._finalize(foundAfterFailure, true, sessionUri, ownerUri, gitHubState.owner, gitHubState.repo, branchName, client, signal, token, options);
+				return await this._finalize(foundAfterFailure, true, sessionUri, ownerUri, conversationChat, gitHubState.owner, gitHubState.repo, branchName, client, signal, token, options);
 			}
 			throw err;
 		}
 		this._throwIfCancelled(token);
-		return await this._finalize(created, false, sessionUri, ownerUri, gitHubState.owner, gitHubState.repo, branchName, client, signal, token, options);
+		return await this._finalize(created, false, sessionUri, ownerUri, conversationChat, gitHubState.owner, gitHubState.repo, branchName, client, signal, token, options);
 	}
 
 	private async _getBranchChanges(workingDirectory: URI, sessionUri: string, baseBranchName: string, token: CancellationToken): Promise<readonly ISessionFileDiff[]> {
@@ -488,6 +492,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		isExisting: boolean,
 		sessionUri: string,
 		ownerUri: string,
+		conversationChat: string | undefined,
 		owner: string,
 		repo: string,
 		branchName: string,
@@ -497,7 +502,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		options: PullRequestCreationConfiguration,
 	): Promise<InvokeChangesetOperationResult> {
 		if (!options.autoMergeMethod) {
-			await this._completePullRequestOperation(sessionUri, ownerUri, pr, branchName, options);
+			await this._completePullRequestOperation(sessionUri, ownerUri, conversationChat, pr, branchName, options);
 			return this._createResult(pr, this._buildMessage(pr, isExisting, 'none', undefined, options));
 		}
 
@@ -520,14 +525,15 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			this._logService.warn(`[AgentHostPullRequestOperationHandler] Cannot enable auto-merge for ${owner}/${repo}#${pr.ref.number}: missing pull request node id`);
 		}
 
-		await this._completePullRequestOperation(sessionUri, ownerUri, pr, branchName, options);
+		await this._completePullRequestOperation(sessionUri, ownerUri, conversationChat, pr, branchName, options);
 		return this._createResult(pr, this._buildMessage(pr, isExisting, autoMergeOutcome, autoMergeError, options));
 	}
 
-	private async _completePullRequestOperation(sessionUri: string, ownerUri: string, pullRequest: GitHubPullRequestLookup, branchName: string, options: PullRequestCreationConfiguration): Promise<void> {
+	private async _completePullRequestOperation(sessionUri: string, ownerUri: string, conversationChat: string | undefined, pullRequest: GitHubPullRequestLookup, branchName: string, options: PullRequestCreationConfiguration): Promise<void> {
 		await this._onPullRequestCreated({
 			sessionKey: sessionUri,
 			ownerUri,
+			...(conversationChat ? { conversationChat } : {}),
 			pullRequestUrl: pullRequest.url,
 			pullRequestNumber: pullRequest.ref.number,
 			...(pullRequest.title ? { pullRequestTitle: pullRequest.title } : {}),

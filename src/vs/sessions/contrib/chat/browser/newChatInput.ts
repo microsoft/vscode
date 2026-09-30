@@ -119,7 +119,7 @@ import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browse
 import { IDictationOnboardingService } from '../../../../workbench/contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
-import { Separator, toAction } from '../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
 import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
@@ -1321,6 +1321,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _showContextPicker(): void {
 		this._contextAttachments.showPicker(this.options.getContextFolderUri(), this.options.getContextPickerActions?.(), this._attachButton);
+	}
+
+	async runAttachContextAction(action: IAction): Promise<void> {
+		await action.run({ anchor: this._attachButton });
 	}
 
 	private _createInputToolbar(container: HTMLElement): void {
