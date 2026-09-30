@@ -60,6 +60,10 @@ const agenticBrowserToolNames = browserChatToolReferenceNames.filter(name => nam
 export const COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION = 'When a tool reports that its output was saved to a temporary file because it was too large, inspect that file with targeted, bounded reads: search it for what you need with the `grep` or `rg` tool, then use `view` with a narrow `view_range` to read the relevant lines. Do not dump the whole file (for example with `cat` or `view` without a range) or run broad searches, because oversized output will be offloaded again.';
 const largeOutputToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
 
+/** Steers workspace discovery toward scoped, targeted searches instead of broad upfront exploration. */
+export const COPILOT_AGENT_HOST_TARGETED_SEARCH_TOOL_INSTRUCTION = 'To find relevant code, start from the concrete file names, symbols, strings, and paths in the request and search for them directly with targeted queries scoped to the most likely files or directories, running independent searches in parallel. Do not list or recursively explore the whole workspace, or delegate broad exploration to a subagent, unless targeted searches come up empty or the task genuinely needs a codebase-wide survey. Stop searching once you have enough context to act.';
+const targetedSearchToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_TARGETED_SEARCH_TOOL_INSTRUCTION;
+
 /** Keeps subagents on their default model unless the user explicitly requests another model. */
 export const COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS = [
 	'When launching subagents with the task tool, leave the `model`, `reasoning_effort`, and `context_tier` parameters unset — each agent type already runs on a model suited to it, and overriding the model changes the session\'s cost and behavior profile.',
@@ -87,7 +91,7 @@ const browserToolInstructions: ToolInstructionLine = ({ hasTool }) => {
 /**
  * The registered tool-instruction lines, in render order.
  */
-const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, subagentToolInstructions, browserToolInstructions];
+const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [targetedSearchToolInstructions, largeOutputToolInstructions, subagentToolInstructions, browserToolInstructions];
 
 /** Tool-search guidance mirrored from the Copilot extension prompt. */
 const toolSearchToolInstructions: ToolInstructionLine = ({ hasTool }) =>
