@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { GitHubCredentialService } from '../../common/githubCredentialService.js';
@@ -184,6 +184,73 @@ suite('GitHubCredentialService', () => {
 				cooldown: 5_000, beforeReset: 3, requests: 4, timers: 0,
 			});
 			server.assertSatisfied();
+		});
+	});
+
+	for (const status of [429, 503]) {
+		test(`identity bootstrap honors Retry-After across repeated attempts after HTTP ${status}`, async () => {
+			const scheduler = disposables.add(new FakeGitHubScheduler());
+			const requests: number[] = [];
+			const tokenProvider = disposables.add(new TestTokenProvider());
+			tokenProvider.setToken('token');
+			const transport = disposables.add(new GitHubTransport(async () => {
+				requests.push(scheduler.now());
+				return requests.length === 1
+					? new Response('{"message":"Try later"}', {
+						status,
+						headers: { 'Retry-After': status === 429 ? '120' : new Date(120_000).toUTCString() },
+					})
+					: new Response('{"id":101}');
+			}, scheduler));
+			const credentials = disposables.add(new GitHubCredentialService(scheduler, testBackoffPolicy, transport, tokenProvider, {
+				onDidChange: Event.None,
+				getApiBaseUri: () => 'https://api.example.test',
+				getGraphQlUri: () => 'https://api.example.test/graphql',
+			}));
+			await assert.rejects(credentials.getCredential(signal()), { kind: status === 429 ? 'rateLimit' : 'server' });
+			const pending = credentials.getCredential(signal());
+			await flush();
+			scheduler.advanceBy(119_999);
+			await flush();
+			const requestsBeforeReset = requests.length;
+			scheduler.advanceBy(1);
+			const credential = await pending;
+			assert.deepStrictEqual({ requests, requestsBeforeReset, account: credential.account, timers: scheduler.pendingCount }, {
+				requests: [0, 120_000], requestsBeforeReset: 1,
+				account: { host: 'api.example.test', accountId: '101' }, timers: 0,
+			});
+		});
+	}
+
+	test('cancelling a bootstrap cooldown waiter does not erase the server delay', async () => {
+		const scheduler = disposables.add(new FakeGitHubScheduler());
+		const tokenProvider = disposables.add(new TestTokenProvider());
+		tokenProvider.setToken('token');
+		let requests = 0;
+		const transport = disposables.add(new GitHubTransport(async () => ++requests === 1
+			? new Response('', { status: 429, headers: { 'Retry-After': '120' } })
+			: new Response('{"id":101}'), scheduler));
+		const credentials = disposables.add(new GitHubCredentialService(scheduler, testBackoffPolicy, transport, tokenProvider, {
+			onDidChange: Event.None,
+			getApiBaseUri: () => 'https://api.example.test',
+			getGraphQlUri: () => 'https://api.example.test/graphql',
+		}));
+		await assert.rejects(credentials.getCredential(signal()), { kind: 'rateLimit' });
+		const controller = new AbortController();
+		const reason = new Error('cancelled');
+		const rejected = assert.rejects(credentials.getCredential(controller.signal), error => error === reason);
+		await flush();
+		controller.abort(reason);
+		await rejected;
+		const cancelledTimers = scheduler.pendingCount;
+		const pending = credentials.getCredential(signal());
+		await flush();
+		scheduler.advanceBy(119_999);
+		const requestsBeforeReset = requests;
+		scheduler.advanceBy(1);
+		await pending;
+		assert.deepStrictEqual({ cancelledTimers, requestsBeforeReset, requests, timers: scheduler.pendingCount }, {
+			cancelledTimers: 0, requestsBeforeReset: 1, requests: 2, timers: 0,
 		});
 	});
 

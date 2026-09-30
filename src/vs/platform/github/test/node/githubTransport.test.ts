@@ -928,7 +928,7 @@ suite('GitHubTransport', () => {
 	test('discards download error bodies without exposing signed URLs or credentials', async () => {
 		let cancelled = false;
 		const transport = disposables.add(new GitHubTransport(async () => new Response(new ReadableStream<Uint8Array>({
-			start(controller) { controller.enqueue(new TextEncoder().encode('private-token https://storage.example.test/log?sig=private')); },
+			start(controller) { controller.enqueue(new TextEncoder().encode('private-token https://storage.example.test/log?sig=private'.repeat(1024))); },
 			cancel() { cancelled = true; },
 		}), { status: 403, statusText: 'private details' })));
 		await assert.rejects(() => transport.download(accountA, 'token-a', {

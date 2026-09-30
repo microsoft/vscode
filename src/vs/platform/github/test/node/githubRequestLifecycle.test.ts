@@ -182,6 +182,137 @@ suite('GitHub request lifecycle', () => {
 		assert.deepStrictEqual({ calls, timers: scheduler.pendingCount }, { calls: 0, timers: 0 });
 	});
 
+	for (const hinted of [false, true]) {
+		test(`download secondary rate limits park the account ${hinted ? 'with' : 'without'} Retry-After`, async () => {
+			const scheduler = store.add(new FakeGitHubScheduler());
+			const calls: number[] = [];
+			const transport = store.add(new GitHubTransport(async () => {
+				calls.push(scheduler.now());
+				return calls.length === 1
+					? new Response('{"message":"You have exceeded a secondary rate limit. private-detail"}', {
+						status: 403,
+						headers: { 'Content-Type': 'application/json', ...(hinted ? { 'Retry-After': '120' } : {}) },
+					})
+					: new Response('{"data":{"value":"ok"}}');
+			}, scheduler));
+			await assert.rejects(transport.download(account, 'private-token', {
+				url, timeout: 1_000, maximumBytes: 1,
+			}, new AbortController().signal), {
+				name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 403,
+				message: 'GitHub download failed - HTTP 403', responseBody: undefined,
+			});
+			const delay = hinted ? 120_000 : 60_000;
+			const blocked = {
+				core: transport.rateLimits.getDelay(account, 'core'),
+				graphql: transport.rateLimits.getDelay(account, 'graphql'),
+			};
+			const pending = request(transport, 'graphql');
+			scheduler.advanceBy(delay - 1);
+			const beforeReset = calls.length;
+			scheduler.advanceBy(1);
+			await pending;
+			assert.deepStrictEqual({ blocked, beforeReset, calls, timers: scheduler.pendingCount }, {
+				blocked: { core: delay, graphql: delay }, beforeReset: 1, calls: [0, delay], timers: 0,
+			});
+		});
+	}
+
+	test('download same-origin redirects respect a newly established cooldown', async () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		const calls: { path: string; at: number }[] = [];
+		let discardedRedirects = 0;
+		const transport = store.add(new GitHubTransport(async input => {
+			const path = new URL(String(input)).pathname;
+			calls.push({ path, at: scheduler.now() });
+			return calls.length === 1
+				? new Response(new ReadableStream<Uint8Array>({
+					cancel() { discardedRedirects++; },
+				}), { status: 302, headers: { Location: '/redirected', 'Retry-After': '120' } })
+				: new Response('ok');
+		}, scheduler));
+		const download = () => transport.download(account, 'token', {
+			url, timeout: 180_000, maximumBytes: 100,
+		}, new AbortController().signal);
+		await assert.rejects(download(), { kind: 'rateLimit' });
+		const pending = download();
+		scheduler.advanceBy(119_999);
+		const beforeReset = calls.length;
+		scheduler.advanceBy(1);
+		const result = await pending;
+		assert.deepStrictEqual({ beforeReset, calls, discardedRedirects, text: result.text, timers: scheduler.pendingCount }, {
+			beforeReset: 1, calls: [{ path: '/repos/owner/repo', at: 0 }, { path: '/repos/owner/repo', at: 120_000 }],
+			discardedRedirects: 1, text: 'ok', timers: 0,
+		});
+	});
+
+	test('download errors use a bounded diagnostic prefix without exposing its contents', async () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		let chunks = 0;
+		let cancelled = false;
+		const body = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				const message = chunks++ === 0 ? '{"message":"secondary rate limit: private-detail"}' : '';
+				controller.enqueue(new TextEncoder().encode(message.padEnd(4 * 1024, 'x')));
+			},
+			cancel() { cancelled = true; },
+		}, { highWaterMark: 0 });
+		const transport = store.add(new GitHubTransport(async () => new Response(body, { status: 403 }), scheduler));
+		await assert.rejects(transport.download(account, 'private-token', { url, timeout: 1_000, maximumBytes: 1 }, new AbortController().signal), {
+			kind: 'rateLimit', message: 'GitHub download failed - HTTP 403', responseBody: undefined,
+		});
+		assert.deepStrictEqual({
+			chunks, cancelled, locked: body.locked, timers: scheduler.pendingCount,
+			graphqlCooldown: transport.rateLimits.getDelay(account, 'graphql'),
+		}, { chunks: 3, cancelled: true, locked: false, timers: 0, graphqlCooldown: 60_000 });
+	});
+
+	test('download authorization failures and storage-origin limits do not park GitHub traffic', async () => {
+		const outcomes: { storage: boolean; calls: number; core: number; graphql: number }[] = [];
+		for (const storage of [false, true]) {
+			const scheduler = store.add(new FakeGitHubScheduler());
+			let calls = 0;
+			const transport = store.add(new GitHubTransport(async (_input, options) => {
+				calls++;
+				if (storage && calls === 1) {
+					return new Response(null, { status: 302, headers: { Location: 'https://storage.example.test/log?sig=private' } });
+				}
+				assert.strictEqual(new Headers(options?.headers).has('Authorization'), !storage);
+				return storage
+					? new Response('{"message":"secondary rate limit"}', { status: 403, headers: { 'Retry-After': '120' } })
+					: new Response('{"message":"Resource not accessible by integration"}', { status: 403 });
+			}, scheduler));
+			await assert.rejects(transport.download(account, 'token', { url, timeout: 1_000, maximumBytes: 100 }, new AbortController().signal), {
+				kind: 'authorization', responseBody: undefined,
+			});
+			outcomes.push({
+				storage, calls,
+				core: transport.rateLimits.getDelay(account, 'core'),
+				graphql: transport.rateLimits.getDelay(account, 'graphql'),
+			});
+		}
+		assert.deepStrictEqual(outcomes, [
+			{ storage: false, calls: 1, core: 0, graphql: 0 },
+			{ storage: true, calls: 2, core: 0, graphql: 0 },
+		]);
+	});
+
+	test('download error-body inspection remains cancellable and sanitized', async () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		const started = new DeferredPromise<void>();
+		const cancelled = new DeferredPromise<void>();
+		const body = new ReadableStream<Uint8Array>({
+			pull() { void started.complete(); },
+			cancel() { void cancelled.complete(); return new Promise<void>(() => { }); },
+		}, { highWaterMark: 0 });
+		const transport = store.add(new GitHubTransport(async () => new Response(body, { status: 403 }), scheduler));
+		const rejected = assert.rejects(transport.download(account, 'token', { url, timeout: 10, maximumBytes: 1 }, new AbortController().signal), { kind: 'timeout' });
+		await started.p;
+		scheduler.advanceBy(10);
+		await rejected;
+		await cancelled.p;
+		assert.deepStrictEqual({ locked: body.locked, timers: scheduler.pendingCount }, { locked: false, timers: 0 });
+	});
+
 	test('rechecks cooldowns between admission and network dispatch', async () => {
 		const scheduler = store.add(new FakeGitHubScheduler());
 		let calls = 0;

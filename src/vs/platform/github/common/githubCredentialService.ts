@@ -143,13 +143,14 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 			const controller = new AbortController();
 			const apiBaseUri = this._endpointProvider.getApiBaseUri();
 			const host = new URL(apiBaseUri).host.toLowerCase();
+			const bootstrapAccount: GitHubAccountHandle = { host, accountId: `bootstrap:${generation}` };
 			this._logService?.debug(`[GitHubCredentialService] Resolving account identity for ${host} (generation ${generation})`);
 			const current: ICredentialGeneration = {
 				token,
 				generation,
 				host,
 				controller,
-				promise: this._resolveIdentity(token, generation, host, apiBaseUri, controller.signal)
+				promise: this._resolveIdentity(token, generation, bootstrapAccount, apiBaseUri, controller.signal)
 					.then(credential => {
 						current.credential = credential;
 						// Deliberately does not clear the failure record: a working
@@ -173,10 +174,15 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 						// An invalidated generation was not refused by GitHub, so
 						// it must not count towards the delay the next one serves.
 						if (!controller.signal.aborted) {
-							this._backoff.fail(this._backoffKey(token, host));
+							this._backoff.fail(this._backoffKey(token, host), this._transport.rateLimits.getDelay(bootstrapAccount, 'core'));
 						}
 						this._logService?.debug(`[GitHubCredentialService] Account identity resolution failed for ${host} (generation ${generation}, ${credentialErrorKind(error)})`);
 						throw error;
+					})
+					.finally(() => {
+						// Retain server delays in the credential gate before discarding the transient bootstrap identity.
+						this._transport.invalidateAccount(bootstrapAccount);
+						this._transport.rateLimits.clearAccount(bootstrapAccount);
 					}),
 			};
 			this._current = current;
@@ -196,8 +202,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		return new URL(this._endpointProvider.getApiBaseUri()).host.toLowerCase();
 	}
 
-	private async _resolveIdentity(token: string, generation: number, host: string, apiBaseUri: string, signal: AbortSignal): Promise<GitHubCredential> {
-		const bootstrapAccount: GitHubAccountHandle = { host, accountId: `bootstrap:${generation}` };
+	private async _resolveIdentity(token: string, generation: number, bootstrapAccount: GitHubAccountHandle, apiBaseUri: string, signal: AbortSignal): Promise<GitHubCredential> {
 		let response;
 		try {
 			response = await this._transport.rest<IGitHubUserResponse>(bootstrapAccount, token, {
@@ -213,9 +218,6 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 				this._tokenProvider.invalidateToken?.(token);
 			}
 			throw error;
-		} finally {
-			this._transport.invalidateAccount(bootstrapAccount);
-			this._transport.rateLimits.clearAccount(bootstrapAccount);
 		}
 		const id = response.data?.id;
 		if ((typeof id !== 'string' && typeof id !== 'number') || String(id).length === 0) {
@@ -223,7 +225,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		}
 
 		return {
-			account: { host, accountId: String(id) },
+			account: { host: bootstrapAccount.host, accountId: String(id) },
 			token,
 			generation,
 			signal,

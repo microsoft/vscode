@@ -76,6 +76,22 @@ suite('GitHubBackoffGate', () => {
 		assert.deepStrictEqual({ delays, timers: scheduler.pendingCount }, { delays: [10, 20, 40, 40, 10], timers: 0 });
 	});
 
+	test('server minimum delay overrides immediate retries and the computed backoff ceiling', async () => {
+		const scheduler = store.add(new FakeGitHubScheduler());
+		const gate = store.add(new GitHubBackoffGate('test', { ...policy, immediateRetries: 1 }, scheduler));
+		gate.fail('subject', 120_000);
+		let released = false;
+		const pending = gate.wait('subject', new AbortController().signal).then(() => { released = true; });
+		scheduler.advanceBy(119_999);
+		await Promise.resolve();
+		const beforeDeadline = released;
+		scheduler.advanceBy(1);
+		await pending;
+		assert.deepStrictEqual({ beforeDeadline, released, timers: scheduler.pendingCount }, {
+			beforeDeadline: false, released: true, timers: 0,
+		});
+	});
+
 	test('an additional failure extends an existing wait', async () => {
 		const { scheduler, gate } = setup();
 		gate.fail('subject');

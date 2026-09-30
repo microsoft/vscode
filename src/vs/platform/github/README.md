@@ -30,6 +30,7 @@ Internal requests carry caller attribution and a deadline. Current transport def
 - A five-minute request deadline includes queueing, cooldowns, retries, and body reads. Callers can tighten it. Responses are capped at 16 MiB; JSON overflow fails explicitly, while bounded downloads report truncation.
 - Equivalent reads share a request with at most 64 waiters and independent cancellation/deadlines. Credential invalidation clears affected work and caches without clearing resolved-account cooldowns.
 - Reads receive at most one transient-failure retry when not rate-limited. Writes are not automatically retried by the transport; mutation services retain their operation-specific reconciliation.
+- Server cooldowns also gate repeated identity lookups and authenticated download redirects. Download error classification inspects at most an 8 KiB diagnostic prefix, without exposing it in errors or telemetry.
 
 ### Telemetry
 

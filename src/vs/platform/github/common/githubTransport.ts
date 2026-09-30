@@ -102,6 +102,7 @@ export interface GitHubTransportOptions {
 
 const defaultApiVersion = '2022-11-28';
 const maximumErrorBodyLength = 500;
+const maximumDownloadErrorBytes = 8 * 1024;
 const maximumRedirects = 5;
 
 export class GitHubTransport extends Disposable implements IGitHubTransport {
@@ -246,6 +247,10 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			let url = request.url;
 			let authenticated = true;
 			for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
+				combinedSignal.throwIfAborted();
+				if (authenticated && this._rateLimits.getDelay(account, 'core') > 0) {
+					throw new GitHubRequestError('GitHub download is rate limited', 'rateLimit');
+				}
 				const headers: Record<string, string> = {
 					'Accept': authenticated ? 'application/vnd.github+json' : 'text/plain, application/octet-stream',
 					'X-GitHub-Api-Version': defaultApiVersion,
@@ -301,20 +306,21 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 					continue;
 				}
 				if (!response.ok) {
-					if (response.body) {
+					let diagnosticBody = '';
+					if (authenticated && response.status === 403) {
+						const prefix = await this._readDownloadBody(response, Math.min(maximumDownloadErrorBytes, this._options.maximumResponseBytes), combinedSignal);
+						diagnosticBody = new TextDecoder().decode(prefix.bytes);
+						this._rateLimits.updateFromResponse(account, response, diagnosticBody);
+					} else if (response.body) {
 						cancelDownloadBody(response.body, this._logService);
 					}
-					throw new GitHubRequestError(`GitHub download failed - HTTP ${response.status}`, classifyHttpError(response.status, ''), response.status);
-				}
-				let body: Awaited<ReturnType<typeof readBoundedResponse>>;
-				try {
-					body = await readBoundedResponse(response, Math.min(request.maximumBytes, this._options.maximumResponseBytes), combinedSignal, this._logService);
-				} catch (error) {
-					if (combinedSignal.aborted) {
-						throw combinedSignal.reason ?? error;
+					const kind = classifyHttpError(response.status, diagnosticBody);
+					if (response.status === 403 && kind === 'rateLimit') {
+						this._telemetry?.record('rateLimitedResponses');
 					}
-					throw new GitHubRequestError(`GitHub download body failed (codes: ${formatNetworkErrorCodes(error)})`, 'network');
+					throw new GitHubRequestError(`GitHub download failed - HTTP ${response.status}`, kind, response.status);
 				}
+				const body = await this._readDownloadBody(response, Math.min(request.maximumBytes, this._options.maximumResponseBytes), combinedSignal);
 				this._logService?.trace(`[GitHubTransport] Downloaded ${body.bytes.byteLength} byte(s) (truncated: ${body.truncated})`);
 				return {
 					text: new TextDecoder().decode(body.bytes),
@@ -326,6 +332,17 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			}
 			throw new GitHubRequestError('GitHub download exceeded the redirect limit', 'unknown');
 		}, { ...request, deadline }, 'download'));
+	}
+
+	private async _readDownloadBody(response: Response, maximumBytes: number, signal: AbortSignal): Promise<Awaited<ReturnType<typeof readBoundedResponse>>> {
+		try {
+			return await readBoundedResponse(response, maximumBytes, signal, this._logService);
+		} catch (error) {
+			if (signal.aborted) {
+				throw signal.reason ?? error;
+			}
+			throw new GitHubRequestError(`GitHub download body failed (codes: ${formatNetworkErrorCodes(error)})`, 'network');
+		}
 	}
 
 	private async _graphqlRead<T>(
