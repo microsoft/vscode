@@ -156,7 +156,7 @@ export class VariableCompletionHandler extends Disposable {
 				}
 
 				const range = computeRange(model, position, VariableCompletionHandler._wordPattern);
-				if (!range) {
+				if (!range || (!range.varWord && /^\s*\//.test(model.getValueInRange(new Range(1, 1, position.lineNumber, position.column))))) {
 					return null;
 				}
 
