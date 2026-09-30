@@ -997,7 +997,7 @@ export class ListView<T> implements IListView<T> {
 		if (typeof checked === 'boolean' || checked === 'mixed') {
 			item.row.domNode.setAttribute('aria-checked', toAriaState(checked));
 		} else if (checked) {
-			const update = (value: CheckBoxAccessibleState) => item.row!.domNode.setAttribute('aria-checked', toAriaState(value));
+			const update = (value: CheckBoxAccessibleState) => item.row?.domNode.setAttribute('aria-checked', toAriaState(value));
 			update(checked.value);
 			item.checkedDisposable = checked.onDidChange(() => update(checked.value));
 		}
@@ -1064,7 +1064,11 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
-		item.row!.domNode.style.top = `${this.elementTop(index)}px`;
+		if (!item.row) {
+			return;
+		}
+
+		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 
 		if (this.setRowHeight) {
 			item.row!.domNode.style.height = `${item.size}px`;
