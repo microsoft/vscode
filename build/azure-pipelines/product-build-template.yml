@@ -250,10 +250,49 @@ stages:
                 NPM_ARCH: x64
                 VSCODE_ARCH: x64
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                 VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+
+            # Same test jobs as the Linux CI jobs
+            - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
+              - template: linux/product-build-linux-test.yml@self
+                parameters:
+                  NPM_ARCH: x64
+                  VSCODE_ARCH: x64
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_TEST_IDS:
+                    - unit-electron
+                    - unit-node
+                    - unit-browser-chromium
+                    - copilot
+              - template: linux/product-build-linux-test.yml@self
+                parameters:
+                  NPM_ARCH: x64
+                  VSCODE_ARCH: x64
+                  VSCODE_JOB_NAME: BrowserRemote
+                  VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                  VSCODE_TEST_IDS:
+                    - integration-browser-chromium
+                    - integration-remote
+                    - smoke-browser-chromium
+                    - smoke-remote
+              - template: linux/product-build-linux-test.yml@self
+                parameters:
+                  NPM_ARCH: x64
+                  VSCODE_ARCH: x64
+                  VSCODE_JOB_NAME: Integration
+                  VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-electron
+              - template: linux/product-build-linux-test.yml@self
+                parameters:
+                  NPM_ARCH: x64
+                  VSCODE_ARCH: x64
+                  VSCODE_JOB_NAME: Smoke
+                  VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - smoke-electron
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARM64'], true) }}:
         - stage: LinuxARM64
@@ -474,9 +513,50 @@ stages:
               parameters:
                 VSCODE_ARCH: arm64
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                VSCODE_RUN_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+
+            # Same test jobs as the macOS CI jobs
+            - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
+              - template: darwin/product-build-darwin-test.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_TEST_IDS:
+                    - unit-electron
+                    - unit-node
+                    - unit-browser-webkit
+                    - copilot
+              - template: darwin/product-build-darwin-test.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: BrowserRemote
+                  VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                  VSCODE_TEST_IDS:
+                    - integration-browser-webkit
+                    - integration-remote
+                    - smoke-browser-chromium
+                    - smoke-remote
+              - template: darwin/product-build-darwin-test.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: Integration
+                  VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-electron
+              - template: darwin/product-build-darwin-test.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: Smoke
+                  VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - smoke-electron
+                    - smoke-agents-pac-proxy
+                    - smoke-agents-kerberos-pac-proxy
 
       # The universal job waits for the unsigned x64 and arm64 client artifacts
       # instead of depending on their stages, so that it runs in parallel.

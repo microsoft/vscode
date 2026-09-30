@@ -389,6 +389,21 @@ suite('Product test checkpoint templates', () => {
 			{ platform: 'darwin', testFile: darwinTestFile, jobPrefix: 'macOS' },
 		] as const).map(({ platform, testFile, jobPrefix }) => {
 			const steps = readTemplate(testFile).steps;
+			const productJobsTemplate = platform === 'linux' ? 'product-build-linux-jobs.yml' : 'product-build-darwin.yml';
+			const productTestTemplate = readTemplate(`${platform}/product-build-${platform}-test.yml`);
+			const productTestJob = records(productTestTemplate).find(record => typeof record.job === 'string');
+			const productJobsByPipeline = ['product-build.yml', 'product-build-template.yml'].map(file => {
+				const pipeline = readTemplate(file);
+				return {
+					runTests: records(pipeline).filter(record => typeof record.template === 'string' && record.template.endsWith(`${platform}/${productJobsTemplate}@self`))
+						.map(record => (record.parameters as Record<string, unknown>).VSCODE_RUN_TESTS),
+					jobs: records(pipeline).filter(record => typeof record.template === 'string' && record.template.endsWith(`${platform}/product-build-${platform}-test.yml@self`))
+						.map(record => {
+							const parameters = record.parameters as { VSCODE_ARCH: string; VSCODE_JOB_NAME: string; VSCODE_JOB_DISPLAY_NAME: string; VSCODE_TEST_IDS: string[] };
+							return { arch: parameters.VSCODE_ARCH, name: parameters.VSCODE_JOB_NAME, displayName: parameters.VSCODE_JOB_DISPLAY_NAME, ids: parameters.VSCODE_TEST_IDS };
+						}),
+				};
+			});
 			const selectedIds = selectedTestIds(testFile);
 			const ci = readTemplate(`${platform}/product-build-${platform}-ci.yml`);
 			const job = records(ci).find(record => record.job === `${jobPrefix}\${{ parameters.VSCODE_JOB_NAME }}`);
@@ -426,17 +441,19 @@ suite('Product test checkpoint templates', () => {
 				copilotSetup: Object.keys(setup.steps.find(step => records(step).some(record => record.template === '../../copilot/pull-test-cache.yml@self')) ?? {}),
 				copilotTests: Object.keys(steps.find(step => records(step).some(record => record.template === '../../copilot/test-integration-steps.yml@self')) ?? {}),
 				remoteNode: Object.keys(steps.find(step => records(step).some(record => record.displayName === 'Download Node.js')) ?? {}),
-				productTests: ['ELECTRON', 'BROWSER', 'REMOTE'].map(environment => ({
-					environment,
-					tests: steps.flatMap(step => Object.entries(step)
-						.filter(([key]) => key.startsWith('${{ if ') && key.includes(`eq(parameters.VSCODE_RUN_${environment}_TESTS, true)`))
-						.flatMap(([, branch]) => calls(branch).map(call => call.testId))),
-				})),
+				productTestJob: { job: productTestJob?.job, dependsOn: productTestJob?.dependsOn, displayName: productTestJob?.displayName },
+				// The product build runs the same test jobs as CI
+				productJobsMatchCI: productJobsByPipeline.every(pipeline => JSON.stringify(pipeline.jobs) === JSON.stringify(jobs.map(job => ({ arch: pipeline.jobs[0]?.arch, ...job })))),
+				productJobsByPipeline: productJobsByPipeline.map(pipeline => ({ runTests: pipeline.runTests, arches: [...new Set(pipeline.jobs.map(job => job.arch))] })),
+				// Tests are only selected by test ID
+				testEnvironmentParameters: [compileTemplate, setup, readTemplate(testFile)].flatMap(template => template.parameters ?? [])
+					.map(parameter => parameter.name).filter(name => /^VSCODE_RUN_\w+_TESTS$/.test(name)),
 			};
 		});
 		const jobDisplayNames = ['Unit Tests', 'Browser & Remote Tests', 'Integration Tests (Electron)', 'Smoke Tests (Electron)'];
-		const copilotCondition = '${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'copilot\'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}';
-		const remoteNodeCondition = '${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'integration-remote\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-remote\'), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}';
+		const copilotCondition = '${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}';
+		const remoteNodeCondition = '${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'integration-remote\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-remote\')) }}';
+		const runTests = '${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}';
 		assert.deepStrictEqual(observed, [
 			{
 				platform: 'linux',
@@ -457,11 +474,15 @@ suite('Product test checkpoint templates', () => {
 				copilotSetup: [copilotCondition],
 				copilotTests: [copilotCondition],
 				remoteNode: [remoteNodeCondition],
-				productTests: [
-					{ environment: 'ELECTRON', tests: ['unit-electron', 'unit-node', 'integration-electron', 'smoke-electron'] },
-					{ environment: 'BROWSER', tests: ['unit-browser-chromium', 'integration-browser-chromium', 'smoke-browser-chromium'] },
-					{ environment: 'REMOTE', tests: ['integration-remote', 'smoke-remote'] },
-				],
+				productTestJob: {
+					job: 'Linux_${{ parameters.VSCODE_ARCH }}_Test_${{ parameters.VSCODE_JOB_NAME }}',
+					dependsOn: 'Linux_${{ parameters.VSCODE_ARCH }}_Compile',
+					displayName: 'Linux (${{ upper(parameters.VSCODE_ARCH) }}) - ${{ parameters.VSCODE_JOB_DISPLAY_NAME }}',
+				},
+				productJobsMatchCI: true,
+				// Only Linux x64 runs tests, not arm64 or armhf
+				productJobsByPipeline: [0, 1].map(() => ({ runTests: [runTests, undefined, undefined], arches: ['x64'] })),
+				testEnvironmentParameters: [],
 			},
 			{
 				platform: 'darwin',
@@ -482,11 +503,15 @@ suite('Product test checkpoint templates', () => {
 				copilotSetup: [copilotCondition],
 				copilotTests: [copilotCondition],
 				remoteNode: [remoteNodeCondition],
-				productTests: [
-					{ environment: 'ELECTRON', tests: ['unit-electron', 'unit-node', 'integration-electron', 'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy'] },
-					{ environment: 'BROWSER', tests: ['unit-browser-webkit', 'integration-browser-webkit', 'smoke-browser-chromium'] },
-					{ environment: 'REMOTE', tests: ['integration-remote', 'smoke-remote'] },
-				],
+				productTestJob: {
+					job: 'macOS_${{ parameters.VSCODE_ARCH }}_Test_${{ parameters.VSCODE_JOB_NAME }}',
+					dependsOn: 'macOS_${{ parameters.VSCODE_ARCH }}_Compile',
+					displayName: 'macOS (${{ upper(parameters.VSCODE_ARCH) }}) - ${{ parameters.VSCODE_JOB_DISPLAY_NAME }}',
+				},
+				productJobsMatchCI: true,
+				// Only macOS arm64 runs tests, not x64
+				productJobsByPipeline: [0, 1].map(() => ({ runTests: [undefined, runTests], arches: ['arm64'] })),
+				testEnvironmentParameters: [],
 			},
 		]);
 	});
@@ -555,8 +580,7 @@ suite('Product test checkpoint templates', () => {
 			return {
 				platform,
 				ciBuild: compileParameters?.VSCODE_CIBUILD,
-				noProductTestSelection: ['VSCODE_TEST_IDS', 'VSCODE_RUN_ELECTRON_TESTS', 'VSCODE_RUN_BROWSER_TESTS', 'VSCODE_RUN_REMOTE_TESTS']
-					.every(name => !Object.hasOwn(compileParameters ?? {}, name)),
+				noProductTestSelection: ['VSCODE_TEST_IDS'].every(name => !Object.hasOwn(compileParameters ?? {}, name)),
 				defaultTestIds: compile.parameters?.find(parameter => parameter.name === 'VSCODE_TEST_IDS')?.default,
 				packagedHostGuards,
 				productTestGuards,
@@ -569,9 +593,7 @@ suite('Product test checkpoint templates', () => {
 			noProductTestSelection: true,
 			defaultTestIds: [],
 			packagedHostGuards: [`\${{ if and(eq(parameters.VSCODE_ARCH, '${platform === 'darwin' ? 'arm64' : 'x64'}'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'))) }}`],
-			productTestGuards: [platform === 'win32'
-				? '${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}'
-				: '${{ if or(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}'],
+			productTestGuards: ['${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}'],
 			repeatedTestJobs: 3,
 		})));
 	});
@@ -579,7 +601,7 @@ suite('Product test checkpoint templates', () => {
 	test('the Linux policy fixture is skipped with the Electron smoke test', () => {
 		const smoke = readTemplate(linuxTestFile).steps.flatMap(step =>
 			Object.entries(step)
-				.filter(([key]) => key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\')') && key.includes('eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)'))
+				.filter(([key]) => key === '${{ if containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\') }}')
 				.flatMap(([, branch]) => branch as ScriptStep[])
 		);
 		assert.deepStrictEqual(smoke.filter(step => step.displayName?.includes('native policy smoke fixture')).map(step => ({
@@ -603,7 +625,7 @@ suite('Product test checkpoint templates', () => {
 				.filter(([key]) => key.includes('containsValue(parameters.VSCODE_TEST_IDS, \'smoke-agents-'))
 				.flatMap(([, branch]) => calls(branch).map(call => call.testId))),
 		}, {
-			setup: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'smoke-agents-pac-proxy\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-agents-kerberos-pac-proxy\'), eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true)) }}'],
+			setup: ['${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'smoke-agents-pac-proxy\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-agents-kerberos-pac-proxy\')) }}'],
 			tests: ['smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy'],
 		});
 	});
