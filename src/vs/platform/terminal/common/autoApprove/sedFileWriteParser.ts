@@ -118,10 +118,6 @@ export class SedFileWriteParser {
 		if (suffix === '') {
 			return true;
 		}
-		const isQuoted = (rawSuffix.startsWith('\'') && rawSuffix.endsWith('\'')) || (rawSuffix.startsWith('"') && rawSuffix.endsWith('"'));
-		if (!isQuoted) {
-			return false;
-		}
 		return suffix.startsWith('.') || this._isExplicitScriptOption(tokens[optionIndex + 2]);
 	}
 

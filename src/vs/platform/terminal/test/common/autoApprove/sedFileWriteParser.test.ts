@@ -74,15 +74,19 @@ suite('SedFileWriteParser', () => {
 		});
 	});
 
-	test('extracts quoted BSD backup suffix and file target', () => {
+	test('extracts separated BSD backup suffix and file target', () => {
 		assert.deepStrictEqual({
 			singleQuoted: parser.extractFileWrites('sed -i \'.bak\' "s/foo/bar/" file.txt'),
 			doubleQuoted: parser.extractFileWrites('sed -i ".bak" "s/foo/bar/" file.txt'),
 			pathSuffix: parser.extractFileWrites('sed -i \'.bak/../../outside/target\' -e "s/foo/bar/" file.txt'),
+			unquoted: parser.extractFileWrites('sed -i .bak -e "s/foo/bar/" file.txt'),
+			unquotedPathSuffix: parser.extractFileWrites('sed -i .bak/../../outside/target -e "s/foo/bar/" file.txt'),
 		}, {
 			singleQuoted: ['file.txt', 'file.txt.bak'],
 			doubleQuoted: ['file.txt', 'file.txt.bak'],
 			pathSuffix: ['file.txt', 'file.txt.bak/../../outside/target'],
+			unquoted: ['file.txt', 'file.txt.bak'],
+			unquotedPathSuffix: ['file.txt', 'file.txt.bak/../../outside/target'],
 		});
 	});
 

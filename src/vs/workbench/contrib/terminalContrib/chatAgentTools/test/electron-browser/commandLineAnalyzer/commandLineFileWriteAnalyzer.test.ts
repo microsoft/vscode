@@ -377,6 +377,10 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('sed -i with empty backup (macOS) inside workspace - allow', () => t('sed -i \'\' \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
 			test('sed -i with arbitrary BSD backup path outside workspace - block', () =>
 				t('sed -i \'.bak/../../../outside/target\' -e \'s/foo/bar/\' file.txt', 'outsideWorkspace', false, 1));
+			test('sed -i with unquoted BSD backup suffix inside workspace - allow', () =>
+				t('sed -i .bak -e \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed -i with unquoted BSD backup path outside workspace - block', () =>
+				t('sed -i .bak/../../../outside/target -e \'s/foo/bar/\' file.txt', 'outsideWorkspace', false, 1));
 
 			// Combined flags (inside workspace)
 			test('sed -ni inside workspace - allow', () => t('sed -ni \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
