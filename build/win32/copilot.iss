@@ -25,7 +25,6 @@ const
   CopilotChoiceInstall = 'install';
   CopilotChoiceOnFirstUse = 'onfirstuse';
   CopilotChoiceNone = 'none';
-  CopilotChoiceExisting = 'existing';
   CopilotChoicePolicy = 'policy';
 
   CopilotActionKeep = 0;
@@ -184,12 +183,13 @@ begin
   end;
 end;
 
+// Appends Dir so that CopilotRemovePathEntry restores the original value exactly, including a trailing separator.
 function CopilotAppendPathEntry(const PathValue, Dir: String): String;
 begin
   if PathValue = '' then
     Result := Dir
   else if PathValue[Length(PathValue)] = ';' then
-    Result := PathValue + Dir
+    Result := PathValue + Dir + ';'
   else
     Result := PathValue + ';' + Dir;
 end;
@@ -325,7 +325,7 @@ begin
     Result := Switch
   else if PreviousChoice = CopilotChoiceNone then
     Result := CopilotChoiceNone
-  else if (PreviousChoice = CopilotChoiceOnFirstUse) or (PreviousChoice = CopilotChoiceInstall) or (PreviousChoice = CopilotChoiceExisting) then
+  else if (PreviousChoice = CopilotChoiceOnFirstUse) or (PreviousChoice = CopilotChoiceInstall) then
     // Copilot CLI isn't installed now, so an earlier install was removed; don't download it again by default.
     Result := CopilotChoiceOnFirstUse
   else
@@ -335,8 +335,16 @@ begin
     Result := CopilotChoiceOnFirstUse;
 end;
 
-// Decides what a silent run (silent install, silent update, or background update) does.
-function CopilotDecideSilent(const Switch: String; const IsExistingInstall: Boolean; const PreviousChoice, PreviousSource: String; const IsUserInstaller, IsElevated, AddToPathSelected: Boolean; var Choice, Source: String): Integer;
+// Whether a saved choice was the user's (the page, the switch) or followed `code`. A saved `policy` state isn't a choice,
+// so lifting the policy brings back the default behavior.
+function CopilotIsRememberedChoice(const Choice: String): Boolean;
+begin
+  Result := (Choice = CopilotChoiceInstall) or (Choice = CopilotChoiceOnFirstUse) or (Choice = CopilotChoiceNone);
+end;
+
+// Decides what a run without the page does: a silent install, a silent reinstall, a background update, or an
+// interactive install that skipped the page.
+function CopilotDecideWithoutPage(const Switch: String; const IsExistingInstall: Boolean; const PreviousChoice, PreviousSource: String; const IsUserInstaller, IsElevated, AddToPathSelected: Boolean; var Choice, Source: String): Integer;
 begin
   if Switch = CopilotChoiceInstall then begin
     Source := 'switch';
@@ -355,19 +363,16 @@ begin
     Result := CopilotActionRemove;
     Choice := CopilotChoiceNone;
     Source := 'switch';
-  end else if not IsExistingInstall then begin
-    Result := CopilotActionAdd;
-    Choice := CopilotChoiceOnFirstUse;
-    Source := 'default';
-  end else if PreviousChoice <> '' then begin
+  end else if IsExistingInstall and CopilotIsRememberedChoice(PreviousChoice) then begin
     Result := CopilotActionKeep;
     Choice := PreviousChoice;
     Source := PreviousSource;
-  end else if IsUserInstaller and AddToPathSelected then begin
-    // One-time migration for user installs that predate the shim and already put `code` on PATH.
+  end else if AddToPathSelected then begin
+    // Otherwise `copilot` follows `code`: it's added when the Add to PATH task is selected, including once for existing
+    // installs that predate the shim. The choice is then remembered.
     Result := CopilotActionAdd;
     Choice := CopilotChoiceOnFirstUse;
-    Source := 'migration';
+    Source := 'addtopath';
   end else begin
     Result := CopilotActionKeep;
     Choice := '';
@@ -410,31 +415,27 @@ begin
     CopilotAction := CopilotActionPolicy;
     CopilotChoice := CopilotChoicePolicy;
     CopilotSource := 'policy';
-  end else if WizardSilent() then begin
-    CopilotAction := CopilotDecideSilent(CopilotSwitchValue, CopilotIsExistingInstall, CopilotPreviousChoice, CopilotPreviousSource,
-      CopilotIsUserInstaller(), IsAdmin(), WizardIsTaskSelected('addtopath'), CopilotChoice, CopilotSource);
-  end else begin
+    Log('Copilot: action=policy');
+    exit;
+  end;
+
+  if WizardSilent() then
+    PageChoice := ''
+  else
     PageChoice := CopilotChoiceFromPage();
+
+  if PageChoice <> '' then begin
     if PageChoice = CopilotChoiceInstall then
       CopilotAction := CopilotActionInstall
     else if PageChoice = CopilotChoiceOnFirstUse then
       CopilotAction := CopilotActionAdd
-    else if PageChoice = CopilotChoiceNone then
-      CopilotAction := CopilotActionRemove
     else
-      CopilotAction := CopilotActionKeep;
-
-    if PageChoice <> '' then begin
-      CopilotChoice := PageChoice;
-      CopilotSource := 'page';
-    end else if CopilotProbeCompleted and CopilotProbeCliFound then begin
-      CopilotChoice := CopilotChoiceExisting;
-      CopilotSource := 'detected';
-    end else begin
-      CopilotChoice := CopilotPreviousChoice;
-      CopilotSource := CopilotPreviousSource;
-    end;
-  end;
+      CopilotAction := CopilotActionRemove;
+    CopilotChoice := PageChoice;
+    CopilotSource := 'page';
+  end else
+    CopilotAction := CopilotDecideWithoutPage(CopilotSwitchValue, CopilotIsExistingInstall, CopilotPreviousChoice, CopilotPreviousSource,
+      CopilotIsUserInstaller(), IsAdmin(), WizardIsTaskSelected('addtopath'), CopilotChoice, CopilotSource);
 
   Log(Format('Copilot: action=%d, choice=%s, source=%s', [CopilotAction, CopilotChoice, CopilotSource]));
 end;
