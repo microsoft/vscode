@@ -1431,20 +1431,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
-		let preparedPath: string;
-		try {
-			preparedPath = await this.preparePathForShell(originalPath, shouldExecute);
-		} catch (error) {
-			this._logService.warn('Could not prepare terminal path', error);
-			return;
-		}
-		await this.sendText(preparedPath, shouldExecute);
+		return this.sendText(await this.preparePathForShell(originalPath), shouldExecute);
 	}
 
-	async preparePathForShell(originalPath: string | URI, shouldExecute: boolean = false): Promise<string> {
+	async preparePathForShell(originalPath: string | URI): Promise<string> {
 		// Wait for shell type to be ready
 		await this.processReady;
-		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os, isWindows, shouldExecute);
+		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
 	}
 
 	async getUriLabelForShell(uri: URI): Promise<string> {

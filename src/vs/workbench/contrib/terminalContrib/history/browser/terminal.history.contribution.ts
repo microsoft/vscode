@@ -24,7 +24,7 @@ import { TERMINAL_VIEW_ID } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { clearShellFileHistory, getCommandHistory, getDirectoryHistory } from '../common/history.js';
 import { TerminalHistoryCommandId } from '../common/terminal.history.js';
-import { isSafeTerminalHistoryText, showRunRecentQuickPick } from './terminalRunRecentQuickPick.js';
+import { showRunRecentQuickPick } from './terminalRunRecentQuickPick.js';
 
 // #region Terminal Contributions
 
@@ -65,7 +65,7 @@ class TerminalHistoryContribution extends Disposable implements ITerminalContrib
 				case TerminalCapability.CommandDetection: {
 					const store = new DisposableStore();
 					store.add(e.capability.onCommandFinished(e => {
-						if (e.isTrusted === true && e.command.trim().length > 0 && isSafeTerminalHistoryText(e.command)) {
+						if (e.command.trim().length > 0) {
 							this._instantiationService.invokeFunction(getCommandHistory)?.add(e.command, { shellType: _ctx.instance.shellType });
 						}
 					}));

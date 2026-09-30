@@ -31,42 +31,6 @@ import { extUri, extUriIgnorePathCase } from '../../../../../base/common/resourc
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { isObject } from '../../../../../base/common/types.js';
 
-export function isSafeTerminalHistoryText(value: string | undefined): boolean {
-	if (value === undefined) {
-		return true;
-	}
-	for (let i = 0; i < value.length; i++) {
-		const code = value.charCodeAt(i);
-		if (code <= 0x1F || (code >= 0x7F && code <= 0x9F)) {
-			return false;
-		}
-	}
-	return true;
-}
-
-export async function runRecentSelection(instance: ITerminalInstance, type: 'command' | 'cwd', rawLabel: string, shouldExecute: boolean): Promise<boolean> {
-	let text: string;
-	if (type === 'cwd') {
-		try {
-			text = `cd ${await instance.preparePathForShell(rawLabel)}`;
-		} catch {
-			instance.focus();
-			return false;
-		}
-	} else { // command
-		text = rawLabel;
-	}
-	if (!isSafeTerminalHistoryText(text)) {
-		instance.focus();
-		return false;
-	}
-	instance.runCommand(text, shouldExecute);
-	if (!shouldExecute) {
-		instance.focus();
-	}
-	return true;
-}
-
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
 	instance: ITerminalInstance,
@@ -109,14 +73,10 @@ export async function showRunRecentQuickPick(
 		placeholder = isMacintosh ? localize('selectRecentCommandMac', 'Select a command to run (hold Option-key to edit the command)') : localize('selectRecentCommand', 'Select a command to run (hold Alt-key to edit the command)');
 		const cmdDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const commands = cmdDetection?.commands;
-		const blockedCommandLabels = new Set<string>();
 		// Current session history
 		const executingCommand = cmdDetection?.executingCommand;
-		const executingCommandObject = cmdDetection?.executingCommandObject;
-		if (executingCommand && executingCommandObject?.isTrusted === true && isSafeTerminalHistoryText(executingCommand)) {
+		if (executingCommand) {
 			commandMap.add(executingCommand);
-		} else if (executingCommand) {
-			blockedCommandLabels.add(executingCommand);
 		}
 		function formatLabel(label: string) {
 			return label
@@ -132,10 +92,6 @@ export async function showRunRecentQuickPick(
 				// Trim off any whitespace and/or line endings, replace new lines with the
 				// Downwards Arrow with Corner Leftwards symbol
 				const label = entry.command.trim();
-				if (entry.isTrusted !== true || !isSafeTerminalHistoryText(label) || !isSafeTerminalHistoryText(entry.cwd)) {
-					blockedCommandLabels.add(label);
-					continue;
-				}
 				if (label.length === 0 || commandMap.has(label)) {
 					continue;
 				}
@@ -169,7 +125,7 @@ export async function showRunRecentQuickPick(
 				commandMap.add(label);
 			}
 		}
-		if (executingCommand && executingCommandObject?.isTrusted === true && isSafeTerminalHistoryText(executingCommand) && isSafeTerminalHistoryText(cmdDetection?.cwd)) {
+		if (executingCommand) {
 			items.unshift({
 				label: formatLabel(executingCommand),
 				rawLabel: executingCommand,
@@ -189,7 +145,7 @@ export async function showRunRecentQuickPick(
 		const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 		for (const [label, info] of history.entries) {
 			// Only add previous session item if it's not in this session
-			if (!commandMap.has(label) && !blockedCommandLabels.has(label) && info.shellType === instance.shellType && isSafeTerminalHistoryText(label)) {
+			if (!commandMap.has(label) && info.shellType === instance.shellType) {
 				previousSessionItems.unshift({
 					label: formatLabel(label),
 					rawLabel: label,
@@ -215,7 +171,7 @@ export async function showRunRecentQuickPick(
 		if (shellFileHistory !== undefined) {
 			const dedupedShellFileItems: (IQuickPickItem & { rawLabel: string })[] = [];
 			for (const label of shellFileHistory.commands) {
-				if (!commandMap.has(label) && !blockedCommandLabels.has(label) && isSafeTerminalHistoryText(label)) {
+				if (!commandMap.has(label)) {
 					dedupedShellFileItems.unshift({
 						label: formatLabel(label),
 						rawLabel: label
@@ -253,9 +209,6 @@ export async function showRunRecentQuickPick(
 		const cwds = instance.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
 		if (cwds && cwds.length > 0) {
 			for (const label of cwds) {
-				if (!isSafeTerminalHistoryText(label)) {
-					continue;
-				}
 				const itemUri = URI.file(label);
 				if (!uniqueUris.has(itemUri)) {
 					uniqueUris.add(itemUri);
@@ -274,7 +227,7 @@ export async function showRunRecentQuickPick(
 		const previousSessionItems: (IQuickPickItem & { rawLabel: string })[] = [];
 		// Only add previous session item if it's not in this session and it matches the remote authority
 		for (const [label, info] of history.entries) {
-			if (isSafeTerminalHistoryText(label) && (info === null || info.remoteAuthority === instance.remoteAuthority)) {
+			if (info === null || info.remoteAuthority === instance.remoteAuthority) {
 				const itemUri = info?.remoteAuthority ? await pathService.fileURI(label) : URI.file(label);
 				if (!uniqueUris.has(itemUri)) {
 					uniqueUris.add(itemUri);
@@ -397,12 +350,20 @@ export async function showRunRecentQuickPick(
 	}));
 	disposables.add(quickPick.onDidAccept(async () => {
 		const result = quickPick.activeItems[0];
-		const shouldExecute = !quickPick.keyMods.alt;
+		let text: string;
+		if (type === 'cwd') {
+			text = `cd ${await instance.preparePathForShell(result.rawLabel)}`;
+		} else { // command
+			text = result.rawLabel;
+		}
 		quickPick.hide();
 		terminalScrollStateSaved = false;
 		instance.xterm?.markTracker.clear();
 		instance.scrollToBottom();
-		await runRecentSelection(instance, type, result.rawLabel, shouldExecute);
+		instance.runCommand(text, !quickPick.keyMods.alt);
+		if (quickPick.keyMods.alt) {
+			instance.focus();
+		}
 	}));
 	disposables.add(quickPick.onDidHide(() => restoreScrollState()));
 	if (value) {
