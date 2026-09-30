@@ -162,6 +162,8 @@ suite('Sessions rename', () => {
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
+				override readonly description = constObservable(undefined);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chatSession: ISession = {
@@ -382,6 +384,8 @@ suite('Sessions rename', () => {
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
+				override readonly description = constObservable(undefined);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chats = observableValue<readonly IChat[]>('renameDraftChats', [mainChat, peerChat]);
@@ -458,6 +462,8 @@ suite('Sessions rename', () => {
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
+				override readonly description = constObservable(undefined);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const session: ISession = {
@@ -639,18 +645,24 @@ suite('Sessions rename', () => {
 				override readonly resource = URI.parse('test-chat:///grill-and-plan');
 				override readonly workspace = constObservable(undefined);
 				override readonly title = constObservable('Grill and Plan');
+				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(options.status ?? SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
+				override readonly description = constObservable(undefined);
 				override readonly capabilities = constObservable({ canRename: options.canRename ?? true, canArchive: true, canDelete: true });
 			}();
 			const otherPeerChat = new class extends mock<IChat>() {
 				override readonly resource = URI.parse('test-chat:///other-peer');
 				override readonly workspace = constObservable(undefined);
 				override readonly title = constObservable('Other Peer');
+				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
+				override readonly description = constObservable(undefined);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chats = observableValue<readonly IChat[]>('renameChats', [mainChat, peerChat, otherPeerChat]);
