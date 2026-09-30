@@ -29,7 +29,7 @@ export interface ISessionListModelChangeEvent {
 }
 
 /**
- * Service that manages UI-only state for sessions: pinned and manual sort order.
+ * Service that manages UI-only state for sessions: pins, manual sort order, and archived ordering.
  *
  * This state is purely local (persisted in storage) and not synced to providers.
  * Extracted from SessionsList so it can be consumed by any component (title bar,
@@ -73,6 +73,9 @@ export interface ISessionsListModelService {
 	/** Whether the session has a manual sort override in the given mode. */
 	hasSortOverride(sessionId: string, mode: SessionSortMode): boolean;
 
+	/** The time the session was most recently archived, falling back to its last update time. */
+	getArchivedSortKey(session: ISession): number;
+
 	/**
 	 * Apply a batch of manual sort changes for a single mode. Overrides in
 	 * `set` are stored, ids in `clear` are removed (falling back to the natural
@@ -105,6 +108,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
 	private static readonly SORT_OVERRIDES_KEY = 'sessionsListControl.sortOverrides';
 	private static readonly UPDATED_DEFAULT_PLACEMENTS_KEY = 'sessionsListControl.updatedDefaultPlacements';
+	private static readonly ARCHIVED_TIMESTAMPS_KEY = 'sessionsListControl.archivedTimestamps';
 	private static readonly LEGACY_READ_SESSIONS_KEY = 'sessionsListControl.readSessions';
 	private static readonly READ_MIGRATION_DONE_KEY = 'sessionsListControl.readMigrationDone';
 	private static readonly UNREAD_DEFAULT_CUTOFF = new Date('2026-05-12T00:00:00.000Z');
@@ -115,6 +119,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private readonly _pinnedSessionIds: Set<string>;
 	private readonly _sortOverrides: Record<SessionSortMode, Map<string, number>>;
 	private readonly _updatedDefaultPlacements: Map<string, number | null>;
+	private readonly _archivedTimestamps: Map<string, number>;
 	private readonly _legacyReadSessionIds: Set<string> | undefined;
 	private readonly _migratedReadSessionIds: Set<string>;
 
@@ -127,6 +132,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._pinnedSessionIds = this.loadSet(SessionsListModelService.PINNED_SESSIONS_KEY);
 		this._sortOverrides = this.loadSortOverrides();
 		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
+		this._archivedTimestamps = this.loadArchivedTimestamps();
 		const legacyRead = this.loadSet(SessionsListModelService.LEGACY_READ_SESSIONS_KEY);
 		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
 		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
@@ -141,6 +147,17 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		// back on the next refresh.
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => {
 			this.deleteSession(session);
+		}));
+		this._register(this.sessionsManagementService.onDidArchiveSession(session => {
+			this._archivedTimestamps.set(session.sessionId, Date.now());
+			this.saveArchivedTimestamps();
+			this._onDidChange.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Sort }] });
+		}));
+		this._register(this.sessionsManagementService.onDidUnarchiveSession(session => {
+			if (this._archivedTimestamps.delete(session.sessionId)) {
+				this.saveArchivedTimestamps();
+				this._onDidChange.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Sort }] });
+			}
 		}));
 	}
 
@@ -294,6 +311,10 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		return this._sortOverrides[mode].has(sessionId);
 	}
 
+	getArchivedSortKey(session: ISession): number {
+		return this._archivedTimestamps.get(session.sessionId) ?? session.updatedAt.get().getTime();
+	}
+
 	applySortChanges(mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
 		const map = this._sortOverrides[mode];
 		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
@@ -373,8 +394,14 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		if (this._updatedDefaultPlacements.delete(session.sessionId)) {
 			this.saveUpdatedDefaultPlacements();
 		}
+		const archivedTimestampChanged = this._archivedTimestamps.delete(session.sessionId);
+		if (archivedTimestampChanged) {
+			this.saveArchivedTimestamps();
+		}
 		if (sortChanged) {
 			this.saveSortOverrides();
+		}
+		if (sortChanged || archivedTimestampChanged) {
 			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Sort });
 		}
 		if (changes.length > 0) {
@@ -459,6 +486,38 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			// ignore corrupt data
 		}
 		return result;
+	}
+
+	private loadArchivedTimestamps(): Map<string, number> {
+		const result = new Map<string, number>();
+		const raw = this.storageService.get(SessionsListModelService.ARCHIVED_TIMESTAMPS_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			return result;
+		}
+		try {
+			const parsed = JSON.parse(raw) as Record<string, number>;
+			for (const [sessionId, value] of Object.entries(parsed)) {
+				if (typeof value === 'number') {
+					result.set(sessionId, value);
+				}
+			}
+		} catch {
+			// ignore corrupt data
+		}
+		return result;
+	}
+
+	private saveArchivedTimestamps(): void {
+		if (this._archivedTimestamps.size === 0) {
+			this.storageService.remove(SessionsListModelService.ARCHIVED_TIMESTAMPS_KEY, StorageScope.PROFILE);
+			return;
+		}
+		this.storageService.store(
+			SessionsListModelService.ARCHIVED_TIMESTAMPS_KEY,
+			JSON.stringify(Object.fromEntries(this._archivedTimestamps)),
+			StorageScope.PROFILE,
+			StorageTarget.USER,
+		);
 	}
 
 	private saveUpdatedDefaultPlacements(): void {

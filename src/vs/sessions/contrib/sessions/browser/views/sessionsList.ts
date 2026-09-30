@@ -4496,7 +4496,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.sort((a, b) => b.group.createdAt - a.group.createdAt)
 			.map(item => `group:${item.group.id}`);
 
-		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService)), this.groupExternalSessions);
+		const sections = groupSessionsForList(
+			forSections,
+			grouping,
+			sorting,
+			session => this.isSessionPinned(session),
+			(s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)),
+			getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService)),
+			this.groupExternalSessions,
+			session => this._sessionsListModelService.getArchivedSortKey(session),
+		);
 
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
 
@@ -6473,6 +6482,7 @@ export function groupSessionsForList(
 	getSortKey?: (session: ISession, sorting: SessionsSorting) => number,
 	archivedSectionLabel: string = getChatSessionArchivedSectionLabel(ChatSessionArchiveActionWording.MarkAsDone),
 	groupExternalSessions = true,
+	getArchivedSortKey: (session: ISession) => number = session => session.updatedAt.get().getTime(),
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions.filter(session => !isAutomationSession(session)), sorting, getSortKey);
 
@@ -6516,6 +6526,7 @@ export function groupSessionsForList(
 	}
 
 	if (archived.length > 0) {
+		archived.sort((a, b) => getArchivedSortKey(b) - getArchivedSortKey(a));
 		sections.push({ id: 'archived', label: archivedSectionLabel, sessions: archived });
 	}
 

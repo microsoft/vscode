@@ -257,6 +257,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
 			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
 		}
+		override getArchivedSortKey(session: ISession): number {
+			return session.updatedAt.get().getTime();
+		}
 		override applySortChanges(_mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
 			sortChanges.push({ set: new Map(set), clear: [...clear] });
 		}

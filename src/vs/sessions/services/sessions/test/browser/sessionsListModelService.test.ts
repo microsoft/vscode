@@ -47,6 +47,8 @@ suite('SessionsListModelService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: SessionsListModelService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
+	let sessionArchivedEmitter: Emitter<ISession>;
+	let sessionUnarchivedEmitter: Emitter<ISession>;
 	let sessionDeletedEmitter: Emitter<ISession>;
 	let sessions: ISession[];
 	let instantiationService: TestInstantiationService;
@@ -57,6 +59,8 @@ suite('SessionsListModelService', () => {
 		storageService = disposables.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
+		sessionArchivedEmitter = disposables.add(new Emitter<ISession>());
+		sessionUnarchivedEmitter = disposables.add(new Emitter<ISession>());
 		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
 		sessions = [];
 		instantiationService.stub(ISessionsManagementService, {
@@ -64,6 +68,8 @@ suite('SessionsListModelService', () => {
 			getSessions: () => sessions,
 			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
 			onDidChangeSessions: sessionsChangedEmitter.event,
+			onDidArchiveSession: sessionArchivedEmitter.event,
+			onDidUnarchiveSession: sessionUnarchivedEmitter.event,
 			onDidDeleteSession: sessionDeletedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
@@ -176,6 +182,35 @@ suite('SessionsListModelService', () => {
 			{ changes: [{ sessionId: 's1', kind: SessionListModelChangeKind.Pinned }] },
 			{ changes: [{ sessionId: 's1', kind: SessionListModelChangeKind.Pinned }] },
 		]);
+	});
+
+	test('persists when sessions were archived and clears the time when restored', () => {
+		const session = createSession('session', SessionStatus.Completed, { updatedAt: new Date(10) });
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(event => events.push(event)));
+
+		const beforeArchive = Date.now();
+		sessionArchivedEmitter.fire(session);
+		const archivedSortKey = service.getArchivedSortKey(session);
+		const afterArchive = Date.now();
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const persisted = service.getArchivedSortKey(session);
+		sessionUnarchivedEmitter.fire(session);
+
+		assert.deepStrictEqual({
+			wasRecordedAtArchiveTime: archivedSortKey >= beforeArchive && archivedSortKey <= afterArchive,
+			persisted,
+			restoredFallback: service.getArchivedSortKey(session),
+			events,
+		}, {
+			wasRecordedAtArchiveTime: true,
+			persisted: archivedSortKey,
+			restoredFallback: 10,
+			events: [
+				{ changes: [{ sessionId: 'session', kind: SessionListModelChangeKind.Sort }] },
+			],
+		});
 	});
 
 	test('places a created session after its creator once and preserves later user ordering', () => {
@@ -555,7 +590,15 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+		instantiationService.stub(ISessionsManagementService, {
+			...mock<ISessionsManagementService>(),
+			getSessions: () => [],
+			getSession: () => undefined,
+			onDidChangeSessions: Event.None,
+			onDidArchiveSession: Event.None,
+			onDidUnarchiveSession: Event.None,
+			onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+		});
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		assert.strictEqual(loadedService.isSessionPinned(createSession('s1')), true);
@@ -568,7 +611,15 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+		instantiationService.stub(ISessionsManagementService, {
+			...mock<ISessionsManagementService>(),
+			getSessions: () => [],
+			getSession: () => undefined,
+			onDidChangeSessions: Event.None,
+			onDidArchiveSession: Event.None,
+			onDidUnarchiveSession: Event.None,
+			onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+		});
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		// Should not throw and should return empty state
@@ -587,6 +638,8 @@ suite('SessionsListModelService', () => {
 			getSessions: () => [createdSession, creator],
 			getSession: resource => resource.toString() === creator.resource.toString() ? creator : undefined,
 			onDidChangeSessions: Event.None,
+			onDidArchiveSession: Event.None,
+			onDidUnarchiveSession: Event.None,
 			onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
 		});
 
@@ -624,6 +677,8 @@ suite('SessionsListModelService', () => {
 				getSessions: () => [],
 				getSession: () => undefined,
 				onDidChangeSessions: Event.None,
+				onDidArchiveSession: Event.None,
+				onDidUnarchiveSession: Event.None,
 				onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
 				markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 				markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
@@ -682,6 +737,8 @@ suite('SessionsListModelService', () => {
 					getSessions: () => [],
 					getSession: () => undefined,
 					onDidChangeSessions: Event.None,
+					onDidArchiveSession: Event.None,
+					onDidUnarchiveSession: Event.None,
 					onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
 					markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 					markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },

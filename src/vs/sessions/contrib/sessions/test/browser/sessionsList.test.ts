@@ -2450,6 +2450,40 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(sections[0].sessions.map(session => session.sessionId), ['archived-pinned']);
 		});
 
+		for (const sorting of [SessionsSorting.Created, SessionsSorting.Updated]) {
+			test(`sorts Done by archive time when sorting is ${sorting}`, () => {
+				const archivedFirst = createSession('archived-first', {
+					workspaceLabel: 'Alpha',
+					isArchived: true,
+					createdAt: new Date('2024-06-02'),
+					updatedAt: new Date('2024-06-03'),
+				});
+				const archivedLast = createSession('archived-last', {
+					workspaceLabel: 'Beta',
+					isArchived: true,
+					createdAt: new Date('2024-06-01'),
+					updatedAt: new Date('2024-06-01'),
+				});
+				const sections = groupSessionsForList(
+					[archivedFirst, archivedLast],
+					SessionsGrouping.Workspace,
+					sorting,
+					() => false,
+					undefined,
+					'Done',
+					true,
+					session => session === archivedLast ? 200 : 100,
+				);
+
+				assert.deepStrictEqual(sections.map(section => ({
+					id: section.id,
+					sessions: section.sessions.map(session => session.sessionId),
+				})), [
+					{ id: 'archived', sessions: ['archived-last', 'archived-first'] },
+				]);
+			});
+		}
+
 		test('sorts pinned sessions using supplied sort keys', () => {
 			const first = createSession('first', { createdAt: new Date('2024-01-01') });
 			const second = createSession('second', { createdAt: new Date('2024-06-01') });
