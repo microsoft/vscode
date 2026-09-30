@@ -30,9 +30,12 @@ export class SedFileWriteParser {
 	canHandle(commandText: string): boolean {
 		const rawTokens = this._tokenizeCommand(commandText);
 		const tokens = rawTokens.map(token => this._decodeLiteralToken(token) ?? token);
+		// Check if this is a sed command
 		if (tokens[0] !== 'sed') {
 			return false;
 		}
+
+		// Check for -i, -I, or --in-place flag
 		return this._hasLiteralInPlaceOption(tokens) || this._hasDynamicOption(rawTokens);
 	}
 
@@ -115,9 +118,14 @@ export class SedFileWriteParser {
 		if (suffix === undefined || rawSuffix === undefined) {
 			return false;
 		}
+		// macOS/BSD style: -i '' or -i "" (empty string backup suffix)
+		// Only treat it as a backup suffix if it's empty or looks like a backup
+		// extension (starts with '.') or precedes an explicit -e/-f script. Don't match sed scripts like 's/foo/bar/'.
 		if (suffix === '') {
 			return true;
 		}
+		// Check for quoted or unquoted backup suffixes like '.bak' or ".backup"
+		// Backup suffixes typically start with '.' and are short extensions
 		return suffix.startsWith('.') || this._isExplicitScriptOption(tokens[optionIndex + 2]);
 	}
 

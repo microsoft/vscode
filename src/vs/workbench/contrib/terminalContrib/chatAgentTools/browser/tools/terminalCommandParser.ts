@@ -126,9 +126,9 @@ export interface IParsedCommand {
 }
 
 /**
- * Split a command line into segments using `|`, `||`, `&&`, `;`, `|&`, and
- * `&` as separators. Honors quoting so that `echo "a;b" | wc -l` splits into
- * two segments, not three.
+ * Split a command line into segments using `|`, `||`, `&&`, `;`, `|&`, `&` as
+ * separators. Honors quoting so that `echo "a;b" | wc -l` splits into two
+ * segments, not three.
  */
 function splitSegments(command: string): Array<{ raw: string; sep: SegmentSeparator | undefined }> {
 	const out: Array<{ raw: string; sep: SegmentSeparator | undefined }> = [];
