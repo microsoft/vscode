@@ -41,7 +41,7 @@ import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHu
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
-import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, resolveByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 
@@ -517,6 +517,35 @@ suite('resolveByokSessionConfig', () => {
 	});
 });
 
+suite('mergeByokSessionConfig', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('adds and updates BYOK entries without withdrawing registered ones', () => {
+		const acme = { name: 'acme', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'nonce.sess-1' };
+		const other = { ...acme, name: 'other', baseUrl: 'http://127.0.0.1:1/v/other' };
+		const claude = { id: 'claude', provider: 'acme', maxPromptTokens: 1000 };
+		const gpt = { id: 'gpt', provider: 'other' };
+		const registered = { providers: [acme], models: [claude] };
+
+		assert.deepStrictEqual({
+			unchanged: mergeByokSessionConfig(registered, registered),
+			emptyCurrent: mergeByokSessionConfig(registered, {}),
+			partialCurrent: mergeByokSessionConfig({ providers: [acme, other], models: [claude, gpt] }, { providers: [acme], models: [claude] }),
+			added: mergeByokSessionConfig(registered, { providers: [other], models: [gpt] }),
+			updated: mergeByokSessionConfig(registered, { providers: [acme], models: [{ ...claude, maxPromptTokens: 2000 }] }),
+			fromNothing: mergeByokSessionConfig({}, registered),
+		}, {
+			unchanged: undefined,
+			emptyCurrent: undefined,
+			partialCurrent: undefined,
+			added: { providers: [acme, other], models: [claude, gpt] },
+			updated: { providers: [acme], models: [{ ...claude, maxPromptTokens: 2000 }] },
+			fromNothing: registered,
+		});
+	});
+});
+
 /**
  * Covers the launcher's lazy memoization and disposal of the shared BYOK proxy
  * handle: concurrent launches share one bind, and
@@ -582,7 +611,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		const registry = new ByokLmBridgeRegistry();
 		store.add(registry.register('client-1', connectionOf(store, [{ vendor: 'acme', id: 'claude' }])));
 		const launcher = createLauncher(store, proxy.service, registry);
-		const resolve = () => (launcher as unknown as { _resolveByokSessionConfig(id: string): Promise<{ providers?: { bearerToken: string }[] }> })._resolveByokSessionConfig(sessionId);
+		const resolve = () => launcher.resolveByokSessionConfig(sessionId);
 
 		const first = await resolve();
 		const second = await resolve();
@@ -608,7 +637,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		const launcher = createLauncher(store, proxy.service, registry, false);
 
 		try {
-			const config = await (launcher as unknown as { _resolveByokSessionConfig(id: string): Promise<{ providers?: { bearerToken: string }[] }> })._resolveByokSessionConfig(sessionId);
+			const config = await launcher.resolveByokSessionConfig(sessionId);
 			assert.deepStrictEqual({ config, proxyStarts: proxy.starts }, { config: {}, proxyStarts: 0 });
 		} finally {
 			store.dispose();
