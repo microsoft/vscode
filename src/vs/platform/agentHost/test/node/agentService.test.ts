@@ -21178,13 +21178,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('restore registers peer-chat metadata in catalog order and loads history on first access', async () => {
 			const calls: { call: string; uri: string; providerData?: string }[] = [];
-			const peerModifiedTime = 42_000;
 			class MultiChatAgent extends MockAgent {
-				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-					return isDefaultChatUri(chat)
-						? super.getChatMetadata(chat, context)
-						: { chat, startTime: 1_000, modifiedTime: peerModifiedTime };
-				}
 				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
 					// The default chat is always offered to materializeChat on restore
 					// too; this test only tracks peer-chat materialization.
@@ -21228,7 +21222,7 @@ suite('AgentService (node dispatcher)', () => {
 				chatIds: (state?.chats ?? []).map(chat => parseChatUri(chat.resource)?.chatId),
 				summary: (() => {
 					const summary = state?.chats.find(chat => chat.resource.toString() === peerUri.toString());
-					return summary && { title: summary.title, modifiedAt: summary.modifiedAt, origin: summary.origin };
+					return summary && { title: summary.title, origin: summary.origin };
 				})(),
 				chatState: getStateManager(localService).getChatState(peerUri.toString()),
 			};
@@ -21250,7 +21244,6 @@ suite('AgentService (node dispatcher)', () => {
 					chatIds: ['default', 'peer-1'],
 					summary: {
 						title: 'Persisted Peer Title',
-						modifiedAt: new Date(peerModifiedTime).toISOString(),
 						origin: peerOrigin,
 					},
 					chatState: undefined,
@@ -21311,11 +21304,15 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('restore rejects missing peer metadata instead of publishing the session modified time', async () => {
-			let peerMetadataAvailable = false;
+		test('restore does not require peer metadata before lazy materialization', async () => {
+			let peerMetadataCalls = 0;
 			class MultiChatAgent extends MockAgent {
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-					return isDefaultChatUri(chat) || peerMetadataAvailable ? super.getChatMetadata(chat, context) : undefined;
+					if (!isDefaultChatUri(chat)) {
+						peerMetadataCalls++;
+						throw new Error('Peer metadata requires materialization');
+					}
+					return super.getChatMetadata(chat, context);
 				}
 			}
 			const db = new TestSessionDatabase();
@@ -21327,22 +21324,15 @@ suite('AgentService (node dispatcher)', () => {
 			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString() }]));
 
 			getStateManager(localService).deleteSession(session.toString());
-
-			await assert.rejects(
-				localService.restoreSession(session),
-				/provider metadata is unavailable/,
-			);
-			const stateAfterFailure = getStateManager(localService).getSessionState(session.toString());
-			peerMetadataAvailable = true;
 			await localService.restoreSession(session);
-			const stateAfterRetry = getStateManager(localService).getSessionState(session.toString());
+			const state = getStateManager(localService).getSessionState(session.toString());
 
 			assert.deepStrictEqual({
-				stateAfterFailure,
-				chatIdsAfterRetry: stateAfterRetry?.chats.map(chat => parseChatUri(chat.resource)?.chatId),
+				peerMetadataCalls,
+				chatIds: state?.chats.map(chat => parseChatUri(chat.resource)?.chatId),
 			}, {
-				stateAfterFailure: undefined,
-				chatIdsAfterRetry: ['default', 'peer-without-metadata'],
+				peerMetadataCalls: 0,
+				chatIds: ['default', 'peer-without-metadata'],
 			});
 		});
 

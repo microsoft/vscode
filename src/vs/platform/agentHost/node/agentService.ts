@@ -8291,16 +8291,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
+		const promises: Promise<unknown>[] = [];
 		await this._registerRestoredSubagentSummaries(agent, session, mergedTurns);
 
 		// Register persisted peer-chat catalog metadata. Their provider backings
 		// and histories are restored when a peer chat is first requested.
-		try {
-			await this._restorePeerChats(agent, session, cachedChatCatalog);
-		} catch (error) {
-			this._stateManager.deleteSession(sessionStr);
-			throw error;
-		}
+		promises.push(this._restorePeerChats(agent, session, cachedChatCatalog));
 
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The coordinator
@@ -8336,6 +8332,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error('[AgentService] restoreSession: failed to resolve chat customizations', err);
 				return undefined;
 			}),
+			...promises
 		]);
 		if (restoredConfig) {
 			const previousConfig = this._stateManager.getSessionState(sessionStr)?.config;
@@ -8406,7 +8403,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.removeChat(session.toString(), chat.resource);
 			}
 		}
-		await this._restorePeerChatsFromCatalog(agent, session, restoredEntries, cached);
+		await this._restorePeerChatsFromCatalog(session, restoredEntries, cached);
 		await this._persistOrderedListVisibleSessionState(session, {});
 	}
 
@@ -8513,7 +8510,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Titles and drafts are metadata-only reads; backing sessions and histories
 	 * are loaded on the first content request.
 	 */
-	private async _restorePeerChatsFromCatalog(agent: IAgent, session: URI, entries: readonly IPersistedPeerChat[], cachedChats?: readonly ICatalogChat[]): Promise<void> {
+	private async _restorePeerChatsFromCatalog(session: URI, entries: readonly IPersistedPeerChat[], cachedChats?: readonly ICatalogChat[]): Promise<void> {
 		const restored = await Promise.all(entries.map(async (entry) => {
 			let chatUri: URI;
 			try {
@@ -8524,25 +8521,14 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const cachedChat = cachedChats?.find(chat => chat.uri === entry.uri);
 			const cachedTitle = cachedChat?.title;
-			const [{ title, draft }, metadata] = await Promise.all([
-				this._chatContributions.hydrateChat({
-					session: session.toString(),
-					chat: chatUri.toString(),
-				}, cachedTitle ? { title: cachedTitle } : {}),
-				agent.getChatMetadata(chatUri, this._chatContext(session, chatUri), entry.providerData, { activation: 'restore' }),
-			]);
-			if (!metadata) {
-				throw new Error(`Cannot restore peer chat '${chatUri}': provider metadata is unavailable`);
-			}
-			const modifiedAtDate = new Date(metadata.modifiedTime);
-			if (isNaN(modifiedAtDate.getTime())) {
-				throw new Error(`Cannot restore peer chat '${chatUri}': provider modified time is invalid`);
-			}
+			const { title, draft } = await this._chatContributions.hydrateChat({
+				session: session.toString(),
+				chat: chatUri.toString(),
+			}, cachedTitle ? { title: cachedTitle } : {});
 			return {
 				chatUri,
 				title,
 				draft,
-				modifiedAt: modifiedAtDate.toISOString(),
 				providerData: entry.providerData,
 				origin: entry.origin,
 				interactivity: cachedChat?.interactivity,
@@ -8555,13 +8541,12 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!item) {
 				continue;
 			}
-			const { chatUri, title, draft, modifiedAt, providerData, origin, interactivity, inheritedTurnId, workingDirectories, archived } = item;
+			const { chatUri, title, draft, providerData, origin, interactivity, inheritedTurnId, workingDirectories, archived } = item;
 			if (this._stateManager.getChatState(chatUri.toString())) {
 				continue;
 			}
 			this._stateManager.registerRestoredChatSummary(session.toString(), chatUri.toString(), {
 				title,
-				modifiedAt,
 				draft,
 				providerData,
 				origin,
