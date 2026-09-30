@@ -23,7 +23,7 @@ import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agent
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
-import { ChatMicrosoftAuthenticationEnabledSettingId, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
+import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -223,6 +223,7 @@ import { ChatExpNotificationContribution } from './expNotification/chatExpNotifi
 import { ChatQuotaNotificationContribution } from './chatQuotaNotification.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
+import { ChatMicrosoftSignInProbeContribution, ChatMicrosoftSignInProbeService, IChatMicrosoftSignInProbeService } from './chatSetup/chatSetupMicrosoftProbe.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { CodexStatusBarEntry } from './chatStatus/codexStatusEntry.js';
@@ -1831,14 +1832,21 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' }
 		},
 		[ChatMicrosoftAuthenticationEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.microsoftAuthentication.enabled', "When enabled, sign-in dialogs offer \"Continue with Microsoft\". Signing in with Microsoft exchanges your Microsoft account for the GitHub access your organization has linked to it. The resulting GitHub sign-in lasts for the current window session only and is not saved."),
-			default: false,
+			type: 'string',
+			enum: [ChatMicrosoftAuthenticationMode.Auto, ChatMicrosoftAuthenticationMode.Always, ChatMicrosoftAuthenticationMode.Never],
+			enumDescriptions: [
+				nls.localize('chat.microsoftAuthentication.enabled.auto', "Offer \"Continue with Microsoft\" only when a Microsoft work or school account on this device is linked to a GitHub account. This is checked silently in the background: Microsoft may record a sign-in, and the GitHub access used for the check is revoked when possible."),
+				nls.localize('chat.microsoftAuthentication.enabled.always', "Always offer \"Continue with Microsoft\", without checking for a linked account."),
+				nls.localize('chat.microsoftAuthentication.enabled.never', "Never offer \"Continue with Microsoft\", and never check for a linked account."),
+			],
+			markdownDescription: nls.localize('chat.microsoftAuthentication.enabled', "Controls when sign-in surfaces, such as the sign-in dialog and the welcome screen, offer \"Continue with Microsoft\". Signing in with Microsoft exchanges your Microsoft account for the GitHub access your organization has linked to it. The resulting GitHub sign-in lasts for the current window session only and is not saved."),
+			default: ChatMicrosoftAuthenticationMode.Never,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
-			// Read when a sign-in dialog opens, so `startup` keeps the offered buttons stable for the
-			// life of the window instead of changing under a dialog the user already has open.
-			experiment: { mode: 'startup' }
+			// Rolled out through experimentation. `auto` rather than `startup`, so that pulling the
+			// treatment stops the background check in running windows too. A dialog reads the value
+			// once when it opens, so an open dialog never changes underneath the user.
+			experiment: { mode: 'auto' }
 		},
 		[AgentHostSdkSandboxEnabledSettingId]: {
 			type: 'string',
@@ -3333,6 +3341,7 @@ registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitC
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatMicrosoftSignInProbeContribution.ID, ChatMicrosoftSignInProbeContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatQuotaNotificationContribution.ID, ChatQuotaNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatPromoNotificationContribution.ID, ChatPromoNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatExpNotificationContribution.ID, ChatExpNotificationContribution, WorkbenchPhase.AfterRestored);
@@ -3472,5 +3481,6 @@ registerSingleton(IChatDebugService, ChatDebugServiceImpl, InstantiationType.Del
 registerSingleton(IChatImageCarouselService, ChatImageCarouselService, InstantiationType.Delayed);
 registerSingleton(IAgentHostImportConversationStore, AgentHostImportConversationStore, InstantiationType.Delayed);
 registerSingleton(ISessionSummaryHoverService, SessionSummaryHoverService, InstantiationType.Delayed);
+registerSingleton(IChatMicrosoftSignInProbeService, ChatMicrosoftSignInProbeService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
