@@ -38,10 +38,10 @@ suite('SessionBackgroundShellsControl', () => {
 		observer.dispose();
 
 		assert.deepStrictEqual({ initial, elapsed, initialDetails, elapsedDetails, sameDetails, empty: badge }, {
-			initial: 'Attached, 0ms',
-			elapsed: 'Attached, 2s',
-			initialDetails: 'Attached, 0ms',
-			elapsedDetails: 'Attached, 2s',
+			initial: '0ms',
+			elapsed: '2s',
+			initialDetails: '0ms',
+			elapsedDetails: '2s',
 			sameDetails: true,
 			empty: undefined,
 		});
@@ -62,7 +62,7 @@ suite('SessionBackgroundShellsControl', () => {
 		shells.set([], undefined);
 
 		assert.deepStrictEqual({
-			entry: { id: entry.id, label: entry.label, active: entry.badge?.startsWith('Attached, ') },
+			entry: { id: entry.id, label: entry.label, detached: entry.badge?.startsWith('Detached, ') },
 			updated: updated.badge?.startsWith('Detached, '),
 			plainCommand: details.textContent?.includes(shell.command),
 			noMarkup: details.querySelector('script') === null,
@@ -72,7 +72,7 @@ suite('SessionBackgroundShellsControl', () => {
 			aboveInput: updated.hover?.alignToParentBottom,
 			empty: control.sections.get(),
 		}, {
-			entry: { id: 'silent', label: 'Run tests', active: true },
+			entry: { id: 'silent', label: 'Run tests', detached: false },
 			updated: true,
 			plainCommand: true,
 			noMarkup: true,
@@ -84,14 +84,16 @@ suite('SessionBackgroundShellsControl', () => {
 		});
 	});
 
-	test('omits the attached or detached mode when the agent does not report it', () => runWithFakedTimers({}, async () => {
-		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [{
-			id: 'plain', description: 'Build', command: 'npm run build',
-			startedAt: new Date(0).toISOString(),
-		}]);
+	test('labels only detached shells, treating an unlabeled shell as attached', () => runWithFakedTimers({}, async () => {
+		const startedAt = new Date(0).toISOString();
+		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [
+			{ id: 'attached', description: 'Watch', command: 'npm run watch', startedAt, attachmentMode: 'attached' },
+			{ id: 'detached', description: 'Serve', command: 'npm start', startedAt, attachmentMode: 'detached' },
+			{ id: 'unknown', description: 'Build', command: 'npm run build', startedAt },
+		]);
 		const control = store.add(new SessionBackgroundShellsControl(constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
 
-		assert.strictEqual(control.sections.get()[0].entries[0].badge, '0ms');
+		assert.deepStrictEqual(control.sections.get()[0].entries.map(entry => entry.badge), ['0ms', 'Detached, 0ms', '0ms']);
 	}));
 
 	test('keys rows by entry id and shows the shell ID only when the agent reports one', () => {

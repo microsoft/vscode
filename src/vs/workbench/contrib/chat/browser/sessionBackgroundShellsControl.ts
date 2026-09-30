@@ -20,7 +20,7 @@ export interface IChatBackgroundShellsSource {
 
 /** Describes the Background Shells pill in a chat's accessibility help. */
 export function getBackgroundShellsPillAccessibilityHelp(): string {
-	return localize('backgroundShells.accessibilityHelp', "The Background Shells pill opens a picker above the chat input, including for a single shell. Each entry includes its attached or detached mode when the agent reports it, and its elapsed time. Use the arrow keys to choose a shell, then Enter or Right Arrow to open its live command details beside the picker. Left Arrow or Escape returns to the list; Escape from the list returns focus to the pill. Elapsed time continues updating while details are open, and a shell disappears when it finishes. This list does not stop commands or stream their output.");
+	return localize('backgroundShells.accessibilityHelp', "The Background Shells pill opens a picker above the chat input, including for a single shell. Each entry includes its elapsed time, and is marked Detached when the shell runs independently of the agent. Use the arrow keys to choose a shell, then Enter or Right Arrow to open its live command details beside the picker. Left Arrow or Escape returns to the list; Escape from the list returns focus to the pill. Elapsed time continues updating while details are open, and a shell disappears when it finishes. This list does not stop commands or stream their output.");
 }
 
 function createShellDetails() {
@@ -80,11 +80,10 @@ export class SessionBackgroundShellsControl extends Disposable {
 
 	private _entry(shell: IChatBackgroundShell, now: number): IChatPillEntry {
 		const name = shell.description.trim() || shell.command;
+		// Attached is the common case, so only detached shells carry a label.
 		const attachment = shell.attachmentMode === 'detached'
 			? localize('backgroundShells.detached', "Detached")
-			: shell.attachmentMode === 'attached'
-				? localize('backgroundShells.attached', "Attached")
-				: undefined;
+			: undefined;
 		const startedAt = Date.parse(shell.startedAt);
 		const duration = Number.isFinite(startedAt) ? getDurationString(Math.max(0, Math.floor((now - startedAt) / 1000) * 1000)) : undefined;
 		const badge = attachment && duration
