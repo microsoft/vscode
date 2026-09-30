@@ -404,7 +404,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	getHeight(element: SessionListItem): number {
 		if (isSessionChatItem(element)) {
 			let chatHeight = this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
-			if (!this._isCompact() && (getChatWorkspaceBadgeLabel(element.session.workspace.get(), element.chat.workspace.get()) || element.chat.updatedAt.get())) {
+			if (!this._isCompact()) {
 				chatHeight += SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT;
 			}
 			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, chatHeight));
@@ -708,7 +708,6 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
 		const chats = getSessionListChats(element.session, undefined, this.showArchivedChats());
 		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
-		let hadDetailsRow: boolean | undefined;
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
@@ -745,7 +744,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				reader.store.add(this.hoverService.setupDelayedHover(badge, { content: folderLabel }, { groupId: 'sessions-list' }));
 			}
 
-			const showDetailsRow = !this.compact() && (!!folderLabel || !!updatedAt);
+			const showDetailsRow = !this.compact();
 			template.folderRow.hidden = !showDetailsRow;
 			DOM.clearNode(template.folderRow);
 			if (showDetailsRow && folderLabel && chatWorkspace) {
@@ -765,15 +764,6 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				const targetWindow = DOM.getWindow(time);
 				const interval = targetWindow.setInterval(() => time.textContent = formatSessionListTime(updatedAt), 60_000);
 				reader.store.add(toDisposable(() => targetWindow.clearInterval(interval)));
-			}
-			if (hadDetailsRow === undefined) {
-				hadDetailsRow = showDetailsRow;
-				// Offscreen rows reserve the details row without hydrating chat
-				// metadata; correct that estimate once the row is rendered.
-				template.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(template.container), () => this._onDidChangeItemHeight.fire(element)));
-			} else if (hadDetailsRow !== showDetailsRow) {
-				hadDetailsRow = showDetailsRow;
-				this._onDidChangeItemHeight.fire(element);
 			}
 		}));
 		template.elementDisposables.add(autorun(reader => {

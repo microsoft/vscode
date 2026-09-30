@@ -3718,7 +3718,7 @@ suite('Sessions - SessionsList', () => {
 					mainAriaLabel: 'Main chat, updated now, State: Completed',
 					peerTime: undefined,
 					peerAriaLabel: 'Peer chat, chat, State: Completed',
-					peerHeight: '30px',
+					peerHeight: '46px',
 				},
 				after: {
 					peerTime: 'now',
