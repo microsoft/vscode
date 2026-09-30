@@ -39,7 +39,7 @@ import {
 } from '../../common/voiceClient/voiceClientService.js';
 import { isTerminalCloseCode, voiceCloseCodeInfo } from '../../common/voiceClient/voiceCloseCodes.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { addWebSocketAuthToken, getVoiceBackendAuthToken, getVoiceWebSocketUrl } from './voiceEndpoint.js';
+import { addWebSocketAuthToken, getOpenAiWebSocketProtocols, getVoiceBackendAuthToken, getVoiceWebSocketUrl, shouldUseOpenAiWebSocketSubprotocolAuth } from './voiceEndpoint.js';
 
 const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
@@ -57,6 +57,7 @@ const ASR_SUPPORTED_LANGUAGE_BASES = new Set([
 	'ja', 'ko', 'nb', 'nl', 'pl', 'pt', 'ro', 'ru', 'sv', 'th', 'tr', 'vi', 'zh',
 ]);
 const DEFAULT_LANGUAGE = 'en-US';
+const OPENAI_LIVE_MODEL = 'gpt-live-1';
 
 function asOptionalString(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
@@ -112,6 +113,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _window: (Window & typeof globalThis) | undefined;
 	private _lastSessionId: string | undefined;
 	private _currentWsUrl: string | undefined;
+	private _openAiAudioChunkSeen = new Set<string>();
 
 	// --- Keep-alive ping/pong ---
 	private _pingTimer: ReturnType<Window['setInterval']> | undefined;
@@ -221,6 +223,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private _sendSetVoice(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
+			if (this._isOpenAiRealtimeMode()) {
+				return;
+			}
 			this._ws.send(JSON.stringify({ type: 'set_voice', voice: this._getVoice() }));
 		}
 	}
@@ -241,6 +246,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private _sendSetLanguage(): void {
 		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
+			if (this._isOpenAiRealtimeMode()) {
+				return;
+			}
 			this._ws.send(JSON.stringify({ type: 'set_language', language: this._getLanguage() }));
 		}
 	}
@@ -303,12 +311,20 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private _sendSetTurnConfig(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
+			if (this._isOpenAiRealtimeMode()) {
+				return;
+			}
 			this._ws.send(JSON.stringify({ type: 'set_turn_config', turn_config: this._getTurnConfig() }));
 		}
 	}
 
 	private _getWsUrl(): string {
 		return getVoiceWebSocketUrl(this._configurationService, this._productService);
+	}
+
+	private _isOpenAiRealtimeMode(): boolean {
+		const endpoint = this._currentWsUrl || this._getWsUrl();
+		return shouldUseOpenAiWebSocketSubprotocolAuth(endpoint);
 	}
 
 	async connect(window: Window & typeof globalThis, authToken?: string): Promise<void> {
@@ -333,9 +349,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			return;
 		}
 		const url = this._authToken
-			? addWebSocketAuthToken(baseUrl, this._authToken)
+			? shouldUseOpenAiWebSocketSubprotocolAuth(baseUrl)
+				? baseUrl
+				: addWebSocketAuthToken(baseUrl, this._authToken)
 			: baseUrl;
-		const ws = new win.WebSocket(url);
+		const ws = this._authToken && shouldUseOpenAiWebSocketSubprotocolAuth(baseUrl)
+			? new win.WebSocket(url, getOpenAiWebSocketProtocols(this._authToken))
+			: new win.WebSocket(url);
 		this._ws = ws;
 		this._sessionStartedOnSocket = false;
 
@@ -391,6 +411,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			switch (msg.type) {
 				case 'pong':
 					this._clearPongTimeout();
+					break;
+				case 'session.started':
+					this._resetReconnectBudget();
+					this._lastSessionId = asOptionalString((msg as { session?: { id?: string } }).session?.id);
+					this._isResuming = false;
+					this._sessionStartedOnSocket = true;
+					this._onSessionInit.fire({ sessionId: this._lastSessionId ?? '' });
 					break;
 				case 'session_init':
 					this._resetReconnectBudget();
@@ -488,6 +515,39 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					});
 					break;
 				}
+				case 'response.audio.delta': {
+					const responseId = asOptionalString((msg as { response_id?: string }).response_id) ?? 'openai-response';
+					const firstChunk = !this._openAiAudioChunkSeen.has(responseId);
+					this._openAiAudioChunkSeen.add(responseId);
+					this._onAudioResponse.fire({
+						audio: asOptionalString((msg as { delta?: string }).delta) ?? '',
+						isFirstChunk: firstChunk,
+						isFinal: false,
+						responseId,
+					});
+					break;
+				}
+				case 'response.audio.done': {
+					const responseId = asOptionalString((msg as { response_id?: string }).response_id) ?? 'openai-response';
+					this._openAiAudioChunkSeen.delete(responseId);
+					this._onAudioResponse.fire({
+						audio: '',
+						isFirstChunk: false,
+						isFinal: true,
+						responseId,
+					});
+					break;
+				}
+				case 'conversation.item.input_audio_transcription.completed':
+				case 'input_audio_buffer.transcription.completed': {
+					const text = asOptionalString((msg as { transcript?: string; text?: string }).transcript) ?? asOptionalString((msg as { text?: string }).text) ?? '';
+					this._onTranscription.fire({
+						text,
+						status: 'final',
+						committed: text,
+					});
+					break;
+				}
 				case 'tool_call':
 					this._onToolCall.fire({
 						callId: msg.call_id ?? '',
@@ -505,7 +565,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					break;
 				}
 				case 'error':
-					this._onError.fire(msg.detail ?? 'Unknown error');
+					this._onError.fire(asOptionalString((msg as { detail?: string; message?: string }).detail) ?? asOptionalString((msg as { message?: string }).message) ?? 'Unknown error');
 					break;
 			}
 		};
@@ -582,6 +642,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._ws = undefined;
 		this._currentWsUrl = undefined;
 		this._sessionStartedOnSocket = false;
+		this._openAiAudioChunkSeen.clear();
 		this._window = undefined;
 		this._lastSessionId = undefined;
 		this._isResuming = false;
@@ -596,6 +657,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private _startPing(): void {
+		if (this._isOpenAiRealtimeMode()) {
+			return;
+		}
 		this._stopPing();
 		const win = this._window ?? mainWindow;
 		this._pingTimer = win.setInterval(() => {
@@ -633,24 +697,40 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	sendPttStart(turnId: string, options: IVoicePttStartOptions): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
+			if (this._isOpenAiRealtimeMode()) {
+				this._onSpeechStarted.fire({ turnId });
+				return;
+			}
 			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId, has_active_session: options.hasActiveSession, ...(options.passive ? { passive: true } : {}) }));
 		}
 	}
 
 	sendPttAudioChunk(audio: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
+			if (this._isOpenAiRealtimeMode()) {
+				this._ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio }));
+				return;
+			}
 			this._ws.send(JSON.stringify({ type: 'ptt_audio_chunk', audio }));
 		}
 	}
 
 	sendPttEnd(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
+			if (this._isOpenAiRealtimeMode()) {
+				this._ws.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+				this._ws.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio'] } }));
+				return;
+			}
 			this._ws.send(JSON.stringify({ type: 'ptt_end' }));
 		}
 	}
 
 	sendPttDiagnostic(turnId: string, metrics: Record<string, unknown>): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
+			if (this._isOpenAiRealtimeMode()) {
+				return;
+			}
 			this._ws.send(JSON.stringify({ type: 'ptt_diagnostic', turn_id: turnId, metrics }));
 		}
 	}
@@ -691,6 +771,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private _sendDelta(context: IVoiceSessionContext): void {
+		if (this._isOpenAiRealtimeMode()) {
+			return;
+		}
 		const currentIds = new Set(context.sessions.map(s => s.id));
 		const removes = [...this._lastSentById.keys()].filter(id => !currentIds.has(id));
 
@@ -802,12 +885,18 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
+			if (this._isOpenAiRealtimeMode()) {
+				return;
+			}
 			this._ws.send(JSON.stringify({ type: 'tool_result', call_id: callId, result }));
 		}
 	}
 
 	sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
+			if (this._isOpenAiRealtimeMode()) {
+				return;
+			}
 			this._ws.send(JSON.stringify({
 				type: 'narration_playback_complete',
 				coding_session_id: codingSessionId,
@@ -818,6 +907,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined {
+		if (this._isOpenAiRealtimeMode()) {
+			return undefined;
+		}
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
@@ -850,6 +942,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	sendSessionStateChange(sessionId: string, newState: string, _label: string, detail?: string, lastResponseSummary?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
+			if (this._isOpenAiRealtimeMode()) {
+				return;
+			}
 			const payload: Record<string, unknown> = { type: 'session_state_change', session_id: sessionId, new_state: newState };
 			if (detail) { payload.detail = detail; }
 			if (lastResponseSummary) { payload.last_response_summary = lastResponseSummary; }
@@ -873,6 +968,19 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	 */
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
+			if (this._isOpenAiRealtimeMode()) {
+				this._ws.send(JSON.stringify({
+					type: 'session.start',
+					session: {
+						model: OPENAI_LIVE_MODEL,
+						instructions: voiceInstructions,
+						audio: {
+							output: { voice: this._getVoice() },
+						},
+					},
+				}));
+				return;
+			}
 			const sessionContext = { ...context, display_locale: this._getLanguage() };
 			this._seedTracking(sessionContext);
 			// This client drives narration itself via `requestNarration`, so opt out
@@ -891,6 +999,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	sendResumeSession(context: IVoiceSessionContext, machineId: string, voiceInstructions?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN && this._lastSessionId) {
+			if (this._isOpenAiRealtimeMode()) {
+				this.sendStartSession(context, machineId, undefined, undefined, voiceInstructions);
+				return;
+			}
 			const sessionContext = { ...context, display_locale: this._getLanguage() };
 			this._seedTracking(sessionContext);
 			// `auto_narrate: false` for the same reason as start_session: this client

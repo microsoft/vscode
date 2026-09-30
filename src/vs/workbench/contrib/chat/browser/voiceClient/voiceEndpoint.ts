@@ -62,6 +62,24 @@ export function addWebSocketAuthToken(url: string, token: string): string {
 	return authenticatedUrl.toString();
 }
 
+export function shouldUseOpenAiWebSocketSubprotocolAuth(endpointUrl: string): boolean {
+	try {
+		const url = new URL(endpointUrl);
+		const path = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname;
+		return url.protocol === 'wss:' && url.hostname === 'api.openai.com' && path === '/v1/live/sessions';
+	} catch {
+		return false;
+	}
+}
+
+export function getOpenAiWebSocketProtocols(authToken: string): string[] {
+	return [
+		'realtime',
+		`openai-insecure-api-key.${authToken}`,
+		'openai-beta.realtime-v1',
+	];
+}
+
 export function getVoiceBackendAuthToken(configurationService: IConfigurationService | undefined, fallbackToken: string | undefined, endpointUrl?: string): string | undefined {
 	if (!isGptLiveEnabled(configurationService) || !shouldUseGptLiveCredential(configurationService, endpointUrl)) {
 		return fallbackToken;

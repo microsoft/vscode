@@ -9,7 +9,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { AgentsVoiceSettingId } from '../../../../agentsVoice/common/agentsVoice.js';
-import { addWebSocketAuthToken, getTranscriptionWebSocketUrl, getVoiceBackendAuthToken, getVoiceWebSocketUrl } from '../../../browser/voiceClient/voiceEndpoint.js';
+import { addWebSocketAuthToken, getOpenAiWebSocketProtocols, getTranscriptionWebSocketUrl, getVoiceBackendAuthToken, getVoiceWebSocketUrl, shouldUseOpenAiWebSocketSubprotocolAuth } from '../../../browser/voiceClient/voiceEndpoint.js';
 
 suite('Voice endpoint', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -161,5 +161,20 @@ suite('Voice endpoint', () => {
 			getVoiceBackendAuthToken(undefined, 'github-token', 'wss://gpt-live-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice'),
 			'github-token',
 		);
+	});
+
+	test('uses OpenAI websocket subprotocol auth for the live sessions endpoint', () => {
+		assert.strictEqual(shouldUseOpenAiWebSocketSubprotocolAuth('wss://api.openai.com/v1/live/sessions'), true);
+		assert.strictEqual(shouldUseOpenAiWebSocketSubprotocolAuth('wss://api.openai.com/v1/live/sessions/'), true);
+		assert.strictEqual(shouldUseOpenAiWebSocketSubprotocolAuth('wss://api.openai.com/v1/realtime'), false);
+		assert.strictEqual(shouldUseOpenAiWebSocketSubprotocolAuth('wss://custom.example/v1/live/sessions'), false);
+	});
+
+	test('builds OpenAI websocket subprotocols with api key auth', () => {
+		assert.deepStrictEqual(getOpenAiWebSocketProtocols('test-key'), [
+			'realtime',
+			'openai-insecure-api-key.test-key',
+			'openai-beta.realtime-v1',
+		]);
 	});
 });
