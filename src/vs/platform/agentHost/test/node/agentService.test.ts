@@ -8114,10 +8114,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			test('retroactively marks an empty orphan after an already-backfilled import with incomplete candidates', async () => {
 				const orchestratorDatabase = new CentralCatalogDatabase();
-				const orphan = AgentSession.uri('copilot', 'crashed-backfilled-with-incomplete');
+				const orphans = [
+					AgentSession.uri('copilot', 'crashed-backfilled-with-incomplete-1'),
+					AgentSession.uri('copilot', 'crashed-backfilled-with-incomplete-2'),
+				];
 				const healthy = AgentSession.uri('copilot', 'healthy-backfilled-with-incomplete');
 				const incomplete = AgentSession.uri('copilot', 'incomplete-backfilled');
-				for (const [session, modifiedTime, summary] of [[orphan, 10, 'Session'], [healthy, 20, 'Healthy']] as const) {
+				for (const [session, modifiedTime, summary] of [[orphans[0], 10, 'Session'], [orphans[1], 15, 'Session'], [healthy, 20, 'Healthy']] as const) {
 					await orchestratorDatabase.registerRuntimeSession(session.toString(), {
 						provider: 'copilot',
 						startTime: modifiedTime,
@@ -8167,20 +8170,34 @@ suite('AgentService (node dispatcher)', () => {
 				const catalogState = svc as unknown as {
 					_readableProviderCatalogs: Set<string>;
 					_initialProviderMigrationsNeedingRetry: Set<string>;
+					_queuePublishedSessionListRefresh(provider: string): void;
 				};
 				const notifications: INotification[] = [];
 				disposables.add(svc.onDidNotification(notification => notifications.push(notification)));
 
 				const beforeReconciliation = await svc.listSessions();
 				publishListResult(svc, beforeReconciliation);
+				const originalRefresh = catalogState._queuePublishedSessionListRefresh.bind(svc);
+				let refreshes = 0;
+				catalogState._queuePublishedSessionListRefresh = provider => {
+					refreshes++;
+					originalRefresh(provider);
+				};
 				const outcomes = await runCatalogReconciliationPass(svc);
 				await (svc as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
 				const afterReconciliation = await svc.listSessions();
-				const orphanOutcomes = outcomes.filter((outcome): outcome is { readonly session: string; readonly status: string; readonly reason: string } =>
-					typeof outcome === 'object' && outcome !== null && 'session' in outcome && outcome.session === orphan.toString());
+				const orphanSessions = orphans.map(orphan => orphan.toString()).sort();
+				const orphanOutcomes = outcomes
+					.filter((outcome): outcome is { readonly session: string; readonly status: string; readonly reason: string } =>
+						typeof outcome === 'object' && outcome !== null && 'session' in outcome && orphanSessions.includes(outcome.session))
+					.sort((a, b) => a.session.localeCompare(b.session));
+				const provisionalMarkers = (await orchestratorDatabase.listProvisionalSessions())
+					.filter(session => orphanSessions.includes(session))
+					.sort();
 				const removed = notifications
 					.filter((notification): notification is INotification & { readonly type: 'root/sessionRemoved'; readonly session: string } => notification.type === 'root/sessionRemoved')
-					.map(notification => notification.session);
+					.map(notification => notification.session)
+					.sort();
 
 				assert.deepStrictEqual({
 					backfillMarker: await orchestratorDatabase.isSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
@@ -8188,17 +8205,19 @@ suite('AgentService (node dispatcher)', () => {
 					retryNeeded: catalogState._initialProviderMigrationsNeedingRetry.has('copilot'),
 					beforeReconciliation: beforeReconciliation.map(metadata => metadata.session.toString()).sort(),
 					orphanOutcomes,
-					provisionalMarkersIncludeOrphan: (await orchestratorDatabase.listProvisionalSessions()).includes(orphan.toString()),
+					provisionalMarkers,
+					refreshes,
 					removed,
 					afterReconciliation: afterReconciliation.map(metadata => metadata.session.toString()).sort(),
 				}, {
 					backfillMarker: true,
 					readable: true,
 					retryNeeded: true,
-					beforeReconciliation: [healthy.toString(), orphan.toString()].sort(),
-					orphanOutcomes: [{ session: orphan.toString(), status: 'retry', reason: 'sourceUnresolvable' }],
-					provisionalMarkersIncludeOrphan: true,
-					removed: [orphan.toString()],
+					beforeReconciliation: [healthy.toString(), ...orphanSessions].sort(),
+					orphanOutcomes: orphanSessions.map(session => ({ session, status: 'retry', reason: 'sourceUnresolvable' })),
+					provisionalMarkers: orphanSessions,
+					refreshes: 1,
+					removed: orphanSessions,
 					afterReconciliation: [healthy.toString()],
 				});
 			});
