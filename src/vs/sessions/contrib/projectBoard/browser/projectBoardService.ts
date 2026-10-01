@@ -8,7 +8,6 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -39,7 +38,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ChatQuestionContent } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionContent.js';
 import { CHAT_CARD_LARGE_CLASS } from '../../../../workbench/contrib/chat/browser/widget/chatCard.js';
 import { formatCopilotCreditsLabel, IChatQuestionCarousel, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -130,9 +129,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly activeChatLabels = new Map<string, HTMLElement>();
 	private readonly monitoredChildLabels = new Map<string, { element: HTMLElement; children: readonly IProjectBoardCard[] }>();
 	private readonly expandedChats = new Set<string>();
+	private readonly collapsedCards = new Set<string>();
 	private readonly selectedCards = new Set<string>();
-	private readonly cardCheckboxes = new Map<string, Checkbox>();
-	private readonly cardDoneButtons = new Map<string, Button>();
+	private readonly cardSelectionLabels = new Map<string, HTMLElement>();
+	private selectionAnchor: string | undefined;
 	private markingDone = false;
 	private selectionCount: HTMLElement | undefined;
 	private markDoneButton: Button | undefined;
@@ -551,6 +551,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	getAccessibleContent(): string {
 		const lines = [this.title];
 		const appendCardDetails = (card: IProjectBoardCard) => {
+			if (!this.showSessionList && this.collapsedCards.has(card.id)) {
+				lines.push(localize('projectBoard.accessibleCollapsedDetails', "  Details collapsed"));
+			}
 			if (this.active && !this.showHeader && card.id === this.chatSidePanel.activeCardId.get()) {
 				lines.push(localize('projectBoard.accessibleCurrentChat', "  Open in Side Panel"));
 			}
@@ -575,7 +578,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 		};
 		if (!this.showSessionList) {
-			lines.push(localize('projectBoard.selectionHelp', "Use each conversation's checkbox to select it, then Mark as Done to archive the selected conversations' sessions, including their other chats. No conversations are deleted."));
+			lines.push(localize('projectBoard.selectionHelp', "Click a conversation to select it. Use Control or Command click to toggle selection, Shift click to select a range, or Control or Command Shift Enter on a focused card to toggle it. Mark as Done archives the selected conversations' sessions, including their other chats. No conversations are deleted."));
 			lines.push(this.selectionLabel);
 		}
 		const appendGroup = (label: string, cards: readonly IProjectBoardCard[], collapsed: boolean, placement?: IProjectBoardPlacement) => {
@@ -669,6 +672,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				getChatCapabilities(card.chat, undefined, reader);
 				if (this.showSessionList) {
 					card.session.status.read(reader);
+					card.session.isRead.read(reader);
 				}
 			}
 			this.stateDurations.update(this.model.cards);
@@ -1046,8 +1050,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.cardElements.clear();
 		this.activeChatLabels.clear();
 		this.monitoredChildLabels.clear();
-		this.cardCheckboxes.clear();
-		this.cardDoneButtons.clear();
+		this.cardSelectionLabels.clear();
 		this.controlElements.clear();
 		this.selectionCount = undefined;
 		this.markDoneButton = undefined;
@@ -1120,6 +1123,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			store.add(this.clearSelectionButton.onDidClick(() => {
 				if (!this.markingDone) {
 					this.selectedCards.clear();
+					this.selectionAnchor = undefined;
 					this.updateSelectionControls();
 				}
 			}));
@@ -1324,6 +1328,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				this.selectedCards.delete(id);
 			}
 		}
+		if (this.selectionAnchor && !eligible.has(this.selectionAnchor)) {
+			this.selectionAnchor = undefined;
+		}
 	}
 
 	private get selectionLabel(): string {
@@ -1344,18 +1351,38 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (this.clearSelectionButton) {
 			this.clearSelectionButton.enabled = this.selectedCards.size > 0 && !this.markingDone;
 		}
-		for (const button of this.cardDoneButtons.values()) {
-			button.enabled = !this.markingDone;
+		for (const [id, label] of this.cardSelectionLabels) {
+			const selected = this.selectedCards.has(id);
+			this.cardElements.get(id)?.classList.toggle('project-board-card-selected', selected);
+			label.textContent = selected ? localize('projectBoard.selected', "Selected") : localize('projectBoard.notSelected', "Not selected");
 		}
-		for (const [id, checkbox] of this.cardCheckboxes) {
-			checkbox.checked = this.selectedCards.has(id);
-			this.cardElements.get(id)?.classList.toggle('project-board-card-selected', checkbox.checked);
-			if (this.markingDone) {
-				checkbox.disable();
-			} else {
-				checkbox.enable();
+	}
+
+	private selectCard(card: IProjectBoardCard, toggle: boolean, range = false): void {
+		if (this.markingDone || !this.canMarkDone(card)) {
+			return;
+		}
+		const visible = this.visibleCardElements();
+		const anchor = this.selectionAnchor && this.cardElements.get(this.selectionAnchor);
+		const start = anchor ? visible.indexOf(anchor) : -1;
+		const end = visible.indexOf(this.cardElements.get(card.id)!);
+		if (!toggle) {
+			this.selectedCards.clear();
+		}
+		if (range && start >= 0 && end >= 0) {
+			const elements = new Set(visible.slice(Math.min(start, end), Math.max(start, end) + 1));
+			for (const candidate of this.model.cards) {
+				if (this.canMarkDone(candidate) && elements.has(this.cardElements.get(candidate.id)!)) {
+					this.selectedCards.add(candidate.id);
+				}
 			}
+		} else {
+			if (!toggle || !this.selectedCards.delete(card.id)) {
+				this.selectedCards.add(card.id);
+			}
+			this.selectionAnchor = card.id;
 		}
+		this.updateSelectionControls();
 	}
 
 	private async markCardsDone(ids: readonly string[]): Promise<void> {
@@ -1600,16 +1627,21 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	private stateCounts(cards: readonly IProjectBoardCard[], unavailable = 0, drafts: readonly IProjectBoardDraft[] = []): { label: string; glyph: string }[] {
 		const counts = new Map<SessionStatus, number>();
+		let unvisited = 0;
 		for (const card of cards) {
 			const state = this.getPresentationStatus(card);
 			counts.set(state, (counts.get(state) ?? 0) + 1);
+			if (state === SessionStatus.Completed && !(this.showSessionList ? card.session.isRead.get() : card.isRead)) {
+				unvisited++;
+			}
 		}
 		const startingDrafts = drafts.filter(draft => draft.submitted).length;
 		const states: readonly [number, string, string][] = [
 			[counts.get(SessionStatus.InProgress) ?? 0, localize('projectBoard.busy', "Busy"), this.getStatusGlyph(SessionStatus.InProgress)],
 			[counts.get(SessionStatus.NeedsInput) ?? 0, localize('projectBoard.needsInput', "Needs Input"), this.getStatusGlyph(SessionStatus.NeedsInput)],
 			[counts.get(SessionStatus.Error) ?? 0, localize('projectBoard.error', "Error"), this.getStatusGlyph(SessionStatus.Error)],
-			[counts.get(SessionStatus.Completed) ?? 0, localize('projectBoard.idle', "Idle"), this.getStatusGlyph(SessionStatus.Completed)],
+			[unvisited, localize('projectBoard.idleUnvisited', "Idle, unvisited"), this.getStatusGlyph(SessionStatus.Completed, false)],
+			[(counts.get(SessionStatus.Completed) ?? 0) - unvisited, localize('projectBoard.idleVisited', "Idle, visited"), this.getStatusGlyph(SessionStatus.Completed)],
 			[(counts.get(SessionStatus.Untitled) ?? 0) + startingDrafts, localize('projectBoard.startingState', "Starting"), '\u23F3'],
 			[drafts.length - startingDrafts, localize('projectBoard.draftState', "Draft"), '\u270F\uFE0F'],
 			[unavailable, localize('projectBoard.unavailableState', "Unavailable"), '\u{1F6AB}'],
@@ -2124,6 +2156,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private createCard(document: Document, card: IProjectBoardCard, store: DisposableStore, visible: boolean): HTMLElement {
 		const element = document.createElement('article');
 		const descriptions: string[] = [];
+		const summaryDescriptions: string[] = [];
+		const details = document.createElement('div');
+		details.className = 'project-board-card-details';
+		details.id = `project-board-card-details-${generateUuid()}`;
 		const describe = (content: HTMLElement) => {
 			content.id = `project-board-detail-${generateUuid()}`;
 			descriptions.push(content.id);
@@ -2139,29 +2175,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const heading = document.createElement('div');
 		heading.className = 'project-board-card-heading';
 		if (this.canMarkDone(card)) {
-			const checkbox = store.add(new Checkbox(localize('projectBoard.selectConversation', "Select {0}", card.title), this.selectedCards.has(card.id), defaultCheckboxStyles));
-			checkbox.domNode.classList.add('project-board-card-select');
-			const controlId = `select:${card.id}`;
-			checkbox.domNode.dataset.boardControl = controlId;
-			this.controlElements.set(controlId, checkbox.domNode);
-			this.cardCheckboxes.set(card.id, checkbox);
-			store.add(addDisposableListener(checkbox.domNode, EventType.KEY_DOWN, event => {
-				if (event.repeat && (event.key === ' ' || event.key === 'Enter')) {
-					event.preventDefault();
-					event.stopImmediatePropagation();
-				}
-			}, true));
-			store.add(checkbox.onChange(() => {
-				if (!this.markingDone) {
-					if (checkbox.checked) {
-						this.selectedCards.add(card.id);
-					} else {
-						this.selectedCards.delete(card.id);
-					}
-					this.updateSelectionControls();
-				}
-			}));
-			heading.appendChild(checkbox.domNode);
+			element.classList.add('project-board-card-selectable');
+			const selection = document.createElement('span');
+			selection.className = 'project-board-card-selection-label';
+			selection.hidden = true;
+			selection.id = `project-board-selection-${generateUuid()}`;
+			summaryDescriptions.push(selection.id);
+			this.cardSelectionLabels.set(card.id, selection);
+			element.appendChild(selection);
 		}
 		heading.appendChild(title);
 		element.appendChild(heading);
@@ -2173,15 +2194,35 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.activeChatLabels.set(card.id, activeChatLabel);
 		element.appendChild(activeChatLabel);
 
-		if (this.canMarkDone(card)) {
-			const button = this.createCardActionButton(document, element, localize('projectBoard.markDone', "Mark as Done"), Codicon.check,
-				() => this.markCardsDone([card.id]), store);
-			const controlId = `done:${card.id}`;
-			button.element.dataset.boardControl = controlId;
-			button.element.setAttribute('aria-description', localize('projectBoard.cardDoneScope', "Archives this conversation's entire session, including its other chats. Stops active requests without deleting conversations or board placements."));
-			this.controlElements.set(controlId, button.element);
-			this.cardDoneButtons.set(card.id, button);
-		}
+		const disclosure = this.createControl(heading, '', `collapse:card:${card.id}`, store);
+		disclosure.element.classList.add('project-board-collapse', 'project-board-card-collapse');
+		disclosure.element.setAttribute('aria-controls', details.id);
+		const updateDetails = () => {
+			const collapsed = this.collapsedCards.has(card.id);
+			details.hidden = collapsed;
+			this.contextPills.get(card.id)?.setVisible(!collapsed);
+			element.classList.toggle('project-board-card-collapsed', collapsed);
+			disclosure.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			disclosure.element.setAttribute('aria-expanded', String(!collapsed));
+			disclosure.element.setAttribute('aria-label', collapsed
+				? localize('projectBoard.expandCardDetails', "Expand details for {0}", card.title)
+				: localize('projectBoard.collapseCardDetails', "Collapse details for {0}", card.title));
+			element.setAttribute('aria-describedby', [
+				...summaryDescriptions, ...(collapsed ? [] : descriptions),
+				...(element.classList.contains('project-board-card-active-chat') ? [activeChatLabel.id] : []),
+			].join(' '));
+		};
+		store.add(this.hoverService.setupDelayedHover(disclosure.element, () => ({ content: disclosure.element.getAttribute('aria-label')! })));
+		store.add(disclosure.onDidClick(event => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (!this.collapsedCards.delete(card.id)) {
+				this.collapsedCards.add(card.id);
+			}
+			updateDetails();
+			this.scrollable?.scanDomNode();
+			this._onDidChangeContentSize.fire();
+		}));
 
 		if (card.workspace) {
 			const workspace = document.createElement('div');
@@ -2189,7 +2230,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			workspace.textContent = card.workspace;
 			describe(workspace);
 			store.add(this.hoverService.setupDelayedHover(workspace, { content: card.workspace }));
-			element.appendChild(workspace);
+			details.appendChild(workspace);
 		}
 		if (card.archived || card.readOnly) {
 			const lifecycle = document.createElement('div');
@@ -2199,6 +2240,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 
 		element.appendChild(this.createStatus(document, this.getStatusLabel(card), this.getStatusGlyph(card.status, card.isRead), card.status === SessionStatus.InProgress));
+		element.appendChild(details);
 		const display = this.boardState.configuration.get().display;
 		const metadata = this.metadataStates.get(card.id);
 		const metrics = document.createElement('div');
@@ -2253,7 +2295,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			description.textContent = card.description;
 			describe(description);
 			store.add(this.hoverService.setupDelayedHover(description, { content: card.description }));
-			element.appendChild(description);
+			details.appendChild(description);
 		}
 		const configuration = this.configurationDetails.get(card.id);
 		if (configuration) {
@@ -2275,11 +2317,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					row.appendChild(item);
 				}
 				store.add(this.hoverService.setupDelayedHover(row, { content: values.map(value => localize('projectBoard.configurationValue', "{0}: {1}", value.label, value.value)).join('\n') }));
-				element.appendChild(row);
+				details.appendChild(row);
 			}
 		}
 		if (!metadata || metadata.kind === 'loading') {
-			const button = this.createControl(element, metadata
+			const button = this.createControl(details, metadata
 				? localize('projectBoard.refreshing', "Refreshing…")
 				: localize('projectBoard.pendingRefresh', "Pending refresh"), `refresh:${card.id}`, store);
 			button.element.classList.add('project-board-card-refresh');
@@ -2304,7 +2346,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (display?.showLastPrompt !== false && metadata && metadata.kind !== 'loading') {
 			describe(prompt);
 			store.add(this.hoverService.setupDelayedHover(prompt, { content: prompt.textContent }));
-			element.appendChild(prompt);
+			details.appendChild(prompt);
 		}
 		const time = this.promptTimes.get(card.id);
 		const recency = document.createElement('div');
@@ -2324,7 +2366,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			const capability = document.createElement('div');
 			capability.className = metadata.kind === 'ready' ? 'project-board-card-metadata-note' : 'project-board-card-warning';
 			capability.textContent = metadata.message;
-			element.appendChild(capability);
+			details.appendChild(capability);
 		}
 		if (visible && (card.sharedContext.length || card.pullRequests.length || (metadata?.kind === 'ready' && metadata.context.length))) {
 			let pills = this.contextPills.get(card.id);
@@ -2333,7 +2375,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				this.contextPills.set(card.id, pills);
 			}
 			pills.update(card, metadata);
-			element.appendChild(pills.element);
+			details.appendChild(pills.element);
 		}
 
 		this.cardElements.set(card.id, element);
@@ -2349,16 +2391,16 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				const previewElement = this.createQuestionPreview(document, preview, store, card.id);
 				previewElement.id = `project-board-input-${generateUuid()}`;
 				descriptions.push(previewElement.id);
-				element.appendChild(previewElement);
+				details.appendChild(previewElement);
 			}
 		}
 		if (actionWidget) {
-			element.appendChild(actionWidget.element);
+			details.appendChild(actionWidget.element);
 		} else if (this.actionErrors.has(card.id)) {
 			const warning = document.createElement('p');
 			warning.className = 'project-board-card-warning';
 			warning.textContent = localize('projectBoard.chatActionsUnavailable', "Pending actions could not be displayed. Open the chat to continue.");
-			element.appendChild(warning);
+			details.appendChild(warning);
 		}
 		const statusBar = document.createElement('footer');
 		statusBar.className = 'project-board-card-status-bar';
@@ -2366,8 +2408,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (metrics.childElementCount) {
 			statusBar.appendChild(metrics);
 		}
-		element.appendChild(statusBar);
-		element.setAttribute('aria-describedby', descriptions.join(' '));
+		details.appendChild(statusBar);
+		updateDetails();
 
 		store.add(addDisposableListener(element, EventType.DRAG_START, event => {
 			if (this.isCardControlEvent(element, event)) {
@@ -2388,9 +2430,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}));
 		const rename = card.status !== SessionStatus.Untitled && getChatCapabilities(card.chat, undefined, undefined).canRename ? () => this.renameChat(card) : undefined;
 		this.registerCardInteractions(element, () => this.openCard(card), store, () => { void this.pickPlacement(card); }, rename, card);
-		if (actionWidget || hasInteractiveQuestions || this.cardCheckboxes.has(card.id) || !metadata || metadata.kind === 'loading' || card.pullRequests.length) {
-			element.setAttribute('role', 'group');
-		}
+		element.setAttribute('role', 'group');
 
 		return element;
 	}
@@ -2508,13 +2548,25 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				? localize('projectBoard.cardInstructionsRenamable', "Use arrow keys to navigate cards, Home or End to reach the first or last card, Enter or Space to open this chat, and F2 or the context menu to rename it. Drag to move, or press {0} to choose a destination.", isMacintosh ? 'Command+Shift+M' : 'Ctrl+Shift+M')
 				: localize('projectBoard.cardInstructions', "Use arrow keys to navigate cards, Home or End to reach the first or last card, and Enter or Space to open this chat. Drag to move, or press {0} to choose a destination.", isMacintosh ? 'Command+Shift+M' : 'Ctrl+Shift+M'));
 		if (card && this.canMarkDone(card)) {
-			element.setAttribute('aria-description', localize('projectBoard.selectableCardInstructions', "{0} Tab to the conversation checkbox to select it for Mark as Done. Mark as Done archives its session, including other chats.", element.getAttribute('aria-description')));
+			element.setAttribute('aria-description', localize('projectBoard.selectableCardInstructions', "{0} Click to select only this conversation, {1}+click to toggle selection, Shift+click to select a range, or {1}+Shift+Enter to toggle the focused card. Mark as Done in the toolbar or context menu archives selected sessions, including their other chats.", element.getAttribute('aria-description'), isMacintosh ? 'Command' : 'Ctrl'));
 		}
 		if (move) {
-			element.setAttribute('aria-keyshortcuts', rename ? `${isMacintosh ? 'Meta+Shift+M' : 'Control+Shift+M'} F2` : (isMacintosh ? 'Meta+Shift+M' : 'Control+Shift+M'));
+			element.setAttribute('aria-keyshortcuts', [
+				isMacintosh ? 'Meta+Shift+M' : 'Control+Shift+M',
+				...(rename ? ['F2'] : []),
+				...(card && this.canMarkDone(card) ? [isMacintosh ? 'Meta+Shift+Enter' : 'Control+Shift+Enter'] : []),
+			].join(' '));
+		}
+		if (card) {
+			store.add(addDisposableListener(element, EventType.CLICK, event => {
+				if (event.button !== 0 || event.altKey || (isMacintosh ? event.ctrlKey : event.metaKey) || this.isCardControlEvent(element, event)) {
+					return;
+				}
+				this.selectCard(card, isMacintosh ? event.metaKey : event.ctrlKey, event.shiftKey);
+			}));
 		}
 		store.add(addDisposableListener(element, EventType.DBLCLICK, event => {
-			if (this.isCardControlEvent(element, event)) {
+			if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || this.isCardControlEvent(element, event)) {
 				return;
 			}
 			void open();
@@ -2523,7 +2575,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			if (event.target !== element || event.browserEvent.repeat) {
 				return;
 			}
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+			if (card && this.canMarkDone(card) && event.equals(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter)) {
+				event.preventDefault();
+				event.stopPropagation();
+				this.selectCard(card, true);
+			} else if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				event.preventDefault();
 				event.stopPropagation();
 				void open();

@@ -101,50 +101,67 @@ export class ProjectBoardChatSidePanel extends Disposable {
 			throw new Error(localize('kanban.chatUnavailable', "Chat can only be opened beside the embedded Agents Hub view while AI features are enabled."));
 		}
 
+		let reusablePane = this.getReusablePane(card);
 		this.request.value?.cancel();
-		this.activeCardObserver.clear();
-		this._activeCardId.set(undefined, undefined);
-		this.pane?.clear();
+		if (!reusablePane) {
+			this.clearPane();
+		}
 		const request = new CancellationTokenSource();
 		this.request.value = request;
 		const token = request.token;
 		try {
-			if (!await raceCancellationError(this.sessionsService.canOpenSession(card.session), token)) {
+			const trusted = await raceCancellationError(this.sessionsService.canOpenSession(card.session), token);
+			if (token.isCancellationRequested || this.customViewService.activeCustomView.get() !== customView) {
+				return;
+			}
+			if (!trusted) {
 				this.close();
 				return;
 			}
-			await this.paneOperations.queue(async () => {
-				if (token.isCancellationRequested || this.customViewService.activeCustomView.get() !== customView) {
-					return;
-				}
-				if (!this.previousComposite) {
-					this.previousComposite = {
-						id: this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.getId()
-							?? this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.AuxiliaryBar),
-						customView,
-					};
-				}
+			if (reusablePane && this.getReusablePane(card) !== reusablePane) {
+				this.clearPane();
+				reusablePane = undefined;
+			}
+			if (reusablePane) {
 				this.onClose = onClose;
-				this.available.set(true);
-				const pane = await this.viewsService.openView<ProjectBoardChatViewPane>(PROJECT_BOARD_CHAT_VIEW_ID, false);
-				if (token.isCancellationRequested) {
+			} else {
+				await this.paneOperations.queue(async () => {
+					if (token.isCancellationRequested || this.customViewService.activeCustomView.get() !== customView) {
+						return;
+					}
+					if (!this.previousComposite) {
+						this.previousComposite = {
+							id: this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.getId()
+								?? this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.AuxiliaryBar),
+							customView,
+						};
+					}
+					this.onClose = onClose;
+					this.available.set(true);
+					const pane = await this.viewsService.openView<ProjectBoardChatViewPane>(PROJECT_BOARD_CHAT_VIEW_ID, false);
+					if (token.isCancellationRequested) {
+						return;
+					}
+					if (!pane) {
+						throw new Error(localize('kanban.chatPaneUnavailable', "The Agents Hub chat side panel could not be opened."));
+					}
+					this.pane = pane;
+					this.customViewService.setAuxiliaryBarVisible(true);
+				});
+				if (token.isCancellationRequested || !this.pane) {
 					return;
 				}
-				if (!pane) {
-					throw new Error(localize('kanban.chatPaneUnavailable', "The Agents Hub chat side panel could not be opened."));
+				const pane = this.pane;
+				await raceCancellationError(pane.open(card, token, () => this.close()), token);
+				if (token.isCancellationRequested || this.pane !== pane || !pane.isBodyVisible()) {
+					return;
 				}
-				this.pane = pane;
-				this.customViewService.setAuxiliaryBarVisible(true);
-			});
-			if (token.isCancellationRequested || !this.pane) {
-				return;
+				this.activeCardObserver.value = autorun(reader => this._activeCardId.set(pane.activeCardId.read(reader), undefined));
 			}
 			const pane = this.pane;
-			await raceCancellationError(pane.open(card, token, () => this.close()), token);
-			if (token.isCancellationRequested || this.pane !== pane || !pane.isBodyVisible()) {
+			if (token.isCancellationRequested || !pane?.isBodyVisible()) {
 				return;
 			}
-			this.activeCardObserver.value = autorun(reader => this._activeCardId.set(pane.activeCardId.read(reader), undefined));
 			pane.focus();
 			try {
 				await this.sessionsManagementService.markRead(card.session);
@@ -158,6 +175,18 @@ export class ProjectBoardChatSidePanel extends Disposable {
 				throw error;
 			}
 		}
+	}
+
+	private getReusablePane(card: ProjectBoardChat): ProjectBoardChatViewPane | undefined {
+		const pane = this.pane;
+		return pane?.isBodyVisible() && pane.hasLoadedChat() && this.activeCardId.get() === getProjectBoardCardId(card.session, card.chat)
+			? pane : undefined;
+	}
+
+	private clearPane(): void {
+		this.activeCardObserver.clear();
+		this._activeCardId.set(undefined, undefined);
+		this.pane?.clear();
 	}
 
 	close(): void {
@@ -267,6 +296,10 @@ export class ProjectBoardChatViewPane extends ViewPane {
 	hasChatFocus(): boolean {
 		const content = this.content.get();
 		return !!content && isAncestorOfActiveElement(content.element);
+	}
+
+	hasLoadedChat(): boolean {
+		return this.content.get()?.hasLoadedModel() ?? false;
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -444,6 +477,10 @@ export class ProjectBoardChatContent extends Disposable {
 
 	setVisible(visible: boolean): void {
 		this.widget.setVisible(visible);
+	}
+
+	hasLoadedModel(): boolean {
+		return !!this.model.value && this.widget.viewModel?.model === this.model.value.object;
 	}
 
 	layout(height: number, width: number): void {
