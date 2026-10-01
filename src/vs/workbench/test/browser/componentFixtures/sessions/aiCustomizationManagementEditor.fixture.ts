@@ -1040,7 +1040,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const marketplaceVisibilityEnabled = options.marketplaceVisibilityEnabled ?? false;
 	const discoverEnabled = marketplaceVisibilityEnabled;
 	const marketplaceResources = [
-		...(agentFinderPublicFeedEnabled ? customizationMarketplaceResources : []),
+		...(agentFinderPublicFeedEnabled ? customizationMarketplaceResources.map(resource => options.featuredFeedEnabled
+			? { ...resource, sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id }
+			: resource) : []),
 		...(options.copilotConnectorsEnabled ? [copilotConnectorMarketplaceResource] : []),
 	];
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
@@ -1161,26 +1163,29 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeSentiment = Event.None;
 			}());
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
-				override readonly featuredSourceIds = options.featuredFeedEnabled ? ['testSource'] : [];
+				override readonly featuredSourceIds = options.featuredFeedEnabled ? [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] : [];
 				override readonly sources = [
 					CustomizationMarketplaceSources.PluginMarketplaces,
 					CustomizationMarketplaceSources.McpGallery,
-					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
-					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
+					...(options.featuredFeedEnabled ? [CustomizationMarketplaceSources.AgentFinderPublicFeed] : [
+						{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
+						{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
+					]),
 					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled', requiresMarketplaceVisibility: true },
 					CustomizationMarketplaceSources.CopilotConnectors,
 				];
 				override async getFeatured(query: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>) {
-					if (!options.featuredFeedEnabled || query.sourceIds && !query.sourceIds.includes('testSource')) {
+					const sourceId = this.featuredSourceIds[0];
+					if (!sourceId || query.sourceIds && !query.sourceIds.includes(sourceId)) {
 						return undefined;
 					}
 					return {
-						sourceId: 'testSource',
+						sourceId,
 						items: [
-							customizationMarketplaceResources[2],
-							customizationMarketplaceResources[1],
-							customizationMarketplaceResources[4],
-							customizationMarketplaceResources[0],
+							marketplaceResources[2],
+							marketplaceResources[1],
+							marketplaceResources[4],
+							marketplaceResources[0],
 						],
 					};
 				}
