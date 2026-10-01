@@ -18,6 +18,8 @@ import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvid
  */
 export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvider {
 
+	readonly supportsWorkspaceSelection = false;
+
 	/**
 	 * Provisional sessions kept out of {@link getSessions} because the caller is still showing a
 	 * placeholder row for them. They stay reachable by resource, so opening one still works.

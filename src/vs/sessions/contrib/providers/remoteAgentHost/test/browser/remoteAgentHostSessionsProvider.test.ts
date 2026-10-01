@@ -3418,6 +3418,19 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 		}) as CloudSandboxSessionsProvider;
 	}
 
+	test('opts out of workspace selection while retaining workspace resolution', () => {
+		const provider = createSandboxProvider();
+		const uri = toAgentHostUri(URI.file('/workspace'), agentHostAuthority(provider.remoteAddress));
+
+		assert.deepStrictEqual({
+			supportsWorkspaceSelection: provider.supportsWorkspaceSelection,
+			resolvedWorkspace: provider.resolveWorkspace(uri)?.uri.toString(),
+		}, {
+			supportsWorkspaceSelection: false,
+			resolvedWorkspace: uri.toString(),
+		});
+	});
+
 	function seed(provider: RemoteAgentHostSessionsProvider, changes?: Partial<IAgentSessionMetadata>): void {
 		provider.seedSessions([{ ...metadata, ...changes }], { updateExisting: true });
 	}

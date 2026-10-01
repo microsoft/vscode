@@ -257,6 +257,12 @@ export interface ISessionsProvider {
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	/**
+	 * Whether this provider participates in workspace selection for new sessions and Automations.
+	 * Defaults to true; opting out does not prevent resolution of existing session workspaces.
+	 */
+	readonly supportsWorkspaceSelection?: boolean;
+
+	/**
 	 * Whether this provider can resolve and run sessions against local file-system workspaces.
 	 * When `true`, the workspace picker includes a "Local" tab with a built-in
 	 * folder browse action that resolves through this provider.
