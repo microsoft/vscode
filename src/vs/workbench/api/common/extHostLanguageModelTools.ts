@@ -342,6 +342,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	}
 
 	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool<any>): IDisposable {
+		if (this._registeredTools.has(id)) {
+			throw new Error(`Tool "${id}" is already registered.`);
+		}
+
 		this._registeredTools.set(id, { extension, tool });
 		this._proxy.$registerTool(id, typeof tool.handleToolStream === 'function');
 
@@ -355,6 +359,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		checkProposedApiEnabled(extension, 'languageModelToolSupportsModel');
 
 		const id = definition.name;
+
+		if (this._registeredTools.has(id)) {
+			throw new Error(`Tool "${id}" is already registered.`);
+		}
 
 		// Convert the definition to a DTO
 		const dto: IToolDefinitionDto = {
