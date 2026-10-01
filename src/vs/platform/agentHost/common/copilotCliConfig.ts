@@ -47,6 +47,8 @@ export const enum CopilotCliConfigKey {
 	AutoModeTierOverride = 'autoModeTierOverride',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
 	ModelCapabilityOverrides = 'modelCapabilityOverrides',
+	/** Where Copilot SDK sessions put files the user asks for when the request names no path. */
+	RequestedFileLocation = 'requestedFileLocation',
 }
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
@@ -84,8 +86,19 @@ export const CopilotClaudeDefaultReasoningEffortSettingId = 'github.copilot.chat
 export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
 
+export const AgentHostCopilotRequestedFileLocationSettingId = 'chat.agentHost.copilot.requestedFileLocation';
+
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
+
+export const copilotRequestedFileLocationValues = ['workingDirectory', 'sessionWorkspace'] as const;
+export type CopilotRequestedFileLocation = typeof copilotRequestedFileLocationValues[number];
+export const DEFAULT_COPILOT_REQUESTED_FILE_LOCATION: CopilotRequestedFileLocation = 'workingDirectory';
+
+/** Returns the configured location for requested files, or the default for unknown values. */
+export function normalizeRequestedFileLocation(value: unknown): CopilotRequestedFileLocation {
+	return copilotRequestedFileLocationValues.find(location => location === value) ?? DEFAULT_COPILOT_REQUESTED_FILE_LOCATION;
+}
 
 export const DEFAULT_COPILOT_RUBBER_DUCK_ENABLED = true;
 export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 15_000;
@@ -217,6 +230,17 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.toolSearchDeferThreshold.title', "Tool Search Defer Threshold"),
 		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
 		default: 1,
+	}),
+	[CopilotCliConfigKey.RequestedFileLocation]: schemaProperty<CopilotRequestedFileLocation>({
+		type: 'string',
+		title: localize('agentHost.config.requestedFileLocation.title', "Requested File Location"),
+		description: localize('agentHost.config.requestedFileLocation.description', "Where Copilot SDK sessions put files the user asks for when the request names no path. A path the user names always wins, and plan mode keeps its own rules."),
+		enum: [...copilotRequestedFileLocationValues],
+		enumLabels: [
+			localize('agentHost.config.requestedFileLocation.workingDirectory', "Working Directory"),
+			localize('agentHost.config.requestedFileLocation.sessionWorkspace', "Session Workspace"),
+		],
+		default: DEFAULT_COPILOT_REQUESTED_FILE_LOCATION,
 	}),
 	[CopilotCliConfigKey.HydraFusion]: schemaProperty<boolean>({
 		type: 'boolean',
