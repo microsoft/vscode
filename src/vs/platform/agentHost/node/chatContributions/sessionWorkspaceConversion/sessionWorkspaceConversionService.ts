@@ -398,7 +398,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			...requestedConfig,
 			[SessionConfigKey.Branch]: isolationConfig.branchValue,
 		};
-		const workingDirectory = await this._worktreeIsolation.resolveOnFirstSend({
+		const workingDirectory = await this._worktreeIsolation.resolveForWorkspaceConversion({
 			sessionUri: session,
 			sessionId: AgentSession.id(session),
 			workingDirectory: workspaceFolder,

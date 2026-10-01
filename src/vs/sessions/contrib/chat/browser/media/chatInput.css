@@ -170,9 +170,13 @@
 .sessions-chat-toolbar {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size40);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60) var(--vscode-spacing-size60);
 	color: var(--vscode-icon-foreground);
+}
+
+.experimental-new-session-composer .sessions-chat-toolbar {
+	gap: var(--vscode-spacing-size80);
 }
 
 .experimental-new-session-composer .sessions-chat-toolbar .sessions-chat-config-toolbar .actions-container {
@@ -245,7 +249,7 @@
 
 .experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls {
 	justify-content: flex-start;
-	flex: 0 1 auto;
+	flex: 0 0 auto;
 	width: max-content;
 }
 
@@ -474,6 +478,21 @@
 	position: relative;
 	z-index: 1;
 	transition: background-color 250ms ease, color 250ms ease;
+}
+
+.sessions-chat-send-button.labeled {
+	width: auto;
+}
+
+.sessions-chat-send-button.labeled .monaco-button {
+	width: auto;
+	min-width: 22px;
+	padding: 0 var(--vscode-spacing-size80);
+}
+
+.action-widget .sessions-new-chat-picker-list .monaco-list-row.sessions-run-multiple-agents-action.has-toolbar .action-list-item-toolbar {
+	display: flex;
+	visibility: visible;
 }
 
 .sessions-chat-send-button .monaco-button.disabled {

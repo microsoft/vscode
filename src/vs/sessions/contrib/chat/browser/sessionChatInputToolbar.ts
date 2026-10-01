@@ -28,7 +28,7 @@ import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbe
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
-import { SessionCustomizations } from './sessionCustomizations.js';
+import { SessionCustomizations } from '../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
@@ -395,7 +395,9 @@ export class SessionChatInputToolbar extends Disposable {
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
 		});
 		this._referenceSections = sessionArtifacts.referenceSections;
-		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
+		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations,
+			derived(this, reader => this._chat.read(reader)?.customizations?.read(reader) ?? []),
+			derived(this, reader => this._session.read(reader)?.workspace.read(reader)?.folders ?? [])));
 		this._customizationSections = sessionCustomizations.sections;
 
 		const pillsVisible = derived(this, reader => this._debugData.read(reader) !== undefined || !this._isSubagentChat.read(reader));
@@ -498,28 +500,9 @@ export class SessionChatInputToolbar extends Disposable {
 			issues: {
 				sections: issueSections,
 				icon: issueIcon,
-				getContextMenuPrimaryActions: () => {
-					const entries = issueSections.get().flatMap(section => section.entries);
-					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
-					return promotedAction ? [promotedAction] : [];
-				},
 			},
-			artifacts: {
-				sections: this._artifactSections,
-				getContextMenuPrimaryActions: () => {
-					const entries = this._artifactSections.get().flatMap(section => section.entries);
-					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
-					return promotedAction ? [promotedAction] : [];
-				},
-			},
-			references: {
-				sections: this._referenceSections,
-				getContextMenuPrimaryActions: () => {
-					const entries = this._referenceSections.get().flatMap(section => section.entries);
-					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
-					return promotedAction ? [promotedAction] : [];
-				},
-			},
+			artifacts: { sections: this._artifactSections },
+			references: { sections: this._referenceSections },
 			customizations: { sections: this._customizationSections },
 			browsers: { sections: this._browsers.sections },
 			subagents: this._backgroundActivities,

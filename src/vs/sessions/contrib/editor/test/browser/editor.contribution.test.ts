@@ -45,7 +45,7 @@ import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTa
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { IsQuickChatSessionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
 import { SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
@@ -452,7 +452,7 @@ suite('Sessions - Editor Contribution', () => {
 			[IsTopRightEditorGroupContext.key]: true,
 		};
 		const scenarios = (availableKey: string, missingKey: string) => {
-			const when = availableKey === SinglePaneFilesTabAvailableContext.key
+			const when = availableKey === DesktopFilesTabAvailableContext.key
 				? getWhen(new NewFileTabAction())
 				: getWhen(new NewChangesTabAction());
 			return {
@@ -465,8 +465,8 @@ suite('Sessions - Editor Contribution', () => {
 		};
 
 		assert.deepStrictEqual({
-			files: scenarios(SinglePaneFilesTabAvailableContext.key, SinglePaneFilesTabMissingContext.key),
-			changes: scenarios(SinglePaneChangesTabAvailableContext.key, SinglePaneChangesTabMissingContext.key),
+			files: scenarios(DesktopFilesTabAvailableContext.key, DesktopFilesTabMissingContext.key),
+			changes: scenarios(DesktopChangesTabAvailableContext.key, DesktopChangesTabMissingContext.key),
 			searchInDockOnly: evaluate(getWhen(new NewSearchTabAction()), baseContext),
 			searchInQuickChat: evaluate(getWhen(new NewSearchTabAction()), { ...baseContext, [IsQuickChatSessionContext.key]: true }),
 		}, {
@@ -485,15 +485,15 @@ suite('Sessions - Editor Contribution', () => {
 		const values: Record<string, ContextKeyValue> = {
 			[IsSessionsWindowContext.key]: true,
 			[IsAuxiliaryWindowContext.key]: false,
-			[SinglePaneChangesTabAvailableContext.key]: true,
+			[DesktopChangesTabAvailableContext.key]: true,
 		};
 		const context: IContext = {
 			getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined
 		};
 
 		assert.deepStrictEqual({
-			preconditionHasAvailability: precondition.includes(SinglePaneChangesTabAvailableContext.key),
-			keybindingHasAvailability: when.includes(SinglePaneChangesTabAvailableContext.key),
+			preconditionHasAvailability: precondition.includes(DesktopChangesTabAvailableContext.key),
+			keybindingHasAvailability: when.includes(DesktopChangesTabAvailableContext.key),
 			preconditionEnabled: action.desc.precondition?.evaluate(context),
 			keybindingEnabled: keybinding?.when?.evaluate(context),
 		}, {

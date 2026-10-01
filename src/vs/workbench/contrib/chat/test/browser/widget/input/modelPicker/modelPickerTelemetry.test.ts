@@ -82,7 +82,7 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(tabbed: boolean, selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel]) {
+	function createPicker(tabbed: boolean, selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
@@ -91,6 +91,8 @@ suite('ModelPickerTelemetry', () => {
 		const openedLinks: string[] = [];
 		const configurations = new Map<string, IStringDictionary<unknown>>();
 		const pinnedModelIds: string[] = [];
+		const delegateSelections: string[] = [];
+		const programmaticDelegateSelections: string[] = [];
 		let tabbedShows = 0;
 		const configurationAccess: IModelConfigurationAccess = {
 			getModelConfiguration: id => configurations.get(id),
@@ -118,6 +120,7 @@ suite('ModelPickerTelemetry', () => {
 		let searchModels: () => void = () => assert.fail('Tabbed picker has not opened');
 		let toggleAuto: () => void = () => assert.fail('Tabbed picker has not opened');
 		let hideFlatPicker = () => { };
+		let flatPickerHideCount = 0;
 		const hideTabbedPicker = () => {
 			visible = false;
 			detailsOptions = undefined;
@@ -178,7 +181,10 @@ suite('ModelPickerTelemetry', () => {
 				setItems(items, item => delegate.onSelect(item));
 				listOptions = options;
 				contextViewLayer = layer;
-				hideFlatPicker = () => delegate.onHide();
+				hideFlatPicker = () => {
+					flatPickerHideCount++;
+					delegate.onHide();
+				};
 			},
 			hide: () => hideFlatPicker(),
 			focusItemById: () => { },
@@ -278,8 +284,11 @@ suite('ModelPickerTelemetry', () => {
 			}
 		}());
 		instantiationService.stub(IProductService, { version: '1.100.0' });
-		const entitlementService = new TestChatEntitlementService();
-		entitlementService.entitlement = ChatEntitlement.Pro;
+		const entitlementChanged = store.add(new Emitter<void>());
+		const entitlementService = new class extends TestChatEntitlementService {
+			override readonly onDidChangeEntitlement = entitlementChanged.event;
+		}();
+		entitlementService.entitlement = entitlement;
 		instantiationService.stub(IChatEntitlementService, entitlementService);
 		instantiationService.stub(IUpdateService, { state: { type: StateType.Uninitialized } });
 		instantiationService.stub(IUriIdentityService, { extUri });
@@ -291,7 +300,8 @@ suite('ModelPickerTelemetry', () => {
 
 		const picker = store.add(instantiationService.createInstance(ModelPickerWidget, {
 			currentModel: constObservable(selectedModel),
-			setModel: () => { },
+			setModel: model => delegateSelections.push(model.identifier),
+			setModelProgrammatically: supportsProgrammaticSelection ? model => programmaticDelegateSelections.push(model.identifier) : undefined,
 			getModels: () => models,
 			getChatSessionId: () => 'session-1',
 			getPresentationOptions: () => ({
@@ -304,10 +314,15 @@ suite('ModelPickerTelemetry', () => {
 		picker.show(container);
 
 		return {
-			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds,
+			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections,
 			get visible() { return visible; },
+			get flatPickerHideCount() { return flatPickerHideCount; },
 			get tabbedShows() { return tabbedShows; },
 			get contextViewLayer() { return contextViewLayer; },
+			setEntitlement: (entitlement: ChatEntitlement) => {
+				entitlementService.entitlement = entitlement;
+				entitlementChanged.fire();
+			},
 			selectItem: (label: string) => selectItem(label),
 			selectTab: (label: string) => selectTab(label),
 			pinItem: (label: string) => pinItem(label),
@@ -333,6 +348,51 @@ suite('ModelPickerTelemetry', () => {
 			},
 		};
 	}
+
+	test('Free entitlement replaces a persisted HydraFusion selection when the picker is constructed', () => {
+		const hydraFusion = createModel('hydrafusion');
+		const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model], ChatEntitlement.Free);
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			delegateSelections: result.delegateSelections,
+			programmaticDelegateSelections: result.programmaticDelegateSelections,
+		}, {
+			selected: autoModel.identifier,
+			delegateSelections: [],
+			programmaticDelegateSelections: [autoModel.identifier],
+		});
+	});
+
+	test('Free entitlement falls back to setModel when the delegate has no programmatic selection', () => {
+		const hydraFusion = createModel('hydrafusion');
+		const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model], ChatEntitlement.Free, false);
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			delegateSelections: result.delegateSelections,
+			programmaticDelegateSelections: result.programmaticDelegateSelections,
+		}, {
+			selected: autoModel.identifier,
+			delegateSelections: [autoModel.identifier],
+			programmaticDelegateSelections: [],
+		});
+	});
+
+	test('legacy picker closes and replaces selected HydraFusion when entitlement resolves to Free', () => {
+		const hydraFusion = createModel('hydrafusion');
+		const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model]);
+		result.picker.render(result.container);
+		result.hide();
+		const hideCount = result.flatPickerHideCount;
+		result.picker.show(result.container);
+		result.setEntitlement(ChatEntitlement.Free);
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			closed: result.flatPickerHideCount - hideCount,
+		}, {
+			selected: autoModel.identifier,
+			closed: 1,
+		});
+	});
 
 	for (const tabbed of [false, true]) {
 		test(`forwards the requested context view layer to the ${tabbed ? 'tabbed' : 'flat'} picker`, () => {
@@ -364,6 +424,21 @@ suite('ModelPickerTelemetry', () => {
 			during: { label: 'Medium · 264K', popup: 'dialog', expanded: 'true', model: model.metadata.name },
 			focused: true, expanded: 'false', events: [],
 		});
+	});
+
+	test('the input readout forwards dialog layering without confusing it with the details model', () => {
+		const result = createPicker(true);
+		result.picker.render(result.container);
+		result.picker.show(result.container);
+		result.picker.setContextViewLayer(1);
+		const readout = result.container.querySelector<HTMLElement>('.model-picker-config')!;
+		readout.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({
+			layer: result.contextViewLayer,
+			model: result.container.querySelector('.chat-model-card-name')?.textContent,
+			expanded: readout.getAttribute('aria-expanded'),
+			events: result.events,
+		}, { layer: 1, model: model.metadata.name, expanded: 'true', events: [] });
 	});
 
 	for (const target of ['name', 'config']) {

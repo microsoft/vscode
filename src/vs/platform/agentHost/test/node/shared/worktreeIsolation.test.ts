@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
@@ -224,6 +224,66 @@ suite('WorktreeIsolation', () => {
 			namedNoPrefix: 'plain-branch',
 			namedWithBranchPrefix: 'add-config',
 		});
+	});
+
+	test('concurrent config resolutions share Git reads but later calls see changed branches', async () => {
+		let rootReads = 0;
+		let currentBranch = 'first';
+		const isolation = createIsolation(disposables, {
+			gitService: {
+				...createGitService(),
+				getRepositoryRoot: async () => { rootReads++; return repoRoot; },
+				getCurrentBranch: async () => currentBranch,
+			}
+		});
+		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
+		const first = await Promise.all([isolation.resolveIsolationConfig(request), isolation.resolveIsolationConfig(request)]);
+		assert.deepStrictEqual(first.map(result => result.branchValue), ['first', 'first']);
+		assert.strictEqual(rootReads, 1);
+		currentBranch = 'second';
+		assert.strictEqual((await isolation.resolveIsolationConfig(request)).branchValue, 'second');
+		assert.strictEqual(rootReads, 2);
+	});
+
+	test('failed shared Git reads do not poison subsequent config resolutions', async () => {
+		let rootReads = 0;
+		const failure = new Error('Git unavailable');
+		const isolation = createIsolation(disposables, {
+			gitService: {
+				...createGitService(),
+				getRepositoryRoot: async () => { if (++rootReads === 1) { throw failure; } return repoRoot; },
+			}
+		});
+		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
+		const results = await Promise.allSettled([isolation.resolveIsolationConfig(request), isolation.resolveIsolationConfig(request)]);
+		assert.ok(results.every(result => result.status === 'rejected' && result.reason === failure));
+		assert.strictEqual(rootReads, 1);
+		assert.strictEqual((await isolation.resolveIsolationConfig(request)).branchValue, 'feature');
+		assert.strictEqual(rootReads, 2);
+	});
+
+	test('a branch switch during an in-flight read is visible on the next fresh config read', async () => {
+		const branchRead = new DeferredPromise<void>();
+		const finishRead = new DeferredPromise<void>();
+		let currentBranch = 'before-switch';
+		const isolation = createIsolation(disposables, {
+			gitService: {
+				...createGitService(),
+				getCurrentBranch: async () => { branchRead.complete(); return currentBranch; },
+				getDefaultBranch: async () => { await finishRead.p; return { name: 'main', startPoint: 'main' }; },
+			}
+		});
+		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
+		const first = isolation.resolveIsolationConfig(request);
+		await branchRead.p;
+		currentBranch = 'after-switch';
+		const overlapping = isolation.resolveIsolationConfig(request);
+		finishRead.complete();
+		const results = await Promise.all([first, overlapping]);
+		assert.deepStrictEqual({
+			overlappingBranches: results.map(result => result.branchValue),
+			freshBranch: (await isolation.resolveIsolationConfig(request)).branchValue,
+		}, { overlappingBranches: ['before-switch', 'before-switch'], freshBranch: 'after-switch' });
 	});
 
 	test('resolveIsolationConfig advertises folder/worktree + branch based on git state', async () => {
@@ -479,7 +539,8 @@ suite('WorktreeIsolation', () => {
 		const isolation = createIsolation(disposables);
 		const config = { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' };
 
-		const first = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config, prompt: 'do a thing' });
+		isolation.notePending(sessionId);
+		const first = await isolation.resolveOnFirstSend({ sessionUri, sessionId, workingDirectory: repoRoot, config, prompt: 'do a thing' });
 		const meta = await isolation.readWorktreeMetadata(sessionUri);
 		const announcement = isolation.takePendingAnnouncement(sessionId);
 		const second = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config, prompt: 'do a thing' });
@@ -496,6 +557,8 @@ suite('WorktreeIsolation', () => {
 			secondTakeAnnouncement: isolation.takePendingAnnouncement(sessionId),
 			idempotentReturn: second!.toString(),
 			resolvedWorktree: isolation.getResolvedWorktree(sessionId)?.toString(),
+			pending: isolation.isWorkingDirectoryPending(sessionId),
+			creationError: isolation.getCreationError(sessionId),
 		}, {
 			returnedWorktree: expectedWorktree.toString(),
 			addWorktreeCallCount: 1,
@@ -507,6 +570,96 @@ suite('WorktreeIsolation', () => {
 			secondTakeAnnouncement: undefined,
 			idempotentReturn: expectedWorktree.toString(),
 			resolvedWorktree: expectedWorktree.toString(),
+			pending: false,
+			creationError: undefined,
+		});
+	});
+
+	test('resolveOnFirstSend serializes and latches concurrent creation failures', async () => {
+		const gitService = createGitService();
+		gitService.addWorktree = async (_root, options) => {
+			addWorktreeCalls.push(options);
+			throw new Error('git-lfs: command not found');
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } };
+		isolation.notePending(sessionId);
+		let firstError: Error | undefined;
+		let secondError: Error | undefined;
+
+		await Promise.all([
+			assert.rejects(isolation.resolveOnFirstSend(request), (error: Error) => {
+				firstError = error;
+				return /git-lfs: command not found/.test(error.message);
+			}),
+			assert.rejects(isolation.resolveOnFirstSend(request), (error: Error) => {
+				secondError = error;
+				return /git-lfs: command not found/.test(error.message);
+			}),
+		]);
+
+		assert.deepStrictEqual({
+			addWorktreeCalls: addWorktreeCalls.length,
+			sameError: firstError === secondError,
+			latchedError: isolation.getCreationError(sessionId) === firstError,
+			pending: isolation.isWorkingDirectoryPending(sessionId),
+			message: firstError?.message,
+		}, {
+			addWorktreeCalls: 1,
+			sameError: true,
+			latchedError: true,
+			pending: true,
+			message: 'Couldn\'t create the isolated worktree. This session cannot continue. Start a new session to try again.\n\ngit-lfs: command not found',
+		});
+	});
+
+	test('session deletion clears a latched worktree creation failure', async () => {
+		const gitService = createGitService();
+		gitService.addWorktree = async () => { throw new Error('creation failed'); };
+		const isolation = createIsolation(disposables, { gitService });
+		const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } };
+		isolation.notePending(sessionId);
+
+		await assert.rejects(isolation.resolveOnFirstSend(request), /creation failed/);
+		const errorBeforeDeletion = isolation.getCreationError(sessionId);
+		await isolation.removeSessionWorktree(sessionId, undefined);
+
+		assert.deepStrictEqual({
+			errorBeforeDeletion: errorBeforeDeletion?.message,
+			errorAfterDeletion: isolation.getCreationError(sessionId),
+			pending: isolation.isWorkingDirectoryPending(sessionId),
+		}, {
+			errorBeforeDeletion: 'Couldn\'t create the isolated worktree. This session cannot continue. Start a new session to try again.\n\ncreation failed',
+			errorAfterDeletion: undefined,
+			pending: false,
+		});
+	});
+
+	test('resolveForWorkspaceConversion does not latch creation failures', async () => {
+		const gitService = createGitService();
+		gitService.addWorktree = async (_root, options) => {
+			addWorktreeCalls.push(options);
+			if (addWorktreeCalls.length === 1) {
+				throw new Error('transient git failure');
+			}
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } };
+
+		await assert.rejects(isolation.resolveForWorkspaceConversion(request), /transient git failure/);
+		const errorAfterFailure = isolation.getCreationError(sessionId);
+		const resolved = await isolation.resolveForWorkspaceConversion(request);
+
+		assert.deepStrictEqual({
+			addWorktreeCalls: addWorktreeCalls.length,
+			errorAfterFailure,
+			resolved: resolved?.toString(),
+			creationError: isolation.getCreationError(sessionId),
+		}, {
+			addWorktreeCalls: 2,
+			errorAfterFailure: undefined,
+			resolved: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
+			creationError: undefined,
 		});
 	});
 
