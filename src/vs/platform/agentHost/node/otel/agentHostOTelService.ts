@@ -293,9 +293,15 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			} catch {
 				this._logService.warn('[agentHost.otel] Could not detect the OS username; continuing without a detected process.user.name.');
 			}
+			let host: string | undefined;
+			try {
+				host = (this._options?.readHostname ?? hostname)();
+			} catch {
+				this._logService.warn('[agentHost.otel] Could not detect the hostname; continuing without a detected host.name.');
+			}
 			this._hostResourceAttributes = {
 				...(username === undefined ? {} : { 'process.user.name': username }),
-				'host.name': (this._options?.readHostname ?? hostname)(),
+				...(host === undefined ? {} : { 'host.name': host }),
 				...this._config.resourceAttributes,
 			};
 		}

@@ -475,8 +475,9 @@ capture is off by default. Identity capture does not enable OTel or content capt
 
 When OTel and identity capture are enabled, host-produced metadata uses
 `process.user.name` and `host.name` resource attributes. Explicit resource
-attributes override detected values. Failure to detect an OS username logs a
-warning and does not prevent hostname or explicitly configured identity capture.
+attributes override detected values. OS username and hostname detection fail
+independently: each failure logs a warning and omits only that detected attribute,
+without preventing the other lookup or explicitly configured identity capture.
 The host does not invent an authenticated `user.name` for its provider-neutral
 metadata; account attribution on native invocation spans belongs to the provider.
 
@@ -486,7 +487,11 @@ loopback strips these keys from resources, instrumentation scopes, spans, events
 and links **before** SQLite persistence and OTLP/file/console fan-out. When capture
 is allowed, provider-supplied identity is retained, not replaced with the host's
 detected identity. Console output remains a summary without these attributes.
-Unrelated attributes and content-capture behavior are unchanged.
+If request normalization fails, the loopback rejects the entire payload with
+HTTP 400 before persistence or forwarding; it never forwards the original,
+potentially unredacted bytes. The warning does not include payload or exception
+text. Unrelated attributes and content-capture behavior are unchanged for
+accepted requests.
 
 Settled identity-policy changes, including denial, re-enablement, and withdrawal,
 use the shared local host's automatic replacement described below. The new
