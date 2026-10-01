@@ -174,6 +174,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			isClientConnected: candidate => connected && candidate === clientId,
 			getConnectedClientTransportCounts: () => connected ? new Map([[clientId, 1]]) : new Map(),
 			requestWorkspaceTrust: async () => false,
+			requestMcpAuthentication: async () => false,
 		};
 		disposables.add(clientConnectionService.registerSource(source));
 		return value => connected = value;

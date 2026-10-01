@@ -40,6 +40,9 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
 import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../node/agentHostAutomationCustomizations.js';
+import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -59,9 +62,25 @@ suite('AgentHostAutomationService', () => {
 	let telemetry: RecordingAutomationTelemetry;
 	let fileService: FileService;
 	let pluginManager: AgentPluginManager;
+	let clientConnections: AgentHostClientConnectionService;
+	let authenticationRequests: IAgentHostMcpAuthenticationRequest[];
+	let authenticationResult: Promise<boolean>;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		clientConnections = disposables.add(new AgentHostClientConnectionService());
+		authenticationRequests = [];
+		authenticationResult = Promise.resolve(false);
+		disposables.add(clientConnections.registerSource({
+			hasSeenClient: () => false,
+			isClientConnected: () => false,
+			getConnectedClientTransportCounts: () => new Map(),
+			requestWorkspaceTrust: async () => false,
+			requestMcpAuthentication: request => {
+				authenticationRequests.push(request);
+				return authenticationResult;
+			},
+		}));
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		stateManager.dispatchServerAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
@@ -128,13 +147,85 @@ suite('AgentHostAutomationService', () => {
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
-		}, stateManager, storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }));
+		}, stateManager, storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections);
 		return disposables.add(service);
 	}
 
 	async function enableAndCreate(service: AgentHostAutomationService, resource = 'ahp-automation:/review-changes'): Promise<void> {
 		await service.handleCreate(createAction(resource));
 	}
+
+	test('silently authenticates run-linked MCP servers once per challenge', async () => {
+		const session = URI.parse('mock:/mcp-run');
+		const interactiveSession = URI.parse('mock:/interactive');
+		for (const resource of [session, interactiveSession]) {
+			stateManager.createSession({
+				resource: resource.toString(), provider: 'mock', title: '',
+				status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			});
+		}
+		const started = new DeferredPromise<void>();
+		const pendingAuthentication = new DeferredPromise<boolean>();
+		authenticationResult = pendingAuthentication.p;
+		const service = createService({
+			createSession: async () => session,
+			startSession: async () => { await started.complete(); },
+		});
+		await enableAndCreate(service);
+		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'mcp-run' });
+		await started.p;
+		const auth: McpAuthRequirement = {
+			resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+			reason: McpAuthRequiredReason.Required,
+			requiredScopes: ['read'],
+		};
+		const customizations = (challenge: McpAuthRequirement): Customization[] => [
+			{ type: CustomizationType.McpServer, id: 'top', uri: 'mcp:/top', name: 'top', state: { kind: McpServerStatus.AuthRequired, ...challenge } },
+			{
+				type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'plugin', children: [
+					{ type: CustomizationType.McpServer, id: 'child', uri: 'mcp:/child', name: 'child', state: { kind: McpServerStatus.AuthRequired, ...challenge } },
+				]
+			},
+		];
+		const publish = (resource: URI, challenge: McpAuthRequirement) => stateManager.dispatchServerAction(resource.toString(), {
+			type: ActionType.SessionCustomizationsChanged, customizations: customizations(challenge),
+		});
+		publish(interactiveSession, auth);
+		publish(session, auth);
+		publish(session, auth);
+		const inflightRequests = [...authenticationRequests];
+		await pendingAuthentication.complete(false);
+		await Promise.resolve();
+		publish(session, auth);
+		const failedRequests = [...authenticationRequests];
+		const changedAuth = { ...auth, requiredScopes: ['read', 'write'] };
+		publish(session, changedAuth);
+		const changedChallenges: McpAuthRequirement[] = [
+			{ ...auth, resource: { ...auth.resource, resource: 'https://other.example.com' } },
+			{ ...auth, reason: McpAuthRequiredReason.Expired },
+			{ ...auth, oauthClient: { clientId: 'registered-client' } },
+		];
+		for (const challenge of changedChallenges) {
+			publish(session, challenge);
+			publish(session, challenge);
+		}
+		publish(session, auth);
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [] });
+		publish(session, auth);
+		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false } });
+		publish(session, changedAuth);
+		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true } });
+		publish(session, auth);
+		service.dispose();
+		publish(session, changedAuth);
+		assert.deepStrictEqual({ inflightRequests, failedRequests, requests: authenticationRequests }, {
+			inflightRequests: [{ serverName: 'top', auth }, { serverName: 'child', auth }],
+			failedRequests: [{ serverName: 'top', auth }, { serverName: 'child', auth }],
+			requests: [auth, changedAuth, ...changedChallenges, auth, auth].flatMap(auth => [
+				{ serverName: 'top', auth }, { serverName: 'child', auth },
+			]),
+		});
+	});
 
 	test('captures plugins durably and seeds a disconnected run with the rewritten agent', async () => {
 		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };

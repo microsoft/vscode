@@ -123,7 +123,7 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
+import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
 export { toolDataToDefinition };
 
@@ -4015,21 +4015,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (pending) {
 			return pending;
 		}
-		const operation = this._instantiationService.invokeFunction(resolveMcpServerAuthentication, {
-			resource: server.resource,
-			resource_name: server.name,
-			authorization_servers: server.authorizationServers ? [...server.authorizationServers] : undefined,
-			scopes_supported: server.supportedScopes ? [...server.supportedScopes] : undefined,
-		}, {
-			allowInteraction: false,
-			logPrefix: '[AgentHost]',
-			mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.resource),
-			mcpServerName: server.name,
-			mcpServerUrl: server.resource,
+		const operation = this._instantiationService.invokeFunction(autoAuthenticateMcpServer, this._config.connection, sessionResource, server.name, {
+			resource: {
+				resource: server.resource,
+				resource_name: server.name,
+				authorization_servers: server.authorizationServers ? [...server.authorizationServers] : undefined,
+				scopes_supported: server.supportedScopes ? [...server.supportedScopes] : undefined,
+			},
 			oauthClient: server.oauthClient,
-			scopes: server.requiredScopes ?? [],
-			agentHost: { scheme: sessionResource.scheme, authority: sessionResource.authority },
-			authenticate: request => this._config.connection.authenticate(request),
+			requiredScopes: server.requiredScopes ? [...server.requiredScopes] : undefined,
 		}).catch(err => {
 			this._logService.error(`[AgentHost] Failed to auto-authenticate MCP server '${server.name}'`, err);
 			return false;

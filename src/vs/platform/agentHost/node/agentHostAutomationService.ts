@@ -36,6 +36,10 @@ import { nextAutomationCronOccurrence, validateAutomationCron } from './automati
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, DEFAULT_AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES, migrateLegacyAutomationSessionConfig } from '../common/automationConfig.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
+import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
+import { getMcpServerCustomizations } from './shared/mcpCustomizationController.js';
+import { McpServerStatus, type McpAuthRequirement } from '../common/state/protocol/channels-session/state.js';
+import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 
 const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
@@ -104,6 +108,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private _didRecoverRuns = false;
 	private readonly _customizations: AgentHostAutomationCustomizations;
 	private readonly _startup: Promise<void>;
+	private readonly _mcpAuthenticationChallenges = new Map<string, Map<string, Set<string>>>();
 
 	constructor(
 		private readonly _execution: IAgentHostAutomationExecution,
@@ -115,10 +120,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		@IAgentPluginManager pluginManager: IAgentPluginManager,
 		@IFileService fileService: IFileService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 	) {
 		super();
 		this._customizations = new AgentHostAutomationCustomizations(pluginManager.hostPluginsPath, fileService, this._logService, environmentService.userHome);
 		this._register(toDisposable(() => this._cancellations.clear()));
+		this._register(toDisposable(() => this._mcpAuthenticationChallenges.clear()));
 		const stored = this._load();
 		this._runs = new Map(stored?.runs?.map(run => [run.resource, run]));
 		this._catalog = stored?.catalog ? {
@@ -806,6 +813,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (envelope.rejectionReason) {
 			return;
 		}
+		switch (envelope.action.type) {
+			case ActionType.SessionCustomizationsChanged:
+			case ActionType.SessionCustomizationUpdated:
+			case ActionType.SessionCustomizationRemoved:
+			case ActionType.SessionMcpServerStateChanged:
+				this._handleMcpAuthentication(envelope.channel);
+				break;
+		}
 		if (!isDefaultChatUri(envelope.channel)) {
 			return;
 		}
@@ -856,6 +871,64 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			await this._commitRun({ ...current, lifecycle }, [{ type: ActionType.AutomationRunLifecycleChanged, lifecycle }]);
 		}).catch(error => this._logService.error(`[AgentHostAutomationService] Failed to persist terminal automation lifecycle: run=${run.resource}, error=${toErrorMessage(error)}`));
+	}
+
+	private _handleMcpAuthentication(session: string): void {
+		if (!this.isAvailable || !this._isAutomationsEnabled() || this._store.isDisposed) {
+			this._mcpAuthenticationChallenges.clear();
+			return;
+		}
+		const runSessions = new Set([...this._runs.values()].flatMap(run => run.sessions));
+		for (const trackedSession of this._mcpAuthenticationChallenges.keys()) {
+			if (!runSessions.has(trackedSession)) {
+				this._mcpAuthenticationChallenges.delete(trackedSession);
+			}
+		}
+		if (!runSessions.has(session)) {
+			return;
+		}
+		const servers = getMcpServerCustomizations(this._stateManager.getSessionState(session)?.customizations ?? []);
+		const challenges = this._mcpAuthenticationChallenges.get(session) ?? new Map<string, Set<string>>();
+		this._mcpAuthenticationChallenges.set(session, challenges);
+		for (const serverName of challenges.keys()) {
+			if (!servers.some(server => server.name === serverName && server.state?.kind === McpServerStatus.AuthRequired)) {
+				challenges.delete(serverName);
+			}
+		}
+		for (const server of servers) {
+			if (server.state?.kind !== McpServerStatus.AuthRequired) {
+				continue;
+			}
+			const { resource, requiredScopes, reason, oauthClient, description } = server.state;
+			const auth: McpAuthRequirement = {
+				resource, reason,
+				...(requiredScopes !== undefined ? { requiredScopes } : {}),
+				...(oauthClient !== undefined ? { oauthClient } : {}),
+				...(description !== undefined ? { description } : {}),
+			};
+			const key = JSON.stringify([resource, requiredScopes, reason, oauthClient?.clientId]);
+			const attempted = challenges.get(server.name) ?? new Set<string>();
+			if (attempted.has(key)) {
+				continue;
+			}
+			attempted.add(key);
+			challenges.set(server.name, attempted);
+			void this._requestMcpAuthentication(session, { serverName: server.name, auth });
+		}
+		if (challenges.size > 0) {
+			this._mcpAuthenticationChallenges.set(session, challenges);
+		} else {
+			this._mcpAuthenticationChallenges.delete(session);
+		}
+	}
+
+	private async _requestMcpAuthentication(session: string, request: IAgentHostMcpAuthenticationRequest): Promise<void> {
+		try {
+			const authenticated = await this._clientConnections.requestMcpAuthentication(request);
+			this._logService.info(`[AgentHostAutomationService] MCP authentication completed: session=${session}, server=${request.serverName}, authenticated=${authenticated}.`);
+		} catch (error) {
+			this._logService.info(`[AgentHostAutomationService] MCP authentication failed: session=${session}, server=${request.serverName}, error=${toErrorMessage(error)}`);
+		}
 	}
 
 	private async _commitRun(

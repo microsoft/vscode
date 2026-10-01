@@ -223,6 +223,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			isClientConnected: clientId => clientId === 'test',
 			getConnectedClientTransportCounts: () => new Map([['test', 1]]),
 			requestWorkspaceTrust: async () => true,
+			requestMcpAuthentication: async () => false,
 		}));
 		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		const worktreeIsolation = createNoopWorktreeIsolation();
@@ -591,6 +592,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			isClientConnected: clientId => clientId === 'connected-client',
 			getConnectedClientTransportCounts: () => new Map([['connected-client', 1]]),
 			requestWorkspaceTrust: async () => true,
+			requestMcpAuthentication: async () => false,
 		}));
 		const diagnosticAgent = disposables.add(new MockAgent('copilotcli'));
 		diagnosticAgent.getTurnDiagnosticSnapshot = () => ({

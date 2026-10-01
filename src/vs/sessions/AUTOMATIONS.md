@@ -70,6 +70,10 @@ A run session receives the copies as a static, host-owned active client created 
 
 After each create, update, or removal, the host deletes copies that no automation references, including those of a rejected capture. Copies used by a run session stay until the host restarts, because that session keeps using them in place for follow-up turns.
 
+### MCP authentication in runs
+
+When an MCP server in a run session reports that it requires authentication, the host sends a `vscode/requestMcpAuthentication` extension request to connected clients one at a time until one succeeds. A client never prompts: it supplies a token only if the user already signed in to and allowed that MCP server, pushes it through the regular `authenticate` command, and then reports success. The host asks once per session, server, and challenge. If no client can supply a token, the run continues without that server. Host-owned MCP authentication will replace this.
+
 ### Blueprints and templates
 
 `IAutomationBlueprint` is a versioned portable name, prompt, and schedule. It excludes runtime identity, target provider, workspace, session configuration, enabled state, timestamps, and history.
