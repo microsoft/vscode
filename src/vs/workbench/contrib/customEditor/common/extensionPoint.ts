@@ -74,6 +74,10 @@ const customEditorsContributionSchema = {
 						type: 'string',
 						description: nls.localize('contributes.selector.filenamePattern', 'Glob that the custom editor is enabled for.'),
 					},
+					language: {
+						type: 'string',
+						description: nls.localize('contributes.selector.language', 'Language ID that the custom editor is enabled for.'),
+					},
 				}
 			}
 		},

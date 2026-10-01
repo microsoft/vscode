@@ -84,9 +84,9 @@ export class ContributedCustomEditors extends Disposable {
 		return this._editors.get(viewType);
 	}
 
-	public getContributedEditors(resource: URI): readonly CustomEditorInfo[] {
+	public getContributedEditors(resource: URI, languageId?: string): readonly CustomEditorInfo[] {
 		return Array.from(this._editors.values())
-			.filter(customEditor => customEditor.matches(resource));
+			.filter(customEditor => customEditor.matches(resource, languageId));
 	}
 
 	private add(info: CustomEditorInfo): void {

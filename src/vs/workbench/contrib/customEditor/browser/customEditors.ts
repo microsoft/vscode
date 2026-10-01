@@ -169,12 +169,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		for (const contributedEditor of this._contributedEditors) {
 			for (const globPattern of contributedEditor.selector) {
-				if (!globPattern.filenamePattern) {
+				if (!globPattern.filenamePattern && !globPattern.language) {
 					continue;
 				}
 
 				this._editorResolverDisposables.add(this.editorResolverService.registerEditor(
-					globPattern.filenamePattern,
+					globPattern.filenamePattern ?? '*',
 					{
 						id: contributedEditor.id,
 						label: contributedEditor.displayName,
@@ -182,7 +182,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 						priority: contributedEditor.priority,
 					},
 					{
-						singlePerResource: () => !(this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? false)
+						singlePerResource: () => !(this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? false),
+						language: globPattern.language,
 					},
 					{
 						createEditorInput: ({ resource, label }, group) => {
