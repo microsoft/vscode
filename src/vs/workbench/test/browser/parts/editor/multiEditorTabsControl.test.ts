@@ -1252,6 +1252,34 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
+	test('wrapped connected tabs include title padding in the available height constraint', async () => {
+		const group = connectedGroup();
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 150);
+		const strip = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+		const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+		const wrappedHeights = { strip: strip.offsetHeight, tabs: tabs.offsetHeight };
+
+		control.layout({ container: new Dimension(150, 33), available: new Dimension(150, wrappedHeights.tabs) });
+		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		const constrainedByTabsHeight = strip.classList.contains('wrapping');
+
+		control.layout({ container: new Dimension(150, 33), available: new Dimension(150, wrappedHeights.strip) });
+		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+
+		assert.deepStrictEqual({
+			wrappedHeights,
+			constrainedByTabsHeight,
+			fitsAtFullStripHeight: strip.classList.contains('wrapping'),
+		}, {
+			wrappedHeights: { strip: 61, tabs: 59 },
+			constrainedByTabsHeight: false,
+			fitsAtFullStripHeight: true,
+		});
+	});
+
 	test('three wrapped rows retain equal tab heights without a fixed strip height', async () => {
 		const group = connectedGroup();
 		group.style.setProperty('--modern-ui-connected-tab-surface', '#ffffff');
