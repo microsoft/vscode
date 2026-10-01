@@ -5,7 +5,7 @@
 import { safeSetInnerHtml } from '../../../../base/browser/domSanitize.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { getMenuWidgetCSS, Menu, unthemedMenuStyles } from '../../../../base/browser/ui/menu/menu.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
 import { localize } from '../../../../nls.js';
@@ -15,13 +15,16 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IGitHubAnonymousClient, IGitHubService } from '../../../../platform/github/common/githubService.js';
+import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
+import { arrayProperty, asObject, requiredString, stringProperty } from '../../../../platform/github/common/githubResponse.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { IIssueFormService, IIssueSubmissionHost, IssueReporterData, IssueReporterExtensionData, IssueSource } from '../common/issue.js';
+import { IIssueFormService, IIssueSubmissionHost, ISimilarIssue, IssueReporterData, IssueReporterExtensionData, IssueSource } from '../common/issue.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import BaseHtml from './issueReporterPage.js';
 import { IssueWebReporter } from './issueReporterService.js';
@@ -95,6 +98,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 
 	/** Bounded cache of already-uploaded attachments to avoid re-uploading on retry within a session. Uses a content hash so large data URLs aren't retained as keys. */
 	private readonly uploadCache = new LRUCache<string, import('./githubUploadService.js').IGitHubUploadResult>(32);
+	private readonly gitHubSearchClient = this._register(new MutableDisposable<IReference<IGitHubAnonymousClient>>());
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -109,8 +113,34 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		@IGitHubUploadService protected readonly githubUploadService: IGitHubUploadService,
 		@IEditorService protected readonly editorService: IEditorService,
 		@IClipboardService protected readonly clipboardService: IClipboardService,
+		@IGitHubService private readonly gitHubService: IGitHubService,
 	) {
 		super();
+	}
+
+	async searchGitHubIssues(repo: string, title: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]> {
+		signal.throwIfAborted();
+		if (this._store.isDisposed) {
+			throw new GitHubRequestError('Issue reporter was disposed', 'unknown');
+		}
+		this.gitHubSearchClient.value ??= this.gitHubService.acquireAnonymousClient({ apiBaseUri: 'https://api.github.com' });
+		const query = encodeURIComponent(`is:issue repo:${repo} ${title}`);
+		try {
+			const response = await this.gitHubSearchClient.value.object.get<unknown>(`/search/issues?q=${query}`, signal, {
+				caller: 'github.query',
+				deadline: Date.now() + 10_000,
+			});
+			const items = arrayProperty(asObject(response.data, 'GitHub issue search response was malformed'), 'items');
+			return items.map(item => {
+				const issue = asObject(item, 'GitHub issue search result was malformed');
+				return { html_url: requiredString(issue, 'html_url'), title: requiredString(issue, 'title'), state: stringProperty(issue, 'state') };
+			});
+		} catch (error) {
+			if (!signal.aborted) {
+				this.logService.warn('[IssueFormService] GitHub issue search failed', error);
+			}
+			throw error;
+		}
 	}
 
 	async openReporter(data: IssueReporterData): Promise<void> {

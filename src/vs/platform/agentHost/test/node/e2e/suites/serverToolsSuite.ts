@@ -339,12 +339,14 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 				result: `Added reference: ${artifacts[0].id}\nAdded artifact: ${artifacts[1].id}`,
 				artifacts: [
 					{
+						chat: buildDefaultChatUri(session.sessionUri),
 						type: 'website',
 						label: 'Agent Host guide',
 						isArtifact: false,
 						link: 'https://example.com/agent-host',
 					},
 					{
+						chat: buildDefaultChatUri(session.sessionUri),
 						type: 'file',
 						label: 'Agent Host report',
 						isArtifact: true,

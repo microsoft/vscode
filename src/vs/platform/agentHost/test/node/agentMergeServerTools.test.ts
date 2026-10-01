@@ -9,7 +9,7 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IGitHubService } from '../../../github/common/githubService.js';
+import { createTestGitHubService } from './testGitHubService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -61,7 +61,7 @@ suite('Agent Merge server tools', () => {
 				return directory.toString() === workingDirectory.toString() ? 'feature' : 'feature-tools';
 			}
 		}();
-		const gitHubService = new class extends mock<IGitHubService>() { }();
+		const gitHubService = createTestGitHubService();
 		const controller = store.add(new AgentMergeController(
 			{ startTurn: () => false, cancelTurn: () => { }, postNotice: () => { } },
 			stateManager,
@@ -80,7 +80,6 @@ suite('Agent Merge server tools', () => {
 			() => controller.isEnabled(),
 			getTurnContext ?? (chat => controller.getTurnContext(chat)),
 			(chat, enabled, overrides) => controller.setEnabled(chat, enabled, overrides),
-			gitHubService,
 			logService,
 			stateManager,
 			configurationService,

@@ -92,8 +92,8 @@ export interface IAgentHostCatalogReconciliationOptions {
 	readonly canSchedule?: () => boolean;
 	/** Cheap pre-check so a session whose source cannot resolve never opens local storage. */
 	readonly isSourceAvailable?: (registered: IRegisteredSession) => boolean;
-	/** Mirrors retroactive provisional markers into the owner process. */
-	readonly onDidMarkSessionProvisional?: (session: string) => void;
+	/** Mirrors retroactive provisional markers into the owner process after a reconciliation run. */
+	readonly onDidMarkSessionsProvisional?: (sessions: readonly string[]) => void;
 }
 
 export class AgentHostCatalogReconciliationService extends Disposable {
@@ -110,7 +110,8 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private readonly _now: () => number;
 	private readonly _canSchedule: () => boolean;
 	private readonly _isSourceAvailable: (registered: IRegisteredSession) => boolean;
-	private readonly _onDidMarkSessionProvisional: (session: string) => void;
+	private readonly _onDidMarkSessionsProvisional: (sessions: readonly string[]) => void;
+	private readonly _markedProvisionalSessions = new Set<string>();
 	private readonly _scheduledPass = this._register(new MutableDisposable<IDisposable>());
 	private _scheduledPassKind: ScheduledPassKind | undefined;
 	private _payloadDirtyMark: Promise<void> | undefined;
@@ -152,7 +153,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		this._now = options.now ?? Date.now;
 		this._canSchedule = options.canSchedule ?? (() => true);
 		this._isSourceAvailable = options.isSourceAvailable ?? (() => true);
-		this._onDidMarkSessionProvisional = options.onDidMarkSessionProvisional ?? (() => { });
+		this._onDidMarkSessionsProvisional = options.onDidMarkSessionsProvisional ?? (() => { });
 		this._initialPayloadDirtyMarkPending = this._storageService.get<number>(VERIFICATION_VERSION_STORAGE_KEY) !== CATALOG_VERIFICATION_VERSION;
 		const lastVerification = this._storageService.get<number>(LAST_VERIFICATION_STORAGE_KEY);
 		this._lastCompatibilityVerification = typeof lastVerification === 'number' && Number.isFinite(lastVerification) && lastVerification <= this._now() ? lastVerification : 0;
@@ -243,7 +244,17 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 
 	private _startRun(run: () => Promise<IAgentHostCatalogReconciliationReport>): Promise<IAgentHostCatalogReconciliationReport> {
 		this._rerunRequested = false;
+		this._markedProvisionalSessions.clear();
 		const running = run().finally(() => {
+			if (this._markedProvisionalSessions.size > 0) {
+				const sessions = [...this._markedProvisionalSessions];
+				this._markedProvisionalSessions.clear();
+				try {
+					this._onDidMarkSessionsProvisional(sessions);
+				} catch (error) {
+					this._logService.error('[AgentHostCatalogReconciliation] Failed to publish provisional session markers', error);
+				}
+			}
 			if (this._running === running) {
 				this._running = undefined;
 				this._scheduleNextPass();
@@ -382,7 +393,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 				return;
 			}
 			await this._catalogDatabase.setSessionProvisional(sessionKey, true);
-			this._onDidMarkSessionProvisional(sessionKey);
+			this._markedProvisionalSessions.add(sessionKey);
 		} catch (error) {
 			this._logService.warn(`[AgentHostCatalogReconciliation] Failed to confirm empty source-unresolvable session ${sessionKey}`, error);
 		}
