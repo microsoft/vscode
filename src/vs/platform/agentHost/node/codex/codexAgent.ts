@@ -5186,13 +5186,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			// folder on the strength of a (possibly stale) ownership flag alone.
 			const managedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId) ?? overlay.managedWorkingDirectory;
 			const workingDirectory = overlay.cwd ?? managedWorkingDirectory;
-			let savedModel = overlay.modelId ? { id: overlay.modelId } : decoded.model;
-			if (!savedModel) {
-				const response = await (await this._ensureConnection()).client.request<'thread/read', ThreadReadResponse>('thread/read', { threadId, includeTurns: false });
-				if (response.thread.model && response.thread.modelProvider) {
-					savedModel = { id: toCodexModelSelectionId(response.thread.modelProvider, response.thread.model) };
-				}
-			}
+			// Reuse native model metadata already read by discovery. Re-attaching a
+			// backing must not start the SDK or issue a thread/read just to fill in
+			// a missing model; the host's metadata/history reads own that I/O.
+			const savedModel = overlay.modelId ? { id: overlay.modelId } : decoded.model ?? this._codexChatMetadata.get(threadId)?.metadata.model;
 			const model = await this._resolveRestoredModel(savedModel);
 			this._throwIfShuttingDown();
 			// Codex's session id == thread id convention: the backing thread already
