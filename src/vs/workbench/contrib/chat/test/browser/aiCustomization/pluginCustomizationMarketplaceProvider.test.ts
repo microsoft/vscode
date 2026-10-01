@@ -84,6 +84,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				capabilities: [],
 				representativeQueries: [],
 				originLabel: customReference.displayLabel,
+				publisher: 'microsoft',
 				version: '1.0',
 				url: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
 				readmeUri: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
@@ -102,6 +103,22 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				marketplaceTypes: [MarketplaceType.Claude, MarketplaceType.Copilot, MarketplaceType.OpenPlugin],
 			},
 		});
+	});
+
+	test('uses a GitHub plugin source owner as the publisher', async () => {
+		const service = new TestPluginMarketplaceService();
+		service.page = {
+			items: [{
+				...plugin,
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'octo-org/review-plugin' },
+			}],
+			errors: [],
+		};
+		const provider = new PluginCustomizationMarketplaceProvider('custom', service, new TestConfigurationService());
+
+		const page = await provider.query({}, CancellationToken.None);
+
+		assert.strictEqual(page.items[0].publisher, 'octo-org');
 	});
 
 	test('default provider is suppressed while the public feed is enabled', async () => {

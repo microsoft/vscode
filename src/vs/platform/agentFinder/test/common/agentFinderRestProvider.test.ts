@@ -159,7 +159,7 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
-	test('resolves an MCP registry icon through the fixed Agent Finder registry', async () => {
+	test('resolves MCP registry metadata through the fixed Agent Finder registry', async () => {
 		const lookups: { url: string; manifestUrl: string | undefined; manifestVersion: string | undefined; cancelled: boolean }[] = [];
 		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
 			getMcpServer: async (url, manifest, token) => {
@@ -174,6 +174,8 @@ suite('AgentFinderRestProvider', () => {
 						light: 'https://avatars.githubusercontent.com/u/213697801',
 						dark: 'https://avatars.githubusercontent.com/u/213697801',
 					},
+					publisher: 'pgEdge',
+					publisherDisplayName: 'pgEdge, Inc.',
 				});
 			},
 		});
@@ -201,7 +203,7 @@ suite('AgentFinderRestProvider', () => {
 				url: 'https://api.mcp.github.com/oss/v0.1/servers/io.github.pgEdge/postgres-mcp/versions/latest',
 				externalUrl: mcpServer.url,
 				repository: undefined,
-				publisher: undefined,
+				publisher: 'pgEdge, Inc.',
 				icon: 'https://avatars.githubusercontent.com/u/213697801',
 				stars: undefined,
 			},
@@ -214,7 +216,7 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
-	test('keeps the MCP result and logs when registry icon resolution fails', async () => {
+	test('keeps the MCP result and logs when registry metadata resolution fails', async () => {
 		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
 			getMcpServer: async () => { throw new Error('offline'); },
 		});
@@ -228,7 +230,7 @@ suite('AgentFinderRestProvider', () => {
 			warnings: warning.args.map(args => args[0]),
 		}, {
 			icon: undefined,
-			warnings: ['[AgentFinderRestProvider] Failed to resolve the MCP catalog icon for \'io.github.pgEdge/postgres-mcp\'.'],
+			warnings: ['[AgentFinderRestProvider] Failed to resolve MCP catalog metadata for \'io.github.pgEdge/postgres-mcp\'.'],
 		});
 	});
 
@@ -252,7 +254,7 @@ suite('AgentFinderRestProvider', () => {
 		}, {
 			icon: undefined,
 			iconCancelled: true,
-			warnings: ['[AgentFinderRestProvider] Timed out resolving MCP catalog icons.'],
+			warnings: ['[AgentFinderRestProvider] Timed out resolving MCP catalog metadata.'],
 		});
 	}));
 

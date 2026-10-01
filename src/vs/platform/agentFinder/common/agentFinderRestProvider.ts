@@ -122,7 +122,7 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 	}
 
 	private async resolveMcpIcons(page: ICustomizationMarketplaceSourcePage, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
-		if (!page.items.some(item => !item.icon && item.installation?.kind === 'mcp' && item.externalUrl)) {
+		if (!page.items.some(item => (!item.icon || !item.publisher) && item.installation?.kind === 'mcp' && item.externalUrl)) {
 			return page;
 		}
 
@@ -137,15 +137,15 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 
 		try {
 			const items = await Promise.all(page.items.map(item =>
-				!item.icon && item.installation?.kind === 'mcp' && item.externalUrl
-					? limiter.queue(() => this.resolveMcpIcon(item, token, cancellation.token))
+				(!item.icon || !item.publisher) && item.installation?.kind === 'mcp' && item.externalUrl
+					? limiter.queue(() => this.resolveMcpMetadata(item, token, cancellation.token))
 					: item
 			));
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
 			if (timedOut) {
-				this.logService.warn('[AgentFinderRestProvider] Timed out resolving MCP catalog icons.');
+				this.logService.warn('[AgentFinderRestProvider] Timed out resolving MCP catalog metadata.');
 			}
 			return { ...page, items };
 		} finally {
@@ -154,7 +154,7 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 		}
 	}
 
-	private async resolveMcpIcon(item: ICustomizationMarketplaceEntry, queryToken: CancellationToken, iconToken: CancellationToken): Promise<ICustomizationMarketplaceEntry> {
+	private async resolveMcpMetadata(item: ICustomizationMarketplaceEntry, queryToken: CancellationToken, iconToken: CancellationToken): Promise<ICustomizationMarketplaceEntry> {
 		const installation = item.installation;
 		if (installation?.kind !== 'mcp' || !item.externalUrl || queryToken.isCancellationRequested || iconToken.isCancellationRequested) {
 			return item;
@@ -166,10 +166,11 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 			if (server?.icon?.light && !icon) {
 				this.logService.warn(`[AgentFinderRestProvider] Ignoring an invalid MCP catalog icon for '${installation.name}'.`);
 			}
-			return icon ? { ...item, icon } : item;
+			const publisher = server?.publisherDisplayName ?? server?.publisher;
+			return icon || publisher ? { ...item, ...(icon ? { icon } : {}), ...(publisher ? { publisher } : {}) } : item;
 		} catch (error) {
 			if (!queryToken.isCancellationRequested && !iconToken.isCancellationRequested) {
-				this.logService.warn(`[AgentFinderRestProvider] Failed to resolve the MCP catalog icon for '${installation.name}'.`, error);
+				this.logService.warn(`[AgentFinderRestProvider] Failed to resolve MCP catalog metadata for '${installation.name}'.`, error);
 			}
 			return item;
 		}

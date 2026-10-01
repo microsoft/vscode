@@ -1776,10 +1776,6 @@ per-word capitalization does not survive translation. */
 	margin: 0;
 }
 
-.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-status-badge.unavailable {
-	color: var(--vscode-errorForeground);
-}
-
 .ai-customization-management-editor .marketplace-detail-source-facts {
 	display: flex;
 	flex-direction: column;
@@ -2013,6 +2009,14 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-status-badge {
 	flex-shrink: 0;
 	margin-top: 1px;
+}
+
+.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-publisher {
+	align-self: flex-end;
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-disable-button.monaco-button {

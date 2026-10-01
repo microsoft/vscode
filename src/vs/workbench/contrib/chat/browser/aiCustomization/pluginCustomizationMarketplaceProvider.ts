@@ -10,7 +10,7 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { DEFAULT_PLUGIN_MARKETPLACE, parseMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
-import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
 
 const defaultMarketplaceId = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!.canonicalId;
 const pluginMarketplaceSourceInfo: ICustomizationMarketplaceSourceInfo = {
@@ -116,6 +116,7 @@ function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'de
 		capabilities: [],
 		representativeQueries: [],
 		originLabel: plugin.marketplace,
+		publisher: getPluginPublisher(plugin),
 		version: plugin.version,
 		url: plugin.readmeUri,
 		...(plugin.readmeUri ? { readmeUri: plugin.readmeUri } : {}),
@@ -123,6 +124,13 @@ function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'de
 		priority: registry === 'custom' ? 1 : 0,
 		installation: { kind: 'configuredPlugin' },
 	};
+}
+
+function getPluginPublisher(plugin: IMarketplacePlugin): string | undefined {
+	const repository = plugin.sourceDescriptor.kind === PluginSourceKind.GitHub
+		? plugin.sourceDescriptor.repo
+		: plugin.marketplaceReference.githubRepo;
+	return repository?.split('/', 1)[0];
 }
 
 function getPluginMarketplaceTypes(mediaType: string | undefined): ReadonlySet<MarketplaceType> | undefined {
