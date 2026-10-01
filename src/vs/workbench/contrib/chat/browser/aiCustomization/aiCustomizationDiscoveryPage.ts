@@ -412,8 +412,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		templateData.name.removeAttribute('rel');
 		templateData.detail.textContent = detail;
 		templateData.description.textContent = description;
-		const hasInstalledDetail = installed && !!(element.promptDetail || element.pluginDetail || element.mcpDetail);
-		templateData.primaryAction.setAttribute('aria-label', installed && (hasInstalledDetail || !element.catalogResource)
+		templateData.primaryAction.setAttribute('aria-label', installed
 			? localize('customizationDiscovery.openInstalled', "Open installed customization {0}", name)
 			: localize('customizationDiscovery.openDetails', "View details for {0}", name));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
@@ -426,13 +425,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			}));
 		};
 		if (element.kind === 'installed') {
-			registerOpenListeners(() => {
-				if (element.promptDetail || element.pluginDetail || element.mcpDetail || !element.catalogResource) {
-					this.onOpenInstalled(element);
-					return;
-				}
-				this.onOpenDetails(element.catalogResource);
-			});
+			registerOpenListeners(() => this.onOpenInstalled(element));
 		} else {
 			registerOpenListeners(() => this.onOpenDetails(element.resource));
 		}
@@ -743,11 +736,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		));
 		this._register(this.resultList.onDidOpen(event => {
 			if (event.element?.kind === 'installed') {
-				if (event.element.promptDetail || event.element.pluginDetail || event.element.mcpDetail || !event.element.catalogResource) {
-					this.openInstalledItem(event.element);
-				} else {
-					this.openMarketplaceItem(event.element.catalogResource, 'search');
-				}
+				this.openInstalledItem(event.element);
 			} else if (event.element?.kind === 'available') {
 				this.openMarketplaceItem(event.element.resource, 'search');
 			}
@@ -1436,6 +1425,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						type,
 						section: getSectionForCatalogType(type),
 						catalogResource: resource,
+						uri: state.target.kind === 'skill' || state.target.kind === 'plugin' ? state.target.uri : undefined,
+						mcpServerId: state.target.kind === 'mcp' ? state.target.id : undefined,
 					});
 				}
 			} else {
@@ -1579,13 +1570,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const card = DOM.append(parent, $('.customization-discovery-card'));
 		const resourceKey = getCustomizationMarketplaceResourceKey(item);
 		card.dataset.resourceKey = resourceKey;
+		const state = this.getInstallState(item);
 		const primaryAction = createCustomizationCardPrimaryAction(
 			card,
-			localize('customizationDiscovery.openDetails', "View details for {0}", item.displayName),
+			hasInstallationTarget(state)
+				? localize('customizationDiscovery.openInstalled', "Open installed customization {0}", item.displayName)
+				: localize('customizationDiscovery.openDetails', "View details for {0}", item.displayName),
 			'customization-discovery-card-primary',
 		);
 		this.browsePrimaryActions.set(resourceKey, primaryAction);
-		this.browseDisposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.CLICK, () => this.openMarketplaceItem(item, 'browse')));
+		this.browseDisposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.CLICK, () => this.openCatalogItem(item, 'browse')));
 		const icon = DOM.append(primaryAction, $('.customization-discovery-card-icon'));
 		const type = getCatalogType(item);
 		renderCustomizationMarketplaceIcon(
@@ -1609,7 +1603,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.browseDisposables.add(this.hoverService.setupDelayedHover(name, { content: item.displayName }));
 		this.browseDisposables.add(this.hoverService.setupDelayedHover(description, { content: item.description }));
 		const actions = DOM.append(card, $('.customization-discovery-card-actions'));
-		const state = this.getInstallState(item);
 		const setupUrl = state.kind === 'unavailable' ? state.setupUrl : undefined;
 		const installError = this.installErrors.get(getCustomizationMarketplaceResourceKey(item));
 		const cancellable = isCancellableConnectorOperation(item, state);
@@ -1867,13 +1860,27 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		});
 	}
 
+	private openCatalogItem(resource: ICustomizationMarketplaceResource, mode: ICustomizationMarketplaceOrigin['mode']): void {
+		const type = getCatalogType(resource);
+		const state = this.getInstallState(resource);
+		if (type && hasInstallationTarget(state) && this.callbacks.openInstalled) {
+			this.callbacks.openInstalled({
+				section: getSectionForCatalogType(type),
+				name: resource.displayName,
+				uri: state.target.kind === 'skill' || state.target.kind === 'plugin' ? state.target.uri : undefined,
+				mcpServerId: state.target.kind === 'mcp' ? state.target.id : undefined,
+			});
+			return;
+		}
+		this.openMarketplaceItem(resource, mode);
+	}
+
 	private openInstalledItem(item: IInstalledDiscoveryItem): void {
 		this.callbacks.openInstalled?.({
 			section: item.section,
+			name: item.name,
 			uri: item.uri,
-			promptDetail: item.promptDetail,
-			pluginDetail: item.pluginDetail,
-			mcpDetail: item.mcpDetail,
+			mcpServerId: item.mcpServerId,
 		});
 	}
 

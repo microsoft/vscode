@@ -75,6 +75,11 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.ai-customization-management-editor .sidebar-home-button.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
+
 .ai-customization-management-editor .sidebar-home-button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;

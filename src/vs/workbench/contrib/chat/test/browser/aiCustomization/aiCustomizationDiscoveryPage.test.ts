@@ -906,6 +906,37 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('installed browse cards open the installed customization list', async () => {
+		const candidate = resource('installed-skill', {
+			displayName: 'Security skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+		});
+		const skillUri = URI.file('/workspace/.github/skills/security/SKILL.md');
+		const fixture = createPage(['agentFinder']);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'skill', uri: skillUri } });
+		fixture.notifyInstallChange();
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const primaryAction = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-primary');
+		assert.ok(primaryAction);
+		primaryAction.click();
+		assert.deepStrictEqual({
+			ariaLabel: primaryAction.getAttribute('aria-label'),
+			marketplace: fixture.openedDetails,
+			installed: fixture.openedInstalled,
+		}, {
+			ariaLabel: 'Open installed customization Security skill',
+			marketplace: [],
+			installed: [{
+				section: AICustomizationManagementSection.Skills,
+				name: 'Security skill',
+				uri: skillUri,
+				mcpServerId: undefined,
+			}],
+		});
+	});
+
 	test('available search rows open details while setup actions stay isolated', async () => {
 		const setupUrl = URI.parse('https://example.com/setup');
 		const fixture = createPage(['agentFinder'], undefined, undefined, setupUrl);
@@ -946,7 +977,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		assertImageReplacesFallback(fixture.container, '.customization-discovery-result-icon');
 	});
 
-	test('catalog-backed installed skills open their installed detail page', async () => {
+	test('catalog-backed installed skills open their installed customization list', async () => {
 		const candidate = resource('installed-skill', { displayName: 'Local mail skill', mediaType: CustomizationMarketplaceMediaType.Skill });
 		const fixture = createPage(['agentFinder']);
 		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/mail/SKILL.md') } });
@@ -966,8 +997,8 @@ suite('AICustomizationDiscoveryPage', () => {
 			marketplace: fixture.openedDetails,
 			installed: fixture.openedInstalled.map(target => ({
 				section: target.section,
-				name: target.promptDetail?.name,
-				uri: target.promptDetail?.uri.toString(),
+				name: target.name,
+				uri: target.uri?.toString(),
 			})),
 		}, {
 			rows: ['Local mail skill'],

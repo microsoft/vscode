@@ -236,6 +236,35 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('reveals, selects, and focuses an installed server by ID', () => {
+		const targetEntry = {
+			type: 'server-item' as const,
+			server: { id: 'security-server', label: 'Security server' },
+		};
+		const calls: string[] = [];
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			searchQuery: '',
+			currentTreeGroups: [{
+				element: { type: 'group-header' },
+				children: [targetEntry],
+			}],
+			list: {
+				reveal: (entry: object) => calls.push(entry === targetEntry ? 'reveal' : 'reveal-other'),
+				setFocus: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'focus' : 'focus-other'),
+				setSelection: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'select' : 'select-other'),
+				domFocus: () => calls.push('dom-focus'),
+			},
+		}) as McpListWidget;
+
+		assert.deepStrictEqual({
+			revealed: widget.revealAndSelectServer('security-server', 'Security server'),
+			calls,
+		}, {
+			revealed: true,
+			calls: ['reveal', 'focus', 'select', 'dom-focus'],
+		});
+	});
+
 	test('routes only an exactly recorded MCP uninstall through the marketplace', async () => {
 		const resource: ICustomizationMarketplaceResource = {
 			sourceId: 'testSource',
