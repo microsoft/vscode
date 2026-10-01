@@ -17,11 +17,10 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { StorageScope, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
+import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SinglePaneChangesEditorTransitionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
@@ -31,39 +30,20 @@ import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInp
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
-import { LayoutController } from '../../browser/desktopSessionLayoutController.js';
-import { SinglePaneLayoutController, TOGGLE_DETAILS_COMMAND_ID } from '../../browser/singlePaneLayoutController.js';
-import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
+import { DesktopLayoutController, TOGGLE_DETAILS_COMMAND_ID } from '../../browser/desktopLayoutController.js';
+import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import '../../../changes/browser/changesActions.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import '../../../editor/browser/editor.contribution.js';
 
-suite('LayoutController (desktop)', () => {
+suite('DesktopLayoutController', () => {
 
 	const store = new DisposableStore();
 	let harness: ITestLayoutHarness;
 
-	class TestLayoutController extends LayoutController {
-		readonly sidePaneToggles: { collapsed: boolean; previousAuxiliaryBarVisible: boolean; auxiliaryBarVisible: boolean }[] = [];
-		get isTogglingSidePane(): boolean { return this._togglingSidePane; }
-		protected override _onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean, auxiliaryBarVisible: boolean): void {
-			this.sidePaneToggles.push({ collapsed, previousAuxiliaryBarVisible, auxiliaryBarVisible });
-			super._onSidePaneToggled(collapsed, previousAuxiliaryBarVisible, auxiliaryBarVisible);
-		}
-		getViewState(sessionResource: URI) {
-			return this._viewStateBySession.get(sessionResource);
-		}
-		getEditorPartHidden(sessionResource: URI): boolean | undefined {
-			return this._editorPartHiddenBySession.get(sessionResource);
-		}
-		runWithRestore(work: () => void | Promise<unknown>): void {
-			this._withSessionLayoutRestore(work);
-		}
-	}
-
-	class TestSinglePaneController extends SinglePaneLayoutController {
+	class TestDesktopController extends DesktopLayoutController {
 		/** Runs `work` while a session-switch layout restore is held (see `_withSessionLayoutRestore`). */
 		runWithRestore(work: () => void | Promise<unknown>): void {
 			this._withSessionLayoutRestore(work);
@@ -71,19 +51,11 @@ suite('LayoutController (desktop)', () => {
 		getViewState(sessionResource: URI) {
 			return this._viewStateBySession.get(sessionResource);
 		}
-		getEditorPartHidden(sessionResource: URI): boolean | undefined {
-			return this._editorPartHiddenBySession.get(sessionResource);
-		}
 	}
 
-	function createController(options: ICreateOptions = {}): TestLayoutController {
+	function createDesktopController(options: ICreateOptions = {}): TestDesktopController {
 		harness = createTestHarness(store, options);
-		return store.add(harness.instaService.createInstance(TestLayoutController));
-	}
-
-	function createSinglePaneController(options: ICreateOptions = {}): TestSinglePaneController {
-		harness = createTestHarness(store, options);
-		return store.add(harness.instaService.createInstance(TestSinglePaneController));
+		return store.add(harness.instaService.createInstance(TestDesktopController));
 	}
 
 	function makeFileEditor(path: string = '/repo/package.json'): FileEditorInput {
@@ -121,192 +93,8 @@ suite('LayoutController (desktop)', () => {
 	teardown(() => store.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// --- [D3] Auxiliary bar restore ---
-
-	test('[D3c] hides side pane for existing session without saved state', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'));
-		harness.activeSessionObs.set(session, undefined);
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'side pane should be hidden'
-		);
-		assert.ok(!harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID), 'should not auto-open the Files view');
-	});
-
-	test('[D6] does not auto-open side pane for existing session with changes', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'), {
-			changes: [makeChange('/file.ts')],
-		});
-		harness.activeSessionObs.set(session, undefined);
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'side pane should be hidden'
-		);
-		assert.ok(!harness.openedViews.includes(CHANGES_VIEW_ID), 'should not auto-open the Changes view');
-	});
-
-	test('[D3b] shows files view for untitled session', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
-		harness.activeSessionObs.set(session, undefined);
-
-		assert.ok(harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
-	});
-
-	test('[D3d] defaults to Files while the session has no changes', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
-		harness.activeSessionObs.set(session, undefined);
-
-		assert.deepStrictEqual({
-			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
-		}, {
-			openedFiles: true,
-			openedChanges: false,
-		});
-	});
-
-	test('[D3d] defaults to Changes once one of the session chats has a change', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'), {
-			status: SessionStatus.Untitled,
-			changes: [makeChange('/file.ts')],
-		});
-		harness.activeSessionObs.set(session, undefined);
-
-		assert.deepStrictEqual({
-			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
-		}, {
-			openedFiles: false,
-			openedChanges: true,
-		});
-	});
-
-	test('[D3d] does not switch a side pane that is already showing Files when a change lands', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
-		harness.activeSessionObs.set(session, undefined);
-		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
-
-		harness.openedViews = [];
-		harness.openedViewContainers = [];
-		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
-
-		assert.deepStrictEqual({
-			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
-		}, {
-			openedFiles: false,
-			openedChanges: false,
-		});
-	});
-
-	test('[D3d] does not force-open Files when the Files pane is hidden', () => {
-		createController();
-		// User has hidden / unpinned the Files pane.
-		harness.pinnedAuxiliaryBarContainerIds = [CHANGES_VIEW_CONTAINER_ID];
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled });
-
-		harness.activeSessionObs.set(session, undefined);
-
-		assert.ok(
-			!harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			'should not open the hidden Files pane'
-		);
-		assert.ok(
-			harness.openedViews.includes(CHANGES_VIEW_ID),
-			'should fall back to Changes when Files is hidden'
-		);
-	});
-
-	test('[D3a] does not open views when session has no workspace', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'), {
-			workspace: { uri: URI.file('/repo'), label: 'test', icon: Codicon.repo, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false },
-		});
-		harness.activeSessionObs.set(session, undefined);
-
-		assert.ok(!harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
-		assert.ok(!harness.openedViews.includes(CHANGES_VIEW_ID));
-	});
-
-	// --- [D1] Capture / restore on switch ---
-
-	test('[D1] remembers aux bar hidden state on session switch', () => {
-		createController();
-		const session1 = makeSession(URI.parse('session:1'));
-		const session2 = makeSession(URI.parse('session:2'));
-
-		harness.activeSessionObs.set(session1, undefined);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-
-		harness.activeSessionObs.set(session2, undefined);
-
-		harness.setPartHiddenCalls = [];
-		harness.activeSessionObs.set(session1, undefined);
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux bar should be hidden when returning to session 1'
-		);
-	});
-
-	test('[D1] remembers active view container on session switch', () => {
-		createController();
-		const session1 = makeSession(URI.parse('session:1'));
-		const session2 = makeSession(URI.parse('session:2'));
-
-		harness.activeSessionObs.set(session1, undefined);
-		harness.activePaneCompositeId = 'some.custom.view';
-		harness.pinnedAuxiliaryBarContainerIds = [...harness.pinnedAuxiliaryBarContainerIds, 'some.custom.view'];
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-
-		harness.activeSessionObs.set(session2, undefined);
-
-		harness.openedViewContainers = [];
-		harness.activeSessionObs.set(session1, undefined);
-
-		assert.ok(
-			harness.openedViewContainers.includes('some.custom.view'),
-			'should restore active view container when returning to session 1'
-		);
-	});
-
-	test('[D3c] restores an explicit Files choice on session switch even when the session has changes', () => {
-		createController();
-		const session1 = makeSession(URI.parse('session:1'), { changes: [makeChange('/file.ts')] });
-		const session2 = makeSession(URI.parse('session:2'));
-
-		// The user explicitly opens the (pinned) Files pane for session 1.
-		harness.activeSessionObs.set(session1, undefined);
-		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-		harness.activeSessionObs.set(session2, undefined);
-
-		harness.openedViewContainers = [];
-		harness.openedViews = [];
-		harness.activeSessionObs.set(session1, undefined);
-
-		assert.ok(
-			harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			'should restore the user\'s explicit Files choice'
-		);
-		assert.ok(
-			!harness.openedViews.includes(CHANGES_VIEW_ID),
-			'should not override the explicit Files choice with Changes'
-		);
-	});
-
-	test('[single-pane] keeps editor and detail visibility unchanged when switching sessions', async () => {
-		createSinglePaneController();
+	test('[desktop] keeps editor and detail visibility unchanged when switching sessions', async () => {
+		createDesktopController();
 		const sessionA = makeSession(URI.parse('session:a'));
 		const sessionB = makeSession(URI.parse('session:b'));
 
@@ -333,8 +121,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] hides details for self-contained editors and restores them for files', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] hides details for self-contained editors and restores them for files', async () => {
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 		const hasDockedDetails = () => harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key);
 
@@ -460,8 +248,8 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(hasDockedDetails(), false, 'search target should clear the editor chevron context');
 	});
 
-	test('[single-pane] clears docked-details context when no session is active', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] clears docked-details context when no session is active', async () => {
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -474,8 +262,8 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key), false);
 	});
 
-	test('[single-pane] Hide Editor while a Browser tab is active shows the Changes/Files fallback instead of hiding it again', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] Hide Editor while a Browser tab is active shows the Changes/Files fallback instead of hiding it again', async () => {
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 		const hasDockedDetails = () => harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key);
 
@@ -509,8 +297,8 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(harness.partVisibility.get(Parts.AUXILIARYBAR_PART), false, 'the detail panel should hide again once Browser is active with the editor area visible');
 	});
 
-	test('[single-pane] hides the detail panel when the main editor part is empty and keeps it closed on tab open', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] hides the detail panel when the main editor part is empty and keeps it closed on tab open', async () => {
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 		const hasDockedDetails = () => harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key);
 
@@ -556,7 +344,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[cmd+n] keeps the detail panel visible for a new-session view with a transiently empty editor group', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 
 		const session = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
@@ -581,7 +369,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[cmd+n] hides details for a saved custom editor and shows them for an untitled custom editor', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 
 		const session = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
@@ -621,8 +409,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] keeps the detail panel closed by default when a file/changes editor is active', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] keeps the detail panel closed by default when a file/changes editor is active', async () => {
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 
 		const session = makeSession(URI.parse('session:1'));
@@ -649,8 +437,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] maps all diff editors to Changes and all file editors to Files', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] maps all diff editors to Changes and all file editors to Files', async () => {
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -674,8 +462,8 @@ suite('LayoutController (desktop)', () => {
 		]);
 	});
 
-	test('[single-pane] applies the active editor detail when the hidden detail panel is reopened', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] applies the active editor detail when the hidden detail panel is reopened', async () => {
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -704,8 +492,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] maps Markdown preview editors to Files', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] maps Markdown preview editors to Files', async () => {
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -733,8 +521,8 @@ suite('LayoutController (desktop)', () => {
 		]);
 	});
 
-	test('[single-pane] does not force-reveal the detail on editor activation, during or after a restore', async () => {
-		const controller = createSinglePaneController({ activateAux: true });
+	test('[desktop] does not force-reveal the detail on editor activation, during or after a restore', async () => {
+		const controller = createDesktopController({ activateAux: true });
 		await timeout(0);
 
 		const session = makeSession(URI.parse('session:1'));
@@ -781,7 +569,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[Scenario C] does not re-reveal the detail on reload when the whole side pane was closed', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 
 		const session = makeSession(URI.parse('session:1'));
@@ -809,8 +597,8 @@ suite('LayoutController (desktop)', () => {
 			0);
 	});
 
-	test('[single-pane] carries an open side pane to the next session instead of restoring stale session state', async () => {
-		createSinglePaneController({ activateAux: true, revealAuxiliaryBarOnOpen: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+	test('[desktop] carries an open side pane to the next session instead of restoring stale session state', async () => {
+		createDesktopController({ activateAux: true, revealAuxiliaryBarOnOpen: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
 		await timeout(0);
 		const sessionA = makeSession(URI.parse('session:a'));
 		const sessionB = makeSession(URI.parse('session:b'));
@@ -838,8 +626,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] retains the shared Existing profile through transient editor restoration on Existing-to-Existing navigation', async () => {
-		const controller = createSinglePaneController({
+	test('[desktop] retains the shared Existing profile through transient editor restoration on Existing-to-Existing navigation', async () => {
+		const controller = createDesktopController({
 			activateAux: true,
 			workspaceFolders: [{ uri: URI.file('/repo') }],
 			sidePaneVisibilityState: {
@@ -885,8 +673,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] switches Existing detail content only after the incoming editor restore settles', async () => {
-		const controller = createSinglePaneController({ activateAux: true });
+	test('[desktop] switches Existing detail content only after the incoming editor restore settles', async () => {
+		const controller = createDesktopController({ activateAux: true });
 		await settle();
 		const sessionA = makeSession(URI.parse('session:a'));
 		const sessionB = makeSession(URI.parse('session:b'));
@@ -917,8 +705,8 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(harness.openedViewContainers.at(-1), CHANGES_VIEW_CONTAINER_ID);
 	});
 
-	test('[single-pane] persists resize-driven Details visibility for Existing Sessions', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] persists resize-driven Details visibility for Existing Sessions', async () => {
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 		harness.activeSessionObs.set(makeSession(URI.parse('session:existing')), undefined);
 		await timeout(0);
@@ -935,538 +723,8 @@ suite('LayoutController (desktop)', () => {
 		);
 	});
 
-	test('[B2] captures editor-part hidden state eagerly when the user closes the side pane', () => {
-		const controller = createController();
-		const session = makeSession(URI.parse('session:1'));
-		harness.activeSessionObs.set(session, undefined);
-
-		// User closes the side pane (editor part hidden) while on the session.
-		setPartVisible(Parts.EDITOR_PART, false);
-
-		assert.strictEqual(controller.getEditorPartHidden(session.resource), true,
-			'editor-part hidden must be captured at the moment the user closes it');
-
-		// User reopens it.
-		setPartVisible(Parts.EDITOR_PART, true);
-		assert.strictEqual(controller.getEditorPartHidden(session.resource), false,
-			'editor-part hidden must update when the user reopens it');
-	});
-
-	test('[B2] a later transient editor reveal does not overwrite a session\'s captured closed state during a switch', () => {
-		const controller = createController();
-		const sessionA = makeSession(URI.parse('session:a'));
-		const sessionB = makeSession(URI.parse('session:b'));
-		harness.activeSessionObs.set(sessionA, undefined);
-
-		// A: user closes the editor part -> captured hidden.
-		setPartVisible(Parts.EDITOR_PART, false);
-		assert.strictEqual(controller.getEditorPartHidden(sessionA.resource), true);
-
-		// Simulate the switch-time race: while switching to B the editor part is
-		// revealed by B's layout restore (the capture listener ignores changes
-		// during a restore). A's captured closed state must be preserved.
-		controller.runWithRestore(() => {
-			harness.activeSessionObs.set(sessionB, undefined);
-			setPartVisible(Parts.EDITOR_PART, true);
-		});
-
-		assert.strictEqual(controller.getEditorPartHidden(sessionA.resource), true,
-			'a restore-driven editor reveal must not overwrite session A\'s captured closed state');
-	});
-
-	test('[D4] keeps the open side pane on its current view when a new session is submitted', () => {
-		const controller = createController();
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
-		harness.activeSessionObs.set(session, undefined);
-
-		assert.ok(harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
-
-		// Aux bar is open on the new-session view, showing Files.
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
-		harness.setPartHiddenCalls = [];
-		harness.openedViews = [];
-		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
-
-		assert.deepStrictEqual({
-			hidden: harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
-			viewState: controller.getViewState(session.resource),
-		}, {
-			hidden: false,
-			openedChanges: false,
-			viewState: {
-				auxiliaryBarVisible: true,
-				auxiliaryBarActiveViewContainerId: SESSIONS_FILES_CONTAINER_ID,
-			},
-		});
-	});
-
-	test('[D4] keeps the side pane closed when a new session is submitted with the aux bar hidden', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
-		harness.activeSessionObs.set(session, undefined);
-
-		// User hides the aux bar on the new-session view.
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-		harness.setPartHiddenCalls = [];
-		harness.openedViews = [];
-		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
-
-		assert.ok(
-			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
-			'side pane should stay closed after the new session is submitted'
-		);
-		assert.ok(
-			!harness.openedViews.includes(CHANGES_VIEW_ID),
-			'Changes view should not be shown when the aux bar is hidden'
-		);
-	});
-
-	test('[D4] shows Files when a hidden side pane is opened after a change-free session is submitted', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
-		harness.activeSessionObs.set(session, undefined);
-
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
-
-		harness.openedViewContainers = [];
-		harness.openedViews = [];
-		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-
-		assert.deepStrictEqual({
-			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
-		}, {
-			openedFiles: true,
-			openedChanges: false,
-		});
-	});
-
-	test('[D4] shows Changes when a hidden side pane is opened after the session produced a change', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
-		harness.activeSessionObs.set(session, undefined);
-
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
-		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
-
-		harness.openedViewContainers = [];
-		harness.openedViews = [];
-		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-
-		assert.deepStrictEqual({
-			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
-		}, {
-			openedFiles: false,
-			openedChanges: true,
-		});
-	});
-
-	test('[D4] records Files when a change-free session falls back from an invalid saved container', () => {
-		const session = makeSession(URI.parse('session:1'));
-		const controller = createController({
-			layoutState: [{
-				sessionResource: session.resource.toString(),
-				viewState: {
-					auxiliaryBarVisible: false,
-					auxiliaryBarActiveViewContainerId: 'missing.view',
-				},
-			}],
-		});
-		harness.activeSessionObs.set(session, undefined);
-
-		harness.openedViews = [];
-		harness.openedViewContainers = [];
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-
-		assert.deepStrictEqual({
-			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			viewState: controller.getViewState(session.resource),
-		}, {
-			openedFiles: true,
-			viewState: {
-				auxiliaryBarVisible: true,
-				auxiliaryBarActiveViewContainerId: SESSIONS_FILES_CONTAINER_ID,
-			},
-		});
-	});
-
-	test('[D4] records Changes when a session with changes falls back from an invalid saved container', () => {
-		const session = makeSession(URI.parse('session:1'), { changes: [makeChange('/file.ts')] });
-		const controller = createController({
-			layoutState: [{
-				sessionResource: session.resource.toString(),
-				viewState: {
-					auxiliaryBarVisible: false,
-					auxiliaryBarActiveViewContainerId: 'missing.view',
-				},
-			}],
-		});
-		harness.activeSessionObs.set(session, undefined);
-
-		harness.openedViews = [];
-		harness.openedViewContainers = [];
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-
-		assert.deepStrictEqual({
-			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
-			viewState: controller.getViewState(session.resource),
-		}, {
-			openedChanges: true,
-			viewState: {
-				auxiliaryBarVisible: true,
-				auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID,
-			},
-		});
-	});
-
-	test('[D4] remembers Files when the user chooses it after the session is submitted', () => {
-		createController();
-		const session1 = makeSession(URI.parse('session:1'), { status: SessionStatus.Untitled, isCreated: false });
-		const session2 = makeSession(URI.parse('session:2'));
-		harness.activeSessionObs.set(session1, undefined);
-
-		(session1.isCreated as ISettableObservable<boolean>).set(true, undefined);
-		harness.activePaneCompositeId = SESSIONS_FILES_CONTAINER_ID;
-
-		harness.activeSessionObs.set(session2, undefined);
-
-		harness.openedViews = [];
-		harness.openedViewContainers = [];
-		harness.activeSessionObs.set(session1, undefined);
-
-		assert.deepStrictEqual({
-			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			openedChanges: harness.openedViews.includes(CHANGES_VIEW_ID),
-		}, {
-			openedFiles: true,
-			openedChanges: false,
-		});
-	});
-
-	// --- [D2] Live visibility tracking (new-session shared state) ---
-
-	test('[D2] remembers hidden aux bar across new (untitled) sessions', () => {
-		createController();
-		const untitled1 = makeSession(URI.parse('session:untitled1'), { status: SessionStatus.Untitled });
-		const existing = makeSession(URI.parse('session:existing'));
-		const untitled2 = makeSession(URI.parse('session:untitled2'), { status: SessionStatus.Untitled });
-
-		// Open a new (untitled) session — aux bar shows the Files view.
-		harness.activeSessionObs.set(untitled1, undefined);
-		assert.ok(harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
-
-		// User hides the aux bar on the new-session view.
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-		// Switch to an existing session and back to a brand new (untitled) session.
-		harness.activeSessionObs.set(existing, undefined);
-
-		harness.setPartHiddenCalls = [];
-		harness.openedViewContainers = [];
-		harness.activeSessionObs.set(untitled2, undefined);
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux bar should stay hidden on the next new session'
-		);
-		assert.ok(
-			!harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			'should not re-open the Files view on the next new session'
-		);
-	});
-
-	test('[D2] persists hidden new-session aux bar to storage and restores it after reload', () => {
-		// First lifetime: user hides the aux bar on the new-session view.
-		createController();
-		const untitled1 = makeSession(URI.parse('session:untitled1'), { status: SessionStatus.Untitled });
-		harness.activeSessionObs.set(untitled1, undefined);
-
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-		assert.deepStrictEqual(
-			JSON.parse(harness.storageService.get('sessions.newSessionViewState', StorageScope.WORKSPACE) ?? ''),
-			{ auxiliaryBarVisible: false },
-			'state should be persisted to storage'
-		);
-
-		store.clear();
-
-		// Second lifetime (reload): a fresh controller with the persisted state.
-		createController({ newSessionViewState: { auxiliaryBarVisible: false } });
-		const untitled2 = makeSession(URI.parse('session:untitled2'), { status: SessionStatus.Untitled });
-
-		harness.setPartHiddenCalls = [];
-		harness.openedViewContainers = [];
-		harness.activeSessionObs.set(untitled2, undefined);
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux bar should stay hidden after reload'
-		);
-		assert.ok(
-			!harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			'should not re-open the Files view after reload'
-		);
-	});
-
-	test('[D3b] ignores malformed persisted new-session state and does not force-hide the aux bar', () => {
-		// Persisted object is missing the `auxiliaryBarVisible` boolean.
-		createController({ newSessionViewStateRaw: JSON.stringify({ foo: 'bar' }) });
-		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled });
-
-		harness.activeSessionObs.set(untitled, undefined);
-
-		assert.ok(
-			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'malformed state must not force-hide the aux bar'
-		);
-		assert.ok(
-			harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			'should fall back to the default Files view'
-		);
-		assert.strictEqual(
-			harness.storageService.get('sessions.newSessionViewState', StorageScope.WORKSPACE),
-			undefined,
-			'malformed state should be removed from storage'
-		);
-	});
-
-	test('[D6] does not re-reveal aux bar after user hides it when session changes state updates', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'));
-		harness.activeSessionObs.set(session, undefined);
-
-		// User hides the aux bar (Side Panel) without switching sessions.
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-		harness.openedViews = [];
-		harness.openedViewContainers = [];
-		harness.setPartHiddenCalls = [];
-
-		// Changes appear, which re-triggers the aux bar sync autorun.
-		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
-
-		assert.ok(
-			!harness.openedViews.includes(CHANGES_VIEW_ID) && !harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			'aux bar must stay hidden after the user hid it, even when changes appear'
-		);
-	});
-
-	test('[D9] Toggle Side Panel command calls the workbench layout service directly', async () => {
-		createController();
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-
-		const handler = CommandsRegistry.getCommand('workbench.action.agentToggleSidePanel')?.handler;
-		assert.ok(handler, 'Toggle Side Panel command should be registered');
-
-		await handler(harness.instaService);
-
-		assert.deepStrictEqual({
-			toggleSidePaneCalls: harness.toggleSidePaneCalls,
-			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
-			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
-		}, {
-			toggleSidePaneCalls: 1,
-			editorVisible: false,
-			auxiliaryBarVisible: false,
-		});
-	});
-
-	test('[D9] controller derives the toggling state from workbench events', () => {
-		const controller = createController();
-		const togglingStates: boolean[] = [];
-		store.add(harness.onDidChangePartVisibility.event(() => togglingStates.push(controller.isTogglingSidePane)));
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-
-		harness.layoutService.toggleSidePane();
-
-		assert.deepStrictEqual({
-			togglingStates,
-			afterToggle: controller.isTogglingSidePane,
-		}, {
-			togglingStates: [true, true],
-			afterToggle: false,
-		});
-	});
-
-	// --- [D9b] Closing the whole side pane on a new (uncreated) session ---
-
-	test('[D9b] closing the whole side pane on a new session keeps it closed for the next new session', () => {
-		createController();
-		const untitled1 = makeSession(URI.parse('session:untitled1'), { status: SessionStatus.Untitled });
-		const existing = makeSession(URI.parse('session:existing'));
-		const untitled2 = makeSession(URI.parse('session:untitled2'), { status: SessionStatus.Untitled });
-
-		// Open a new (untitled) session — aux bar shows the Files view.
-		harness.activeSessionObs.set(untitled1, undefined);
-		assert.ok(harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
-
-		// User closes the whole side pane (editor + aux bar) via the toggle.
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.layoutService.toggleSidePane();
-
-		// The closed state is recorded for the shared new-session view.
-		assert.deepStrictEqual(
-			JSON.parse(harness.storageService.get('sessions.newSessionViewState', StorageScope.WORKSPACE) ?? ''),
-			{ auxiliaryBarVisible: false },
-			'closing the whole side pane on a new session should record the closed choice'
-		);
-
-		// Switch via an existing session to the next new (untitled) session.
-		harness.activeSessionObs.set(existing, undefined);
-		harness.setPartHiddenCalls = [];
-		harness.openedViewContainers = [];
-		harness.activeSessionObs.set(untitled2, undefined);
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux bar should stay hidden on the next new session'
-		);
-		assert.ok(
-			!harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			'should not re-open the Files view on the next new session'
-		);
-	});
-
-	test('[D9b] closing the whole side pane while composing a new session does not reopen it when the session re-syncs', () => {
-		createController();
-		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled });
-		const other = makeSession(URI.parse('session:other'), { status: SessionStatus.Untitled });
-
-		// Compose a new session — aux bar shows the Files view.
-		harness.activeSessionObs.set(untitled, undefined);
-		assert.ok(harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID));
-
-		// User closes the whole side pane while still composing the new session.
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.layoutService.toggleSidePane();
-
-		// The same uncreated session re-syncs (e.g. a multi-session view collapses
-		// back to it). This must not reopen the aux bar the user just closed.
-		harness.visibleSessionsObs.set([untitled, other], undefined);
-		harness.setPartHiddenCalls = [];
-		harness.openedViewContainers = [];
-		harness.visibleSessionsObs.set([untitled], undefined);
-
-		assert.ok(
-			!harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
-			'should not reopen the Files view when the same new session re-syncs'
-		);
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux bar should stay hidden when the same new session re-syncs'
-		);
-	});
-
-	// --- [D8] First Changes editor open ---
-
-	test('[D8] reveals the Changes view the first time a Changes editor is opened, then remembers the choice', () => {
-		createController({ revealAuxiliaryBarOnOpen: true });
-		const session = makeSession(URI.parse('session:1'));
-		harness.activeSessionObs.set(session, undefined);
-
-		// First open of the Changes editor reveals the Changes view in the side pane.
-		harness.openedViews = [];
-		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
-		harness.onDidActiveEditorChange.fire();
-		assert.ok(harness.openedViews.includes(CHANGES_VIEW_ID), 'first Changes open should reveal the Changes view');
-
-		// User hides only the side pane (aux bar) while the editor stays open; the choice is remembered.
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-		// Opening the Changes editor again respects the remembered closed choice.
-		harness.openedViews = [];
-		harness.onDidActiveEditorChange.fire();
-		assert.ok(!harness.openedViews.includes(CHANGES_VIEW_ID), 'later Changes opens should not re-reveal the side pane');
-	});
-
-	test('[D9] closing the whole side pane is not remembered, so reopening Changes reveals it again', () => {
-		createController({ revealAuxiliaryBarOnOpen: true });
-		const session = makeSession(URI.parse('session:1'));
-		harness.activeSessionObs.set(session, undefined);
-
-		// The first Changes open reveals the side pane (captured as open).
-		harness.openedViews = [];
-		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.onDidActiveEditorChange.fire();
-		assert.ok(harness.openedViews.includes(CHANGES_VIEW_ID), 'first Changes open should reveal the Changes view');
-
-		// User closes the whole side pane via the controller-owned toggle, which
-		// hides the editor and aux bar together. This must not be remembered as a
-		// per-session aux-bar choice.
-		harness.layoutService.toggleSidePane();
-
-		// Re-clicking Changes re-reveals the (still-active, just hidden) editor part
-		// without firing an active-editor change; the side pane opens again (the
-		// close was not remembered as an aux-bar choice).
-		harness.openedViews = [];
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
-		assert.ok(harness.openedViews.includes(CHANGES_VIEW_ID), 'reopening Changes after closing the whole side pane should reveal the Changes view again');
-	});
-
-	test('[D9] reopening the side pane restores the parts that were visible when it was closed', () => {
-		createController();
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-
-		// Closing hides both parts.
-		const visibleAfterClose = harness.layoutService.toggleSidePane();
-		assert.strictEqual(visibleAfterClose, false, 'side pane should be hidden after closing');
-		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true), 'aux bar should be hidden');
-		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === true), 'editor should be hidden');
-
-		// Reopening restores both parts that were visible before.
-		harness.setPartHiddenCalls.length = 0;
-		const visibleAfterOpen = harness.layoutService.toggleSidePane();
-		assert.strictEqual(visibleAfterOpen, true, 'side pane should be visible after reopening');
-		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false), 'editor should be restored');
-		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false), 'aux bar should be restored');
-	});
-
-	test('[D9] reopening reports the resulting auxiliary bar visibility', () => {
-		const controller = createController();
-		harness.partVisibility.set(Parts.EDITOR_PART, false);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-
-		harness.layoutService.toggleSidePane();
-
-		assert.deepStrictEqual(controller.sidePaneToggles, [{
-			collapsed: false,
-			previousAuxiliaryBarVisible: false,
-			auxiliaryBarVisible: true,
-		}]);
-	});
-
-	test('[D9] closing a maximized single-pane exits maximize and hides both parts', () => {
-		createSinglePaneController({ singlePaneLayoutEnabled: true });
+	test('[D9] closing a maximized desktop exits maximize and hides both parts', () => {
+		createDesktopController({ desktopLayout: true });
 		harness.editorMaximized = true;
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
@@ -1484,8 +742,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[reopen default single-pane] a created session opens the side pane to the editor with the detail closed', () => {
-		createSinglePaneController({ singlePaneLayoutEnabled: true });
+	test('[reopen default desktop] a created session opens the side pane to the editor with the detail closed', () => {
+		createDesktopController({ desktopLayout: true });
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		harness.editorGroupsHaveContent = true;
 
@@ -1502,8 +760,8 @@ suite('LayoutController (desktop)', () => {
 		}, { editorVisible: true, detailVisible: false });
 	});
 
-	test('[reopen default single-pane] a new-session view restores the Files detail from remembered parts', () => {
-		createSinglePaneController({ singlePaneLayoutEnabled: true });
+	test('[reopen default desktop] a new-session view restores the Files detail from remembered parts', () => {
+		createDesktopController({ desktopLayout: true });
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
 		harness.editorGroupsHaveContent = true;
 
@@ -1523,20 +781,8 @@ suite('LayoutController (desktop)', () => {
 		}, { editorVisible: false, detailVisible: true });
 	});
 
-	test('[D8] does not reveal the Changes view for an untitled session', () => {
-		createController();
-		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled });
-		harness.activeSessionObs.set(untitled, undefined);
-
-		harness.openedViews = [];
-		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(untitled.resource);
-		harness.onDidActiveEditorChange.fire();
-
-		assert.ok(!harness.openedViews.includes(CHANGES_VIEW_ID), 'untitled sessions are governed by D3b/D4, not D8');
-	});
-
-	test('[single-pane] entering a new-session view shows Files Details and hides Editor when Empty Files is the only input', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] entering a new-session view shows Files Details and hides Editor when Empty Files is the only input', async () => {
+		createDesktopController({ activateAux: true });
 		await timeout(0);
 		const existing = makeSession(URI.parse('session:existing'));
 		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
@@ -1566,8 +812,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] New Session opening rule does not re-run after a real editor opens', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] New Session opening rule does not re-run after a real editor opens', async () => {
+		createDesktopController({ activateAux: true });
 		await settle();
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
 		await settle();
@@ -1588,8 +834,8 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(harness.partVisibility.get(Parts.EDITOR_PART), true);
 	});
 
-	test('[single-pane] reopening the side pane after closing Empty Files restores dock-only Files', async () => {
-		createSinglePaneController({ activateAux: true, singlePaneLayoutEnabled: true });
+	test('[desktop] reopening the side pane after closing Empty Files restores dock-only Files', async () => {
+		createDesktopController({ activateAux: true, desktopLayout: true });
 		await settle();
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
 		await settle();
@@ -1615,8 +861,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] closing the last non-Empty editor while Editor is hidden closes the side pane', async () => {
-		createSinglePaneController({ activateAux: true, singlePaneLayoutEnabled: true });
+	test('[desktop] closing the last non-Empty editor while Editor is hidden closes the side pane', async () => {
+		createDesktopController({ activateAux: true, desktopLayout: true });
 		await settle();
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
 		await settle();
@@ -1644,8 +890,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] closing the last visible file editor closes the side pane without opening Empty Files', async () => {
-		createSinglePaneController({ activateAux: true, singlePaneLayoutEnabled: true });
+	test('[desktop] closing the last visible file editor closes the side pane without opening Empty Files', async () => {
+		createDesktopController({ activateAux: true, desktopLayout: true });
 		await settle();
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
 		await settle();
@@ -1673,174 +919,9 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[D3b] standard controller does not hide the editor on new-session side-pane reveal', async () => {
-		createController();
-		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
-
-		harness.activeSessionObs.set(untitled, undefined);
-		await timeout(0);
-
-		assert.deepStrictEqual(
-			harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden),
-			[]
-		);
-	});
-
-	test('[D8] does not reveal the Changes view while multiple sessions are visible', () => {
-		createController();
-		const a = makeSession(URI.parse('session:a'));
-		const b = makeSession(URI.parse('session:b'));
-		harness.visibleSessionsObs.set([a, b], undefined);
-		harness.activeSessionObs.set(a, undefined);
-
-		harness.openedViews = [];
-		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(a.resource);
-		harness.onDidActiveEditorChange.fire();
-
-		assert.ok(!harness.openedViews.includes(CHANGES_VIEW_ID), 'multi-session mode manages the side pane separately');
-	});
-
-	// --- [D5] Editor maximized ---
-
-	test('[D5] shows the Changes view when the editor area is maximized', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'));
-		harness.activeSessionObs.set(session, undefined);
-
-		harness.openedViews = [];
-
-		// Maximize the editor area.
-		harness.editorMaximized = true;
-		harness.onDidChangeEditorMaximized.fire();
-
-		assert.ok(
-			harness.openedViews.includes(CHANGES_VIEW_ID),
-			'Changes view should be shown when the editor is maximized'
-		);
-	});
-
-	test('[D5] restores the previous aux bar visibility when the editor is un-maximized', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'));
-		harness.activeSessionObs.set(session, undefined);
-
-		// Aux bar hidden before maximizing.
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-
-		// Maximize — Changes view shown (aux bar revealed).
-		harness.editorMaximized = true;
-		harness.onDidChangeEditorMaximized.fire();
-
-		harness.setPartHiddenCalls = [];
-
-		// Restore — aux bar should be hidden again.
-		harness.editorMaximized = false;
-		harness.onDidChangeEditorMaximized.fire();
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux bar should be restored to hidden after un-maximizing'
-		);
-	});
-
-	test('[D5] does not capture forced aux bar visibility while the editor is maximized', () => {
-		createController();
-		const session = makeSession(URI.parse('session:1'));
-		harness.activeSessionObs.set(session, undefined);
-
-		// Aux bar hidden before maximizing.
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-
-		harness.editorMaximized = true;
-		harness.onDidChangeEditorMaximized.fire();
-
-		// Simulate the aux bar being revealed while maximized.
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-
-		// Switching away from the session should not have remembered the forced
-		// visible state: switching back keeps the aux bar hidden.
-		harness.editorMaximized = false;
-		harness.onDidChangeEditorMaximized.fire();
-
-		const session2 = makeSession(URI.parse('session:2'));
-		harness.activeSessionObs.set(session2, undefined);
-
-		harness.setPartHiddenCalls = [];
-		harness.activeSessionObs.set(session, undefined);
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux bar should remain hidden for the session after the editor was maximized'
-		);
-	});
-
-	test('[D5] keeps the Changes view shown while maximized regardless of the session state', () => {
-		createController();
-		const session1 = makeSession(URI.parse('session:1'));
-		harness.activeSessionObs.set(session1, undefined);
-
-		// Maximize — Changes view shown.
-		harness.editorMaximized = true;
-		harness.onDidChangeEditorMaximized.fire();
-
-		harness.setPartHiddenCalls = [];
-		harness.openedViews = [];
-
-		// While still maximized, switch to another existing session that would
-		// normally keep the aux bar hidden. It must stay showing the Changes view.
-		const session2 = makeSession(URI.parse('session:2'));
-		harness.activeSessionObs.set(session2, undefined);
-
-		assert.ok(
-			harness.openedViews.includes(CHANGES_VIEW_ID),
-			'Changes view should stay shown while maximized'
-		);
-		assert.ok(
-			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux bar should not be hidden while the editor is maximized'
-		);
-	});
-
-	// --- [D1] + [B2] Editor / auxiliary bar invariant ---
-
-	test('[D1] does not force auxiliary bar visible when restoring editor working set on session switch', async () => {
-		const session1 = makeSession(URI.parse('session:1'));
-		const session2 = makeSession(URI.parse('session:2'));
-		createController({
-			useModal: 'some',
-			workspaceFolders: [{ uri: URI.file('/repo') }],
-			layoutState: [{
-				sessionResource: 'session:1',
-				editorWorkingSet: { id: 'ws-1', name: 'ws-1' },
-				viewState: { auxiliaryBarVisible: false, auxiliaryBarActiveViewContainerId: undefined },
-			}],
-		});
-
-		// Start on a different session, then switch to the one with a saved working set.
-		harness.activeSessionObs.set(session2, undefined);
-		await timeout(0);
-
-		harness.partVisibility.set(Parts.EDITOR_PART, false);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.setPartHiddenCalls = [];
-
-		harness.activeSessionObs.set(session1, undefined);
-		// Flush the working-set sequencer (queued microtasks)
-		await timeout(0);
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
-			'editor part should be revealed by the working set restore'
-		);
-		assert.ok(
-			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
-			'auxiliary bar must not be forced visible during working set restore'
-		);
-	});
-
-	test('[single-pane] working-set restore does not change global editor visibility', async () => {
+	test('[desktop] working-set restore does not change global editor visibility', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
-		createSinglePaneController({ singlePaneLayoutEnabled: true, workspaceFolders });
+		createDesktopController({ desktopLayout: true, workspaceFolders });
 		const first = makeSession(URI.parse('session:first'));
 		const existing = makeSession(URI.parse('session:existing'));
 
@@ -1862,9 +943,9 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] preserves current visibility when a draft is replaced on submit', async () => {
+	test('[desktop] preserves current visibility when a draft is replaced on submit', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
-		createSinglePaneController({ singlePaneLayoutEnabled: true, workspaceFolders });
+		createDesktopController({ desktopLayout: true, workspaceFolders });
 		const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Untitled, isCreated: false });
 		const created = makeSession(URI.parse('session:created'));
 
@@ -1898,8 +979,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] does not reveal the editor part for a created quick chat on switch', async () => {
-		createSinglePaneController({ singlePaneLayoutEnabled: true });
+	test('[desktop] does not reveal the editor part for a created quick chat on switch', async () => {
+		createDesktopController({ desktopLayout: true });
 		const untitled = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
 		const quickChat = makeSession(URI.parse('session:qc'), { isQuickChat: true });
 
@@ -1919,8 +1000,8 @@ suite('LayoutController (desktop)', () => {
 		);
 	});
 
-	test('[single-pane] keeps the side pane visible when a quick chat is active among multiple sessions', async () => {
-		createSinglePaneController({ singlePaneLayoutEnabled: true, activateAux: true });
+	test('[desktop] keeps the side pane visible when a quick chat is active among multiple sessions', async () => {
+		createDesktopController({ desktopLayout: true, activateAux: true });
 		const workspaceSession = makeSession(URI.parse('session:workspace'));
 		const quickChat = makeSession(URI.parse('session:quick'), { isQuickChat: true });
 
@@ -1947,9 +1028,9 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] restores open side-pane parts when an existing session is opened to the side', async () => {
-		createSinglePaneController({
-			singlePaneLayoutEnabled: true,
+	test('[desktop] restores open side-pane parts when an existing session is opened to the side', async () => {
+		createDesktopController({
+			desktopLayout: true,
 			activateAux: true,
 			sidePaneVisibilityState: {
 				newSession: { editorVisible: false, auxiliaryBarVisible: true },
@@ -1990,8 +1071,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] preserves the side pane when switching to an editorless Quick Chat', async () => {
-		createSinglePaneController({ singlePaneLayoutEnabled: true, activateAux: true });
+	test('[desktop] preserves the side pane when switching to an editorless Quick Chat', async () => {
+		createDesktopController({ desktopLayout: true, activateAux: true });
 		await timeout(0);
 		harness.activeSessionObs.set(makeSession(URI.parse('session:workspace')), undefined);
 		await timeout(0);
@@ -2024,8 +1105,8 @@ suite('LayoutController (desktop)', () => {
 		{ editor: true, auxiliaryBar: false },
 		{ editor: false, auxiliaryBar: false },
 	]) {
-		test(`[single-pane] draft replacement preserves ${JSON.stringify(composition)} after managed tabs settle`, async () => {
-			createSinglePaneController({ singlePaneLayoutEnabled: true, activateAux: true });
+		test(`[desktop] draft replacement preserves ${JSON.stringify(composition)} after managed tabs settle`, async () => {
+			createDesktopController({ desktopLayout: true, activateAux: true });
 			const workspace = makeSession(URI.parse('session:workspace'), { isCreated: false, status: SessionStatus.Untitled });
 			const quickChat = makeSession(URI.parse('session:quick'), { isQuickChat: true, isCreated: false, status: SessionStatus.Untitled });
 			const replacement = makeSession(URI.parse('session:replacement'), { isCreated: false, status: SessionStatus.Untitled });
@@ -2051,8 +1132,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	}
 
-	test('[single-pane] restores the existing-session side pane profile after leaving a quick chat before managed tabs settle', async () => {
-		createSinglePaneController({ singlePaneLayoutEnabled: true, activateAux: true });
+	test('[desktop] restores the existing-session side pane profile after leaving a quick chat before managed tabs settle', async () => {
+		createDesktopController({ desktopLayout: true, activateAux: true });
 		await timeout(0);
 		const workspaceSession = makeSession(URI.parse('session:workspace'));
 		const quickChat = makeSession(URI.parse('session:qc'), { isQuickChat: true });
@@ -2088,9 +1169,9 @@ suite('LayoutController (desktop)', () => {
 		{ name: 'visible file', editor: 'file', visible: true, multiple: false },
 		{ name: 'closed pane with multiple sessions', editor: undefined, visible: false, multiple: true },
 	]) {
-		test(`[single-pane] Quick Chat conversion preserves ${scenario.name}`, async () => {
-			createSinglePaneController({
-				singlePaneLayoutEnabled: true,
+		test(`[desktop] Quick Chat conversion preserves ${scenario.name}`, async () => {
+			createDesktopController({
+				desktopLayout: true,
 				activateAux: true,
 				sidePaneVisibilityState: {
 					newSession: { editorVisible: false, auxiliaryBarVisible: true },
@@ -2154,8 +1235,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	}
 
-	test('[single-pane] Quick Chat conversion updates Details without waiting for a working-set restore', async () => {
-		const controller = createSinglePaneController({ singlePaneLayoutEnabled: true, activateAux: true });
+	test('[desktop] Quick Chat conversion updates Details without waiting for a working-set restore', async () => {
+		const controller = createDesktopController({ desktopLayout: true, activateAux: true });
 		const existing = makeSession(URI.parse('session:existing'));
 		harness.activeSessionObs.set(existing, undefined);
 		await timeout(0);
@@ -2198,9 +1279,9 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] New Sessions ignore the stored New visibility profile', async () => {
-		createSinglePaneController({
-			singlePaneLayoutEnabled: true,
+	test('[desktop] New Sessions ignore the stored New visibility profile', async () => {
+		createDesktopController({
+			desktopLayout: true,
 			sidePaneVisibilityState: {
 				newSession: { editorVisible: false, auxiliaryBarVisible: true },
 				existingSession: { editorVisible: true, auxiliaryBarVisible: false },
@@ -2240,8 +1321,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] background submit during Quick Chat does not overwrite visibility profiles', async () => {
-		createSinglePaneController({
+	test('[desktop] background submit during Quick Chat does not overwrite visibility profiles', async () => {
+		createDesktopController({
 			sidePaneVisibilityState: {
 				newSession: { editorVisible: false, auxiliaryBarVisible: true },
 				existingSession: { editorVisible: true, auxiliaryBarVisible: true },
@@ -2273,392 +1354,14 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	// --- [B4] + [D1] Persistence ---
-
-	test('[B4] persists aux-bar view state to sessions.layoutState key', () => {
-		createController();
-		const session1 = makeSession(URI.parse('session:1'));
-		const session2 = makeSession(URI.parse('session:2'));
-
-		harness.activeSessionObs.set(session1, undefined);
-		harness.activePaneCompositeId = 'custom.view';
-
-		harness.activeSessionObs.set(session2, undefined);
-		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
-
-		const stored = harness.storageService.get('sessions.layoutState', StorageScope.WORKSPACE);
-		assert.ok(stored, 'state should be persisted');
-
-		const parsed = JSON.parse(stored!);
-		const session1Entry = parsed.find((e: any) => e.sessionResource === 'session:1');
-		assert.ok(session1Entry, 'session 1 entry should exist');
-		assert.deepStrictEqual(session1Entry.viewState, {
-			auxiliaryBarVisible: false,
-			auxiliaryBarActiveViewContainerId: 'custom.view',
-		});
-	});
-
-	test('[D1] keeps aux bar hidden after reload when a session with editors closes both editor and aux bar', () => {
-		const workspaceFolders = [{ uri: URI.file('/repo') }];
-		createController({ useModal: 'some', workspaceFolders });
-
-		const session1 = makeSession(URI.parse('session:1'));
-		const session2 = makeSession(URI.parse('session:2'));
-
-		// Session 1 active with an editor open so a working set is saved on switch-away.
-		harness.visibleEditorsList = [{}];
-		harness.activeSessionObs.set(session1, undefined);
-		harness.activeSessionObs.set(session2, undefined);
-
-		// Back to session 1 and hide the aux bar (captured immediately as hidden view state).
-		harness.activeSessionObs.set(session1, undefined);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-
-		// Close all editors, then switch away so the now-empty working set is saved.
-		harness.visibleEditorsList = [];
-		harness.activeSessionObs.set(session2, undefined);
-
-		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
-		const stored = harness.storageService.get('sessions.layoutState', StorageScope.WORKSPACE);
-		assert.ok(stored, 'state should be persisted');
-
-		// Reload: a fresh controller restores from the persisted state.
-		store.clear();
-		createController({ useModal: 'some', workspaceFolders, layoutState: JSON.parse(stored!) });
-		const reloadedSession1 = makeSession(URI.parse('session:1'));
-		harness.setPartHiddenCalls = [];
-		harness.openedViews = [];
-		harness.openedViewContainers = [];
-		harness.activeSessionObs.set(reloadedSession1, undefined);
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux bar should remain hidden after reload'
-		);
-	});
-
-	function reloadWithSidePaneToggledClosed(): void {
-		const workspaceFolders = [{ uri: URI.file('/repo') }];
-		const controller = createController({ useModal: 'some', workspaceFolders, revealAuxiliaryBarOnOpen: true });
-		const session = makeSession(URI.parse('session:1'));
-		harness.visibleEditorsList = [{}];
-		harness.activeSessionObs.set(session, undefined);
-
-		// Open the Changes editor so the editor + aux bar are both visible and the
-		// session's aux-bar visible choice is captured.
-		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.onDidActiveEditorChange.fire();
-		assert.deepStrictEqual(controller.getViewState(session.resource)?.auxiliaryBarVisible, true);
-
-		// User closes the whole side pane (editor + aux bar) via the toggle, then reloads.
-		harness.layoutService.toggleSidePane();
-		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
-		const stored = harness.storageService.get('sessions.layoutState', StorageScope.WORKSPACE);
-		assert.ok(stored, 'state should be persisted');
-
-		store.clear();
-		createController({ useModal: 'some', workspaceFolders, layoutState: JSON.parse(stored!), revealAuxiliaryBarOnOpen: true });
-		const reloadedSession = makeSession(URI.parse('session:1'));
-
-		// Reload restores the side pane closed (both parts hidden).
-		harness.partVisibility.set(Parts.EDITOR_PART, false);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.activeSessionObs.set(reloadedSession, undefined);
-		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(reloadedSession.resource);
-	}
-
-	test('[D9] does not auto-reveal the side pane when the Changes editor is restored on reload', () => {
-		reloadWithSidePaneToggledClosed();
-
-		// The working set restore can make the Changes editor active again while
-		// the editor part is still hidden — this must NOT auto-reveal the side pane.
-		harness.openedViews = [];
-		harness.onDidActiveEditorChange.fire();
-
-		assert.ok(
-			!harness.openedViews.includes(CHANGES_VIEW_ID),
-			'restoring the Changes editor on reload must not auto-reveal the side pane'
-		);
-	});
-
-	test('[D9] reveals the Changes view when opening Changes after reloading a session whose side pane was toggled closed', () => {
-		reloadWithSidePaneToggledClosed();
-
-		// Clicking Open Changes opens the Changes editor (revealing the editor
-		// part); the aux bar must be revealed too because the whole-pane collapse
-		// was not an explicit aux-bar-hidden choice.
-		harness.openedViews = [];
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.onDidActiveEditorChange.fire();
-
-		assert.ok(
-			harness.openedViews.includes(CHANGES_VIEW_ID),
-			'opening Changes after reload should reveal the Changes view'
-		);
-	});
-
-	test('[D9] does not turn an explicit aux-bar hide into a collapse when another session is collapsed', () => {
-		const workspaceFolders = [{ uri: URI.file('/repo') }];
-		const controller = createController({ useModal: 'some', workspaceFolders, revealAuxiliaryBarOnOpen: true });
-		const sessionExplicit = makeSession(URI.parse('session:explicit'));
-		const sessionCollapse = makeSession(URI.parse('session:collapse'));
-		harness.visibleEditorsList = [{}];
-
-		// Session A: open Changes (editor + aux visible), then explicitly hide just
-		// the aux bar while the editor stays open — an explicit aux-bar choice.
-		harness.activeSessionObs.set(sessionExplicit, undefined);
-		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(sessionExplicit.resource);
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.onDidActiveEditorChange.fire();
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-		assert.strictEqual(controller.getViewState(sessionExplicit.resource)?.auxiliaryBarHiddenByCollapse, undefined);
-
-		// Session B: collapse the whole side pane (marks B as collapse-hidden).
-		harness.activeSessionObs.set(sessionCollapse, undefined);
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.layoutService.toggleSidePane();
-		assert.strictEqual(controller.getViewState(sessionCollapse.resource)?.auxiliaryBarHiddenByCollapse, true);
-
-		// Switching back to A captures it again — its explicit hide must remain
-		// explicit (no collapse marker leaking from session B's collapse).
-		harness.activeSessionObs.set(sessionExplicit, undefined);
-		harness.activeSessionObs.set(sessionCollapse, undefined);
-		assert.strictEqual(controller.getViewState(sessionExplicit.resource)?.auxiliaryBarHiddenByCollapse, undefined);
-	});
-
-	test('[D9] re-opening the side pane to editor-only does not mark an explicit aux-bar hide as a collapse', () => {
-		const workspaceFolders = [{ uri: URI.file('/repo') }];
-		const controller = createController({ useModal: 'some', workspaceFolders, revealAuxiliaryBarOnOpen: true });
-		const session = makeSession(URI.parse('session:1'));
-		harness.visibleEditorsList = [{}];
-
-		// Open Changes (editor + aux visible), then explicitly hide just the aux bar.
-		harness.activeSessionObs.set(session, undefined);
-		harness.activeEditorResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.onDidActiveEditorChange.fire();
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
-		assert.strictEqual(controller.getViewState(session.resource)?.auxiliaryBarHiddenByCollapse, undefined);
-
-		// Collapse the whole side pane, then re-open it: it restores the editor-only
-		// state (aux bar stays hidden because it was explicitly hidden before).
-		harness.layoutService.toggleSidePane();
-		harness.layoutService.toggleSidePane();
-
-		// The explicit aux-bar hide must not have become a collapse-driven hide.
-		assert.strictEqual(controller.getViewState(session.resource)?.auxiliaryBarHiddenByCollapse, undefined);
-
-		// Opening Changes must therefore not re-reveal the aux bar.
-		harness.openedViews = [];
-		harness.partVisibility.set(Parts.EDITOR_PART, true);
-		harness.onDidActiveEditorChange.fire();
-		assert.ok(
-			!harness.openedViews.includes(CHANGES_VIEW_ID),
-			'an explicit aux-bar hide must not re-reveal after a collapse + editor-only re-open'
-		);
-	});
-
-	// --- [D7] Responsive sessions sidebar ---
-
-	function setPartVisible(part: Parts, visible: boolean): void {
-		harness.partVisibility.set(part, visible);
-		harness.onDidChangePartVisibility.fire({ partId: part, visible });
-	}
-
-	function resizeWindow(width: number): void {
-		harness.mainContainerWidth = width;
-		harness.onDidLayoutMainContainer.fire({ width, height: 1000 });
-	}
-
 	function sidebarHiddenCalls(): boolean[] {
 		return harness.setPartHiddenCalls.filter(c => c.part === Parts.SIDEBAR_PART).map(c => c.hidden);
 	}
 
-	test('[D7] hides the sidebar on a small window when editor and aux bar are both open', () => {
-		createController();
-		harness.setPartHiddenCalls = [];
+	// --- Desktop Toggle Details leaves the Sessions sidebar untouched ---
 
-		resizeWindow(800);
-
-		assert.deepStrictEqual(sidebarHiddenCalls(), [true]);
-	});
-
-	test('[D7] does not touch the sidebar on a large window', () => {
-		createController();
-		harness.setPartHiddenCalls = [];
-
-		resizeWindow(2000);
-
-		assert.deepStrictEqual(sidebarHiddenCalls(), []);
-	});
-
-	test('[D7] shows the sidebar again once the aux bar closes', () => {
-		createController();
-		resizeWindow(800);
-		harness.setPartHiddenCalls = [];
-
-		setPartVisible(Parts.AUXILIARYBAR_PART, false);
-
-		assert.deepStrictEqual(sidebarHiddenCalls(), [false]);
-	});
-
-	test('[D7] shows the sidebar again once the window grows back', () => {
-		createController();
-		resizeWindow(800);
-		harness.setPartHiddenCalls = [];
-
-		resizeWindow(2000);
-
-		assert.deepStrictEqual(sidebarHiddenCalls(), [false]);
-	});
-
-	test('[D7] does not auto-show the sidebar after the user closed it manually', () => {
-		createController();
-		// User manually closes the sidebar on a large window.
-		setPartVisible(Parts.SIDEBAR_PART, false);
-		harness.setPartHiddenCalls = [];
-
-		// Become space constrained, then relieve the constraint.
-		resizeWindow(800);
-		setPartVisible(Parts.AUXILIARYBAR_PART, false);
-
-		assert.ok(
-			!sidebarHiddenCalls().includes(false),
-			'sidebar must not be auto-shown while the user-closed preference holds'
-		);
-	});
-
-	test('[D7] resumes auto-management after the user opens the sidebar again', () => {
-		createController();
-		// User manually closes, then re-opens the sidebar — auto-management resumes.
-		setPartVisible(Parts.SIDEBAR_PART, false);
-		setPartVisible(Parts.SIDEBAR_PART, true);
-		harness.setPartHiddenCalls = [];
-
-		// A constrain → un-constrain cycle should now auto-hide then auto-show again.
-		resizeWindow(800);
-		setPartVisible(Parts.AUXILIARYBAR_PART, false);
-
-		assert.deepStrictEqual(sidebarHiddenCalls(), [true, false]);
-	});
-
-	test('[D7] does not auto-show the sidebar the user closed before reloading', () => {
-		// Simulate the restored state after a reload: the sidebar and the whole side
-		// pane (editor + aux bar) are hidden, on a small window. The controller only
-		// auto-reveals a sidebar it auto-hid, so a sidebar the user closed before the
-		// reload (already hidden here) must stay closed.
-		createController({
-			mainContainerWidth: 800,
-			initialPartVisibility: new Map<Parts, boolean>([
-				[Parts.SIDEBAR_PART, false],
-				[Parts.EDITOR_PART, false],
-				[Parts.AUXILIARYBAR_PART, false],
-			]),
-		});
-		harness.setPartHiddenCalls = [];
-
-		// Open the side pane (becomes space constrained), then close it again.
-		harness.layoutService.toggleSidePane();
-		harness.layoutService.toggleSidePane();
-
-		assert.ok(
-			!sidebarHiddenCalls().includes(false),
-			'sidebar must not be auto-shown when it was closed before the reload'
-		);
-	});
-
-	test('[D7] does not manage the sidebar while the editor is maximized', () => {
-		createController();
-		harness.editorMaximized = true;
-		harness.onDidChangeEditorMaximized.fire();
-		harness.setPartHiddenCalls = [];
-
-		resizeWindow(800);
-
-		assert.deepStrictEqual(sidebarHiddenCalls(), []);
-	});
-
-	test('[D7] does not manage the sidebar when the experimental setting is disabled', () => {
-		createController({ responsiveSidebar: false });
-		harness.setPartHiddenCalls = [];
-
-		resizeWindow(800);
-
-		assert.deepStrictEqual(sidebarHiddenCalls(), []);
-	});
-
-	test('[D7] does not hide the sidebar when navigating to a session that restores the side panel', () => {
-		const sessionB = URI.parse('session:2');
-		createController({
-			revealAuxiliaryBarOnOpen: true,
-			layoutState: [{
-				sessionResource: sessionB.toString(),
-				viewState: { auxiliaryBarVisible: true, auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID },
-			}],
-		});
-		// Small window with the side panel closed: the sidebar is shown (not constrained).
-		setPartVisible(Parts.AUXILIARYBAR_PART, false);
-		resizeWindow(800);
-		harness.setPartHiddenCalls = [];
-
-		// Navigate to a session whose restore re-opens the side panel.
-		harness.activeSessionObs.set(makeSession(sessionB), undefined);
-
-		assert.deepStrictEqual(sidebarHiddenCalls(), []);
-	});
-
-	test('[D7] does not hide the sidebar when navigating to a session whose working set reveals the editor', async () => {
-		const session1 = URI.parse('session:1');
-		const session2 = URI.parse('session:2');
-		createController({
-			useModal: 'some',
-			workspaceFolders: [{ uri: URI.file('/repo') }],
-			layoutState: [{
-				sessionResource: session1.toString(),
-				editorWorkingSet: { id: 'ws-1', name: 'ws-1' },
-				viewState: { auxiliaryBarVisible: true, auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID },
-			}],
-		});
-
-		// Start on a session without a working set.
-		harness.activeSessionObs.set(makeSession(session2), undefined);
-		await timeout(0);
-
-		// Small window, aux bar open, editor closed: not constrained yet (editor hidden).
-		setPartVisible(Parts.AUXILIARYBAR_PART, true);
-		setPartVisible(Parts.EDITOR_PART, false);
-		resizeWindow(800);
-		harness.setPartHiddenCalls = [];
-
-		// Navigate to the session whose working set reveals the editor (async).
-		harness.activeSessionObs.set(makeSession(session1), undefined);
-		await timeout(0);
-
-		assert.deepStrictEqual(sidebarHiddenCalls(), []);
-	});
-
-	test('[D7] does not manage the sidebar while multiple sessions are visible', () => {
-		createController();
-		harness.visibleSessionsObs.set([
-			makeSession(URI.parse('session:1')),
-			makeSession(URI.parse('session:2')),
-		], undefined);
-		harness.setPartHiddenCalls = [];
-
-		resizeWindow(800);
-
-		assert.deepStrictEqual(sidebarHiddenCalls(), []);
-	});
-
-	// --- Single-pane Toggle Details leaves the Sessions sidebar untouched ---
-
-	test('[single-pane] opening details does not hide the sessions list', () => {
-		const controller = createSinglePaneController({ mainContainerWidth: 800 });
+	test('[desktop] opening details does not hide the sessions list', () => {
+		const controller = createDesktopController({ mainContainerWidth: 800 });
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
 		harness.setPartHiddenCalls = [];
@@ -2674,8 +1377,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] closing details does not show a manually hidden sessions list', () => {
-		const controller = createSinglePaneController({ mainContainerWidth: 800 });
+	test('[desktop] closing details does not show a manually hidden sessions list', () => {
+		const controller = createDesktopController({ mainContainerWidth: 800 });
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.partVisibility.set(Parts.SIDEBAR_PART, false);
 		harness.setPartHiddenCalls = [];
@@ -2691,8 +1394,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[D7 single-pane] contributes Toggle Details after Maximize with the editor title layout actions', () => {
-		createSinglePaneController();
+	test('[D7 desktop] contributes Toggle Details after Maximize with the editor title layout actions', () => {
+		createDesktopController();
 
 		const items = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
@@ -2723,46 +1426,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	// --- [D10] Auxiliary bar part hidden when it has no active view containers ---
-
-	test('[D10] hides the aux-bar part for a quick chat when its view containers are gated off', async () => {
-		createController();
-		harness.activeSessionObs.set(makeSession(URI.parse('session:qc'), { isQuickChat: true }), undefined);
-		await timeout(0);
-		harness.activeAuxViewContainerIds = [];
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.setPartHiddenCalls = [];
-
-		// A quick chat gates off Changes + Files, so the aux bar has no active
-		// view containers — the part must hide instead of showing an empty column.
-		harness.onDidChangeActiveViewDescriptors.fire();
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux-bar part should hide when a quick chat has no active view containers'
-		);
-	});
-
-	test('[D10] does not hide the aux bar during early reload when there is no active session yet', () => {
-		createController({ activeAuxViewContainerIds: [] });
-		// Startup/reload: aux restored visible (persisted) but no active session yet;
-		// its containers are transiently inactive. Hiding here is the reload flicker
-		// (opens then closes) — D10 must leave it alone until a session settles.
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.setPartHiddenCalls = [];
-
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-		harness.onDidChangeActiveViewDescriptors.fire();
-
-		assert.deepStrictEqual(
-			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			[],
-			'aux-bar part must not be hidden by D10 while there is no active session'
-		);
-	});
-
-	test('[single-pane reload] preserves Aux-only layout while the active session is still restoring', async () => {
-		createSinglePaneController({
+	test('[desktop reload] preserves Aux-only layout while the active session is still restoring', async () => {
+		createDesktopController({
 			activateAux: true,
 			initialPartVisibility: new Map([
 				[Parts.EDITOR_PART, false],
@@ -2784,109 +1449,10 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[D10] does not hide the aux bar for a workspace session with transiently empty containers', async () => {
-		createController({ activeAuxViewContainerIds: [] });
-		// A real workspace session whose Files/Changes context keys have not settled
-		// yet (containers transiently inactive). D10 must not collapse its side pane.
-		harness.activeSessionObs.set(makeSession(URI.parse('session:ws')), undefined);
-		await timeout(0);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.setPartHiddenCalls = [];
-
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-		harness.onDidChangeActiveViewDescriptors.fire();
-
-		assert.deepStrictEqual(
-			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			[],
-			'aux-bar part must not be hidden by D10 for a workspace session with transiently empty containers'
-		);
-	});
-
-	test('[D10] never reveals an empty aux-bar part', async () => {
-		createController({ activeAuxViewContainerIds: [] });
-		harness.activeSessionObs.set(makeSession(URI.parse('session:qc'), { isQuickChat: true }), undefined);
-		await timeout(0);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		harness.setPartHiddenCalls = [];
-
-		harness.onDidChangeActiveViewDescriptors.fire();
-
-		assert.ok(
-			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
-			'aux-bar part should never be revealed when it has no active view containers'
-		);
-	});
-
-	test('[D10] re-hides the aux-bar part if a switch to a quick chat left it visible with no containers', async () => {
-		createController({ activeAuxViewContainerIds: [] });
-		// Mirror a switch to a workspace-less quick chat where D3a returned early
-		// (no workspace) and left a previously-visible aux bar showing.
-		harness.activeSessionObs.set(makeSession(URI.parse('session:qc'), { isQuickChat: true }), undefined);
-		await timeout(0);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.setPartHiddenCalls = [];
-
-		harness.onDidChangeViewContainerVisibility.fire({ id: CHANGES_VIEW_CONTAINER_ID, visible: false, location: ViewContainerLocation.AuxiliaryBar });
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux-bar part should be hidden reactively when a quick chat has no active view containers'
-		);
-	});
-
-	test('[D10] leaves the aux-bar part alone when it has active view containers', () => {
-		createController();
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.setPartHiddenCalls = [];
-
-		// Changes + Files still active (default) — the reactive sync must not touch the part.
-		harness.onDidChangeActiveViewDescriptors.fire();
-
-		assert.deepStrictEqual(
-			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART),
-			[],
-			'aux-bar part should be left as-is while it has active view containers'
-		);
-	});
-
-	test('[D10] hides the aux-bar part when a quick chat becomes visible with no active containers', async () => {
-		createController({ activeAuxViewContainerIds: [] });
-		harness.activeSessionObs.set(makeSession(URI.parse('session:qc'), { isQuickChat: true }), undefined);
-		await timeout(0);
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.setPartHiddenCalls = [];
-
-		// The part became visible (e.g. a bare detail toggle that shows the column
-		// before any container is opened) without any container-/descriptor-change
-		// signal firing. For a quick chat D10 must still reconcile the empty column
-		// away so the toggle/context key never reads "on" over a blank panel.
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-
-		assert.ok(
-			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux-bar part should hide when a quick chat becomes visible with no active view containers'
-		);
-	});
-
-	test('[D10] leaves the aux-bar part visible when it becomes visible with active containers', () => {
-		createController();
-		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
-		harness.setPartHiddenCalls = [];
-
-		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
-
-		assert.deepStrictEqual(
-			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART),
-			[],
-			'aux-bar part should stay visible when it becomes visible with active view containers'
-		);
-	});
-
 	// --- [D10] Toggle Side Panel with an empty aux bar ---
 
 
-	// --- Single-pane managed docked tabs (Changes + Files placeholder) ---
+	// --- Desktop managed docked tabs (Changes + Files placeholder) ---
 
 	async function settle(): Promise<void> {
 		for (let i = 0; i < 6; i++) {
@@ -2903,7 +1469,7 @@ suite('LayoutController (desktop)', () => {
 	}
 
 	test('[managed tabs / session switch] keeps the Changes header active while the working set replaces its editor', async () => {
-		createSinglePaneController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
 		await settle();
 
 		const first = makeSession(URI.parse('session:first'));
@@ -2914,16 +1480,16 @@ suite('LayoutController (desktop)', () => {
 		assert.ok(harness.activeEditorInput);
 		harness.onDidActiveEditorChange.fire();
 
-		const before = harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key);
+		const before = harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key);
 		const during: boolean[] = [];
 		harness.onApplyWorkingSet = () => {
 			harness.activeEditorInput = undefined;
 			harness.onDidActiveEditorChange.fire();
-			during.push(harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key) === true);
+			during.push(harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key) === true);
 		};
 		harness.activeSessionObs.set(makeSession(URI.parse('session:second')), undefined);
 		await settle();
-		const after = harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key);
+		const after = harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key);
 
 		assert.deepStrictEqual({ before, during, after }, {
 			before: false,
@@ -2933,7 +1499,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / session switch] keeps the Changes header while workspace folders delay the restore', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const first = makeSession(URI.parse('session:first'));
@@ -2950,13 +1516,13 @@ suite('LayoutController (desktop)', () => {
 		harness.onDidActiveEditorChange.fire();
 		const whileWaitingForWorkspace = {
 			workingSetsApplied: harness.applyWorkingSetCalls.length,
-			keepChangesHeader: harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key),
+			keepChangesHeader: harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key),
 		};
 		harness.activeEditorInput = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
 		harness.onDidActiveEditorChange.fire();
-		const whileFileIsActive = harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key);
+		const whileFileIsActive = harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key);
 		harness.activeSessionObs.set(undefined, undefined);
-		const afterLeaving = harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key);
+		const afterLeaving = harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key);
 
 		assert.deepStrictEqual({ whileWaitingForWorkspace, whileFileIsActive, afterLeaving }, {
 			whileWaitingForWorkspace: { workingSetsApplied: 0, keepChangesHeader: true },
@@ -2966,7 +1532,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / session switch] preserves the Changes header until a non-quick session workspace hydrates', async () => {
-		createSinglePaneController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
 		await settle();
 
 		const first = makeSession(URI.parse('session:first'));
@@ -2993,11 +1559,11 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 		harness.activeEditorInput = undefined;
 		harness.onDidActiveEditorChange.fire();
-		const beforeHydration = harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key);
+		const beforeHydration = harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key);
 		workspace.set(first.workspace.get(), undefined);
 		await settle();
 		const afterHydration = {
-			keepChangesHeader: harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key),
+			keepChangesHeader: harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key),
 			hasIncomingChangesTab: harness.activeGroupEditors.some(editor =>
 				!!editor.resource && isEqual(harness.sessionChangesService.getSessionResource(editor.resource), pending.resource)),
 		};
@@ -3009,7 +1575,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / session switch] does not retain the Changes header for a quick chat', async () => {
-		createSinglePaneController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
 		await settle();
 
 		const first = makeSession(URI.parse('session:first'));
@@ -3022,11 +1588,11 @@ suite('LayoutController (desktop)', () => {
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:quick'), { isQuickChat: true }), undefined);
 
-		assert.strictEqual(harness.contextKeyService.getContextKeyValue(SinglePaneChangesEditorTransitionContext.key), false);
+		assert.strictEqual(harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key), false);
 	});
 
 	test('[managed tabs] ensures the Changes and Files tabs for a created session under suppression', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3045,7 +1611,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs] updates the Files root when the active session changes', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const first = makeSession(URI.parse('session:1'), {
@@ -3085,7 +1651,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / Changes pill] reveals the editor area before opening the managed Changes editor', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const session = makeSession(URI.parse('session:1'));
@@ -3111,7 +1677,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / Scenario 9] shows Changes and Files for a new-session view', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
@@ -3120,7 +1686,7 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual({
 			hasChangesTab: hasChangesTab(),
 			hasFilesTab: hasFilesTab(),
-			changesTabMissing: harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key),
+			changesTabMissing: harness.contextKeyService.getContextKeyValue(DesktopChangesTabMissingContext.key),
 		}, {
 			hasChangesTab: true,
 			hasFilesTab: true,
@@ -3129,7 +1695,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / new session] restores Changes after a delayed different-folder restore', async () => {
-		const controller = createSinglePaneController({ activateAux: true });
+		const controller = createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:created')), undefined);
@@ -3158,7 +1724,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / submit] activates Changes only after a submitted session reports changes', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const session = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
@@ -3185,7 +1751,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / submit] activates Changes after changes arrive on a resource-replace submit', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		// New-session draft active: Changes and Files are present.
@@ -3217,7 +1783,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / session switch] does not leak a superseded submit\'s "activate Changes" intent onto the switched-to session', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		// Session A is a new-session draft with Changes and Files.
@@ -3263,7 +1829,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / session switch] does not publish workspace from a superseded reconcile', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const sessionA = makeSession(URI.parse('session:a'), {
@@ -3330,7 +1896,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / dispose] a reconcile stalled mid-open opens no further editors once the controller is disposed', async () => {
-		const controller = createSinglePaneController({ activateAux: true });
+		const controller = createDesktopController({ activateAux: true });
 		await settle();
 
 		// Pause the reconcile at the first Changes open so it stalls before the Files tab opens.
@@ -3363,7 +1929,7 @@ suite('LayoutController (desktop)', () => {
 		const unexpectedErrors: Error[] = [];
 		errorHandler.setUnexpectedErrorHandler(error => unexpectedErrors.push(error));
 		try {
-			const controller = createSinglePaneController({ activateAux: true });
+			const controller = createDesktopController({ activateAux: true });
 			await settle();
 			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
 			await settle();
@@ -3396,7 +1962,7 @@ suite('LayoutController (desktop)', () => {
 		const unexpectedErrors: Error[] = [];
 		errorHandler.setUnexpectedErrorHandler(error => unexpectedErrors.push(error));
 		try {
-			createSinglePaneController({ activateAux: true });
+			createDesktopController({ activateAux: true });
 			await settle();
 			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
 			await settle();
@@ -3429,7 +1995,7 @@ suite('LayoutController (desktop)', () => {
 		const unexpectedErrors: Error[] = [];
 		errorHandler.setUnexpectedErrorHandler(error => unexpectedErrors.push(error));
 		try {
-			createSinglePaneController({ activateAux: true });
+			createDesktopController({ activateAux: true });
 			await settle();
 			harness.activeSessionObs.set(makeSession(URI.parse('session:a')), undefined);
 			await settle();
@@ -3450,7 +2016,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / details-only] always restores both docked inputs while only details are visible', async () => {
-		createSinglePaneController({
+		createDesktopController({
 			activateAux: true,
 			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
 			sidePaneVisibilityState: {
@@ -3482,7 +2048,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / details-only] restores Files when the editor area hides without an editor change', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3507,7 +2073,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / details-only] an editor reveal does NOT force back a closed managed tab', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3534,7 +2100,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / new session] re-opens managed tabs when a working-set apply empties the group during the switch', async () => {
-		const controller = createSinglePaneController({ activateAux: true });
+		const controller = createDesktopController({ activateAux: true });
 		await settle();
 
 		// A created session with its docked tabs.
@@ -3557,7 +2123,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / new session] re-opens managed tabs on restore-end even if no editor-change fires during the restore', async () => {
-		const controller = createSinglePaneController({ activateAux: true });
+		const controller = createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:created')), undefined);
@@ -3578,7 +2144,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / Scenario 9] removes the Files tab while a real editor is open and does not re-add it when that file closes', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3612,7 +2178,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / Scenario 9] keeps a Files tab the user adds via `+` while a real file is open', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3648,7 +2214,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / Scenario 9] keeps the Files tab when a non-file editor (e.g. the browser) opens', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3667,8 +2233,8 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(hasFilesTab(), true, 'a non-file editor must not remove the Files tab');
 	});
 
-	test('[single-pane] closes non-managed tabs when the editor area hides and reopens them when shown', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] closes non-managed tabs when the editor area hides and reopens them when shown', async () => {
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3714,8 +2280,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] closes non-managed tabs restored while only details are visible', async () => {
-		const controller = createSinglePaneController({
+	test('[desktop] closes non-managed tabs restored while only details are visible', async () => {
+		const controller = createDesktopController({
 			activateAux: true,
 			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
 			sidePaneVisibilityState: {
@@ -3746,8 +2312,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] closes and reopens non-managed tabs added while only details are visible', async () => {
-		createSinglePaneController({
+	test('[desktop] closes and reopens non-managed tabs added while only details are visible', async () => {
+		createDesktopController({
 			activateAux: true,
 			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
 			sidePaneVisibilityState: {
@@ -3782,8 +2348,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] closes a non-restorable non-docked tab (e.g. untitled Search) when the editor area hides, without restoring it', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] closes a non-restorable non-docked tab (e.g. untitled Search) when the editor area hides, without restoring it', async () => {
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3827,8 +2393,8 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] does NOT close editors when the whole side pane is closed (editor + aux hidden)', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[desktop] does NOT close editors when the whole side pane is closed (editor + aux hidden)', async () => {
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3857,7 +2423,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / lifecycle removal] does not re-open a missing managed tab while the group stays non-empty', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3876,7 +2442,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / close] re-opens the default tabs for the new session after switching (empty group)', async () => {
-		const controller = createSinglePaneController({ activateAux: true });
+		const controller = createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3903,7 +2469,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / session switch] preserves a dismissed Files tab while replacing Changes in place', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const session1 = makeSession(URI.parse('session:1'));
@@ -3933,7 +2499,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / session switch] removes a dismissed Files tab restored by a previously visited session', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const sessionA = makeSession(URI.parse('session:a'));
@@ -3970,7 +2536,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / session switch] keeps restored Files after a transiently empty group', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const sessionA = makeSession(URI.parse('session:a'));
@@ -3995,14 +2561,14 @@ suite('LayoutController (desktop)', () => {
 		assert.strictEqual(hasFilesTab(), true);
 	});
 
-	test('[managed tabs / add-tab] a missing Changes tab flips SinglePaneChangesTabMissingContext', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[managed tabs / add-tab] a missing Changes tab flips DesktopChangesTabMissingContext', async () => {
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
 		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
-		assert.strictEqual(harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key), false);
+		assert.strictEqual(harness.contextKeyService.getContextKeyValue(DesktopChangesTabMissingContext.key), false);
 
 		// Simulate an internal lifecycle removal of the non-closeable Changes tab.
 		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(changesTab), 1);
@@ -4012,19 +2578,19 @@ suite('LayoutController (desktop)', () => {
 
 		assert.deepStrictEqual({
 			hasChangesTab: hasChangesTab(),
-			changesTabAvailable: harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabAvailableContext.key),
-			changesTabMissing: harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key)
+			changesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopChangesTabAvailableContext.key),
+			changesTabMissing: harness.contextKeyService.getContextKeyValue(DesktopChangesTabMissingContext.key)
 		}, { hasChangesTab: false, changesTabAvailable: true, changesTabMissing: true });
 	});
 
-	test('[managed tabs / add-tab] a missing Files tab flips SinglePaneFilesTabMissingContext', async () => {
-		createSinglePaneController({ activateAux: true });
+	test('[managed tabs / add-tab] a missing Files tab flips DesktopFilesTabMissingContext', async () => {
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
 		await settle();
 		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
-		assert.strictEqual(harness.contextKeyService.getContextKeyValue(SinglePaneFilesTabMissingContext.key), false);
+		assert.strictEqual(harness.contextKeyService.getContextKeyValue(DesktopFilesTabMissingContext.key), false);
 
 		// Simulate lifecycle removal of the non-closeable Files tab.
 		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(fileTab), 1);
@@ -4034,13 +2600,13 @@ suite('LayoutController (desktop)', () => {
 
 		assert.deepStrictEqual({
 			hasFilesTab: hasFilesTab(),
-			filesTabAvailable: harness.contextKeyService.getContextKeyValue(SinglePaneFilesTabAvailableContext.key),
-			filesTabMissing: harness.contextKeyService.getContextKeyValue(SinglePaneFilesTabMissingContext.key)
+			filesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopFilesTabAvailableContext.key),
+			filesTabMissing: harness.contextKeyService.getContextKeyValue(DesktopFilesTabMissingContext.key)
 		}, { hasFilesTab: false, filesTabAvailable: true, filesTabMissing: true });
 	});
 
 	test('[managed tabs / add-tab] reopening the Changes tab clears the missing context and is retained', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const session = URI.parse('session:1');
@@ -4053,7 +2619,7 @@ suite('LayoutController (desktop)', () => {
 		harness.onDidCloseEditor.fire({ editor: changesTab });
 		harness.onDidEditorsChange.fire();
 		await settle();
-		assert.strictEqual(harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key), true);
+		assert.strictEqual(harness.contextKeyService.getContextKeyValue(DesktopChangesTabMissingContext.key), true);
 
 		// Reopen it (as the `+` "Changes" entry does): the Changes editor reappears.
 		const changesResource = harness.sessionChangesService.getChangesEditorResource(session);
@@ -4067,12 +2633,12 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 		assert.deepStrictEqual({
 			hasChangesTab: hasChangesTab(),
-			changesTabMissing: harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key)
+			changesTabMissing: harness.contextKeyService.getContextKeyValue(DesktopChangesTabMissingContext.key)
 		}, { hasChangesTab: true, changesTabMissing: false });
 	});
 
 	test('[managed tabs / add-tab] reopening managed tabs from the plus menu adds them at the end', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const session = URI.parse('session:1');
@@ -4109,7 +2675,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / session switch] replaces a stale Changes tab in place', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		// A stale Changes tab for a previous session is restored into the group.
@@ -4131,7 +2697,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / Issue 1] re-ensures the Files tab when the side pane is reopened via the aux bar alone', async () => {
-		createSinglePaneController({ activateAux: true, initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]) });
+		createDesktopController({ activateAux: true, initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]) });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
@@ -4157,7 +2723,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / Issue 2] opening a file after the side pane was closed does not re-force the managed tabs', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const session = URI.parse('session:1');
@@ -4198,7 +2764,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / Issue 2] toggling the empty side pane open re-populates the default managed tabs', async () => {
-		createSinglePaneController({ activateAux: true });
+		createDesktopController({ activateAux: true });
 		await settle();
 
 		const session = URI.parse('session:1');

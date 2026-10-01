@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -246,21 +246,132 @@ suite('Agent Host GitHub clients', () => {
 				return path === '/user'
 					? new Response('{"id":101}')
 					: etag ? new Response(null, { status: 304 })
-						: new Response('{"number":7}', { headers: { ETag: '"cached"' } });
+						: new Response('{"title":"Context","body":"Body","pull_request":{}}', { headers: { ETag: '"cached"' } });
 			},
 		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
 		for (let i = 0; i < 3; i++) {
 			const reference = store.add(service.acquireRepositoryClient(new AbortController().signal));
 			const credential = await reference.object.credentials.getCredential(new AbortController().signal);
-			await reference.object.transport.rest(credential.account, credential.token, { method: 'GET', url: 'https://api.github.com/repos/owner/repo/pulls/7' }, credential.signal);
+			assert.deepStrictEqual(await reference.object.query.getIssueOrPullRequest({ ...credential.account, owner: 'owner', repo: 'repo', number: 7 }, credential.signal), { title: 'Context', body: 'Body' });
 			reference.dispose();
 		}
 		assert.deepStrictEqual(requests, [
 			{ path: '/user', etag: null },
-			{ path: '/repos/owner/repo/pulls/7', etag: null },
-			{ path: '/repos/owner/repo/pulls/7', etag: '"cached"' },
-			{ path: '/repos/owner/repo/pulls/7', etag: '"cached"' },
+			{ path: '/repos/owner/repo/issues/7', etag: null },
+			{ path: '/repos/owner/repo/issues/7', etag: '"cached"' },
+			{ path: '/repos/owner/repo/issues/7', etag: '"cached"' },
 		]);
+	});
+
+	test('releasing a cancelled context reader preserves a shared peer request', async () => {
+		const endpoint = createTestGitHubEndpointService();
+		const authentication = new class extends mock<IAgentHostAuthenticationService>() {
+			override readonly onDidChangeAuthToken = Event.None;
+			override getAuthAccount() { return undefined; }
+			override getAuthToken() { return 'token'; }
+		}();
+		const started = new DeferredPromise<AbortSignal>();
+		const response = new DeferredPromise<Response>();
+		const requests: string[] = [];
+		const service = store.add(new AgentHostGitHubService({
+			fetch: async (input, init) => {
+				const path = new URL(String(input)).pathname;
+				requests.push(path);
+				if (path === '/user') {
+					return new Response('{"id":101}');
+				}
+				assert.ok(init?.signal);
+				await started.complete(init.signal);
+				return response.p;
+			},
+		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const controller = new AbortController();
+		const first = store.add(service.acquireRepositoryClient(controller.signal));
+		const second = store.add(service.acquireRepositoryClient(new AbortController().signal));
+		const { account } = await first.object.credentials.getCredential(controller.signal);
+		const ref = { ...account, owner: 'owner', repo: 'repo', number: 7 };
+		const rejected = assert.rejects(first.object.query.getIssueOrPullRequest(ref, controller.signal));
+		const peer = second.object.query.getIssueOrPullRequest(ref, new AbortController().signal);
+		const wireSignal = await started.p;
+		controller.abort();
+		first.dispose();
+		await rejected;
+		await response.complete(new Response('{"title":"Shared","body":"Body"}'));
+		assert.deepStrictEqual({ context: await peer, requests, wireAborted: wireSignal.aborted }, {
+			context: { title: 'Shared', body: 'Body' }, requests: ['/user', '/repos/owner/repo/issues/7'], wireAborted: false,
+		});
+	});
+
+	for (const enterpriseUri of [undefined, 'https://tenant.ghe.com', 'https://github.enterprise.test']) {
+		test(`issue/PR context retains legacy unscoped credentials and endpoints (${enterpriseUri ?? 'github.com'})`, async () => {
+			const endpoint = createTestGitHubEndpointService(enterpriseUri);
+			const resource = endpoint.getRepoResource();
+			const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
+			const provider = new class extends mock<IAgent>() {
+				override getProtectedResources() { return [resource]; }
+				override async authenticate() { return true; }
+			}();
+			await authentication.authenticate({ resource: resource.resource, token: 'legacy-token' }, [provider]);
+			const requests: string[] = [];
+			const service = store.add(new AgentHostGitHubService({
+				fetch: async input => {
+					const url = String(input);
+					requests.push(url);
+					return url === `${endpoint.getApiBaseUri()}/user`
+						? new Response('{"id":101}')
+						: new Response('{"title":"Legacy context","body":null,"pull_request":{}}');
+				},
+			}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+			const signal = new AbortController().signal;
+			const client = store.add(service.acquireRepositoryClient(signal)).object;
+			const { account } = await client.credentials.getCredential(signal);
+			const result = await client.query.getIssueOrPullRequest({ ...account, owner: 'owner', repo: 'repo', number: 7 }, signal);
+			assert.deepStrictEqual({ result, requests, scopes: client.authorization.scopes }, {
+				result: { title: 'Legacy context', body: '' },
+				requests: [`${endpoint.getApiBaseUri()}/user`, `${endpoint.getApiBaseUri()}/repos/owner/repo/issues/7`],
+				scopes: resource.scopes_supported,
+			});
+		});
+	}
+
+	test('account changes invalidate captured context readers and isolate their cached bodies', async () => {
+		const endpoint = createTestGitHubEndpointService();
+		const changed = store.add(new Emitter<IAgentHostAuthTokenChangeEvent>());
+		let selected = 'account-a';
+		const authentication = new class extends mock<IAgentHostAuthenticationService>() {
+			override readonly onDidChangeAuthToken = changed.event;
+			override getAuthAccount() { return { providerId: 'github', accountId: selected }; }
+			override getAuthToken() { return selected; }
+		}();
+		const requests: { path: string; etag: string | null; account: string }[] = [];
+		const service = store.add(new AgentHostGitHubService({
+			fetch: async (input, init) => {
+				const path = new URL(String(input)).pathname;
+				requests.push({ path, etag: new Headers(init?.headers).get('If-None-Match'), account: selected });
+				return path === '/user'
+					? new Response(JSON.stringify({ id: selected === 'account-a' ? 101 : 202 }))
+					: new Response(JSON.stringify({ title: selected, body: '' }), { headers: { ETag: '"private"' } });
+			},
+		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const signal = new AbortController().signal;
+		const first = store.add(service.acquireRepositoryClient(signal)).object;
+		const { account } = await first.credentials.getCredential(signal);
+		const firstContext = await first.query.getIssueOrPullRequest({ ...account, owner: 'owner', repo: 'repo', number: 7 }, signal);
+		selected = 'account-b';
+		changed.fire({ resource: endpoint.getRepoResource().resource, scopes: ['repo'], token: selected });
+		await assert.rejects(first.query.getIssueOrPullRequest({ ...account, owner: 'owner', repo: 'repo', number: 7 }, signal));
+		const second = store.add(service.acquireRepositoryClient(signal)).object;
+		const next = await second.credentials.getCredential(signal);
+		const secondContext = await second.query.getIssueOrPullRequest({ ...next.account, owner: 'owner', repo: 'repo', number: 7 }, signal);
+		assert.deepStrictEqual({ firstContext, secondContext, requests }, {
+			firstContext: { title: 'account-a', body: '' }, secondContext: { title: 'account-b', body: '' },
+			requests: [
+				{ path: '/user', etag: null, account: 'account-a' },
+				{ path: '/repos/owner/repo/issues/7', etag: null, account: 'account-a' },
+				{ path: '/user', etag: null, account: 'account-b' },
+				{ path: '/repos/owner/repo/issues/7', etag: null, account: 'account-b' },
+			],
+		});
 	});
 
 	test('token refresh preserves the repository client and does not announce a selection change', async () => {
