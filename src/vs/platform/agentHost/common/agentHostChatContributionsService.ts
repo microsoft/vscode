@@ -75,8 +75,7 @@ export interface ISendContribution {
 	readonly text?: string;
 	/**
 	 * A workspace file-name snapshot the provider adds to the turn's host
-	 * instructions after dropping the paths its content exclusion policy
-	 * excludes. A provider that cannot evaluate that policy leaves it out.
+	 * instructions, reporting back when the turn is submitted to the model.
 	 */
 	readonly workspaceSnapshot?: IWorkspaceSnapshot;
 }

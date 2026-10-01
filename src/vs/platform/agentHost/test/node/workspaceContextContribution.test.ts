@@ -24,7 +24,7 @@ import type { IAgentHostChatContributions } from '../../common/agentHostChatCont
 import { AgentHostWorkspaceSnapshotEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, ROOT_STATE_URI, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
-import { renderWorkspaceSnapshot, renderWorkspaceSnapshotStructure, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
+import { renderWorkspaceSnapshot, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -157,15 +157,14 @@ suite('WorkspaceContextContribution', () => {
 		/**
 		 * Marks the chat's active turn dispatched to the provider. Unless `deliver`
 		 * is false, the provider then submits it to the model with the snapshot
-		 * its outgoing turn carried, as the Copilot provider does when content
-		 * exclusion excludes nothing.
+		 * its outgoing turn carried, as the Copilot provider does.
 		 */
 		const dispatch = (channel = chat, deliver = true) => {
 			turnTracker.markSendDispatched(channel, activeTurns.get(channel)!);
 			const snapshot = pendingSnapshots.get(channel);
 			pendingSnapshots.delete(channel);
 			if (deliver && snapshot) {
-				snapshot.onDidDeliver?.({ contentExclusion: 'evaluated', excludedPathCount: 0, includedRootCount: snapshot.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(snapshot).length, contentExclusionMs: 0, contentExclusionWaitMs: 0 });
+				snapshot.onDidDeliver?.();
 			}
 		};
 		/** Ends the chat's active turn, recording it in history and notifying contributions. */
@@ -197,7 +196,7 @@ suite('WorkspaceContextContribution', () => {
 				dispatch(channel);
 				endTurn(channel, 'success');
 			}
-			// Rendered as the provider does when content exclusion excludes nothing.
+			// Rendered as the provider does.
 			const instruction = workspaceSnapshot && renderWorkspaceSnapshot(workspaceSnapshot);
 			return instruction ? { ...result, instructions: [...(result.instructions ?? []), instruction] } : result;
 		};
@@ -232,19 +231,6 @@ suite('WorkspaceContextContribution', () => {
 			message: userMessage,
 			instructions: ['<workspace_info>\nInitial workspace structure (file names only):\n```text\n' + heading('/workspace') + '\nmeta.json\nsrc/\n\tmain.ts\ntests/\n\tmain.test.ts\n```\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>'],
 		});
-	});
-
-	test('gives the provider the absolute path of each root and listed entry to check against content exclusion', async () => {
-		const context = await setupContext({ files: ['/workspace/src/main.ts', '/workspace/meta.json'] });
-		await context.firstTurn();
-		assert.deepStrictEqual(context.lastSnapshot()?.roots.map(root => ({ path: root.path, entries: root.entries.map(({ path, depth }) => ({ path, depth })) })), [{
-			path: URI.file('/workspace').fsPath,
-			entries: [
-				{ path: URI.file('/workspace/meta.json').fsPath, depth: 0 },
-				{ path: URI.file('/workspace/src').fsPath, depth: 0 },
-				{ path: URI.file('/workspace/src/main.ts').fsPath, depth: 1 },
-			],
-		}]);
 	});
 
 	test('lists files that .gitignore excludes, like the classic workspace structure', async () => {
@@ -301,7 +287,7 @@ suite('WorkspaceContextContribution', () => {
 		const result = await context.send(context.chat, [URI.file('/worktrees/agent')]);
 		assert.deepStrictEqual({ structure: structureOf(result), events: context.events() }, {
 			structure: heading('/worktrees/agent') + '\nmeta.json',
-			events: [{ preparation: 'startedAtSend', rootCount: 1, includedRootCount: 1, pendingRootCount: 0, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'evaluated', excludedPathCount: 0, snapshotLength: structureOf(result)!.length, contentExclusionMs: 0, contentExclusionWaitMs: 0 }],
+			events: [{ preparation: 'startedAtSend', rootCount: 1, includedRootCount: 1, pendingRootCount: 0, emptyRootCount: 0, failedRootCount: 0, snapshotLength: structureOf(result)!.length }],
 		});
 	});
 
@@ -375,7 +361,7 @@ suite('WorkspaceContextContribution', () => {
 		}, {
 			waitedMs: 1000,
 			structure: heading('/workspace') + '\nmeta.json',
-			event: { preparation: 'prepared', rootCount: 2, includedRootCount: 1, pendingRootCount: 1, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'evaluated', excludedPathCount: 0, snapshotLength: (heading('/workspace') + '\nmeta.json').length, contentExclusionMs: 0, contentExclusionWaitMs: 0 },
+			event: { preparation: 'prepared', rootCount: 2, includedRootCount: 1, pendingRootCount: 1, emptyRootCount: 0, failedRootCount: 0, snapshotLength: (heading('/workspace') + '\nmeta.json').length },
 			logged: true,
 		});
 	}));
@@ -441,26 +427,13 @@ suite('WorkspaceContextContribution', () => {
 		assert.deepStrictEqual({ next, reported: context.events().length }, { next: { message: userMessage }, reported: 1 });
 	});
 
-	test('keeps the snapshot when the provider abandons the send before submitting it, such as during the content exclusion check', async () => {
+	test('keeps the snapshot when the provider abandons the send before submitting it', async () => {
 		const context = await setupContext();
 		await context.firstTurn(context.chat, undefined, false);
 		context.dispatch(context.chat, false);
 		context.endTurn(context.chat, 'cancelled');
 		const next = await context.firstTurn();
 		assert.deepStrictEqual({ next: !!next.instructions?.length, reported: context.events().length }, { next: true, reported: 1 });
-	});
-
-	test('reports what reached the model after content exclusion', async () => {
-		const context = await setupContext();
-		await context.firstTurn(context.chat, undefined, false);
-		context.dispatch(context.chat, false);
-		context.lastSnapshot()?.onDidDeliver?.({ contentExclusion: 'unavailable', excludedPathCount: 0, includedRootCount: 0, snapshotLength: 0, contentExclusionMs: 1000, contentExclusionWaitMs: 40 });
-		context.endTurn(context.chat, 'success');
-		const next = await context.firstTurn();
-		assert.deepStrictEqual({ next, event: context.events() }, {
-			next: { message: userMessage },
-			event: [{ preparation: 'prepared', rootCount: 1, includedRootCount: 0, pendingRootCount: 0, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'unavailable', excludedPathCount: 0, snapshotLength: 0, contentExclusionMs: 1000, contentExclusionWaitMs: 40 }],
-		});
 	});
 
 	test('ignores a cancelled send that finishes after the next turn started', async () => {
@@ -479,7 +452,7 @@ suite('WorkspaceContextContribution', () => {
 		assert.deepStrictEqual({ stale, next: structureOf(next), events: context.events() }, {
 			stale: { message: userMessage },
 			next: expected,
-			events: [{ preparation: 'prepared', rootCount: 1, includedRootCount: 1, pendingRootCount: 0, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'evaluated', excludedPathCount: 0, snapshotLength: expected.length, contentExclusionMs: 0, contentExclusionWaitMs: 0 }],
+			events: [{ preparation: 'prepared', rootCount: 1, includedRootCount: 1, pendingRootCount: 0, emptyRootCount: 0, failedRootCount: 0, snapshotLength: expected.length }],
 		});
 	});
 

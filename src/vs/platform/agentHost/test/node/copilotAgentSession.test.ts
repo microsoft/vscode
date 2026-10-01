@@ -51,7 +51,7 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
-import { renderWorkspaceSnapshot, renderWorkspaceSnapshotStructure, type IWorkspaceSnapshot, type IWorkspaceSnapshotDelivery, type IWorkspaceSnapshotRoot } from '../../common/workspaceSnapshot.js';
+import { renderWorkspaceSnapshot, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -134,10 +134,6 @@ class MockCopilotSession {
 	readonly collectLogsResults: Awaited<ReturnType<CopilotSession['rpc']['debug']['collectLogs']>>[] = [];
 	readonly workingDirectorySetCalls: Parameters<CopilotSession['rpc']['metadata']['setWorkingDirectory']>[0][] = [];
 	readonly workingDirectorySetResults: Awaited<ReturnType<CopilotSession['rpc']['metadata']['setWorkingDirectory']>>[] = [];
-	/** Paths `rpc.contentExclusion.checkPaths` reports as excluded; `undefined` makes policy evaluation unavailable. */
-	contentExcludedPaths: ReadonlySet<string> | undefined = new Set();
-	/** Awaited inside `rpc.contentExclusion.checkPaths` so a test can hold the check in flight. */
-	contentExclusionGate: Promise<void> | undefined;
 	readonly workingDirectorySetErrors: Array<Error | undefined> = [];
 	workingDirectorySetGate: Promise<void> | undefined;
 	onWorkingDirectorySet: (() => void) | undefined;
@@ -388,15 +384,6 @@ class MockCopilotSession {
 				return destination.kind === 'directory'
 					? { kind: 'directory' as const, path: destination.outputDirectory, entries: [] }
 					: { kind: 'archive' as const, path: destination.outputPath, entries: [] };
-			},
-		},
-		contentExclusion: {
-			checkPaths: async ({ paths }: Parameters<CopilotSession['rpc']['contentExclusion']['checkPaths']>[0]) => {
-				await this.contentExclusionGate;
-				const excluded = this.contentExcludedPaths;
-				return excluded
-					? { available: true, checks: paths.map(path => ({ path, excluded: excluded.has(path) })) }
-					: { available: false, checks: [] };
 			},
 		},
 		metadata: {
@@ -3162,109 +3149,35 @@ suite('CopilotAgentSession', () => {
 	});
 
 	suite('workspace snapshot', () => {
-		const repo: IWorkspaceSnapshotRoot = {
-			path: '/repo',
-			heading: '/repo',
-			entries: [
-				{ path: '/repo/README.md', depth: 0, line: 'README.md' },
-				{ path: '/repo/secrets', depth: 0, line: 'secrets/' },
-				{ path: '/repo/secrets/keys.json', depth: 1, line: '\tkeys.json' },
-				{ path: '/repo/src', depth: 0, line: 'src/' },
-				{ path: '/repo/src/main.ts', depth: 1, line: '\tmain.ts' },
-			],
-			truncated: true,
-		};
-		const secretProject: IWorkspaceSnapshotRoot = { path: '/secret-project', heading: '/secret-project', entries: [{ path: '/secret-project/README.md', depth: 0, line: 'README.md' }], truncated: false };
-		function snapshot(deliveries: IWorkspaceSnapshotDelivery[]): IWorkspaceSnapshot {
-			return { roots: [repo, secretProject], onDidDeliver: delivery => deliveries.push(delivery) };
-		}
-		/** The deliveries without their timings, which depend on the clock. */
-		function outcomes(deliveries: readonly IWorkspaceSnapshotDelivery[]) {
-			return deliveries.map(({ contentExclusionMs: _contentExclusionMs, contentExclusionWaitMs: _contentExclusionWaitMs, ...outcome }) => outcome);
+		function snapshot(onDidDeliver: () => void): IWorkspaceSnapshot {
+			return { roots: [{ heading: '/repo', lines: ['README.md', 'src/', '\tmain.ts'], truncated: true }], onDidDeliver };
 		}
 
-		test('drops excluded roots and paths, and reports delivery when the prompt is submitted', async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
-			mockSession.contentExcludedPaths = new Set(['/repo/secrets', '/secret-project']);
-			const deliveries: IWorkspaceSnapshotDelivery[] = [];
+		test('adds the snapshot to the host instructions and reports delivery only when the prompt is submitted', async () => {
+			const { session } = await createAgentSession(disposables);
+			let delivered = 0;
+			const sent = snapshot(() => delivered++);
 
-			await session.send('hello', undefined, undefined, undefined, undefined, undefined, ['<other/>'], undefined, false, snapshot(deliveries));
-			const deliveredBeforeSubmit = deliveries.length;
-			const expected = { roots: [{ ...repo, entries: [repo.entries[0], repo.entries[3], repo.entries[4]] }] };
+			await session.send('hello', undefined, undefined, undefined, undefined, undefined, ['<other/>'], undefined, false, sent);
+			const deliveredBeforeSubmit = delivered;
 
-			assert.deepStrictEqual({ deliveredBeforeSubmit, additionalContext: session.handleUserPromptSubmitted(), deliveries: outcomes(deliveries) }, {
+			assert.deepStrictEqual({ deliveredBeforeSubmit, additionalContext: session.handleUserPromptSubmitted(), delivered }, {
 				deliveredBeforeSubmit: 0,
-				additionalContext: { additionalContext: '<other/>\n\n' + renderWorkspaceSnapshot(expected) },
-				deliveries: [{ contentExclusion: 'evaluated', excludedPathCount: 2, includedRootCount: 1, snapshotLength: renderWorkspaceSnapshotStructure(expected).length }],
+				additionalContext: { additionalContext: '<other/>\n\n' + renderWorkspaceSnapshot(sent) },
+				delivered: 1,
 			});
 		});
 
-		test('omits the snapshot when content exclusion cannot be evaluated', async () => {
+		test('does not report delivery when the send is rejected', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
-			mockSession.contentExcludedPaths = undefined;
-			const deliveries: IWorkspaceSnapshotDelivery[] = [];
+			const failure = Promise.reject(new Error('send failed'));
+			failure.catch(() => { });
+			mockSession.sendGate = failure;
+			let delivered = 0;
 
-			await session.send('hello', undefined, undefined, undefined, undefined, undefined, ['<other/>'], undefined, false, snapshot(deliveries));
+			await assert.rejects(session.send('hello', undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, snapshot(() => delivered++)));
 
-			assert.deepStrictEqual({ sent: mockSession.sendRequests.length, additionalContext: session.handleUserPromptSubmitted(), deliveries: outcomes(deliveries) }, {
-				sent: 1,
-				additionalContext: { additionalContext: '<other/>' },
-				deliveries: [{ contentExclusion: 'unavailable', excludedPathCount: 0, includedRootCount: 0, snapshotLength: 0 }],
-			});
-		});
-
-		test('skips the check when the account does not use content exclusion', async () => {
-			const { session, mockSession } = await createAgentSession(disposables, {
-				githubToken: 'github-token',
-				restrictedTelemetryContext: { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined, copilotIgnoreEnabled: false },
-			});
-			// Checking would make the policy unavailable and drop the snapshot.
-			mockSession.contentExcludedPaths = undefined;
-			const deliveries: IWorkspaceSnapshotDelivery[] = [];
-
-			await session.send('hello', undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, snapshot(deliveries));
-			const all = { roots: [repo, secretProject] };
-
-			assert.deepStrictEqual({ additionalContext: session.handleUserPromptSubmitted(), deliveries: outcomes(deliveries) }, {
-				additionalContext: { additionalContext: renderWorkspaceSnapshot(all) },
-				deliveries: [{ contentExclusion: 'notEnabled', excludedPathCount: 0, includedRootCount: 2, snapshotLength: renderWorkspaceSnapshotStructure(all).length }],
-			});
-		});
-
-		test('checks content exclusion while the send is prepared, and reports how long the check took and the send waited', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
-			mockSession.operationLog.length = 0;
-			let operationsWhenCheckFinished: string[] = [];
-			mockSession.contentExclusionGate = timeout(50).then(() => { operationsWhenCheckFinished = [...mockSession.operationLog]; });
-			const deliveries: IWorkspaceSnapshotDelivery[] = [];
-
-			await session.send('hello', undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, snapshot(deliveries));
-			session.handleUserPromptSubmitted();
-
-			assert.deepStrictEqual({
-				preparedBeforeCheckFinished: operationsWhenCheckFinished,
-				operations: mockSession.operationLog,
-				timings: deliveries.map(({ contentExclusionMs, contentExclusionWaitMs }) => ({ contentExclusionMs, contentExclusionWaitMs })),
-			}, {
-				preparedBeforeCheckFinished: ['permissions.setMode', 'options.update:sandbox'],
-				operations: ['permissions.setMode', 'options.update:sandbox', 'send'],
-				timings: [{ contentExclusionMs: 50, contentExclusionWaitMs: 50 }],
-			});
-		}));
-
-		test('does not send or report delivery when the turn is cancelled during the content exclusion check', async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
-			const gate = new DeferredPromise<void>();
-			mockSession.contentExclusionGate = gate.p;
-			const deliveries: IWorkspaceSnapshotDelivery[] = [];
-
-			const sending = session.send('hello', undefined, 'turn-1', undefined, undefined, undefined, undefined, undefined, false, snapshot(deliveries));
-			await timeout(0);
-			await session.abort();
-			gate.complete();
-			await sending;
-
-			assert.deepStrictEqual({ sent: mockSession.sendRequests.length, additionalContext: session.handleUserPromptSubmitted(), deliveries }, { sent: 0, additionalContext: undefined, deliveries: [] });
+			assert.deepStrictEqual({ additionalContext: session.handleUserPromptSubmitted(), delivered }, { additionalContext: undefined, delivered: 0 });
 		});
 	});
 

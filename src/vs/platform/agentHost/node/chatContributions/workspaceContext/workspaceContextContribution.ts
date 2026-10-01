@@ -17,7 +17,7 @@ import { AgentHostWorkspaceSnapshotEnabledConfigKey, platformRootSchema } from '
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
-import type { IWorkspaceSnapshotDelivery, IWorkspaceSnapshotEntry, IWorkspaceSnapshotRoot } from '../../../common/workspaceSnapshot.js';
+import { renderWorkspaceSnapshotStructure, type IWorkspaceSnapshotRoot } from '../../../common/workspaceSnapshot.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
@@ -70,8 +70,8 @@ interface ICandidateTurn {
 	report?: { readonly event: IAgentHostWorkspaceSnapshotEvent; readonly detail: string };
 	/**
 	 * Whether the turn carries a snapshot. Such a turn counts as reaching the
-	 * provider only when the provider submits it to the model, after content
-	 * exclusion, rather than when the host hands it over.
+	 * provider only when the provider submits it to the model, rather than
+	 * when the host hands it over.
 	 */
 	awaitingDelivery?: boolean;
 }
@@ -144,12 +144,12 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			}
 			const waitMs = Date.now() - waitStarted;
 			const roots = prepared.roots.flatMap(root => root.outcome === 'included' && root.snapshot ? [root.snapshot] : []);
-			candidate.report = this._createReport(prepared, preparation, waitMs);
+			candidate.report = this._createReport(prepared, preparation, waitMs, renderWorkspaceSnapshotStructure({ roots }).length);
 			if (roots.length === 0) {
 				return undefined;
 			}
 			candidate.awaitingDelivery = true;
-			return { workspaceSnapshot: { roots, onDidDeliver: delivery => this._onSnapshotDelivered(turn.chat, turn.turnId, delivery) } };
+			return { workspaceSnapshot: { roots, onDidDeliver: () => this._onSnapshotDelivered(turn.chat, turn.turnId) } };
 		} finally {
 			if (this._isActiveTurn(turn)) {
 				this._stopPreparing(turn.chat);
@@ -239,11 +239,11 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	}
 
 	/** Records why each root was or was not included, so a missing snapshot can be diagnosed. */
-	private _createReport(prepared: IPreparedSnapshot, preparation: AgentHostWorkspaceSnapshotPreparation, waitMs: number): ICandidateTurn['report'] {
+	private _createReport(prepared: IPreparedSnapshot, preparation: AgentHostWorkspaceSnapshotPreparation, waitMs: number, snapshotLength: number): ICandidateTurn['report'] {
 		const count = (outcome: RootOutcome) => prepared.roots.filter(root => root.outcome === outcome).length;
 		const omitted = prepared.roots.filter(root => root.outcome !== 'included').map(root => `${root.outcome}: ${root.root.fsPath}`);
 		return {
-			detail: `included ${count('included')}/${prepared.roots.length} roots (${preparation}, waited ${waitMs}ms)${omitted.length ? `; ${omitted.join('; ')}` : ''}`,
+			detail: `included ${count('included')}/${prepared.roots.length} roots, ${snapshotLength} characters (${preparation}, waited ${waitMs}ms)${omitted.length ? `; ${omitted.join('; ')}` : ''}`,
 			event: {
 				preparation,
 				rootCount: prepared.roots.length,
@@ -252,12 +252,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 				emptyRootCount: count('empty') + count('gitAdministrative'),
 				failedRootCount: count('failed'),
 				waitMs,
-				// Replaced by what the provider delivered, when it had a snapshot to deliver.
-				contentExclusion: 'notApplicable',
-				excludedPathCount: 0,
-				snapshotLength: 0,
-				contentExclusionMs: 0,
-				contentExclusionWaitMs: 0,
+				snapshotLength,
 			},
 		};
 	}
@@ -272,20 +267,14 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 
 	/**
 	 * A first turn with a snapshot reaches the provider when the provider
-	 * submits it to the model, which it reports along with what content
-	 * exclusion left. A send abandoned before then, such as one cancelled
-	 * during the content exclusion check, leaves the snapshot for the next turn.
+	 * submits it to the model. A send abandoned before then, such as one
+	 * cancelled while it was being prepared, leaves the snapshot for the next turn.
 	 */
-	private _onSnapshotDelivered(chat: ProtocolURI, turnId: string, delivery: IWorkspaceSnapshotDelivery): void {
+	private _onSnapshotDelivered(chat: ProtocolURI, turnId: string): void {
 		const candidate = this._candidates.get(chat);
-		if (candidate?.turnId !== turnId) {
-			return;
+		if (candidate?.turnId === turnId) {
+			this._consume(chat, candidate.report);
 		}
-		const report = candidate.report && {
-			detail: `${candidate.report.detail}; content exclusion ${delivery.contentExclusion} in ${delivery.contentExclusionMs}ms (send waited ${delivery.contentExclusionWaitMs}ms), ${delivery.excludedPathCount} paths excluded, ${delivery.includedRootCount} roots sent`,
-			event: { ...candidate.report.event, ...delivery },
-		};
-		this._consume(chat, report);
 	}
 
 	/** Records that the chat's conversation reached the provider, then logs and reports the snapshot. */
@@ -377,7 +366,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			if (tree === undefined) {
 				return { outcome: 'pending' };
 			}
-			return tree.entries.length ? { outcome: 'included', snapshot: { path: root.fsPath, heading, ...tree } } : { outcome: 'empty' };
+			return tree.lines.length ? { outcome: 'included', snapshot: { heading, ...tree } } : { outcome: 'empty' };
 		} catch (err) {
 			this._logService.warn(`[WorkspaceContext] Could not list ${root.fsPath} for the initial workspace snapshot: ${toErrorMessage(err)}`);
 			return { outcome: 'failed' };
@@ -451,11 +440,11 @@ async function readChildren(fileService: IFileService, directory: URI, maxEntrie
  * workspace structure it does not apply `.gitignore`. Returns `undefined` once
  * `token` is cancelled.
  */
-async function listWorkspaceTree(fileService: IFileService, root: URI, maxLength: number, token: CancellationToken): Promise<{ entries: IWorkspaceSnapshotEntry[]; truncated: boolean } | undefined> {
+async function listWorkspaceTree(fileService: IFileService, root: URI, maxLength: number, token: CancellationToken): Promise<{ lines: string[]; truncated: boolean } | undefined> {
 	if (maxLength < 4) {
-		return { entries: [], truncated: false };
+		return { lines: [], truncated: false };
 	}
-	const selected = new Map<IWorkspaceNode, IWorkspaceSnapshotEntry>();
+	const selected = new Map<IWorkspaceNode, string>();
 	// A line takes at least two characters, so no directory can contribute more entries than this.
 	const maxEntries = Math.floor(maxLength / 2);
 	// The root must be readable; an unreadable nested directory is shown without children.
@@ -474,7 +463,7 @@ async function listWorkspaceTree(fileService: IFileService, root: URI, maxLength
 				truncated = true;
 				break;
 			}
-			selected.set(node, { path: node.resource.fsPath, depth, line });
+			selected.set(node, line);
 			length += line.length + 1;
 			if (node.expandable) {
 				expanded.push(node);
@@ -488,18 +477,18 @@ async function listWorkspaceTree(fileService: IFileService, root: URI, maxLength
 	if (token.isCancellationRequested) {
 		return undefined;
 	}
-	const entries: IWorkspaceSnapshotEntry[] = [];
+	const lines: string[] = [];
 	const collect = (nodes: readonly IWorkspaceNode[] | undefined): void => {
 		for (const node of nodes ?? []) {
-			const entry = selected.get(node);
-			if (entry) {
-				entries.push(entry);
+			const line = selected.get(node);
+			if (line !== undefined) {
+				lines.push(line);
 				collect(node.children);
 			}
 		}
 	};
 	collect(topLevel);
-	return { entries, truncated };
+	return { lines, truncated };
 }
 
 /**

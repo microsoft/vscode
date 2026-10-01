@@ -513,9 +513,7 @@ export interface IAgentChatContext {
 	readonly hostInstructions?: readonly string[];
 	/**
 	 * A workspace file-name snapshot for the provider to add to model context
-	 * like {@link hostInstructions}, after dropping the paths its content
-	 * exclusion policy excludes. A provider that cannot evaluate that policy
-	 * must leave it out.
+	 * like {@link hostInstructions}, reporting back when it is submitted.
 	 */
 	readonly workspaceSnapshot?: IWorkspaceSnapshot;
 	/** Whether the current turn is an automated Agent Merge repair turn. */

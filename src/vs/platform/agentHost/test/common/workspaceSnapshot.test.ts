@@ -5,47 +5,23 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { filterWorkspaceSnapshot, getWorkspaceSnapshotPaths, renderWorkspaceSnapshotStructure, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
+import { renderWorkspaceSnapshot, renderWorkspaceSnapshotStructure, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
 
 suite('workspaceSnapshot', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const snapshot: IWorkspaceSnapshot = {
-		roots: [{
-			path: '/a',
-			heading: '/a',
-			entries: [
-				{ path: '/a/README.md', depth: 0, line: 'README.md' },
-				{ path: '/a/secrets', depth: 0, line: 'secrets/' },
-				{ path: '/a/secrets/keys', depth: 1, line: '\tkeys/' },
-				{ path: '/a/secrets/keys/id', depth: 2, line: '\t\tid' },
-				{ path: '/a/src', depth: 0, line: 'src/' },
-				{ path: '/a/src/main.ts', depth: 1, line: '\tmain.ts' },
+	test('renders each root as a tree, marks truncation, and wraps the result as a host instruction', () => {
+		const snapshot: IWorkspaceSnapshot = {
+			roots: [
+				{ heading: '/a', lines: ['README.md', 'src/', '\tmain.ts'], truncated: true },
+				{ heading: '/b', lines: ['notes.md'], truncated: false },
 			],
-			truncated: true,
-		}, {
-			path: '/b',
-			heading: '/b',
-			entries: [{ path: '/b/private', depth: 0, line: 'private/' }],
-			truncated: false,
-		}, {
-			path: '/secret-project',
-			heading: '/secret-project',
-			entries: [{ path: '/secret-project/README.md', depth: 0, line: 'README.md' }],
-			truncated: false,
-		}],
-	};
-
-	test('drops excluded roots and entries with everything below them, and roots left empty', () => {
-		const excluded = new Set(['/a/secrets', '/a/src/main.ts', '/b/private', '/secret-project']);
-		assert.deepStrictEqual({
-			paths: getWorkspaceSnapshotPaths(snapshot),
-			all: renderWorkspaceSnapshotStructure(snapshot),
-			filtered: renderWorkspaceSnapshotStructure(filterWorkspaceSnapshot(snapshot, path => excluded.has(path))),
-		}, {
-			paths: ['/a', '/a/README.md', '/a/secrets', '/a/secrets/keys', '/a/secrets/keys/id', '/a/src', '/a/src/main.ts', '/b', '/b/private', '/secret-project', '/secret-project/README.md'],
-			all: '/a\nREADME.md\nsecrets/\n\tkeys/\n\t\tid\nsrc/\n\tmain.ts\n...\n\n/b\nprivate/\n\n/secret-project\nREADME.md',
-			filtered: '/a\nREADME.md\nsrc/\n...',
+		};
+		const structure = '/a\nREADME.md\nsrc/\n\tmain.ts\n...\n\n/b\nnotes.md';
+		assert.deepStrictEqual({ structure: renderWorkspaceSnapshotStructure(snapshot), instruction: renderWorkspaceSnapshot(snapshot), empty: renderWorkspaceSnapshot({ roots: [] }) }, {
+			structure,
+			instruction: `<workspace_info>\nInitial workspace structure (file names only):\n\`\`\`text\n${structure}\n\`\`\`\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>`,
+			empty: undefined,
 		});
 	});
 });

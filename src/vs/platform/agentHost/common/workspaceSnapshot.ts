@@ -5,101 +5,34 @@
 
 import { appendEscapedMarkdownCodeBlockFence } from '../../../base/common/htmlContent.js';
 
-/** One listed file or folder of a {@link IWorkspaceSnapshotRoot}. */
-export interface IWorkspaceSnapshotEntry {
-	/** Absolute file system path, checked against the session's content exclusion policy. */
-	readonly path: string;
-	/** Nesting level below the root. An entry's descendants directly follow it. */
-	readonly depth: number;
-	/** The rendered line, already indented and escaped. */
-	readonly line: string;
-}
-
+/** One working directory's rendered file-name tree. */
 export interface IWorkspaceSnapshotRoot {
-	/** Absolute file system path of the root, checked against content exclusion like its entries. */
-	readonly path: string;
 	/** The rendered root path. */
 	readonly heading: string;
-	/** Entries in display order. */
-	readonly entries: readonly IWorkspaceSnapshotEntry[];
+	/** The listed entries in display order, already indented and escaped. */
+	readonly lines: readonly string[];
 	/** Whether entries were left out to fit the size budget. */
 	readonly truncated: boolean;
 }
 
-/** What reached the model when a turn carrying a {@link IWorkspaceSnapshot} was submitted. */
-export interface IWorkspaceSnapshotDelivery {
-	/**
-	 * `notEnabled` when the account does not use content exclusion, so nothing
-	 * was checked; `unavailable` when it could not be evaluated, in which case
-	 * no snapshot was sent.
-	 */
-	readonly contentExclusion: 'evaluated' | 'notEnabled' | 'unavailable';
-	/** Listed paths, roots included, that content exclusion excludes. */
-	readonly excludedPathCount: number;
-	/** Roots that remained after content exclusion. */
-	readonly includedRootCount: number;
-	/** Length of the tree that was sent, or 0 when none was. */
-	readonly snapshotLength: number;
-	/** Milliseconds the content exclusion check took, including a check that timed out. */
-	readonly contentExclusionMs: number;
-	/** Milliseconds the send waited for that check after the rest of its preparation finished. */
-	readonly contentExclusionWaitMs: number;
-}
-
 /**
- * A bounded file-name tree of the directories a conversation starts in. It is
- * kept structured until the provider submits the turn, so that paths excluded
- * by the session's content exclusion policy can be dropped first.
+ * A bounded file-name tree of the directories a conversation starts in. The
+ * provider adds it to the turn's prompt and reports when it was submitted.
  */
 export interface IWorkspaceSnapshot {
 	readonly roots: readonly IWorkspaceSnapshotRoot[];
 	/**
-	 * Called by the provider when it submits the turn's prompt to the model,
-	 * with what remained of the snapshot. Not called when the send is
-	 * abandoned before submission, so the snapshot is not considered sent.
+	 * Called by the provider when it submits the turn's prompt to the model.
+	 * Not called when the send is abandoned before submission, so the snapshot
+	 * is not considered sent.
 	 */
-	readonly onDidDeliver?: (delivery: IWorkspaceSnapshotDelivery) => void;
-}
-
-/** The unique paths the snapshot lists, roots included. */
-export function getWorkspaceSnapshotPaths(snapshot: IWorkspaceSnapshot): string[] {
-	return [...new Set(snapshot.roots.flatMap(root => [root.path, ...root.entries.map(entry => entry.path)]))];
-}
-
-/**
- * Drops each root and entry for which `isExcluded` returns true, together
- * with everything below it, and each root left without entries.
- */
-export function filterWorkspaceSnapshot(snapshot: IWorkspaceSnapshot, isExcluded: (path: string) => boolean): IWorkspaceSnapshot {
-	const roots: IWorkspaceSnapshotRoot[] = [];
-	for (const root of snapshot.roots) {
-		if (isExcluded(root.path)) {
-			continue;
-		}
-		const entries: IWorkspaceSnapshotEntry[] = [];
-		let excludedDepth: number | undefined;
-		for (const entry of root.entries) {
-			if (excludedDepth !== undefined && entry.depth > excludedDepth) {
-				continue;
-			}
-			excludedDepth = undefined;
-			if (isExcluded(entry.path)) {
-				excludedDepth = entry.depth;
-				continue;
-			}
-			entries.push(entry);
-		}
-		if (entries.length) {
-			roots.push({ ...root, entries });
-		}
-	}
-	return { roots };
+	readonly onDidDeliver?: () => void;
 }
 
 /** Renders the snapshot's roots as a tree. */
 export function renderWorkspaceSnapshotStructure(snapshot: IWorkspaceSnapshot): string {
 	return snapshot.roots
-		.map(root => [root.heading, ...root.entries.map(entry => entry.line), ...(root.truncated ? ['...'] : [])].join('\n'))
+		.map(root => [root.heading, ...root.lines, ...(root.truncated ? ['...'] : [])].join('\n'))
 		.join('\n\n');
 }
 
