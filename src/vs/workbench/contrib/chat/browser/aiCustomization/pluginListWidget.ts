@@ -16,7 +16,7 @@ import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseSta
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -1516,12 +1516,12 @@ export class PluginListWidget extends Disposable {
 				() => this.runPluginAction(action),
 			)));
 			const button = disposables.add(new ButtonWithDropdown(container, {
-				...(this.workspaceService.isSessionsWindow ? getButtonStyles({
+				...getButtonStyles({
 					buttonSecondaryBackground: undefined,
 					buttonSecondaryForeground: undefined,
 					buttonSecondaryHoverBackground: undefined,
 					buttonSecondaryBorder: undefined,
-				}) : defaultButtonStyles),
+				}),
 				secondary: true,
 				supportIcons: this.workspaceService.isSessionsWindow,
 				contextMenuProvider: this.contextMenuService,
@@ -1531,8 +1531,8 @@ export class PluginListWidget extends Disposable {
 				ariaLabel: actionLabel,
 			}));
 			button.element.classList.add('plugin-installed-action');
-			button.primaryButton.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
-			button.dropdownButton.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
+			button.primaryButton.element.classList.add('plugin-card-ghost-button');
+			button.dropdownButton.element.classList.add('plugin-card-ghost-button');
 			button.primaryButton.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
 			button.dropdownButton.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
 			if (this.workspaceService.isSessionsWindow) {
@@ -1545,19 +1545,18 @@ export class PluginListWidget extends Disposable {
 			return;
 		}
 		const button = disposables.add(new Button(container, {
-			...(this.workspaceService.isSessionsWindow ? getButtonStyles({
+			...getButtonStyles({
 				buttonSecondaryBackground: undefined,
 				buttonSecondaryForeground: undefined,
 				buttonSecondaryHoverBackground: undefined,
 				buttonSecondaryBorder: undefined,
-			}) : defaultButtonStyles),
+			}),
 			secondary: true,
 			supportIcons: this.workspaceService.isSessionsWindow,
 			title: actionLabel,
 			ariaLabel: actionLabel,
 		}));
-		button.element.classList.add('plugin-installed-action');
-		button.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
+		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
 		button.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
 		if (this.workspaceService.isSessionsWindow) {
 			button.icon = Codicon.add;
@@ -1571,19 +1570,18 @@ export class PluginListWidget extends Disposable {
 	private renderPluginUpdateAction(container: HTMLElement, disposables: DisposableStore): void {
 		const label = localize('checkForAndApplyPluginUpdates', "Check for and Apply Updates");
 		const button = disposables.add(new Button(container, {
-			...(this.workspaceService.isSessionsWindow ? getButtonStyles({
+			...getButtonStyles({
 				buttonSecondaryBackground: undefined,
 				buttonSecondaryForeground: undefined,
 				buttonSecondaryHoverBackground: undefined,
 				buttonSecondaryBorder: undefined,
-			}) : defaultButtonStyles),
+			}),
 			secondary: true,
 			supportIcons: true,
 			title: label,
 			ariaLabel: label,
 		}));
-		button.element.classList.add('plugin-card-icon-button', 'plugin-update-button');
-		button.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
+		button.element.classList.add('plugin-card-icon-button', 'plugin-card-ghost-button', 'plugin-update-button');
 		if (this.workspaceService.isSessionsWindow) {
 			button.icon = Codicon.refresh;
 		} else {
@@ -1595,13 +1593,18 @@ export class PluginListWidget extends Disposable {
 	private renderBrowseMarketplaceAction(container: HTMLElement, disposables: DisposableStore): void {
 		const label = localize('browseMarketplace', "Browse Marketplace");
 		const button = disposables.add(new Button(container, {
-			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
 			supportIcons: true,
 			title: label,
 			ariaLabel: label,
 		}));
-		button.element.classList.add('plugin-installed-action');
+		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
 		button.label = `$(${Codicon.library.id}) ${label}`;
 		disposables.add(button.onDidClick(() => this.toggleBrowseMode(true)));
 	}
@@ -1609,12 +1612,17 @@ export class PluginListWidget extends Disposable {
 	private renderBrowseCustomizationsAction(container: HTMLElement, disposables: DisposableStore): void {
 		const label = localize('browsePlugins', "Browse Plugins");
 		const button = disposables.add(new Button(container, {
-			...defaultButtonStyles,
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
 			title: label,
 			ariaLabel: label,
 		}));
-		button.element.classList.add('plugin-installed-action');
+		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
 		button.label = label;
 		disposables.add(button.onDidClick(() => this._onDidRequestBrowse.fire()));
 	}

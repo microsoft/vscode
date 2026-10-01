@@ -1626,11 +1626,17 @@ export class AICustomizationListWidget extends Disposable {
 			isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService)) {
 			const label = localize('browseSkills', "Browse Skills");
 			const button = disposables.add(new Button(actions, {
-				...defaultButtonStyles,
+				...getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
 				secondary: true,
 				title: label,
 				ariaLabel: label,
 			}));
+			button.element.classList.add('plugin-card-ghost-button');
 			button.label = label;
 			disposables.add(button.onDidClick(() => this._onDidRequestBrowse.fire()));
 		}
@@ -1650,19 +1656,18 @@ export class AICustomizationListWidget extends Disposable {
 
 		const label = this.formatTargetedCreateActionLabel(primary);
 		const button = disposables.add(new Button(container, {
-			...(this.workspaceService.isSessionsWindow ? getButtonStyles({
+			...getButtonStyles({
 				buttonSecondaryBackground: undefined,
 				buttonSecondaryForeground: undefined,
 				buttonSecondaryHoverBackground: undefined,
 				buttonSecondaryBorder: undefined,
-			}) : defaultButtonStyles),
+			}),
 			secondary: true,
 			supportIcons: this.workspaceService.isSessionsWindow,
 			title: primary.tooltip ?? label,
 			ariaLabel: primary.tooltip ?? label,
 		}));
-		button.element.classList.add('customization-create-action');
-		button.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
+		button.element.classList.add('customization-create-action', 'plugin-card-ghost-button');
 		button.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
 		if (this.workspaceService.isSessionsWindow) {
 			button.icon = Codicon.add;
@@ -1675,12 +1680,17 @@ export class AICustomizationListWidget extends Disposable {
 		const generateAction = actions.find(action => action.kind === 'generate');
 		if (generateAction && generateAction !== primary) {
 			const generateButton = disposables.add(new Button(container, {
-				...defaultButtonStyles,
+				...getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
 				secondary: true,
 				title: generateAction.tooltip ?? generateAction.label,
 				ariaLabel: generateAction.tooltip ?? generateAction.label,
 			}));
-			generateButton.element.classList.add('customization-generate-action');
+			generateButton.element.classList.add('customization-generate-action', 'plugin-card-ghost-button');
 			generateButton.label = generateAction.label;
 			generateButton.enabled = generateAction.enabled;
 			disposables.add(generateButton.onDidClick(() => generateAction.run()));
@@ -1700,7 +1710,7 @@ export class AICustomizationListWidget extends Disposable {
 				title: moreLabel,
 				ariaLabel: moreLabel,
 			}));
-			more.element.classList.add('plugin-card-icon-button', 'customization-create-more-action');
+			more.element.classList.add('plugin-card-icon-button', 'plugin-card-ghost-button', 'customization-create-more-action');
 			more.icon = Codicon.ellipsis;
 			disposables.add(more.onDidClick(() => this.showCreateActionsMenu(secondaryActions, more.element)));
 		}

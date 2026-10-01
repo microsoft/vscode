@@ -19,7 +19,7 @@ import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceIcon, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -2637,19 +2637,18 @@ export class McpListWidget extends Disposable {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
 		const addLabel = localize('addServer', "Add Server");
 		const add = this.installedAddButton = disposables.add(new Button(actions, {
-			...(this.workspaceService.isSessionsWindow ? getButtonStyles({
+			...getButtonStyles({
 				buttonSecondaryBackground: undefined,
 				buttonSecondaryForeground: undefined,
 				buttonSecondaryHoverBackground: undefined,
 				buttonSecondaryBorder: undefined,
-			}) : defaultButtonStyles),
+			}),
 			secondary: true,
 			supportIcons: this.workspaceService.isSessionsWindow,
 			title: addLabel,
 			ariaLabel: addLabel,
 		}));
-		add.element.classList.add('plugin-installed-action');
-		add.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
+		add.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
 		add.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
 		if (this.workspaceService.isSessionsWindow) {
 			add.icon = Codicon.add;
@@ -2660,8 +2659,18 @@ export class McpListWidget extends Disposable {
 		disposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
 		if (showBrowse && isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService)) {
 			const browseLabel = localize('browseMcps', "Browse MCPs");
-			const browse = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, title: browseLabel, ariaLabel: browseLabel }));
-			browse.element.classList.add('plugin-installed-action');
+			const browse = disposables.add(new Button(actions, {
+				...getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
+				secondary: true,
+				title: browseLabel,
+				ariaLabel: browseLabel,
+			}));
+			browse.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
 			browse.label = browseLabel;
 			disposables.add(browse.onDidClick(() => this._onDidRequestBrowse.fire()));
 		}
