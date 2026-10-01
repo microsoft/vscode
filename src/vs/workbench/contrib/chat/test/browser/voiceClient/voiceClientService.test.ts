@@ -11,6 +11,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { AgentsVoiceSettingId } from '../../../../agentsVoice/common/agentsVoice.js';
 import { resolveAutomaticVoiceLanguage, VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
 import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceConnectionIssue, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription, normalizeAgentsVoiceId } from '../../../common/voiceClient/voiceClientService.js';
 
@@ -603,6 +604,23 @@ suite('VoiceClientService', () => {
 			withBrowserLocale: { sessions: [], display_locale: 'en' },
 			withoutBrowserLocale: { sessions: [], display_locale: 'en' },
 		});
+	});
+
+	test('prepends command-router guidance to OpenAI realtime instructions', async () => {
+		const { service } = createService({
+			[AgentsVoiceSettingId.GptLiveEnabled]: true,
+			[AgentsVoiceSettingId.GptLiveApiKey]: 'gpt-live-key',
+		});
+		await service.connect(createTestWindow());
+
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine', undefined, undefined, 'Use workspace terminology.');
+
+		const message = socket().sent.at(-1);
+		assert.strictEqual(message?.type, 'session.update');
+		const session = message?.session as { instructions?: string } | undefined;
+		assert.ok(session?.instructions?.includes('The app forwards the user\'s final transcript to the coding agent as a command in most cases.'));
+		assert.ok(session?.instructions?.includes('Got it, I\'ll send that off.'));
+		assert.ok(session?.instructions?.includes('Use workspace terminology.'));
 	});
 
 	test('resolves automatic language from display language before browser locale', () => {
