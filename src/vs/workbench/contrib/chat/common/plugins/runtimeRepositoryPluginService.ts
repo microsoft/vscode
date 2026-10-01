@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { equals } from '../../../../../base/common/objects.js';
 import { IObservable, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import type { IAgentHostEnsureRequiredPluginsResult } from '../../../../../platform/agentHost/common/requiredPlugins.js';
@@ -52,7 +51,7 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 
 	setSnapshot(workingDirectory: URI, result: IAgentHostEnsureRequiredPluginsResult): void {
 		const key = this._key(workingDirectory);
-		if (equals(this._snapshots.get().get(key)?.result, result)) {
+		if (this._snapshots.get().get(key)?.result.fingerprint === result.fingerprint) {
 			return;
 		}
 		const snapshots = new Map(this._snapshots.get());

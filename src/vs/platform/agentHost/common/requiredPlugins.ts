@@ -28,6 +28,7 @@ export interface IAgentHostEnsureRequiredPluginsRequest {
 }
 
 export interface IAgentHostEnsureRequiredPluginsResult {
+	readonly fingerprint: string;
 	readonly plugins: readonly IAgentHostWorkspacePluginActivation[];
 	readonly warnings: readonly string[];
 }

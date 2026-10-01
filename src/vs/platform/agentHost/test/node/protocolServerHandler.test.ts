@@ -305,6 +305,7 @@ class MockAgentService implements IAgentService {
 	async ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
 		this.ensureRequiredPluginsCalls.push(request);
 		return {
+			fingerprint: 'test',
 			plugins: [],
 			warnings: [],
 		};
@@ -1514,6 +1515,7 @@ suite('ProtocolServerHandler', () => {
 				jsonrpc: '2.0',
 				id: 24,
 				result: {
+					fingerprint: 'test',
 					plugins: [],
 					warnings: [],
 				},
@@ -1697,7 +1699,7 @@ suite('ProtocolServerHandler', () => {
 			reconcileResponse: {
 				jsonrpc: '2.0',
 				id: 5,
-				result: { plugins: [], warnings: [] },
+				result: { fingerprint: 'test', plugins: [], warnings: [] },
 			},
 			ensureRequiredPluginsCalls: [{ workingDirectory: '/workspace', managedSettings: undefined }],
 		});

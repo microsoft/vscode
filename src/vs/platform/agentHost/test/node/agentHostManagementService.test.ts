@@ -19,6 +19,7 @@ suite('AgentHostManagementService', () => {
 	test('converts repository plugin workspace URIs to runtime paths', async () => {
 		const requests: IAgentHostEnsureRequiredPluginsRequest[] = [];
 		const result: IAgentHostEnsureRequiredPluginsResult = {
+			fingerprint: 'test',
 			plugins: [],
 			warnings: [],
 		};

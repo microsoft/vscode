@@ -31,6 +31,7 @@ suite('RuntimeRequiredPlugins', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const workspace = URI.file('/workspace');
 	const result: IAgentHostEnsureRequiredPluginsResult = {
+		fingerprint: 'test',
 		plugins: [],
 		warnings: [],
 	};

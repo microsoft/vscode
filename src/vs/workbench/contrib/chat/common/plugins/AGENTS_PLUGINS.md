@@ -162,6 +162,8 @@ Repository settings can enable plugins from known marketplaces without first ins
 
 Repository-only installations are persisted in the runtime's global inventory with `enabled: false`; the repository decision enables them only in the matching workspace. A repository-scoped `false` decision never demotes the shared global record. Enablement precedence is managed policy, repository workspace state, runtime global state, then VS Code user state. Initial Agent Host customization publication waits for enforcement so a first turn cannot miss a required plugin. A repository- or managed-required plugin that cannot be installed and activated rejects the operation and blocks initial customization resolution. If the host capability disappears or later enforcement fails, VS Code removes the affected workspace snapshot rather than publishing stale enablement.
 
+The runtime operation is a thin adapter over the same headless workspace-plugin preparation service used by interactive and prompt-mode CLI hosts. That service owns settings composition, required installation, verification, and the workspace snapshot fingerprint. VS Code compares fingerprints and suppresses customization reloads when the effective plugin snapshot is unchanged.
+
 Required-plugin enforcement does not introduce another update scheduler. Explicit and existing automatic update flows continue to use the runtime's `plugins.update` APIs.
 
 ### Marketplace Definition Files

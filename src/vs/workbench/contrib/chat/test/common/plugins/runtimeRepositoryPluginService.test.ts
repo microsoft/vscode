@@ -17,6 +17,7 @@ suite('RuntimeRepositoryPluginService', () => {
 
 	function result(path: string, enabled: boolean): IAgentHostEnsureRequiredPluginsResult {
 		return {
+			fingerprint: `${path}:${enabled}`,
 			plugins: [{
 				plugin: {
 					name: 'demo',
@@ -72,6 +73,24 @@ suite('RuntimeRepositoryPluginService', () => {
 		service.retainWorkingDirectories([second]);
 
 		assert.deepStrictEqual(service.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()), [second.toString()]);
+	});
+
+	test('does not republish an unchanged runtime fingerprint', () => {
+		const service = createService();
+		const workspace = URI.file('/workspace');
+		const initial = result('/plugins/demo', true);
+		service.setSnapshot(workspace, initial);
+		const revision = service.snapshotRevision.get();
+
+		service.setSnapshot(workspace, { ...initial, warnings: ['new warning'] });
+
+		assert.deepStrictEqual({
+			revision: service.snapshotRevision.get(),
+			warnings: service.snapshots.get()[0].result.warnings,
+		}, {
+			revision,
+			warnings: [],
+		});
 	});
 
 	test('removes only explicitly invalidated workspace snapshots', () => {
