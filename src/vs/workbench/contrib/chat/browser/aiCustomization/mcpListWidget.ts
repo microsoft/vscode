@@ -601,13 +601,6 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		}
 
 		if (!presentation?.icon) {
-			const compatibility = getMcpCompatibilityPresentation(compatibilityKind);
-			if (compatibility) {
-				const icon = DOM.append(templateData.actions, $('.mcp-server-status.mcp-server-state-icon'));
-				updateMcpCompatibilityIcon(icon, compatibilityKind, undefined);
-				icon.setAttribute('aria-hidden', 'true');
-				templateData.actionDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), icon, compatibility.label));
-			}
 			this._renderManagementActions(getEntry, templateData.actions, templateData.actionDisposables, () => this.updateActionsTabbability(templateData));
 			this.updateActionsTabbability(templateData);
 			return;
@@ -935,6 +928,11 @@ export function updateMcpCompatibilityMessage(message: HTMLElement, kind: Custom
 		},
 	}, message);
 	const migrationLink = message.firstElementChild as HTMLAnchorElement | null;
+	const iconTheme = kind === 'unsupported' ? Codicon.error : Codicon.warning;
+	const icon = $('span.mcp-server-compatibility-icon');
+	icon.classList.add(...ThemeIcon.asClassNameArray(iconTheme));
+	icon.setAttribute('aria-hidden', 'true');
+	message.insertBefore(icon, message.firstChild);
 	if (migrationLink) {
 		migrationLink.href = '#';
 		migrationLink.tabIndex = -1;
@@ -942,17 +940,6 @@ export function updateMcpCompatibilityMessage(message: HTMLElement, kind: Custom
 		disposables.add(DOM.addDisposableListener(migrationLink, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
 	}
 	return migrationLink ?? undefined;
-}
-
-function updateMcpCompatibilityIcon(icon: HTMLElement, kind: CustomizationMcpServerCompatibilityKind | undefined, runtimeIcon: ThemeIcon | undefined): void {
-	const compatibility = getMcpCompatibilityPresentation(kind);
-	if (runtimeIcon || !compatibility) {
-		return;
-	}
-	const iconTheme = kind === 'unsupported' ? Codicon.error : Codicon.warning;
-	icon.className = `mcp-server-state-icon ${ThemeIcon.asClassNameArray(iconTheme).join(' ')} compatibility ${compatibility.className}`;
-	icon.style.display = '';
-	icon.setAttribute('aria-label', compatibility.label);
 }
 
 export function getMcpStatusPresentation(state: McpStatusKind | undefined, disabledReason?: CustomizationDisabledReason): IMcpStatusPresentation | undefined {
@@ -2775,7 +2762,6 @@ export class McpListWidget extends Disposable {
 				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, compatibilityKind, this.labelService, this.agentPluginService, this.extensionsWorkbenchService),
 				this.getInstalledEntryDescription(entry),
 			);
-			updateMcpCompatibilityIcon(statusIcon, compatibilityKind, getMcpStatusPresentation(getMcpStatusKind(entry, this.workspaceService.isSessionsWindow))?.icon);
 			start.update();
 			showOutput.update();
 		}));
@@ -2796,7 +2782,6 @@ export class McpListWidget extends Disposable {
 				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, compatibilityKind, this.labelService, this.agentPluginService, this.extensionsWorkbenchService),
 				this.getInstalledEntryDescription(entry),
 			);
-			updateMcpCompatibilityIcon(statusIcon, compatibilityKind, getMcpStatusPresentation(getMcpStatusKind(entry, this.workspaceService.isSessionsWindow))?.icon);
 			signIn?.update();
 			start.update();
 			showOutput.update();

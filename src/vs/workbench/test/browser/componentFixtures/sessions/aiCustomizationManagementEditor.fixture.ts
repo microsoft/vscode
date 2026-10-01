@@ -2931,13 +2931,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabCopilotCompatibility: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With the Copilot harness selected, Unsupported uses a red error icon and red message while Partially supported uses a yellow warning icon and yellow message. Both messages include a Migrations link; configuration file paths and compatibility badges do not appear.'],
+		expectedVisualDescriptions: ['With the Copilot harness selected, Unsupported begins its red message with a compact red error icon while Partially supported begins its yellow message with a compact yellow warning icon. Both messages include a Migrations link; compatibility icons do not appear beside the row actions, and configuration file paths and compatibility badges do not appear.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			mcpServerCompatibility: [
 				{ id: 'component-explorer', kind: 'partiallySupported' },
-				{ id: 'mcp-postgres', kind: 'unsupported' },
+				{ id: 'mcp-github', kind: 'unsupported' },
 			],
 		}),
 	}),
@@ -2945,7 +2945,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersAllStates: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon plus Show Output before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported uses a red error treatment, and Partially supported uses a yellow warning treatment. Compatibility messages include a Migrations link; no state badges or inline error snippets appear.'],
+		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon plus Show Output before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges or inline error snippets appear.'],
 		render: async ctx => {
 			await renderEditor(ctx, {
 				sessionResource: agentHostCopilotSessionResource,
