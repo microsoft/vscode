@@ -3606,7 +3606,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
 		if (subagent) {
 			const mapped = this._withHostTurnId(subagent.session, params);
-			for (const action of mapTokenUsageUpdated(mapped, subagent.session.model?.id)) {
+			for (const action of mapTokenUsageUpdated(subagent.session.mapState, mapped, subagent.session.model?.id)) {
 				this._fireSubagent(subagent, action);
 			}
 			const modelCall = mapTokenUsageModelCallCompleted(mapped, subagent.session.chatChannel!);
@@ -3629,7 +3629,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session.currentTurnId) {
 			return;
 		}
-		for (const action of mapTokenUsageUpdated(mapped, session.model?.id)) {
+		for (const action of mapTokenUsageUpdated(session.mapState, mapped, session.model?.id)) {
 			this._fire(session.sessionUri, action);
 		}
 		if (isNewModelCall) {

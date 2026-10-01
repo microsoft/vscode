@@ -1700,6 +1700,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			);
 			return null;
 		},
+		moveChat: async () => {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Method not found: moveChat');
+		},
 		disposeChat: async (_client, params) => {
 			const chat = URI.parse(params.channel);
 			const parsed = parseChatUri(chat);

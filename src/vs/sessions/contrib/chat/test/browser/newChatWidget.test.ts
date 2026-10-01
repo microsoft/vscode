@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
@@ -15,26 +16,28 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionPermissionOption, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
+import { IWorkspacePickerContextAction, IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { TOTAL_SESSIONS_KEY } from '../../../sessions/browser/sessionsLifecycleTracker.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
+import { ISessionComparisonAttemptConfiguration, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparisonSetupContext, ISessionComparisonSetupResult, ISessionComparisonWorkspaceChange, SessionComparisonSetupDialog } from '../../browser/sessionComparisonSetupDialog.js';
 import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
@@ -159,7 +162,29 @@ const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.protot
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const restoreSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
 const setSessionOptionsExpandedFromUser = Reflect.get(NewChatWidget.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
+const getContextPickerActions = Reflect.get(NewChatWidget.prototype, '_getContextPickerActions') as (this: {
+	readonly _workspacePicker: Pick<WorkspacePicker, 'getContextPickerActions'>;
+	readonly _useExperimentalComposerLayout: IObservable<boolean>;
+	readonly _agentsPickerInAttachContextMenu: IObservable<boolean>;
+	readonly _newSessionAttachContextMenu: {
+		getActions(): [string, IAction[]][];
+	};
+	readonly _newChatInput: {
+		runAttachContextAction(action: IAction): Promise<void>;
+	};
+	readonly _session: IObservable<IActiveSession | undefined>;
+	readonly sessionsProvidersService: {
+		getProvider(providerId: string): ISessionsProvider | undefined;
+	};
+	readonly contextKeyService: {
+		getContextKeyValue<T>(key: string): T | undefined;
+	};
+	readonly telemetryService: ITelemetryService;
+}) => readonly IWorkspacePickerContextAction[];
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
+const configureComparison = Reflect.get(NewChatWidget.prototype, '_configureComparison') as (this: IConfigureComparisonHarness) => Promise<void>;
+const getComparisonBranch = Reflect.get(NewChatWidget.prototype, '_getComparisonBranch') as (this: IGetComparisonBranchHarness, session?: ISession) => string | undefined;
+const shouldShowComparisonAction = Reflect.get(NewChatWidget.prototype, '_shouldShowComparisonAction') as (this: IComparisonActionVisibilityHarness) => boolean;
 const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => string | undefined;
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
 const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
@@ -227,6 +252,11 @@ interface ISendHarness {
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
+	readonly _comparisonAttempts: IObservable<readonly ISessionComparisonAttemptConfiguration[]>;
+	_comparisonSubmitArmed?: boolean;
+	readonly _comparisonJudgeHarness?: IObservable<ISessionComparisonAttemptConfiguration['harness'] | undefined>;
+	readonly _comparisonSynthesisHarness?: IObservable<ISessionComparisonAttemptConfiguration['harness'] | undefined>;
+	readonly _comparisonBranch?: IObservable<string | undefined>;
 	readonly _workspacePicker: {
 		readonly selectedFolderUri: URI | undefined;
 		readonly selectionSnapshot?: IWorkspaceSelectionSnapshot;
@@ -235,11 +265,113 @@ interface ISendHarness {
 	};
 	readonly _isQuickChatComposer: IObservable<boolean>;
 	readonly agentFeedbackService: { removeFeedback(resource: URI, id: string): void };
-	readonly sessionsManagementService: { readonly onDidSendRequest: Event<ISendRequestSentEvent>; sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> };
+	readonly sessionsManagementService: {
+		readonly onDidSendRequest: Event<ISendRequestSentEvent>;
+		sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void>;
+		getSessionTypesForFolder?(workspace: URI): readonly { readonly providerId: string; readonly sessionType: { readonly id: string; readonly label: string; readonly supportsWorktreeConfiguration?: boolean } }[];
+	};
+	readonly sessionsProvidersService?: {
+		getProvider(providerId: string): {
+			getModelsSnapshotForCreation(workspace: URI, sessionTypeId: string, desiredModelId?: string): {
+				readonly desiredModelResolution: { readonly kind: 'available'; readonly model: { readonly identifier: string; readonly metadata: { readonly name: string } } };
+			};
+			getPermissionOptionsForCreation?(sessionTypeId: string): readonly ISessionPermissionOption[];
+		} | undefined;
+	};
+	readonly sessionComparisonService?: { startComparison(options: IStartSessionComparisonOptions): Promise<{ readonly id: string; readonly participants: readonly { readonly role: SessionComparisonParticipantRole; readonly sessionResource?: URI }[] }> };
+	readonly sessionsService?: { unsetNewSession(): void; openSession(resource: URI, options: { readonly source: 'chat' }): Promise<void> };
+	readonly commandService?: { executeCommand(commandId: string, ...args: unknown[]): Promise<unknown> };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
+	_getComparisonBranch?(session: ISession): string | undefined;
 	_getWorkspaceRoots(session: ISession): readonly URI[];
 	_createNewSession?(folderUri: URI): Promise<void>;
 	_openQuickChat?(): void;
+}
+
+interface IConfigureComparisonHarness {
+	readonly _workspacePicker: {
+		readonly selectedFolderUri: URI | undefined;
+		readonly selectedResolved: { readonly workspace: { readonly label: string } } | undefined;
+		showPicker(): void;
+	};
+	readonly _session: IObservable<ISession | undefined>;
+	readonly _newChatInput: {
+		readonly attachments: readonly IChatRequestVariableEntry[];
+		readonly selectedModelState: IObservable<{ readonly currentModel: undefined }>;
+		getInputValue(): string;
+		setInputValue(value: string): void;
+		submit(): Promise<boolean>;
+		focus(): void;
+	};
+	readonly _comparisonAttempts: {
+		get(): readonly ISessionComparisonAttemptConfiguration[];
+		set(value: readonly ISessionComparisonAttemptConfiguration[], transaction: undefined): void;
+	};
+	_comparisonSubmitArmed?: boolean;
+	readonly _comparisonJudgeHarness: {
+		get(): ISessionComparisonAttemptConfiguration['harness'] | undefined;
+		set(value: ISessionComparisonAttemptConfiguration['harness'] | undefined, transaction: undefined): void;
+	};
+	readonly _comparisonSynthesisHarness: {
+		get(): ISessionComparisonAttemptConfiguration['harness'] | undefined;
+		set(value: ISessionComparisonAttemptConfiguration['harness'] | undefined, transaction: undefined): void;
+	};
+	readonly _comparisonBranch: {
+		get(): string | undefined;
+		set(value: string | undefined, transaction: undefined): void;
+	};
+	readonly _comparisonSetupDialog: {
+		value: IDisposable | undefined;
+		clear(): void;
+	};
+	readonly _onDidChangeComparisonWorkspace: {
+		readonly event: Event<ISessionComparisonWorkspaceChange>;
+	};
+	readonly sessionsManagementService: {
+		getSessionTypesForFolder(workspace: URI): readonly {
+			readonly providerId: string;
+			readonly sessionType: {
+				readonly id: string;
+				readonly label: string;
+				readonly supportsWorktreeConfiguration: boolean;
+			};
+		}[];
+	};
+	readonly instantiationService: {
+		createInstance(ctor: typeof SessionComparisonSetupDialog): {
+			show(
+				context: ISessionComparisonSetupContext,
+				initialAttempts: readonly ISessionComparisonAttemptConfiguration[],
+				initialJudgeHarness: ISessionComparisonAttemptConfiguration['harness'],
+				initialSynthesisHarness?: ISessionComparisonAttemptConfiguration['harness'],
+			): Promise<ISessionComparisonSetupResult>;
+			dispose(): void;
+		};
+	};
+	_getComparisonBranch(session: ISession | undefined): string | undefined;
+	_getComparisonBranches(session: ISession, selectedBranch: string): Promise<readonly string[]>;
+	_getComparisonWorkspace(preferredBranch?: string): Promise<ISessionComparisonWorkspaceChange | undefined>;
+}
+
+interface IGetComparisonBranchHarness {
+	readonly _session: IObservable<ISession | undefined>;
+	readonly _workspacePicker: {
+		readonly selectedFolderUri?: URI;
+		readonly selectedResolved: { readonly workspace: ISessionWorkspace } | undefined;
+	};
+	readonly sessionsProvidersService: {
+		getProvider(providerId: string): {
+			readonly id: string;
+			getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
+		} | undefined;
+	};
+}
+
+interface IComparisonActionVisibilityHarness extends IGetComparisonBranchHarness {
+	readonly _compareAgentsEnabled: IObservable<boolean>;
+	readonly _pendingPreferredUpgrade: { readonly value: IDisposable | undefined };
+	readonly _newSessionCreation: { readonly value: IDisposable | undefined };
+	_getComparisonBranch(session?: ISession): string | undefined;
 }
 
 interface IRenderSessionTypePickerHarness {
@@ -1882,6 +2014,7 @@ suite('NewChatWidget', () => {
 				showPicker: () => { },
 			},
 			_isQuickChatComposer: constObservable(false),
+			_comparisonAttempts: constObservable([]),
 			agentFeedbackService: { removeFeedback: () => { } },
 			newSessionComposerService: {
 				notifyWillSendRequest: (options, selection) => {
@@ -1950,6 +2083,7 @@ suite('NewChatWidget', () => {
 				showPicker: () => pickerOpenCount++,
 			},
 			_isQuickChatComposer: constObservable(false),
+			_comparisonAttempts: constObservable([]),
 			agentFeedbackService: { removeFeedback: () => { } },
 			newSessionComposerService: { notifyWillSendRequest: () => { } },
 			sessionsManagementService: {
@@ -1983,6 +2117,7 @@ suite('NewChatWidget', () => {
 				recentWorkspacesService: { restoreDismissedWorkspace: () => assert.fail('Failed sends must not restore dismissed workspaces') },
 				_session: constObservable(session),
 				_feedbackItems: constObservable([]),
+				_comparisonAttempts: constObservable([]),
 				_workspacePicker: { selectedFolderUri: URI.file('/dismissed'), clearAttachedContext: () => cleared++, showPicker: () => { } },
 				_isQuickChatComposer: constObservable(false),
 				agentFeedbackService: { removeFeedback: () => { } },
@@ -2015,6 +2150,7 @@ suite('NewChatWidget', () => {
 			recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
+			_comparisonAttempts: constObservable([]),
 			_workspacePicker: picker,
 			_isQuickChatComposer: constObservable(false),
 			agentFeedbackService: { removeFeedback: () => { } },
@@ -2165,6 +2301,1016 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	test('preserves the comparison draft after startup failure and clears it after a successful retry', async () => {
+		const workspace = URI.file('/workspace');
+		const session = upcastPartial<ISession>({
+			workspace: constObservable({
+				uri: workspace,
+				label: 'workspace',
+				icon: Codicon.folder,
+				folders: [{
+					root: workspace,
+					workingDirectory: workspace,
+					name: 'workspace',
+					description: undefined,
+				}],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			}),
+			branch: constObservable('main'),
+		});
+		const configuredAttempts: readonly ISessionComparisonAttemptConfiguration[] = [
+			{
+				id: 'first-run',
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'high' }, modeId: 'autopilot', permissionId: 'autoApprove', permissionLabel: 'Allow all' },
+			},
+			{
+				id: 'second-run',
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'xhigh' }, permissionId: 'default', permissionLabel: 'Manual permissions' },
+			},
+			{
+				id: 'auto-run',
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelConfiguration: { tier: 'balanced' }, modelConfigurationLabel: 'Balance', permissionId: 'default', permissionLabel: 'Manual permissions' },
+			},
+		];
+		let comparisonOptions: IStartSessionComparisonOptions | undefined;
+		let failComparisonStart = true;
+		let unsetNewSessionCalls = 0;
+
+		const harness: ISendHarness = {
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
+			_session: constObservable(session),
+			_feedbackItems: constObservable([]),
+			_comparisonAttempts: constObservable(configuredAttempts),
+			_comparisonSubmitArmed: true,
+			_comparisonJudgeHarness: constObservable(configuredAttempts[0].harness),
+			_comparisonSynthesisHarness: constObservable(configuredAttempts[1].harness),
+			_comparisonBranch: constObservable('feature/modal'),
+			_workspacePicker: {
+				selectedFolderUri: workspace,
+				clearAttachedContext: () => { },
+				showPicker: () => { },
+			},
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			sessionsManagementService: {
+				onDidSendRequest: Event.None,
+				sendNewChatRequest: async () => { },
+				getSessionTypesForFolder: () => [{
+					providerId: 'provider-one',
+					sessionType: {
+						id: 'type-one',
+						label: 'One',
+						supportsWorktreeConfiguration: true,
+					},
+				}],
+			},
+			sessionsProvidersService: {
+				getProvider: providerId => ({
+					getPermissionOptionsForCreation: () => [{
+						id: 'default',
+						label: 'Manual permissions',
+						description: 'Ask before running tools.',
+						isDefault: true,
+					}, {
+						id: 'autoApprove',
+						label: 'Allow all',
+						description: 'Run tools without asking.',
+						isAllowAll: true,
+						comparisonModeId: 'autopilot',
+					}],
+					getModelsSnapshotForCreation: (_workspace, _sessionTypeId, desiredModelId) => ({
+						models: [{
+							identifier: `${providerId}/auto`,
+							metadata: { id: 'auto', name: 'Auto' },
+						}],
+						desiredModelResolution: {
+							kind: 'available',
+							model: {
+								identifier: desiredModelId ?? `${providerId}/default`,
+								metadata: { name: 'Model One' },
+							},
+						},
+					}),
+				}),
+			},
+			sessionComparisonService: {
+				startComparison: async options => {
+					comparisonOptions = options;
+					if (failComparisonStart) {
+						throw new Error('Unable to launch enough attempts');
+					}
+					return {
+						id: 'comparison',
+						participants: [],
+					};
+				},
+			},
+			sessionsService: {
+				unsetNewSession: () => { unsetNewSessionCalls++; },
+				openSession: async () => { },
+			},
+			commandService: { executeCommand: async () => undefined },
+			notificationService: { error: () => { } },
+			logService: { error: () => { } },
+			_getComparisonBranch: () => 'main',
+			_getWorkspaceRoots: () => [workspace],
+		};
+
+		const failedResult = await send.call(harness, 'compare implementations');
+		const unsetNewSessionCallsAfterFailure = unsetNewSessionCalls;
+		failComparisonStart = false;
+		const result = await send.call(harness, 'compare implementations');
+
+		assert.deepStrictEqual({
+			failedResult,
+			result,
+			unsetNewSessionCallsAfterFailure,
+			unsetNewSessionCalls,
+			attempts: comparisonOptions?.attempts,
+			judgeHarness: comparisonOptions?.judgeHarness,
+			synthesisHarness: comparisonOptions?.synthesisHarness,
+			branch: comparisonOptions?.branch,
+		}, {
+			failedResult: false,
+			result: true,
+			unsetNewSessionCallsAfterFailure: 0,
+			unsetNewSessionCalls: 1,
+			attempts: [
+				configuredAttempts[0],
+				configuredAttempts[1],
+				{
+					id: 'auto-run',
+					harness: {
+						...configuredAttempts[2].harness,
+						modelId: 'provider-one/auto',
+					},
+				},
+			],
+			judgeHarness: configuredAttempts[0].harness,
+			synthesisHarness: configuredAttempts[1].harness,
+			branch: 'feature/modal',
+		});
+	});
+
+	test('opens workspace selection when comparison isolation is unavailable', async () => {
+		let workspacePickerOpened = 0;
+
+		await configureComparison.call(upcastPartial<IConfigureComparisonHarness>({
+			_workspacePicker: {
+				selectedFolderUri: URI.file('/workspace'),
+				selectedResolved: { workspace: { label: 'workspace' } },
+				showPicker: () => workspacePickerOpened++,
+			},
+			_session: constObservable(upcastPartial<ISession>({ providerId: 'provider', sessionType: 'agent' })),
+			_comparisonBranch: { get: () => undefined, set: () => { } },
+			_getComparisonWorkspace: async () => undefined,
+			_getComparisonBranch: () => undefined,
+		}));
+
+		assert.strictEqual(workspacePickerOpened, 1);
+	});
+
+	test('hides comparison action when selected folder has no git repository', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(false),
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+	});
+
+	test('hides comparison action when selected folder differs from draft repository', () => {
+		const draftWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/repo'),
+				workingDirectory: URI.file('/repo'),
+				name: 'repo',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+					hasGitRemote: true,
+				}),
+			}],
+		});
+		const selectedWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/scratch'),
+				workingDirectory: URI.file('/scratch'),
+				name: 'scratch',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(false),
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(draftWorkspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/scratch'), selectedResolved: { workspace: selectedWorkspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.deepStrictEqual({
+			branch: getComparisonBranch.call(harness),
+			visible: shouldShowComparisonAction.call(harness),
+		}, {
+			branch: undefined,
+			visible: false,
+		});
+	});
+
+	test('hides comparison action while draft creation is pending for a different folder', () => {
+		const draftWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/repo'),
+				workingDirectory: URI.file('/repo'),
+				name: 'repo',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+					hasGitRemote: true,
+				}),
+			}],
+		});
+		const selectedWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/scratch'),
+				workingDirectory: URI.file('/scratch'),
+				name: 'scratch',
+				description: undefined,
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(draftWorkspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: { dispose() { } } },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/scratch'), selectedResolved: { workspace: selectedWorkspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+	});
+
+	test('hides comparison action when selected repository has no Git remote', () => {
+		const sessionWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+					hasGitRemote: true,
+				}),
+			}],
+		});
+		const selectedWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+					hasGitRemote: false,
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(sessionWorkspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace: selectedWorkspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+	});
+
+	test('hides comparison action when selected workspace omits remote and session metadata says no remote', () => {
+		const sessionWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+					hasGitRemote: false,
+				}),
+			}],
+		});
+		const selectedWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(sessionWorkspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace: selectedWorkspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+	});
+
+	test('hides comparison action until Git remote metadata resolves', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+	});
+
+	test('shows comparison action when selected repository metadata reports branch and remote', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(false),
+					branchName: 'main',
+					hasGitRemote: true,
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), true);
+	});
+
+	test('uses the workspace branch while Agent Host creation config is unresolved', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({ branchName: 'main' }),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const harness: IGetComparisonBranchHarness = {
+			_session: constObservable(session),
+			_workspacePicker: { selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+				}),
+			},
+		};
+
+		assert.strictEqual(getComparisonBranch.call(harness), 'main');
+	});
+
+	test('uses the selected workspace base branch while draft repository metadata is unresolved', () => {
+		const draftWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(false),
+					hasGitRemote: true,
+				}),
+			}],
+		});
+		const selectedWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					baseBranchName: 'main',
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(draftWorkspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace: selectedWorkspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+
+		assert.deepStrictEqual({
+			branch: getComparisonBranch.call(harness),
+			visible: shouldShowComparisonAction.call(harness),
+		}, {
+			branch: 'main',
+			visible: true,
+		});
+	});
+
+	test('hides the comparison action while Git remote metadata is resolving', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable(workspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(true),
+				}),
+			},
+			_getComparisonBranch: () => undefined,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+	});
+
+	test('hides the comparison action while a preferred provider upgrade has unresolved Git metadata', () => {
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/workspace'),
+				workingDirectory: URI.file('/workspace'),
+				name: 'workspace',
+				description: undefined,
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			providerId: 'provisional',
+			workspace: constObservable(workspace),
+		});
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: constObservable(true),
+			_pendingPreferredUpgrade: { value: { dispose() { } } },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: 'provisional',
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => constObservable(false),
+				}),
+			},
+			_getComparisonBranch: () => undefined,
+		};
+
+		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+	});
+
+	test('opens a new comparison with two attempts from the composer selection', async () => {
+		const workspace = URI.file('/workspace');
+		const harnessSelection = { providerId: 'provider', sessionTypeId: 'agent', label: 'Copilot', modelId: undefined, modelLabel: undefined, permissionId: undefined, permissionLabel: undefined };
+		const attempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(disposables, []);
+		const judgeHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, undefined);
+		const synthesisHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, undefined);
+		const comparisonBranch = observableValue<string | undefined>(disposables, undefined);
+		let openedAttempts: readonly ISessionComparisonAttemptConfiguration[] = [];
+		let openedJudge: ISessionComparisonAttemptConfiguration['harness'] | undefined;
+		let openedSynthesis: ISessionComparisonAttemptConfiguration['harness'] | undefined;
+		let openedContext: ISessionComparisonSetupContext | undefined;
+		const dialogSlot: IConfigureComparisonHarness['_comparisonSetupDialog'] = {
+			value: undefined,
+			clear() {
+				this.value?.dispose();
+				this.value = undefined;
+			},
+		};
+		const session = upcastPartial<ISession>({ providerId: harnessSelection.providerId, sessionType: harnessSelection.sessionTypeId });
+
+		await configureComparison.call({
+			_workspacePicker: {
+				selectedFolderUri: workspace,
+				selectedResolved: { workspace: { label: 'vscode' } },
+				showPicker: () => { },
+			},
+			_session: constObservable(session),
+			_newChatInput: {
+				attachments: [],
+				selectedModelState: constObservable({ currentModel: undefined }),
+				getInputValue: () => 'Improve the picker',
+				setInputValue: () => { },
+				submit: async () => false,
+				focus: () => { },
+			},
+			_comparisonAttempts: attempts,
+			_comparisonJudgeHarness: judgeHarness,
+			_comparisonSynthesisHarness: synthesisHarness,
+			_comparisonBranch: comparisonBranch,
+			_comparisonSetupDialog: dialogSlot,
+			_onDidChangeComparisonWorkspace: { event: Event.None },
+			sessionsManagementService: {
+				getSessionTypesForFolder: () => [{
+					providerId: harnessSelection.providerId,
+					sessionType: { id: harnessSelection.sessionTypeId, label: harnessSelection.label, supportsWorktreeConfiguration: true },
+				}],
+			},
+			sessionsProvidersService: {
+				getProvider: () => undefined,
+			},
+			instantiationService: {
+				createInstance: () => ({
+					show: async (context, initialAttempts, initialJudgeHarness, initialSynthesisHarness) => {
+						openedContext = context;
+						openedAttempts = initialAttempts;
+						openedJudge = initialJudgeHarness;
+						openedSynthesis = initialSynthesisHarness;
+						return { confirmed: false, attempts: initialAttempts, judgeHarness: initialJudgeHarness, synthesisHarness: initialSynthesisHarness ?? initialJudgeHarness, branch: 'feature/comparison' };
+					},
+					dispose: () => { },
+				}),
+			},
+			_getComparisonBranch: () => 'main',
+			_getComparisonBranches: async () => ['main', 'feature/comparison'],
+			_getComparisonWorkspace: async preferredBranch => ({
+				workspace,
+				branch: preferredBranch ?? 'main',
+				branches: ['main', 'feature/comparison'],
+				defaultHarness: harnessSelection,
+			}),
+		});
+
+		assert.deepStrictEqual({
+			branch: openedContext?.branch,
+			branches: openedContext?.branches,
+			retainedBranch: comparisonBranch.get(),
+			attemptCount: openedAttempts.length,
+			distinctIds: new Set(openedAttempts.map(attempt => attempt.id)).size,
+			harnesses: openedAttempts.map(attempt => attempt.harness),
+			judge: openedJudge,
+			synthesis: openedSynthesis,
+		}, {
+			branch: 'main',
+			branches: ['main', 'feature/comparison'],
+			retainedBranch: 'feature/comparison',
+			attemptCount: 2,
+			distinctIds: 2,
+			harnesses: [harnessSelection, harnessSelection],
+			judge: harnessSelection,
+			synthesis: harnessSelection,
+		});
+	});
+
+	test('keeps comparison selections after dismiss and clears them after successful submit', async () => {
+		const workspace = URI.file('/workspace');
+		const initialAttempt = {
+			id: 'initial',
+			harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'model-1', modelLabel: 'Model 1', permissionId: 'default', permissionLabel: 'Default' },
+		};
+		const editedAttempts = [
+			initialAttempt,
+			{
+				id: 'added',
+				harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'model-2', modelLabel: 'Model 2', permissionId: 'allowAll', permissionLabel: 'Allow all' },
+			},
+		];
+		const editedJudge = { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'judge-model', modelLabel: 'Judge Model', permissionId: 'allowAll', permissionLabel: 'Allow all' };
+		const editedSynthesis = { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'synthesis-model', modelLabel: 'Synthesis Model', permissionId: 'default', permissionLabel: 'Default' };
+		const attempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(disposables, [initialAttempt]);
+		const judgeHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, initialAttempt.harness);
+		const synthesisHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, initialAttempt.harness);
+		const comparisonBranch = observableValue<string | undefined>(disposables, undefined);
+		const openedWith: (readonly ISessionComparisonAttemptConfiguration[])[] = [];
+		const openedBranches: string[] = [];
+		const results: ISessionComparisonSetupResult[] = [
+			{ confirmed: false, attempts: editedAttempts, judgeHarness: editedJudge, synthesisHarness: editedSynthesis, branch: 'feature/first' },
+			{ confirmed: true, attempts: editedAttempts, judgeHarness: editedJudge, synthesisHarness: editedSynthesis, branch: 'feature/second' },
+		];
+		let submitCount = 0;
+		const dialogSlot: IConfigureComparisonHarness['_comparisonSetupDialog'] = {
+			value: undefined,
+			clear() {
+				this.value?.dispose();
+				this.value = undefined;
+			},
+		};
+		const harness: IConfigureComparisonHarness = {
+			_workspacePicker: {
+				selectedFolderUri: workspace,
+				selectedResolved: { workspace: { label: 'workspace' } },
+				showPicker: () => { },
+			},
+			_session: constObservable(upcastPartial<ISession>({ providerId: 'provider', sessionType: 'type' })),
+			_newChatInput: {
+				attachments: [],
+				selectedModelState: constObservable({ currentModel: undefined }),
+				getInputValue: () => 'Implement the feature',
+				setInputValue: () => { },
+				submit: async () => {
+					submitCount++;
+					return true;
+				},
+				focus: () => { },
+			},
+			_comparisonAttempts: attempts,
+			_comparisonJudgeHarness: judgeHarness,
+			_comparisonSynthesisHarness: synthesisHarness,
+			_comparisonBranch: comparisonBranch,
+			_comparisonSetupDialog: dialogSlot,
+			_onDidChangeComparisonWorkspace: { event: Event.None },
+			sessionsManagementService: { getSessionTypesForFolder: () => [] },
+			instantiationService: {
+				createInstance: () => ({
+					show: async (context, initialAttempts) => {
+						openedBranches.push(context.branch);
+						openedWith.push(initialAttempts);
+						return results.shift()!;
+					},
+					dispose: () => { },
+				}),
+			},
+			_getComparisonBranch: () => 'main',
+			_getComparisonBranches: async (_session, selectedBranch) => [selectedBranch, 'feature/first', 'feature/second'],
+			_getComparisonWorkspace: async preferredBranch => ({
+				workspace,
+				branch: preferredBranch ?? 'main',
+				branches: [preferredBranch ?? 'main', 'feature/first', 'feature/second'],
+				defaultHarness: undefined,
+			}),
+		};
+
+		await configureComparison.call(harness);
+		assert.deepStrictEqual({
+			firstOpen: openedWith[0],
+			draftAttempts: attempts.get(),
+			draftJudge: judgeHarness.get(),
+			draftSynthesis: synthesisHarness.get(),
+			draftBranch: comparisonBranch.get(),
+			submitCount,
+		}, {
+			firstOpen: [initialAttempt],
+			draftAttempts: editedAttempts,
+			draftJudge: editedJudge,
+			draftSynthesis: editedSynthesis,
+			draftBranch: 'feature/first',
+			submitCount: 0,
+		});
+
+		await configureComparison.call(harness);
+		assert.deepStrictEqual({
+			secondOpen: openedWith[1],
+			openedBranches,
+			draftAttempts: attempts.get(),
+			draftJudge: judgeHarness.get(),
+			draftSynthesis: synthesisHarness.get(),
+			draftBranch: comparisonBranch.get(),
+			submitCount,
+		}, {
+			secondOpen: editedAttempts,
+			openedBranches: ['main', 'feature/first'],
+			draftAttempts: [],
+			draftJudge: undefined,
+			draftSynthesis: undefined,
+			draftBranch: undefined,
+			submitCount: 1,
+		});
+	});
+
+	test('sends normally after cancelling comparison setup without launching comparison', async () => {
+		const workspace = URI.file('/workspace');
+		const session = upcastPartial<ISession>({
+			workspace: constObservable(undefined),
+			branch: constObservable('main'),
+		});
+		const attempts: readonly ISessionComparisonAttemptConfiguration[] = [
+			{ id: 'first-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
+			{ id: 'second-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
+		];
+		let comparisonStarts = 0;
+		let sends = 0;
+
+		const result = await send.call({
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
+			_session: constObservable(session),
+			_feedbackItems: constObservable([]),
+			_comparisonAttempts: constObservable(attempts),
+			_comparisonSubmitArmed: false,
+			_comparisonBranch: constObservable('main'),
+			_workspacePicker: {
+				selectedFolderUri: workspace,
+				clearAttachedContext: () => { },
+				showPicker: () => { },
+			},
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			sessionsManagementService: {
+				onDidSendRequest: Event.None,
+				sendNewChatRequest: async () => { sends++; },
+			},
+			sessionComparisonService: {
+				startComparison: async () => {
+					comparisonStarts++;
+					return { id: 'comparison', participants: [] };
+				},
+			},
+			notificationService: { error: () => { } },
+			logService: { error: () => { } },
+			_getComparisonBranch: () => 'main',
+			_getWorkspaceRoots: () => [],
+		}, 'normal send');
+
+		assert.deepStrictEqual({ result, comparisonStarts, sends }, {
+			result: true,
+			comparisonStarts: 0,
+			sends: 1,
+		});
+	});
+
+	test('rejects comparisons when isolated worktrees are unavailable', async () => {
+		const workspace = URI.file('/workspace');
+		const session = upcastPartial<ISession>({
+			workspace: constObservable(undefined),
+			branch: constObservable(undefined),
+		});
+		const attempts: readonly ISessionComparisonAttemptConfiguration[] = [
+			{ id: 'first-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
+			{ id: 'second-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
+		];
+		const errors: unknown[] = [];
+		let startCount = 0;
+
+		const result = await send.call({
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
+			_session: constObservable(session),
+			_feedbackItems: constObservable([]),
+			_comparisonAttempts: constObservable(attempts),
+			_comparisonSubmitArmed: true,
+			_comparisonBranch: constObservable(undefined),
+			_workspacePicker: {
+				selectedFolderUri: workspace,
+				clearAttachedContext: () => { },
+				showPicker: () => { },
+			},
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			sessionsManagementService: {
+				onDidSendRequest: Event.None,
+				sendNewChatRequest: async () => { },
+			},
+			sessionComparisonService: {
+				startComparison: async () => {
+					startCount++;
+					return { id: 'comparison', participants: [] };
+				},
+			},
+			notificationService: { error: error => errors.push(error) },
+			logService: { error: () => { } },
+			_getComparisonBranch: () => undefined,
+			_getWorkspaceRoots: () => [],
+		}, 'compare implementations');
+
+		assert.deepStrictEqual({ result, errors, startCount }, {
+			result: false,
+			errors: ['Run and Compare Agents requires a Git repository with at least one commit.'],
+			startCount: 0,
+		});
+	});
+
+	test('rejects comparisons when the selected repository has no Git remote', async () => {
+		const workspace = URI.file('/workspace');
+		const sessionWorkspace = upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: workspace,
+				workingDirectory: workspace,
+				name: 'workspace',
+				description: undefined,
+				gitRepository: upcastPartial<ISessionGitRepository>({
+					isRepository: constObservable(true),
+					branchName: 'main',
+					hasGitRemote: false,
+				}),
+			}],
+		});
+		const session = upcastPartial<ISession>({
+			workspace: constObservable(sessionWorkspace),
+			branch: constObservable('main'),
+		});
+		const attempts: readonly ISessionComparisonAttemptConfiguration[] = [
+			{ id: 'first-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
+			{ id: 'second-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
+		];
+		const errors: unknown[] = [];
+		let startCount = 0;
+
+		const result = await send.call({
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
+			_session: constObservable(session),
+			_feedbackItems: constObservable([]),
+			_comparisonAttempts: constObservable(attempts),
+			_comparisonSubmitArmed: true,
+			_comparisonBranch: constObservable('main'),
+			_workspacePicker: {
+				selectedFolderUri: workspace,
+				clearAttachedContext: () => { },
+				showPicker: () => { },
+			},
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			sessionsManagementService: {
+				onDidSendRequest: Event.None,
+				sendNewChatRequest: async () => { },
+			},
+			sessionComparisonService: {
+				startComparison: async () => {
+					startCount++;
+					return { id: 'comparison', participants: [] };
+				},
+			},
+			notificationService: { error: error => errors.push(error) },
+			logService: { error: () => { } },
+			_getComparisonBranch: () => 'main',
+			_getWorkspaceRoots: () => [],
+		}, 'compare implementations');
+
+		assert.deepStrictEqual({ result, errors, startCount }, {
+			result: false,
+			errors: ['Comparisons require a Git remote.'],
+			startCount: 0,
+		});
+	});
 	for (const existing of ['empty', 'emptyChange', 'text', 'attachments', 'lateEdit', 'cancelled'] as const) {
 		test(`draft handoff preserves ownership for ${existing} destination input`, async () => {
 			const changed = disposables.add(new Emitter<void>());
@@ -2229,5 +3375,86 @@ suite('NewChatWidget', () => {
 			});
 		});
 	}
+
+	test('moves the Agent picker into Add Context until the user selects an agent', async () => {
+		const createHarness = (enabled: boolean, experimentalLayout = true, eligibility: 'eligible' | 'empty' | 'otherProvider' | 'phone' = 'eligible') => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			let openCount = 0;
+			let showAgentAction = true;
+			let forwardsActionArguments = false;
+			const providerId = eligibility === 'otherProvider' ? 'other-provider' : LOCAL_AGENT_HOST_PROVIDER_ID;
+			const agentAction = toAction({
+				id: 'sessions.agentHost.agentPicker',
+				label: 'Agent',
+				run: async () => { openCount++; },
+			});
+			const existingAction: IWorkspacePickerContextAction = {
+				label: 'Existing',
+				icon: Codicon.file,
+				run: async () => { },
+			};
+			const harness = {
+				_workspacePicker: { getContextPickerActions: () => [existingAction] },
+				_useExperimentalComposerLayout: constObservable(experimentalLayout),
+				_agentsPickerInAttachContextMenu: constObservable(enabled),
+				_newSessionAttachContextMenu: {
+					getActions: (options?: { shouldForwardArgs?: boolean }) => {
+						forwardsActionArguments = options?.shouldForwardArgs === true;
+						return [['navigation', showAgentAction ? [agentAction] : []] as [string, IAction[]]];
+					},
+				},
+				_newChatInput: {
+					runAttachContextAction: async (action: IAction) => { await action.run(); },
+				},
+				_session: constObservable(eligibility === 'empty' ? undefined : upcastPartial<IActiveSession>({ providerId })),
+				sessionsProvidersService: {
+					getProvider: (id: string) => upcastPartial<ISessionsProvider>({ id }),
+				},
+				contextKeyService: {
+					getContextKeyValue: <T>() => (eligibility === 'phone') as T,
+				},
+				telemetryService,
+			};
+			return { harness, telemetryService, hideAgentAction: () => showAgentAction = false, getOpenCount: () => openCount, forwardsActionArguments: () => forwardsActionArguments };
+		};
+		const control = createHarness(false);
+		const treatment = createHarness(true);
+		const legacyLayoutTreatment = createHarness(true, false);
+		const emptyComposer = createHarness(true, true, 'empty');
+		const otherProvider = createHarness(true, true, 'otherProvider');
+		const phoneComposer = createHarness(true, true, 'phone');
+		const treatmentActions = getContextPickerActions.call(treatment.harness);
+		await treatmentActions[0].run();
+		treatment.hideAgentAction();
+
+		assert.deepStrictEqual({
+			controlLabels: getContextPickerActions.call(control.harness).map(action => action.label),
+			treatmentLabels: treatmentActions.map(action => action.label),
+			legacyLayoutTreatmentLabels: getContextPickerActions.call(legacyLayoutTreatment.harness).map(action => action.label),
+			ineligible: [emptyComposer, otherProvider, phoneComposer].map(item => ({
+				labels: getContextPickerActions.call(item.harness).map(action => action.label),
+				triggers: item.telemetryService.triggers,
+			})),
+			afterSelectionLabels: getContextPickerActions.call(treatment.harness).map(action => action.label),
+			openCount: treatment.getOpenCount(),
+			forwardsActionArguments: treatment.forwardsActionArguments(),
+			controlTriggers: control.telemetryService.triggers,
+			treatmentTriggers: treatment.telemetryService.triggers,
+		}, {
+			controlLabels: ['Existing'],
+			treatmentLabels: ['Agent...', 'Existing'],
+			legacyLayoutTreatmentLabels: ['Agent...', 'Existing'],
+			ineligible: [
+				{ labels: ['Existing'], triggers: [] },
+				{ labels: ['Existing'], triggers: [] },
+				{ labels: ['Existing'], triggers: [] },
+			],
+			afterSelectionLabels: ['Existing'],
+			openCount: 1,
+			forwardsActionArguments: true,
+			controlTriggers: [`config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`],
+			treatmentTriggers: [`config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`],
+		});
+	});
 
 });

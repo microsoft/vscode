@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disableFoundryLocalInstall } from './foundryLocalInstall.ts';
+import { AgentWorkbenchLayout, Workbench } from './workbench.js';
 
-disableFoundryLocalInstall();
+export class MobileWorkbench extends Workbench {
+	override get agentWorkbenchLayout(): AgentWorkbenchLayout {
+		return AgentWorkbenchLayout.Mobile;
+	}
+}

@@ -21,6 +21,7 @@ import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hove
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -143,6 +144,7 @@ suite('aiCustomizationManagementEditor', () => {
 		startCustomizationMigration(categoryId?: CustomizationMigrationCategoryId, migrationFlowId?: string): Promise<void>;
 		showCustomizationMigrationDashboard(): void;
 		showCustomizationMigrationPage(categoryId?: CustomizationMigrationCategoryId, storage?: PromptsStorage): Promise<void>;
+		getMigrationAccessibilityContent(): string | undefined;
 		storageService: IStorageService;
 		workspaceService: {
 			activeProjectRoot: ISettableObservable<URI | undefined>;
@@ -203,7 +205,7 @@ suite('aiCustomizationManagementEditor', () => {
 			computeMigration?(session: URI, type: CustomizationMigrationType, token?: CancellationToken): Promise<CustomizationMigration>;
 		};
 		customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService;
-		dialogService: { confirm(): Promise<{ confirmed: boolean }> };
+		dialogService: Pick<IDialogService, 'confirm'>;
 		quickInputService: {
 			pick(items: readonly { label: string; description?: string; folder?: ICustomizationSourceFolder; chooseAnother?: boolean }[]): Promise<{ label?: string; folder?: ICustomizationSourceFolder; chooseAnother?: boolean } | undefined>;
 		};
@@ -1648,8 +1650,8 @@ suite('aiCustomizationManagementEditor', () => {
 				footerIsBeforeUnavailableGroup: Boolean(migrationFooter.compareDocumentPosition(groups[1]) & Node.DOCUMENT_POSITION_FOLLOWING),
 				footerDisplay: migrationFooter.style.display,
 			}, {
-				groupTitles: ['Workspace', 'Not migratable'],
-				footerParentGroup: 'Workspace',
+				groupTitles: ['Ready to migrate', 'Not migratable'],
+				footerParentGroup: 'Ready to migrate',
 				footerIsBeforeUnavailableGroup: true,
 				footerDisplay: '',
 			});
@@ -2418,7 +2420,7 @@ suite('aiCustomizationManagementEditor', () => {
 				checkboxLabel: 'Select server from /workspace/.vscode/mcp.json',
 				focusRestored: true,
 				externalFocusRetained: true,
-				staticText: 'server/workspace/.vscode/mcp.json to /workspace/.mcp.json',
+				staticText: 'serverWorkspace: /workspace/.vscode/mcp.json to /workspace/.mcp.json',
 				openButtonDisplay: 'none',
 				moreButtonDisplay: 'none',
 				selected: false,
@@ -2430,6 +2432,98 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.editorPreviewDisposables.dispose();
 		}
 	});
+
+	for (const storage of [undefined, PromptsStorage.local, PromptsStorage.user]) {
+		test(`renders and independently selects the three MCP sections in ${storage ?? 'all'} storage`, () => {
+			const editor = createTestEditor(undefined, createConfigurationServiceStub({
+				[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+			}));
+			const servers = ([PromptsStorage.local, PromptsStorage.user] as const).flatMap(storage => [false, true].map(changes => ({
+				type: CustomizationMigrationType.McpServers,
+				storage,
+				id: `${storage}-${changes}`,
+				name: `${storage}-${changes}`,
+				sourceUri: URI.file(storage === PromptsStorage.local ? '/workspace/.vscode/mcp.json' : '/profile/mcp.json'),
+				targetUri: URI.file(storage === PromptsStorage.local ? '/workspace/.mcp.json' : '/home/.copilot/mcp-config.json'),
+				projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+				...(changes ? { removedProperties: { dev: {}, sandboxEnabled: true } } : {}),
+			} satisfies IMcpServerCustomizationMigrationCandidate)));
+			const exclusions: IMcpServerCustomizationMigrationExclusion[] = ([PromptsStorage.local, PromptsStorage.user] as const).map(storage => ({
+				storage, id: `${storage}-blocked`, name: `${storage}-blocked`,
+				sourceUri: URI.file('/source/mcp.json'), targetUri: URI.file('/target/.mcp.json'),
+				reason: McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration,
+				details: ['Environment files are not supported.'],
+			}));
+			editor.viewMode = 'migration';
+			editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.McpServers;
+			editor.activeMigrationStorage = storage;
+			editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.McpServers, servers]]), new Map(), exclusions);
+			const host = document.body.appendChild(document.createElement('div'));
+			host.classList.add('ai-customization-management-editor');
+			host.style.width = '900px';
+			editor.migrationListContainer = host.appendChild(document.createElement('div'));
+			Object.defineProperty(editor.migrationListContainer, 'clientHeight', { configurable: true, value: 800 });
+			editor.migrationMigrateButton = { enabled: false, label: '' };
+			editor.migrationFooter = host.appendChild(document.createElement('div'));
+
+			try {
+				editor.renderCustomizationMigrationPage();
+				const groups = [...editor.migrationListContainer.querySelectorAll<HTMLElement>('.prompt-migration-group')];
+				const ready = groups[0];
+				const changes = groups[1];
+				changes.querySelector<HTMLElement>('.prompt-migration-checkbox [role="checkbox"]')?.focus();
+				const accessibleContent = editor.getMigrationAccessibilityContent();
+				const visibleServers = servers.filter(server => storage === undefined || server.storage === storage);
+				ready.querySelector<HTMLElement>('.prompt-migration-group-checkbox [role="checkbox"]')?.click();
+				const selectionAfterReady = visibleServers.map(server => editor.isCustomizationSelectedForMigration(server));
+				changes.querySelector<HTMLElement>('.prompt-migration-group-checkbox [role="checkbox"]')?.click();
+				const warning = [
+					'The \'dev\' property will be removed. VS Code will no longer auto-start this server in development mode, restart it when watched files change, attach a debugger, or enable development-mode logging.',
+					'The \'sandboxEnabled\' property will be removed. VS Code\'s per-server sandbox and its filesystem and network restrictions will no longer be applied to this server. Any sandboxing after migration is controlled by Copilot.',
+				].join('\n');
+
+				assert.deepStrictEqual({
+					titles: groups.map(group => group.querySelector('.prompt-migration-group-title')?.textContent),
+					counts: groups.map(group => group.querySelector('.prompt-migration-group-count')?.textContent),
+					changes: [...changes.querySelectorAll('.prompt-migration-item-changes')].map(element => element.textContent),
+					changesWrap: [...changes.querySelectorAll<HTMLElement>('.prompt-migration-item-changes')].every(element => element.clientHeight > 20 && element.scrollHeight <= element.clientHeight),
+					checkboxLabel: changes.querySelector('[role="checkbox"]')?.getAttribute('aria-label'),
+					itemLabel: changes.querySelector('.prompt-migration-checkbox [role="checkbox"]')?.getAttribute('aria-label'),
+					accessibleContent,
+					selectionAfterReady,
+					selectionAfterChanges: visibleServers.map(server => editor.isCustomizationSelectedForMigration(server)),
+					hiddenSelection: servers.filter(server => !visibleServers.includes(server)).map(server => editor.isCustomizationSelectedForMigration(server)),
+					footerGroup: editor.migrationFooter.closest('.prompt-migration-group')?.querySelector('.prompt-migration-group-title')?.textContent,
+					migrateEnabled: editor.migrationMigrateButton.enabled,
+				}, {
+					titles: ['Ready to migrate', 'Migrates with changes', 'Not migratable'],
+					counts: [storage === undefined ? '2' : '1', storage === undefined ? '2' : '1', storage === undefined ? '2' : '1'],
+					changes: visibleServers.filter(server => server.removedProperties).map(() => warning),
+					changesWrap: true,
+					checkboxLabel: 'Select all customizations in Migrates with changes',
+					itemLabel: `Select ${visibleServers[1].name} from ${visibleServers[1].sourceUri.path}. ${warning}`,
+					accessibleContent: [
+						'Migrate MCP Servers',
+						'Ready to migrate',
+						...visibleServers.filter(server => !server.removedProperties).map(server => `${server.name}: ${server.storage === PromptsStorage.user ? 'User' : 'Workspace'}: ${server.sourceUri.path} to ${server.targetUri.path}`),
+						'Migrates with changes',
+						...visibleServers.filter(server => server.removedProperties).map(server => `${server.name}: ${server.storage === PromptsStorage.user ? 'User' : 'Workspace'}: ${server.sourceUri.path} to ${server.targetUri.path}. ${warning}`),
+						'Not migratable',
+						...exclusions.filter(exclusion => storage === undefined || exclusion.storage === storage).map(exclusion => `${exclusion.name} cannot be migrated: Environment files are not supported.`),
+					].join('\n'),
+					selectionAfterReady: visibleServers.map(server => !!server.removedProperties),
+					selectionAfterChanges: visibleServers.map(() => false),
+					hiddenSelection: servers.filter(server => !visibleServers.includes(server)).map(() => true),
+					footerGroup: 'Migrates with changes',
+					migrateEnabled: false,
+				});
+			} finally {
+				host.remove();
+				editor.migrationPageDisposables.dispose();
+				editor.editorPreviewDisposables.dispose();
+			}
+		});
+	}
 
 	test('confirms and executes selected MCP migration candidates', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
@@ -2492,6 +2586,61 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
+
+	for (const confirmed of [false, true]) {
+		test(`${confirmed ? 'executes' : 'cancels'} MCP property removals only after a warning confirmation`, async () => {
+			const editor = createTestEditor(undefined, createConfigurationServiceStub({
+				[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+			}));
+			const server: IMcpServerCustomizationMigrationCandidate = {
+				type: CustomizationMigrationType.McpServers,
+				storage: PromptsStorage.local,
+				id: 'mcp.config.ws0.server',
+				name: 'server',
+				sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+				targetUri: URI.file('/workspace/.mcp.json'),
+				projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+				removedProperties: { gallery: true, version: '1', dev: {}, sandboxEnabled: true },
+			};
+			const confirmations: IConfirmation[] = [];
+			const calls: string[] = [];
+			editor.dialogService = {
+				confirm: async confirmation => {
+					confirmations.push(confirmation);
+					calls.push('confirm');
+					return { confirmed };
+				},
+			};
+			editor.customizationMigrationService = {
+				migrateMcpServers: async () => {
+					calls.push('migrate');
+					return { migratedCount: 1, failures: [] };
+				},
+			};
+			editor.notificationService = {
+				error: () => calls.push('error'),
+				warn: () => calls.push('warn'),
+				info: () => calls.push('info'),
+			};
+			editor.showCustomizationMigrationDashboard = () => { };
+			editor.refreshCustomizationMigrationInfo = async () => { };
+			const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+			await editor.migrateSelectedCustomizations(category, [server]);
+
+			assert.deepStrictEqual({
+				calls,
+				confirmations,
+				inProgress: editor.customizationMigrationInProgress,
+				writesInProgress: editor.customizationMigrationWritesInProgress,
+			}, {
+				calls: confirmed ? ['confirm', 'migrate', 'info'] : ['confirm'],
+				confirmations: [{ type: 'warning', ...category.getConfirmation([server], 'Copilot') }],
+				inProgress: false,
+				writesInProgress: false,
+			});
+			editor.editorPreviewDisposables.dispose();
+		});
+	}
 
 	test('keeps migration hint attribution within its originating flow', async () => {
 		const editor = createTestEditor();

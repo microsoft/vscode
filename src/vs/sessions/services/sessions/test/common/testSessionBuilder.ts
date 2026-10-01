@@ -16,6 +16,10 @@ export interface ITestChatSpec {
 	readonly title: string;
 	readonly workspace?: string;
 	readonly status?: SessionStatus;
+	/** Minutes since this chat was last updated; defaults to the session's {@link ITestSessionSpec.minutesAgo}. */
+	readonly minutesAgo?: number;
+	/** Whether this chat's modified time is resolved; defaults to `true`. */
+	readonly hasModifiedTime?: boolean;
 	readonly interactivity?: ChatInteractivity;
 	readonly isArchived?: boolean;
 	/** Whether the chat can be archived on its own; defaults to `false`, like {@link DEFAULT_CHAT_CAPABILITIES}. */
@@ -34,6 +38,10 @@ export interface ITestSessionSpec {
 	readonly status?: SessionStatus;
 	/** Status of the main chat when it differs from the session status. */
 	readonly mainChatStatus?: SessionStatus;
+	/** Minutes since the main chat was last updated; defaults to {@link minutesAgo}. */
+	readonly mainChatMinutesAgo?: number;
+	/** Whether the main chat's modified time is resolved; defaults to `true`. */
+	readonly mainChatHasModifiedTime?: boolean;
 	/** Status description rendered as markdown. */
 	readonly description?: string;
 	/** Minutes since the session was last updated. */
@@ -55,6 +63,7 @@ export interface ITestChat {
 	readonly chat: IChat;
 	readonly title: ISettableObservable<string>;
 	readonly status: ISettableObservable<SessionStatus>;
+	readonly updatedAt: ISettableObservable<Date | undefined>;
 	readonly isArchived: ISettableObservable<boolean>;
 }
 
@@ -93,16 +102,17 @@ export function buildTestWorkspace(label: string, folderLabels: readonly [string
 	};
 }
 
-function buildTestChat(resource: URI, spec: Omit<ITestChatSpec, 'id'>, createdAt: Date, updatedAt: Date): ITestChat {
+function buildTestChat(resource: URI, spec: Omit<ITestChatSpec, 'id'>, createdAt: Date, updatedAt: Date | undefined): ITestChat {
 	const title = observableValue('testChatTitle', spec.title);
 	const status = observableValue('testChatStatus', spec.status ?? SessionStatus.Completed);
+	const updatedAtObservable = observableValue<Date | undefined>('testChatUpdatedAt', updatedAt);
 	const isArchived = observableValue('testChatIsArchived', spec.isArchived ?? false);
 	const chat: IChat = {
 		resource,
 		createdAt,
 		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace) : undefined),
 		title,
-		updatedAt: constObservable(updatedAt),
+		updatedAt: updatedAtObservable,
 		status,
 		changes: constObservable([]),
 		changesets: constObservable([]),
@@ -117,7 +127,7 @@ function buildTestChat(resource: URI, spec: Omit<ITestChatSpec, 'id'>, createdAt
 		lastTurnEnd: constObservable(undefined),
 		capabilities: constObservable({ ...DEFAULT_CHAT_CAPABILITIES, canArchive: spec.canArchive ?? DEFAULT_CHAT_CAPABILITIES.canArchive }),
 	};
-	return { chat, title, status, isArchived };
+	return { chat, title, status, updatedAt: updatedAtObservable, isArchived };
 }
 
 /** Builds a complete {@link ISession}, with times relative to `now`. */
@@ -125,8 +135,12 @@ export function buildTestSession(spec: ITestSessionSpec, now: number = Date.now(
 	const updatedAt = new Date(now - (spec.minutesAgo ?? 0) * 60_000);
 	const createdAt = new Date(now - (spec.createdMinutesAgo ?? spec.minutesAgo ?? 0) * 60_000);
 	const status = observableValue('testSessionStatus', spec.status ?? SessionStatus.Completed);
-	const mainChat = buildTestChat(getTestChatResource(spec.id, 'main'), { title: spec.title, status: spec.mainChatStatus ?? spec.status }, createdAt, updatedAt);
-	const chats = new Map((spec.chats ?? []).map(chat => [chat.id, buildTestChat(getTestChatResource(spec.id, chat.id), chat, createdAt, updatedAt)] as const));
+	const mainChatUpdatedAt = spec.mainChatHasModifiedTime === false ? undefined : new Date(now - (spec.mainChatMinutesAgo ?? spec.minutesAgo ?? 0) * 60_000);
+	const mainChat = buildTestChat(getTestChatResource(spec.id, 'main'), { title: spec.title, status: spec.mainChatStatus ?? spec.status }, createdAt, mainChatUpdatedAt);
+	const chats = new Map((spec.chats ?? []).map(chat => {
+		const chatUpdatedAt = chat.hasModifiedTime === false ? undefined : new Date(now - (chat.minutesAgo ?? spec.minutesAgo ?? 0) * 60_000);
+		return [chat.id, buildTestChat(getTestChatResource(spec.id, chat.id), chat, createdAt, chatUpdatedAt)] as const;
+	}));
 	const title = observableValue('testSessionTitle', spec.title);
 	const isRead = observableValue('testSessionIsRead', spec.isRead ?? true);
 	const isArchived = observableValue('testSessionIsArchived', spec.isArchived ?? false);

@@ -118,6 +118,7 @@ function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'de
 		originLabel: plugin.marketplace,
 		version: plugin.version,
 		url: plugin.readmeUri,
+		...(plugin.readmeUri ? { readmeUri: plugin.readmeUri } : {}),
 		score: search ? 0 : undefined,
 		priority: registry === 'custom' ? 1 : 0,
 		installation: { kind: 'configuredPlugin' },

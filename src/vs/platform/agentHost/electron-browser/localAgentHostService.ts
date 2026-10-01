@@ -56,6 +56,7 @@ import {
 	type IAgentHostOTelPolicyReadiness,
 	IAgentHostService,
 	IAgentHostSocketInfo,
+	IAgentPluginUninstallRequest,
 	IAgentResolveSessionConfigParams,
 	IAgentSessionConfigCompletionsParams,
 	IAgentSessionMetadata,
@@ -499,6 +500,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	refreshCopilotConnectorSessions(): Promise<void> {
 		return this._getManagementService().refreshCopilotConnectorSessions();
+	}
+
+	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
+		return this._getManagementService().uninstallPlugin(provider, request);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

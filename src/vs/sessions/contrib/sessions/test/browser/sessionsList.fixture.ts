@@ -25,9 +25,10 @@ const NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
 	title: 'HTTP Client Retry Plan',
 	workspace: 'vscode-tools',
 	minutesAgo: 2,
+	mainChatMinutesAgo: 7,
 	chats: [
-		{ id: 'task-a', title: 'Task A' },
-		{ id: 'task-b', title: 'Task B' },
+		{ id: 'task-a', title: 'Task A', minutesAgo: 18 },
+		{ id: 'task-b', title: 'Task B', minutesAgo: 43 },
 	],
 };
 const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
@@ -546,20 +547,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_PeerChatInProgress: defineSessionsListFixture({
 		sessions: [{
 			id: 'a',
-			title: 'Single-pane details behavior',
+			title: 'Desktop details behavior',
 			workspace: 'vscode',
 			minutesAgo: 0,
 			status: SessionStatus.InProgress,
 			mainChatStatus: SessionStatus.Completed,
 			chats: [
-				{ id: 'layout', title: 'Fix single-pane details layout' },
+				{ id: 'layout', title: 'Fix desktop details layout' },
 				{ id: 'restore', title: 'Fix empty files restore', status: SessionStatus.InProgress },
 			],
 		}],
 		view: { width: 620 },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix single-pane details layout" peer chat shows an inactive dot. The session details say "Working...".'],
+		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix desktop details layout" peer chat shows an inactive dot. The session details say "Working...".'],
 	}),
 	SessionsList_NestedChatApprovals: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_APPROVAL_SESSION],
@@ -585,7 +586,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { session: 'a' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A hovered, expanded session in its workspace section has two nested chat rows. Its twistie replaces the status icon, and rounded hierarchy connectors run continuously from the parent and stop before each child status icon.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A hovered, expanded session in its workspace section shows the main chat and each nested chat\'s own relative modified time. Its twistie replaces the status icon, and rounded hierarchy connectors run continuously from the parent and stop before each child status icon.'],
 	}),
 	SessionsList_NestedChats_PinnedView: defineSessionsListFixture({
 		sessions: [{ ...NESTED_CHAT_SESSION, sticky: true }],
@@ -770,14 +772,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['Automations and Customizations appear as two full-width navigation rows at the start of the scrollable Sessions tree. The Sessions header follows them and becomes sticky as they scroll away. Automations has a compact right-aligned NEW capsule, Customizations shows its count of 8, and the outlined New button remains in the Sessions header rather than becoming a list entry.'],
+		expectedVisualDescriptions: ['New, Automations, and Customizations appear as three full-width navigation rows at the start of the scrollable Sessions tree. New is the leading row with a plus icon and the platform New Session keybinding aligned on the right. As content scrolls, New remains sticky at the top and the Sessions header joins it when the session list reaches the viewport, without a duplicate New button. Automations has a compact right-aligned NEW capsule, and Customizations shows its count of 8 beside the label in a compact badge with the visible neutral secondary-button fill.'],
 	}),
 	SessionsList_CustomizationsMigrationsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'migrations', title: 'Move instructions into the new format', workspace: 'vscode', minutesAgo: 5 }],
 		header: { navigationShortcuts: true, customizationsCount: 8, customizationMigrationsAvailable: true },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Customizations navigation row shows a small warning dot right after its label, before the right-aligned count of 8.'],
+		expectedVisualDescriptions: ['The Customizations navigation row shows the count of 8 beside its label in a compact badge with the visible neutral secondary-button fill, followed by a small warning dot.'],
 	}),
 	SessionsList_LightweightNewButton: defineSessionsListFixture({
 		sessions: [],

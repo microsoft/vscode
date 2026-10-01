@@ -41,7 +41,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
@@ -1114,7 +1114,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private async _showChanges(): Promise<void> {
 		this._actionWidgetService.hide();
 		const session = this._session.get();
-		if (this._layoutService.isSinglePaneLayoutEnabled && session) {
+		if (this._layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && session) {
 			if ((this._getRepositoryBranchState(session.sessionId).uncommittedChanges ?? 0) > 0) {
 				this._layoutService.revealEditorPartExplicitly();
 			}

@@ -27,9 +27,9 @@ export const enum DetailPanelTarget {
 }
 
 /**
- * Shared mechanics for selecting the single-pane detail content.
+ * Shared mechanics for selecting the desktop detail content.
  */
-export class SinglePaneDetailPanelCoordinator extends Disposable {
+export class DesktopDetailPanelCoordinator extends Disposable {
 
 	private readonly _hasDockedDetailsContext: IContextKey<boolean>;
 	private readonly _sequencer = new Sequencer();
