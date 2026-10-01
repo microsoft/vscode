@@ -273,7 +273,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined> }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'] }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -350,6 +350,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		preferenceKey: overrides?.preferenceKey,
 		name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
 		connectOnDemand: overrides?.connectOnDemand,
+		deleteSessionsOnDemand: overrides?.deleteSessionsOnDemand,
 		omitHostFromWorkspaceLabel: overrides?.omitHostFromWorkspaceLabel,
 		workspaceTypeIcon: overrides?.workspaceTypeIcon,
 		sessionSchemeAlias: overrides?.sessionSchemeAlias,
@@ -3854,6 +3855,143 @@ suite('CloudSandboxSessionsProvider discovery status', () => {
 			after: SessionStatus.Completed,
 		});
 	}));
+});
+
+suite('CloudSandboxSessionsProvider deletion', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const targets of [['additional-session'], ['sandbox-session', 'additional-session'], ['additional-session', 'sandbox-session']]) {
+		test(`routes mixed catalogs to their deletion owners: ${targets.join(', ')}`, async () => {
+			const operations: string[] = [];
+			const connection = store.add(new class extends MockAgentConnection {
+				override async disposeSession(session: URI): Promise<void> {
+					operations.push(`ahp:${session.toString()}`);
+					await super.disposeSession(session);
+				}
+			}());
+			const metadata = ['sandbox-session', 'additional-session'].map(id => createSession(id, { provider: 'copilot' }));
+			for (const session of metadata) {
+				connection.addSession({ ...session, session: session.session.with({ scheme: 'ahp-session' }) });
+			}
+			const provider = createProvider(store.add(new DisposableStore()), connection, {
+				address: 'cloudsandbox:mixed-delete',
+				ctor: CloudSandboxSessionsProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				noConnection: true,
+				deleteSessionsOnDemand: {
+					ownsSession: id => id === 'sandbox-session',
+					deleteSessions: async ids => {
+						operations.push(`missionControl:${ids.join(',')}`);
+						for (const id of ids) {
+							sandbox.removeDeletedSession(id);
+						}
+						provider.clearConnection();
+					},
+				},
+			});
+			const sandbox = provider as CloudSandboxSessionsProvider;
+			provider.setConnection(connection);
+			await timeout(0);
+			provider.seedSessions(metadata);
+			const sessions = targets.map(id => sandbox.getCachedSession(id)!);
+			await provider.deleteSessions(sessions.map(session => session.sessionId));
+			assert.deepStrictEqual({
+				supportsDelete: sessions.map(session => session.capabilities.get().supportsDelete),
+				operations,
+				remaining: provider.getSessions().map(session => AgentSession.id(session.resource)),
+			}, {
+				supportsDelete: targets.map(() => true),
+				operations: ['ahp:ahp-session:/additional-session', ...(targets.includes('sandbox-session') ? ['missionControl:sandbox-session'] : [])],
+				remaining: targets.includes('sandbox-session') ? [] : ['sandbox-session'],
+			});
+		});
+	}
+
+	test('does not delete the Mission Control task when a mixed batch fails on AHP', async () => {
+		const connection = store.add(new class extends MockAgentConnection {
+			override async disposeSession(): Promise<void> {
+				throw new Error('AHP deletion rejected');
+			}
+		}());
+		const owned: string[] = [];
+		const metadata = [createSession('sandbox-session'), createSession('additional-session')];
+		for (const session of metadata) {
+			connection.addSession(session);
+		}
+		const provider = createProvider(store.add(new DisposableStore()), connection, {
+			ctor: CloudSandboxSessionsProvider,
+			deleteSessionsOnDemand: {
+				ownsSession: id => id === 'sandbox-session',
+				deleteSessions: async ids => { owned.push(...ids); },
+			},
+		});
+		provider.seedSessions(metadata);
+		const sessions = provider.getSessions();
+		await assert.rejects(provider.deleteSessions(sessions.map(session => session.sessionId)), /AHP deletion rejected/);
+		assert.deepStrictEqual({ owned, remaining: provider.getSessions().map(session => AgentSession.id(session.resource)) }, {
+			owned: [], remaining: ['sandbox-session', 'additional-session'],
+		});
+	});
+
+	for (const connected of [false, true]) {
+		test(`deletes through the inventory owner without AHP: connected=${connected}`, async () => {
+			const connection = store.add(new MockAgentConnection());
+			const deleted: string[][] = [];
+			const removed: string[] = [];
+			let connects = 0;
+			const provider = createProvider(store.add(new DisposableStore()), connection, {
+				address: 'cloudsandbox:delete-test',
+				ctor: CloudSandboxSessionsProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				noConnection: true,
+				readOnlyWhenDisconnected: true,
+				connectOnDemand: async () => { connects++; },
+				deleteSessionsOnDemand: {
+					ownsSession: id => id === 'sandbox-session',
+					deleteSessions: async ids => {
+						deleted.push([...ids]);
+						for (const id of ids) {
+							sandbox.removeDeletedSession(id);
+						}
+					},
+				},
+			});
+			const sandbox = provider as CloudSandboxSessionsProvider;
+			const metadata = createSession('sandbox-session', { provider: 'copilot' });
+			if (connected) {
+				connection.addSession({ ...metadata, session: AgentSession.uri('ahp-session', 'sandbox-session') });
+				provider.setConnection(connection);
+				await timeout(0);
+			}
+			provider.seedSessions([metadata]);
+			const session = provider.getSessions()[0];
+			store.add(provider.onDidChangeSessions(event => removed.push(...event.removed.map(session => session.sessionId))));
+			const supportsDelete = session.capabilities.get().supportsDelete;
+			await provider.deleteSession(session.sessionId);
+			assert.deepStrictEqual({
+				supportsDelete, deleted, removed, connects,
+				hostDeletions: connection.disposedSessions, remaining: provider.getSessions().map(session => session.sessionId),
+			}, {
+				supportsDelete: true, deleted: [['sandbox-session']], removed: [session.sessionId],
+				connects: 0, hostDeletions: [], remaining: [],
+			});
+		});
+	}
+
+	test('keeps cached sessions when owner deletion fails', async () => {
+		const connection = store.add(new MockAgentConnection());
+		const provider = createProvider(store.add(new DisposableStore()), connection, {
+			ctor: CloudSandboxSessionsProvider, noConnection: true,
+			deleteSessionsOnDemand: {
+				ownsSession: id => id === 'sandbox-session',
+				deleteSessions: async () => { throw new Error('Mission Control rejected deletion'); },
+			},
+		});
+		provider.seedSessions([createSession('sandbox-session')]);
+		const session = provider.getSessions()[0];
+		await assert.rejects(provider.deleteSession(session.sessionId), /rejected deletion/);
+		assert.deepStrictEqual(provider.getSessions(), [session]);
+	});
 });
 
 suite('CloudSandboxSessionsProvider archiving', () => {
