@@ -9,7 +9,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { revive } from '../../../../base/common/marshalling.js';
-import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { dirname, getComparisonKey, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -129,7 +130,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	async ensureRepository(marketplace: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
 		await this._migrationDone;
 		const repoDir = this.getRepositoryUri(marketplace, options?.marketplaceType);
-		return this._cloneSequencer.queue(repoDir.fsPath, async () => {
+		return this._cloneSequencer.queue(this._getRepositoryOperationKey(marketplace, repoDir), async () => {
 			const repoExists = await this._fileService.exists(repoDir);
 			if (repoExists && await this._isValidRepository(repoDir, marketplace)) {
 				const refreshedAt = this._isRefreshDue(marketplace, options)
@@ -155,9 +156,23 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		});
 	}
 
+	private _getRepositoryOperationKey(marketplace: IMarketplaceReference, repoDir: URI): string {
+		if (marketplace.kind === MarketplaceReferenceKind.LocalFileUri) {
+			return getComparisonKey(repoDir);
+		}
+
+		const cacheSegments = marketplace.ref ? marketplace.cacheSegments.slice(0, -1) : marketplace.cacheSegments;
+		return getComparisonKey(joinPath(this._cacheRoot, ...cacheSegments));
+	}
+
 	private async _isValidRepository(repoDir: URI, marketplace: IMarketplaceReference): Promise<boolean> {
 		if (marketplace.kind === MarketplaceReferenceKind.LocalFileUri) {
 			return true;
+		}
+
+		if (repoDir.scheme === Schemas.file && !await this._fileService.exists(joinPath(repoDir, '.git'))) {
+			this._logService.warn(`[AgentPluginRepositoryService] Removing invalid repository cache without Git metadata '${repoDir.toString()}'`);
+			return false;
 		}
 
 		try {

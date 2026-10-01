@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -133,16 +134,21 @@ suite('AgentPluginRepositoryService', () => {
 	});
 
 	test('ensures plugin repositories via cacheSegments path', async () => {
-		let checkedPath: string | undefined;
+		const checkedPaths: string[] = [];
 		const service = createService(async resource => {
-			checkedPath = resource.path;
+			checkedPaths.push(resource.path);
 			return true;
 		});
 		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
 		const uri = await service.ensureRepository(plugin.marketplaceReference, { marketplaceType: plugin.marketplaceType });
 
-		assert.strictEqual(checkedPath, '/cache/agentPlugins/github.com/microsoft/vscode');
-		assert.strictEqual(uri.path, '/cache/agentPlugins/github.com/microsoft/vscode');
+		assert.deepStrictEqual({ checkedPaths, uri: uri.path }, {
+			checkedPaths: [
+				'/cache/agentPlugins/github.com/microsoft/vscode',
+				'/cache/agentPlugins/github.com/microsoft/vscode/.git',
+			],
+			uri: '/cache/agentPlugins/github.com/microsoft/vscode',
+		});
 	});
 
 	test('reclones an existing non-repository cache directory', async () => {
@@ -171,6 +177,35 @@ suite('AgentPluginRepositoryService', () => {
 				'clone:/cache/agentPlugins/github.com/microsoft/vscode',
 			],
 			uri: '/cache/agentPlugins/github.com/microsoft/vscode',
+		});
+	});
+
+	test('does not accept an ancestor repository for a nested cache directory', async () => {
+		const operations: string[] = [];
+		const repositoryPath = '/cache/agentPlugins/github.com/microsoft/vscode/ref_marketplace';
+		const service = createService(async resource => resource.path !== `${repositoryPath}/.git`, undefined, {
+			revParse: async () => {
+				operations.push('validate');
+				return 'ancestor-head';
+			},
+			cloneRepository: async (_cloneUrl, targetDir) => {
+				operations.push(`clone:${targetDir.path}`);
+			},
+		}, {
+			del: async resource => {
+				operations.push(`delete:${resource.path}`);
+			},
+		});
+		const plugin = createPlugin('microsoft/vscode#marketplace', 'plugins/myPlugin');
+
+		const uri = await service.ensureRepository(plugin.marketplaceReference, { marketplaceType: plugin.marketplaceType });
+
+		assert.deepStrictEqual({ operations, uri: uri.path }, {
+			operations: [
+				`delete:${repositoryPath}`,
+				`clone:${repositoryPath}`,
+			],
+			uri: repositoryPath,
 		});
 	});
 
@@ -438,6 +473,81 @@ suite('AgentPluginRepositoryService', () => {
 		assert.strictEqual(cloneCount, 1);
 		assert.strictEqual(uri1.path, '/cache/agentPlugins/github.com/microsoft/vscode');
 		assert.strictEqual(uri2.path, '/cache/agentPlugins/github.com/microsoft/vscode');
+	});
+
+	test('serializes clone and recovery across refs of the same repository', async () => {
+		const cloneStarted = new DeferredPromise<void>();
+		const releaseClone = new DeferredPromise<void>();
+		const operations: string[] = [];
+		const repositoryPath = '/cache/agentPlugins/github.com/microsoft/vscode';
+		const refRepositoryPath = `${repositoryPath}/ref_marketplace`;
+		let parentExists = false;
+		const service = createService(async resource => {
+			if (resource.path === refRepositoryPath) {
+				return false;
+			}
+			if (resource.path === repositoryPath) {
+				return parentExists;
+			}
+			if (resource.path === `${repositoryPath}/.git`) {
+				return false;
+			}
+			return false;
+		}, undefined, {
+			cloneRepository: async (_cloneUrl, targetDir) => {
+				operations.push(`clone:start:${targetDir.path}`);
+				if (targetDir.path === refRepositoryPath) {
+					await cloneStarted.complete();
+					await releaseClone.p;
+				}
+				operations.push(`clone:end:${targetDir.path}`);
+			},
+		}, {
+			createFolder: async resource => {
+				if (resource.path === repositoryPath) {
+					parentExists = true;
+				}
+				return {
+					resource,
+					name: 'vscode',
+					isFile: false,
+					isDirectory: true,
+					isSymbolicLink: false,
+					mtime: 0,
+					ctime: 0,
+					etag: '',
+					size: 0,
+					readonly: false,
+					locked: false,
+					executable: false,
+					children: undefined,
+				};
+			},
+			del: async resource => {
+				operations.push(`delete:${resource.path}`);
+				parentExists = false;
+			},
+		});
+		const refPlugin = createPlugin('microsoft/vscode#marketplace', 'plugins/myPlugin');
+		const unpinnedPlugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		const refEnsure = service.ensureRepository(refPlugin.marketplaceReference);
+		await cloneStarted.p;
+		const unpinnedEnsure = service.ensureRepository(unpinnedPlugin.marketplaceReference);
+		await timeout(0);
+
+		assert.deepStrictEqual(operations, [`clone:start:${refRepositoryPath}`]);
+
+		await releaseClone.complete();
+		await Promise.all([refEnsure, unpinnedEnsure]);
+
+		assert.deepStrictEqual(operations, [
+			`clone:start:${refRepositoryPath}`,
+			`clone:end:${refRepositoryPath}`,
+			`delete:${repositoryPath}`,
+			`clone:start:${repositoryPath}`,
+			`clone:end:${repositoryPath}`,
+		]);
 	});
 
 	test('builds install URI from source inside repository root', () => {
