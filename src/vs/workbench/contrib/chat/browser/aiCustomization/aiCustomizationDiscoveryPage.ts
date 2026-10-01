@@ -1891,6 +1891,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			uri: item.uri,
 			mcpServerId: item.mcpServerId,
 			mcpConnectorName: item.mcpConnectorName,
+			promptDetail: item.promptDetail,
+			pluginDetail: item.pluginDetail,
+			mcpDetail: item.mcpDetail,
 		});
 	}
 

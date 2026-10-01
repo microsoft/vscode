@@ -58,6 +58,9 @@ export interface IInstalledCustomizationTarget {
 	readonly uri?: URI;
 	readonly mcpServerId?: string;
 	readonly mcpConnectorName?: string;
+	readonly promptDetail?: IAICustomizationListItem;
+	readonly pluginDetail?: IAgentPluginItem;
+	readonly mcpDetail?: IMcpServerDetailInput;
 }
 
 export interface ICustomizationMarketplaceOrigin {
