@@ -189,7 +189,6 @@ suite('RunInTerminalTool', () => {
 				onDisposedEmitter.fire(createdTerminalInstance);
 			},
 			getCwdResource: async () => undefined,
-			getCwdResourceForAuthorization: async () => undefined,
 			isDisposed: false,
 		} as unknown as ITerminalInstance;
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
@@ -919,12 +918,15 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	test('existing terminal with unknown CWD does not fall back to the session workspace', async () => {
-		const sessionResource = LocalChatSessionUri.forSession('existing-terminal-unknown-cwd');
-		const model = createChatModelWithRequest(sessionResource);
-		Object.defineProperty(model, 'workingDirectory', { value: URI.file('/workspace') });
+	test('existing terminal with an untrusted cwd does not use it', async () => {
+		const sessionResource = LocalChatSessionUri.forSession('existing-terminal-untrusted-cwd');
+		createChatModelWithRequest(sessionResource);
 		runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
-			instance: { ...createdTerminalInstance, getCwdResourceForAuthorization: async () => undefined },
+			instance: {
+				...createdTerminalInstance,
+				capabilities: { get: (capability: TerminalCapability) => capability === TerminalCapability.CwdDetection ? { isTrusted: false } : undefined },
+				getCwdResource: async () => URI.file('/workspace'),
+			} as unknown as ITerminalInstance,
 			shellIntegrationQuality: ShellIntegrationQuality.Rich,
 			isBackground: false,
 		});

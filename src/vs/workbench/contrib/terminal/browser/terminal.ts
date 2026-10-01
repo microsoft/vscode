@@ -1354,11 +1354,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	getCwdResource(): Promise<URI | undefined>;
 
 	/**
-	 * Gets an authoritative cwd as a URI for command authorization.
-	 */
-	getCwdResourceForAuthorization(): Promise<URI | undefined>;
-
-	/**
 	 * Sets the title of the terminal to the provided string. If no title is provided, it will reset
 	 * to the terminal's title if it was not explicitly set by the user or API.
 	 * @param title The new title.

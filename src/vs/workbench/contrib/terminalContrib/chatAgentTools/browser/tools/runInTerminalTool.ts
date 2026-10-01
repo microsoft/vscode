@@ -967,8 +967,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._osBackend,
 			this._profileFetcher.getCopilotShell(),
 			(async () => {
-				let cwd = await instance?.getCwdResourceForAuthorization();
-				if (!cwd && !instance) {
+				// A cwd reported without the shell integration nonce may have been spoofed by terminal output
+				if (instance?.capabilities.get(TerminalCapability.CwdDetection)?.isTrusted === false) {
+					return undefined;
+				}
+				let cwd = await instance?.getCwdResource();
+				if (!cwd) {
 					// Prefer the session's working directory (agents window) over the
 					// last active workspace root, which may point to a different session's folder.
 					const sessionModel = chatSessionResource ? this._chatService.getSession(chatSessionResource) : undefined;

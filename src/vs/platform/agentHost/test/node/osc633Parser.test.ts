@@ -119,7 +119,7 @@ suite('Osc633Parser', () => {
 	});
 
 	test('Property (P) Cwd', () => {
-		const result = parser.parse(osc633('P;Cwd=/home/user'));
+		const result = parser.parse(osc633('P;Cwd=/home/user;nonce'));
 		assert.deepStrictEqual(result, {
 			cleanedData: '',
 			events: [{
