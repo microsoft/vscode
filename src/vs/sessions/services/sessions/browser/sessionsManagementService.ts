@@ -923,9 +923,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (requestActivity) {
 			requestActivity.value = preparedRequestActivity;
 		}
-		if (replaceCurrentDraft) {
-			this._onDidReplaceNewDraftSession.fire({ from: originalSession, to: preparedSession });
-		}
+		this._onDidReplaceNewDraftSession.fire({ from: originalSession, to: preparedSession });
 		return { provider: preparedProvider, session: preparedSession };
 	}
 

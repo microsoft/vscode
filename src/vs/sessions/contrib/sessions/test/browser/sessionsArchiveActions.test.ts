@@ -58,9 +58,11 @@ suite('Sessions - Bulk archive undo', () => {
 			override readonly onDidDeleteSession = Event.None;
 			override readonly onWillSendRequest = Event.None;
 			override readonly onDidReplaceSession = Event.None;
+			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
 			override getSessions() { return sessions.map(entry => entry.session); }
+			override getInFlightNewSessionRequests() { return []; }
 			override getSession(resource: URI) {
 				return sessions.find(entry => entry.session.resource.toString() === resource.toString())?.session;
 			}
