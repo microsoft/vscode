@@ -137,6 +137,17 @@ pub(crate) enum Tool {
 	Wget,
 }
 
+impl Tool {
+	/// The command the user installs to provide this tool.
+	pub(crate) const fn command(self) -> &'static str {
+		match self {
+			Self::Brew => "brew",
+			Self::Curl => "curl",
+			Self::Wget => "wget",
+		}
+	}
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum InstallerRoute {
 	Msi,

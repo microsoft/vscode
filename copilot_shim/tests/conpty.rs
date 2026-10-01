@@ -511,7 +511,7 @@ fn windows_conpty_ctrl_c_cancels_without_fallback() {
 		(
 			exit_code,
 			count_bytes(process.transcript(), INSTALL_PROMPT),
-			contains_bytes(process.transcript(), b"could not be installed"),
+			contains_bytes(process.transcript(), b"couldn't be installed"),
 		),
 		(130, 1, false),
 		"ConPTY transcript:\n{}",
