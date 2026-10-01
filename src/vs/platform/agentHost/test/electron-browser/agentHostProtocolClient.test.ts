@@ -44,6 +44,7 @@ import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SE
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
+import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
@@ -1797,6 +1798,38 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'remote.example:1234'] as const) {
+		test(`forwards sandbox policy independently of ordinary settings and the permission bridge (${String(identity)})`, async () => {
+			const setting = AgentSandboxSettingId.AgentSandboxEnabled;
+			const configurationService = new class extends TestConfigurationService {
+				policyActive = false;
+				override inspect<T>(key: string) {
+					const inspected = super.inspect<T>(key);
+					return { ...inspected, policyValue: key === setting && this.policyActive ? inspected.value : undefined };
+				}
+			}({ [setting]: 'on', [AgentHostMapLegacySettingsToManagedSettingsSettingId]: false });
+			const { client, transport } = createClientForIdentity(identity, undefined, undefined, undefined, undefined, configurationService);
+			const contributions = () => transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
+			const expected = (required: boolean) => ({ jsonrpc: '2.0', method: 'setClientSandboxRequired', params: { required } });
+			await connectClient(client, transport);
+			assert.deepStrictEqual(contributions(), [expected(false)]);
+
+			for (const policyActive of [true, false]) {
+				transport.sentMessages.length = 0;
+				configurationService.policyActive = policyActive;
+				fireConfigurationChange(configurationService, setting);
+				assert.deepStrictEqual(contributions(), [expected(policyActive)]);
+			}
+			configurationService.policyActive = true;
+			for (const value of [true, false, 'off', 'on']) {
+				transport.sentMessages.length = 0;
+				await configurationService.setUserConfiguration(setting, value);
+				fireConfigurationChange(configurationService, setting);
+				assert.deepStrictEqual(contributions(), [expected(value === true || value === 'on')]);
+			}
+		});
+	}
+
 	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
 		const configurationService = new ManagedPermissionsConfigurationService({
 			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
@@ -3082,7 +3115,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -3090,10 +3123,11 @@ suite('AgentHostProtocolClient', () => {
 				return t;
 			};
 			const workspaceTrust = createWorkspaceTrustServices();
+			const configurationService = new TestConfigurationService();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
-			return { client, transports };
+			return { client, transports, configurationService };
 		}
 
 		async function completeHandshake(transport: TestClientProtocolTransport, connectPromise: Promise<void>, meta?: Record<string, unknown>): Promise<void> {
@@ -3981,9 +4015,11 @@ suite('AgentHostProtocolClient', () => {
 				});
 				await flushMicrotasks();
 				const managedSettingsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+				const sandboxPolicyIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
 				const listSessionsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'listSessions');
 				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
 				assert.ok(managedSettingsIndex >= 0 && managedSettingsIndex < listSessionsIndex, 'managed settings must be sent before requests triggered by the connected transition');
+				assert.ok(sandboxPolicyIndex >= 0 && sandboxPolicyIndex < listSessionsIndex, 'sandbox policy must be sent before requests triggered by the connected transition');
 			} finally {
 				connectedRequest.dispose();
 				client.dispose();
@@ -3992,7 +4028,13 @@ suite('AgentHostProtocolClient', () => {
 
 		test('restores subscriptions before replaying pending actions when the server forgot the client', async function () {
 			this.timeout(10_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports, configurationService } = createFactoryClient();
+			await configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'on');
+			const inspect = configurationService.inspect.bind(configurationService);
+			configurationService.inspect = <T>(key: string) => {
+				const inspected = inspect<T>(key);
+				return { ...inspected, policyValue: key === AgentSandboxSettingId.AgentSandboxEnabled ? inspected.value : undefined };
+			};
 			const sessionUri = URI.parse('copilot:/test-session');
 			const chatUri = URI.parse('ahp-chat://default/test-session');
 			const annotationsUri = URI.parse(buildAnnotationsUri(sessionUri.toString()));
@@ -4069,6 +4111,10 @@ suite('AgentHostProtocolClient', () => {
 			const restoredExpiresIn = (restoredAuthenticate.params as { expiresIn?: number }).expiresIn;
 			assert.ok(restoredExpiresIn !== undefined && restoredExpiresIn > 0 && restoredExpiresIn <= 3600);
 			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+			const sandboxPolicy = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
+			assert.ok(sandboxPolicy, 'sandbox policy should be restored after fresh initialization');
+			assert.deepStrictEqual(sandboxPolicy, { jsonrpc: '2.0', method: 'setClientSandboxRequired', params: { required: true } });
+			assert.ok(reconnectTransport.sentMessages.indexOf(sandboxPolicy) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate));
 			assert.ok(managedSettings, 'managed settings should be restored after fresh initialization');
 			assert.ok(
 				reconnectTransport.sentMessages.indexOf(managedSettings) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate),

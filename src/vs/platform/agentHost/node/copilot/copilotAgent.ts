@@ -983,6 +983,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
+	/** Live session -> the turn whose `prepareTurn` launched it; dropped with the session. */
+	private readonly _preparedTurnLaunches = new WeakMap<CopilotAgentSession, string>();
 	/**
 	 * Last host-published customization snapshot per configuration scope (AGENTS.md section 8b).
 	 * Updated only from host call boundaries; absence is distinct from an empty list.
@@ -3755,6 +3757,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Chat-addressed surface for the chats within a session.
 	 */
 	readonly chats: IAgentChats = {
+		prepareTurn: (chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, context: URI | IAgentChatContext): Promise<void> => this._prepareTurn(chat, turnId, workingDirectories, context),
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			this._noteHostCustomizations(context);
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
@@ -4778,15 +4781,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 		context: IResolvedCopilotChatContext,
 		entry: CopilotAgentSession,
 		workingDirectories: readonly URI[] | undefined,
-		options: { readonly operation: 'sendMessage' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken },
+		options: { readonly operation: 'sendMessage' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken; readonly launchedForTurn?: boolean },
 	): Promise<CopilotAgentSession> {
 		const activeClient = this._activeClients.get(context.configurationResource);
 		// MCP Stop still needs the queued sync to finish before it can resolve the server to stop.
 		const waitToken = options.operation === 'sendMessage' ? options.token ?? CancellationToken.None : CancellationToken.None;
-		await activeClient?.pluginController.retryFailedClientSyncIfNeeded(waitToken);
-		const { operation, allowRestart, turnId } = options;
+		const { operation, allowRestart, turnId, launchedForTurn } = options;
 		const rootsChanged = workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
-		const currentSnapshot = activeClient ? await raceCancellationError(activeClient.snapshot(context.chatKey), waitToken) : undefined;
+		// The turn `prepareTurn` launched for revalidates against the state already
+		// observed in memory: anything that changed since the launch is still caught,
+		// without re-awaiting the syncs and workspace scans the launch just completed.
+		if (!launchedForTurn) {
+			await activeClient?.pluginController.retryFailedClientSyncIfNeeded(waitToken);
+		}
+		const currentSnapshot = !activeClient ? undefined
+			: launchedForTurn ? activeClient.currentSnapshot(context.chatKey)
+				: await raceCancellationError(activeClient.snapshot(context.chatKey), waitToken);
 		const structuralRestartReason = activeClient && currentSnapshot ? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, context.chatKey, currentSnapshot), waitToken) : undefined;
 		const currentDisabledRootMcpServers = currentSnapshot
 			? await raceCancellationError(this._disabledRootMcpServers(context.configurationResource, entry.sessionId, currentSnapshot), waitToken)
@@ -4836,8 +4846,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let entry: CopilotAgentSession | undefined = current.target;
 			const hadCachedEntry = !!entry;
 			stageRecorder?.mark('refresh');
+			// The turn `prepareTurn` launched this session for revalidates its
+			// configuration against the state already observed in memory.
+			const launchedForTurn = !!entry && turnId !== undefined && this._preparedTurnLaunches.get(entry) === turnId;
 			if (entry) {
-				entry = await this._refreshSessionConfiguration(current, entry, workingDirectories, { operation: 'sendMessage', allowRestart: 'always', turnId, token });
+				this._preparedTurnLaunches.delete(entry);
+				entry = await this._refreshSessionConfiguration(current, entry, workingDirectories, { operation: 'sendMessage', allowRestart: 'always', turnId, token, launchedForTurn });
 			} else {
 				await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded(token);
 				if (token.isCancellationRequested) {
@@ -5544,6 +5558,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return await task(() => stallWarning.dispose());
 			} finally {
 				stallWarning.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Materializes or resumes a chat's SDK session ahead of its first send, so the
+	 * host can overlap that startup with the turn-start checkpoint. A chat that
+	 * already has a live session is left to `sendMessage`, which refreshes it.
+	 * The launch records `turnId`, so that turn's send revalidates the configuration
+	 * against the state already observed in memory instead of re-awaiting the
+	 * syncs and workspace scans the launch just completed.
+	 */
+	private async _prepareTurn(chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
+		const initial = this._resolveSendChatContext(chat, operationContext);
+		await this._queueChat(initial.configurationId, initial.sequencerKey, 'prepareTurn', async () => {
+			const current = this._resolveSendChatContext(chat, operationContext);
+			if (current.target) {
+				return;
+			}
+			// Mirrors the send path, so the session is launched with the same plugin state.
+			await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded(CancellationToken.None);
+			const launched = await this._ensureResolvedChatSession(current, workingDirectories);
+			if (launched) {
+				this._preparedTurnLaunches.set(launched, turnId);
 			}
 		});
 	}
@@ -7230,8 +7268,6 @@ class SessionPluginController extends Disposable {
 	/** Returns the parsed plugins currently enabled for this session, awaiting any pending sync. */
 	public async getAppliedPlugins(): Promise<readonly ICopilotPluginInfo[]> {
 		await this._customizationEnablementService.initializeSession(this._session.toString());
-		const entry = this._discoveredEntry();
-		const mcpDiscovery = this._mcpDiscoveryEntry();
 		const [host] = await Promise.all([
 			this._parent.hostSync().catch(err => {
 				this._logService.warn('[Copilot:SessionPluginController] Host customization update failed', err);
@@ -7241,10 +7277,23 @@ class SessionPluginController extends Disposable {
 				this._logService.warn('[Copilot:SessionPluginController] Client customization sync failed', err);
 				return client.customizations;
 			})),
-			entry?.whenSettled(),
-			mcpDiscovery?.refresh(),
+			this._discoveredEntry()?.whenSettled(),
+			this._mcpDiscoveryEntry()?.refresh(),
 		]);
+		return this._appliedPlugins(host);
+	}
 
+	/**
+	 * The plugins enabled from the state already observed in memory, without
+	 * awaiting pending syncs or re-scanning workspace MCP configuration.
+	 */
+	public currentAppliedPlugins(): readonly ICopilotPluginInfo[] {
+		return this._appliedPlugins(this._parent.hostCustomizations());
+	}
+
+	private _appliedPlugins(host: readonly IResolvedCustomization[]): readonly ICopilotPluginInfo[] {
+		const entry = this._discoveredEntry();
+		const mcpDiscovery = this._mcpDiscoveryEntry();
 		const resolved = this._resolveCustomizationEnablement();
 		const desiredByUri = new Map(resolved.customizations.map(customization => [customization.uri, customization]));
 		const desiredById = new Map(resolved.customizations.map(customization => [customization.id, customization]));
@@ -7833,11 +7882,27 @@ class ActiveClient extends Disposable {
 		};
 	}
 
+	/**
+	 * The snapshot from the state already observed in memory, without awaiting
+	 * pending customization syncs or re-scanning workspace MCP configuration.
+	 */
+	currentSnapshot(chatKey: string): IActiveClientSnapshot {
+		return {
+			tools: this.toolsForChat(chatKey),
+			plugins: this.pluginController.currentAppliedPlugins(),
+			mcpServers: this._currentMcpServers(),
+		};
+	}
+
 	async configuredMcpServers(): Promise<AgentHostMcpServers> {
 		return this._getMcpServers();
 	}
 
 	private async _getMcpServers(): Promise<AgentHostMcpServers> {
+		return this._currentMcpServers();
+	}
+
+	private _currentMcpServers(): AgentHostMcpServers {
 		const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey) ?? {};
 		return structuredClone(servers);
 	}

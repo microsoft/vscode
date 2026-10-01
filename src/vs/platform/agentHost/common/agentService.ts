@@ -135,6 +135,9 @@ export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
 /** Configuration key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
 
+/** Configuration key controlling whether providers prepare a turn alongside the turn-start checkpoint. */
+export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.experimental.overlapProviderPreparation';
+
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
  * agent-host provider. When `true`, the Copilot provider advertises the

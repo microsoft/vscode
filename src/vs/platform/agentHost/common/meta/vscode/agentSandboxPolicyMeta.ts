@@ -7,7 +7,7 @@ import { isObject } from '../../../../../base/common/types.js';
 
 const sandboxPolicyKey = 'vscode.sandboxPolicy';
 
-/** The runtime's resolved sandbox floor for one session, not a client preference. */
+/** The effective runtime and forwarded VS Code sandbox floor for one session, not a client preference. */
 export interface ISessionSandboxPolicy {
 	readonly enabled: boolean;
 	readonly allowBypass?: boolean;
@@ -28,14 +28,14 @@ export function readSessionSandboxPolicy(source: { readonly _meta?: Record<strin
 	return { enabled, ...(allowBypass !== undefined ? { allowBypass } : {}), ...(allowOutbound !== undefined ? { allowOutbound } : {}), ...(failClosed !== undefined ? { failClosed } : {}) };
 }
 
-export function withSessionSandboxPolicy(meta: Record<string, unknown> | undefined, policy: ISessionSandboxPolicy): Record<string, unknown> {
+export function withSessionSandboxPolicy(meta: Record<string, unknown> | undefined, policy: ISessionSandboxPolicy | undefined): Record<string, unknown> {
 	return {
 		...meta,
-		[sandboxPolicyKey]: {
+		[sandboxPolicyKey]: policy ? {
 			enabled: policy.enabled,
 			...(policy.allowBypass !== undefined ? { allowBypass: policy.allowBypass } : {}),
 			...(policy.allowOutbound !== undefined ? { allowOutbound: policy.allowOutbound } : {}),
 			...(policy.failClosed !== undefined ? { failClosed: policy.failClosed } : {}),
-		},
+		} : undefined,
 	};
 }

@@ -230,7 +230,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 
 		const timestamp = new Date().toISOString();
-		const customizations = await this._customizations.capture(clientId, definition.session.customizations, undefined);
+		const customizations = await this._customizations.capture(clientId, definition.session.customizations, undefined, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
 		const automation = this._withInitialScheduleState({
 			resource: action.resource,
 			definition,
@@ -274,7 +274,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		};
 		this._validateDefinition(automation.definition);
 		if (action.changes.session !== undefined) {
-			automation.customizations = await this._customizations.capture(clientId, action.changes.session.customizations, existing);
+			automation.customizations = await this._customizations.capture(clientId, action.changes.session.customizations, existing, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
 		}
 		if (action.changes.triggers !== undefined || action.changes.enabled !== undefined) {
 			automation = this._withInitialScheduleState(automation, new Date());

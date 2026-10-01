@@ -29,7 +29,7 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../common/contextkeys.js';
+import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
@@ -1547,21 +1547,27 @@ suite('Sessions - ChatGroupsView', () => {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const singleGroup = view.element.querySelector<HTMLElement>('.chat-group-view')!;
 		const singleGroupHeaderShowsChat = contextKeyService.getContext(singleGroup).getValue<boolean>(SessionHeaderShowsChatContext.key);
+		const singleGroupToolbarShowsSession = contextKeyService.getContext(singleGroup).getValue<boolean>(SessionToolbarShowsSessionContext.key);
 		view.splitChatToSide(secondary.resource);
-		const splitGroupActions = Array.from(view.element.querySelectorAll<HTMLElement>('.session-chat-tabs-actions'));
-		const splitGroupHeaderShowsChat = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'))
-			.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const splitGroups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		const splitGroupActions = splitGroups.map(group => group.querySelector<HTMLElement>('.session-chat-tabs-actions'));
+		const splitGroupHeaderShowsChat = splitGroups.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const splitGroupToolbarShowsSession = splitGroups.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionToolbarShowsSessionContext.key));
 
 		assert.deepStrictEqual({
 			singleGroupHidden,
 			singleGroupHeaderShowsChat,
-			splitGroupsHidden: splitGroupActions.map(actions => actions.classList.contains('hidden')),
+			singleGroupToolbarShowsSession,
+			splitGroupsHidden: splitGroupActions.map(actions => actions?.classList.contains('hidden')),
 			splitGroupHeaderShowsChat,
+			splitGroupToolbarShowsSession,
 		}, {
 			singleGroupHidden: false,
 			singleGroupHeaderShowsChat: false,
+			singleGroupToolbarShowsSession: true,
 			splitGroupsHidden: [true, true],
 			splitGroupHeaderShowsChat: [false, false],
+			splitGroupToolbarShowsSession: [false, false],
 		});
 	});
 

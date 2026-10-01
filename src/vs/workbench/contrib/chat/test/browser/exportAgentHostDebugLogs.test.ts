@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
+import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { isDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -18,15 +19,16 @@ import { AgentHostConnectionsService } from '../../../../../platform/agentHost/b
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentHostService, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentHostService, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { IFileService, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
+import { IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification } from '../../../../../platform/notification/common/notification.js';
@@ -303,6 +305,253 @@ suite('toActiveAgentHostSession', () => {
 
 suite('collectAgentHostDebugLogs', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function collectWithFiles(ahpFiles: readonly { name: string; mtime: number }[], hostEntryCount = 0, sharedLogCount = 1, sessionScoped = false, hostArtifactKind: IAgentHostDebugLogsArtifact['kind'] = 'archive') {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		};
+		const logsHome = URI.from({ scheme: Schemas.inMemory, path: '/logs' });
+		const windowLogs = URI.joinPath(logsHome, 'window1');
+		const hostArtifact: IAgentHostDebugLogsArtifact = {
+			...artifactOfSize(hostEntryCount),
+			kind: hostArtifactKind,
+			...(hostArtifactKind === 'directory' ? { resource: URI.file('/staging') } : {}),
+			entries: Array.from({ length: hostEntryCount }, (_, index) => ({ path: `host-${index}.log`, size: 1 })),
+		};
+		const fileStat = (folder: URI, name: string, mtime = 0) => upcastPartial<IFileStatWithMetadata>({
+			name,
+			resource: URI.joinPath(folder, name),
+			isFile: true,
+			isDirectory: false,
+			isSymbolicLink: false,
+			size: 1,
+			mtime,
+		});
+		const connection = upcastPartial<IAgentConnection>({
+			collectDebugLogs: async () => hostArtifact,
+			getSubscriptionUnmanaged: () => undefined,
+		});
+		instantiationService.stub(IAgentHostConnectionsService, {
+			ambientConnection: connection,
+			resolveSessionResource: () => ({
+				connection,
+				connectionAuthority: 'local',
+				backendSession: URI.parse('copilotcli:/session-1'),
+			}),
+		});
+		instantiationService.stub(IAgentHostService, { clientId: 'local-client' });
+		instantiationService.stub(IRemoteAgentHostService, { connections: [] });
+		instantiationService.stub(IFileService, upcastPartial<IFileService>({
+			resolve: async resource => {
+				let children: IFileStatWithMetadata[];
+				if (resource.path === '/logs/ahp') {
+					children = ahpFiles.map(file => fileStat(resource, file.name, file.mtime));
+				} else if (resource.path === windowLogs.path) {
+					children = [fileStat(resource, 'renderer.log')];
+				} else if (resource.path === logsHome.path) {
+					children = Array.from({ length: sharedLogCount }, (_, index) => fileStat(resource, index === 0 ? 'sharedprocess.log' : `sharedprocess.${index}.log`));
+				} else if (resource.path.startsWith('/data/')) {
+					return upcastPartial<IFileStatWithMetadata>({ size: 1 });
+				} else {
+					throw new Error(`Unexpected resource: ${resource.toString()}`);
+				}
+				return upcastPartial<IFileStatWithMetadata>({ children });
+			},
+		}));
+		instantiationService.stub(ILogService, logService);
+		instantiationService.stub(IWorkbenchEnvironmentService, {
+			logsHome,
+			windowLogsPath: windowLogs,
+			logFile: URI.joinPath(windowLogs, 'renderer.log'),
+			userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/data' }),
+		});
+		instantiationService.stub(IAgentHostDebugLogsExportService, { hostArtifactKind });
+
+		const activeSession = sessionScoped ? toActiveAgentHostSession(URI.parse('agent-host-copilotcli:/session-1'), 'Chat', 'Session') : undefined;
+		const result = await instantiationService.invokeFunction(accessor => collectAgentHostDebugLogs(accessor, activeSession ? {
+			...activeSession,
+			backendChatResource: URI.parse('copilotcli:/session-1/chat/default'),
+		} : undefined, () => { }));
+		return { result, warnings, instantiationService };
+	}
+
+	const ahpFile = (host: string, connection: number, mtime = connection) => {
+		const hash = new StringSHA1();
+		hash.update(host);
+		return {
+			name: `ahp-${hash.digest()}-2026-01-01T00-00-00-000Z-connection-${connection}.jsonl`,
+			mtime,
+		};
+	};
+
+	test('keeps the newest ten transport files per host, including an older connection that is still active', async () => {
+		const reconnectFiles = Array.from({ length: 1160 }, (_, index) => ahpFile('a', index));
+		const activeFile = ahpFile('a', 0, 2000);
+		reconnectFiles[0] = activeFile;
+		const otherHostFiles = [ahpFile('b', 1), ahpFile('b', 2)];
+		const rotation = { name: activeFile.name.replace('.jsonl', '.1.jsonl'), mtime: 2001 };
+		const { result, warnings } = await collectWithFiles([...otherHostFiles, ...reconnectFiles, rotation]);
+
+		assert.deepStrictEqual({
+			paths: result.files.map(file => file.path),
+			warnings,
+		}, {
+			paths: [
+				'vscode-logs/Window/renderer.log',
+				'vscode-logs/Shared/sharedprocess.log',
+				`ahp/${rotation.name}`,
+				`ahp/${activeFile.name}`,
+				...reconnectFiles.slice(-8).reverse().map(file => `ahp/${file.name}`),
+				...otherHostFiles.slice().reverse().map(file => `ahp/${file.name}`),
+			],
+			warnings: ['[ExportAgentHostDebugLogs] Omitted 1151 log files to keep the export within 1000 entries and 10 AHP files per host'],
+		});
+	});
+
+	for (const hostEntryCount of [0, 990, 1000]) {
+		test(`caps the combined export at 1000 entries with ${hostEntryCount} host artifact entries`, async () => {
+			const { result, warnings } = await collectWithFiles([], hostEntryCount, 1160);
+
+			assert.deepStrictEqual({
+				entryCount: result.files.length + (result.hostArtifact?.artifact.entries.length ?? 0),
+				firstClientFile: result.files[0]?.path,
+				warnings,
+			}, {
+				entryCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
+				firstClientFile: hostEntryCount < 1000 ? 'vscode-logs/Window/renderer.log' : undefined,
+				warnings: [`[ExportAgentHostDebugLogs] Omitted ${161 + hostEntryCount} log files to keep the export within 1000 entries and 10 AHP files per host`],
+			});
+		});
+	}
+
+	test('caps folder exports at 1000 client files without reserving host-directory entries', async () => {
+		const { result, warnings } = await collectWithFiles([], 1000, 1160, false, 'directory');
+
+		assert.deepStrictEqual({
+			clientFileCount: result.files.length,
+			hostEntryCount: result.hostArtifact?.artifact.entries.length,
+			firstClientFile: result.files[0]?.path,
+			warnings,
+		}, {
+			clientFileCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
+			hostEntryCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
+			firstClientFile: 'vscode-logs/Window/renderer.log',
+			warnings: ['[ExportAgentHostDebugLogs] Omitted 161 log files to keep the export within 1000 entries and 10 AHP files per host'],
+		});
+	});
+
+	test('saves client logs and sidecars when a full host-directory artifact disappears', async () => {
+		const ahpFiles = Array.from({ length: 10 }, (_, index) => ahpFile('local-client', index));
+		const { result, warnings, instantiationService } = await collectWithFiles(ahpFiles, 1000, 1, true, 'directory');
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		for (const file of result.files) {
+			assert.ok(hasKey(file, { resource: true }));
+			await fileService.writeFile(file.resource, VSBuffer.fromString('x'));
+		}
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		const service = instantiationService.createInstance(BrowserAgentHostDebugLogsExportService);
+		const destination = URI.from({ scheme: Schemas.inMemory, path: '/exports/ah-logs' });
+
+		await service.save(destination, result.files, result.hostArtifact);
+
+		const paths = [
+			'vscode-logs/Window/renderer.log',
+			'vscode-logs/Shared/sharedprocess.log',
+			'usage.jsonl',
+			'customizations.json',
+			...ahpFiles.slice().reverse().map(file => `ahp/${file.name}`),
+		];
+		assert.deepStrictEqual({
+			savedFiles: await Promise.all(paths.map(async path => ({ path, contents: (await fileService.readFile(URI.joinPath(destination, path))).value.toString() }))),
+			hostCopyFailureReported: warnings.length === 1 && warnings[0].includes('Failed to save Agent Host logs:') && warnings[0].endsWith('; saving client-owned logs only'),
+		}, {
+			savedFiles: paths.map(path => ({ path, contents: 'x' })),
+			hostCopyFailureReported: true,
+		});
+	});
+
+	test('keeps process logs ahead of the newest transport history when the combined export reaches the limit', async () => {
+		const ahpFiles = Array.from({ length: 20 }, (_, index) => ahpFile('a', index));
+		const { result, warnings } = await collectWithFiles(ahpFiles, 995);
+
+		assert.deepStrictEqual({
+			paths: result.files.map(file => file.path),
+			entryCount: result.files.length + (result.hostArtifact?.artifact.entries.length ?? 0),
+			warnings,
+		}, {
+			paths: [
+				'vscode-logs/Window/renderer.log',
+				'vscode-logs/Shared/sharedprocess.log',
+				...ahpFiles.slice(-3).reverse().map(file => `ahp/${file.name}`),
+			],
+			entryCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
+			warnings: ['[ExportAgentHostDebugLogs] Omitted 17 log files to keep the export within 1000 entries and 10 AHP files per host'],
+		});
+	});
+
+	test('keeps all files and does not warn when no limits are reached', async () => {
+		const ahpFiles = Array.from({ length: 10 }, (_, index) => ahpFile('a', index));
+		const { result, warnings } = await collectWithFiles(ahpFiles, 988);
+
+		assert.deepStrictEqual({
+			clientFileCount: result.files.length,
+			entryCount: result.files.length + (result.hostArtifact?.artifact.entries.length ?? 0),
+			warnings,
+		}, {
+			clientFileCount: 12,
+			entryCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
+			warnings: [],
+		});
+	});
+
+	test('caps transport files across many hosts at the remaining archive budget', async () => {
+		const ahpFiles = Array.from({ length: 1100 }, (_, index) => ahpFile(`host-${Math.floor(index / 10)}`, index));
+		const { result, warnings } = await collectWithFiles(ahpFiles, 5);
+
+		assert.deepStrictEqual({
+			paths: result.files.map(file => file.path),
+			entryCount: result.files.length + (result.hostArtifact?.artifact.entries.length ?? 0),
+			warnings,
+		}, {
+			paths: [
+				'vscode-logs/Window/renderer.log',
+				'vscode-logs/Shared/sharedprocess.log',
+				...ahpFiles.slice(-993).reverse().map(file => `ahp/${file.name}`),
+			],
+			entryCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
+			warnings: ['[ExportAgentHostDebugLogs] Omitted 107 log files to keep the export within 1000 entries and 10 AHP files per host'],
+		});
+	});
+
+	test('preserves session sidecars before scoped transport history', async () => {
+		const ahpFiles = Array.from({ length: 20 }, (_, index) => ahpFile('local-client', index));
+		const unrelatedFiles = Array.from({ length: 20 }, (_, index) => ahpFile('unrelated', index + 100));
+		const { result, warnings } = await collectWithFiles([...ahpFiles, ...unrelatedFiles], 995, 1, true);
+
+		assert.deepStrictEqual({
+			paths: result.files.map(file => file.path),
+			entryCount: result.files.length + (result.hostArtifact?.artifact.entries.length ?? 0),
+			warnings,
+		}, {
+			paths: [
+				'vscode-logs/Window/renderer.log',
+				'vscode-logs/Shared/sharedprocess.log',
+				'usage.jsonl',
+				'customizations.json',
+				`ahp/${ahpFiles[19].name}`,
+			],
+			entryCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
+			warnings: ['[ExportAgentHostDebugLogs] Omitted 19 log files to keep the export within 1000 entries and 10 AHP files per host'],
+		});
+	});
 
 	for (const provider of ['copilot', 'copilotcli']) {
 		for (const status of ['connected', 'disconnected', 'removed']) {
