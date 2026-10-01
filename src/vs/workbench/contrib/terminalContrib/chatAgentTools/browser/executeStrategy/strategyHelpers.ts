@@ -6,7 +6,6 @@
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { escapeRegExpCharacters } from '../../../../../../base/common/strings.js';
 
 /**
  * Sets up a recreating start marker which is resilient to prompts that clear/re-render (eg. transient
@@ -88,14 +87,14 @@ export function createAltBufferPromise(
  *
  * This function removes (1) and (3) to isolate the actual output.
  *
- * @param isBufferContents Whether the output was read from the buffer with `getContentsAsText`
- * rather than from `getOutput()`. Only then is the echo also matched by its layout in the
- * terminal, since `getOutput()` starts after the echo.
+ * @param allowLayoutMatch Whether the output starts at the start marker's row, so it begins with the
+ * prompt and echo. Only then is the echo also matched by its layout: `getOutput()` starts after the
+ * echo, and buffer contents read after the start marker was trimmed may not contain it.
  */
-export function stripCommandEchoAndPrompt(output: string, commandLine: string, log?: (message: string) => void, isBufferContents?: boolean): string {
+export function stripCommandEchoAndPrompt(output: string, commandLine: string, log?: (message: string) => void, allowLayoutMatch?: boolean): string {
 	log?.(`stripCommandEchoAndPrompt input: output length=${output.length}, commandLine length=${commandLine.length}`);
 
-	const result = _stripCommandEchoAndPromptOnce(output, commandLine, log, isBufferContents);
+	const result = _stripCommandEchoAndPromptOnce(output, commandLine, log, allowLayoutMatch);
 
 	// After stripping the first command echo and trailing prompt, the remaining
 	// content may still contain the command re-echoed by the shell (prompt + echo).
@@ -103,18 +102,19 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string, l
 	// and the shell's subsequent prompt + command echo. If the command appears again
 	// in the remaining text, strip it one more time.
 	if (result.trim().length > 0 && findCommandEcho(result, commandLine)) {
-		return _stripCommandEchoAndPromptOnce(result, commandLine, log, isBufferContents);
+		return _stripCommandEchoAndPromptOnce(result, commandLine, log);
 	}
 
 	return result;
 }
 
-function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log?: (message: string) => void, isBufferContents?: boolean): string {
+function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log?: (message: string) => void, allowLayoutMatch?: boolean): string {
 	// Strip leading lines that are part of the command echo using findCommandEcho.
 	// Allow suffix matching to handle partial command echoes from getOutput()
 	// where the prompt line is not included, and layout matching to handle
-	// echoes in the buffer that the terminal wrapped or the shell redrew.
-	const echoResult = findCommandEcho(output, commandLine, /*allowSuffixMatch*/ true, /*allowLayoutMatch*/ isBufferContents);
+	// buffer echoes of multi-line commands or of command lines that zsh broke
+	// into rows.
+	const echoResult = findCommandEcho(output, commandLine, /*allowSuffixMatch*/ true, allowLayoutMatch);
 	const lines = echoResult ? echoResult.linesAfter : output.split('\n');
 	const startIndex = 0;
 
@@ -275,21 +275,69 @@ export function findCommandEcho(output: string, commandLine: string, allowSuffix
 
 /**
  * Finds a command echo whose layout differs from the command text: each run of whitespace in the
- * command may be any whitespace in the echo, a row break may split a word, and text such as a
- * right prompt may follow the first line of a multi-line command on the prompt row.
+ * command may be any whitespace in the echo, a row break may split a word, and the rest of the
+ * first row, such as a right prompt, may follow the first line of a multi-line command.
  *
  * @returns The offsets in the output of the first and last characters of the echo.
  */
 function findCommandEchoByLayout(output: string, command: string): { start: number; end: number } | undefined {
-	const pattern = (text: string) => text.trim().split(/\s+/).map(word => Array.from(word, escapeRegExpCharacters).join('\\n?')).join('\\s+');
 	const [firstLine, ...otherLines] = command.split(/\r\n|\r|\n/);
-	let source = pattern(firstLine);
-	if (otherLines.length > 0) {
-		// zsh may draw a right prompt after the first line
-		source += `(?:[^\\S\\n]+[^\\n]*)?\\s+${pattern(otherLines.join('\n'))}`;
+	const firstWords = firstLine.trim().split(/\s+/);
+	const otherWords = otherLines.length > 0 ? otherLines.join('\n').trim().split(/\s+/) : [];
+	// A match contains the words in order with only whitespace added, so most misses can be ruled
+	// out without scanning every start offset
+	const compactOutput = output.replace(/\s+/g, '');
+	if (!compactOutput.includes(firstWords.join('')) || !compactOutput.includes(otherWords.join(''))) {
+		return undefined;
 	}
-	const match = new RegExp(source).exec(output);
-	return match ? { start: match.index, end: match.index + match[0].length - 1 } : undefined;
+	const isSpace = (i: number) => i < output.length && /\s/.test(output[i]);
+	const skipSpace = (i: number) => {
+		while (isSpace(i)) {
+			i++;
+		}
+		return i;
+	};
+	// Returns the offset after the words when they match at offset i, or -1
+	const matchWords = (words: string[], i: number) => {
+		for (let w = 0; w < words.length; w++) {
+			if (w > 0) {
+				if (!isSpace(i)) {
+					return -1;
+				}
+				i = skipSpace(i);
+			}
+			for (let c = 0; c < words[w].length; c++) {
+				if (c > 0 && output[i] === '\n') {
+					i++;
+				}
+				if (output[i] !== words[w][c]) {
+					return -1;
+				}
+				i++;
+			}
+		}
+		return i;
+	};
+	const firstChar = firstWords[0][0];
+	for (let start = output.indexOf(firstChar); start !== -1; start = output.indexOf(firstChar, start + 1)) {
+		let end = matchWords(firstWords, start);
+		if (end !== -1 && otherWords.length > 0) {
+			const firstLineEnd = end;
+			const rowEnd = output.indexOf('\n', firstLineEnd);
+			end = -1;
+			// zsh may draw a right prompt after the first line
+			if (output[firstLineEnd] !== '\n' && isSpace(firstLineEnd) && rowEnd !== -1) {
+				end = matchWords(otherWords, skipSpace(rowEnd + 1));
+			}
+			if (end === -1 && isSpace(firstLineEnd)) {
+				end = matchWords(otherWords, skipSpace(firstLineEnd));
+			}
+		}
+		if (end !== -1) {
+			return { start, end: end - 1 };
+		}
+	}
+	return undefined;
 }
 
 export function stripNewLinesAndBuildMapping(output: string): { strippedOutput: string; indexMapping: number[] } {

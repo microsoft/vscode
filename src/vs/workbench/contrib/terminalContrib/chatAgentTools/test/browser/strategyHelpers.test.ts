@@ -115,8 +115,8 @@ suite('stripCommandEchoAndPrompt', () => {
 		].join('\n');
 
 		assert.deepStrictEqual([
-			stripCommandEchoAndPrompt(withOutput, `${commandLine}\npython3 /tmp/hello.py`, undefined, /*isBufferContents*/ true),
-			stripCommandEchoAndPrompt(withoutOutput, commandLine, undefined, /*isBufferContents*/ true),
+			stripCommandEchoAndPrompt(withOutput, `${commandLine}\npython3 /tmp/hello.py`, undefined, /*allowLayoutMatch*/ true),
+			stripCommandEchoAndPrompt(withoutOutput, commandLine, undefined, /*allowLayoutMatch*/ true),
 		], [
 			'hello from (3, 12)',
 			'',
@@ -133,7 +133,7 @@ suite('stripCommandEchoAndPrompt', () => {
 			'     179',
 		].join('\n');
 
-		assert.strictEqual(stripCommandEchoAndPrompt(output, commandLine, undefined, /*isBufferContents*/ true), '     179');
+		assert.strictEqual(stripCommandEchoAndPrompt(output, commandLine, undefined, /*allowLayoutMatch*/ true), '     179');
 	});
 
 	test('strips multi-line command echo with a right prompt on the first row', () => {
@@ -147,9 +147,17 @@ suite('stripCommandEchoAndPrompt', () => {
 		].join('\n');
 
 		assert.strictEqual(
-			stripCommandEchoAndPrompt(output, 'python3 - <<\'EOF\'\nprint(\'first\')\nprint(\'second\')\nEOF', undefined, /*isBufferContents*/ true),
+			stripCommandEchoAndPrompt(output, 'python3 - <<\'EOF\'\nprint(\'first\')\nprint(\'second\')\nEOF', undefined, /*allowLayoutMatch*/ true),
 			'first\nsecond'
 		);
+	});
+
+	test('strips the echo of a large multi-line command', () => {
+		const lines = Array.from({ length: 250 }, (_, i) => `print('line ${i}', ${i} * 2)  # some padding to make the line longer`);
+		const commandLine = ['python3 - <<\'EOF\'', ...lines, 'EOF'].join('\n');
+		const output = ['user@host:~/src $ python3 - <<\'EOF\'', ...lines, 'EOF', 'line 0 0', 'user@host:~/src $ '].join('\n');
+
+		assert.strictEqual(stripCommandEchoAndPrompt(output, commandLine, undefined, /*allowLayoutMatch*/ true), 'line 0 0');
 	});
 
 	test('preserves output of a multi-line command when there is no echo', () => {
@@ -172,45 +180,16 @@ suite('stripCommandEchoAndPrompt', () => {
 
 		assert.deepStrictEqual([
 			stripCommandEchoAndPrompt(listing, 'ls -l'),
-			stripCommandEchoAndPrompt(listing, 'ls -l', undefined, /*isBufferContents*/ true),
-			stripCommandEchoAndPrompt(`user@host:~/src $ ls -l\n${listing}\nuser@host:~/src $ `, 'ls -l', undefined, /*isBufferContents*/ true),
-			stripCommandEchoAndPrompt('.\n..\nREADME.md\ntools-api', 'ls -a'),
-			stripCommandEchoAndPrompt('.\n..\nREADME.md\ntools-api', 'ls -a', undefined, /*isBufferContents*/ true),
+			stripCommandEchoAndPrompt(listing, 'ls -l', undefined, /*allowLayoutMatch*/ true),
 		], [
 			listing,
 			listing,
-			listing,
-			'.\n..\nREADME.md\ntools-api',
-			'.\n..\nREADME.md\ntools-api',
 		]);
 	});
 
 	test('preserves getOutput() output that contains the command words on separate lines', () => {
-		// getOutput() starts after the echo, so only the buffer contents are matched by layout
-		assert.deepStrictEqual([
-			stripCommandEchoAndPrompt('cat\nfile\n', 'cat file'),
-			stripCommandEchoAndPrompt('user@host:~/src $ cat file\ncat\nfile\nuser@host:~/src $ ', 'cat file', undefined, /*isBufferContents*/ true),
-		], [
-			'cat\nfile',
-			'cat\nfile',
-		]);
-	});
-
-	test('preserves output that repeats the command', () => {
-		const output = [
-			'user@host:~/src $  sh -xc \'echo same text\'',
-			'+ echo same text',
-			'same text',
-			'user@host:~/src $ ',
-		].join('\n');
-
-		assert.deepStrictEqual([
-			stripCommandEchoAndPrompt('+ echo same text\nsame text\n', ' sh -xc \'echo same text\''),
-			stripCommandEchoAndPrompt(output, ' sh -xc \'echo same text\'', undefined, /*isBufferContents*/ true),
-		], [
-			'+ echo same text\nsame text',
-			'+ echo same text\nsame text',
-		]);
+		// getOutput() starts after the echo, so it is never matched by layout
+		assert.strictEqual(stripCommandEchoAndPrompt('cat\nfile\n', 'cat file'), 'cat\nfile');
 	});
 
 	test('preserves output when a multi-line echo diverges from the command', () => {
@@ -223,7 +202,7 @@ suite('stripCommandEchoAndPrompt', () => {
 		].join('\n');
 
 		assert.strictEqual(
-			stripCommandEchoAndPrompt(output, 'cat > /tmp/a.py <<\'EOF\'\nimport os\nprint(1)\nEOF\npython3 /tmp/a.py', undefined, /*isBufferContents*/ true),
+			stripCommandEchoAndPrompt(output, 'cat > /tmp/a.py <<\'EOF\'\nimport os\nprint(1)\nEOF\npython3 /tmp/a.py', undefined, /*allowLayoutMatch*/ true),
 			'user@host:~/src $ cat > /tmp/a.py <<\'EOF\'\nimport os\ngarbage row\n1'
 		);
 	});

@@ -223,7 +223,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 					// The marker-based output includes the command echo and trailing
 					// prompt lines. Strip them to isolate the actual command output.
 					if (output !== undefined) {
-						output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this), /*isBufferContents*/ true);
+						output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this), /*allowLayoutMatch*/ !startMarkerDisposed);
 					}
 
 					if (startMarkerDisposed) {
