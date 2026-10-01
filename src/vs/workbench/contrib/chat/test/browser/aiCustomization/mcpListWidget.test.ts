@@ -1832,17 +1832,19 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		test('hides configuration paths from rows and accessible labels', () => {
+		test('shows configuration paths instead of descriptions in rows and accessible labels', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
-			const createServer = (id: string, label: string, path: string) => new class extends mock<IWorkbenchMcpServer>() {
+			const workspaceUri = URI.file('/workspace/.vscode/mcp.json');
+			const homeUri = URI.file('/Users/test/.config/mcp.json');
+			const createServer = (id: string, label: string, resource: URI) => new class extends mock<IWorkbenchMcpServer>() {
 				override readonly id = id;
 				override readonly label = label;
-				override readonly description = '';
+				override readonly description = 'Server description';
 				override readonly name = label;
 				override readonly installState = McpServerInstallState.Installed;
 				override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() {
-					override readonly mcpResource = URI.file(path);
+					override readonly mcpResource = resource;
 				}();
 			}();
 			const render = (server: IWorkbenchMcpServer) => {
@@ -1850,23 +1852,26 @@ suite('mcpListWidget', () => {
 				return {
 					path: ctx.templateData.sourcePath.textContent,
 					hover: ctx.readSource().hover,
+					description: ctx.read().text,
 					ariaLabel: ctx.read().ariaLabel,
 				};
 			};
 
 			assert.deepStrictEqual({
-				workspace: render(createServer('workspace-server', 'Workspace Server', '/workspace/.vscode/mcp.json')),
-				home: render(createServer('user-server', 'User Server', '/Users/test/.config/mcp.json')),
+				workspace: render(createServer('workspace-server', 'Workspace Server', workspaceUri)),
+				home: render(createServer('user-server', 'User Server', homeUri)),
 			}, {
 				workspace: {
-					path: '',
-					hover: '',
-					ariaLabel: 'Workspace Server',
+					path: '.vscode/mcp.json',
+					hover: workspaceUri.fsPath,
+					description: '',
+					ariaLabel: 'Workspace Server, configured in .vscode/mcp.json',
 				},
 				home: {
-					path: '',
-					hover: '',
-					ariaLabel: 'User Server',
+					path: '~/.config/mcp.json',
+					hover: homeUri.fsPath,
+					description: '',
+					ariaLabel: 'User Server, configured in ~/.config/mcp.json',
 				},
 			});
 		});
@@ -2278,7 +2283,7 @@ suite('mcpListWidget', () => {
 
 		test('compatibility issues use severity-specific icons at the beginning of their messages', () => {
 			const render = (kind: 'unsupported' | 'partiallySupported') => {
-				const ctx = createRenderer(createAgentHostServer(), true, false, undefined, kind);
+				const ctx = createRenderer(createAgentHostServer({ sourceUri: URI.file('/workspace/.vscode/mcp.json') }), true, false, undefined, kind);
 				disposables.add(ctx.store);
 				ctx.render();
 				ctx.templateData.compatibilityMessage.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.click();
@@ -2289,6 +2294,7 @@ suite('mcpListWidget', () => {
 					message: ctx.templateData.compatibilityMessage.textContent,
 					messageIcon: ctx.templateData.compatibilityMessage.querySelector('.mcp-server-compatibility-icon')?.className,
 					actionIcon: ctx.templateData.actions.querySelector('.mcp-server-state-icon.compatibility')?.className,
+					secondaryOrder: [...ctx.templateData.secondaryLine.children].map(element => element.className),
 					badges: ctx.templateData.container.querySelectorAll('.plugin-list-item-status').length,
 					focusedLinkTabIndex,
 					unfocusedLinkTabIndex: ctx.templateData.compatibilityLink?.tabIndex,
@@ -2304,6 +2310,10 @@ suite('mcpListWidget', () => {
 					message: 'Unsupported. See Migrations for details.',
 					messageIcon: 'mcp-server-compatibility-icon codicon codicon-error',
 					actionIcon: undefined,
+					secondaryOrder: [
+						'mcp-server-compatibility-message unsupported',
+						'mcp-server-source-path middle-ellipsis-path-label',
+					],
 					badges: 0,
 					focusedLinkTabIndex: 0,
 					unfocusedLinkTabIndex: -1,
@@ -2313,6 +2323,10 @@ suite('mcpListWidget', () => {
 					message: 'Partially supported. See Migrations for details.',
 					messageIcon: 'mcp-server-compatibility-icon codicon codicon-warning',
 					actionIcon: undefined,
+					secondaryOrder: [
+						'mcp-server-compatibility-message partially-supported',
+						'mcp-server-source-path middle-ellipsis-path-label',
+					],
 					badges: 0,
 					focusedLinkTabIndex: 0,
 					unfocusedLinkTabIndex: -1,
