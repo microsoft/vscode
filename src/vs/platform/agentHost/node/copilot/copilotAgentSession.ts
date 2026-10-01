@@ -157,6 +157,10 @@ interface CopilotExitPlanModeResponse extends ExitPlanModeResult {
 	readonly autoApproveEdits?: ExitPlanModeCompletedData['autoApproveEdits'];
 }
 
+type PendingPermissionResponse =
+	| { readonly kind: 'decision'; readonly result: PermissionRequestResult; readonly source?: PermissionDecisionSource }
+	| { readonly kind: 'disable-sandbox'; readonly context: IAgentPermissionResponseContext };
+
 function isCopilotSdkAuthRejection(error: { readonly errorType: string; readonly statusCode?: number }): boolean {
 	return (error.errorType === 'authentication' || error.errorType === 'authorization') && error.statusCode === 401;
 }
@@ -967,7 +971,7 @@ export class CopilotAgentSession extends Disposable {
 		reported: boolean;
 	}>();
 	/** Pending permission requests awaiting a renderer-side decision. */
-	private readonly _pendingPermissions = new PendingRequestRegistry<{ kind: 'decision'; result: PermissionRequestResult; source?: PermissionDecisionSource } | { kind: 'disable-sandbox'; context: IAgentPermissionResponseContext }, {
+	private readonly _pendingPermissions = new PendingRequestRegistry<PendingPermissionResponse, {
 		readonly managedApprovalRequired: boolean;
 		readonly sdkSandboxBypass?: boolean;
 	}>();

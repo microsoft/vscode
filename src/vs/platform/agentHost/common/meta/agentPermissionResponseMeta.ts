@@ -11,7 +11,7 @@ export interface IAgentPermissionResponseMeta {
 
 const decisionSourceKey = 'agentHost.permissionDecisionSource';
 
-/** Reads explicit decision provenance; absent or unrecognized metadata remains unattributed. */
+/** Reads client-supplied provenance from confirmation-action metadata. Unknown values omit attribution, not the permission decision. */
 export function readAgentPermissionResponseMeta(source: { readonly _meta?: Record<string, unknown> }): IAgentPermissionResponseMeta {
 	const decisionSource = source._meta?.[decisionSourceKey];
 	switch (decisionSource) {
