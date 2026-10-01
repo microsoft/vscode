@@ -851,6 +851,8 @@ suite('mcpListWidget', () => {
 			],
 			messageClass: message.className,
 			messageText: message.textContent,
+			messageIcon: message.querySelector('.mcp-server-compatibility-icon')?.className,
+			messageIconAriaHidden: message.querySelector('.mcp-server-compatibility-icon')?.getAttribute('aria-hidden'),
 			messageDisplay: message.style.display,
 			linkHref: message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.getAttribute('href'),
 			migrationRequests,
@@ -863,6 +865,8 @@ suite('mcpListWidget', () => {
 			],
 			messageClass: 'mcp-server-compatibility-message partially-supported',
 			messageText: 'Partially supported. See Migrations for details.',
+			messageIcon: 'mcp-server-compatibility-icon codicon codicon-warning',
+			messageIconAriaHidden: 'true',
 			messageDisplay: '',
 			linkHref: '#',
 			migrationRequests: 1,
@@ -2272,7 +2276,7 @@ suite('mcpListWidget', () => {
 			assert.strictEqual(ctx.templateData.container.style.minHeight, '44px');
 		});
 
-		test('compatibility issues use severity-specific icons without runtime status', () => {
+		test('compatibility issues use severity-specific icons at the beginning of their messages', () => {
 			const render = (kind: 'unsupported' | 'partiallySupported') => {
 				const ctx = createRenderer(createAgentHostServer(), true, false, undefined, kind);
 				disposables.add(ctx.store);
@@ -2283,7 +2287,8 @@ suite('mcpListWidget', () => {
 				ctx.notifyUnchanged();
 				return {
 					message: ctx.templateData.compatibilityMessage.textContent,
-					icon: ctx.templateData.actions.querySelector('.mcp-server-state-icon.compatibility')?.className,
+					messageIcon: ctx.templateData.compatibilityMessage.querySelector('.mcp-server-compatibility-icon')?.className,
+					actionIcon: ctx.templateData.actions.querySelector('.mcp-server-state-icon.compatibility')?.className,
 					badges: ctx.templateData.container.querySelectorAll('.plugin-list-item-status').length,
 					focusedLinkTabIndex,
 					unfocusedLinkTabIndex: ctx.templateData.compatibilityLink?.tabIndex,
@@ -2297,7 +2302,8 @@ suite('mcpListWidget', () => {
 			}, {
 				unsupported: {
 					message: 'Unsupported. See Migrations for details.',
-					icon: 'mcp-server-state-icon codicon codicon-error compatibility unsupported',
+					messageIcon: 'mcp-server-compatibility-icon codicon codicon-error',
+					actionIcon: undefined,
 					badges: 0,
 					focusedLinkTabIndex: 0,
 					unfocusedLinkTabIndex: -1,
@@ -2305,7 +2311,8 @@ suite('mcpListWidget', () => {
 				},
 				partiallySupported: {
 					message: 'Partially supported. See Migrations for details.',
-					icon: 'mcp-server-state-icon codicon codicon-warning compatibility partially-supported',
+					messageIcon: 'mcp-server-compatibility-icon codicon codicon-warning',
+					actionIcon: undefined,
 					badges: 0,
 					focusedLinkTabIndex: 0,
 					unfocusedLinkTabIndex: -1,
