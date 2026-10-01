@@ -136,7 +136,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b143a14c0a785fd33a98619f34607323a542186bbaef728e4cacef566686d013)
 
 #### sessions/sessionsList/SessionsList_ArchivedNestedChat/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/92c46cbbe837912246fdc758bd09b81b2de2e5f15d97b2b606df1b5f4c7afb8a)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/cd4aaf5692563c82f5e57ba63f66d6a53f21a175326fab3a5792bd6e1b27bc0f)
 
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Accent/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/94f7cde512c7f36230bb9c28a00da607606deae120aaadaec21cb3f897d75665)
