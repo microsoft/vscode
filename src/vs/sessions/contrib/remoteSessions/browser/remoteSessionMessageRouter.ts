@@ -14,11 +14,12 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
+import { findUndeliveredDelegatedMessage, readAgentMessageSourceChat, replaceDelegatedMessage } from '../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { toRemoteSessionMessageMetadata } from '../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ChatInteractivity as ProtocolChatInteractivity } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, isSessionStatusArchived, MessageKind, parseChatUri, PendingMessageKind, readSessionWorkspaceless, SessionState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, isSessionStatusArchived, MessageKind, parseChatUri, PendingMessageKind, readSessionWorkspaceless, SessionState, StateComponents, type PendingMessage } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -45,7 +46,13 @@ export interface IRemoteMessageTarget {
 }
 
 export interface ISendRemoteMessageResult extends IRemoteMessageTarget {
-	readonly status: 'sent' | 'queued';
+	/**
+	 * `replaced` means the message replaced this chat's earlier message that the
+	 * target had not started yet; otherwise it started a turn or joined the queue.
+	 */
+	readonly status: 'sent' | 'queued' | 'replaced';
+	/** The text of the undelivered message this one replaced. */
+	readonly replacedMessage?: string;
 }
 
 interface IResolvedRemoteChat extends Omit<IRemoteSessionChat, 'chat'> {
@@ -196,6 +203,8 @@ export class RemoteSessionMessageRouter {
 		let rejected = false;
 		let confirmed = false;
 		let started = false;
+		let undelivered: PendingMessage | undefined;
+		let undeliveredGone = false;
 		let operationError: Error | undefined;
 		let background: IRemoteSessionChatReference | undefined;
 		try {
@@ -242,13 +251,28 @@ export class RemoteSessionMessageRouter {
 			if (cancellation.token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			const messageId = generateUuid();
+			const delegationMeta = toRemoteSessionMessageMetadata({
+				session: source.session.resource.toString(),
+				chat: source.chat.toString(),
+			});
+			const sourceChat = readAgentMessageSourceChat({ _meta: delegationMeta });
+			const latestChatState = chat.object.verifiedValue ?? chatState;
+			undelivered = sourceChat ? findUndeliveredDelegatedMessage(latestChatState.queuedMessages, sourceChat) : undefined;
+			const messageId = undelivered?.id ?? generateUuid();
 			const accepted = new Promise<void>((resolve, reject) => {
 				store.add(connection.onDidAction(envelope => {
 					if (!isEqual(URI.parse(envelope.channel), URI.parse(chatResource))) {
 						return;
 					}
 					const action = envelope.action;
+					// Before the host accepts a replacement, a start or removal of that id is the
+					// earlier message leaving the queue; the replacement then queues as a new message.
+					if (undelivered && !confirmed && !envelope.rejectionReason
+						&& ((action.type === ActionType.ChatTurnStarted && action.queuedMessageId === messageId)
+							|| (action.type === ActionType.ChatPendingMessageRemoved && action.id === messageId))) {
+						undeliveredGone = true;
+						return;
+					}
 					if (action.type === ActionType.ChatTurnStarted && action.queuedMessageId === messageId) {
 						started = !envelope.rejectionReason;
 					}
@@ -264,19 +288,16 @@ export class RemoteSessionMessageRouter {
 				}));
 			});
 			// Always enqueue: admission on the host preserves FIFO even if another client starts a turn concurrently.
+			// Reusing an undelivered message's id replaces it in place; if the host already started it, the host
+			// queues this message as a new one, so a replacement can never be lost.
 			dispatched = true;
 			connection.dispatch(chatResource, {
 				type: ActionType.ChatPendingMessageSet,
 				kind: PendingMessageKind.Queued,
 				id: messageId,
-				message: {
-					text: options.message,
-					origin: { kind: MessageKind.Agent },
-					_meta: toRemoteSessionMessageMetadata({
-						session: source.session.resource.toString(),
-						chat: source.chat.toString(),
-					}),
-				},
+				message: undelivered
+					? replaceDelegatedMessage(undelivered.message, options.message, delegationMeta)
+					: { text: options.message, origin: { kind: MessageKind.Agent }, _meta: delegationMeta },
 			});
 			await raceCancellationError(accepted, cancellation.token);
 		} catch (error) {
@@ -294,6 +315,11 @@ export class RemoteSessionMessageRouter {
 			}
 			store.dispose();
 		}
-		return { ...this.describeTarget(target), status: started ? 'sent' : 'queued' };
+		if (started) {
+			return { ...this.describeTarget(target), status: 'sent' };
+		}
+		return undelivered && !undeliveredGone
+			? { ...this.describeTarget(target), status: 'replaced', replacedMessage: undelivered.message.text }
+			: { ...this.describeTarget(target), status: 'queued' };
 	}
 }

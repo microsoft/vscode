@@ -13,13 +13,13 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
-import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
 import {
 	applyCreateChatTool,
@@ -108,7 +108,8 @@ suite('SessionServerTools', () => {
 	test('definitions and confirmation', () => {
 		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.RenameChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ListSessions)?.description ?? '', /`openLink` for clickable Markdown links/);
-		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SendMessage)?.description ?? '', /target chat is busy.*message is queued/);
+		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SendMessage)?.description ?? '', /target chat is busy.*message is queued.*sending again replaces that message.*write one complete message/);
+		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.GetSessionContext)?.description ?? '', /`yourUndeliveredMessage`/);
 		assert.deepStrictEqual(sessionServerToolDefinitions.filter(definition => definition.enabledForEphemeralSessions).map(definition => definition.name), []);
 		assert.deepStrictEqual(
 			sessionServerToolDefinitions.map(({ name, deferLoading }) => ({ name, deferLoading })),
@@ -2219,7 +2220,103 @@ suite('SessionServerTools', () => {
 		assert.throws(() => getSendMessageArgs({ session: 'copilot:/s2' }, []), /message/);
 	});
 
-	test('send_message queues agent-originated messages in FIFO order while the target chat is busy', async () => {
+	test('send_message replaces the sending chat\'s undelivered queued message instead of queuing another', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const targetSession = 'copilot:/s2';
+		const targetChat = buildDefaultChatUri(targetSession);
+		stateManager.createSession({
+			resource: targetSession,
+			provider: 'copilot',
+			title: 'Target',
+			status: SessionStatus.InProgress,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		const sessionModel: ModelSelection = { id: 'claude-opus-5.5', config: { reasoningEffort: 'xhigh', contextWindow: '1m' } };
+		stateManager.dispatchServerAction(targetChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: new Date(0).toISOString(),
+			message: { text: 'running', origin: { kind: MessageKind.User }, model: sessionModel },
+		});
+		const prompts: string[] = [];
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace), sessionMeta('s3', SessionStatus.InProgress, workspace)],
+			onPrompt: (_session, _chat, prompt) => { prompts.push(prompt); },
+		}));
+
+		const firstResult = await group.execute(stateManager, executionContext('copilot:/s1'), SessionServerToolName.SendMessage, { session: targetSession, message: 'first' });
+		const otherResult = await group.execute(stateManager, executionContext('copilot:/s3'), SessionServerToolName.SendMessage, { session: targetSession, message: 'from another chat' });
+		const [first] = stateManager.getChatState(targetChat)?.queuedMessages ?? [];
+		// Another client edits the undelivered message before its sender follows up.
+		stateManager.dispatchServerAction(targetChat, {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Queued,
+			id: first.id,
+			message: {
+				...first.message,
+				text: 'first, see notes',
+				model: { id: 'gpt-5' },
+				attachments: [{ type: MessageAttachmentKind.Simple, label: 'notes', range: { start: { line: 0, character: 11 }, end: { line: 0, character: 16 } } }],
+			},
+		});
+		const followUpResult = await group.execute(stateManager, { ...executionContext('copilot:/s1'), turnId: 'turn-2' }, SessionServerToolName.SendMessage, { session: targetSession, message: 'complete update' });
+
+		const targetState = stateManager.getChatState(targetChat);
+		assert.deepStrictEqual({
+			results: [firstResult, otherResult, followUpResult],
+			firstModel: first.message.model,
+			activeTurn: targetState?.activeTurn?.id,
+			queuedMessages: targetState?.queuedMessages?.map(queued => ({
+				isFirst: queued.id === first.id,
+				text: queued.message.text,
+				origin: queued.message.origin,
+				model: queued.message.model,
+				attachments: queued.message.attachments?.map(attachment => ({ label: attachment.label, range: attachment.range })),
+				delegation: readAgentMessageDelegationMeta(queued.message),
+			})),
+			prompts,
+		}, {
+			results: [
+				'Message queued (agent-host-session://copilot/s2).',
+				'Message queued (agent-host-session://copilot/s2).',
+				'Message replaced this chat\'s undelivered queued message (agent-host-session://copilot/s2). Replaced message:\nfirst, see notes',
+			],
+			firstModel: undefined,
+			activeTurn: 'active-turn',
+			queuedMessages: [
+				{
+					isFirst: true,
+					text: 'complete update',
+					origin: { kind: MessageKind.Agent },
+					model: { id: 'gpt-5' },
+					attachments: [{ label: 'notes', range: undefined }],
+					delegation: {
+						sourceSession: 'copilot:/s1',
+						sourceChat: buildDefaultChatUri('copilot:/s1'),
+						sourceTurnId: 'turn-2',
+					},
+				},
+				{
+					isFirst: false,
+					text: 'from another chat',
+					origin: { kind: MessageKind.Agent },
+					model: undefined,
+					attachments: undefined,
+					delegation: {
+						sourceSession: 'copilot:/s3',
+						sourceChat: buildDefaultChatUri('copilot:/s3'),
+						sourceTurnId: 'turn-1',
+					},
+				},
+			],
+			prompts: [],
+		});
+		store.dispose();
+	});
+
+	test('send_message queues a new message without pinning a model once the earlier one has started', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const targetSession = 'copilot:/s2';
@@ -2236,55 +2333,39 @@ suite('SessionServerTools', () => {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'active-turn',
 			startedAt: new Date(0).toISOString(),
-			message: { text: 'running', origin: { kind: MessageKind.User } },
+			message: { text: 'running', origin: { kind: MessageKind.User }, model: { id: 'gpt-5.6-sol' } },
 		});
-		const prompts: string[] = [];
 		const group = createSessionServerToolGroup(createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)],
-			onPrompt: (_session, _chat, prompt) => { prompts.push(prompt); },
 		}));
 		const context = executionContext('copilot:/s1');
 
 		const firstResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: targetSession, message: 'first' });
+		const [first] = stateManager.getChatState(targetChat)?.queuedMessages ?? [];
+		stateManager.dispatchServerAction(targetChat, { type: ActionType.ChatTurnComplete, turnId: 'active-turn', duration: 0 });
+		stateManager.dispatchServerAction(targetChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'queued-turn',
+			startedAt: new Date(0).toISOString(),
+			message: first.message,
+			queuedMessageId: first.id,
+		});
+		// A model picked in the draft since must not be pinned onto agent messages either.
+		stateManager.dispatchServerAction(targetChat, { type: ActionType.ChatDraftChanged, draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet-5' } } });
 		const secondResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: targetSession, message: 'second' });
 
 		const targetState = stateManager.getChatState(targetChat);
 		assert.deepStrictEqual({
 			results: [firstResult, secondResult],
-			activeTurn: targetState?.activeTurn?.id,
-			queuedMessages: targetState?.queuedMessages?.map(queued => ({
-				text: queued.message.text,
-				origin: queued.message.origin,
-				delegation: readAgentMessageDelegationMeta(queued.message),
-			})),
-			prompts,
+			activeTurn: { text: targetState?.activeTurn?.message.text, model: targetState?.activeTurn?.message.model },
+			queuedMessages: targetState?.queuedMessages?.map(queued => ({ text: queued.message.text, model: queued.message.model })),
 		}, {
 			results: [
 				'Message queued (agent-host-session://copilot/s2).',
 				'Message queued (agent-host-session://copilot/s2).',
 			],
-			activeTurn: 'active-turn',
-			queuedMessages: [
-				{
-					text: 'first',
-					origin: { kind: MessageKind.Agent },
-					delegation: {
-						sourceSession: 'copilot:/s1',
-						sourceChat: buildDefaultChatUri('copilot:/s1'),
-						sourceTurnId: 'turn-1',
-					},
-				},
-				{
-					text: 'second',
-					origin: { kind: MessageKind.Agent },
-					delegation: {
-						sourceSession: 'copilot:/s1',
-						sourceChat: buildDefaultChatUri('copilot:/s1'),
-						sourceTurnId: 'turn-1',
-					},
-				},
-			],
-			prompts: [],
+			activeTurn: { text: 'first', model: undefined },
+			queuedMessages: [{ text: 'second', model: undefined }],
 		});
 		store.dispose();
 	});
@@ -2401,13 +2482,37 @@ suite('SessionServerTools', () => {
 			assert.deepStrictEqual({ turns: limited.transcript.map((t: { turn: number }) => t.turn), truncated: limited.truncated }, { turns: [2], truncated: true });
 		});
 
+		test('shows the calling chat its own undelivered message in full', () => {
+			const caller = buildDefaultChatUri('copilot:/caller');
+			const fromChat = (id: string, text: string, sourceChat?: string): PendingMessage => ({
+				id,
+				message: { text, origin: { kind: MessageKind.Agent }, ...(sourceChat ? { _meta: toAgentMessageDelegationMeta({ sourceSession: 'copilot:/any', sourceChat }) } : {}) },
+			});
+			const ownMessage = `Status: ${'x'.repeat(5000)}`;
+			const withQueue: IChatContextSnapshot = {
+				...snapshot,
+				queuedMessages: [fromChat('user', 'queued by the user'), fromChat('own', ownMessage, caller), fromChat('other', 'from another chat', buildDefaultChatUri('copilot:/other'))],
+			};
+			assert.deepStrictEqual({
+				caller: JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, withQueue, 'summary', 10, caller)).yourUndeliveredMessage,
+				withoutOwnMessage: JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, withQueue, 'summary', 10, buildDefaultChatUri('copilot:/nobody'))).yourUndeliveredMessage,
+			}, {
+				caller: ownMessage,
+				withoutOwnMessage: undefined,
+			});
+		});
+
 		test('execute reads from the accessor; cold session returns identity + empty transcript', async () => {
 			const store = new DisposableStore();
 			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 			const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
-			const withCtx = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => snapshot }));
+			const callerQueued: PendingMessage = {
+				id: 'q',
+				message: { text: 'pending update', origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession: 'copilot:/caller', sourceChat: buildDefaultChatUri('copilot:/caller') }) },
+			};
+			const withCtx = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => ({ ...snapshot, queuedMessages: [callerQueued] }) }));
 			const live = JSON.parse(await withCtx.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' }));
-			assert.strictEqual(live.transcript.length, 2);
+			assert.deepStrictEqual({ turns: live.transcript.length, yourUndeliveredMessage: live.yourUndeliveredMessage }, { turns: 2, yourUndeliveredMessage: 'pending update' });
 
 			const cold = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => undefined }));
 			assert.deepStrictEqual(JSON.parse(await cold.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {

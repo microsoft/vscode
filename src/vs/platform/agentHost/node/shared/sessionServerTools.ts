@@ -7,13 +7,13 @@ import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { findUndeliveredDelegatedMessage, replaceDelegatedMessage, toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -219,7 +219,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.SendMessage,
 		title: 'Send Message',
-		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. Delivery is asynchronous — this tool does not wait for or return the reply.',
+		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. While the target has not started a message you queued there, sending again replaces that message instead of queuing another, so write one complete message that reflects the current state, not just what changed; `get_session_context` shows your undelivered message. Delivery is asynchronous — this tool does not wait for or return the reply.',
 		inputSchema: sendMessageInputSchema,
 		annotations: { readOnlyHint: false },
 		deferLoading: true,
@@ -227,7 +227,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.GetSessionContext,
 		title: 'Get Session Context',
-		description: 'Read the recent conversation of an existing session or chat: a compacted transcript of its turns (messages, replies, and tool calls). Use this to see what a session you created is doing, or to gather context before sending it a message. Returns a compacted summary by default (`detail: "summary"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
+		description: 'Read the recent conversation of an existing session or chat: a compacted transcript of its turns (messages, replies, and tool calls). Use this to see what a session you created is doing, or to gather context before sending it a message. Returns a compacted summary by default (`detail: "summary"`); request `digest` or `full` for more detail. `yourUndeliveredMessage` holds a message you sent there with `send_message` that it has not started yet. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
 		inputSchema: getSessionContextInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -350,6 +350,8 @@ export interface IChatContextSnapshot {
 	readonly turns: readonly Turn[];
 	/** The in-progress turn, if the chat is mid-response. */
 	readonly activeTurn?: Pick<Turn, 'message' | 'responseParts'>;
+	/** Messages waiting to start as new turns, in the order they will run. */
+	readonly queuedMessages?: readonly PendingMessage[];
 	/** `true` when older completed turns exist beyond the in-memory window. */
 	readonly hasMoreHistory: boolean;
 }
@@ -1257,7 +1259,12 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 
 /**
  * Sends a message to an existing session/chat, starting a new turn there or
- * queuing it behind the target chat's active or pending messages.
+ * queuing it behind the target chat's active or pending messages. While the
+ * target has not started a message this chat sent earlier, a follow-up replaces
+ * that message rather than queuing another turn, so the sender keeps one
+ * complete, up-to-date message there.
+ * Agent-sent messages carry no model, so each runs on whatever model the target
+ * chat is using when it starts and never switches it.
  * Refuses to target {@link currentChannel} (the chat channel the tool runs on)
  * to avoid a session trivially messaging itself in a loop.
  */
@@ -1275,11 +1282,24 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
 	} : undefined;
 	const targetState = stateManager?.getChatState(chat.toString());
-	if (stateManager && (targetState?.activeTurn || targetState?.steeringMessage || targetState?.queuedMessages?.length)) {
+	if (stateManager && targetState && (targetState.activeTurn || targetState.steeringMessage || targetState.queuedMessages?.length)) {
+		const delegationMeta = delegation ? toAgentMessageDelegationMeta(delegation) : undefined;
+		const undelivered = sourceChat ? findUndeliveredDelegatedMessage(targetState.queuedMessages, sourceChat.toString()) : undefined;
+		if (undelivered) {
+			// Read and replace in one synchronous step so this never races the queue
+			// drain: the message is either still queued here or already started.
+			stateManager.dispatchServerAction(chat.toString(), {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Queued,
+				id: undelivered.id,
+				message: replaceDelegatedMessage(undelivered.message, message, delegationMeta),
+			});
+			return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), { replaced: undelivered.message.text });
+		}
 		const queuedMessage: Message = {
 			text: message,
 			origin: { kind: MessageKind.Agent },
-			...(delegation ? { _meta: toAgentMessageDelegationMeta(delegation) } : {}),
+			...(delegationMeta ? { _meta: delegationMeta } : {}),
 		};
 		stateManager.dispatchServerAction(chat.toString(), {
 			type: ActionType.ChatPendingMessageSet,
@@ -1287,15 +1307,24 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 			id: generateUuid(),
 			message: queuedMessage,
 		});
-		return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), true);
+		return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), 'queued');
 	}
 	await accessor.startPrompt(session, chat, message, delegation);
-	return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), false);
+	return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), 'sent');
 }
 
-/** Builds the model-facing `send_message` result. */
-export function formatSendMessageResult(openLink: string, queued: boolean): string {
-	return `Message ${queued ? 'queued' : 'sent'} (${openLink}).`;
+/**
+ * Builds the model-facing `send_message` result. A replacement returns the text
+ * it replaced so the sender can tell whether anything it still needs was lost.
+ */
+export function formatSendMessageResult(openLink: string, delivery: 'sent' | 'queued' | { readonly replaced: string }): string {
+	if (delivery === 'sent') {
+		return `Message sent (${openLink}).`;
+	}
+	if (delivery === 'queued') {
+		return `Message queued (${openLink}).`;
+	}
+	return `Message replaced this chat's undelivered queued message (${openLink}). Replaced message:\n${delivery.replaced}`;
 }
 
 // --- get_session_context -----------------------------------------------------
@@ -1398,10 +1427,16 @@ interface ISerializedSessionContext {
 	readonly hasMoreHistory: boolean;
 	/** `true` when turns were dropped from the window or any field was shortened. */
 	readonly truncated: boolean;
+	/** Full text of a message the calling chat sent that this chat has not started yet. */
+	readonly yourUndeliveredMessage?: string;
 }
 
-/** Builds the compacted, model-facing session-context payload from a snapshot. */
-export function serializeSessionContext(session: URI, chatId: string | undefined, snapshot: IChatContextSnapshot, detail: SessionContextDetail, transcriptLimit: number): string {
+/**
+ * Builds the compacted, model-facing session-context payload from a snapshot.
+ * When {@link sourceChat} has a message waiting in the chat, it is included in
+ * full so the caller can rewrite it with `send_message`.
+ */
+export function serializeSessionContext(session: URI, chatId: string | undefined, snapshot: IChatContextSnapshot, detail: SessionContextDetail, transcriptLimit: number, sourceChat?: string): string {
 	const caps = contextCaps[detail];
 	let truncated = false;
 	const trunc = (text: string, max: number): string | undefined => {
@@ -1447,6 +1482,7 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 		};
 	});
 
+	const undelivered = sourceChat ? findUndeliveredDelegatedMessage(snapshot.queuedMessages, sourceChat) : undefined;
 	const payload: ISerializedSessionContext = {
 		session: session.toString(),
 		openLink: buildOpenSessionLinkUri(session, chatId),
@@ -1454,12 +1490,13 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 		transcript,
 		hasMoreHistory: snapshot.hasMoreHistory,
 		truncated,
+		...(undelivered ? { yourUndeliveredMessage: undelivered.message.text } : {}),
 	};
 	return JSON.stringify(payload);
 }
 
-/** Reads and serializes the context of an existing session/chat. */
-export async function applyGetSessionContextTool(accessor: ISessionServerToolAccessor, rawArgs: unknown): Promise<string> {
+/** Reads and serializes the context of an existing session/chat for the chat on {@link currentChannel}. */
+export async function applyGetSessionContextTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI): Promise<string> {
 	const sessions = await accessor.listSessions();
 	const { session, chatId, detail, transcriptLimit } = getSessionContextArgs(rawArgs, sessions);
 	const snapshot = await accessor.getChatContext(session, chatId);
@@ -1475,7 +1512,7 @@ export async function applyGetSessionContextTool(accessor: ISessionServerToolAcc
 			truncated: false,
 		} satisfies ISerializedSessionContext);
 	}
-	return serializeSessionContext(session, chatId, snapshot, detail, transcriptLimit);
+	return serializeSessionContext(session, chatId, snapshot, detail, transcriptLimit, currentChannel);
 }
 
 
@@ -1723,7 +1760,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					return result;
 				}
 				case SessionServerToolName.GetSessionContext:
-					return applyGetSessionContextTool(accessor, rawArgs);
+					return applyGetSessionContextTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.DeleteSession:
 					return applyDeleteSessionTool(accessor, rawArgs, currentSessionUri(currentChannel));
 				default:
