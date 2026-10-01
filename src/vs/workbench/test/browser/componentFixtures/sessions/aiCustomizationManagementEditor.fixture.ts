@@ -869,6 +869,17 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 	},
 ];
 
+function fixtureMarketplaceIcon(background: string, content: string): URI {
+	return URI.parse(`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="${background}"/>${content}</svg>`)}`);
+}
+
+const featuredMarketplaceIcons = new Map<string, URI>([
+	['example/figma-plugin', fixtureMarketplaceIcon('#8250df', '<circle cx="24" cy="20" r="8" fill="#ff7b72"/><circle cx="40" cy="20" r="8" fill="#79c0ff"/><circle cx="24" cy="36" r="8" fill="#d2a8ff"/><circle cx="40" cy="36" r="8" fill="#56d364"/><circle cx="24" cy="52" r="8" fill="#f2cc60"/>')],
+	['example/browser-tools', fixtureMarketplaceIcon('#0969da', '<circle cx="32" cy="32" r="20" fill="none" stroke="#fff" stroke-width="4"/><path d="M12 32h40M32 12c7 7 10 13 10 20s-3 13-10 20c-7-7-10-13-10-20s3-13 10-20Z" fill="none" stroke="#fff" stroke-width="3"/>')],
+	['example/docs-workflow', fixtureMarketplaceIcon('#bf8700', '<path d="M18 10h20l10 10v34H18Z" fill="#fff"/><path d="M38 10v12h10M25 31h16M25 39h16M25 47h11" fill="none" stroke="#bf8700" stroke-width="3"/>')],
+	['example/repository-review', fixtureMarketplaceIcon('#1a7f37', '<path d="m16 34 10 10 22-24" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="7"/>')],
+]);
+
 const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 	{
 		name: 'workiq-mail',
@@ -1041,7 +1052,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const discoverEnabled = marketplaceVisibilityEnabled;
 	const marketplaceResources = [
 		...(agentFinderPublicFeedEnabled ? customizationMarketplaceResources.map(resource => options.featuredFeedEnabled
-			? { ...resource, sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id }
+			? { ...resource, sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id, icon: featuredMarketplaceIcons.get(resource.identifier) }
 			: resource) : []),
 		...(options.copilotConnectorsEnabled ? [copilotConnectorMarketplaceResource] : []),
 	];
@@ -1795,6 +1806,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				=== ['Figma', 'Browser tools', 'Documentation workflow', 'Repository review'].join('\n'),
 				'Discover must preserve the saved featured feed order.',
 			);
+			const featuredImages = [...featured?.querySelectorAll<HTMLImageElement>('.customization-discovery-card-icon img') ?? []];
+			assert(featuredImages.length === 4, 'The saved featured feed fixture must render each enriched resource icon.');
+			await Promise.all(featuredImages.map(image => image.decode()));
+			assert(featuredImages.every(image => image.naturalWidth > 0), 'The saved featured feed fixture icons must decode before capture.');
 		}
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
