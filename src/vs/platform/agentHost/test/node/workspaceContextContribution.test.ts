@@ -21,9 +21,11 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession } from '../../common/agent.js';
 import type { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
+import { AgentHostWorkspaceSnapshotEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, ROOT_STATE_URI, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { renderWorkspaceSnapshot, renderWorkspaceSnapshotStructure, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -92,7 +94,7 @@ suite('WorkspaceContextContribution', () => {
 	const userMessage = { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } as const;
 	teardown(() => sinon.restore());
 
-	async function setupContext(options: { files?: readonly string[]; directories?: readonly string[]; roots?: readonly string[]; provider?: string; worktreePending?: boolean } = {}) {
+	async function setupContext(options: { files?: readonly string[]; directories?: readonly string[]; roots?: readonly string[]; provider?: string; worktreePending?: boolean; enabled?: boolean } = {}) {
 		const log = store.add(new NullLogService());
 		const disk = store.add(new RecordingFileSystemProvider());
 		const fileService = store.add(new FileService(log));
@@ -106,6 +108,9 @@ suite('WorkspaceContextContribution', () => {
 		disk.reads.length = 0;
 		const worktreeIsolation = store.add(new TestWorktreeIsolation(options.worktreePending ?? false));
 		const state = store.add(new AgentHostStateManager(log));
+		const configurationService = store.add(new AgentConfigurationService(state, log));
+		const setEnabled = (enabled: boolean) => state.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostWorkspaceSnapshotEnabledConfigKey]: enabled } });
+		setEnabled(options.enabled ?? true);
 		const session = 'agent-host-session://workspace-context';
 		const chat = buildDefaultChatUri(session);
 		const roots = options.roots ?? [URI.file('/workspace').toString()];
@@ -128,6 +133,7 @@ suite('WorkspaceContextContribution', () => {
 			[IFileService, fileService],
 			[IAgentHostTelemetryReporter, telemetry],
 			[IAgentHostTurnTracker, turnTracker],
+			[IAgentConfigurationService, configurationService],
 		), true));
 		const service: IAgentHostChatContributions = store.add(new AgentHostChatContributions(log, instantiation));
 		store.add(service.registerContribution(WorkspaceContextContribution));
@@ -159,7 +165,7 @@ suite('WorkspaceContextContribution', () => {
 			const snapshot = pendingSnapshots.get(channel);
 			pendingSnapshots.delete(channel);
 			if (deliver && snapshot) {
-				snapshot.onDidDeliver?.({ contentExclusion: 'evaluated', excludedPathCount: 0, includedRootCount: snapshot.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(snapshot).length });
+				snapshot.onDidDeliver?.({ contentExclusion: 'evaluated', excludedPathCount: 0, includedRootCount: snapshot.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(snapshot).length, contentExclusionMs: 0, contentExclusionWaitMs: 0 });
 			}
 		};
 		/** Ends the chat's active turn, recording it in history and notifying contributions. */
@@ -210,7 +216,7 @@ suite('WorkspaceContextContribution', () => {
 			const { waitMs: _waitMs, ...event } = call.args[0];
 			return event;
 		});
-		return { log, state, service, session, chat, disk, accept, dispatch, send, firstTurn, endTurn, addChat, events, worktreeIsolation, lastSnapshot: () => lastSnapshot };
+		return { log, state, service, session, chat, disk, accept, dispatch, send, firstTurn, endTurn, addChat, events, worktreeIsolation, setEnabled, lastSnapshot: () => lastSnapshot };
 	}
 
 	const structureOf = (result: { instructions?: readonly string[] }) => result.instructions?.[0].split('```text\n')[1].split('\n```')[0];
@@ -295,7 +301,7 @@ suite('WorkspaceContextContribution', () => {
 		const result = await context.send(context.chat, [URI.file('/worktrees/agent')]);
 		assert.deepStrictEqual({ structure: structureOf(result), events: context.events() }, {
 			structure: heading('/worktrees/agent') + '\nmeta.json',
-			events: [{ preparation: 'startedAtSend', rootCount: 1, includedRootCount: 1, pendingRootCount: 0, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'evaluated', excludedPathCount: 0, snapshotLength: structureOf(result)!.length }],
+			events: [{ preparation: 'startedAtSend', rootCount: 1, includedRootCount: 1, pendingRootCount: 0, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'evaluated', excludedPathCount: 0, snapshotLength: structureOf(result)!.length, contentExclusionMs: 0, contentExclusionWaitMs: 0 }],
 		});
 	});
 
@@ -369,7 +375,7 @@ suite('WorkspaceContextContribution', () => {
 		}, {
 			waitedMs: 1000,
 			structure: heading('/workspace') + '\nmeta.json',
-			event: { preparation: 'prepared', rootCount: 2, includedRootCount: 1, pendingRootCount: 1, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'evaluated', excludedPathCount: 0, snapshotLength: (heading('/workspace') + '\nmeta.json').length },
+			event: { preparation: 'prepared', rootCount: 2, includedRootCount: 1, pendingRootCount: 1, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'evaluated', excludedPathCount: 0, snapshotLength: (heading('/workspace') + '\nmeta.json').length, contentExclusionMs: 0, contentExclusionWaitMs: 0 },
 			logged: true,
 		});
 	}));
@@ -448,12 +454,12 @@ suite('WorkspaceContextContribution', () => {
 		const context = await setupContext();
 		await context.firstTurn(context.chat, undefined, false);
 		context.dispatch(context.chat, false);
-		context.lastSnapshot()?.onDidDeliver?.({ contentExclusion: 'unavailable', excludedPathCount: 0, includedRootCount: 0, snapshotLength: 0 });
+		context.lastSnapshot()?.onDidDeliver?.({ contentExclusion: 'unavailable', excludedPathCount: 0, includedRootCount: 0, snapshotLength: 0, contentExclusionMs: 1000, contentExclusionWaitMs: 40 });
 		context.endTurn(context.chat, 'success');
 		const next = await context.firstTurn();
 		assert.deepStrictEqual({ next, event: context.events() }, {
 			next: { message: userMessage },
-			event: [{ preparation: 'prepared', rootCount: 1, includedRootCount: 0, pendingRootCount: 0, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'unavailable', excludedPathCount: 0, snapshotLength: 0 }],
+			event: [{ preparation: 'prepared', rootCount: 1, includedRootCount: 0, pendingRootCount: 0, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'unavailable', excludedPathCount: 0, snapshotLength: 0, contentExclusionMs: 1000, contentExclusionWaitMs: 40 }],
 		});
 	});
 
@@ -473,7 +479,7 @@ suite('WorkspaceContextContribution', () => {
 		assert.deepStrictEqual({ stale, next: structureOf(next), events: context.events() }, {
 			stale: { message: userMessage },
 			next: expected,
-			events: [{ preparation: 'prepared', rootCount: 1, includedRootCount: 1, pendingRootCount: 0, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'evaluated', excludedPathCount: 0, snapshotLength: expected.length }],
+			events: [{ preparation: 'prepared', rootCount: 1, includedRootCount: 1, pendingRootCount: 0, emptyRootCount: 0, failedRootCount: 0, contentExclusion: 'evaluated', excludedPathCount: 0, snapshotLength: expected.length, contentExclusionMs: 0, contentExclusionWaitMs: 0 }],
 		});
 	});
 
@@ -521,6 +527,25 @@ suite('WorkspaceContextContribution', () => {
 			assert.deepStrictEqual(await context.firstTurn(), { message: userMessage });
 		});
 	}
+
+	test('does nothing while the setting is disabled, and does not treat a later turn as the first', async () => {
+		const context = await setupContext({ enabled: false });
+		const disabled = await context.firstTurn();
+		context.setEnabled(true);
+		const enabledLater = await context.firstTurn();
+		const newChat = await context.firstTurn(context.addChat('new'));
+		assert.deepStrictEqual({ disabled, enabledLater, newChat: !!newChat.instructions?.length, rootReads: context.disk.reads.filter(path => path === '/workspace').length }, {
+			disabled: { message: userMessage }, enabledLater: { message: userMessage }, newChat: true, rootReads: 1,
+		});
+	});
+
+	test('keeps the truncation marker for a directory with more entries than the budget can list', async () => {
+		const context = await setupContext({ files: Array.from({ length: 1200 }, (_, i) => `/workspace/${String(i).padStart(4, '0')}`) });
+		const lines = structureOf(await context.firstTurn())!.split('\n');
+		assert.deepStrictEqual({ first: lines.slice(0, 3), last: lines.at(-1), bounded: lines.join('\n').length <= 2000 }, {
+			first: [heading('/workspace'), '0000', '0001'], last: '...', bounded: true,
+		});
+	});
 
 	test('does not add context to a workspace-less turn', async () => {
 		const context = await setupContext({ roots: [] });

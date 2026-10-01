@@ -40,6 +40,10 @@ export interface IWorkspaceSnapshotDelivery {
 	readonly includedRootCount: number;
 	/** Length of the tree that was sent, or 0 when none was. */
 	readonly snapshotLength: number;
+	/** Milliseconds the content exclusion check took, including a check that timed out. */
+	readonly contentExclusionMs: number;
+	/** Milliseconds the send waited for that check after the rest of its preparation finished. */
+	readonly contentExclusionWaitMs: number;
 }
 
 /**

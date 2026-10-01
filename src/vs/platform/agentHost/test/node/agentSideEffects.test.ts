@@ -39,7 +39,7 @@ import { renderWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -164,6 +164,10 @@ class FirstSendWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	dispose(): void {
 		this._onDidChangePending.dispose();
 	}
+}
+
+function enableWorkspaceSnapshot(stateManager: AgentHostStateManager): void {
+	stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostWorkspaceSnapshotEnabledConfigKey]: true } });
 }
 
 function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnablementService {
@@ -1592,6 +1596,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('prepares the workspace snapshot for a host-started first turn before the send path', async () => {
+			enableWorkspaceSnapshot(stateManager);
 			const repository = URI.file('/repo');
 			stateManager.createSession({
 				resource: sessionUri.toString(),
@@ -1629,6 +1634,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('offers the workspace snapshot again when the first turn is cancelled before reaching the provider', async () => {
+			enableWorkspaceSnapshot(stateManager);
 			const repository = URI.file('/repo');
 			stateManager.createSession({
 				resource: sessionUri.toString(),
@@ -1690,6 +1696,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('prepares the workspace snapshot for a provider turn queued behind a local command before the send path', async () => {
+			enableWorkspaceSnapshot(stateManager);
 			const repository = URI.file('/repo');
 			stateManager.createSession({
 				resource: sessionUri.toString(),
@@ -1735,6 +1742,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('snapshots the worktree created for the first send, not the folder in session state', async () => {
+			enableWorkspaceSnapshot(stateManager);
 			const repository = URI.file('/repo');
 			const worktree = URI.file('/worktrees/repo-agent');
 			stateManager.createSession({
@@ -2799,6 +2807,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('a cancelled ! command that finishes late does not release the next turn\'s workspace snapshot', async () => {
+			enableWorkspaceSnapshot(stateManager);
 			const repository = URI.file('/repo');
 			stateManager.createSession({
 				resource: sessionUri.toString(),

@@ -3178,6 +3178,10 @@ suite('CopilotAgentSession', () => {
 		function snapshot(deliveries: IWorkspaceSnapshotDelivery[]): IWorkspaceSnapshot {
 			return { roots: [repo, secretProject], onDidDeliver: delivery => deliveries.push(delivery) };
 		}
+		/** The deliveries without their timings, which depend on the clock. */
+		function outcomes(deliveries: readonly IWorkspaceSnapshotDelivery[]) {
+			return deliveries.map(({ contentExclusionMs: _contentExclusionMs, contentExclusionWaitMs: _contentExclusionWaitMs, ...outcome }) => outcome);
+		}
 
 		test('drops excluded roots and paths, and reports delivery when the prompt is submitted', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
@@ -3188,7 +3192,7 @@ suite('CopilotAgentSession', () => {
 			const deliveredBeforeSubmit = deliveries.length;
 			const expected = { roots: [{ ...repo, entries: [repo.entries[0], repo.entries[3], repo.entries[4]] }] };
 
-			assert.deepStrictEqual({ deliveredBeforeSubmit, additionalContext: session.handleUserPromptSubmitted(), deliveries }, {
+			assert.deepStrictEqual({ deliveredBeforeSubmit, additionalContext: session.handleUserPromptSubmitted(), deliveries: outcomes(deliveries) }, {
 				deliveredBeforeSubmit: 0,
 				additionalContext: { additionalContext: '<other/>\n\n' + renderWorkspaceSnapshot(expected) },
 				deliveries: [{ contentExclusion: 'evaluated', excludedPathCount: 2, includedRootCount: 1, snapshotLength: renderWorkspaceSnapshotStructure(expected).length }],
@@ -3202,7 +3206,7 @@ suite('CopilotAgentSession', () => {
 
 			await session.send('hello', undefined, undefined, undefined, undefined, undefined, ['<other/>'], undefined, false, snapshot(deliveries));
 
-			assert.deepStrictEqual({ sent: mockSession.sendRequests.length, additionalContext: session.handleUserPromptSubmitted(), deliveries }, {
+			assert.deepStrictEqual({ sent: mockSession.sendRequests.length, additionalContext: session.handleUserPromptSubmitted(), deliveries: outcomes(deliveries) }, {
 				sent: 1,
 				additionalContext: { additionalContext: '<other/>' },
 				deliveries: [{ contentExclusion: 'unavailable', excludedPathCount: 0, includedRootCount: 0, snapshotLength: 0 }],
@@ -3221,11 +3225,32 @@ suite('CopilotAgentSession', () => {
 			await session.send('hello', undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, snapshot(deliveries));
 			const all = { roots: [repo, secretProject] };
 
-			assert.deepStrictEqual({ additionalContext: session.handleUserPromptSubmitted(), deliveries }, {
+			assert.deepStrictEqual({ additionalContext: session.handleUserPromptSubmitted(), deliveries: outcomes(deliveries) }, {
 				additionalContext: { additionalContext: renderWorkspaceSnapshot(all) },
 				deliveries: [{ contentExclusion: 'notEnabled', excludedPathCount: 0, includedRootCount: 2, snapshotLength: renderWorkspaceSnapshotStructure(all).length }],
 			});
 		});
+
+		test('checks content exclusion while the send is prepared, and reports how long the check took and the send waited', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.operationLog.length = 0;
+			let operationsWhenCheckFinished: string[] = [];
+			mockSession.contentExclusionGate = timeout(50).then(() => { operationsWhenCheckFinished = [...mockSession.operationLog]; });
+			const deliveries: IWorkspaceSnapshotDelivery[] = [];
+
+			await session.send('hello', undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, snapshot(deliveries));
+			session.handleUserPromptSubmitted();
+
+			assert.deepStrictEqual({
+				preparedBeforeCheckFinished: operationsWhenCheckFinished,
+				operations: mockSession.operationLog,
+				timings: deliveries.map(({ contentExclusionMs, contentExclusionWaitMs }) => ({ contentExclusionMs, contentExclusionWaitMs })),
+			}, {
+				preparedBeforeCheckFinished: ['permissions.setMode', 'options.update:sandbox'],
+				operations: ['permissions.setMode', 'options.update:sandbox', 'send'],
+				timings: [{ contentExclusionMs: 50, contentExclusionWaitMs: 50 }],
+			});
+		}));
 
 		test('does not send or report delivery when the turn is cancelled during the content exclusion check', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);

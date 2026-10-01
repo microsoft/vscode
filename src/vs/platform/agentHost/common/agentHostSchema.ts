@@ -554,6 +554,9 @@ export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefin
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
 
+/** Root config key controlling the initial workspace file-name snapshot in Copilot chats. */
+export const AgentHostWorkspaceSnapshotEnabledConfigKey = 'workspaceSnapshotEnabled';
+
 /** Root config key controlling agent session creation, messaging, and recursion limits. */
 export const AgentHostAgentOrchestrationLimitsConfigKey = 'agentOrchestrationLimits';
 export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
@@ -886,6 +889,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.markdownPlanRichLinks.title', "Markdown Plan Rich Links"),
 		description: localize('agentHost.config.markdownPlanRichLinks.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
+		default: false,
+	}),
+	[AgentHostWorkspaceSnapshotEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.workspaceSnapshot.title', "Initial Workspace Snapshot"),
+		description: localize('agentHost.config.workspaceSnapshot.description', "Whether the first turn of a new Copilot chat includes a bounded file-name snapshot of its working directories."),
 		default: false,
 	}),
 	[AgentHostAgentOrchestrationLimitsConfigKey]: schemaProperty<AgentHostAgentOrchestrationLimits>({

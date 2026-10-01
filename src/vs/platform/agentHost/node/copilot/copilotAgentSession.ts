@@ -848,6 +848,18 @@ interface IPendingSteering {
 	readonly sender: IAgentPendingMessageSender | undefined;
 }
 
+/** What content exclusion left of a workspace snapshot, and what to report once it is submitted. */
+interface ICheckedWorkspaceSnapshot {
+	readonly instruction?: string;
+	readonly delivery: Omit<IWorkspaceSnapshotDelivery, 'contentExclusionWaitMs'>;
+}
+
+/** A workspace snapshot whose content exclusion check runs alongside the rest of the send preparation. */
+interface IPendingWorkspaceSnapshot {
+	readonly snapshot: IWorkspaceSnapshot;
+	readonly checked: Promise<ICheckedWorkspaceSnapshot>;
+}
+
 /**
  * Encapsulates a single Copilot SDK session and all its associated bookkeeping.
  *
@@ -3064,26 +3076,17 @@ export class CopilotAgentSession extends Disposable {
 			currentTurn.messageCharLen = prompt.length;
 		}
 		const turn = this._currentTurn.value;
-		let pendingWorkspaceSnapshotDelivery: (() => void) | undefined;
-		if (workspaceSnapshot) {
-			const abortToken = this._abortToken;
-			const { instruction, delivery } = await this._applyContentExclusion(workspaceSnapshot);
-			if (!this._canSendTurn(turn, abortToken)) {
-				return;
-			}
-			if (instruction) {
-				hostInstructions = [...(hostInstructions ?? []), instruction];
-			}
-			pendingWorkspaceSnapshotDelivery = () => workspaceSnapshot.onDidDeliver?.(delivery);
-		}
 		this._hostInstructions = hostInstructions;
-		this._pendingWorkspaceSnapshotDelivery = pendingWorkspaceSnapshotDelivery;
+		this._pendingWorkspaceSnapshotDelivery = undefined;
 		this._pendingSnapshotReminder = this._snapshotReadonlyReminder(attachments);
 		if (this._tryStartDevelopmentRecoverableError(prompt)) {
 			return;
 		}
+		// Started here so the check overlaps the rest of the send preparation; awaited just before the prompt is submitted.
+		const checkedWorkspaceSnapshot = workspaceSnapshot && { snapshot: workspaceSnapshot, checked: this._applyContentExclusion(workspaceSnapshot) };
+		checkedWorkspaceSnapshot?.checked.catch(() => { /* surfaced by the await before submission */ });
 		try {
-			await this._send(prompt, attachments, mode);
+			await this._send(prompt, attachments, mode, checkedWorkspaceSnapshot);
 		} catch (err) {
 			// A rejected send never reaches the SDK's agentic loop, so no
 			// `session.idle` will ever arrive to close this turn. The host turns
@@ -3109,12 +3112,13 @@ export class CopilotAgentSession extends Disposable {
 	 * Otherwise fails closed: sends no snapshot when the policy cannot be
 	 * evaluated in time.
 	 */
-	private async _applyContentExclusion(snapshot: IWorkspaceSnapshot): Promise<{ readonly instruction?: string; readonly delivery: IWorkspaceSnapshotDelivery }> {
-		const deadline = Date.now() + CONTENT_EXCLUSION_CHECK_TIMEOUT_MS;
+	private async _applyContentExclusion(snapshot: IWorkspaceSnapshot): Promise<ICheckedWorkspaceSnapshot> {
+		const started = Date.now();
+		const deadline = started + CONTENT_EXCLUSION_CHECK_TIMEOUT_MS;
 		if (await this._isContentExclusionEnabled(CONTENT_EXCLUSION_CHECK_TIMEOUT_MS) === false) {
 			return {
 				instruction: renderWorkspaceSnapshot(snapshot),
-				delivery: { contentExclusion: 'notEnabled', excludedPathCount: 0, includedRootCount: snapshot.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(snapshot).length },
+				delivery: { contentExclusion: 'notEnabled', excludedPathCount: 0, includedRootCount: snapshot.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(snapshot).length, contentExclusionMs: Date.now() - started },
 			};
 		}
 		const paths = getWorkspaceSnapshotPaths(snapshot);
@@ -3129,7 +3133,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		if (!excluded) {
 			this._logService.info(`[Copilot:${this.sessionId}] Omitting the workspace snapshot: content exclusion could not be evaluated`);
-			return { delivery: { contentExclusion: 'unavailable', excludedPathCount: 0, includedRootCount: 0, snapshotLength: 0 } };
+			return { delivery: { contentExclusion: 'unavailable', excludedPathCount: 0, includedRootCount: 0, snapshotLength: 0, contentExclusionMs: Date.now() - started } };
 		}
 		if (excluded.size > 0) {
 			this._logService.info(`[Copilot:${this.sessionId}] Workspace snapshot: dropped ${excluded.size} of ${paths.length} paths excluded by content exclusion`);
@@ -3138,8 +3142,29 @@ export class CopilotAgentSession extends Disposable {
 		const filtered = filterWorkspaceSnapshot(snapshot, path => excludedPaths.has(path));
 		return {
 			instruction: renderWorkspaceSnapshot(filtered),
-			delivery: { contentExclusion: 'evaluated', excludedPathCount: excluded.size, includedRootCount: filtered.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(filtered).length },
+			delivery: { contentExclusion: 'evaluated', excludedPathCount: excluded.size, includedRootCount: filtered.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(filtered).length, contentExclusionMs: Date.now() - started },
 		};
+	}
+
+	/**
+	 * Adds a checked workspace snapshot to the host instructions just before the
+	 * prompt is submitted. Returns false when the turn ended during the wait.
+	 */
+	private async _addCheckedWorkspaceSnapshot(pending: IPendingWorkspaceSnapshot | undefined, turn: CopilotTurn | undefined, abortToken: CancellationToken): Promise<boolean> {
+		if (!pending) {
+			return true;
+		}
+		const waitStarted = Date.now();
+		const { instruction, delivery } = await pending.checked;
+		const contentExclusionWaitMs = Date.now() - waitStarted;
+		if (!this._canSendTurn(turn, abortToken)) {
+			return false;
+		}
+		if (instruction) {
+			this._hostInstructions = [...(this._hostInstructions ?? []), instruction];
+		}
+		this._pendingWorkspaceSnapshotDelivery = () => pending.snapshot.onDidDeliver?.({ ...delivery, contentExclusionWaitMs });
+		return true;
 	}
 
 	/**
@@ -3219,7 +3244,7 @@ export class CopilotAgentSession extends Disposable {
 		return true;
 	}
 
-	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
+	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined, workspaceSnapshot?: IPendingWorkspaceSnapshot): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
 		// An aborted idle resets the live token; retain the pre-await token to preserve cancellation.
@@ -3300,7 +3325,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			// TEMPORARY WORKAROUND (#8837): route built-in /fleet via fleet.start to keep the AHP turn open; this bypasses commands.invoke telemetry/gating and should be removed once invoke returns agent-prompt.
 			if (runtimeSlashCommand && runtimeSlashCommand.kind === 'builtin' && runtimeSlashCommand.name === 'fleet') {
-				await this._startFleet(slashCommand.rest, attachments, mode, abortToken);
+				await this._startFleet(slashCommand.rest, attachments, mode, abortToken, workspaceSnapshot);
 				return;
 			}
 			// Skills are routed through `commands.invoke` like every other runtime
@@ -3394,6 +3419,9 @@ export class CopilotAgentSession extends Disposable {
 
 		await this._prepareSdkTurn(mode);
 		if (!this._canSendTurn(sendingTurn, abortToken)) {
+			return;
+		}
+		if (!await this._addCheckedWorkspaceSnapshot(workspaceSnapshot, sendingTurn, abortToken)) {
 			return;
 		}
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
@@ -3554,7 +3582,7 @@ export class CopilotAgentSession extends Disposable {
 	 * until the SDK's terminal `session.idle`, rather than completing it as `commands.invoke`
 	 * would. Remove once the runtime returns an `agent-prompt` result for `/fleet`.
 	 */
-	private async _startFleet(rest: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined, abortToken: CancellationToken): Promise<void> {
+	private async _startFleet(rest: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined, abortToken: CancellationToken, workspaceSnapshot?: IPendingWorkspaceSnapshot): Promise<void> {
 		if (attachments?.length) {
 			// `rpc.fleet.start` accepts only a prompt; fail loudly rather than silently dropping attachments.
 			throw new Error(localize('copilotAgent.fleet.attachmentsUnsupported', "Attachments are not supported with the /fleet command."));
@@ -3574,6 +3602,9 @@ export class CopilotAgentSession extends Disposable {
 		if (abortToken.isCancellationRequested) {
 			this._logService.warn(`[Copilot:${this.sessionId}] aborted during fleet preflight; not starting fleet`);
 			this.discardActiveTurn();
+			return;
+		}
+		if (!await this._addCheckedWorkspaceSnapshot(workspaceSnapshot, startingTurn, abortToken)) {
 			return;
 		}
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());

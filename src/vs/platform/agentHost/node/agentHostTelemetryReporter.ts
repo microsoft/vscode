@@ -116,6 +116,8 @@ export interface IAgentHostWorkspaceSnapshotEvent {
 	contentExclusion: AgentHostWorkspaceSnapshotContentExclusion;
 	excludedPathCount: number;
 	snapshotLength: number;
+	contentExclusionMs: number;
+	contentExclusionWaitMs: number;
 }
 
 type IAgentHostWorkspaceSnapshotClassification = {
@@ -129,6 +131,8 @@ type IAgentHostWorkspaceSnapshotClassification = {
 	contentExclusion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the provider checked the snapshot against content exclusion, skipped the check because the account does not use content exclusion, could not check it (so none was sent), or had no snapshot to check.' };
 	excludedPathCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of listed paths dropped because content exclusion excludes them.' };
 	snapshotLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Length in characters of the file-name tree that reached the model, after content exclusion, or 0 when none did.' };
+	contentExclusionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds the provider took to check the snapshot against content exclusion, or 0 when there was no snapshot to check.' };
+	contentExclusionWaitMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds the first send waited for the content exclusion check after the rest of its preparation finished.' };
 	owner: 'bhavyaus';
 	comment: 'Reports whether the first turn of a new Copilot Agent Host conversation included its initial workspace file-name snapshot, and why roots were left out.';
 };

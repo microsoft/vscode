@@ -380,7 +380,7 @@ export class MockAgent implements IAgent {
 			// Submits the workspace snapshot the way a provider does when content exclusion excludes nothing.
 			const workspaceSnapshot = resolveAgentWorkspaceSnapshot(operationContext);
 			if (workspaceSnapshot && !this.sendMessageError) {
-				workspaceSnapshot.onDidDeliver?.({ contentExclusion: 'evaluated', excludedPathCount: 0, includedRootCount: workspaceSnapshot.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(workspaceSnapshot).length });
+				workspaceSnapshot.onDidDeliver?.({ contentExclusion: 'evaluated', excludedPathCount: 0, includedRootCount: workspaceSnapshot.roots.length, snapshotLength: renderWorkspaceSnapshotStructure(workspaceSnapshot).length, contentExclusionMs: 0, contentExclusionWaitMs: 0 });
 			}
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId, clientType);
 		},

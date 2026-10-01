@@ -13,10 +13,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { FileType, IFileService } from '../../../../files/common/files.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
+import { AgentHostWorkspaceSnapshotEnabledConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import type { IWorkspaceSnapshotDelivery, IWorkspaceSnapshotEntry, IWorkspaceSnapshotRoot } from '../../../common/workspaceSnapshot.js';
+import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostWorkspaceSnapshotPreparation, type IAgentHostWorkspaceSnapshotEvent } from '../../agentHostTelemetryReporter.js';
@@ -99,6 +101,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostTelemetryReporter private readonly _telemetryReporter: AgentHostTelemetryReporter,
 		@IAgentHostTurnTracker turnTracker: AgentHostTurnTracker,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -253,6 +256,8 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 				contentExclusion: 'notApplicable',
 				excludedPathCount: 0,
 				snapshotLength: 0,
+				contentExclusionMs: 0,
+				contentExclusionWaitMs: 0,
 			},
 		};
 	}
@@ -277,7 +282,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			return;
 		}
 		const report = candidate.report && {
-			detail: `${candidate.report.detail}; content exclusion ${delivery.contentExclusion}, ${delivery.excludedPathCount} paths excluded, ${delivery.includedRootCount} roots sent`,
+			detail: `${candidate.report.detail}; content exclusion ${delivery.contentExclusion} in ${delivery.contentExclusionMs}ms (send waited ${delivery.contentExclusionWaitMs}ms), ${delivery.excludedPathCount} paths excluded, ${delivery.includedRootCount} roots sent`,
 			event: { ...candidate.report.event, ...delivery },
 		};
 		this._consume(chat, report);
@@ -285,7 +290,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 
 	/** Records that the chat's conversation reached the provider, then logs and reports the snapshot. */
 	private _consume(chat: ProtocolURI, report: ICandidateTurn['report']): void {
-		this._candidates.delete(chat);
+		this._release(chat);
 		this._context.memento(providerTurnSeenMemento, chat).set(true, undefined);
 		if (report) {
 			this._logService.info(`[WorkspaceContext] First turn of ${chat}: ${report.detail}`);
@@ -386,9 +391,13 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 	 * receive a focused task from the chat that delegated it. A restored chat
 	 * whose history is not loaded yet is never treated as new: it may already
 	 * have a snapshot in its provider conversation. Earlier turns that never
-	 * reached the provider, such as local commands, do not count.
+	 * reached the provider, such as local commands, do not count. Always
+	 * `undefined` while the feature is disabled.
 	 */
 	private _firstTurnWorkingDirectories(chat: ProtocolURI): URI[] | undefined {
+		if (!this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceSnapshotEnabledConfigKey)) {
+			return undefined;
+		}
 		const state = this._stateManager.getSessionState(chat);
 		const chatState = this._stateManager.getChatState(chat);
 		if (state?.provider !== 'copilotcli' || !chatState || this._context.memento(providerTurnSeenMemento, chat).get()) {
@@ -418,25 +427,21 @@ interface IWorkspaceNode {
 }
 
 /**
- * Reads a directory's visible entries in display order: files before
- * directories, each sorted by name. Hidden entries and the excluded names are
- * skipped. Reads names and types only, never per-file metadata.
+ * Reads a directory's first `maxEntries` visible entries in display order:
+ * files before directories, each sorted by name. Hidden entries and the
+ * excluded names are skipped. Reads names and types only, never per-file metadata.
  */
-async function readChildren(fileService: IFileService, directory: URI): Promise<IWorkspaceNode[]> {
+async function readChildren(fileService: IFileService, directory: URI, maxEntries: number): Promise<IWorkspaceNode[]> {
 	const provider = fileService.getProvider(directory.scheme);
 	if (!provider) {
 		return [];
 	}
-	const entries = await provider.readdir(directory);
-	const nodes: IWorkspaceNode[] = [];
-	for (const [name, type] of entries) {
-		const isDirectory = (type & FileType.Directory) !== 0;
-		if (name.startsWith('.') || (isDirectory ? EXCLUDED_FOLDERS : EXCLUDED_FILES).has(name.toLowerCase())) {
-			continue;
-		}
-		nodes.push({ name, resource: URI.joinPath(directory, name), isDirectory, expandable: type === FileType.Directory });
-	}
-	return nodes.sort((a, b) => Number(a.isDirectory) - Number(b.isDirectory) || compare(a.name, b.name));
+	const visible = (await provider.readdir(directory))
+		.map(([name, type]) => ({ name, type, isDirectory: (type & FileType.Directory) !== 0 }))
+		.filter(({ name, isDirectory }) => !name.startsWith('.') && !(isDirectory ? EXCLUDED_FOLDERS : EXCLUDED_FILES).has(name.toLowerCase()))
+		.sort((a, b) => Number(a.isDirectory) - Number(b.isDirectory) || compare(a.name, b.name));
+	// Resources are only built for entries that can be listed, so a huge directory stays cheap.
+	return visible.slice(0, maxEntries).map(({ name, type, isDirectory }) => ({ name, resource: URI.joinPath(directory, name), isDirectory, expandable: type === FileType.Directory }));
 }
 
 /**
@@ -451,8 +456,10 @@ async function listWorkspaceTree(fileService: IFileService, root: URI, maxLength
 		return { entries: [], truncated: false };
 	}
 	const selected = new Map<IWorkspaceNode, IWorkspaceSnapshotEntry>();
+	// A line takes at least two characters, so no directory can contribute more entries than this.
+	const maxEntries = Math.floor(maxLength / 2);
 	// The root must be readable; an unreadable nested directory is shown without children.
-	const topLevel = await readChildren(fileService, root);
+	const topLevel = await readChildren(fileService, root, maxEntries);
 	let level = topLevel;
 	let length = 0;
 	let truncated = false;
@@ -474,7 +481,7 @@ async function listWorkspaceTree(fileService: IFileService, root: URI, maxLength
 			}
 		}
 		if (!truncated) {
-			await Promise.all(expanded.map(async node => { node.children = await readChildren(fileService, node.resource).catch(() => []); }));
+			await Promise.all(expanded.map(async node => { node.children = await readChildren(fileService, node.resource, maxEntries).catch(() => []); }));
 			level = expanded.flatMap(node => node.children ?? []);
 		}
 	}
