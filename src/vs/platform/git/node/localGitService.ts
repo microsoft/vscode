@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import { rm } from 'fs/promises';
 import { CancellationError } from '../../../base/common/errors.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -133,8 +134,17 @@ export class LocalGitService implements ILocalGitService {
 		args.push('--', cloneUrl, targetPath);
 		await this._exec(operationId, args, undefined, options);
 		if (pinnedCommit) {
-			await this._exec(operationId, ['fetch', 'origin', pinnedCommit], targetPath, options);
-			await this.checkoutCommit(operationId, targetPath, pinnedCommit);
+			try {
+				await this._exec(operationId, ['fetch', 'origin', pinnedCommit], targetPath, options);
+				await this.checkoutCommit(operationId, targetPath, pinnedCommit);
+			} catch (error) {
+				try {
+					await rm(targetPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+				} catch (cleanupError) {
+					throw new AggregateError([error, cleanupError], localize('pluginsPinnedCloneCleanupFailed', "Failed to prepare and clean up the plugin repository at '{0}'.", targetPath));
+				}
+				throw error;
+			}
 		}
 	}
 
