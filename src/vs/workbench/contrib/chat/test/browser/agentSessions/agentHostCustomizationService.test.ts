@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -31,6 +33,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
@@ -572,6 +575,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			}(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
 			mcpService,
+			new class extends mock<IAgentHostNewSessionFolderService>() { }(),
 		));
 		let changes = 0;
 		store.add(service.onDidChangeCustomizations(() => changes++));
@@ -593,6 +597,62 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			changes: 1,
 			enablementChanges: [['component-explorer', ContributionEnablementState.DisabledProfile]],
 		});
+	});
+
+	test('only management preparation creates an eager draft, for local untitled sessions', async () => {
+		const folder = URI.file('/workspace');
+		const localDraft = URI.from({ scheme: 'agent-host-copilotcli', path: '/untitled-local' });
+		const pendingDraft = URI.from({ scheme: 'agent-host-copilotcli', path: '/untitled-pending' });
+		const remoteDraft = URI.from({ scheme: 'remote-host-copilotcli', path: '/untitled-remote' });
+		const startedSession = URI.from({ scheme: 'agent-host-copilotcli', path: '/started' });
+		const pendingCreate = new DeferredPromise<URI | undefined>();
+		const creates: { sessionResource: string; provider: string; workingDirectory: string | undefined; eagerlyMaterialize: boolean | undefined }[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+		const service = store.add(new WorkbenchAgentHostCustomizationService(
+			new class extends mock<IAgentHostConnectionsService>() {
+				override readonly ambientConnection = new class extends mock<IAgentConnection>() {
+					override readonly onDidAction = Event.None;
+				}();
+			}(),
+			new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+				override readonly onDidChange = Event.None;
+				override get(): URI | undefined {
+					return undefined;
+				}
+				override getOrCreate(sessionResource: URI, provider: string, workingDirectory: URI | undefined, eagerlyMaterialize?: boolean): Promise<URI | undefined> {
+					creates.push({ sessionResource: sessionResource.toString(), provider, workingDirectory: workingDirectory?.toString(), eagerlyMaterialize });
+					return isEqual(sessionResource, pendingDraft) ? pendingCreate.p : Promise.resolve(undefined);
+				}
+			}(),
+			instantiationService,
+			new NullLogService(),
+			new class extends mock<IChatService>() {
+				override readonly onDidDisposeSession = Event.None;
+			}(),
+			new class extends mock<IAgentHostActiveClientService>() { }(),
+			new class extends mock<IMcpService>() { }(),
+			new class extends mock<IAgentHostNewSessionFolderService>() {
+				override resolveNewSessionPrimary(): URI {
+					return folder;
+				}
+			}(),
+		));
+
+		await service.whenCustomizationsReady(localDraft, CancellationToken.None);
+		await service.prepareSessionForManagement(localDraft, CancellationToken.None);
+		await service.prepareSessionForManagement(remoteDraft, CancellationToken.None);
+		await service.prepareSessionForManagement(startedSession, CancellationToken.None);
+		const cancellation = new CancellationTokenSource();
+		const pending = service.prepareSessionForManagement(pendingDraft, cancellation.token);
+		cancellation.dispose(true);
+		await pending;
+		pendingCreate.complete(undefined);
+
+		assert.deepStrictEqual(creates, [
+			{ sessionResource: localDraft.toString(), provider: 'copilotcli', workingDirectory: folder.toString(), eagerlyMaterialize: true },
+			{ sessionResource: pendingDraft.toString(), provider: 'copilotcli', workingDirectory: folder.toString(), eagerlyMaterialize: true },
+		]);
 	});
 
 	test('uses provisional roots only until authoritative session state is available', () => {
@@ -647,6 +707,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			}(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
 			new class extends mock<IMcpService>() { }(),
+			new class extends mock<IAgentHostNewSessionFolderService>() { }(),
 		));
 		const createState = (workingDirectories: readonly URI[]): SessionState => createSessionState({
 			resource: backendSession.toString(),
@@ -775,6 +836,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			}(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
 			new class extends mock<IMcpService>() { }(),
+			new class extends mock<IAgentHostNewSessionFolderService>() { }(),
 		));
 		const directory: Customization = {
 			type: CustomizationType.Directory,

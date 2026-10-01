@@ -2552,6 +2552,57 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	test('promotable drafts do not reserve a worktree and cannot be promoted with worktree isolation', async () => {
+		const session = AgentSession.uri('codex', 'eager-worktree-draft');
+		const workingDirectory = URI.file('/workspace/repo');
+		const gitService = createNoopGitService();
+		gitService.getRepositoryRoot = async () => workingDirectory;
+		gitService.revParse = async () => 'head';
+		gitService.getCurrentBranch = async () => 'feature';
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		const isolation = disposables.add(new WorktreeIsolation(
+			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
+			gitService,
+			nullSessionDataService,
+			new NullLogService(),
+		));
+		setTestAgentHostWorktreeIsolation(localService, isolation);
+		const pendingDuringCreate: boolean[] = [];
+		class ProvisionalAgent extends MockAgent {
+			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+				createChat: async (chat, context, options) => {
+					const { configurationResource } = resolveAgentChatContext(context, chat);
+					pendingDuringCreate.push(isWorkingDirectoryPending(localService, configurationResource.toString()));
+					return { ...await expectCreatedChat(base.createChat(chat, context, options)), provisional: true };
+				},
+			}));
+		}
+		const agent = new ProvisionalAgent('codex');
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(localService, agent);
+
+		await localService.createSession({
+			provider: 'codex',
+			session,
+			workingDirectories: [workingDirectory],
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			_meta: withEphemeralSessionMeta(undefined, true),
+			eagerlyMaterialize: true,
+		});
+		await assert.rejects(localService.promoteSession(session), /worktree isolation/);
+
+		assert.deepStrictEqual({
+			pendingDuringCreate,
+			pendingAfterCreate: isWorkingDirectoryPending(localService, session.toString()),
+			draft: readEphemeralSessionMeta(getStateManager(localService).getSessionState(session.toString()) ?? {}),
+		}, {
+			pendingDuringCreate: [false],
+			pendingAfterCreate: false,
+			draft: { isEphemeral: true, isPromotableDraft: true },
+		});
+	});
+
 	test('createSession validates, exposes, and persists multi-root metadata', async () => {
 		const db = new TestSessionDatabase();
 		const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -19108,6 +19159,33 @@ suite('AgentService (node dispatcher)', () => {
 				surface: { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///repo/inline.ts' },
 				unknownSlot: undefined,
 				devContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
+			});
+		});
+
+		test('promoteSession graduates only host-marked promotable drafts', async () => {
+			const perSession = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, agent);
+			const stateManager = getStateManager(svc);
+			const readMeta = (session: URI) => readEphemeralSessionMeta(stateManager.getSessionState(session.toString()) ?? {});
+
+			const draft = await svc.createSession({ provider: 'copilot', workingDirectories: [URI.file('/repo')], _meta: withEphemeralSessionMeta(undefined, true), eagerlyMaterialize: true });
+			const throwaway = await svc.createSession({ provider: 'copilot', workingDirectories: [URI.file('/repo')], _meta: withEphemeralSessionMeta(undefined, true) });
+			const draftBefore = readMeta(draft);
+			await svc.promoteSession(draft);
+			await assert.rejects(svc.promoteSession(throwaway), /not a promotable draft/);
+
+			assert.deepStrictEqual({
+				draftBefore,
+				draftAfter: readMeta(draft),
+				throwaway: readMeta(throwaway),
+				listed: (await svc.listSessions()).map(session => session.session.toString()),
+			}, {
+				draftBefore: { isEphemeral: true, isPromotableDraft: true },
+				draftAfter: {},
+				throwaway: { isEphemeral: true },
+				listed: [draft.toString()],
 			});
 		});
 

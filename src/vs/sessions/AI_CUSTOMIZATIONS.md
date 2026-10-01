@@ -69,8 +69,11 @@ A descriptor may define:
 - MCP collection exclusions that do not hide host-published servers;
 - an optional, session-scoped MCP compatibility provider;
 - an optional MCP migration provider;
+- an optional management-session provider that prepares the active session while the Customizations editor is visible;
 - required agent availability;
 - external items, enablement, and plugin actions.
+
+Only the Customizations editor invokes the management-session provider, and it cancels the request when the editor hides or the active session changes. Item, slash-command, and migration queries must never start a session runtime.
 
 Harness compatibility is distinct from MCP runtime and enablement state. Providers acquire a ref-counted scope for the active session and publish resolved state plus generic per-server compatibility and localized details, allowing shared widgets to present support without importing provider-specific assessment logic.
 

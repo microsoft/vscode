@@ -31,6 +31,8 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
+import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -54,6 +56,15 @@ export interface IAgentHostCustomizationService {
 	 * Intended for one-shot reads; reactive callers should continue listening to {@link onDidChangeCustomizations}.
 	 */
 	whenCustomizationsReady(sessionResource: URI, token?: CancellationToken): Promise<void>;
+
+	/**
+	 * Prepares a draft session so management controls (for example MCP server
+	 * start/stop) act on a real runtime before the first message. Only the
+	 * Customizations editor calls this, while it shows `sessionResource`;
+	 * customization queries never do. Resolves early on cancellation, while
+	 * preparation continues in the background.
+	 */
+	prepareSessionForManagement(sessionResource: URI, token: CancellationToken): Promise<void>;
 
 	/**
 	 * The harness-owned decision about the multi-root Folder picker for a
@@ -122,6 +133,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 		return [];
 	}
 	whenCustomizationsReady(_sessionResource: URI, _token?: CancellationToken): Promise<void> {
+		return Promise.resolve();
+	}
+	prepareSessionForManagement(_sessionResource: URI, _token: CancellationToken): Promise<void> {
 		return Promise.resolve();
 	}
 	getFolderPickerDecision(_sessionResource: URI): ISessionFolderPickerDecision | undefined {
@@ -213,6 +227,11 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 * state, so a snapshot is available as soon as the target resolves.
 	 */
 	whenCustomizationsReady(_sessionResource: URI, _token?: CancellationToken): Promise<void> {
+		return Promise.resolve();
+	}
+
+	/** Targets resolved by this base already have a runtime, so there is nothing to prepare. */
+	prepareSessionForManagement(_sessionResource: URI, _token: CancellationToken): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -511,6 +530,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		@IChatService private readonly _chatService: IChatService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IMcpService private readonly _mcpService: IMcpService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super(instantiationService, logService);
 
@@ -670,6 +690,20 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		// cancellation cannot settle the wait for the others.
 		entry.readiness ??= this._awaitFirstSnapshot(entry.sub);
 		await raceCancellation(entry.readiness, token);
+	}
+
+	override async prepareSessionForManagement(sessionResource: URI, token: CancellationToken): Promise<void> {
+		// Only local drafts have a provisional to materialize; remote and started sessions own their runtime.
+		const localBackend = isUntitledChatSession(sessionResource) ? toAgentHostBackendSessionUri(sessionResource) : undefined;
+		if (!localBackend || token.isCancellationRequested) {
+			return;
+		}
+		await raceCancellation(this._provisionalSessionService.getOrCreate(
+			sessionResource,
+			localBackend.scheme,
+			this._newSessionFolderService.resolveNewSessionPrimary(sessionResource),
+			true,
+		), token);
 	}
 
 	private async _awaitFirstSnapshot(subscription: IAgentSubscription<SessionState>): Promise<void> {

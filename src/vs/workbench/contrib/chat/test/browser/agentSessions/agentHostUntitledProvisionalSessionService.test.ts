@@ -34,6 +34,7 @@ import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } f
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { areCustomizationScopeRootsEqual, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 
 // ---- Mocks -----------------------------------------------------------------
 
@@ -107,6 +108,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			throw new Error('dispose failed');
 		}
 		this.disposed.push(session);
+	}
+
+	readonly promoted: URI[] = [];
+
+	override async promoteSession(session: URI): Promise<void> {
+		this.promoted.push(session);
 	}
 
 	fireAgentHostStart(): void {
@@ -1267,6 +1274,122 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			rebound: undefined,
 			imported,
 			disposed: [URI.from({ scheme: 'copilot', path: '/real-import-failure' }).toString()],
+		});
+	});
+
+	test('only eagerly materialized drafts are promotable', async () => {
+		const deferredUi = untitledChatUri('deferred-draft');
+		const eagerUi = untitledChatUri('eager-draft');
+		await provisional.getOrCreate(deferredUi, 'copilot', undefined);
+		await provisional.getOrCreate(eagerUi, 'copilot', undefined, true);
+
+		assert.deepStrictEqual({
+			deferredMapped: provisional.get(deferredUi) !== undefined,
+			deferredPromotable: provisional.getPromotableBackendSession(deferredUi),
+			eagerPromotable: provisional.getPromotableBackendSession(eagerUi)?.toString(),
+		}, {
+			deferredMapped: true,
+			deferredPromotable: undefined,
+			eagerPromotable: provisional.get(eagerUi)?.toString(),
+		});
+	});
+
+	test('tryRebind promotes an eager draft in place', async () => {
+		const ui = untitledChatUri('eager-promote');
+		const draft = await provisional.getOrCreate(ui, 'copilot', undefined, true);
+		assert.ok(draft);
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: draft.path });
+
+		const rebound = await provisional.tryRebind(ui, realUi, 'copilot');
+
+		assert.deepStrictEqual({
+			rebound: rebound?.toString(),
+			current: provisional.get(realUi)?.toString(),
+			promotableAfterPromotion: provisional.getPromotableBackendSession(realUi),
+			promoted: agentHost.promoted.map(uri => uri.toString()),
+			creates: agentHost.createCalls.map(call => ({ session: call.session?.toString(), eagerlyMaterialize: call.eagerlyMaterialize, meta: call._meta })),
+			disposed: agentHost.disposed,
+		}, {
+			rebound: draft.toString(),
+			current: draft.toString(),
+			promotableAfterPromotion: undefined,
+			promoted: [draft.toString()],
+			creates: [{ session: draft.toString(), eagerlyMaterialize: true, meta: { [VSCODE_EPHEMERAL_SESSION_META_KEY]: true } }],
+			disposed: [],
+		});
+	});
+
+	test('tryRebind creates a durable session when an eager draft cannot be promoted in place', async () => {
+		const ui = untitledChatUri('eager-fallback');
+		const draft = await provisional.getOrCreate(ui, 'copilot', undefined, true);
+		assert.ok(draft);
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-eager-fallback' });
+		const real = URI.from({ scheme: 'copilot', path: '/real-eager-fallback' });
+
+		const rebound = await provisional.tryRebind(ui, realUi, 'copilot');
+
+		const finalCreate = agentHost.createCalls.at(-1);
+		assert.deepStrictEqual({
+			rebound: rebound?.toString(),
+			promotable: provisional.getPromotableBackendSession(realUi),
+			promoted: agentHost.promoted,
+			finalCreate: { session: finalCreate?.session?.toString(), eagerlyMaterialize: finalCreate?.eagerlyMaterialize, meta: finalCreate?._meta },
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			rebound: real.toString(),
+			promotable: undefined,
+			promoted: [],
+			finalCreate: { session: real.toString(), eagerlyMaterialize: undefined, meta: undefined },
+			disposed: [draft.toString()],
+		});
+	});
+
+	test('tryRebind starts a fresh worktree session instead of promoting a worktree draft', async () => {
+		const ui = untitledChatUri('eager-worktree');
+		const draft = await provisional.getOrCreate(ui, 'copilot', undefined, true);
+		assert.ok(draft);
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
+		await provisional.applyConfigChange(ui, 'copilot', undefined, { isolation: 'worktree' });
+		const promotableWithWorktree = provisional.getPromotableBackendSession(ui);
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-eager-worktree' });
+
+		const rebound = await provisional.tryRebind(ui, realUi, 'copilot');
+
+		const finalCreate = agentHost.createCalls.at(-1);
+		assert.deepStrictEqual({
+			promotableWithWorktree,
+			rebound: rebound?.path,
+			promoted: agentHost.promoted,
+			finalCreate: { session: finalCreate?.session?.path, config: finalCreate?.config, eagerlyMaterialize: finalCreate?.eagerlyMaterialize, meta: finalCreate?._meta },
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			promotableWithWorktree: undefined,
+			rebound: '/real-eager-worktree',
+			promoted: [],
+			finalCreate: { session: '/real-eager-worktree', config: { isolation: 'worktree' }, eagerlyMaterialize: undefined, meta: undefined },
+			disposed: [draft.toString()],
+		});
+	});
+
+	test('tryRebind fails instead of promoting when worktree isolation is selected after the draft ID was reused', async () => {
+		const ui = untitledChatUri('eager-worktree-race');
+		const draft = await provisional.getOrCreate(ui, 'copilot', undefined, true);
+		assert.ok(draft);
+		const realUi = URI.from({ scheme: 'agent-host-copilot', path: draft.path });
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
+		const configChange = provisional.applyConfigChange(ui, 'copilot', undefined, { isolation: 'worktree' });
+
+		await assert.rejects(provisional.tryRebind(ui, realUi, 'copilot'), /can no longer be promoted/);
+		await configChange;
+
+		assert.deepStrictEqual({
+			promoted: agentHost.promoted,
+			creates: agentHost.createCalls.map(call => call.session?.toString()),
+			disposed: agentHost.disposed,
+		}, {
+			promoted: [],
+			creates: [draft.toString()],
+			disposed: [],
 		});
 	});
 

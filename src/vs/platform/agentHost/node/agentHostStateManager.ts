@@ -702,6 +702,20 @@ export class AgentHostStateManager extends Disposable {
 		return entry ? readEphemeralSessionMeta(entry.state).isEphemeral === true : false;
 	}
 
+	/**
+	 * Whether the session gets the reduced ephemeral capability set. Promotable
+	 * drafts are ephemeral but keep full capabilities, because the durable session
+	 * they are promoted into reuses their runtime.
+	 */
+	hasRestrictedEphemeralCapabilities(session: string): boolean {
+		const entry = this._sessionStates.get(session);
+		if (!entry) {
+			return false;
+		}
+		const meta = readEphemeralSessionMeta(entry.state);
+		return meta.isEphemeral === true && meta.isPromotableDraft !== true;
+	}
+
 	/** Returns the typed VS Code surface metadata for a tracked session, when present. */
 	getSessionSurfaceMeta(session: string): IChatSurfaceMeta | undefined {
 		const entry = this._sessionStates.get(session);

@@ -808,6 +808,8 @@ export interface IAgentHostManagementService {
 	 * AHP `createSession` (`model`, `agent`, and `importConversation`).
 	 */
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI>;
+	/** Local-only promotion for an eagerly materialized draft. */
+	promoteSession(session: URI): Promise<void>;
 	/**
 	 * Local-only compatibility path for chat fields not yet represented by AHP
 	 * `createChat` (`title` and `model`).
@@ -860,6 +862,8 @@ export interface IAgentService {
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Promotes an eagerly materialized ephemeral draft into a durable user session. */
+	promoteSession?(session: URI): Promise<void>;
 	/** Permanently adopts an external session without sending a message. */
 	importSession?(session: URI): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
@@ -1191,6 +1195,8 @@ export interface IAgentConnection {
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Promotes an eagerly materialized ephemeral draft into a durable user session. */
+	promoteSession?(session: URI): Promise<void>;
 	/** Requires the VS Code session import capability advertised by initialize. */
 	importSession?(session: URI): Promise<void>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */

@@ -22,6 +22,7 @@ import { IOutputService } from '../../../../../services/output/common/output.js'
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
@@ -92,6 +93,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				chatService,
 				activeClientService,
 				new class extends mock<IMcpService>() { }(),
+				new class extends mock<IAgentHostNewSessionFolderService>() { }(),
 			));
 			let customizationChangeCount = 0;
 			store.add(service.onDidChangeCustomizations(() => customizationChangeCount++));

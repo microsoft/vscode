@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -176,7 +176,8 @@ suite('aiCustomizationManagementEditor', () => {
 		instantiationService: IInstantiationService;
 		configurationService: IConfigurationService;
 		editorDisposables: DisposableStore;
-		harnessService: { activeSessionResource: ISettableObservable<URI>; activeHarness: ISettableObservable<string>; findHarnessById: ICustomizationHarnessService['findHarnessById'] };
+		harnessService: { activeSessionResource: ISettableObservable<URI>; activeHarness: ISettableObservable<string>; findHarnessById: ICustomizationHarnessService['findHarnessById']; getActiveDescriptor: ICustomizationHarnessService['getActiveDescriptor'] };
+		managementSessionPreparation: MutableDisposable<IDisposable>;
 		migrationListContainer: HTMLElement | undefined;
 		migrationSectionLists: readonly unknown[];
 		migrationMigrateButton: { enabled: boolean; label: string } | undefined;
@@ -344,7 +345,9 @@ suite('aiCustomizationManagementEditor', () => {
 			activeSessionResource: observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a')),
 			activeHarness: observableValue('activeHarness', 'agent-host-copilotcli'),
 			findHarnessById: () => undefined,
+			getActiveDescriptor: () => ({ id: 'agent-host-copilotcli', label: 'Copilot', icon: Codicon.server }),
 		};
+		editor.managementSessionPreparation = editor.editorPreviewDisposables.add(new MutableDisposable());
 		editor.hoverService = hoverService ?? {
 			setupManagedHover: () => ({
 				dispose() { },
@@ -689,6 +692,41 @@ suite('aiCustomizationManagementEditor', () => {
 			visibilityChanges: [false, true],
 			reused: true,
 			created: 1,
+		});
+	});
+
+	test('prepares the active session for management only while visible with an input', async () => {
+		const { editor } = createContributedSectionEditor();
+		const sessionA = URI.parse('agent-host-copilotcli:/untitled-a');
+		const sessionB = URI.parse('agent-host-copilotcli:/untitled-b');
+		const requests: { session: string; token: CancellationToken }[] = [];
+		editor.harnessService.getActiveDescriptor = () => ({
+			id: 'agent-host-copilotcli',
+			label: 'Copilot',
+			icon: Codicon.server,
+			managementSessionProvider: {
+				prepare: async (session, token) => { requests.push({ session: session.path, token }); },
+			},
+		});
+		editor.harnessService.activeSessionResource.set(sessionA, undefined);
+		editor.setVisible(true);
+		const requestsWithoutInput = requests.length;
+
+		await editor.setInput(store.add(new AICustomizationManagementEditorInput()), undefined, {}, CancellationToken.None);
+		editor.setVisible(false);
+		editor.harnessService.activeSessionResource.set(sessionB, undefined);
+		editor.setVisible(true);
+		editor.clearInput();
+
+		assert.deepStrictEqual({
+			requestsWithoutInput,
+			requests: requests.map(request => ({ session: request.session, cancelled: request.token.isCancellationRequested })),
+		}, {
+			requestsWithoutInput: 0,
+			requests: [
+				{ session: '/untitled-a', cancelled: true },
+				{ session: '/untitled-b', cancelled: true },
+			],
 		});
 	});
 

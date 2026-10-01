@@ -18,7 +18,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
-import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { withEphemeralSessionMeta, withPromotableDraftSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
 import {
@@ -217,25 +217,38 @@ suite('SessionServerTools', () => {
 		assert.throws(() => applySetWorkspaceTool(accessor, { workspaceFolder: '/workspace/app', isolation: false }, chat, undefined), /must run from an active chat turn/);
 	});
 
-	test('ephemeral sessions advertise no default session-management tools', () => {
+	test('ephemeral sessions advertise no default session-management tools unless they are promotable drafts', () => {
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		const session = 'copilot:/ephemeral';
-		stateManager.createSession({
-			resource: session,
-			provider: 'copilot',
-			title: 'Ephemeral',
-			status: SessionStatus.Idle,
-			createdAt: new Date(0).toISOString(),
-			modifiedAt: new Date(0).toISOString(),
-			_meta: withEphemeralSessionMeta(undefined, true),
-		});
+		const draft = 'copilot:/promotable-draft';
+		for (const [resource, _meta] of [
+			[session, withEphemeralSessionMeta(undefined, true)],
+			[draft, withPromotableDraftSessionMeta(withEphemeralSessionMeta(undefined, true))],
+		] as const) {
+			stateManager.createSession({
+				resource,
+				provider: 'copilot',
+				title: 'Ephemeral',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+				_meta,
+			});
+		}
 		const host = new AgentServerToolHost(stateManager, [
 			createSessionServerToolGroup(createAccessor()),
 		]);
 
 		host.advertise(session);
+		host.advertise(draft);
 
-		assert.deepStrictEqual(stateManager.getSessionState(session)?.serverTools, []);
+		assert.deepStrictEqual({
+			ephemeral: stateManager.getSessionState(session)?.serverTools,
+			draftAdvertisesSessionTools: (stateManager.getSessionState(draft)?.serverTools?.length ?? 0) > 0,
+		}, {
+			ephemeral: [],
+			draftAdvertisesSessionTools: true,
+		});
 		stateManager.dispose();
 	});
 
