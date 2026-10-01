@@ -1087,11 +1087,6 @@
 		white-space: nowrap;
 	}
 
-	.session-section-count-badge {
-		flex-shrink: 0;
-		margin-left: var(--vscode-spacing-size40);
-	}
-
 	.session-section-migration-indicator {
 		display: none;
 		flex-shrink: 0;
