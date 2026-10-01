@@ -5190,6 +5190,60 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('additional chat working directories', () => {
+		test('single-chat workspace replacement waits for an in-flight chat creation and refuses to move its workspace', async () => {
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			class MultiChatAgent extends MockAgent {
+				override async createChat(_session: URI, chat: URI): Promise<IAgentCreateChatResult> {
+					if (!isDefaultChatUri(chat)) {
+						started.complete();
+						await release.p;
+					}
+					return { providerData: `backing:${chat.path}` };
+				}
+			}
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', { multipleChats: { fork: true } }));
+			registerTestAgentProvider(svc, agent);
+			const original = URI.file('/workspace/original');
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [original] });
+			const main = URI.parse(buildDefaultChatUri(session));
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			const creating = svc.createChat(session, peer);
+			await started.p;
+			const replacing = svc.runWithChatCatalogLock(session, () => svc.setChatWorkingDirectory(session, main, URI.file('/workspace/worktree'), true));
+			const rejected = assert.rejects(replacing, /Cannot assign/);
+			release.complete();
+			await Promise.all([creating, rejected]);
+			assert.deepStrictEqual({
+				workspace: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+				chats: getStateManager(svc).getSessionState(session.toString())?.chats.map(chat => chat.resource),
+			}, { workspace: [original.toString()], chats: [main.toString(), peer.toString()] });
+		});
+
+		test('replaces a single-chat workspace without multi-root support and persists the chat scope', async () => {
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const original = URI.file('/workspace/original');
+			const worktree = URI.file('/workspace/original.worktrees/isolated');
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [original] });
+			const main = URI.parse(buildDefaultChatUri(session));
+			await svc.setChatWorkingDirectory(session, main, worktree, true);
+			const state = getStateManager(svc);
+			assert.deepStrictEqual({
+				aggregate: state.getSessionSummary(session.toString())?.workingDirectories,
+				chat: state.getChatState(main.toString())?.workingDirectories,
+				catalog: state.getSessionState(session.toString())?.chats.map(chat => chat.workingDirectories),
+				persisted: await perSession.database(main).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
+			}, {
+				aggregate: [worktree.toString()], chat: [worktree.toString()],
+				catalog: [[worktree.toString()]], persisted: JSON.stringify([worktree.toString()]),
+			});
+		});
+
 		for (const isolateMain of [false, true]) {
 			test(`persists and publishes only the ${isolateMain ? 'main' : 'peer'} chat's replacement workspace`, async () => {
 				class MultiChatAgent extends MockAgent {
@@ -5212,6 +5266,7 @@ suite('AgentService (node dispatcher)', () => {
 				await svc.addSessionWorkingDirectoryForChat(session, worktree, { isolation: 'folder' });
 				const target = isolateMain ? main : peer;
 				const other = isolateMain ? peer : main;
+				await assert.rejects(svc.setChatWorkingDirectory(session, target, worktree, true), /Cannot assign/);
 				await svc.setChatWorkingDirectory(session, target, worktree);
 				const state = getStateManager(svc);
 				assert.deepStrictEqual({

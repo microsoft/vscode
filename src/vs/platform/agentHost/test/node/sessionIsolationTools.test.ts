@@ -31,8 +31,8 @@ suite('Session isolation tool', () => {
 		const calls: { chat: string; turnId: string }[] = [];
 		let enabled = true;
 		const group = createSessionIsolationToolGroup({
-			canIsolateSession: () => enabled,
-			requestSessionIsolation: (chat, turnId) => calls.push({ chat: chat.toString(), turnId }),
+			canIsolateChatInSession: () => enabled,
+			requestChatIsolation: (chat, turnId) => calls.push({ chat: chat.toString(), turnId }),
 		});
 		const host = new AgentServerToolHost(stateManager, [group]);
 		host.advertise(session);

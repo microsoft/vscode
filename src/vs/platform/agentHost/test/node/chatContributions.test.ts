@@ -902,11 +902,9 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
 		onDidChangePendingSession: Event.None,
-		canIsolateSession: () => false,
 		canIsolateChat: () => false,
 		requestChatIsolation: () => { },
 		restoreChatIsolation: async () => { },
-		requestSessionIsolation: () => { },
 		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => false,
 		cancel: () => { },
@@ -980,11 +978,9 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
 		onDidChangePendingSession: conversionChanges.event,
-		canIsolateSession: () => false,
 		canIsolateChat: () => false,
 		requestChatIsolation: () => { },
 		restoreChatIsolation: async () => { },
-		requestSessionIsolation: () => { },
 		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => conversionPending,
 		cancel: () => { },

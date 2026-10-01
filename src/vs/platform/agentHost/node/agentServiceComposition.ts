@@ -174,8 +174,8 @@ export function createAgentServiceComposition(
 				callbackAdapter.artifactServerToolAccessor,
 				() => configurationService.getRootValue(platformRootSchema, AgentHostAgentOrchestrationLimitsConfigKey) !== 'off',
 				{
-					canIsolateSession: session => stateManager.getSessionState(session.toString())?.chats.some(chat => workspaceConversionService.value?.canIsolateChat(URI.parse(chat.resource))) === true,
-					requestSessionIsolation: (chat, turnId) => {
+					canIsolateChatInSession: session => stateManager.getSessionState(session.toString())?.chats.some(chat => workspaceConversionService.value?.canIsolateChat(URI.parse(chat.resource))) === true,
+					requestChatIsolation: (chat, turnId) => {
 						const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 						if (!initiatingClientId || !workspaceConversionService.value) {
 							throw new Error('Session isolation requires a turn initiated by a connected client.');
@@ -187,8 +187,9 @@ export function createAgentServiceComposition(
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
+			runWithChatCatalogLock: (session, operation) => agentService!.runWithChatCatalogLock(session, operation),
 			prepareChatWorkingDirectory: callbackAdapter.sessionServerToolAccessor.prepareChatWorkingDirectory,
-			setChatWorkingDirectory: (session, chat, directory) => agentService!.setChatWorkingDirectory(session, chat, directory),
+			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace),
 		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
 

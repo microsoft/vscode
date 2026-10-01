@@ -50,8 +50,6 @@ import { AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js
  */
 
 export interface ICodexSessionOverlay {
-	/** Authoritative root for every chat in a session after session-wide isolation. */
-	readonly sessionWorkingDirectory?: URI;
 	readonly threadId?: string;
 	readonly cwd?: URI;
 	readonly modelId?: string;
@@ -62,7 +60,6 @@ export interface ICodexSessionOverlay {
 }
 
 export interface ICodexSessionOverlayUpdate {
-	readonly sessionWorkingDirectory?: URI;
 	readonly threadId?: string;
 	readonly cwd?: URI;
 	readonly modelId?: string;
@@ -81,7 +78,6 @@ export interface ICodexSessionOverlayUpdate {
 export class CodexSessionMetadataStore {
 
 	private static readonly KEY_THREAD_ID = 'codex.threadId';
-	private static readonly KEY_SESSION_WORKING_DIRECTORY = 'codex.sessionWorkingDirectory';
 	private static readonly KEY_CWD = 'codex.cwd';
 	private static readonly KEY_MODEL = 'codex.model';
 	private static readonly KEY_AGENT = 'codex.agent';
@@ -102,7 +98,6 @@ export class CodexSessionMetadataStore {
 				[AH_META_WORKSPACELESS_DB_KEY]: true,
 				'codex.external': true,
 				[CodexSessionMetadataStore.KEY_THREAD_ID]: true,
-				[CodexSessionMetadataStore.KEY_SESSION_WORKING_DIRECTORY]: true,
 				[CodexSessionMetadataStore.KEY_CWD]: true,
 				[CodexSessionMetadataStore.KEY_MODEL]: true,
 				[CodexSessionMetadataStore.KEY_AGENT]: true,
@@ -125,9 +120,6 @@ export class CodexSessionMetadataStore {
 			const db = ref.object;
 			try {
 				const work: Promise<void>[] = [];
-				if (fields.sessionWorkingDirectory !== undefined) {
-					work.push(db.setMetadata(CodexSessionMetadataStore.KEY_SESSION_WORKING_DIRECTORY, fields.sessionWorkingDirectory.toString()));
-				}
 				if (fields.threadId !== undefined) {
 					work.push(db.setMetadata(CodexSessionMetadataStore.KEY_THREAD_ID, fields.threadId));
 				}
@@ -175,25 +167,23 @@ export class CodexSessionMetadataStore {
 	 * been created yet (fresh session, or external codex CLI thread the
 	 * workbench has never touched).
 	 */
-	async read(session: URI, strict = false): Promise<ICodexSessionOverlay> {
+	async read(session: URI): Promise<ICodexSessionOverlay> {
 		try {
 			const ref = await this._sessionDataService.tryOpenDatabase(session);
 			if (!ref) {
 				return {};
 			}
 			try {
-				const [threadId, cwdRaw, modelId, agentRaw, ownsManagedWorkingDirectoryRaw, managedWorkingDirectoryRaw, sessionWorkingDirectoryRaw] = await Promise.all([
+				const [threadId, cwdRaw, modelId, agentRaw, ownsManagedWorkingDirectoryRaw, managedWorkingDirectoryRaw] = await Promise.all([
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_THREAD_ID),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_CWD),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_MODEL),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_AGENT),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_OWNS_MANAGED_WORKING_DIRECTORY),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_MANAGED_WORKING_DIRECTORY),
-					ref.object.getMetadata(CodexSessionMetadataStore.KEY_SESSION_WORKING_DIRECTORY),
 				]);
 				const cwd = parseCwd(cwdRaw);
 				return {
-					...(sessionWorkingDirectoryRaw ? { sessionWorkingDirectory: URI.parse(sessionWorkingDirectoryRaw) } : {}),
 					threadId: threadId ?? undefined,
 					cwd: cwd.cwd,
 					modelId: modelId ?? undefined,
@@ -211,9 +201,6 @@ export class CodexSessionMetadataStore {
 			}
 
 		} catch (err) {
-			if (strict) {
-				throw err;
-			}
 			this._logService.warn(`[Codex] metadata read failed for ${session.toString()}: ${err instanceof Error ? err.message : String(err)}`);
 			return {};
 		}

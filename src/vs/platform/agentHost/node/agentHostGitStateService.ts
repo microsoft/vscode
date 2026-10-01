@@ -137,7 +137,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	private async _attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
-		const state = this._stateManager.getSessionState(sessionKey);
+		const state = this._getStateForGitScope(sessionKey);
 		if (!state) {
 			return;
 		}
@@ -173,7 +173,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					gitHubState,
 					gitState,
 					getAuthToken: () => this._getGitHubAuthToken(),
-					getCurrentSessionState: () => this._stateManager.getSessionState(sessionKey),
+					getCurrentSessionState: () => this._getStateForGitScope(sessionKey),
 					isRestrictedMode: () => !this._isAutomaticPullRequestAttachmentEnabled(),
 				});
 				if (result.kind === 'retry') {
@@ -217,7 +217,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				return;
 			}
 
-			const currentState = this._stateManager.getSessionState(sessionKey);
+			const currentState = this._getStateForGitScope(sessionKey);
 			if (!currentState) {
 				return;
 			}
@@ -351,15 +351,22 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			|| gitHubState?.initialPullRequestUrls !== undefined;
 	}
 
+	private _getStateForGitScope(key: string): ISessionWithDefaultChat | undefined {
+		const state = this._stateManager.getSessionState(key);
+		return state && !isAhpChatChannel(key)
+			? { ...state, workingDirectories: this._stateManager.getSessionSummary(key)?.workingDirectories }
+			: state;
+	}
+
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
-		const sessionState = this._stateManager.getSessionState(sessionKey);
+		const sessionState = this._getStateForGitScope(sessionKey);
 		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
 		const initialPrimaryWorkingDirectory = sessionState?.workingDirectories?.[0];
 
 		if (!workingDirectory) {
-			const workingDirectoryStr = sessionState?.workingDirectories?.[0];
+			const workingDirectoryStr = initialPrimaryWorkingDirectory;
 			if (workingDirectoryStr) {
 				workingDirectory = URI.parse(workingDirectoryStr);
 			}
@@ -379,8 +386,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 				const baseBranchName = await this.resolveSessionBaseBranchName(sessionKey);
 				const gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchName);
-				const currentState = this._stateManager.getSessionState(sessionKey);
-				const currentWorkingDirectory = currentState?.workingDirectories?.[0];
+				const currentWorkingDirectory = this._getStateForGitScope(sessionKey)?.workingDirectories?.[0];
 				const primaryWorkingDirectoryChanged = initialPrimaryWorkingDirectory === undefined
 					? currentWorkingDirectory !== undefined
 					: currentWorkingDirectory === undefined || !isEqual(URI.parse(initialPrimaryWorkingDirectory), URI.parse(currentWorkingDirectory));
@@ -816,7 +822,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
-		const state = this._stateManager.getSessionState(sessionKey);
+		const state = this._getStateForGitScope(sessionKey);
 		const configValues = state?.config?.values;
 		const configuredBranch = configValues?.[SessionConfigKey.Isolation] === 'worktree'
 			&& configValues[SessionConfigKey.WorktreeCreateNewBranch] !== false

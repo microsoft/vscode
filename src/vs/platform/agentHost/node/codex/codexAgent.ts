@@ -1219,8 +1219,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _customizationReconcileSequencers = new WeakMap<ICodexSession, Sequencer>();
 	private readonly _directoryCustomizationSequencers = new WeakMap<ICodexSession, Sequencer>();
 	private readonly _workingDirectoryMutations = new WeakMap<ICodexSession, ICodexWorkingDirectoryChange>();
-	private readonly _sessionWorkingDirectoryMutations = new Set<string>();
-	private readonly _sessionOperations = new Map<string, number>();
 	private readonly _mcpInventoryRefreshThrottler = this._register(new ThrottlerByKey<string>());
 	private readonly _sessionMcpDiscoveries = new Map<string, { readonly rootsSignature: string; readonly discovery: SessionMcpDiscovery; dispose(): void }>();
 	private readonly _pendingMcpStartupStatuses = new Map<string, Array<{ readonly client: ICodexAppServerClient; readonly name: string; readonly status: McpServerStartupState; readonly error: string | null }>>();
@@ -4335,165 +4333,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostCodexMultiRootEnabledConfigKey) === true;
 	}
 
-	async setSessionWorkingDirectory(sessionUri: URI, workingDirectory: URI): Promise<void> {
-		const key = sessionUri.toString();
-		this._assertSessionWorkingDirectoryAvailable(sessionUri);
-		if (this._sessionOperations.has(key)) {
-			throw new Error('Cannot isolate a Codex session while a chat operation is active');
-		}
-		if (workingDirectory.scheme !== Schemas.file || !isAbsolute(workingDirectory.fsPath) || workingDirectory.query || workingDirectory.fragment) {
-			throw new Error(`Cannot change the working directory to non-local or relative resource '${workingDirectory.toString()}'`);
-		}
-		const sessions = [...this._sessions.values()].filter(session => isEqual(session.configurationResource, sessionUri));
-		if (!sessions.length || sessions.some(session => session.disposed || !session.workingDirectory
-			|| this._workingDirectories(session).length !== 1 || !isEqual(session.workingDirectory, sessions[0].workingDirectory)
-			|| session.currentTurnId || session.currentAppTurnId || session.materializePromise || session.resumePromise
-			|| this._workingDirectoryMutations.has(session))
-			|| [...this._subagentsByThreadId.values()].some(child => isEqual(child.session.configurationResource, sessionUri))) {
-			throw new Error('Cannot isolate a Codex session with active chats, native workers, or different working directories');
-		}
-
-		this._sessionWorkingDirectoryMutations.add(key);
-		for (const session of sessions) {
-			this._claimPrewarm(session);
-		}
-		const applied = new Map<ICodexSession, URI>();
-		let committing = false;
-		let uncertain = false;
-		try {
-			if (!await this._isExistingDirectory(workingDirectory)) {
-				throw new Error(`Cannot change the working directory because '${workingDirectory.fsPath}' is not an existing directory`);
-			}
-			for (const session of sessions) {
-				if (!session.threadId || session.needsResume || isEqual(session.workingDirectory, workingDirectory)) {
-					continue;
-				}
-				const change: ICodexWorkingDirectoryChange = {
-					threadId: session.threadId,
-					previousWorkingDirectory: session.workingDirectory!,
-					updated: new DeferredPromise<URI>(),
-					requested: false,
-				};
-				try {
-					const actual = await this._updateSessionThreadWorkingDirectory(session, workingDirectory, change);
-					applied.set(session, actual);
-					if (!isEqual(actual, workingDirectory)) {
-						throw new Error(`Codex applied '${actual.fsPath}' instead of '${workingDirectory.fsPath}'`);
-					}
-				} catch (error) {
-					if (change.updated.value) {
-						applied.set(session, change.updated.value);
-					} else if (change.requested && !(error instanceof JsonRpcError)) {
-						uncertain = true;
-					}
-					throw error;
-				}
-			}
-			if (sessions.some(session => session.disposed || this._sessions.get(session.sessionId) !== session)
-				|| [...this._subagentsByThreadId.values()].some(child => isEqual(child.session.configurationResource, sessionUri))) {
-				uncertain = true;
-				throw new CancellationError();
-			}
-			committing = true;
-			const fields = { cwd: workingDirectory, workingDirectories: [workingDirectory], managedWorkingDirectory: null, ownsManagedWorkingDirectory: false } as const;
-			// The scope override also covers persisted peers that have never been materialized in this process.
-			await this._metadataStore.write(sessionUri, { ...fields, sessionWorkingDirectory: workingDirectory }, true);
-			const backingIds = new Set(sessions.map(session => session.sessionId));
-			for (const chat of this._configScopeChats.get(key) ?? []) {
-				const backingId = this._sessionIdByChatUri.get(chat);
-				if (backingId) {
-					backingIds.add(backingId);
-				}
-			}
-			for (const backingId of backingIds) {
-				await this._metadataStore.write(AgentSession.uri(this.id, backingId), fields, true);
-			}
-			for (const session of sessions) {
-				session.workingDirectory = workingDirectory;
-				session.workingDirectories = [workingDirectory];
-				await this._abandonManagedWorkingDirectory(session);
-				session.materializedMcpSig = undefined;
-				session.materializedCustomizationsSig = undefined;
-				if (session.threadId) {
-					this._markSessionForReload(session);
-				}
-				await this._refreshSessionMcpDiscovery(session);
-			}
-		} catch (error) {
-			if (!committing && !uncertain) {
-				for (const [session, actual] of [...applied].reverse()) {
-					try {
-						const restored = await this._updateSessionThreadWorkingDirectory(session, session.workingDirectory!, {
-							threadId: session.threadId!,
-							previousWorkingDirectory: actual,
-							updated: new DeferredPromise<URI>(),
-							requested: false,
-						});
-						if (!isEqual(restored, session.workingDirectory)) {
-							uncertain = true;
-						}
-					} catch {
-						uncertain = true;
-					}
-				}
-			}
-			if (committing || uncertain) {
-				throw new AgentWorkingDirectoryChangedError(workingDirectory, `Codex session isolation could not be safely rolled back: ${error instanceof Error ? error.message : String(error)}`);
-			}
-			throw error;
-		} finally {
-			this._sessionWorkingDirectoryMutations.delete(key);
-		}
-	}
-
-	private async _updateSessionThreadWorkingDirectory(session: ICodexSession, workingDirectory: URI, change: ICodexWorkingDirectoryChange): Promise<URI> {
-		this._workingDirectoryMutations.set(session, change);
-		void change.updated.p.catch(() => { });
-		try {
-			const connection = this._connection;
-			if (connection.kind !== 'ready' || session.disposed || session.threadId !== change.threadId) {
-				throw new CancellationError();
-			}
-			change.requested = true;
-			const request = connection.client.request<'thread/settings/update'>('thread/settings/update', { threadId: change.threadId, cwd: workingDirectory.fsPath })
-				.then(() => change.updated.p);
-			const updated = await raceTimeout(Promise.race([request, change.updated.p]), 30_000);
-			if (!updated) {
-				throw new Error('Timed out waiting for Codex to apply the working directory change');
-			}
-			this._assertCurrentConnection(connection);
-			if (session.disposed || session.threadId !== change.threadId || this._sessions.get(session.sessionId) !== session) {
-				throw new CancellationError();
-			}
-			return updated;
-		} finally {
-			this._workingDirectoryMutations.delete(session);
-			change.updated.cancel();
-		}
-	}
-
-	private _assertSessionWorkingDirectoryAvailable(session: URI): void {
-		if (this._sessionWorkingDirectoryMutations.has(session.toString())) {
-			throw new Error('Cannot operate on a Codex chat while session isolation is active');
-		}
-	}
-
-	private async _withSessionOperation<T>(session: URI, operation: () => Promise<T>): Promise<T> {
-		this._assertSessionWorkingDirectoryAvailable(session);
-		const key = session.toString();
-		this._sessionOperations.set(key, (this._sessionOperations.get(key) ?? 0) + 1);
-		try {
-			return await operation();
-		} finally {
-			const remaining = this._sessionOperations.get(key)! - 1;
-			if (remaining) {
-				this._sessionOperations.set(key, remaining);
-			} else {
-				this._sessionOperations.delete(key);
-			}
-		}
-	}
-
 	async setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void> {
 		return this._setWorkingDirectory(chat, context, workingDirectory, false);
 	}
@@ -4504,7 +4343,6 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI, chatOnly: boolean): Promise<void> {
 		const session = this._resolveWorkingDirectoryChangeSession(chat, context, chatOnly);
-		this._assertSessionWorkingDirectoryAvailable(session.configurationResource);
 		if (this._workingDirectoryMutations.has(session)) {
 			throw new Error(`Cannot change the working directory for chat '${chat.toString()}' while another working-directory change is active`);
 		}
@@ -4812,14 +4650,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		prepareChat: (chat, context) => this._chatLifecycleSequencer.queue(chat.toString(), () => this._prepareChat(chat, context)),
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			const resolved = resolveAgentChatContext(context, chat);
-			return this._withSessionOperation(resolved.configurationResource, () => this._chatLifecycleSequencer.queue(chat.toString(), () => this._createChat(chat, resolved, options)));
+			return this._chatLifecycleSequencer.queue(chat.toString(), () => this._createChat(chat, resolved, options));
 		},
 		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._chatLifecycleSequencer.queue(chat.toString(), () => this._disposeChat(chat, context)),
 		releaseChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._chatLifecycleSequencer.queue(chat.toString(), () => this._releaseChat(chat, context)),
 		sendMessage: (chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const workingDirectories = Array.isArray(workingDirectoriesOrDirectory) ? workingDirectoriesOrDirectory : workingDirectoriesOrDirectory ? [workingDirectoriesOrDirectory] : undefined;
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
-			return this._withSessionOperation(this._configScope(chat, operationContext), () => this._sendMessage(chat, prompt, attachments, turnId, workingDirectories, operationContext));
+			return this._sendMessage(chat, prompt, attachments, turnId, workingDirectories, operationContext);
 		},
 		abort: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
 			return this._abort(chat, context);
@@ -4906,10 +4744,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private async _createChat(chat: URI, context: IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
 		this._activate();
-		const isolatedDirectory = (await this._metadataStore.read(context.configurationResource, true)).sessionWorkingDirectory;
-		if (isolatedDirectory) {
-			options = { ...options, workingDirectories: [isolatedDirectory] };
-		}
 		const target: ICodexTargetChat = { resource: chat, configurationResource: context.configurationResource };
 		const owningSessionId = AgentSession.id(context.configurationResource);
 
@@ -5303,7 +5137,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * read. Its first send issues a `thread/resume`.
 	 */
 	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
-		return this._withSessionOperation(resolveAgentChatContext(context, chat).configurationResource, () => this._chatLifecycleSequencer.queue(chat.toString(), () => this._materializeChat(chat, context, providerData)));
+		return this._chatLifecycleSequencer.queue(chat.toString(), () => this._materializeChat(chat, context, providerData));
 	}
 
 	private async _materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
@@ -5332,18 +5166,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		try {
 			await this._moveConfigScopeChat(operationContext.configurationResource, chat);
 			this._throwIfShuttingDown();
-			const isolatedDirectory = (await this._metadataStore.read(operationContext.configurationResource, true)).sessionWorkingDirectory;
 			existing = this._sessions.get(sessionId);
 			if (existing) {
-				if (isolatedDirectory && !isEqual(existing.workingDirectory, isolatedDirectory)) {
-					await this._metadataStore.write(existing.sessionUri, { cwd: isolatedDirectory, workingDirectories: [isolatedDirectory], managedWorkingDirectory: null, ownsManagedWorkingDirectory: false }, true);
-					existing.workingDirectory = isolatedDirectory;
-					existing.workingDirectories = [isolatedDirectory];
-					existing.managedWorkingDirectory = undefined;
-					existing.materializedMcpSig = undefined;
-					existing.materializedCustomizationsSig = undefined;
-					this._markSessionForReload(existing);
-				}
 				previousExistingState = {
 					chatChannel: existing.chatChannel,
 					configurationResource: existing.configurationResource,
@@ -5366,11 +5190,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			// delete; `overlay.cwd` is the session's current working directory
 			// regardless of who picked it and must never be treated as a managed
 			// folder on the strength of a (possibly stale) ownership flag alone.
-			const managedWorkingDirectory = isolatedDirectory ? undefined : this._releasedManagedWorkingDirectories.get(sessionId) ?? overlay.managedWorkingDirectory;
-			const workingDirectory = isolatedDirectory ?? overlay.cwd ?? managedWorkingDirectory;
-			if (isolatedDirectory) {
-				await this._metadataStore.write(sessionUri, { cwd: isolatedDirectory, workingDirectories: [isolatedDirectory], managedWorkingDirectory: null, ownsManagedWorkingDirectory: false }, true);
-			}
+			const managedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId) ?? overlay.managedWorkingDirectory;
+			const workingDirectory = overlay.cwd ?? managedWorkingDirectory;
 			const model = await this._resolveRestoredModel(overlay.modelId ? { id: overlay.modelId } : decoded.model);
 			this._throwIfShuttingDown();
 			// Codex's session id == thread id convention: the backing thread already
@@ -5750,7 +5571,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * `sendMessage` before the first `turn/start`.
 	 */
 	private async _materializeIfNeeded(session: ICodexSession, configResource: URI = session.configurationResource, fireMaterializedEvent = true): Promise<void> {
-		this._assertSessionWorkingDirectoryAvailable(session.configurationResource);
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
@@ -7071,7 +6891,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _resumeSession(session: ICodexSession, connection?: IConnectionReady): Promise<void> {
-		this._assertSessionWorkingDirectoryAvailable(session.configurationResource);
 		while (session.needsResume || session.resumePromise) {
 			if (session.resumePromise) {
 				try {
@@ -7313,10 +7132,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * tools are advertised on.
 	 */
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
-		return this._withSessionOperation(resolveAgentChatContext(context, chat).configurationResource, () => this._getChatMetadata(chat, context, providerData, options));
-	}
-
-	private async _getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
 		// Session listing calls this method too, so metadata reads are passive by
 		// default. A restore is the host's explicit boundary for reopening an
 		// existing Codex session and may retain the app-server it needs.
@@ -7367,18 +7182,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		// thread/resume (Decision 8). The threadId came from the metadata
 		// overlay or from `thread/list` (when the session was materialized
 		// in a prior process); `_readSession` returns the resolved id.
-		let metadata = this._withWorkingDirectories(
+		const metadata = this._withWorkingDirectories(
 			await this._threadToMetadata(read.thread, chat, read.rolloutMetadata),
 			read.persistedWorkingDirectories,
 		);
-		const isolatedDirectory = (await this._metadataStore.read(session, true)).sessionWorkingDirectory;
-		if (isolatedDirectory) {
-			metadata = { ...metadata, workingDirectories: [isolatedDirectory] };
-		}
 		const savedModel = metadata.model ?? (read.persistedModelId ? { id: read.persistedModelId } : undefined);
 		const restoredModel = savedModel ? await this._resolveRestoredModel(savedModel) : undefined;
 		if (!this._sessions.has(sessionId)) {
-			const workingDirectory = isolatedDirectory ?? (read.thread.cwd ? URI.file(read.thread.cwd) : undefined);
+			const workingDirectory = read.thread.cwd ? URI.file(read.thread.cwd) : undefined;
 			const threadId = read.thread.id;
 			const overlay = await this._metadataStore.read(backingUri);
 			const materializedModelProvider = read.rolloutMetadata?.selectedModel?.modelProvider
@@ -7399,7 +7210,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// cwd" but not for "did we create it", and a stale
 			// `ownsManagedWorkingDirectory` flag alone must never resurrect a
 			// real user folder as something a later reclaim may delete.
-			if (!isolatedDirectory && overlay.managedWorkingDirectory && workingDirectory && isEqual(overlay.managedWorkingDirectory, workingDirectory)) {
+			if (overlay.managedWorkingDirectory && workingDirectory && isEqual(overlay.managedWorkingDirectory, workingDirectory)) {
 				restored.managedWorkingDirectory = workingDirectory;
 			}
 			this._sessions.set(sessionId, restored);

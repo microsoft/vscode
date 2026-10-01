@@ -117,11 +117,15 @@ The Agent Host exposes `isolate_session` to supported main and peer chats. Despi
 
 Subagents cannot invoke the tool. Copilot SDK-native workers can still inherit its definition because the SDK does not expose per-worker tool filtering; execution is rejected for worker and unknown tool-call origins.
 
-The host blocks new turns only for the calling chat, waits for that chat's requesting turn to finish, then creates a fresh session-owned worktree. Other chats can continue running and new chats can be created. The calling chat retains its identity and history and automatically continues its original task in the worktree.
+The host blocks new turns for the calling chat, waits for that chat's requesting turn to finish, then creates a fresh session-owned worktree. The calling chat retains its identity and history and automatically continues its original task in the worktree.
 
 Copilot and Codex update the exact chat backing and its durable working-directory metadata without changing shared configuration or other backings. Codex confirms live directory changes through the app-server settings update. An uncertain provider update retains the worktree and quarantines only the affected chat, including after restoration.
 
-The aggregate session workspace includes the new checkout. Inheriting chats are pinned to their previous directories before it is added; the caller's chat state, catalog summary, persisted scope, and folder Git state then identify its new worktree. Session-wide isolation configuration remains unchanged. The original folder is not modified; file inclusion follows ordinary worktree creation.
+Single-chat isolation does not require multi-root support. It replaces the session and chat working directories with the worktree, retains the source repository as the project, and adopts the normal session worktree configuration and lifecycle. Chat creation is serialized with this replacement; a chat created before conversion starts makes the single-chat request fail safely rather than moving the new chat.
+
+Multi-chat isolation requires the provider's multi-root capability. Other chats can continue running and new chats can be created. The aggregate session workspace retains its existing folders and includes the new checkout. Inheriting chats are pinned to their previous directories before it is added; the caller's chat state, catalog summary, persisted scope, and folder Git state then identify its new worktree. Session-wide isolation configuration remains unchanged.
+
+Git state follows the effective checkout: session-level refreshes use the aggregate session's primary directory, while chat-level refreshes use that chat's directory, including for the main chat. Destination branch metadata is published before its workspace is exposed, without waiting for the background refresh cooldown. The original folder is not modified; file inclusion follows ordinary worktree creation.
 
 ## Persistence and discovery
 

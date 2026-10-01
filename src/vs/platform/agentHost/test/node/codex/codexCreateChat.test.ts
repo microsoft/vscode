@@ -2261,140 +2261,19 @@ suite('CodexAgent workspace conversion', () => {
 			request: request.params,
 			roots: [entry.workingDirectory?.fsPath, target.entry.workingDirectory?.fsPath],
 			history: [...target.entry.codexTurnIdByHostTurnId],
-			scopeOverride: (await agent['_metadataStore'].read(session)).sessionWorkingDirectory,
+			persisted: await Promise.all([entry, target.entry].map(async runtime => (await agent['_metadataStore'].read(runtime.sessionUri)).cwd?.fsPath)),
 		}, {
 			request: { threadId: target.entry.threadId, cwd: folder.fsPath },
-			roots: [scratch.fsPath, folder.fsPath], history, scopeOverride: undefined,
+			roots: [scratch.fsPath, folder.fsPath], history, persisted: [scratch.fsPath, folder.fsPath],
 		});
 	});
-
-	test('session isolation preserves the main and multiple peer threads, histories, and metadata', async () => {
-		const harness = await createWorkspaceHarness();
-		const { agent, peer, session, folder, entry } = harness;
-		const first = await addIsolationPeer(harness, 'first-peer');
-		const second = await addIsolationPeer(harness, 'second-peer');
-		const entries = [entry, first.entry, second.entry];
-		const before = entries.map(runtime => ({ id: runtime.threadId, history: [...runtime.codexTurnIdByHostTurnId], chat: runtime.chatChannel?.toString() }));
-		const materializations: IAgentMaterializeChatEvent[] = [];
-		disposables.add(agent.onDidMaterializeChat(event => materializations.push(event)));
-		const changing = agent.setSessionWorkingDirectory(session, folder);
-		const requests: ITestWireRequest[] = [];
-		for (const runtime of entries) {
-			const request = await readNextRequest(peer.outbound);
-			assert.strictEqual(request.params.threadId, runtime.threadId);
-			requests.push(request);
-			confirmIsolationUpdate(harness, request);
-		}
-		await changing;
-		assert.deepStrictEqual({
-			identities: entries.map(runtime => ({ id: runtime.threadId, history: [...runtime.codexTurnIdByHostTurnId], chat: runtime.chatChannel?.toString() })),
-			roots: entries.map(runtime => runtime.workingDirectories?.map(directory => directory.fsPath)),
-			persisted: await Promise.all(entries.map(async runtime => (await agent['_metadataStore'].read(runtime.sessionUri)).cwd?.fsPath)),
-			scopeRoot: (await agent['_metadataStore'].read(session)).sessionWorkingDirectory?.fsPath,
-			requests: requests.map(request => request.method),
-			materializations,
-		}, {
-			identities: before,
-			roots: entries.map(() => [folder.fsPath]),
-			persisted: entries.map(() => folder.fsPath),
-			scopeRoot: folder.fsPath,
-			requests: entries.map(() => 'thread/settings/update'),
-			materializations: [],
-		});
-	});
-
-	test('session isolation updates cold and unmaterialized peers and future chats', async () => {
-		const harness = await createWorkspaceHarness();
-		const { agent, peer, session, scratch, folder } = harness;
-		const restoredChat = URI.parse(buildChatUri(session, 'cold-peer'));
-		const coldBacking = AgentSession.uri('codex', 'cold-backing');
-		const providerData = JSON.stringify({ sessionId: 'cold-backing' });
-		await agent['_metadataStore'].write(coldBacking, { threadId: 'cold-thread', cwd: scratch });
-		const restoredPeer = await addIsolationPeer(harness, 'restored-peer');
-		restoredPeer.entry.needsResume = true;
-		const changing = agent.setSessionWorkingDirectory(session, folder);
-		confirmIsolationUpdate(harness, await readNextRequest(peer.outbound));
-		await changing;
-
-		const restarted = await createAgent(disposables, { sessionStore: harness.sessionStore });
-		const restartedPeer = disposables.add(createTestPeer());
-		connectPeer(restarted, restartedPeer);
-		restarted['_refreshMcpInventory'] = async () => { };
-		await restarted.materializeChat(restoredChat, session, providerData);
-		const cold = restarted['_sessions'].get('cold-backing')!;
-		assert.ok(cold);
-		const resuming = restarted['_ensureThreadConnection'](cold);
-		const providerRead = await readNextRequest(restartedPeer.outbound);
-		assert.strictEqual(providerRead.method, 'thread/read');
-		restartedPeer.push({
-			id: providerRead.id,
-			result: {
-				thread: {
-					id: 'cold-thread',
-					cwd: scratch.fsPath,
-					modelProvider: 'vscode-proxy',
-					historyMode: 'legacy',
-					turns: [],
-				},
-			},
-		});
-		const resume = await readNextRequest(restartedPeer.outbound);
-		restartedPeer.push({ id: resume.id, result: { thread: { id: 'cold-thread', cwd: folder.fsPath } } });
-		await resuming;
-		const futureChat = URI.parse(buildChatUri(session, 'future-peer'));
-		const creating = agent.chats.createChat(futureChat, session, { workingDirectories: [scratch], model: { id: COPILOT_TEST_MODEL } });
-		const start = await readNextRequest(peer.outbound);
-		peer.push({ id: start.id, result: { thread: { id: 'future-thread', cwd: folder.fsPath } } });
-		await creating;
-		assert.deepStrictEqual({
-			cold: { thread: cold.threadId, cwd: cold.workingDirectory?.fsPath },
-			restored: restoredPeer.entry.workingDirectory?.fsPath,
-			persisted: (await restarted['_metadataStore'].read(coldBacking)).cwd?.fsPath,
-			resume: { method: resume.method, cwd: resume.params.cwd },
-			future: { method: start.method, cwd: start.params.cwd },
-		}, {
-			cold: { thread: 'cold-thread', cwd: folder.fsPath },
-			restored: folder.fsPath,
-			persisted: folder.fsPath,
-			resume: { method: 'thread/resume', cwd: folder.fsPath },
-			future: { method: 'thread/start', cwd: folder.fsPath },
-		});
-	});
-
-	for (const rollbackFailure of [false, true]) {
-		test(`session isolation ${rollbackFailure ? 'signals quarantine for an unconfirmed rollback' : 'fully rolls back a rejected peer update'}`, async () => {
-			const harness = await createWorkspaceHarness();
-			const { agent, peer, session, folder, scratch, entry } = harness;
-			const other = await addIsolationPeer(harness, 'rejected-peer');
-			const changing = agent.setSessionWorkingDirectory(session, folder);
-			const rejected = assert.rejects(changing, error => rollbackFailure
-				? error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString()
-				: error instanceof Error && !(error instanceof AgentWorkingDirectoryChangedError) && /update rejected/.test(error.message));
-			confirmIsolationUpdate(harness, await readNextRequest(peer.outbound));
-			const failed = await readNextRequest(peer.outbound);
-			peer.push({ id: failed.id, error: { code: -32602, message: 'update rejected' } });
-			const rollback = await readNextRequest(peer.outbound);
-			assert.deepStrictEqual(rollback.params, { threadId: entry.threadId, cwd: scratch.fsPath });
-			if (rollbackFailure) {
-				peer.push({ id: rollback.id, error: { code: -32602, message: 'rollback rejected' } });
-			} else {
-				confirmIsolationUpdate(harness, rollback);
-			}
-			await rejected;
-			assert.deepStrictEqual({
-				roots: [entry, other.entry].map(runtime => runtime.workingDirectory?.fsPath),
-				persisted: (await agent['_metadataStore'].read(session)).cwd?.fsPath,
-				scope: (await agent['_metadataStore'].read(session)).sessionWorkingDirectory,
-			}, { roots: [scratch.fsPath, scratch.fsPath], persisted: scratch.fsPath, scope: undefined });
-		});
-	}
 
 	for (const disconnect of [false, true]) {
-		test(`session isolation signals quarantine for ${disconnect ? 'disconnection' : 'timeout'} after an update request`, async () => {
+		test(`chat isolation signals quarantine for ${disconnect ? 'disconnection' : 'timeout'} after an update request`, async () => {
 			const harness = await createWorkspaceHarness();
-			const { agent, peer, session, folder } = harness;
+			const { agent, peer, session, chat, folder } = harness;
 			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const changing = agent.setSessionWorkingDirectory(session, folder);
+				const changing = agent.setChatWorkingDirectory(chat, { configurationResource: session, resource: session }, folder);
 				const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
 				const request = await readNextRequest(peer.outbound);
 				peer.push({ id: request.id, result: {} });
@@ -2408,80 +2287,25 @@ suite('CodexAgent workspace conversion', () => {
 		});
 	}
 
-	test('session isolation signals quarantine when durable metadata cannot be committed', async () => {
+	test('chat isolation signals quarantine when durable metadata cannot be committed', async () => {
 		const harness = await createWorkspaceHarness();
-		const { agent, peer, session, folder } = harness;
-		harness.sessionStore.databaseFor(session).setMetadata = async () => { throw new Error('metadata unavailable'); };
-		const changing = agent.setSessionWorkingDirectory(session, folder);
+		const { agent, peer, session, folder, scratch, entry } = harness;
+		const target = await addIsolationPeer(harness, 'failing-metadata-peer');
+		harness.sessionStore.databaseFor(target.entry.sessionUri).setMetadata = async () => { throw new Error('metadata unavailable'); };
+		const changing = agent.setChatWorkingDirectory(target.chat, { configurationResource: session, resource: target.chat }, folder);
 		const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
 		confirmIsolationUpdate(harness, await readNextRequest(peer.outbound));
 		await rejected;
-	});
-
-	test('session isolation reconciles a passively loaded peer when its owning scope is restored', async () => {
-		const harness = await createWorkspaceHarness();
-		const { agent, peer, session, folder, scratch } = harness;
-		const cold = agent['_createResumedSessionEntry']('passive-peer', 'passive-thread', scratch, { id: COPILOT_TEST_MODEL });
-		agent['_sessions'].set(cold.sessionId, cold);
-		const changing = agent.setSessionWorkingDirectory(session, folder);
-		confirmIsolationUpdate(harness, await readNextRequest(peer.outbound));
-		await changing;
-		const chat = URI.parse(buildChatUri(session, 'passive'));
-		await agent.materializeChat(chat, session, JSON.stringify({ sessionId: cold.sessionId }));
 		assert.deepStrictEqual({
-			thread: cold.threadId,
-			cwd: cold.workingDirectory?.fsPath,
-			persisted: (await agent['_metadataStore'].read(cold.sessionUri)).cwd?.fsPath,
-			scope: cold.configurationResource.toString(),
-			needsResume: cold.needsResume,
-		}, { thread: 'passive-thread', cwd: folder.fsPath, persisted: folder.fsPath, scope: session.toString(), needsResume: true });
-	});
-
-	test('session isolation rejects a creation already awaiting its native thread', async () => {
-		const harness = await createWorkspaceHarness();
-		const { agent, peer, session, folder, scratch } = harness;
-		const creating = agent.chats.createChat(URI.parse(buildChatUri(session, 'pending-peer')), session, { workingDirectories: [scratch], model: { id: COPILOT_TEST_MODEL } });
-		const start = await readNextRequest(peer.outbound);
-		await assert.rejects(agent.setSessionWorkingDirectory(session, folder), /chat operation is active/);
-		peer.push({ id: start.id, result: { thread: { id: 'pending-peer', cwd: scratch.fsPath } } });
-		await creating;
-	});
-
-	test('session isolation moves an unmaterialized backing without creating a thread', async () => {
-		const agent = await createAgent(disposables, { sessionStore: createTestSessionStore() });
-		const session = AgentSession.uri('codex', 'draft');
-		const chat = URI.parse(buildDefaultChatUri(session));
-		const scratch = URI.file('/draft-source');
-		const folder = URI.file('/draft-worktree');
-		await agent['_fileService'].createFolder(folder);
-		await createSessionBackedChat(agent, chat, { resource: chat, configurationResource: session }, { workingDirectories: [scratch], model: { id: COPILOT_TEST_MODEL } });
-		await agent.setSessionWorkingDirectory(session, folder);
-		const entry = agent['_sessions'].get('draft')!;
-		assert.deepStrictEqual({
-			threadId: entry.threadId,
-			cwd: entry.workingDirectory?.fsPath,
-			scope: (await agent['_metadataStore'].read(session)).sessionWorkingDirectory?.fsPath,
-		}, { threadId: undefined, cwd: folder.fsPath, scope: folder.fsPath });
-	});
-
-	test('session isolation rejects concurrent chat creation, sends, restores, and native workers', async () => {
-		const harness = await createWorkspaceHarness();
-		const { agent, peer, session, chat, folder, scratch, entry } = harness;
-		const changing = agent.setSessionWorkingDirectory(session, folder);
-		const request = await readNextRequest(peer.outbound);
-		await assert.rejects(agent.chats.createChat(URI.parse(buildChatUri(session, 'blocked')), session), /isolation is active/);
-		await assert.rejects(agent.chats.sendMessage(chat, 'blocked', [scratch], undefined, 'blocked-turn', undefined, undefined, session), /isolation is active/);
-		await assert.rejects(agent.materializeChat(chat, session, undefined), /isolation is active/);
-		confirmIsolationUpdate(harness, request);
-		await changing;
-		const child = agent['_createSubagentSession'](entry, 'native-child');
-		agent['_subagentsByThreadId'].set('native-child', { session: child, parentSessionId: entry.sessionId, toolCallId: 'spawn' });
-		await assert.rejects(agent.setSessionWorkingDirectory(session, scratch), /native workers/);
+			main: entry.workingDirectory?.fsPath,
+			peer: target.entry.workingDirectory?.fsPath,
+			mainMetadata: (await agent['_metadataStore'].read(session)).cwd?.fsPath,
+		}, { main: scratch.fsPath, peer: folder.fsPath, mainMetadata: scratch.fsPath });
 	});
 
 	for (const restriction of ['mainChatOnly', 'topLevelChatOnly'] as const) {
 		test(`native worker root routing cannot execute a ${restriction} server tool`, async () => {
-			const { agent, session, entry } = await createWorkspaceHarness();
+			const { agent, entry } = await createWorkspaceHarness();
 			let calls = 0;
 			const definition: IAgentServerToolDefinition = { name: 'main_only', [restriction]: true, inputSchema: { type: 'object' } };
 			agent.setServerToolHost({
@@ -2494,7 +2318,6 @@ suite('CodexAgent workspace conversion', () => {
 			agent['_sessionIdByThreadId'].set('native-child', entry.sessionId);
 			const response = await agent['_handleDynamicToolCallRpc']({ threadId: 'native-child', turnId: 'child-turn', callId: 'child-call', tool: definition.name, namespace: null, arguments: {} });
 			assert.deepStrictEqual({ calls, success: response.result?.success }, { calls: 0, success: false });
-			assert.strictEqual((await agent['_metadataStore'].read(session)).sessionWorkingDirectory, undefined);
 		});
 	}
 
@@ -4548,6 +4371,58 @@ suite('CodexAgent chat backing durability', () => {
 			hasSession: false,
 			hasBinding: false,
 			hasConfigScope: false,
+		});
+	});
+
+	test('database read failures do not block normal create or restore', async () => {
+		const sessionStore = createTestSessionStore();
+		sessionStore.service.tryOpenDatabase = async () => { throw new Error('database unavailable'); };
+		const agent = await createAgent(disposables, { sessionStore });
+		const session = AgentSession.uri('codex', 'database-unavailable');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/source');
+		const created = await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL },
+		});
+		const restoredChat = URI.parse(buildChatUri(session, 'restored'));
+		await agent.materializeChat(restoredChat, { configurationResource: session, resource: restoredChat }, JSON.stringify({ sessionId: 'restored-backing' }));
+		const restored = agent['_sessions'].get('restored-backing');
+		assert.deepStrictEqual({
+			createdDirectory: created.resolvedWorkingDirectory?.fsPath,
+			restoredThread: restored?.threadId,
+			restoredDirectory: restored?.workingDirectory,
+			restoredChat: restored?.chatChannel?.toString(),
+		}, {
+			createdDirectory: folder.fsPath,
+			restoredThread: 'restored-backing',
+			restoredDirectory: undefined,
+			restoredChat: restoredChat.toString(),
+		});
+	});
+
+	test('database read failures retain native thread metadata', async () => {
+		const sessionStore = createTestSessionStore();
+		sessionStore.service.tryOpenDatabase = async () => { throw new Error('database unavailable'); };
+		const agent = await createAgent(disposables, { sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const session = AgentSession.uri('codex', 'native-metadata');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/native');
+		const reading = agent.getChatMetadata(chat, { configurationResource: session, resource: chat }, undefined, { activation: 'restore' });
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: { thread: { id: 'native-thread', cwd: folder.fsPath, name: 'Native title', turns: [] } } });
+		const metadata = await reading;
+		assert.deepStrictEqual({
+			request: { method: request.method, threadId: request.params.threadId },
+			summary: metadata?.summary,
+			roots: metadata?.workingDirectories?.map(directory => directory.fsPath),
+			restoredDirectory: agent['_sessions'].get('native-metadata')?.workingDirectory?.fsPath,
+		}, {
+			request: { method: 'thread/read', threadId: 'native-metadata' },
+			summary: 'Native title',
+			roots: [folder.fsPath],
+			restoredDirectory: folder.fsPath,
 		});
 	});
 

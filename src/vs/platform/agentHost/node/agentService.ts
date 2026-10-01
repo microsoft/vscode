@@ -4671,6 +4671,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		const sessionKey = session.toString();
+		const initialPrimaryDirectory = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories?.[0];
 		if (this._workspaceConversionService.isPending(buildDefaultChatUri(session), true)) {
 			throw new Error('Wait for workspace setup to finish before creating another chat.');
 		}
@@ -4786,6 +4787,10 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const createResult = await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
+			if (this._workspaceConversionService.isPending(buildDefaultChatUri(session), true)
+				|| this._stateManager.getSessionSummary(sessionKey)?.workingDirectories?.[0] !== initialPrimaryDirectory) {
+				throw new Error('The session workspace changed while preparing the new chat. Try creating the chat again.');
+			}
 			// Create the backing chat before publishing `session/chatAdded` so
 			// subscribers only see a chat that can already receive messages.
 			const createResult = await this._createChat(provider, chat, session, createOptions);
@@ -6890,14 +6895,25 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	async setChatWorkingDirectory(session: URI, chat: URI, directory: URI): Promise<void> {
+	runWithChatCatalogLock<T>(session: URI, operation: () => Promise<T>): Promise<T> {
+		return this._chatCatalogMutationSequencer.queue(session.toString(), operation);
+	}
+
+	async setChatWorkingDirectory(session: URI, chat: URI, directory: URI, replaceSessionWorkspace = false): Promise<void> {
 		const directories = [directory.toString()];
 		const state = this._stateManager.getSessionState(session.toString());
 		const summary = state?.chats.find(candidate => candidate.resource === chat.toString());
-		if (!state || !summary || !this._stateManager.getSessionSummary(session.toString())?.workingDirectories?.includes(directories[0])) {
+		const sessionDirectories = this._stateManager.getSessionSummary(session.toString())?.workingDirectories;
+		if (!state || !summary || (replaceSessionWorkspace
+			? state.chats.length !== 1 || !isDefaultChatUri(chat) || !sessionDirectories?.length
+			: !sessionDirectories?.includes(directories[0]))) {
 			throw new Error(`Cannot assign an unattached working directory to chat ${chat.toString()}.`);
 		}
 		const gitState = await this._gitService.getSessionGitState(directory);
+		if (replaceSessionWorkspace && (this._stateManager.getSessionState(session.toString())?.chats.length !== 1
+			|| !equals(this._stateManager.getSessionSummary(session.toString())?.workingDirectories, sessionDirectories))) {
+			throw new Error('The session changed while preparing its replacement workspace.');
+		}
 		if (isDefaultChatUri(chat)) {
 			await persistSessionMetadataValues(this._sessionDataService, chat.toString(), {
 				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(directories),
@@ -6906,6 +6922,25 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._peerChatStore.updateWorkingDirectories(session, chat, directories);
 		}
 		await this._gitStateService.setFolderGitState(session.toString(), directories, gitState);
+		if (replaceSessionWorkspace) {
+			if (this._stateManager.getSessionState(session.toString())?.chats.length !== 1
+				|| !equals(this._stateManager.getSessionSummary(session.toString())?.workingDirectories, sessionDirectories)) {
+				throw new Error('The session changed while changing its workspace.');
+			}
+			if (gitState) {
+				this._stateManager.setSessionMeta(session.toString(), withSessionGitState(this._stateManager.getSessionState(session.toString())?._meta, gitState));
+			}
+			this._stateManager.dispatchServerAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectoryReplaced,
+				directory: sessionDirectories![0],
+				replacement: directories[0],
+			});
+			for (const previous of sessionDirectories!.slice(1)) {
+				if (previous !== directories[0]) {
+					this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectoryRemoved, directory: previous });
+				}
+			}
+		}
 		for (const previous of summary.workingDirectories ?? state.workingDirectories ?? []) {
 			this._stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatWorkingDirectoryRemoved, directory: previous });
 		}

@@ -206,11 +206,9 @@ function createTestSideEffects(
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
 		onDidChangePendingSession: Event.None,
-		canIsolateSession: () => false,
 		canIsolateChat: () => false,
 		requestChatIsolation: () => { },
 		restoreChatIsolation: async () => { },
-		requestSessionIsolation: () => { },
 		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => false,
 		cancel: () => { },

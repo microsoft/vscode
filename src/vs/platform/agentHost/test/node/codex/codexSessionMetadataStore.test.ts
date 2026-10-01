@@ -60,23 +60,34 @@ suite('CodexSessionMetadataStore', () => {
 		assert.strictEqual((await store.read(session)).agent, undefined);
 	});
 
-	test('persists a session-wide root independently of a backing cwd', async () => {
-		const store = new CodexSessionMetadataStore(createSessionDataService(), new NullLogService());
-		const session = URI.parse('codex:/session');
-		const root = URI.file('/worktree');
-		await store.write(session, { cwd: URI.file('/source'), sessionWorkingDirectory: root }, true);
-		await store.write(session, { modelId: 'model' });
-		const overlay = await store.read(session, true);
-		assert.deepStrictEqual({ cwd: overlay.cwd?.fsPath, root: overlay.sessionWorkingDirectory?.fsPath }, { cwd: URI.file('/source').fsPath, root: root.fsPath });
-	});
-
 	test('strict metadata writes propagate failures instead of silently succeeding', async () => {
 		const database = new TestSessionDatabase();
 		database.setMetadata = async () => { throw new Error('write failed'); };
 		const store = new CodexSessionMetadataStore(createSessionDataService(database), new NullLogService());
 		const session = URI.parse('codex:/session');
 		await store.write(session, { cwd: URI.file('/source') });
-		await assert.rejects(store.write(session, { sessionWorkingDirectory: URI.file('/worktree') }, true), /write failed/);
+		await assert.rejects(store.write(session, { cwd: URI.file('/worktree') }, true), /write failed/);
+	});
+
+	test('metadata read failures remain best-effort', async () => {
+		const database = new TestSessionDatabase();
+		database.getMetadata = async () => { throw new Error('read failed'); };
+		const warnings: string[] = [];
+		const logService = new NullLogService();
+		logService.warn = message => warnings.push(message);
+		const service = createSessionDataService(database);
+		const store = new CodexSessionMetadataStore(service, logService);
+		const session = URI.parse('codex:/session');
+		const failedRead = await store.read(session);
+		service.tryOpenDatabase = async () => { throw new Error('open failed'); };
+		const failedOpen = await store.read(session);
+		assert.deepStrictEqual({ failedRead, failedOpen, warnings }, {
+			failedRead: {}, failedOpen: {},
+			warnings: [
+				'[Codex] metadata read failed for codex:/session: read failed',
+				'[Codex] metadata read failed for codex:/session: open failed',
+			],
+		});
 	});
 
 	test('ignores malformed working directory metadata', async () => {

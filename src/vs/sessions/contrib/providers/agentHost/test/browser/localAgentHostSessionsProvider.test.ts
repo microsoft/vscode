@@ -54,7 +54,7 @@ import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/co
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionWorkspace, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
@@ -7153,6 +7153,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 			], { defaultChat, workingDirectories: [primaryDirectory.toString()] }));
 
 			assert.strictEqual(session.mainChat.get().workspace.get(), session.workspace.get());
+		});
+
+		test('single-chat isolation replaces the workspace but keeps the repository project identity', () => {
+			const provider = createProvider(disposables, agentHost);
+			const repository = URI.file('/work/repo');
+			const worktree = URI.file('/work/repo.worktrees/isolated');
+			const id = 'single-chat-isolation';
+			const session = setupMultiChatSession(provider, id, [repository]);
+			const main = buildDefaultChatUri(AgentSession.uri('copilotcli', id));
+			agentHost.setSessionState(id, 'copilotcli', makeState([
+				makeChatSummary(main, '', ProtocolSessionStatus.Idle, [repository.toString()]),
+			], { defaultChat: main, workingDirectories: [repository.toString()] }));
+			const chat = session.mainChat.get();
+			const meta = withSessionGitState(undefined, { branchName: 'agents/isolated', baseBranchName: 'main' });
+			fireSessionSummaryChanged(agentHost, id, {
+				project: { uri: repository.toString(), displayName: 'repo' },
+				workingDirectories: [worktree.toString()], _meta: meta,
+			});
+			agentHost.setSessionState(id, 'copilotcli', makeState([
+				makeChatSummary(main, '', ProtocolSessionStatus.Idle, [worktree.toString()]),
+			], { defaultChat: main, meta, workingDirectories: [worktree.toString()], configValues: { isolation: 'worktree' } }));
+			const describe = (workspace: ISessionWorkspace | undefined) => ({
+				project: workspace?.uri.toString(),
+				folders: workspace?.folders.map(folder => ({
+					root: folder.root.toString(), directory: folder.workingDirectory.toString(),
+					worktree: folder.gitRepository?.workTreeUri?.toString(), branch: folder.gitRepository?.branchName,
+				})),
+			});
+			const expected = {
+				project: repository.toString(),
+				folders: [{ root: repository.toString(), directory: worktree.toString(), worktree: worktree.toString(), branch: 'agents/isolated' }],
+			};
+			assert.deepStrictEqual({
+				session: describe(session.workspace.get()),
+				chat: describe(chat.workspace.get()),
+				sameChat: chat === session.mainChat.get(),
+			}, { session: expected, chat: expected, sameChat: true });
 		});
 
 		test('Agent Merge observable updates when a peer chat folder hydrates', () => {

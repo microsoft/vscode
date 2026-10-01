@@ -6,12 +6,11 @@
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
-import type { ISessionWorkspaceConversionService } from '../chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import type { IServerToolGroup } from './agentServerToolHost.js';
 
 export interface ISessionIsolationToolAccessor {
-	readonly canIsolateSession: ISessionWorkspaceConversionService['canIsolateSession'];
-	requestSessionIsolation(chat: URI, turnId: string): void;
+	canIsolateChatInSession(session: URI): boolean;
+	requestChatIsolation(chat: URI, turnId: string): void;
 }
 
 export function createSessionIsolationToolGroup(accessor?: ISessionIsolationToolAccessor): IServerToolGroup {
@@ -23,7 +22,7 @@ export function createSessionIsolationToolGroup(accessor?: ISessionIsolationTool
 			topLevelChatOnly: true,
 		}],
 		isEnabled: () => true,
-		isEnabledForSession: (_tool, session) => accessor?.canIsolateSession(URI.parse(session)) === true,
+		isEnabledForSession: (_tool, session) => accessor?.canIsolateChatInSession(URI.parse(session)) === true,
 		canRequireConfirmation: () => true,
 		getDisplay: () => ({
 			displayName: localize('isolateSession.name', "Isolate Chat"),
@@ -40,7 +39,7 @@ export function createSessionIsolationToolGroup(accessor?: ISessionIsolationTool
 			if (!args || typeof args !== 'object' || Array.isArray(args) || Object.keys(args).length > 0) {
 				throw new Error('isolate_session takes no arguments.');
 			}
-			accessor.requestSessionIsolation(URI.parse(context.chatUri), context.turnId);
+			accessor.requestChatIsolation(URI.parse(context.chatUri), context.turnId);
 			return 'Chat isolation is scheduled. End this turn now without calling more tools or replying. The host will move only this chat to a new isolated worktree, update the session workspace, and continue the original task automatically. Other chats remain unchanged.';
 		},
 	};
