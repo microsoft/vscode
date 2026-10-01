@@ -161,7 +161,7 @@ class CompressibleRenderer<T, TFilterData, TTemplateData> implements ITreeRender
 
 class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollDelegate<T, TFilterData> {
 
-	private readonly compressedStickyNodes = new Map<ITreeNode<T, TFilterData>, ITreeNode<ICompressedTreeNode<T>, TFilterData>>();
+	private readonly compressedStickyNodes = new WeakMap<ITreeNode<T, TFilterData>, ITreeNode<ICompressedTreeNode<T>, TFilterData>>();
 
 	constructor(private readonly modelProvider: () => CompressibleObjectTreeModel<T, TFilterData>) { }
 
@@ -170,7 +170,6 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 	}
 
 	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<T, TFilterData>[] {
-		this.compressedStickyNodes.clear();
 		if (stickyNodes.length === 0) {
 			return [];
 		}
@@ -198,14 +197,18 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 			throw new Error('Can\'t compress empty sticky nodes');
 		}
 		const compressionModel = this.modelProvider();
-		if (!compressionModel.isCompressionEnabled()) {
+		if (!compressionModel.isCompressionEnabled() || stickyNodes[0].isSection) {
 			return stickyNodes[0];
 		}
 
 		// Collect all elements to be compressed
 		const elements: T[] = [];
+		let lastStickyNode = stickyNodes[0];
 		for (let i = 0; i < stickyNodes.length; i++) {
 			const stickyNode = stickyNodes[i];
+			if (stickyNode.isSection) {
+				break;
+			}
 			const compressedNode = compressionModel.getCompressedTreeNode(stickyNode.node.element);
 
 			if (compressedNode.element) {
@@ -214,6 +217,7 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 					break;
 				}
 				elements.push(...compressedNode.element.elements);
+				lastStickyNode = stickyNode;
 			}
 		}
 
@@ -222,7 +226,6 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 		}
 
 		// Compress the elements
-		const lastStickyNode = stickyNodes[stickyNodes.length - 1];
 		const compressedElement: ICompressedTreeNode<T> = { elements, incompressible: false };
 		const compressedNode: ITreeNode<ICompressedTreeNode<T>, TFilterData> = { ...lastStickyNode.node, children: [], element: compressedElement };
 

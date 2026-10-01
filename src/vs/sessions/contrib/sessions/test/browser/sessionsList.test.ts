@@ -662,11 +662,12 @@ suite('Sessions - SessionsList', () => {
 			}
 		});
 
-		test('sticks independently owned Sessions headers while retaining section sticky scroll', async () => {
+		test('sticks sibling New and Sessions headers while retaining section sticky scroll', async () => {
 			const sessions = Array.from({ length: 20 }, (_, index) => createTestSession(`session-${index}`).session);
 			const harness = createListHarness(disposables, sessions, instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.tree.enableStickyScroll', false);
+				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.tree.stickyScrollMaxItemCount', 7);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
 					override readonly runs = constObservable([]);
@@ -718,13 +719,24 @@ suite('Sessions - SessionsList', () => {
 				recent: findSectionRow('Recent')?.getAttribute('aria-level'),
 				session: container.querySelector('.session-item')?.closest('.monaco-list-row')?.getAttribute('aria-level'),
 			};
-			const tree = Reflect.get(list, 'tree') as { scrollTop: number };
+			const tree = Reflect.get(list, 'tree') as WorkbenchObjectTree<SessionListItem>;
+			const navigationNodes = tree.getNode(null).children.slice(0, 4).map(node => ({
+				id: (node.element as ISessionSection).id,
+				childCount: node.children.length,
+				collapsible: node.collapsible,
+			}));
+			tree.scrollTop = 1;
+			await timeout(0);
+			const stickyNavigationLabels = Array.from(container.querySelectorAll('.monaco-tree-sticky-row .session-section-label'), element => element.textContent);
 			tree.scrollTop = 400;
 			await timeout(0);
 			const stickyHeader = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .test-sessions-header');
 			const stickySectionLabels = Array.from(container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row .session-section-label'))
 				.sort((first, second) => Number.parseFloat(first.closest<HTMLElement>('.monaco-tree-sticky-row')?.style.top ?? '0') - Number.parseFloat(second.closest<HTMLElement>('.monaco-tree-sticky-row')?.style.top ?? '0'))
 				.map(element => element.textContent);
+			const stickyRowOrder = Array.from(container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row'))
+				.sort((first, second) => Number.parseFloat(first.style.top) - Number.parseFloat(second.style.top))
+				.map(row => row.querySelector('.test-sessions-header, .session-section-label')?.textContent);
 			const navigationVisibleAfterScroll = container.querySelector('.monaco-list-rows .session-section-shortcut') !== null;
 			const stickyHeaderOwnsDistinctDom = stickyHeader !== null && stickyHeader !== sourceHeader && stickyHeader.parentElement !== sourceHeaderOwner;
 			const stickyHeaderAriaLabel = stickyHeader?.closest('.monaco-tree-sticky-row')?.getAttribute('aria-label');
@@ -760,10 +772,13 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({
 				sourceHeaderRowHeight,
 				sourceAriaLevels,
+				navigationNodes,
+				stickyNavigationLabels,
 				stickyHeaderText: stickyHeader?.textContent,
 				stickyHeaderOwnsDistinctDom,
 				stickyHeaderAriaLabel,
 				stickySectionLabels,
+				stickyRowOrder,
 				navigationVisibleAfterScroll,
 				stickyHeaderRestoredAfterZeroHeight: stickyHeaderAfterZeroHeight?.textContent,
 				stableFindHeaderUnmoved: sessionsHeader.parentElement === sessionsHeaderContainer && findWidgetContainer.parentElement === sessionsHeader,
@@ -781,13 +796,21 @@ suite('Sessions - SessionsList', () => {
 					automations: '1',
 					customizations: '1',
 					sessions: '1',
-					recent: '2',
-					session: '3',
+					recent: '1',
+					session: '2',
 				},
+				navigationNodes: [
+					{ id: 'newSession', childCount: 0, collapsible: false },
+					{ id: 'automations', childCount: 0, collapsible: false },
+					{ id: 'customizations', childCount: 0, collapsible: false },
+					{ id: 'sessionsHeader', childCount: 0, collapsible: false },
+				],
+				stickyNavigationLabels: ['New'],
 				stickyHeaderText: 'Sessions',
 				stickyHeaderOwnsDistinctDom: true,
 				stickyHeaderAriaLabel: 'Sessions',
 				stickySectionLabels: ['New', 'Recent'],
+				stickyRowOrder: ['New', 'Sessions', 'Recent'],
 				navigationVisibleAfterScroll: false,
 				stickyHeaderRestoredAfterZeroHeight: 'Sessions',
 				stableFindHeaderUnmoved: true,

@@ -101,6 +101,37 @@ suite('AsyncDataTree', function () {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('refreshes cached sticky section classification using consumer elements', async () => {
+		const container = document.createElement('div');
+		let candidateId = 'header-a';
+		const providerCalls: string[] = [];
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), {
+			enableStickyScroll: true,
+			stickyScrollNodeCandidateProvider: element => {
+				providerCalls.push(element.id);
+				return element.id === candidateId;
+			},
+		}));
+		tree.layout(100);
+		const children = [{ id: 'header-a' }, { id: 'header-b' }, ...Array.from({ length: 10 }, (_, index) => ({ id: `item-${index}` }))];
+		await tree.setInput({ id: 'root', children });
+		tree.scrollTop = 41;
+		const stickyText = () => container.querySelector('.monaco-tree-sticky-row')?.textContent;
+		const states = [stickyText()];
+		providerCalls.length = 0;
+
+		candidateId = 'header-b';
+		tree.refreshStickyScroll();
+		states.push(stickyText());
+		tree.rerenderStickyScroll();
+		states.push(stickyText());
+
+		assert.deepStrictEqual({ states, providerCalls }, {
+			states: ['header-a', 'header-b', 'header-b'],
+			providerCalls: children.map(element => element.id),
+		});
+	});
+
 	test('Collapse state should be preserved across refresh calls', async () => {
 		const container = document.createElement('div');
 

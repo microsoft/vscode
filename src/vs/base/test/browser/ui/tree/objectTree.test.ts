@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { TreeRenderer } from '../../../../browser/ui/tree/abstractTree.js';
 import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
 import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '../../../../browser/ui/tree/objectTree.js';
 import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
-import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
+import { ITreeElement, ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
 import { mainWindow } from '../../../../browser/window.js';
 import { Emitter, Event } from '../../../../common/event.js';
 import { SetMap } from '../../../../common/map.js';
@@ -389,6 +390,591 @@ suite('ObjectTree', function () {
 		}
 	});
 
+	test('shows a sticky section node without children', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '100px';
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+			stickyScrollNodeCandidateProvider: element => element === 100,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [
+				{ element: 100 },
+				{ element: 1 },
+				{ element: 2 },
+				{ element: 3 },
+				{ element: 4 },
+				{ element: 5 },
+				{ element: 6 },
+				{ element: 7 },
+			]);
+
+			const stickyText = () => container.querySelector<HTMLElement>('.monaco-tree-sticky-row')?.textContent;
+			const states = [stickyText()];
+			tree.scrollTop = 1;
+			states.push(stickyText());
+
+			assert.deepStrictEqual(states, [undefined, '100']);
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('stacks sticky sibling nodes until their parent ends', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '100px';
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 2,
+			stickyScrollNodeCandidateProvider: element => element >= 100,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [
+				{ element: 100 },
+				{ element: 1 },
+				{ element: 2 },
+				{ element: 200 },
+				{ element: 3 },
+				{ element: 4 },
+				{ element: 5 },
+				{ element: 6 },
+				{ element: 7 },
+			]);
+
+			const stickyState = () => [...container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')]
+				.sort((first, second) => Number.parseFloat(first.style.top) - Number.parseFloat(second.style.top))
+				.map(row => ({ text: row.textContent, top: row.style.top }));
+			tree.scrollTop = 41;
+			const beforeReplacement = stickyState();
+			tree.scrollTop = 61;
+			const afterReplacement = stickyState();
+
+			assert.deepStrictEqual({
+				beforeReplacement,
+				afterReplacement,
+			}, {
+				beforeReplacement: [{ text: '100', top: '0px' }, { text: '200', top: '20px' }],
+				afterReplacement: [{ text: '100', top: '0px' }, { text: '200', top: '20px' }],
+			});
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('contains a sticky section node within its direct parent', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '100px';
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 2,
+			stickyScrollNodeCandidateProvider: element => element === 100,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [
+				{
+					element: 0,
+					children: [
+						{ element: 100 },
+						{ element: 1 },
+						{ element: 2 },
+					]
+				},
+				{ element: 3 },
+				{ element: 4 },
+				{ element: 5 },
+				{ element: 6 },
+				{ element: 7 },
+				{ element: 8 },
+			]);
+
+			const stickyTexts = () => [...container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')].map(row => row.textContent);
+			tree.scrollTop = 21;
+			const insideParent = stickyTexts();
+			tree.scrollTop = 80;
+			const outsideParent = stickyTexts();
+
+			assert.deepStrictEqual({
+				insideParent,
+				outsideParent,
+			}, {
+				insideParent: ['100', '0'],
+				outsideParent: [],
+			});
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('does not reevaluate sticky section candidates while scrolling', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '100px';
+		const providerCalls: number[] = [];
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+			stickyScrollNodeCandidateProvider: element => {
+				providerCalls.push(element);
+				return true;
+			},
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [
+				{ element: 0 },
+				{ element: 1 },
+				{ element: 2 },
+				{ element: 3 },
+				{ element: 4 },
+				{ element: 5 },
+				{ element: 6 },
+			]);
+
+			const callsAfterSetChildren = [...providerCalls];
+			tree.scrollTop = 1;
+			tree.scrollTop = 21;
+			tree.scrollTop = 39;
+			const callsAfterScroll = [...providerCalls];
+			const stickyText = container.querySelector<HTMLElement>('.monaco-tree-sticky-row')?.textContent;
+
+			assert.deepStrictEqual({
+				callsAfterSetChildren,
+				callsAfterScroll,
+				stickyText,
+			}, {
+				callsAfterSetChildren: [0, 1, 2, 3, 4, 5, 6],
+				callsAfterScroll: [0, 1, 2, 3, 4, 5, 6],
+				stickyText: '0',
+			});
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('removes deleted sticky section candidates', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '100px';
+
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+			stickyScrollNodeCandidateProvider: element => element === 100,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [
+				{ element: 100 },
+				{ element: 1 },
+				{ element: 2 },
+				{ element: 3 },
+				{ element: 4 },
+				{ element: 5 },
+				{ element: 6 },
+			]);
+			tree.scrollTop = 1;
+			const beforeDeletion = container.querySelector<HTMLElement>('.monaco-tree-sticky-row')?.textContent;
+
+			tree.setChildren(null, [
+				{ element: 1 },
+				{ element: 2 },
+				{ element: 3 },
+				{ element: 4 },
+				{ element: 5 },
+				{ element: 6 },
+			]);
+			const afterDeletion = container.querySelector<HTMLElement>('.monaco-tree-sticky-row')?.textContent;
+
+			assert.deepStrictEqual({ beforeDeletion, afterDeletion }, { beforeDeletion: '100', afterDeletion: undefined });
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('updates sticky sections after equal-height splices even without a previous sticky node', function () {
+		const container = document.createElement('div');
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollNodeCandidateProvider: element => element >= 100,
+		});
+		try {
+			tree.layout(100);
+			const tail = Array.from({ length: 10 }, (_, index) => ({ element: index + 1 }));
+			tree.setChildren(null, [{ element: 0 }, ...tail]);
+			tree.scrollTop = 81;
+			const stickyText = () => container.querySelector('.monaco-tree-sticky-row')?.textContent;
+			const states = [stickyText()];
+
+			tree.setChildren(null, [{ element: 100 }, ...tail]);
+			states.push(stickyText());
+			tree.setChildren(null, [{ element: 100 }, { element: 1 }, { element: 200 }, ...tail.slice(2)]);
+			states.push(stickyText());
+
+			assert.deepStrictEqual(states, [undefined, '100', '200']);
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('retains earlier sticky siblings when a later source range is suppressed', function () {
+		const container = document.createElement('div');
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollNodeCandidateProvider: element => element >= 100,
+			stickyScrollNodeSourceRangeProvider: (element, range) => element === 200 ? undefined : range,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [
+				{ element: 100 }, { element: 1 }, { element: 200 },
+				...Array.from({ length: 15 }, (_, index) => ({ element: index + 2 })),
+			]);
+			tree.scrollTop = 1;
+			const beforeBoundary = container.querySelector('.monaco-tree-sticky-row')?.textContent;
+			tree.scrollTop = 101;
+			const afterBoundary = container.querySelector('.monaco-tree-sticky-row')?.textContent;
+
+			assert.deepStrictEqual({ beforeBoundary, afterBoundary }, { beforeBoundary: '100', afterBoundary: '100' });
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('rerenders a sticky section when a splice retains its element and geometry', function () {
+		const container = document.createElement('div');
+		let label = 'before';
+		const renderer = new class extends Renderer {
+			override renderElement(node: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
+				templateData.textContent = `${node.element}: ${label}`;
+			}
+		};
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [renderer], {
+			enableStickyScroll: true,
+			stickyScrollNodeCandidateProvider: element => element === 100,
+		});
+		try {
+			tree.layout(100);
+			const elements = [{ element: 100 }, ...Array.from({ length: 10 }, (_, index) => ({ element: index }))];
+			tree.setChildren(null, elements);
+			tree.scrollTop = 81;
+			const states = [container.querySelector('.monaco-tree-sticky-row')?.textContent];
+			label = 'after';
+			tree.setChildren(null, elements);
+			states.push(container.querySelector('.monaco-tree-sticky-row')?.textContent);
+
+			assert.deepStrictEqual(states, ['100: before', '100: after']);
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('does not scan expanded sibling candidates during scroll updates', function () {
+		class CountingTree extends ObjectTree<number> {
+			getModel() {
+				return this.model;
+			}
+		}
+
+		const container = document.createElement('div');
+		const tree = new CountingTree('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollNodeCandidateProvider: () => true,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, Array.from({ length: 100 }, (_, index) => ({
+				element: index * 2,
+				children: [{ element: index * 2 + 1 }],
+			})));
+
+			const spy = sinon.spy(tree.getModel(), 'getListRenderCount');
+			try {
+				tree.scrollTop = 2001;
+				assert.ok(spy.callCount < 20, `Expected fewer than 20 render-count queries per scroll, got ${spy.callCount}`);
+			} finally {
+				spy.restore();
+			}
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('preserves structural sticky traversal with a candidate provider that selects nothing', function () {
+		const results: { constraintInput: number[]; rows: (string | null)[] }[][] = [];
+		for (const custom of [false, true]) {
+			const container = document.createElement('div');
+			let constraintInput: number[] = [];
+			const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+				enableStickyScroll: true,
+				stickyScrollMaxItemCount: 1,
+				stickyScrollNodeCandidateProvider: custom ? () => false : undefined,
+				stickyScrollDelegate: {
+					constrainStickyScrollNodes: nodes => {
+						constraintInput = nodes.map(node => node.node.element);
+						return nodes.slice(0, 1);
+					},
+				},
+			});
+			try {
+				tree.layout(100);
+				let children: ITreeElement<number>[] = [{ element: 13 }];
+				for (let element = 12; element >= 1; element--) {
+					children = [{ element, children }];
+				}
+				tree.setChildren(null, children);
+				const states: typeof results[number] = [];
+				for (const scrollTop of [1, 21, 81, 161]) {
+					constraintInput = [];
+					tree.scrollTop = scrollTop;
+					states.push({
+						constraintInput,
+						rows: [...container.querySelectorAll('.monaco-tree-sticky-row')].map(row => row.textContent),
+					});
+				}
+				results.push(states);
+			} finally {
+				tree.dispose();
+			}
+		}
+
+		assert.deepStrictEqual({
+			firstConstraintInput: results[0][0].constraintInput,
+			custom: results[1],
+		}, {
+			firstConstraintInput: [1, 2],
+			custom: results[0],
+		});
+	});
+
+	test('preserves sticky header DOM and button focus during unrelated equal-height splices', function () {
+		const container = document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		const renderer = new class extends Renderer {
+			override renderElement(node: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
+				super.renderElement(node, index, templateData);
+				const button = document.createElement('button');
+				button.textContent = 'Action';
+				templateData.appendChild(button);
+			}
+		};
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [renderer], {
+			enableStickyScroll: true,
+			stickyScrollNodeCandidateProvider: element => element === 100,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [
+				{ element: 100 },
+				...Array.from({ length: 12 }, (_, index) => ({ element: index })),
+				{ element: 200, children: [{ element: 201 }] },
+			]);
+			tree.scrollTop = 81;
+			const header = container.querySelector('.monaco-tree-sticky-row')!;
+			const button = header.querySelector('button')!;
+			button.focus();
+			const focusedBefore = mainWindow.document.activeElement === button;
+
+			tree.setChildren(200, [{ element: 202 }]);
+
+			assert.deepStrictEqual({
+				focusedBefore,
+				sameHeader: container.querySelector('.monaco-tree-sticky-row') === header,
+				sameButton: container.querySelector('.monaco-tree-sticky-row button') === button,
+				focusedAfter: mainWindow.document.activeElement === button,
+			}, { focusedBefore: true, sameHeader: true, sameButton: true, focusedAfter: true });
+		} finally {
+			tree.dispose();
+			container.remove();
+		}
+	});
+
+	test('preserves reveal offsets without applicable sticky siblings', function () {
+		const scrollPositions: number[] = [];
+		for (const custom of [false, true]) {
+			const container = document.createElement('div');
+			const delegate = new class implements IListVirtualDelegate<number> {
+				getHeight(element: number): number {
+					return element === 2 ? 40 : 20;
+				}
+				getTemplateId(): string { return 'default'; }
+			};
+			const tree = new ObjectTree<number>('test', container, delegate, [new Renderer()], {
+				enableStickyScroll: true,
+				stickyScrollMaxItemCount: 1,
+				stickyScrollNodeCandidateProvider: custom ? () => false : undefined,
+			});
+			try {
+				tree.layout(200);
+				tree.setChildren(null, [{
+					element: 1, children: [{
+						element: 2,
+						children: Array.from({ length: 30 }, (_, index) => ({ element: index + 3 })),
+					}]
+				}]);
+				tree.scrollTop = 400;
+				tree.reveal(10, 0);
+				scrollPositions.push(tree.scrollTop);
+			} finally {
+				tree.dispose();
+			}
+		}
+		assert.deepStrictEqual(scrollPositions, [160, 160]);
+	});
+
+	test('bounds sticky sibling lookup by the item limit rather than the number of preceding candidates', function () {
+		const container = document.createElement('div');
+		let rangeCalls = 0;
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 3,
+			stickyScrollNodeCandidateProvider: () => true,
+			stickyScrollNodeSourceRangeProvider: (element, range) => {
+				rangeCalls++;
+				return range;
+			},
+		});
+		try {
+			tree.layout(200);
+			tree.setChildren(null, Array.from({ length: 1000 }, (_, element) => ({ element })));
+			rangeCalls = 0;
+			tree.scrollTop = 15001;
+			assert.deepStrictEqual({
+				rangeCalls,
+				rows: [...container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')]
+					.sort((first, second) => Number.parseFloat(first.style.top) - Number.parseFloat(second.style.top))
+					.map(row => row.textContent),
+			}, { rangeCalls: 4, rows: ['0', '1', '2'] });
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('updates candidate eligibility when an expanded parent is collapsed and expanded', function () {
+		const container = document.createElement('div');
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollNodeCandidateProvider: element => element === 100,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [
+				{ element: 100, children: [{ element: 1 }, { element: 2 }] },
+				...Array.from({ length: 10 }, (_, index) => ({ element: index + 3 })),
+			]);
+			tree.scrollTop = 81;
+			const stickyText = () => container.querySelector('.monaco-tree-sticky-row')?.textContent;
+			const states = [stickyText()];
+			tree.collapse(100);
+			states.push(stickyText());
+			tree.expand(100);
+			states.push(stickyText());
+
+			assert.deepStrictEqual(states, [undefined, '100', undefined]);
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('skips cached suppressed siblings during scrolling and reveal and refreshes suppression explicitly', function () {
+		const container = document.createElement('div');
+		let enabledElement = 750;
+		let rangeCalls = 0;
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 3,
+			stickyScrollNodeCandidateProvider: () => true,
+			stickyScrollNodeSourceRangeProvider: (element, range) => {
+				rangeCalls++;
+				return element === enabledElement ? range : undefined;
+			},
+		});
+		try {
+			tree.layout(200);
+			tree.setChildren(null, Array.from({ length: 1000 }, (_, element) => ({ element })));
+			rangeCalls = 0;
+			tree.scrollTop = 15001;
+			const scrollCalls = rangeCalls;
+			const states = [container.querySelector('.monaco-tree-sticky-row')?.textContent];
+			rangeCalls = 0;
+			tree.reveal(760, 0);
+			const revealCalls = rangeCalls;
+			enabledElement = 751;
+			tree.refreshStickyScroll();
+			states.push(container.querySelector('.monaco-tree-sticky-row')?.textContent);
+
+			assert.deepStrictEqual({ scrollCalls, revealCalls, states }, {
+				scrollCalls: 1,
+				revealCalls: 2,
+				states: ['750', '751'],
+			});
+		} finally {
+			tree.dispose();
+		}
+	});
+
+	test('reserves only the constrained sibling stack height when revealing a row', function () {
+		const results: { scrollTop: number; rows: (string | null)[] }[] = [];
+		for (const height of [50, 90]) {
+			const container = document.createElement('div');
+			const delegate: IListVirtualDelegate<number> = {
+				getHeight: element => element < 2 ? height : 20,
+				getTemplateId: () => 'default',
+			};
+			const tree = new ObjectTree<number>('test', container, delegate, [new Renderer()], {
+				enableStickyScroll: true,
+				stickyScrollMaxItemCount: 7,
+				stickyScrollNodeCandidateProvider: element => element < 2,
+			});
+			try {
+				tree.layout(200);
+				tree.setChildren(null, Array.from({ length: 30 }, (_, element) => ({ element })));
+				tree.scrollTop = 400;
+				tree.reveal(10, 0);
+				results.push({
+					scrollTop: tree.scrollTop,
+					rows: [...container.querySelectorAll('.monaco-tree-sticky-row')].map(row => row.textContent),
+				});
+			} finally {
+				tree.dispose();
+			}
+		}
+		assert.deepStrictEqual(results, [
+			{ scrollTop: 210, rows: ['0'] },
+			{ scrollTop: 340, rows: [] },
+		]);
+	});
+
+	test('reveals a sticky sibling below its preceding sticky header', function () {
+		const container = document.createElement('div');
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollNodeCandidateProvider: element => element >= 100,
+		});
+		try {
+			tree.layout(100);
+			tree.setChildren(null, [
+				{ element: 100 }, { element: 1 }, { element: 200 },
+				...Array.from({ length: 15 }, (_, index) => ({ element: index + 2 })),
+			]);
+			tree.scrollTop = 200;
+			tree.reveal(200, 0);
+			assert.strictEqual(tree.scrollTop, 20);
+		} finally {
+			tree.dispose();
+		}
+	});
+
 	test('evaluates a custom sticky source range once per scroll update', function () {
 		const container = document.createElement('div');
 		container.style.width = '200px';
@@ -660,6 +1246,57 @@ suite('CompressibleObjectTree', function () {
 	}
 
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not compress sibling sticky sections into an ancestor path', function () {
+		const container = document.createElement('div');
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+			stickyScrollNodeCandidateProvider: element => element === 100,
+		}));
+		tree.layout(100);
+		tree.setChildren(null, [
+			{ element: 100 },
+			{ element: 200, children: Array.from({ length: 10 }, (_, index) => ({ element: index + 1 })) },
+		]);
+		tree.scrollTop = 41;
+
+		assert.deepStrictEqual([...container.querySelectorAll('.monaco-tree-sticky-row')].map(row => row.textContent), ['100']);
+	});
+
+	test('preserves compressed sticky rendering after constrained reveal and rerender', function () {
+		const container = document.createElement('div');
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 2,
+			stickyScrollNodeCandidateProvider: element => element === 100,
+		}));
+		tree.layout(200);
+		tree.setChildren(null, [
+			{ element: 100 },
+			{
+				element: 1, children: [
+					{ element: 90 },
+					{ element: 2, children: Array.from({ length: 20 }, (_, index) => ({ element: index + 3 })) },
+				]
+			},
+		]);
+		tree.scrollTop = 181;
+		const rows = () => [...container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')]
+			.sort((first, second) => Number.parseFloat(first.style.top) - Number.parseFloat(second.style.top))
+			.map(row => row.textContent);
+		const states = [rows()];
+		tree.reveal(10, 0);
+		states.push(rows());
+		tree.reveal(10, 0);
+		tree.rerenderStickyScroll();
+		states.push(rows());
+
+		assert.deepStrictEqual({ scrollTop: tree.scrollTop, states }, {
+			scrollTop: 180,
+			states: [['100', '1/2'], ['100', '1/2'], ['100', '1/2']],
+		});
+	});
 
 	test('empty', function () {
 		const container = document.createElement('div');

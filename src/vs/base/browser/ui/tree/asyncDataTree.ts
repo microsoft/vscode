@@ -475,6 +475,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element as T);
 			}
 		},
+		stickyScrollNodeCandidateProvider: options.stickyScrollNodeCandidateProvider && (e => options.stickyScrollNodeCandidateProvider!(e.element as T)),
 		stickyScrollNodeSourceRangeProvider: options.stickyScrollNodeSourceRangeProvider && ((e, defaultRange) => options.stickyScrollNodeSourceRangeProvider!(e.element as T, defaultRange)),
 		sorter: undefined,
 		expandOnlyOnTwistieClick: typeof options.expandOnlyOnTwistieClick === 'undefined' ? undefined : (
@@ -733,6 +734,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	get renderHeight(): number {
 		return this.tree.renderHeight;
+	}
+
+	refreshStickyScroll(): void {
+		this.tree.refreshStickyScroll();
+	}
+
+	rerenderStickyScroll(): void {
+		this.tree.rerenderStickyScroll();
 	}
 
 	get lastVisibleElement(): T {

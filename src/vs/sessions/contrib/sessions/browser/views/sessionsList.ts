@@ -4009,6 +4009,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				multipleSelectionSupport: true,
 				allowNonCollapsibleParents: true,
 				enableStickyScroll: true,
+				stickyScrollNodeCandidateProvider: element => isSessionSection(element) && (element.id === NEW_SESSION_SECTION_ID || element.id === SESSIONS_HEADER_SECTION_ID),
 				expandOnlyOnTwistieClick: element => isSessionItem(element) || (isSessionGroupItem(element) && element.comparison !== undefined),
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
@@ -4783,17 +4784,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				{
 					element: { id: NEW_SESSION_SECTION_ID, label: localize('new', "New"), sessions: [] },
 					collapsible: false,
-					collapsed: false,
-					children: [
-						...navigationChildren,
-						{
-							element: SESSIONS_HEADER_SECTION,
-							collapsible: false,
-							collapsed: false,
-							children,
-						},
-					],
 				},
+				...navigationChildren,
+				{
+					element: SESSIONS_HEADER_SECTION,
+					collapsible: false,
+				},
+				...children,
 			]);
 		} else {
 			this.setTreeChildren([...navigationChildren, ...children]);
@@ -4809,8 +4806,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			for (const element of elements) {
 				this.accessibilityLevels.set(element.element, level);
 				if (element.children) {
-					const childLevel = isSessionSection(element.element) && element.element.id === NEW_SESSION_SECTION_ID ? level : level + 1;
-					updateAccessibilityLevels(element.children, childLevel);
+					updateAccessibilityLevels(element.children, level + 1);
 				}
 			}
 		};
