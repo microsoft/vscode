@@ -15,3 +15,4 @@ export const AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING = 'sessions.chat.exper
 export const COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING = 'sessions.chat.experimental.collapsedSessionOptionsShowIcons';
 export const NEW_SESSION_WELCOME_PHRASES_SETTING = 'sessions.chat.experimental.welcomePhrases';
 export const NEW_SESSION_WELCOME_NAME_SETTING = 'sessions.chat.experimental.welcomeName';
+export const NEW_SESSION_WELCOME_MESSAGES_SETTING = 'sessions.chat.experimental.welcomeMessages';
