@@ -37,7 +37,7 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
-import { IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
+import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 
 const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
@@ -204,7 +204,7 @@ export function createTestAgentService(
 	}
 	services.set(IAgentHostWorktreeIsolation, worktreeIsolation.service);
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
-	const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
+	const gitHubService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitHubService));
 	const effectiveCopilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
 	services.set(IAgentHostSessionTitleController, foundationDisposables.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 		sessionDataService,
@@ -219,7 +219,7 @@ export function createTestAgentService(
 			return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
 		},
 		getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
-		octoKitService,
+		gitHubService,
 		copilotApiService: effectiveCopilotApiService,
 	})));
 	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);

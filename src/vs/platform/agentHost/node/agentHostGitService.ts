@@ -44,6 +44,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 */
 	private readonly _repositoryRoots = new LRUCache<string, URI>(100);
 	private readonly _repositoryRootSequencer = new SequencerByKey<string>();
+	private readonly _indexPaths = new LRUCache<string, string>(100);
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
@@ -673,6 +674,41 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
+	private async _stageAndWriteTree(repositoryRoot: URI, tempDir: URI, changedPaths: readonly string[], env: Record<string, string>): Promise<string | undefined> {
+		if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
+			return undefined;
+		}
+		return (await this._runGit(repositoryRoot, ['write-tree'], { env }))?.trim() || undefined;
+	}
+
+	/**
+	 * Resolves the absolute path of the repository's index file, which lives
+	 * under `.git/worktrees/<name>/` for linked worktrees.
+	 */
+	private async _getIndexPath(repositoryRoot: URI): Promise<string | undefined> {
+		const key = repositoryRoot.toString();
+		const cached = this._indexPaths.get(key);
+		if (cached) {
+			return cached;
+		}
+		const indexPath = (await this._runGit(repositoryRoot, ['rev-parse', '--git-path', 'index']))?.trim();
+		if (!indexPath) {
+			return undefined;
+		}
+		const absoluteIndexPath = path.isAbsolute(indexPath) ? indexPath : path.join(repositoryRoot.fsPath, indexPath);
+		this._indexPaths.set(key, absoluteIndexPath);
+		return absoluteIndexPath;
+	}
+
+	private async _tryCopyFile(source: string, target: string): Promise<boolean> {
+		try {
+			await fsPromises.copyFile(source, target);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
 	private async _stageChangedPaths(repositoryRoot: URI, tempDir: URI, changedPaths: readonly string[], env: Record<string, string>): Promise<boolean> {
 		if (changedPaths.length === 0) {
 			return true;
@@ -873,26 +909,46 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		const statusOut = await this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']);
+		// `git status` dominates this capture, so resolve HEAD's tree and the
+		// repository's index path alongside it.
+		const [statusOut, headTree, indexPath] = await Promise.all([
+			this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']),
+			this.revParse(repositoryRoot, 'HEAD^{tree}'),
+			this._getIndexPath(repositoryRoot),
+		]);
 		if (statusOut === undefined) {
 			return undefined;
 		}
 		const changedPaths = parseChangedPaths(statusOut);
+		// Seeding a temp index from HEAD and staging no paths writes exactly
+		// HEAD's tree, so a clean working tree with a HEAD needs no temp index
+		// or further git processes. An unborn repository still goes through
+		// `write-tree` so the empty tree uses the repository's object format.
+		if (changedPaths.length === 0 && headTree) {
+			return headTree;
+		}
 		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-checkpoint-${generateUuid()}`);
 		await this._fileService.createFolder(tempDir);
 		const indexFile = URI.joinPath(tempDir, 'index').fsPath;
 		const env: Record<string, string> = { GIT_INDEX_FILE: indexFile, COMMAND_HOOK_LOCK: '1' };
 		try {
+			// Every path where the repository index differs from HEAD or the
+			// working tree is in `changedPaths` and is restaged below, so a copy
+			// of the index yields the same tree as seeding from HEAD while
+			// skipping a `git read-tree` process, which is costly on Windows.
+			if (indexPath && canRestageOntoIndexCopy(statusOut) && await this._tryCopyFile(indexPath, indexFile)) {
+				const tree = await this._stageAndWriteTree(repositoryRoot, tempDir, changedPaths, env);
+				if (tree) {
+					return tree;
+				}
+				this._logService.debug('[agentHostGitService] Capturing from a copy of the index failed; seeding the temp index from HEAD');
+			}
 			// Seed the temp index from HEAD; for empty repos seed from the empty tree.
-			const seeded = await this._runGit(repositoryRoot, ['read-tree', 'HEAD'], { env });
+			const seeded = await this._runGit(repositoryRoot, ['read-tree', headTree ?? 'HEAD'], { env });
 			if (seeded === undefined) {
 				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
 			}
-			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
-				return undefined;
-			}
-			const tree = (await this._runGit(repositoryRoot, ['write-tree'], { env }))?.trim();
-			return tree || undefined;
+			return await this._stageAndWriteTree(repositoryRoot, tempDir, changedPaths, env);
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
 		}
@@ -1621,6 +1677,32 @@ export function summarizeStderrForError(stderr: string): string {
  */
 export function parseUntrackedPaths(output: string | undefined): string[] {
 	return parseChangedPaths(output, status => status === '??');
+}
+
+/**
+ * Whether every entry of NUL-separated `git status --porcelain=v1 -z` output
+ * can be restaged onto a copy of the repository index to capture the working
+ * tree. Staged deletions, renames, copies, conflicts, and staged additions
+ * later deleted from the working tree leave paths that `git add` cannot
+ * match, so callers seed from HEAD for those instead.
+ *
+ * Exported for tests.
+ */
+export function canRestageOntoIndexCopy(output: string): boolean {
+	for (const segment of output.split('\x00')) {
+		if (!segment) {
+			continue;
+		}
+		const index = segment[0];
+		const workingTree = segment[1];
+		if (index !== ' ' && index !== 'M' && index !== 'A' && index !== 'T' && index !== '?') {
+			return false;
+		}
+		if (workingTree === 'U' || workingTree === 'R' || workingTree === 'C' || (index === 'A' && (workingTree === 'A' || workingTree === 'D'))) {
+			return false;
+		}
+	}
+	return true;
 }
 
 /**

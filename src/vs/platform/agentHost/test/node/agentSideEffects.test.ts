@@ -64,6 +64,7 @@ import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSes
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
@@ -220,6 +221,10 @@ function createTestSideEffects(
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
+	services.set(IAgentHostSessionPromptService, {
+		_serviceBrand: undefined,
+		startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+	});
 	services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
@@ -1094,7 +1099,7 @@ suite('AgentSideEffects', () => {
 			return server?.type === CustomizationType.McpServer ? server.state : undefined;
 		}
 
-		test('forwards background requests without changing provider-owned state', async () => {
+		test('forwards background requests and optimistically clears blocking state', async () => {
 			const calls: Array<{ session: URI; id: string }> = [];
 			Object.assign(agent, {
 				backgroundMcpServerStartup: async (session: URI, id: string) => {
@@ -1110,7 +1115,7 @@ suite('AgentSideEffects', () => {
 				state: serverState(),
 			}, {
 				calls: [{ session: sessionUri.toString(), id: 'server' }],
-				state: { kind: McpServerStatus.Starting, blocking: true },
+				state: { kind: McpServerStatus.Starting, blocking: false },
 			});
 		});
 
@@ -1139,7 +1144,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(ids, ['missing']);
 		});
 
-		test('retains blocking state when the provider rejects', async () => {
+		test('retains optimistic non-blocking state when the provider rejects', async () => {
 			Object.assign(agent, {
 				backgroundMcpServerStartup: async () => { throw new Error('SDK rejected'); },
 			});
@@ -1147,7 +1152,7 @@ suite('AgentSideEffects', () => {
 			requestBackground();
 			await timeout(0);
 
-			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: true });
+			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: false });
 		});
 	});
 

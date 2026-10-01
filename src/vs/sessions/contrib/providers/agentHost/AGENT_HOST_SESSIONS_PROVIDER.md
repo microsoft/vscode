@@ -153,7 +153,7 @@ The indexed envelope also carries payload-derived top-level eligibility. Chat-ba
 
 Session listing resolves each registered session independently from its verified current-version payload. A missing, outdated, or malformed payload falls back to the legacy/provider source for that row and schedules reconciliation. A valid chat-backing envelope remains authoritative and never falls back into the top-level session list.
 
-The verified payload's ordered chat identities, titles, and interactivity are projected into the session facade during listing without opening the per-session database. Observing chat-local transient details, including the default chat's modified time and peer chat status or activity, acquires the existing session-state subscription. The subscription reconciles those values onto the same stable chat facades and follows the observer lifetime before returning to the existing idle-release policy.
+The verified payload's ordered chat identities, titles, and interactivity are projected into the session facade during listing without opening the per-session database. Observing a peer chat's transient details acquires the existing session-state subscription; the subscription reconciles volatile status and activity onto the same stable chat facades and follows the observer lifetime before returning to the existing idle-release policy.
 
 ## Local and remote boundary
 

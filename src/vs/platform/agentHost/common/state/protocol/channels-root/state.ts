@@ -107,7 +107,8 @@ export interface AgentCapabilities {
 	 * clients MUST NOT call `createChat` to open chats beyond the default one the
 	 * session starts with. An empty object `{}` advertises multi-chat without
 	 * source-based creation; set {@link MultipleChatsCapability.fork} or
-	 * {@link MultipleChatsCapability.sideChat} to allow the corresponding mode.
+	 * {@link MultipleChatsCapability.sideChat} to allow the corresponding
+	 * creation mode.
 	 */
 	multipleChats?: MultipleChatsCapability;
 	/**

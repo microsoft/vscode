@@ -398,6 +398,46 @@ suite('mcpListWidget', () => {
 		]);
 	});
 
+	test('renders User before Workspace even when User has no servers', () => {
+		const localEntry = (scope: LocalMcpServerScope): IMcpInstalledEntry => ({
+			type: 'server-item',
+			server: { id: scope, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
+		});
+		const renderGroupLabels = (entries: readonly IMcpInstalledEntry[]): readonly string[] => {
+			type TreeNode = { readonly element: { readonly type: string; readonly label?: string } };
+			let renderedChildren: readonly TreeNode[] = [];
+			const widget = Object.assign(Object.create(McpListWidget.prototype), {
+				list: {
+					setChildren: (_input: null, children?: readonly TreeNode[]) => {
+						renderedChildren = children ?? [];
+					},
+				},
+				installedEntries: entries.map(entry => ({ entry })),
+				isGalleryDiscoveryEnabled: () => true,
+				getAvailableGalleryServers: () => [],
+				cardScrollableNode: document.createElement('div'),
+				cardDisposables: { clear() { } },
+				updateMcpTreeEmptyState: () => { },
+			});
+			const renderMcpTree = Reflect.get(McpListWidget.prototype, 'renderMcpTree') as (this: object) => void;
+			renderMcpTree.call(widget);
+			return renderedChildren
+				.filter(child => child.element.type === 'group-header')
+				.map(child => child.element.label ?? '');
+		};
+
+		assert.deepStrictEqual({
+			bothGroupsPopulated: renderGroupLabels([
+				localEntry(LocalMcpServerScope.Workspace),
+				localEntry(LocalMcpServerScope.User),
+			]),
+			userEmpty: renderGroupLabels([localEntry(LocalMcpServerScope.Workspace)]),
+		}, {
+			bothGroupsPopulated: ['User', 'Workspace'],
+			userEmpty: ['User', 'Workspace'],
+		});
+	});
+
 	test('groups externally discovered MCP servers by configuration target rather than as built-in', () => {
 		const entry = (configTarget: ConfigurationTarget, origin: URI, provenance = McpCollectionProvenance.ExternalConfiguration): IMcpInstalledEntry => ({
 			type: 'builtin-item',

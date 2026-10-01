@@ -51,7 +51,8 @@ import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, 
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -61,7 +62,7 @@ import { IAuthenticationMcpService } from '../../../../../services/authenticatio
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
@@ -319,6 +320,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this.dispatchedActions.filter(d => d.action.type === 'chat/turnStarted');
 	}
 	public sessionStates = new Map<string, SeededSessionState>();
+	public readonly chatStates = new Map<string, ChatState>();
 
 	hasLiveSubscription(resource: string): boolean {
 		return this._liveSubscriptions.has(resource);
@@ -445,7 +447,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const sessionForChat = parseDefaultChatUri(resourceStr)
 			?? [...this._liveSubscriptions].find(([, entry]) => hasKey(entry.state, { chats: true }) && entry.state.defaultChat === resourceStr)?.[0];
 		let initialState: SessionState | ChatState;
-		if (sessionForChat !== undefined) {
+		const seededChat = _kind === StateComponents.Chat ? this.chatStates.get(resourceStr) : undefined;
+		if (seededChat) {
+			initialState = seededChat;
+		} else if (sessionForChat !== undefined) {
 			initialState = this._buildDefaultChatState(sessionForChat, resourceStr);
 		} else {
 			const existingState = this.sessionStates.get(resourceStr);
@@ -10326,6 +10331,81 @@ suite('AgentHostChatContribution', () => {
 					: []) : []), [{ resource: grandchildChatUri, available: true }]);
 			assert.strictEqual(agentHostService.hasLiveSubscription(grandchildChatUri), false);
 		});
+
+		for (const catalogHydrated of [false, true]) {
+			test(`opens an opaque subagent URI through the real command and session handler (catalogHydrated=${catalogHydrated})`, async () => {
+				const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables);
+				const sessionUri = AgentSession.uri('copilot', 'opaque-subagent');
+				const defaultChat = 'vendor-chat:/conversations/main';
+				const childChat = URI.parse('vendor-chat:/workers/Waiting?revision=1#result').toString();
+				const childSummary = {
+					resource: childChat,
+					title: 'Waiting',
+					status: SessionStatus.Idle,
+					modifiedAt: '2026-09-01T00:00:00.000Z',
+					origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'delegate' } as const,
+					interactivity: ChatInteractivity.ReadOnly,
+				};
+				agentHostService.sessionStates.set(sessionUri.toString(), {
+					...createSessionState({
+						resource: sessionUri.toString(), provider: 'copilot', title: 'Parent', status: SessionStatus.Idle,
+						createdAt: childSummary.modifiedAt, modifiedAt: childSummary.modifiedAt,
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					defaultChat,
+					chats: catalogHydrated ? [childSummary] : [],
+				});
+				agentHostService.chatStates.set(childChat, {
+					...createChatState(childSummary),
+					turns: [{
+						id: 'child-turn',
+						message: { text: 'Review changes', origin: { kind: MessageKind.User } },
+						state: TurnState.Complete,
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'result', content: 'Review complete' }],
+						usage: undefined,
+					}],
+				});
+				const errors: string[] = [];
+				const opened: IChatSession[] = [];
+				instantiationService.stub(INotificationService, upcastPartial<INotificationService>({
+					error: error => { errors.push(String(error)); },
+				}));
+				instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+					openSession: async resource => {
+						const session = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
+						disposables.add(toDisposable(() => session.dispose()));
+						opened.push(session);
+						return undefined;
+					},
+				}));
+				const command = CommandsRegistry.getCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
+				assert.ok(command);
+				await instantiationService.invokeFunction(accessor => command.handler(accessor, {
+					chatResource: childChat,
+					parentSessionResource: 'agent-host-copilot:/opaque-subagent',
+					title: 'Waiting',
+				}));
+
+				assert.deepStrictEqual({
+					errors,
+					sessions: opened.map(session => ({
+						chatResource: new URLSearchParams(session.sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM),
+						fragment: session.sessionResource.fragment,
+						isReadOnly: session.isReadOnly?.get(),
+						history: session.history.flatMap(item => item.type === 'response'
+							? item.parts.flatMap(part => part.kind === 'markdownContent' ? [part.content.value] : [])
+							: []),
+					})),
+					childSubscribed: agentHostService.hasLiveSubscription(childChat),
+					defaultChatSubscribed: agentHostService.hasLiveSubscription(defaultChat),
+				}, {
+					errors: [],
+					sessions: [{ chatResource: childChat, fragment: childChat, isReadOnly: true, history: ['Review complete'] }],
+					childSubscribed: true,
+					defaultChatSubscribed: false,
+				});
+			});
+		}
 
 		test('opens a subagent editor from its exact chat URI before the chat catalog hydrates', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);

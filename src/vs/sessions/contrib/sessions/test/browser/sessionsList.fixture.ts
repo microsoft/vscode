@@ -25,35 +25,10 @@ const NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
 	title: 'HTTP Client Retry Plan',
 	workspace: 'vscode-tools',
 	minutesAgo: 2,
+	mainChatMinutesAgo: 7,
 	chats: [
-		{ id: 'task-a', title: 'Task A' },
-		{ id: 'task-b', title: 'Task B' },
-	],
-};
-const PER_CHAT_STATE_SESSION: ISessionsListFixtureSession = {
-	id: 'per-chat-state',
-	title: 'Refine session activity',
-	workspace: 'vscode',
-	minutesAgo: 1,
-	status: SessionStatus.InProgress,
-	description: 'Running integration tests',
-	mainChatStatus: SessionStatus.Completed,
-	mainChatMinutesAgo: 18,
-	chats: [
-		{ id: 'review', title: 'Review state propagation', minutesAgo: 12, isRead: false },
-		{ id: 'tests', title: 'Validate integration tests', status: SessionStatus.InProgress, description: 'Running integration tests', minutesAgo: 1 },
-	],
-};
-const COLLAPSED_UNREAD_CHAT_SESSION: ISessionsListFixtureSession = {
-	id: 'collapsed-unread-chat',
-	title: 'Review session state',
-	workspace: 'vscode',
-	minutesAgo: 2,
-	description: 'Peer review completed',
-	isRead: false,
-	mainChatMinutesAgo: 25,
-	chats: [
-		{ id: 'review', title: 'Review unread projection', minutesAgo: 2, isRead: false },
+		{ id: 'task-a', title: 'Task A', minutesAgo: 18 },
+		{ id: 'task-b', title: 'Task B', minutesAgo: 43 },
 	],
 };
 const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
@@ -572,44 +547,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_PeerChatInProgress: defineSessionsListFixture({
 		sessions: [{
 			id: 'a',
-			title: 'Single-pane details behavior',
+			title: 'Desktop details behavior',
 			workspace: 'vscode',
 			minutesAgo: 0,
 			status: SessionStatus.InProgress,
 			mainChatStatus: SessionStatus.Completed,
 			chats: [
-				{ id: 'layout', title: 'Fix single-pane details layout' },
+				{ id: 'layout', title: 'Fix desktop details layout' },
 				{ id: 'restore', title: 'Fix empty files restore', status: SessionStatus.InProgress },
 			],
 		}],
 		view: { width: 620 },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['An expanded session projects its completed main chat on the parent row with an inactive dot and its own modified time. The completed "Fix single-pane details layout" peer has an inactive dot and modified time on the second line, while the active "Fix empty files restore" peer has a blue spinner and "Working..." on the second line.'],
-	}),
-	SessionsList_PerChatState: defineSessionsListFixture({
-		sessions: [PER_CHAT_STATE_SESSION],
-		view: { width: 460, height: 260 },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['An expanded session projects the completed main chat on its parent row with its own 18-minute modified time. The completed unread "Review state propagation" peer has a blue unread dot and its own 12-minute time on the second line. The active "Validate integration tests" peer has a spinner and "Running integration tests" on the second line.'],
-	}),
-	SessionsList_CollapsedUnreadChatState: defineSessionsListFixture({
-		sessions: [COLLAPSED_UNREAD_CHAT_SESSION],
-		view: { width: 460, height: 180, collapsed: [{ session: 'collapsed-unread-chat' }] },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['A collapsed multi-chat session hides its unread peer and projects aggregate state on the parent: a blue unread dot and the aggregate two-minute modified time instead of the main chat\'s older 25-minute time.'],
-	}),
-	SessionsList_CollapsedPeerChatInProgress: defineSessionsListFixture({
-		sessions: [PER_CHAT_STATE_SESSION],
-		view: { width: 460, height: 180, collapsed: [{ session: 'per-chat-state' }], reducedMotion: false },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['A collapsed multi-chat session hides its completed main chat and peer rows, then projects the active peer onto the parent with a blue progress spinner and "Running integration tests" in the details line.'],
+		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix desktop details layout" peer chat shows an inactive dot. The session details say "Working...".'],
 	}),
 	SessionsList_NestedChatApprovals: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_APPROVAL_SESSION],
@@ -635,7 +586,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { session: 'a' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A hovered, expanded session in its workspace section has two nested chat rows. Its twistie replaces the status icon, and rounded hierarchy connectors run continuously from the parent and stop before each child status icon.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A hovered, expanded session in its workspace section shows the main chat and each nested chat\'s own relative modified time. Its twistie replaces the status icon, and rounded hierarchy connectors run continuously from the parent and stop before each child status icon.'],
 	}),
 	SessionsList_NestedChats_PinnedView: defineSessionsListFixture({
 		sessions: [{ ...NESTED_CHAT_SESSION, sticky: true }],
@@ -683,6 +635,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['An expanded vscode session shows one active nested chat and one archived nested chat. The archived chat remains under its parent, uses the completed archive status icon, and shows Restore as its primary row action when focused.'],
 	}),
@@ -820,14 +773,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['Automations and Customizations appear as two full-width navigation rows at the start of the scrollable Sessions tree. The Sessions header follows them and becomes sticky as they scroll away. Automations has a compact right-aligned NEW capsule, Customizations shows its count of 8, and the outlined New button remains in the Sessions header rather than becoming a list entry.'],
+		expectedVisualDescriptions: ['New, Automations, and Customizations appear as three full-width navigation rows at the start of the scrollable Sessions tree. New is the leading row with a plus icon and the platform New Session keybinding aligned on the right. As content scrolls, New remains sticky at the top and the Sessions header joins it when the session list reaches the viewport, without a duplicate New button. Automations has a compact right-aligned NEW capsule, and Customizations shows its count of 8 beside the label in a compact badge with the visible neutral secondary-button fill.'],
 	}),
 	SessionsList_CustomizationsMigrationsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'migrations', title: 'Move instructions into the new format', workspace: 'vscode', minutesAgo: 5 }],
 		header: { navigationShortcuts: true, customizationsCount: 8, customizationMigrationsAvailable: true },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Customizations navigation row shows a small warning dot right after its label, before the right-aligned count of 8.'],
+		expectedVisualDescriptions: ['The Customizations navigation row shows the count of 8 beside its label in a compact badge with the visible neutral secondary-button fill, followed by a small warning dot.'],
 	}),
 	SessionsList_LightweightNewButton: defineSessionsListFixture({
 		sessions: [],
