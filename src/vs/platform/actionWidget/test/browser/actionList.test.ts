@@ -1375,10 +1375,10 @@ suite('ActionListWidget', () => {
 		});
 	});
 
-	test('keeps detail row geometry stable when its toolbar becomes visible', () => {
+	test('applies toolbar scrollbar clearance only to detail rows', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
-				action('plain'),
+				{ ...action('plain'), toolbarActions: [toAction({ id: 'plain-toolbar', label: 'Plain Toolbar', run: () => { } })] },
 				{ ...action('detail'), detail: 'Description', toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
 				...Array.from({ length: 20 }, (_, index) => action(`filler-${index}`)),
 			],
@@ -1390,6 +1390,7 @@ suite('ActionListWidget', () => {
 		disposables.add({ dispose: () => wrapper.remove() });
 
 		const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'));
+		const plainToolbar = rows[0].querySelector<HTMLElement>('.action-list-item-toolbar')!;
 		const detailRow = rows[1];
 		const detail = detailRow.querySelector<HTMLElement>('.detail')!;
 		const toolbar = detailRow.querySelector<HTMLElement>('.action-list-item-toolbar')!;
@@ -1416,13 +1417,15 @@ suite('ActionListWidget', () => {
 				hasDetail: row.classList.contains('has-detail'),
 				hasToolbar: row.classList.contains('has-toolbar'),
 			})),
+			plainToolbarMarginRight: mainWindow.getComputedStyle(plainToolbar).marginRight,
 			initial,
 			focused,
 		}, {
 			rows: [
-				{ hasDetail: false, hasToolbar: false },
+				{ hasDetail: false, hasToolbar: true },
 				{ hasDetail: true, hasToolbar: true },
 			],
+			plainToolbarMarginRight: '0px',
 			initial: {
 				rowHeight: 48,
 				detailTop: initial.detailTop,
