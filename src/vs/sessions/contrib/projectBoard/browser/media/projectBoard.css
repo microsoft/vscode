@@ -323,20 +323,18 @@
 	margin-top: 6px;
 }
 
-.project-board-card-pull-requests {
-	margin-top: 6px;
+.project-board-context-pills {
+	margin-top: var(--vscode-spacing-size80);
+	min-width: 0;
 }
 
-.project-board-card-pull-requests a {
-	display: block;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.project-board-context-pills .chat-pills .actions-container {
+	flex-wrap: wrap;
+	row-gap: var(--vscode-spacing-size60);
 }
 
-.project-board-card-pull-requests .codicon {
-	margin-right: 4px;
-	vertical-align: middle;
+.project-board-context-pills .chat-pill-item {
+	max-width: 100%;
 }
 
 .project-board-grid .project-board-card {
@@ -636,7 +634,6 @@
 	width: auto;
 }
 
-.project-board-card-context,
 .project-board-card-workspace,
 .project-board-card-warning,
 .project-board-card-metadata-note,
@@ -645,24 +642,6 @@
 	margin-top: var(--vscode-spacing-size80);
 	font-size: var(--vscode-fontSize-label1);
 	overflow-wrap: anywhere;
-}
-
-.project-board-card-context a,
-.project-board-card-pull-requests a {
-	display: block;
-	color: var(--vscode-textLink-foreground);
-}
-
-.project-board-card-context a:is(:hover, :active),
-.project-board-card-pull-requests a:is(:hover, :active) {
-	color: var(--vscode-textLink-activeForeground);
-	text-decoration: underline;
-}
-
-.project-board-card-context a:focus-visible,
-.project-board-card-pull-requests a:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: 2px;
 }
 
 .project-board-card-warning {

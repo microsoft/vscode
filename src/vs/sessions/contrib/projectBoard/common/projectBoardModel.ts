@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IProjectBoardConfiguration } from './projectBoardConfiguration.js';
-import { IChat, ISession, ChatInteractivity, ChatOriginKind, SessionArtifactKind, SessionStatus, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, getSessionChildChats } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionArtifact, ChatInteractivity, ChatOriginKind, SessionArtifactKind, SessionStatus, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, getSessionChildChats } from '../../../services/sessions/common/session.js';
 
 export interface IProjectBoardAxis {
 	readonly id: string;
@@ -32,7 +32,7 @@ export interface IProjectBoardCard {
 	readonly archived: boolean;
 	readonly readOnly: boolean;
 	readonly workspace: string | undefined;
-	readonly sharedContext: readonly { readonly label: string; readonly uri: URI }[];
+	readonly sharedContext: readonly { readonly label: string; readonly uri: URI; readonly artifact?: ISessionArtifact }[];
 	readonly pullRequests: readonly {
 		readonly label: string;
 		readonly uri: URI;
@@ -133,7 +133,7 @@ export class ProjectBoardModel {
 		for (const session of sessions) {
 			const sessionTitle = session.title.read(reader);
 			const sessionWorkspace = session.workspace?.read(reader);
-			const sharedContext = new Map<string, { label: string; uri: URI }>();
+			const sharedContext = new Map<string, IProjectBoardCard['sharedContext'][number]>();
 			const sharedPullRequests = new Map<string, IProjectBoardCard['pullRequests'][number]>();
 			for (const artifact of session.artifacts?.read(reader) ?? []) {
 				const uri = artifact.link ?? artifact.uri;
@@ -141,8 +141,8 @@ export class ProjectBoardModel {
 					const link = { label: artifact.label, uri };
 					if (artifact.kind === SessionArtifactKind.PullRequest && artifact.isArtifact && ['http', 'https'].includes(uri.scheme)) {
 						sharedPullRequests.set(uri.toString(), link);
-					} else {
-						sharedContext.set(uri.toString(), link);
+					} else if (!sharedContext.get(uri.toString())?.artifact?.isArtifact || artifact.isArtifact) {
+						sharedContext.set(uri.toString(), { ...link, artifact });
 					}
 				}
 			}
@@ -158,7 +158,9 @@ export class ProjectBoardModel {
 				for (const folder of workspace?.folders ?? []) {
 					const info = folder.gitRepository?.gitHubInfo.read(reader);
 					for (const pr of getGitHubPullRequestRefs(info)) {
-						context.set(pr.uri.toString(), { label: `${pr.owner}/${pr.repo}#${pr.number}`, uri: pr.uri });
+						if (!context.has(pr.uri.toString())) {
+							context.set(pr.uri.toString(), { label: `${pr.owner}/${pr.repo}#${pr.number}`, uri: pr.uri });
+						}
 					}
 					for (const pr of getSessionOwnedGitHubPullRequestRefs(info)) {
 						if (['http', 'https'].includes(pr.uri.scheme)) {

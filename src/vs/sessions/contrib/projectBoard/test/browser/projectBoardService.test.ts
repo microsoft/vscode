@@ -18,7 +18,9 @@ import { isMacintosh } from '../../../../../base/common/platform.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -168,6 +170,11 @@ suite('ProjectBoardService', () => {
 		const onOpened = store.add(new Emitter<URI>());
 		const errors = store.add(new Emitter<string>());
 		const instantiationService = withSessionLists ? createListHarness(store, state.sessions).instantiationService : workbenchInstantiationService(undefined, store);
+		const actionWidget = store.add(instantiationService.createInstance(ActionWidgetService));
+		instantiationService.stub(IActionWidgetService, actionWidget);
+		const copy = sinon.stub().resolves();
+		instantiationService.stub(IClipboardService, { writeText: copy });
+		const popup = () => instantiationService.get(IContextViewService).getContextViewElement();
 		const quickInput = { selectedLabel: undefined as string | undefined, labels: [] as string[], inputValues: [] as string[] };
 		const pick = sinon.stub().callsFake((items: IQuickPickItem[]) => {
 			quickInput.labels = items.map(item => item.label);
@@ -373,7 +380,7 @@ suite('ProjectBoardService', () => {
 			instantiationService.get(ICustomViewService),
 		));
 		return {
-			service, catalog, auxiliaryWindows, container, state, opened, sidePanelOpened, activeSidePanelCardId, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, sessionReplaced, providersChanged, provider, newSession, sessionDrafts, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick,
+			service, catalog, auxiliaryWindows, container, state, opened, sidePanelOpened, activeSidePanelCardId, openedDrafts, drafts, contextMenu, onOpened, errors, session, sessionsChanged, sessionReplaced, providersChanged, provider, newSession, sessionDrafts, questionPreview, questionCarousels, submittedAnswers, openedContext, instantiationService, metadata, credits, creditsError, actions, includeCredits, loadedModels, quickInput, pick, actionWidget, popup, copy,
 			async moveViaPicker(label: string, resource?: URI) {
 				quickInput.selectedLabel = label;
 				const target = [...(auxiliaryWindow?.container ?? container).querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => !resource || element.dataset.chatResource === resource.toString())!;
@@ -3971,28 +3978,64 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(chat.isRead.get(), false);
 	});
 
-	test('PB-11 shared context links open their resources without opening or marking the chat', async () => {
+	test('PB-11 context pills group artifacts, references and PRs without listing or opening their entries on the card', async () => {
 		const chat = new TestChat('Shared context');
-		const { service, container, session, opened, openedContext } = createBoard(mainWindow.document, [chat]);
-		session.artifacts.set([{
+		const h = createBoard(mainWindow.document, [chat]);
+		const file = URI.file('/project/generated.md');
+		h.session.artifacts.set([{
+			id: 'file', kind: SessionArtifactKind.File, label: 'Generated report', uri: file, isArtifact: true,
+		}, {
+			id: 'duplicate-reference', kind: SessionArtifactKind.File, label: 'Same report', uri: file, isArtifact: false,
+		}, {
+			id: 'reference', kind: SessionArtifactKind.Website, label: 'Documentation', link: URI.parse('https://example.com/docs'), isArtifact: false,
+		}, {
 			id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'example/project#12',
 			link: URI.parse('https://github.com/example/project/pull/12'), isArtifact: true,
 		}], undefined);
-		await service.open();
-		const context = container.querySelector('[aria-label="Associated pull requests"]')!;
-		const link = context.querySelector('a')!;
-		link.click();
-		link.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
-		link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true }));
+		h.metadata.set({
+			kind: 'ready', prompt: 'Review the report', context: [
+				{ label: 'Already an artifact', uri: file },
+				{ label: 'Already a reference', uri: URI.parse('https://example.com/docs') },
+				{ label: 'Already an owned PR', uri: URI.parse('https://github.com/example/project/pull/12') },
+				{ label: 'Input context', uri: URI.file('/project/input.ts') },
+			],
+		}, undefined);
+		await h.service.open();
+		const pills = [...h.container.querySelectorAll<HTMLElement>('.chat-pill-button')];
 		assert.deepStrictEqual({
-			label: link.textContent, opened, openedContext, read: chat.isRead.get(),
+			labels: pills.map(pill => pill.textContent),
+			popups: pills.map(pill => pill.getAttribute('aria-haspopup')),
+			rawLinks: h.container.querySelectorAll('.project-board-card a[href]').length,
+			inlineFiles: h.container.textContent?.includes('generated.md'),
+			inlinePR: h.container.textContent?.includes('example/project#12'),
+			opened: h.opened, openedContext: h.openedContext, read: chat.isRead.get(),
 		}, {
-			label: 'example/project#12', opened: [], openedContext: ['https://github.com/example/project/pull/12'], read: false,
+			labels: ['1 Artifact', '2 References', '1 Pull Request'], popups: ['listbox', 'listbox', 'listbox'],
+			rawLinks: 0, inlineFiles: false, inlinePR: false, opened: [], openedContext: [], read: false,
 		});
+		pills[0].click();
+		assert.ok(h.popup().textContent?.includes('generated.md'));
+		assert.strictEqual(h.actionWidget.isVisible, true);
+		assert.deepStrictEqual(h.openedContext, []);
+		h.actionWidget.acceptSelected();
+		pills[1].click();
+		assert.ok(h.popup().textContent?.includes('Last prompt context'));
+		assert.ok(h.popup().textContent?.includes('Input context'));
+		h.actionWidget.hide(true);
+		pills[2].click();
+		pills[2].dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		assert.ok(h.popup().textContent?.includes('example/project#12'));
+		assert.ok(h.popup().textContent?.includes('State unavailable'));
+		h.actionWidget.acceptSelected();
+		assert.deepStrictEqual({ opened: h.opened, openedContext: h.openedContext, read: chat.isRead.get() }, {
+			opened: [], openedContext: [file.toString(), 'https://github.com/example/project/pull/12'], read: false,
+		});
+		assert.ok(h.service.getAccessibleContent().includes('Generated report'));
+		assert.ok(h.service.getAccessibleContent().includes('/project/input.ts'));
 	});
 
 	for (const surface of ['embedded', 'standalone'] as const) {
-		test(`${surface} PR links follow theme colors without rebuilding the card`, async () => {
+		test(`${surface} context pills use native theme colors without rebuilding the card`, async () => {
 			const h = createBoard(mainWindow.document, [new TestChat('Themed PR')]);
 			h.session.artifacts.set([{
 				id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'example/project#12',
@@ -4003,14 +4046,140 @@ suite('ProjectBoardService', () => {
 			} else {
 				await h.service.open();
 			}
-			const link = h.container.querySelector<HTMLAnchorElement>('.project-board-card-pull-requests a')!;
+			const pill = h.container.querySelector<HTMLElement>('.chat-pill-button')!;
 			for (const color of ['rgb(79, 193, 255)', 'rgb(0, 95, 184)', 'rgb(255, 255, 0)']) {
-				h.container.style.setProperty('--vscode-textLink-foreground', color);
-				assert.strictEqual(mainWindow.getComputedStyle(link).color, color);
+				h.container.style.setProperty('--vscode-button-secondaryForeground', color);
+				assert.strictEqual(mainWindow.getComputedStyle(pill).color, color);
 			}
-			assert.strictEqual(h.container.querySelector('.project-board-card-pull-requests a'), link);
+			assert.strictEqual(h.container.querySelector('.chat-pill-button'), pill);
 		});
 	}
+
+	test('context pills retain focused triggers and pending answers during metadata and status updates', async () => {
+		const { document } = createBoardDocument();
+		const chat = new TestChat('Retained context');
+		chat.status.set(SessionStatus.NeedsInput, undefined);
+		const h = createBoard(document, [chat]);
+		h.metadata.set({ kind: 'ready', context: [{ label: 'First input', uri: URI.file('/project/first.ts') }] }, undefined);
+		h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
+		h.questionCarousels.set([{
+			carousel: new ChatQuestionCarouselData([{
+				id: 'answer', type: 'singleSelect', title: 'Answer',
+				options: [{ id: 'yes', label: 'Yes', value: 'yes' }], allowFreeformInput: true,
+			}], false),
+			requestId: 'context-question',
+		}], undefined);
+		await h.service.open();
+		const answer = h.container.querySelector<HTMLTextAreaElement>('textarea')!;
+		answer.value = 'Keep this answer';
+		answer.setSelectionRange(2, 7);
+		answer.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		const pill = h.container.querySelector<HTMLElement>('.chat-pill-button')!;
+		pill.focus();
+		h.metadata.set({
+			kind: 'ready', prompt: 'Updated prompt',
+			context: [{ label: 'First input', uri: URI.file('/project/first.ts') }, { label: 'Second input', uri: URI.file('/project/second.ts') }],
+		}, undefined);
+		await timeout(0);
+		h.session.title.set('Updated owner title', undefined);
+		assert.deepStrictEqual({
+			retained: h.container.querySelector('.chat-pill-button') === pill,
+			focused: document.activeElement === pill,
+			label: pill.textContent,
+			answerRetained: h.container.querySelector('textarea') === answer,
+			answer: answer.value, selection: [answer.selectionStart, answer.selectionEnd],
+			opened: h.opened, read: chat.isRead.get(), submitted: h.submittedAnswers,
+		}, {
+			retained: true, focused: true, label: '2 References',
+			answerRetained: true, answer: 'Keep this answer', selection: [2, 7],
+			opened: [], read: false, submitted: [],
+		});
+	});
+
+	for (const change of ['fold', 'remove', 'archive', 'list', 'deactivate', 'dispose'] as const) {
+		test(`context pills close their native popup on ${change}`, () => {
+			const chat = new TestChat('Popup lifetime');
+			const h = createBoard(mainWindow.document, [chat], undefined, change === 'list');
+			if (change === 'list') {
+				h.state.sessions = [{ ...createTestSession('Popup lifetime').session, ...h.session }];
+			}
+			h.session.artifacts.set([{
+				id: 'file', kind: SessionArtifactKind.File, label: 'Report', uri: URI.file('/project/report.md'), isArtifact: true,
+			}], undefined);
+			const view = store.add(h.service.createView(h.container));
+			h.container.querySelector<HTMLElement>('.chat-pill-button')!.click();
+			assert.strictEqual(h.actionWidget.isVisible, true);
+			switch (change) {
+				case 'fold': h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click(); break;
+				case 'remove': h.session.chats.set([], undefined); break;
+				case 'archive': h.session.isArchived.set(true, undefined); break;
+				case 'list': h.service.toggleDisplayOption('showSessionList'); break;
+				case 'deactivate': h.catalog.selectBoard(h.catalog.createBoard('Other')); break;
+				case 'dispose': view.dispose(); break;
+			}
+			assert.deepStrictEqual({ visible: h.actionWidget.isVisible, opened: h.opened, read: chat.isRead.get() }, { visible: false, opened: [], read: false });
+		});
+	}
+
+	test('context pills close a child popup when its parent folds and recreate it on expansion', () => {
+		const parent = new TestChat('Parent');
+		const child: IChat = { ...new TestChat('Worker'), origin: { kind: ChatOriginKind.Tool, parentChat: parent.resource } };
+		const h = createBoard(mainWindow.document, [parent, child]);
+		h.session.artifacts.set([{
+			id: 'file', kind: SessionArtifactKind.File, label: 'Report', uri: URI.file('/project/report.md'), isArtifact: true,
+		}], undefined);
+		store.add(h.service.createView(h.container));
+		const toggle = () => h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!;
+		const childPill = () => h.container.querySelector<HTMLElement>('.project-board-child-cards .chat-pill-button');
+		assert.strictEqual(childPill(), null);
+		toggle().click();
+		childPill()!.click();
+		assert.strictEqual(h.actionWidget.isVisible, true);
+		toggle().click();
+		assert.strictEqual(h.actionWidget.isVisible, false);
+		toggle().click();
+		assert.strictEqual(childPill()?.textContent, '1 Artifact');
+	});
+
+	test('context pills hide empty categories and reveal exact prompt references only after refresh', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Deferred context')]);
+		h.metadata.set({ kind: 'loading' }, undefined);
+		await h.service.open();
+		assert.strictEqual(h.container.querySelector('.chat-pill-button'), null);
+		h.metadata.set({ kind: 'ready', context: [{ label: 'Loaded input', uri: URI.file('/project/input.ts') }] }, undefined);
+		await timeout(0);
+		const pill = h.container.querySelector<HTMLElement>('.chat-pill-button')!;
+		assert.strictEqual(pill.textContent, '1 Reference');
+		pill.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true }));
+		assert.strictEqual(h.actionWidget.isVisible, true);
+		h.metadata.set({ kind: 'ready', context: [] }, undefined);
+		await timeout(0);
+		assert.deepStrictEqual({
+			visible: h.actionWidget.isVisible, pill: h.container.querySelector('.chat-pill-button'),
+			opened: h.opened, openedContext: h.openedContext,
+		}, { visible: false, pill: null, opened: [], openedContext: [] });
+	});
+
+	test('context pills report opener and clipboard failures instead of opening the chat', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Context failures')]);
+		h.session.artifacts.set([{
+			id: 'file', kind: SessionArtifactKind.File, label: 'Report', uri: URI.file('/project/report.md'), isArtifact: true,
+		}], undefined);
+		const errors: string[] = [];
+		store.add(h.errors.event(error => errors.push(error)));
+		const open = sinon.stub(h.instantiationService.get(IOpenerService), 'open').resolves(false);
+		const notify = sinon.spy(h.instantiationService.get(INotificationService), 'error');
+		store.add(toDisposable(() => { open.restore(); notify.restore(); }));
+		store.add(h.service.createView(h.container));
+		h.container.querySelector<HTMLElement>('.chat-pill-button')!.click();
+		h.copy.rejects(new Error('Clipboard unavailable'));
+		h.popup().querySelector<HTMLElement>('[aria-label="Copy path"]')!.click();
+		await timeout(0);
+		assert.ok(notify.calledWith('The context location could not be copied.'));
+		h.actionWidget.acceptSelected();
+		await timeout(0);
+		assert.deepStrictEqual({ errors, opened: h.opened }, { errors: ['The context link could not be opened.'], opened: [] });
+	});
 
 	test('PR cards reuse owned associations, live icons and titles from the exact chat workspace without loading history', async () => {
 		const chats = Array.from({ length: 17 }, (_, index) => new TestChat(`PR ${index.toString().padStart(2, '0')}`));
@@ -4034,29 +4203,35 @@ suite('ProjectBoardService', () => {
 		h.session.artifacts.set([{ id: 'same-pr', kind: SessionArtifactKind.PullRequest, label: 'Recorded PR', link: uri, isArtifact: true }], undefined);
 		await h.service.open();
 		await timeout(0);
+		h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
 		const card = () => [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === target.resource.toString())!;
-		const pr = () => card().querySelector<HTMLElement>('.project-board-card-pull-requests a')!;
+		const pr = () => [...card().querySelectorAll<HTMLElement>('.chat-pill-button')].find(pill => pill.textContent === '1 Pull Request')!;
+		const prEntry = () => h.popup().querySelector<HTMLElement>('[aria-label^="example/project#12"]')!;
 		const open = sinon.spy(h.instantiationService.get(IOpenerService), 'open');
 		store.add(toDisposable(() => open.restore()));
 		pr().click();
 		pr().dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
 		assert.deepStrictEqual({
-			resolve: resolve.callCount, label: pr().textContent, icon: !!pr().querySelector('.codicon-git-pull-request-draft'),
-			description: pr().getAttribute('aria-label'), duplicates: card().querySelectorAll(`a[href="${uri}"]`).length,
-			associated: card().querySelectorAll('.project-board-card-pull-requests a').length,
-			reference: !!card().querySelector('.project-board-card-context a[href$="/99"]'),
+			resolve: resolve.callCount, label: pr().textContent, icon: !!prEntry().querySelector('.codicon-git-pull-request-draft'),
+			description: prEntry().getAttribute('aria-label'), entries: h.popup().querySelectorAll('[aria-label^="example/project#12"]').length,
+			reference: !!card().querySelector('[aria-label="Show 1 reference"]'),
 			pending: !!card().querySelector('[data-board-control^="refresh:"]'),
-			opened: h.opened, read: target.isRead.get(), options: open.firstCall.args[1],
+			opened: h.opened, read: target.isRead.get(), openCalls: open.callCount,
 		}, {
-			resolve: 1, label: 'example/project#12', icon: true,
-			description: 'example/project#12: Fix the issue, Draft', duplicates: 1,
-			associated: 1, reference: true,
-			pending: true, opened: [], read: false, options: { fromUserGesture: true, allowCommands: false, openExternal: true },
+			resolve: 1, label: '1 Pull Request', icon: true,
+			description: 'example/project#12: Fix the issue, Draft, https://github.com/example/project/pull/12', entries: 1, reference: true,
+			pending: true, opened: [], read: false, openCalls: 0,
 		});
+		h.actionWidget.acceptSelected();
+		assert.deepStrictEqual(open.firstCall.args[1], { fromUserGesture: true, allowCommands: false, openExternal: true });
+		pr().click();
+		const retained = pr();
 		info.set({ owner: 'example', repo: 'project', pullRequest: { number: 12, uri, title: 'Merged fix', liveState: 'merged', icon: { ...Codicon.gitPullRequestDone, color: { id: 'gitDecoration.addedResourceForeground' } } } }, undefined);
-		assert.ok(pr().querySelector('.codicon-git-pull-request-done'));
-		assert.ok(pr().getAttribute('aria-label')?.includes('Merged'));
-		assert.strictEqual(pr().querySelector<HTMLElement>('.codicon')?.style.color, 'var(--vscode-gitDecoration-addedResourceForeground)');
+		assert.strictEqual(pr(), retained);
+		assert.strictEqual(h.actionWidget.isVisible, true);
+		assert.ok(prEntry().querySelector('.codicon-git-pull-request-done'));
+		assert.ok(prEntry().getAttribute('aria-label')?.includes('Merged'));
+		assert.strictEqual(prEntry().querySelector<HTMLElement>('.codicon-git-pull-request-done')?.style.color, 'var(--vscode-gitDecoration-addedResourceForeground)');
 		assert.ok(h.service.getAccessibleContent().includes('example/project#12: Merged fix'));
 		assert.strictEqual(resolve.callCount, 1);
 		for (const [state, icon, label] of [
@@ -4064,13 +4239,14 @@ suite('ProjectBoardService', () => {
 			['closed', 'git-pull-request-closed', 'Closed'],
 		] as const) {
 			info.set({ owner: 'example', repo: 'project', pullRequest: { number: 12, uri, state } }, undefined);
-			assert.ok(pr().querySelector(`.codicon-${icon}`));
-			assert.strictEqual(pr().getAttribute('aria-label'), `example/project#12, ${label}`);
+			assert.ok(prEntry().querySelector(`.codicon-${icon}`));
+			assert.strictEqual(prEntry().getAttribute('aria-label'), `example/project#12, ${label}, ${uri}`);
 		}
 		info.set(undefined, undefined);
-		assert.strictEqual(pr().getAttribute('aria-label'), 'Recorded PR, State unavailable');
+		assert.ok(h.popup().querySelector('[aria-label^="Recorded PR, State unavailable"]'));
 		h.session.artifacts.set([], undefined);
-		assert.strictEqual(card().querySelector('.project-board-card-pull-requests'), null);
+		assert.strictEqual(card().querySelector('.chat-pill-button'), null);
+		assert.strictEqual(h.actionWidget.isVisible, false);
 	});
 
 	test('PB-06/PB-10 edited axes and placements survive reconstruction and cancelled deletion retains archived placements', async () => {

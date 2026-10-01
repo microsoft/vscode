@@ -71,8 +71,7 @@ import { IProjectBoardCatalogService } from '../common/projectBoardCatalog.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { KANBAN_CUSTOM_VIEW_ID } from '../../../common/projectBoard.js';
 import { ProjectBoardPreviewPool, IProjectBoardMetadataLease, IProjectBoardQuestionLease } from './projectBoardPreviewPool.js';
-import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
-import { computePullRequestIcon, getPullRequestStatusFromIcon } from '../../github/common/types.js';
+import { getProjectBoardContext, getProjectBoardPullRequestLabel, ProjectBoardContextPills } from './projectBoardContextPills.js';
 import './projectBoardCatalog.js';
 import './media/projectBoard.css';
 
@@ -172,6 +171,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly metadataPreviews = this._register(new DisposableMap<string, IProjectBoardMetadataLease>());
 	private readonly metadataChats = new Map<string, IChat>();
 	private readonly metadataStates = new Map<string, IProjectBoardMetadata>();
+	private readonly contextPills = this._register(new DisposableMap<string, ProjectBoardContextPills>());
 	private readonly notifiedMetadataErrors = new Map<string, string>();
 	private readonly resolvedGitHubRepositories = new WeakSet<ISessionGitRepository>();
 	private readonly promptTimes = new Map<string, number>();
@@ -336,6 +336,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		} else {
 			this.previewRender.cancel();
 			this.gitHubResolution.cancel();
+			this.contextPills.clearAndDisposeAll();
 			this.dragging = false;
 			this.model.setSortingDeferred(false);
 			this.movePicker.clear();
@@ -553,8 +554,24 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			if (this.active && !this.showHeader && card.id === this.chatSidePanel.activeCardId.get()) {
 				lines.push(localize('projectBoard.accessibleCurrentChat', "  Open in Side Panel"));
 			}
+			if (card.pullRequests.length) {
+				lines.push(localize('projectBoard.pullRequests', "Pull Requests"));
+			}
 			for (const pullRequest of card.pullRequests) {
-				lines.push(this.getPullRequestLabel(pullRequest));
+				lines.push(getProjectBoardPullRequestLabel(pullRequest), pullRequest.uri.toString(true));
+			}
+			const context = getProjectBoardContext(card, this.metadataStates.get(card.id));
+			if (context.artifacts.length) {
+				lines.push(localize('projectBoard.artifacts', "Artifacts"));
+				for (const item of context.artifacts) {
+					lines.push(item.label, (item.link ?? item.uri)?.toString(true) ?? '');
+				}
+			}
+			if (context.references.length || context.promptContext.length) {
+				lines.push(localize('projectBoard.references', "References"));
+				for (const item of [...context.references, ...context.promptContext]) {
+					lines.push(item.label, item.uri.toString(true));
+				}
 			}
 		};
 		if (!this.showSessionList) {
@@ -1015,6 +1032,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const focusedControl = activeElement?.getAttribute('data-board-control');
 		const focusedQuestion = activeElement && [...this.questionWidgets.values()].some(widget => widget.element.contains(activeElement)) ? activeElement : undefined;
 		const focusedAction = activeElement && [...this.actionWidgets.values()].some(widget => widget.element.contains(activeElement)) ? activeElement : undefined;
+		const focusedPill = activeElement && [...this.contextPills.values()].some(widget => widget.element.contains(activeElement)) ? activeElement : undefined;
 		const focusedCard = [...this.cardElements].find(([, element]) => activeElement && element.contains(activeElement));
 		const focusedList = [...this.sessionLists.values()].find(entry => activeElement && entry.container.contains(activeElement));
 		const focusedListChat = focusedList?.list.getFocusedChat();
@@ -1168,6 +1186,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 
 		board.appendChild(grid);
+		for (const [id, widget] of this.contextPills) {
+			if (!this.cardElements.get(id)?.contains(widget.element)) {
+				this.contextPills.deleteAndDispose(id);
+			}
+		}
 		for (const key of this.sessionLists.keys()) {
 			if (!this.renderedSessionLists.has(key)) {
 				this.sessionLists.deleteAndDispose(key);
@@ -1193,7 +1216,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 		this.rendering = false;
 		if (ownerDocument.hasFocus()) {
-			if (focusedAction?.isConnected && isHTMLElement(focusedAction)) {
+			if (focusedPill?.isConnected && isHTMLElement(focusedPill)) {
+				focusedPill.focus({ preventScroll: true });
+			} else if (focusedAction?.isConnected && isHTMLElement(focusedAction)) {
 				focusedAction.focus({ preventScroll: true });
 			} else if (focusedQuestion?.isConnected && isHTMLElement(focusedQuestion)) {
 				focusedQuestion.focus({ preventScroll: true });
@@ -1763,7 +1788,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			list.appendChild(this.getSessionList(cards.map(card => card.session), placement).container);
 		} else {
 			for (const card of cards.slice(0, limit)) {
-				list.appendChild(this.createCardFamily(document, card, store));
+				list.appendChild(this.createCardFamily(document, card, store, !collapsed));
 			}
 		}
 		const unknownHidden = this.withChildCards(cards.slice(limit)).filter(card => !this.promptTimes.has(card.id)).length;
@@ -1871,8 +1896,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return [this.childChatCountLabel(children.length), ...this.stateCounts(children).map(state => state.label)].join(' · ');
 	}
 
-	private createCardFamily(document: Document, card: IProjectBoardCard, store: DisposableStore): HTMLElement {
-		const parent = this.createCard(document, card, store);
+	private createCardFamily(document: Document, card: IProjectBoardCard, store: DisposableStore, visible: boolean): HTMLElement {
+		const parent = this.createCard(document, card, store, visible);
 		const children = this.model.getChildCards(card.id, this.showArchived);
 		if (!children.length) {
 			return parent;
@@ -1906,7 +1931,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 		}, store);
 		for (const child of children) {
-			childCards.appendChild(this.createCardFamily(document, child, store));
+			childCards.appendChild(this.createCardFamily(document, child, store, visible && !childCards.hidden));
 		}
 		family.append(parent, heading, childCards);
 		return family;
@@ -2096,7 +2121,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return element;
 	}
 
-	private createCard(document: Document, card: IProjectBoardCard, store: DisposableStore): HTMLElement {
+	private createCard(document: Document, card: IProjectBoardCard, store: DisposableStore, visible: boolean): HTMLElement {
 		const element = document.createElement('article');
 		const descriptions: string[] = [];
 		const describe = (content: HTMLElement) => {
@@ -2301,58 +2326,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			capability.textContent = metadata.message;
 			element.appendChild(capability);
 		}
-		if (metadata?.kind === 'ready' && metadata.context.length) {
-			const context = document.createElement('section');
-			context.className = 'project-board-card-context';
-			const label = document.createElement('div');
-			label.textContent = localize('projectBoard.promptContext', "Last prompt context");
-			context.appendChild(label);
-			for (const item of metadata.context) {
-				this.createContextLink(context, item.label, item.uri, `${card.id}:prompt:${item.uri}`, store);
+		if (visible && (card.sharedContext.length || card.pullRequests.length || (metadata?.kind === 'ready' && metadata.context.length))) {
+			let pills = this.contextPills.get(card.id);
+			if (!pills) {
+				pills = this.instantiationService.createInstance(ProjectBoardContextPills, this.container.ownerDocument, (uri, external) => this.openContext(uri, external));
+				this.contextPills.set(card.id, pills);
 			}
-			element.appendChild(context);
-		}
-		if (card.pullRequests.length) {
-			const pullRequests = document.createElement('section');
-			pullRequests.className = 'project-board-card-pull-requests';
-			pullRequests.setAttribute('aria-label', localize('projectBoard.pullRequests', "Associated pull requests"));
-			describe(pullRequests);
-			for (const pullRequest of card.pullRequests) {
-				const link = this.createContextLink(pullRequests, pullRequest.label, pullRequest.uri, `${card.id}:pr:${pullRequest.uri}`, store, true);
-				const label = this.getPullRequestLabel(pullRequest);
-				link.setAttribute('aria-label', label);
-				store.add(this.hoverService.setupDelayedHover(link, { content: label }));
-				const icon = pullRequest.icon ?? (pullRequest.state ? computePullRequestIcon(pullRequest.state) : Codicon.gitPullRequest);
-				const glyph = renderIcon(icon);
-				glyph.setAttribute('aria-hidden', 'true');
-				if (icon.color) {
-					glyph.style.color = asCssVariable(icon.color.id);
-				}
-				link.prepend(glyph);
-			}
-			element.appendChild(pullRequests);
-		}
-		if (card.sharedContext.length) {
-			const context = document.createElement('section');
-			context.className = 'project-board-card-context';
-			context.setAttribute('aria-label', localize('projectBoard.sharedContext', "Shared session context"));
-			const label = document.createElement('div');
-			label.textContent = localize('projectBoard.sharedContext', "Shared session context");
-			context.appendChild(label);
-			for (const link of card.sharedContext.slice(0, 2)) {
-				this.createContextLink(context, link.label, link.uri, `${card.id}:${link.uri}`, store);
-			}
-			if (card.sharedContext.length > 2) {
-				const details = document.createElement('details');
-				const summary = document.createElement('summary');
-				summary.textContent = localize('projectBoard.moreContext', "+{0} context links", card.sharedContext.length - 2);
-				details.appendChild(summary);
-				for (const link of card.sharedContext.slice(2)) {
-					this.createContextLink(details, link.label, link.uri, `${card.id}:${link.uri}`, store);
-				}
-				context.appendChild(details);
-			}
-			element.appendChild(context);
+			pills.update(card, metadata);
+			element.appendChild(pills.element);
 		}
 
 		this.cardElements.set(card.id, element);
@@ -2431,34 +2412,6 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}));
 		card.appendChild(actions);
 		return button;
-	}
-
-	private getPullRequestLabel(pullRequest: IProjectBoardCard['pullRequests'][number]): string {
-		const state = pullRequest.state === 'merged' || pullRequest.state === 'closed'
-			? pullRequest.state : getPullRequestStatusFromIcon(pullRequest.icon) ?? pullRequest.state;
-		const label = state === 'merged' ? localize('projectBoard.prMerged', "Merged")
-			: state === 'closed' ? localize('projectBoard.prClosed', "Closed")
-				: state === 'draft' ? localize('projectBoard.prDraft', "Draft")
-					: state === 'open' ? localize('projectBoard.prOpen', "Open")
-						: localize('projectBoard.prUnknown', "State unavailable");
-		return pullRequest.title
-			? localize('projectBoard.prTitleState', "{0}: {1}, {2}", pullRequest.label, pullRequest.title, label)
-			: localize('projectBoard.prState', "{0}, {1}", pullRequest.label, label);
-	}
-
-	private createContextLink(container: HTMLElement, label: string, uri: URI, key: string, store: DisposableStore, openExternal = false): HTMLAnchorElement {
-		const link = mainWindow.document.createElement('a');
-		link.textContent = label;
-		link.href = uri.toString();
-		link.dataset.boardControl = key;
-		this.controlElements.set(key, link);
-		store.add(addDisposableListener(link, EventType.CLICK, event => {
-			event.preventDefault();
-			event.stopPropagation();
-			void this.openContext(uri, openExternal);
-		}));
-		container.appendChild(link);
-		return link;
 	}
 
 	private async openContext(uri: URI, openExternal: boolean): Promise<void> {
