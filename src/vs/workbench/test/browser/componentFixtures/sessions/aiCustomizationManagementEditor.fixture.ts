@@ -1749,7 +1749,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
 		assert(ctx.container.querySelector('.customization-discovery-search-actions .codicon-filter') !== null, 'Discover must expose Marketplace-style search filters.');
 		assert(ctx.container.querySelector('.customization-discovery-filters') === null, 'Discover must keep filters in the search toolbar instead of rendering quick-filter pills.');
-		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All sources') === true, 'Discover must default to all customization sources.');
+		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All Sources') === true, 'Discover must default to all customization sources.');
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
@@ -3352,7 +3352,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverClearedSearch: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All sources.'],
+		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All Sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
