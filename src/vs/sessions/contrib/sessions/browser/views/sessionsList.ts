@@ -6151,7 +6151,24 @@ function getComparisonGroupSummary(comparison: ISessionComparison, sessions: rea
 			: localize('comparisonGroup.startingAttemptsProgress', "Comparison · Starting attempts · {0} of {1} ready", readyAttemptCount, attempts.length);
 	}
 	if (comparison.verdict) {
-		return localize('comparisonGroup.reviewReady', "Comparison · Review ready");
+		const synthesis = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis);
+		if (synthesis && !synthesis.launchError) {
+			const synthesisSession = synthesis.sessionResource ? sessions.find(session => isEqual(session.resource, synthesis.sessionResource)) : undefined;
+			const synthesisStatus = reader ? synthesisSession?.status.read(reader) : synthesisSession?.status.get();
+			if (synthesisStatus === SessionStatus.Completed) {
+				return localize('comparisonGroup.combined', "Comparison · Combined version ready");
+			}
+			if (synthesisStatus === SessionStatus.NeedsInput) {
+				return localize('comparisonGroup.combinedNeedsInput', "Comparison · Combined version needs input");
+			}
+			if (synthesisStatus !== SessionStatus.Error) {
+				return localize('comparisonGroup.combining', "Comparison · Combining what you kept");
+			}
+		}
+		const continued = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Attempt && participant.id === comparison.selectedParticipantId);
+		return continued
+			? localize('comparisonGroup.continued', "Comparison · Continued with {0}", continued.harness.modelLabel ?? continued.harness.label)
+			: localize('comparisonGroup.reviewReady', "Comparison · Review ready");
 	}
 	const judge = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge);
 	const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
@@ -6186,7 +6203,7 @@ function getComparisonGroupSummary(comparison: ISessionComparison, sessions: rea
 			? sessions.find(session => isEqual(session.resource, judge.sessionResource))?.status.read(reader)
 			: sessions.find(session => isEqual(session.resource, judge.sessionResource))?.status.get();
 		if (judgeStatus === SessionStatus.NeedsInput) {
-			return localize('comparisonGroup.judgeNeedsInput', "Comparison · Judge needs input");
+			return localize('comparisonGroup.reviewNeedsInput', "Comparison · Review needs input");
 		}
 		if (judgeStatus === SessionStatus.Untitled || judgeStatus === SessionStatus.InProgress) {
 			return localize('comparisonGroup.reviewing', "Comparison · Reviewing attempts");

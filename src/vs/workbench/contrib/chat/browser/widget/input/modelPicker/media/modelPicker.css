@@ -126,6 +126,18 @@
 	padding-right: var(--vscode-spacing-size20);
 }
 
+/* Compare mode leads with the chosen models' icons, side by side. */
+.chat-input-picker-item .action-label.model-picker-split .model-picker-model-stack {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-model-stack > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .chat-input-picker-item .action-label.model-picker-split .model-picker-config {
 	flex-shrink: 0;
 }
@@ -894,6 +906,19 @@
 	content: '';
 	float: right;
 	height: 1lh;
+}
+
+/* Compare mode: every row is a checkbox, and a chosen model's mark takes the accent. */
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-compare-model > .codicon:first-child {
+	color: var(--vscode-descriptionForeground);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-compare-selected > .codicon:first-child {
+	color: var(--vscode-textLink-foreground);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-compare-model.disabled > .codicon:first-child {
+	opacity: 0.5;
 }
 
 .chat-model-picker-welcome {

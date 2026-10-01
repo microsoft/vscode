@@ -5,14 +5,11 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { constObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -24,12 +21,10 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/responseSelectionSideChatController.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
-import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
+import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
@@ -533,7 +528,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { activation: true, nextButton: true, tintKeyboardAccess: true, tintCheckedState: true, tintPreservesImage: true });
 	});
 
-	test('describes Run and Compare Agents only when enabled', async () => {
+	test('describes comparing models only when enabled', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
 			[COMPARE_AGENTS_ENABLED_SETTING]: false,
@@ -548,139 +543,42 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const disabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const disabledContent = disabledProvider.provideContent();
 		await configuration.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, true);
-		const enabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const enabledContent = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.deepStrictEqual({
-			disabled: disabledContent.includes('activate Run and Compare Agents'),
-			enabled: enabledProvider.provideContent().includes('activate Run and Compare Agents'),
-			workspaceAndBranch: enabledProvider.provideContent().includes('choose a Git repository with at least one commit and a remote, choose the base branch'),
-			permissions: enabledProvider.provideContent().includes('provider-specific Permissions selection'),
-			copilotAllowAllMode: enabledProvider.provideContent().includes('choosing Allow all for Copilot also uses Autopilot mode'),
-			bulkPermissions: enabledProvider.provideContent().includes('Allow all permissions for every participant'),
-			permissionInfo: enabledProvider.provideContent().includes('Activate the adjacent information button'),
-			evaluatorInfo: enabledProvider.provideContent().includes('Their information buttons describe each role'),
-			setupSteps: enabledProvider.provideContent().includes('two-step comparison setup'),
-			stepButtons: enabledProvider.provideContent().includes('Attempts and Evaluation step buttons'),
-			effort: enabledProvider.provideContent().includes('supported reasoning effort'),
-			opensAttemptsGrid: enabledProvider.provideContent().includes('open every available attempt in a resizable grid'),
-			twoPaneInputs: enabledProvider.provideContent().includes('With two attempt panes, both chat inputs remain visible'),
-			threePaneInputs: enabledProvider.provideContent().includes('With three or more, only the active attempt pane shows its chat input'),
-			screenReaderInputs: enabledProvider.provideContent().includes('Screen-reader optimized mode keeps every attempt input visible'),
-			stopParticipant: enabledProvider.provideContent().includes('stop only that participant'),
-			stopAll: enabledProvider.provideContent().includes('stops every running attempt, Judge, and Synthesizer'),
-			stopOnlyWhileRunning: enabledProvider.provideContent().includes('Stop and Stop All are available only while their comparison sessions are running'),
-			archiveComparison: enabledProvider.provideContent().includes('check-mark Archive Comparison action'),
-			deleteGroup: enabledProvider.provideContent().includes('Delete Group remains available from the comparison header context menu'),
-			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs input in an inactive visible pane'),
-			rationaleOrder: enabledProvider.provideContent().includes('Comparison, Validation, Code quality, Solution'),
-			attemptLinks: enabledProvider.provideContent().includes('activate its link to reveal that session'),
-			accessibleView: enabledProvider.provideContent().includes('use Open Accessible View<keybinding:editor.action.accessibleView>'),
-			focusAttempts: enabledProvider.provideContent().includes('use its adjacent dropdown to focus another attempt'),
-			additionalInstructions: enabledProvider.provideContent().includes('choose Additional Synthesis Instructions'),
-			submitInstructions: enabledProvider.provideContent().includes('Activate Start Synthesis with Instructions'),
-			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
-			customSynthesisScroll: enabledProvider.provideContent().includes('The table scrolls when its decisions or attempt columns exceed the available space'),
-			choiceButtons: enabledProvider.provideContent().includes('Use Tab to move between the choice buttons'),
+			disabled: disabledContent.includes('activate Compare Models'),
+			enabled: enabledContent.includes('activate Compare Models in its tab bar'),
+			checkboxes: enabledContent.includes('Model rows become checkboxes'),
+			sendLabel: enabledContent.includes('the Send button reads Run followed by that number'),
+			requirements: enabledContent.includes('a Git repository with at least one commit and a remote, and an agent that supports worktrees'),
+			oneConversation: enabledContent.includes('the comparison opens as one conversation'),
+			pills: enabledContent.includes('Press Enter on a pill to open that run\'s session'),
+			accessibleView: enabledContent.includes('use Open Accessible View<keybinding:editor.action.accessibleView>'),
+			decisions: enabledContent.includes('each change is a radio group'),
+			turnLinks: enabledContent.includes('opens that run at the turn that changed those files'),
+			combine: enabledContent.includes('Combine starts a new run in a fresh worktree'),
+			sideBySide: enabledContent.includes('Open Side by Side in the comparison header shows every run in a grid'),
+			contextBar: enabledContent.includes('activate View Comparison to return'),
+			archiveComparison: enabledContent.includes('check-mark Archive Comparison action'),
+			inactivePaneNotification: enabledContent.includes('question tool needs input in an inactive visible pane'),
+			legacySetup: enabledContent.includes('two-step comparison setup'),
 		}, {
 			disabled: false,
 			enabled: true,
-			workspaceAndBranch: true,
-			permissions: true,
-			copilotAllowAllMode: true,
-			bulkPermissions: true,
-			permissionInfo: true,
-			evaluatorInfo: true,
-			setupSteps: true,
-			stepButtons: true,
-			effort: true,
-			opensAttemptsGrid: true,
-			twoPaneInputs: true,
-			threePaneInputs: true,
-			screenReaderInputs: true,
-			stopParticipant: false,
-			stopAll: false,
-			stopOnlyWhileRunning: false,
-			archiveComparison: true,
-			deleteGroup: true,
-			inactivePaneNotification: true,
-			rationaleOrder: true,
-			attemptLinks: true,
+			checkboxes: true,
+			sendLabel: true,
+			requirements: true,
+			oneConversation: true,
+			pills: true,
 			accessibleView: true,
-			focusAttempts: true,
-			additionalInstructions: true,
-			submitInstructions: true,
-			customSynthesis: true,
-			customSynthesisScroll: true,
-			choiceButtons: true,
-		});
-	});
-
-	test('provides the focused Judge result as plain text and restores focus', () => {
-		const judgeResource = URI.parse('test:///judge');
-		const comparison: ISessionComparison = {
-			id: 'comparison',
-			groupId: 'group',
-			title: 'Comparison',
-			createdAt: 0,
-			workspace: URI.file('/repo'),
-			prompt: 'Implement',
-			participants: [{
-				id: 'attempt',
-				role: SessionComparisonParticipantRole.Attempt,
-				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Codex' },
-				completion: { elapsedMs: 3_000, tokenCount: 42 },
-			}, {
-				id: 'judge',
-				role: SessionComparisonParticipantRole.Judge,
-				sessionResource: judgeResource,
-				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Judge' },
-			}],
-			verdict: {
-				recommendedParticipantId: 'attempt',
-				explanation: 'Best result.',
-				conflicts: [],
-				attempts: [],
-			},
-		};
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({
-				sessionId: 'judge',
-				resource: judgeResource,
-			}));
-		}());
-		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
-			override readonly comparisons = constObservable([comparison]);
-		}());
-		const origin = mainWindow.document.createElement('button');
-		mainWindow.document.body.appendChild(origin);
-		store.add({ dispose: () => origin.remove() });
-		origin.focus();
-
-		const provider = new SessionComparisonAccessibleView().getProvider(instantiationService);
-		assert.ok(provider);
-		store.add(provider);
-		const content = provider?.provideContent();
-		provider?.onClose();
-
-		assert.deepStrictEqual({
-			type: provider?.options.type,
-			content,
-			focusRestored: mainWindow.document.activeElement === origin,
-		}, {
-			type: AccessibleViewType.View,
-			content: [
-				'Comparison result',
-				'Attempt 1 (Codex) won',
-				'',
-				'Why it won',
-				'Best result.',
-				'',
-				'Attempt time and token usage',
-				'Attempt 1 (Codex): Total time 3s; Tokens used 42',
-			].join('\n'),
-			focusRestored: true,
+			decisions: true,
+			turnLinks: true,
+			combine: true,
+			sideBySide: true,
+			contextBar: true,
+			archiveComparison: true,
+			inactivePaneNotification: true,
+			legacySetup: false,
 		});
 	});
 });

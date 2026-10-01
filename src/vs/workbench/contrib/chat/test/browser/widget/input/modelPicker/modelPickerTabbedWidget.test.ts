@@ -98,6 +98,7 @@ suite('TabbedModelPicker', () => {
 		showUnavailable?: boolean;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
+		multiModel?: { readonly maxModels: number };
 	} = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
 		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size280: 28px;';
@@ -173,6 +174,7 @@ suite('TabbedModelPicker', () => {
 		const configurationChanges: Parameters<ITabbedModelPickerContext['onConfigurationChanged']>[] = [];
 		let hintDismissed = false;
 		const availableModels = options.models ?? models;
+		const compare = { enabled: false, selected: [] as string[] };
 		const context: ITabbedModelPickerContext = {
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0].identifier,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
@@ -188,11 +190,27 @@ suite('TabbedModelPicker', () => {
 			onConfigurationChanged: (...change) => configurationChanges.push(change),
 			cacheBreakHint: undefined,
 			configurationCacheBreakHint: options.cacheWarm ? { text: 'Changing options resets the prompt cache.', link: undefined, dismiss: () => { hintDismissed = true; } } : undefined,
+			multiModel: options.multiModel ? {
+				isEnabled: () => compare.enabled,
+				getSelectedModelIds: () => compare.selected,
+				maxModels: options.multiModel.maxModels,
+				setEnabled: enabled => {
+					compare.enabled = enabled;
+					if (!enabled) {
+						compare.selected = [];
+					}
+				},
+				toggleModel: model => {
+					compare.selected = compare.selected.includes(model.identifier)
+						? compare.selected.filter(id => id !== model.identifier)
+						: [...compare.selected, model.identifier];
+				},
+			} : undefined,
 		};
 		const picker = disposables.add(instantiationService.createInstance(TabbedModelPicker));
 		picker.show(anchor, context, options.details, false, options.contextViewLayer);
 		return {
-			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges,
+			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges, compare,
 			get hintDismissed() { return hintDismissed; },
 			get contextViewLayer() { return activeDelegate?.layer; },
 			get anchorPosition() { return activeDelegate?.anchorPosition; },
@@ -433,6 +451,62 @@ suite('TabbedModelPicker', () => {
 		assert.ok(row, label);
 		row.click();
 	}
+
+	test('Compare Models turns rows into checkboxes that toggle in place up to the limit', () => {
+		const result = createPicker({ models: [createAutoModel(), ...models], selectedModelId: models[0].identifier, multiModel: { maxModels: 2 } });
+		const rows = () => Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-model'), row => ({
+			label: row.querySelector('.title')?.textContent,
+			role: row.getAttribute('role'),
+			checked: row.getAttribute('aria-checked'),
+			disabled: row.classList.contains('option-disabled'),
+		}));
+		const autoSwitchVisible = () => {
+			const autoSwitch = result.popup.querySelector('[role="switch"]');
+			return !!autoSwitch && !autoSwitch.closest('[hidden]');
+		};
+		const before = { autoSwitch: autoSwitchVisible(), compareChecked: element(result.popup, '[data-id="compare"]').getAttribute('aria-pressed') };
+
+		element(result.popup, '[data-id="compare"]').click();
+		const compareOn = {
+			autoSwitch: autoSwitchVisible(),
+			header: result.popup.querySelector('.action-list-header-text')?.textContent,
+			rows: rows(),
+			selected: [...result.compare.selected],
+		};
+		selectRoutingChoice(result.popup, 'Second');
+		const afterToggle = { visible: result.picker.isVisible, rows: rows(), selected: [...result.compare.selected] };
+
+		assert.deepStrictEqual({ before, compareOn, afterToggle, singleSelections: result.selections }, {
+			before: { autoSwitch: true, compareChecked: 'false' },
+			compareOn: {
+				autoSwitch: false,
+				header: 'Choose up to 2 models to run in parallel',
+				rows: [
+					{ label: 'First', role: 'menuitemcheckbox', checked: 'true', disabled: false },
+					{ label: 'Fixed', role: 'menuitemcheckbox', checked: 'false', disabled: false },
+					{ label: 'Second', role: 'menuitemcheckbox', checked: 'false', disabled: false },
+				],
+				selected: [models[0].identifier],
+			},
+			afterToggle: {
+				visible: true,
+				rows: [
+					{ label: 'First', role: 'menuitemcheckbox', checked: 'true', disabled: false },
+					{ label: 'Fixed', role: 'menuitemcheckbox', checked: 'false', disabled: true },
+					{ label: 'Second', role: 'menuitemcheckbox', checked: 'true', disabled: false },
+				],
+				selected: [models[0].identifier, models[1].identifier],
+			},
+			singleSelections: [],
+		});
+	});
+
+	test('offers Compare Models only when the owner does and two individual models exist', () => {
+		const offered = createPicker({ multiModel: { maxModels: 4 } });
+		const notOffered = createPicker();
+		const tooFew = createPicker({ models: [createAutoModel(), models[0]], multiModel: { maxModels: 4 } });
+		assert.deepStrictEqual([offered, notOffered, tooFew].map(result => !!result.popup.querySelector('[data-id="compare"]')), [true, false, false]);
+	});
 
 	test('HydraFusion routing shows its description and Learn more under the entry, without a flyout', () => {
 		const auto = createAutoModel();

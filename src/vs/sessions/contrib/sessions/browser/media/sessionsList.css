@@ -1310,6 +1310,12 @@
 		line-height: 16px;
 	}
 
+	/* The stacked labels do not stretch, so cap them to let long prompts ellipsize before the toolbar. */
+	.session-section-label,
+	.session-group-description {
+		max-width: 100%;
+	}
+
 	.session-section-chevron.collapsible {
 		order: 4;
 		display: flex;

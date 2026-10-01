@@ -178,6 +178,8 @@ export interface IStartSessionComparisonOptions {
 	readonly synthesisHarness?: ISessionComparisonHarness;
 	readonly permissionLevel?: string;
 	readonly branch?: string;
+	/** Called once the comparison exists, before its attempts finish launching, so it can be shown right away. */
+	readonly onDidCreate?: (comparison: ISessionComparison) => void;
 }
 
 export interface ISessionComparisonService {
@@ -199,12 +201,50 @@ export interface ISessionComparisonService {
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
 
+/** Why the selected workspace cannot host a comparison, or `undefined` when it can. */
+export function getSessionComparisonWorkspaceError(branch: string | undefined, hasGitRemote: boolean | undefined): string | undefined {
+	if (!branch) {
+		return localize('sessionComparison.gitRepositoryRequired', "Comparing models requires a Git repository with at least one commit.");
+	}
+	if (hasGitRemote === false) {
+		return localize('sessionComparison.gitRemoteRequired', "Comparing models requires a Git remote.");
+	}
+	return undefined;
+}
+
 export function getSessionComparisonHarnessLabel(participant: ISessionComparisonParticipant): string {
 	return getSessionComparisonHarnessDisplayLabel(participant.harness);
 }
 
 export function getSessionComparisonAttemptLabel(participant: ISessionComparisonParticipant, attemptNumber: number): string {
 	return localize('sessionComparison.attemptLabel', "Attempt {0} ({1})", attemptNumber, getSessionComparisonHarnessLabel(participant));
+}
+
+/**
+ * What people call each attempt, in attempt-number order: its model, or its
+ * full harness label when two attempts share a model.
+ */
+export function getSessionComparisonAttemptNames(comparison: ISessionComparison): readonly string[] {
+	const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+	const names = attempts.map(attempt => attempt.harness.modelLabel ?? attempt.harness.label);
+	return attempts.map((attempt, index) => names.indexOf(names[index]) === names.lastIndexOf(names[index])
+		? names[index]
+		: getSessionComparisonHarnessLabel(attempt));
+}
+
+/**
+ * The Judge references attempts by number ("Attempt 2", "Attempts 1 and 3");
+ * people know them by model. Names every numbered attempt in Judge-written text,
+ * leaving references to unknown numbers untouched.
+ */
+export function nameSessionComparisonAttempts(text: string, attemptNames: readonly string[]): string {
+	const name = (value: string) => attemptNames[Number(value) - 1];
+	return text
+		.replace(/\battempts\s+#?(\d+)((?:\s*,\s*#?\d+)*(?:\s*,?\s+(?:and|or|&)\s+#?\d+))\b/gi, (match: string, first: string, rest: string) => {
+			const numbers = [first, ...(rest.match(/\d+/g) ?? [])];
+			return numbers.every(name) ? `${name(first)}${rest.replace(/#?(\d+)/g, (_: string, value: string) => name(value))}` : match;
+		})
+		.replace(/\battempt\s+#?(\d+)\b/gi, (match: string, value: string) => name(value) ?? match);
 }
 
 export function getSessionComparisonHarnessDisplayLabel(harness: ISessionComparisonHarness): string {

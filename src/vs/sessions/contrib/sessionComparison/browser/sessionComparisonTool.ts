@@ -215,7 +215,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 			icon: Codicon.compareChanges,
 			displayName: localize('sessionComparison.tool.displayName', "Complete Attempt Comparison"),
 			userDescription: localize('sessionComparison.tool.userDescription', "Submit the judge's structured attempt comparison"),
-			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this after reviewing every referenced attempt diff and running any missing targeted validation needed for a reliable recommendation. Reference attempts only by the attemptNumber values returned by readAttemptComparison; do not use participant or session UUIDs. Keep explanation to one concise sentence. Provide exactly one concise rationale point in this order: comparison, validation, codeQuality, and solution. Each point must cite concrete evidence and stay within the schema length limit. For each validation category, provide one consistent state and source evidence pair. Known passed or failed results must come from the attempt report or a Judge run; unavailable evidence cannot claim a known result. Identify semantic decision sections when attempts take meaningfully different approaches, including affected files and one concise option per relevant attemptNumber. Rate every option as better, neutral, or worse and rate each section\'s recommended option as better. This persists an advisory verdict; synthesis only starts through an explicit user action. If invalid input is rejected, correct the reported fields and retry; do not submit again after success.',
+			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this after reviewing every referenced attempt diff and running any missing targeted validation needed for a reliable recommendation. Reference attempts in numeric fields only by the attemptNumber values returned by readAttemptComparison; in text fields, name each attempt by its harness.model (adding harness.agent when two attempts share a model) rather than as "Attempt N", because that is how the user knows it. Do not use participant or session UUIDs. Keep explanation to one concise sentence. Provide exactly one concise rationale point in this order: comparison, validation, codeQuality, and solution. Each point must cite concrete evidence and stay within the schema length limit. For each validation category, provide one consistent state and source evidence pair. Known passed or failed results must come from the attempt report or a Judge run; unavailable evidence cannot claim a known result. Identify semantic decision sections when attempts take meaningfully different approaches, including affected files and one option per relevant attemptNumber whose approach is a past-tense sentence describing what that attempt did. Rate every option as better, neutral, or worse and rate each section\'s recommended option as better. This persists an advisory verdict; synthesis only starts through an explicit user action. If invalid input is rejected, correct the reported fields and retry; do not submit again after success.',
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled),
 			runsInWorkspace: false,
@@ -265,7 +265,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 									minimum: 1,
 									description: 'The attemptNumber from readAttemptComparison.',
 								},
-								summary: { type: 'string' },
+								summary: { type: 'string', description: 'One past-tense sentence describing what this attempt did, naming its concrete changes, for example "Added a trailing debounce to the watcher and rewrote its flaky test to await the settle event." Describe the work, not how it ranks.' },
 								validation: {
 									type: 'object',
 									properties: {
@@ -277,7 +277,11 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 									required: ['tests', 'build', 'lint', 'diagnostics'],
 									additionalProperties: false,
 								},
-								unresolvedIssues: { type: 'array', items: { type: 'string' } },
+								unresolvedIssues: {
+									type: 'array',
+									description: 'Concrete things this attempt left undone or broke, each naming the observable behavior (for example "Leaves \'a,,b\' as \'a---b\'"). Not judgments of its quality.',
+									items: { type: 'string' },
+								},
 								notableDifferences: {
 									type: 'array',
 									description: 'The strongest reusable points from this attempt, especially when it is not recommended.',
@@ -296,15 +300,15 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 							properties: {
 								id: { type: 'string', description: 'A stable identifier unique within this verdict.' },
 								title: { type: 'string', description: 'A short user-facing name for the decision.' },
-								description: { type: 'string', description: 'What this decision controls and why the approaches differ.' },
-								affectedFiles: { type: 'array', items: { type: 'string' } },
+								description: { type: 'string', description: 'What this decision controls and how the attempts differ, stated neutrally.' },
+								affectedFiles: { type: 'array', description: 'Repository-relative files where the attempts made this change; the user can jump to the turn that changed them.', items: { type: 'string' } },
 								options: {
 									type: 'array',
 									items: {
 										type: 'object',
 										properties: {
 											attemptNumber: { type: 'integer', minimum: 1 },
-											approach: { type: 'string', description: 'A concise description of this attempt\'s approach.' },
+											approach: { type: 'string', description: 'One past-tense sentence describing what this attempt did for this decision, naming the concrete change and where, for example "Returned typed diagnostics from parse() instead of throwing." Describe the work, not how it compares.' },
 											assessment: {
 												type: 'string',
 												description: 'Rate this approach relative to the other options for this decision.',

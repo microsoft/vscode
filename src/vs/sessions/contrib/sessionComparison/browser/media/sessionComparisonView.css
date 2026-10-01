@@ -1,0 +1,529 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The comparison reads as one conversation: the prompt, its parallel runs, the review, then what to keep. */
+.session-comparison-transcript {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size400);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 1.5;
+	outline: none;
+}
+
+.session-comparison-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Your prompt, drawn like a chat request bubble. */
+.session-comparison-request {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: var(--vscode-spacing-size40);
+}
+
+.session-comparison-request-bubble {
+	box-sizing: border-box;
+	max-width: 90%;
+	max-height: 240px;
+	overflow: auto;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-chat-requestBubbleBackground);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.session-comparison-request-meta {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.session-comparison-request-meta .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.session-comparison-response {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.session-comparison-status {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison-status-icon {
+	display: inline-flex;
+	flex-shrink: 0;
+}
+
+.session-comparison-status-icon .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.session-comparison-status:not(.active) .session-comparison-status-icon .codicon-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+/* While the runs work, the status line shimmers like chat's own progress. */
+.monaco-enable-motion .session-comparison-status.active .session-comparison-status-label {
+	background: linear-gradient(90deg,
+			var(--vscode-descriptionForeground) 0%,
+			var(--vscode-descriptionForeground) 30%,
+			var(--vscode-chat-thinkingShimmer) 50%,
+			var(--vscode-descriptionForeground) 70%,
+			var(--vscode-descriptionForeground) 100%);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: chat-thinking-shimmer 2s linear infinite;
+}
+
+.session-comparison-runs {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+}
+
+.session-comparison-run {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+.session-comparison-run[hidden] {
+	display: none;
+}
+
+/* Pills use the subagent pill styling but span the transcript rather than a fixed width. */
+.session-comparison-transcript .chat-subagent-open-chat-toolbar.session-comparison-pill {
+	width: 100%;
+}
+
+.session-comparison-transcript .chat-subagent-open-chat-toolbar.session-comparison-pill[hidden] {
+	display: none;
+}
+
+.session-comparison-run.suggested .chat-subagent-pill-content {
+	border-color: color-mix(in srgb, var(--vscode-textLink-foreground) 60%, transparent);
+}
+
+/* Details under a pill line up with the pill's label: its padding, icon and gap. */
+.session-comparison-run-facts {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	padding-left: calc(var(--vscode-spacing-size60) + 16px + var(--vscode-spacing-size40));
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.session-comparison-run-facts[hidden],
+.session-comparison-run-summary[hidden],
+.session-comparison-checks[hidden],
+.session-comparison-review-note[hidden],
+.session-comparison-results[hidden],
+.session-comparison-synthesis[hidden],
+.session-comparison-synthesis-actions[hidden] {
+	display: none;
+}
+
+.session-comparison-diffstat {
+	display: inline-flex;
+	gap: var(--vscode-spacing-size40);
+}
+
+.session-comparison-diffstat .added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.session-comparison-diffstat .removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+.session-comparison-run-error {
+	color: var(--vscode-errorForeground);
+}
+
+.session-comparison-suggested {
+	display: inline-flex;
+	align-items: center;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 16%, transparent);
+	color: var(--vscode-textLink-foreground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.6;
+	white-space: nowrap;
+}
+
+.session-comparison-run-summary {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	padding-left: calc(var(--vscode-spacing-size60) + 16px + var(--vscode-spacing-size40));
+}
+
+.session-comparison-markdown p {
+	margin: 0;
+}
+
+.session-comparison-markdown p + p {
+	margin-top: var(--vscode-spacing-size40);
+}
+
+.session-comparison-checks {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.session-comparison-check {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-comparison-check .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+/* The testing colors are not registered in the Agents window, so fall back to the theme's chart colors. */
+.session-comparison-check.passed .codicon {
+	color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+}
+
+.session-comparison-check.failed .codicon {
+	color: var(--vscode-testing-iconFailed, var(--vscode-charts-red));
+}
+
+.session-comparison-check.open .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison-run-jump,
+.session-comparison-why > summary {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.session-comparison-run-jump:hover,
+.session-comparison-why > summary:hover {
+	text-decoration: underline;
+}
+
+.session-comparison-review-note {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding-left: calc(var(--vscode-spacing-size60) + 16px + var(--vscode-spacing-size40));
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.session-comparison-results {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	margin-top: var(--vscode-spacing-size40);
+	padding-top: var(--vscode-spacing-size160);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+}
+
+.session-comparison-verdict {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+.session-comparison-verdict-title {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-model {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-model .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.session-comparison-why > summary {
+	width: fit-content;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.session-comparison-why ul {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size60) 0 0;
+	padding-left: var(--vscode-spacing-size160);
+}
+
+.session-comparison-why-label {
+	margin-right: var(--vscode-spacing-size60);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-why-point,
+.session-comparison-why-point p {
+	display: inline;
+}
+
+.session-comparison-differences {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-comparison-heading {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-hint {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+/* Each change the runs made differently: what each run did, and which one to keep. */
+.session-comparison-decision {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.session-comparison-decision-header {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-comparison-decision-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-decision-files {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.session-comparison-decision-files .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.session-comparison-decision-description {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison-decision-options {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+	margin-top: var(--vscode-spacing-size40);
+}
+
+.session-comparison-option {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.session-comparison-option:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.session-comparison-option.checked {
+	background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 8%, transparent);
+}
+
+.session-comparison-option-choice {
+	display: flex;
+	flex: 1;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	outline: none;
+}
+
+.session-comparison-option-choice[aria-readonly="true"] {
+	cursor: default;
+}
+
+.session-comparison-option-choice:focus-visible,
+.session-comparison-option-jump:focus-visible,
+.session-comparison-run-jump:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.session-comparison-option-mark {
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: 12px;
+	height: 12px;
+	margin-top: var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.session-comparison-option.checked .session-comparison-option-mark {
+	border-color: var(--vscode-textLink-foreground);
+	background: radial-gradient(circle, var(--vscode-textLink-foreground) 0 38%, transparent 44%);
+}
+
+.session-comparison-option-text {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.session-comparison-option-approach {
+	flex-basis: 100%;
+	color: var(--vscode-foreground);
+}
+
+.session-comparison-option-decide .session-comparison-option-text {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Jumping to the turn is always one click away, but only draws attention on the row in hand. */
+.session-comparison-option-jump {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size40) 0 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	opacity: 0;
+}
+
+.session-comparison-option:hover .session-comparison-option-jump,
+.session-comparison-option:focus-within .session-comparison-option-jump {
+	opacity: 1;
+}
+
+.session-comparison-option-jump:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.session-comparison-option-jump .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.session-comparison-next {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-comparison-next-actions,
+.session-comparison-synthesis-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-comparison-next-actions .monaco-button,
+.session-comparison-synthesis-actions .monaco-button,
+.session-comparison-review-note .monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+}
+
+.session-comparison-synthesis {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+/* A reference that opens a run briefly marks the turn it points at. */
+@keyframes session-comparison-turn-highlight {
+	from {
+		background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 18%, transparent);
+	}
+
+	to {
+		background-color: transparent;
+	}
+}
+
+.monaco-list-row.session-comparison-turn-highlight .interactive-item-container {
+	animation: session-comparison-turn-highlight 1.6s ease-out;
+}
+
+.monaco-reduce-motion .monaco-list-row.session-comparison-turn-highlight .interactive-item-container {
+	animation: none;
+	background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 12%, transparent);
+}
+
+/* Acknowledges the run the user continued with, right above the next steps. */
+.session-comparison-continued {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.session-comparison-continued .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}

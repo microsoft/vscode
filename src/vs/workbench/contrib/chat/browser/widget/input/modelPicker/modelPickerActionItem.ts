@@ -55,6 +55,28 @@ export interface IModelPickerDelegate {
 	 * writes configuration through the global {@link ILanguageModelsService}.
 	 */
 	readonly modelConfiguration?: IModelConfigurationAccess;
+	/**
+	 * Optional multi-model mode. When offered, the tabbed picker shows a Compare
+	 * toggle that lets the user choose several models to run side by side.
+	 */
+	readonly multiModel?: IModelPickerMultiModelDelegate;
+}
+
+/**
+ * The state behind the picker's multi-model mode. The owner decides what a
+ * multi-model run means; the picker only edits the selection.
+ */
+export interface IModelPickerMultiModelDelegate {
+	/** Whether multi-model selection is offered in the current context. */
+	readonly available: IObservable<boolean>;
+	/** Whether the picker is in multi-model mode. */
+	readonly enabled: IObservable<boolean>;
+	/** Identifiers of the models chosen for the multi-model run, in selection order. */
+	readonly selectedModelIds: IObservable<readonly string[]>;
+	/** The largest number of models that can be chosen at once. */
+	readonly maxModels: number;
+	setEnabled(enabled: boolean): void;
+	toggleModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 }
 
 /**

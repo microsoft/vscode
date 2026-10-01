@@ -484,15 +484,23 @@
 	width: auto;
 }
 
-.sessions-chat-send-button.labeled .monaco-button {
+/* A labeled send (e.g. "Run 3 Models") reads as a pill: the label takes the UI font
+	while only the arrow glyph keeps the icon font. */
+.monaco-workbench .sessions-chat-send-button.labeled .monaco-button.codicon[class*='codicon-'] {
+	gap: var(--vscode-spacing-size40);
 	width: auto;
 	min-width: 22px;
-	padding: 0 var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size60);
+	font-family: inherit;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 22px;
+	white-space: nowrap;
 }
 
-.action-widget .sessions-new-chat-picker-list .monaco-list-row.sessions-run-multiple-agents-action.has-toolbar .action-list-item-toolbar {
-	display: flex;
-	visibility: visible;
+.monaco-workbench .sessions-chat-send-button.labeled .monaco-button.codicon[class*='codicon-']::before {
+	font-family: codicon;
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 .sessions-chat-send-button .monaco-button.disabled {

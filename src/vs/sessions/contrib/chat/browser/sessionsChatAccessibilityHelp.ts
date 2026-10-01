@@ -26,8 +26,6 @@ import { SESSION_ARCHIVE_NUDGE_SETTING } from './sessionArchiveNudge.js';
 import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
-import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
-import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -95,9 +93,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		}
 		content.push(localize('sessionsChat.promptOptions', "When prompt options appear above the new-session input, use Tab and Shift+Tab to move between them, then press Enter or Space to insert one. You can select a different option while the input is empty, exactly matches the inserted prompt, or only has its editable placeholder removed; other edits disable the options without hiding them. Clearing the input also clears the selected option. Use the Close action to hide the options and return focus to the input."));
 		if (configurationService.getValue<boolean>(COMPARE_AGENTS_ENABLED_SETTING)) {
-			content.push(localize('sessionsChat.compareAgents', "In the new-session input, open the agent picker and activate Run and Compare Agents to open a two-step comparison setup. Use Tab to reach the Attempts and Evaluation step buttons and activate either button to move directly to that step. In Attempts, choose a Git repository with at least one commit and a remote, choose the base branch, then edit the shared prompt or each attempt's agent, model, supported reasoning effort, and provider-specific Permissions selection. The Permissions picker uses the exact choices advertised by that agent, such as Manual permissions and Allow all for Copilot, Ask Before Edits and Bypass Permissions for Claude, or Default Permissions and Full Access for Codex. In comparisons, choosing Allow all for Copilot also uses Autopilot mode. Check Allow all permissions for every participant to select each agent's allow-all choice for every attempt, the Judge, and the Synthesizer; uncheck it to restore every participant's provider default. Activate the adjacent information button for details about these choices. Organization policy may disable elevated choices or the bulk checkbox. Activate Next to configure the Judge and optional Synthesizer together on the Evaluation step, and use Back to revisit Attempts. Their information buttons describe each role. Use Add attempt for another run; Remove appears when more than two attempts exist. On the Evaluation step, activate Start sessions in parallel to submit, hover it for a token-usage warning, or press Escape to cancel. Open the comparison parent in the Sessions list to open every available attempt in a resizable grid. With two attempt panes, both chat inputs remain visible. With three or more, only the active attempt pane shows its chat input; focus another attempt pane to show its input. Screen-reader optimized mode keeps every attempt input visible. After the Judge finishes, its chat shows the winning attempt and a concise categorized list covering the decisive comparison evidence, validation, code quality, and solution, followed by strong points from other attempts. Focus the comparison result and use Open Accessible View{0} to read its verdict, attempt metrics, and synthesis decisions as plain text. Use Tab to reach an attempt name and activate its link to reveal that session. Use Tab to reach Attempt time and token usage, then press Enter or Space to expand the table of total time and total tokens. Activate Focus Winning Session to open the recommended attempt, or use its adjacent dropdown to focus another attempt. When synthesis is available, Synthesize Attempts starts the Judge's default plan. Open its More Actions menu and choose Additional Synthesis Instructions to enter requirements that are remembered and applied to either recommended or custom synthesis. Activate Start Synthesis with Instructions, or press Ctrl+Enter (Cmd+Enter on macOS) in that field, to start the recommended plan with those requirements. When the Judge reports multiple implementation decisions, activate Custom Synthesis to reveal a decision table. Each row describes one implementation decision and rates the attempts as a better, neutral, or worse choice. The table scrolls when its decisions or attempt columns exceed the available space. Use Tab to move between the choice buttons, select one attempt per row or let the Synthesizer decide, then activate Start Custom Synthesis. The instructions and choices guide a new synthesis session and do not modify the original attempts.", '<keybinding:editor.action.accessibleView>'));
-			content.push(localize('sessionsChat.compareAgentsGroupActions', "When every comparison session is idle, activate the check-mark Archive Comparison action in the comparison header to archive its sessions without deleting them. Delete Group remains available from the comparison header context menu."));
-			content.push(localize('sessionsChat.compareAgentsRationaleOrder', "Judge results identify candidates as Attempt N with agent, model, and effort, then present Why it won in this order: Comparison, Validation, Code quality, Solution."));
+			content.push(localize('sessionsChat.compareAgents', "To run one prompt on several models side by side, open the model picker in the new-session input and activate Compare Models in its tab bar. Model rows become checkboxes: press Enter or Space to add or remove a model, up to four, and use the tabs to include models from other providers. The picker label then reads the number of models, and the Send button reads Run followed by that number. Comparing requires a Git repository with at least one commit and a remote, and an agent that supports worktrees; every model runs in its own worktree with the approvals you selected for the prompt. After you send, the comparison opens as one conversation: your prompt, then one pill per model showing whether it is starting, running, waiting for input, finished, or failed, with what it is doing right now. Press Enter on a pill to open that run's session. When every run finishes, the first model you chose reviews them. Focus the comparison and use Open Accessible View{0} to read each run's summary, its checks, and where the runs differ as plain text. Under Where They Differ, each change is a radio group: use the arrow keys to choose which run's version to keep, or let the combined version decide, and use Tab to reach Go to Where the Model Made This Change, which opens that run at the turn that changed those files. Continue with a model opens its session to keep working from its changes; Combine starts a new run in a fresh worktree that follows what you kept and any instructions you add. Open Side by Side in the comparison header shows every run in a grid. Inside a run's session, a line above the input names the comparison it belongs to; activate View Comparison to return.", '<keybinding:editor.action.accessibleView>'));
+			content.push(localize('sessionsChat.compareAgentsGroupActions', "When every comparison session is idle, activate the check-mark Archive Comparison action in the comparison header in the Sessions list to archive its sessions without deleting them. Delete Group remains available from the comparison header context menu."));
 			content.push(localize('sessionsChat.compareAgentsInactivePaneNotification', "When a question tool needs input in an inactive visible pane, the confirmation notification setting can show an operating system notification even while another pane in the Agents window is active."));
 		}
 		content.push(localize('sessionsChat.migrations', "When agent customizations need an update, a notice below the new-session input shows how many need attention. Use Tab to reach Review Migrations and open the Migrations page. Dismiss Migration Notice for This Workspace hides the notice for that workspace, including after restarting, and returns focus to the input."));
@@ -211,30 +208,6 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			{ type: AccessibleViewType.Help },
 			() => content.join('\n'),
 			restoreFocus,
-			AccessibilityVerbositySettingId.SessionsChat,
-		);
-	}
-}
-
-export class SessionComparisonAccessibleView implements IAccessibleViewImplementation {
-	readonly priority = 121;
-	readonly name = 'sessionComparison';
-	readonly type = AccessibleViewType.View;
-	readonly when = SessionComparisonResultFocused;
-
-	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
-		const session = accessor.get(ISessionsService).activeSession.get();
-		const comparison = session
-			? accessor.get(ISessionComparisonService).comparisons.get().find(candidate => isJudgeSession(candidate, session))
-			: undefined;
-		if (!comparison?.verdict) {
-			return undefined;
-		}
-		return new AccessibleContentProvider(
-			AccessibleViewProviderId.SessionsChat,
-			{ type: AccessibleViewType.View, language: 'plaintext' },
-			() => buildSessionComparisonAccessibleContent(comparison),
-			createSessionsChatFocusRestorer(accessor),
 			AccessibilityVerbositySettingId.SessionsChat,
 		);
 	}

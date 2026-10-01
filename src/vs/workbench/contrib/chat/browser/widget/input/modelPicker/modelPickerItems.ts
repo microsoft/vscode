@@ -88,7 +88,11 @@ export function buildModelPickerItems(options: IBuildModelPickerItemsOptions): I
 		: buildFlatModelItems(options);
 }
 
-export function getModelPickerAccessibilityProvider(isSearch = false) {
+/**
+ * @param multiSelect Whether rows toggle membership in a multi-model selection rather than
+ * choosing a single model, which makes them checkboxes rather than radio items.
+ */
+export function getModelPickerAccessibilityProvider(isSearch = false, multiSelect = false) {
 	return {
 		getAriaLabel(element: IActionListItem<IActionWidgetDropdownAction>) {
 			if (element.kind !== ActionListItemKind.Action) {
@@ -97,11 +101,13 @@ export function getModelPickerAccessibilityProvider(isSearch = false) {
 					: null;
 			}
 			const description = element.ariaDescription ?? (typeof element.description === 'string' ? element.description : element.description?.value);
-			const currentModel = isSearch && element.item?.checked ? localize('chat.modelPicker.currentModel', "Current model") : undefined;
+			const currentModel = isSearch && element.item?.checked
+				? multiSelect ? localize('chat.modelPicker.selectedForComparison', "Selected for comparison") : localize('chat.modelPicker.currentModel', "Current model")
+				: undefined;
 			return [element.label, element.badge, ...(element.additionalBadges?.map(badge => badge.label) ?? []), description, currentModel].filter((part): part is string => !!part).join(', ');
 		},
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
-			if (isSearch || element.isSectionToggle) {
+			if ((isSearch && !multiSelect) || element.isSectionToggle) {
 				return undefined;
 			}
 			if (element.kind === ActionListItemKind.Action && !(element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id))) {
@@ -118,7 +124,7 @@ export function getModelPickerAccessibilityProvider(isSearch = false) {
 			}
 			switch (element.kind) {
 				case ActionListItemKind.Action:
-					return element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id) ? 'menuitem' : 'menuitemradio';
+					return element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id) ? 'menuitem' : multiSelect ? 'menuitemcheckbox' : 'menuitemradio';
 				case ActionListItemKind.Separator:
 				default:
 					return 'separator';

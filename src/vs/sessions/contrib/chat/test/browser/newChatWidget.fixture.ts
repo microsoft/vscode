@@ -27,7 +27,6 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -111,8 +110,6 @@ interface INewChatWidgetFixtureOptions {
 	readonly withRemoteWorkspace?: boolean;
 	readonly openWorkspacePicker?: boolean;
 	readonly openGitHubContextPicker?: boolean;
-	readonly openComparisonSetup?: boolean;
-	readonly comparisonPrompt?: string;
 	readonly withAttachedContext?: boolean;
 	readonly withControlPickers?: boolean;
 	readonly expandSessionOptions?: boolean;
@@ -244,8 +241,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withRemoteWorkspace = false,
 		openWorkspacePicker = false,
 		openGitHubContextPicker = false,
-		openComparisonSetup = false,
-		comparisonPrompt,
 		withAttachedContext = false,
 		withControlPickers = false,
 		expandSessionOptions = true,
@@ -485,17 +480,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		},
 	});
 	await instantiationService.get(IConfigurationService).updateValue(COMPARE_AGENTS_ENABLED_SETTING, true);
-	if (openComparisonSetup) {
-		await instantiationService.get(IConfigurationService).updateValue(TABBED_MODEL_PICKER_SETTING_ID, true);
-	}
 
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
-	if (openComparisonSetup) {
-		container.style.position = 'relative';
-		container.style.overflow = 'hidden';
-		container.style.transform = 'translate3d(0, 0, 0)';
-	}
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.classList.toggle('phone-layout', phoneLayout);
 
@@ -847,20 +834,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		await nextFrame();
 		await nextFrame();
 		view.element.querySelector<HTMLElement>('[aria-label="Attach a GitHub issue or pull request to the new session"]')?.click();
-	} else if (openComparisonSetup) {
-		if (comparisonPrompt !== undefined) {
-			view.prefillInput(comparisonPrompt);
-		}
-		view.element.querySelector<HTMLElement>('.sessions-chat-session-type-picker .action-label')?.click();
-		await nextFrame();
-		await nextFrame();
-		targetWindow.document.querySelector<HTMLElement>('.sessions-run-multiple-agents-action')?.click();
-		await nextFrame();
-		await nextFrame();
-		const rows = container.querySelector<HTMLElement>('.session-comparison-setup-rows-scroll');
-		if (rows) {
-			rows.scrollTop = 0;
-		}
 	}
 
 	if (promptOptions) {
@@ -975,12 +948,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills. The microsoft/vscode workspace pill has the active treatment after opening the workspace picker. Pill and dropdown labels use the same body text size, and their leading icons use the same base icon size.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, openWorkspacePicker: true }),
-	}),
-	NewSessionComparisonSetup: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		virtualTime: { enabled: false },
-		expectedVisualDescriptions: ['A wide, focused Run and Compare Agents dialog opens with the current prompt, workspace and base-branch controls, and an unchecked Allow all permissions for every participant checkbox followed by a compact information icon. The bulk permission and isolated-worktree explanation is hidden at rest and available from the icon hover or keyboard focus. Two aligned attempt rows are visible by default with Agent, Model, and Permissions controls on one line. The shared VS Code model picker uses the experimental provider-tab experience for model effort and context configuration, while each Permissions picker shows the exact provider choices, such as Manual permissions and Allow all for Copilot. The Model column receives the most room so configured model names and effort summaries remain readable. Remove actions are absent while only the required two attempts exist, Add attempt is a quiet inline action, Evaluation configures the Judge and Synthesizer independently with actions to save or clear defaults, and the primary action reads Start 2 sessions in parallel with a warning hover about token usage per session.'],
-		render: context => renderNewChatWidget(context, { height: 760, withWorkspace: true, withConfiguredModel: true, openComparisonSetup: true, comparisonPrompt: 'Implement the issue and include focused tests.' }),
 	}),
 	NewSessionGitHubContextPicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

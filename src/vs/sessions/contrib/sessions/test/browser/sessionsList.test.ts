@@ -2920,7 +2920,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set()) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), selectedParticipantId?: string, withSynthesis = true) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress });
@@ -2934,6 +2934,7 @@ suite('Sessions - SessionsList', () => {
 				prompt: 'Improve the picker',
 				launching: sessionVariant === 'launching' ? true : undefined,
 				verdict,
+				selectedParticipantId,
 				participants: sessionVariant === 'launching' ? [
 					{
 						id: 'participant-1',
@@ -2978,12 +2979,12 @@ suite('Sessions - SessionsList', () => {
 						harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot', modelLabel: 'Claude Opus 5' },
 						sessionResource: judge.session.resource,
 					},
-					{
+					...(withSynthesis ? [{
 						id: 'synthesis',
 						role: SessionComparisonParticipantRole.Synthesis,
 						harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot', modelLabel: 'Claude Opus 5' },
 						sessionResource: synthesis.session.resource,
-					},
+					}] : []),
 				],
 			};
 			const sessions = sessionVariant === 'all'
@@ -3275,7 +3276,7 @@ suite('Sessions - SessionsList', () => {
 				explanation: 'Attempt 1 is the strongest.',
 				conflicts: [],
 				attempts: [],
-			});
+			}, 'all', new Set(), undefined, false);
 			const parent = container.querySelector<HTMLElement>('.session-comparison-group');
 
 			assert.deepStrictEqual({
@@ -3284,6 +3285,24 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				summary: 'Comparison · Review ready',
 				ariaLabel: 'Improve the picker, Comparison · Review ready',
+			});
+		});
+
+		test('names the run the user continued with, then the version being combined', () => {
+			const verdict: ISessionComparison['verdict'] = {
+				recommendedParticipantId: 'participant-1',
+				explanation: 'Claude Opus 5 is the strongest.',
+				conflicts: [],
+				attempts: [],
+			};
+			const summary = (container: HTMLElement) => container.querySelector('.session-comparison-group .session-group-description')?.textContent;
+
+			assert.deepStrictEqual({
+				continued: summary(renderComparison(verdict, 'all', new Set(), 'participant-1', false).container),
+				combining: summary(renderComparison(verdict, 'all', new Set(), 'participant-1').container),
+			}, {
+				continued: 'Comparison · Continued with Claude Opus 5',
+				combining: 'Comparison · Combining what you kept',
 			});
 		});
 	});

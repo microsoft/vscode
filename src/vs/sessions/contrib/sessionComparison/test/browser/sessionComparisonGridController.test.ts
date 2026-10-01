@@ -17,7 +17,6 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -62,7 +61,6 @@ suite('Session comparison grid controller', () => {
 				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Attempt 3' },
 			}],
 		};
-		const focused = store.add(new Emitter<string>());
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', attempt);
 		const visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', options?.attemptsOnly
 			? [attempt, attempt2, attempt3].slice(0, options.attemptCount ?? 2)
@@ -90,9 +88,6 @@ suite('Session comparison grid controller', () => {
 			override isScreenReaderOptimized(): boolean {
 				return screenReaderOptimized;
 			}
-		}());
-		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override readonly onDidFocusSession = focused.event;
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;
@@ -137,7 +132,6 @@ suite('Session comparison grid controller', () => {
 			attempt,
 			attempt2,
 			attempt3,
-			focused,
 			activeSession,
 			visibleSessions,
 			comparisons,
@@ -173,56 +167,25 @@ suite('Session comparison grid controller', () => {
 		]);
 	});
 
-	test('closes other panes on the first Judge focus', () => {
+	test('keeps every pane when the Judge becomes active', async () => {
 		const fixture = setup();
-
-		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed }, { shownOnly: [], closed: [] });
-		fixture.focused.fire('judge');
-
-		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed }, { shownOnly: ['judge'], closed: ['attempt'] });
-
-		fixture.partVisibility.set(Parts.EDITOR_PART, true);
-		fixture.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
-		assert.strictEqual(fixture.partVisibility.get(Parts.EDITOR_PART), true);
-	});
-
-	test('closes other panes when Judge becomes active without a focus event', async () => {
-		const fixture = setup();
-
 		fixture.activeSession.set(fixture.judge, undefined);
 		await Promise.resolve();
 
-		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed }, { shownOnly: ['judge'], closed: ['attempt'] });
+		assert.deepStrictEqual({
+			shownOnly: fixture.shownOnly,
+			closed: fixture.closed,
+			visible: fixture.visibleSessions.get().map(session => session.sessionId),
+		}, {
+			shownOnly: [],
+			closed: [],
+			visible: ['judge', 'attempt'],
+		});
 	});
 
-	test('does not collapse when a tiled attempt receives focus', async () => {
-		const fixture = setup();
-		await Promise.resolve();
-		fixture.focused.fire('attempt');
-
-		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed }, { shownOnly: [], closed: [] });
-	});
-
-	test('collapses a comparison Judge from a multi-session layout', () => {
-		const fixture = setup();
-		fixture.focused.fire('judge');
-
-		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed }, { shownOnly: ['judge'], closed: ['attempt'] });
-	});
-
-	test('does not collapse unrelated multi-session layouts', async () => {
-		const fixture = setup();
-		fixture.comparisons.set([], undefined);
-		fixture.activeSession.set(fixture.judge, undefined);
-		await Promise.resolve();
-
-		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed }, { shownOnly: [], closed: [] });
-	});
-
-	test('ignores archived comparisons for layout and Judge isolation', async () => {
+	test('ignores archived comparisons for layout', async () => {
 		const fixture = setup();
 		fixture.comparisons.set(fixture.comparisons.get().map(comparison => ({ ...comparison, archivedAt: 1 })), undefined);
-		fixture.focused.fire('judge');
 		fixture.activeSession.set(fixture.judge, undefined);
 		await Promise.resolve();
 

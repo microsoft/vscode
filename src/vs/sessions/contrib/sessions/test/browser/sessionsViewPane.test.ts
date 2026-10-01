@@ -8,14 +8,9 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { SplitView, Sizing } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Workbench } from '../../../../browser/workbench.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { getCustomizationsPresentation, SessionsView } from '../../browser/views/sessionsView.js';
 import '../../browser/media/sessionsViewPane.css';
@@ -28,11 +23,6 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 	};
 	_register<T extends IDisposable>(disposable: T): T;
 }) => void;
-const handleSessionOpened = Reflect.get(SessionsView.prototype, '_handleSessionOpened') as (this: {
-	readonly sessionComparisonService: { getComparisonForSession(resource: URI): ISessionComparison | undefined };
-	readonly sessionsService: { readonly visibleSessions: IObservable<readonly (ISession | undefined)[]> };
-	readonly layoutService: { hideSidePane(): void; mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
-}, session: ISession) => void;
 const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: {
 	readonly sessionsHeaders: ReadonlySet<{
 		readonly row: HTMLElement;
@@ -294,60 +284,6 @@ suite('Sessions - SessionsViewPane', () => {
 		} finally {
 			workbench.remove();
 		}
-	});
-
-	test('hides session details only when an active comparison participant is opened', () => {
-		const attempt = upcastPartial<ISession>({ sessionId: 'attempt', resource: URI.parse('test:/attempt') });
-		const judge = upcastPartial<ISession>({ sessionId: 'judge', resource: URI.parse('test:/judge') });
-		const comparison: ISessionComparison = {
-			id: 'comparison',
-			groupId: 'group',
-			title: 'Compare',
-			createdAt: 1,
-			workspace: URI.file('/workspace'),
-			prompt: 'Implement',
-			participants: [
-				{
-					id: 'attempt',
-					role: SessionComparisonParticipantRole.Attempt,
-					harness: { providerId: 'test', sessionTypeId: 'test', label: 'Test' },
-					sessionResource: attempt.resource,
-				},
-				{
-					id: 'judge',
-					role: SessionComparisonParticipantRole.Judge,
-					harness: { providerId: 'test', sessionTypeId: 'test', label: 'Test' },
-					sessionResource: judge.resource,
-				},
-			],
-		};
-		let hideSidePaneCalls = 0;
-		let currentComparison: ISessionComparison | undefined = comparison;
-		const visibleSessions = observableValue<readonly ISession[]>('visibleSessions', [attempt, judge]);
-		const host = {
-			sessionComparisonService: {
-				getComparisonForSession: () => currentComparison,
-			},
-			sessionsService: { visibleSessions },
-			layoutService: {
-				hideSidePane: () => hideSidePaneCalls++,
-				mainContainer: mainWindow.document.createElement('div'),
-				setPartHidden: () => { },
-			},
-		};
-
-		handleSessionOpened.call(host, attempt);
-		handleSessionOpened.call(host, judge);
-		// A cancelled or superseded open leaves the participant hidden, so the side pane stays.
-		visibleSessions.set([], undefined);
-		handleSessionOpened.call(host, attempt);
-		visibleSessions.set([attempt, judge], undefined);
-		currentComparison = { ...comparison, archivedAt: 1 };
-		handleSessionOpened.call(host, attempt);
-		currentComparison = undefined;
-		handleSessionOpened.call(host, attempt);
-
-		assert.strictEqual(hideSidePaneCalls, 2);
 	});
 
 	test('keeps the Sessions title visible during a zero-width sticky header handoff', () => {

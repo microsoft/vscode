@@ -403,7 +403,7 @@ suite('SessionComparisonService', () => {
 		}, {
 			launching: undefined,
 			interruptedLaunchError: 'The attempt was interrupted before it started.',
-			createCalls: ['Judge: Comparison'],
+			createCalls: ['Review: Comparison'],
 		});
 	});
 
@@ -444,7 +444,7 @@ suite('SessionComparisonService', () => {
 			judgeCount: service.getComparison(comparison.id)?.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Judge).length,
 		}, {
 			createCallsWhilePending: 3,
-			createCallsAfterCompletion: ['One', 'Two', 'Three', `Judge: ${comparison.title}`],
+			createCallsAfterCompletion: ['One', 'Two', 'Three', `Review: ${comparison.title}`],
 			judgeCount: 1,
 		});
 	});
@@ -517,7 +517,7 @@ suite('SessionComparisonService', () => {
 				launchError: undefined,
 				missingSession: undefined,
 			},
-			createCalls: ['Judge: Comparison'],
+			createCalls: ['Review: Comparison'],
 		});
 	});
 
@@ -583,7 +583,7 @@ suite('SessionComparisonService', () => {
 				sessionResource: failedJudge?.sessionResource?.toString(),
 			},
 		}, {
-			createCallsAfterFailure: ['One', 'Two', `Judge: ${comparison.title}`],
+			createCallsAfterFailure: ['One', 'Two', `Review: ${comparison.title}`],
 			failedJudge: {
 				launchError: 'judge unavailable',
 				sessionResource: undefined,
@@ -598,7 +598,7 @@ suite('SessionComparisonService', () => {
 			retriedJudgeResource: retriedJudge?.sessionResource?.toString(),
 			retriedJudgeLaunchError: retriedJudge?.launchError,
 		}, {
-			createCallsAfterRetry: ['One', 'Two', `Judge: ${comparison.title}`, `Judge: ${comparison.title}`],
+			createCallsAfterRetry: ['One', 'Two', `Review: ${comparison.title}`, `Review: ${comparison.title}`],
 			retriedJudgeResource: 'test:/judge',
 			retriedJudgeLaunchError: undefined,
 		});
@@ -649,7 +649,7 @@ suite('SessionComparisonService', () => {
 				.map(participant => participant.sessionResource?.toString()),
 		}, {
 			retryAvailable: true,
-			createCalls: ['Judge: Comparison'],
+			createCalls: ['Review: Comparison'],
 			judgeResources: ['test:/judge'],
 		});
 	});
@@ -691,7 +691,7 @@ suite('SessionComparisonService', () => {
 			deletedAttemptLaunchError: deletedParticipant?.launchError,
 			judgeResource: judge?.sessionResource?.toString(),
 		}, {
-			createCalls: ['One', 'Two', 'Three', `Judge: ${comparison.title}`],
+			createCalls: ['One', 'Two', 'Three', `Review: ${comparison.title}`],
 			deletedAttemptLaunchError: 'The attempt session is no longer available.',
 			judgeResource: 'test:/judge',
 		});
@@ -788,7 +788,7 @@ suite('SessionComparisonService', () => {
 			restoredLaunchError: service.getComparison(comparison.id)?.participants.find(participant => participant.id === 'attempt-three')?.launchError,
 		}, {
 			createCallsWhileMissing: 3,
-			createCalls: ['One', 'Two', 'Three', `Judge: ${comparison.title}`],
+			createCalls: ['One', 'Two', 'Three', `Review: ${comparison.title}`],
 			restoredLaunchError: undefined,
 		});
 	});
@@ -1061,8 +1061,8 @@ suite('SessionComparisonService', () => {
 		})), [
 			{ title: 'One · High', modelConfiguration: { thinkingLevel: 'high' } },
 			{ title: 'Two · Extra High', modelConfiguration: { thinkingLevel: 'xhigh' } },
-			{ title: `Judge: ${comparison.title}`, modelConfiguration: { thinkingLevel: 'max' } },
-			{ title: `Synthesis: ${comparison.title}`, modelConfiguration: { thinkingLevel: 'medium' } },
+			{ title: `Review: ${comparison.title}`, modelConfiguration: { thinkingLevel: 'max' } },
+			{ title: `Combined: ${comparison.title}`, modelConfiguration: { thinkingLevel: 'medium' } },
 		]);
 	});
 

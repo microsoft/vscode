@@ -45,7 +45,7 @@ import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { buildModelPickerItems, createManageModelsAction, getModelPickerAccessibilityProvider, getModelPickerControlModels, ModelPickerSection, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { ModelPickerConfiguration } from './modelPickerConfiguration.js';
 import { getCompactModelPickerIcon } from './modelProviderIcons.js';
-import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbedWidget.js';
+import { ITabbedModelPickerContext, ITabbedModelPickerMultiModel, TabbedModelPicker } from './modelPickerTabbedWidget.js';
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
 import { whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
@@ -238,6 +238,16 @@ export class ModelPickerWidget extends Disposable {
 				this._renderLabel();
 			}
 		}));
+
+		const multiModel = this._delegate.multiModel;
+		if (multiModel) {
+			this._register(autorun(reader => {
+				multiModel.available.read(reader);
+				multiModel.enabled.read(reader);
+				multiModel.selectedModelIds.read(reader);
+				this._renderLabel();
+			}));
+		}
 	}
 
 	setCompact(compact: IObservable<boolean>): void {
@@ -466,7 +476,34 @@ export class ModelPickerWidget extends Disposable {
 
 	/** Whether the user opted into the tabbed picker, which folds model configuration into the list. */
 	isTabbedPickerEnabled(): boolean {
-		return this._forceTabbedPicker || this._configurationService.getValue<boolean>(TABBED_MODEL_PICKER_SETTING_ID) === true;
+		// Only the tabbed picker has a Compare mode, so offering one brings it along.
+		return this._forceTabbedPicker
+			|| this._configurationService.getValue<boolean>(TABBED_MODEL_PICKER_SETTING_ID) === true
+			|| !!this._delegate.multiModel?.available.get();
+	}
+
+	/** The models chosen for a multi-model run, in selection order, while Compare mode is on. */
+	private _multiModelSelection(): ILanguageModelChatMetadataAndIdentifier[] | undefined {
+		const multiModel = this._delegate.multiModel;
+		if (!multiModel?.available.get() || !multiModel.enabled.get()) {
+			return undefined;
+		}
+		const models = this._delegate.getModels();
+		return multiModel.selectedModelIds.get().flatMap(id => models.filter(model => model.identifier === id));
+	}
+
+	private _getTabbedMultiModel(): ITabbedModelPickerMultiModel | undefined {
+		const multiModel = this._delegate.multiModel;
+		if (!multiModel?.available.get()) {
+			return undefined;
+		}
+		return {
+			isEnabled: () => multiModel.enabled.get(),
+			getSelectedModelIds: () => multiModel.selectedModelIds.get(),
+			maxModels: multiModel.maxModels,
+			setEnabled: enabled => multiModel.setEnabled(enabled),
+			toggleModel: model => multiModel.toggleModel(model),
+		};
 	}
 
 	/**
@@ -627,6 +664,7 @@ export class ModelPickerWidget extends Disposable {
 					link: this.getCacheBreakLearnMoreLink(),
 					dismiss: () => this.dismissCacheBreakHint(),
 				} : undefined,
+				multiModel: this._getTabbedMultiModel(),
 			}, telemetrySession, showDetails && this._selectedModel && !isAutoModel(this._selectedModel) && !isHydraFusionModel(this._selectedModel) ? this._selectedModel.identifier : undefined, focusConfiguration);
 			return;
 		}
@@ -779,6 +817,13 @@ export class ModelPickerWidget extends Disposable {
 		const setupRequired = reason === ModelPickerUnavailableReason.SetupRequired;
 		const unavailable = reason !== undefined;
 
+		const multiModelSelection = noModelsAvailable ? undefined : this._multiModelSelection();
+		this._domNode.classList.toggle('multi-model', !!multiModelSelection);
+		if (multiModelSelection) {
+			this._renderMultiModelLabel(this._domNode, this._nameButton, multiModelSelection);
+			return;
+		}
+
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
 		const modelIcon = this._selectedModel
@@ -841,6 +886,42 @@ export class ModelPickerWidget extends Disposable {
 		// A name narrower than the minimum is held at exactly its own width; a pixel value
 		// rounded from its measurement could cut into the label and ellipsize it.
 		this._nameButton.style.minWidth = showModelLabel && nameMinimumWidth < MODEL_PICKER_MINIMUM_NAME_WIDTH ? 'max-content' : `${nameMinimumWidth}px`;
+		this._updateMinimumWidth(nameMinimumWidth);
+	}
+
+	/**
+	 * Compare mode names the run rather than one model: the chosen models' icons
+	 * overlap in a stack, followed by how many will run.
+	 */
+	private _renderMultiModelLabel(domNode: HTMLElement, nameButton: HTMLElement, models: readonly ILanguageModelChatMetadataAndIdentifier[]): void {
+		const stack = dom.$('span.model-picker-model-stack');
+		for (const model of models.slice(0, 3)) {
+			stack.appendChild(renderIcon(getCompactModelPickerIcon(model)));
+		}
+		if (!models.length) {
+			stack.appendChild(renderIcon(Codicon.layers));
+		}
+		const label = models.length === 1
+			? getLanguageModelDisplayNameWithSubscriptionSource(models[0])
+			: models.length === 0
+				? localize('chat.modelPicker.chooseModelsToCompare', "Choose Models")
+				: localize('chat.modelPicker.multiModelLabel', "{0} Models", models.length);
+		dom.reset(nameButton, stack, dom.$('span.chat-input-picker-label', undefined, label));
+		// The readout configures one model, which a comparison does not have.
+		if (this._configButton) {
+			this._configButton.style.display = 'none';
+		}
+		domNode.classList.add('tabbed');
+		domNode.classList.remove('has-config', 'compact', 'icon-only');
+
+		const ariaLabel = models.length
+			? localize('chat.modelPicker.multiModelAriaLabel', "Models, comparing {0}", models.map(model => model.metadata.name).join(', '))
+			: localize('chat.modelPicker.multiModelEmptyAriaLabel', "Models, choose models to compare");
+		domNode.ariaLabel = ariaLabel;
+		nameButton.ariaLabel = ariaLabel;
+
+		const nameMinimumWidth = this._getNameMinimumWidth(nameButton);
+		nameButton.style.minWidth = nameMinimumWidth < MODEL_PICKER_MINIMUM_NAME_WIDTH ? 'max-content' : `${nameMinimumWidth}px`;
 		this._updateMinimumWidth(nameMinimumWidth);
 	}
 

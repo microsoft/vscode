@@ -76,6 +76,7 @@ export class ModelPicker extends Disposable {
 					});
 				}
 			},
+			multiModel: this._selectionModel.multiModel,
 			getModels: () => [...this._selectionModel.state.get().models],
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,

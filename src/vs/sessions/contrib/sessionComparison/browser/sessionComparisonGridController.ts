@@ -13,7 +13,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -26,13 +25,10 @@ export class SessionComparisonGridController extends Disposable implements IWork
 
 	static readonly ID = 'workbench.contrib.sessionComparisonGridController';
 	private _comparisonGridActive = false;
-	private _isolatedJudgeSessionId: string | undefined;
 	private _keepSidePaneHidden = false;
-	private _pendingJudgeIsolationSessionId: string | undefined;
 	private readonly _partsHiddenByController = new Set<Parts>();
 
 	constructor(
-		@ISessionsPartService sessionsPartService: ISessionsPartService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
@@ -52,7 +48,6 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		);
 		this._register(autorun(reader => {
 			const visibleSessions = this.sessionsService.visibleSessions.read(reader);
-			const activeSession = this.sessionsService.activeSession.read(reader);
 			const comparisons = this.comparisonService.comparisons.read(reader);
 			this._comparisonGridActive = this._isComparisonGrid(visibleSessions, comparisons);
 			this.layoutService.mainContainer.classList.toggle(COMPARISON_GRID_ACTIVE_CLASS, this._comparisonGridActive);
@@ -63,17 +58,8 @@ export class SessionComparisonGridController extends Disposable implements IWork
 				&& visibleSessions.length > 2
 				&& this._isAttemptComparisonGrid(visibleSessions, comparisons),
 			);
-			if (!this._comparisonGridActive && this._isolatedJudgeSessionId
-				&& (visibleSessions.length !== 1
-					|| visibleSessions[0]?.sessionId !== this._isolatedJudgeSessionId
-					|| activeSession?.sessionId !== this._isolatedJudgeSessionId)) {
-				this._isolatedJudgeSessionId = undefined;
-			}
-			const keepSidePaneHidden = this._comparisonGridActive || this._isolatedJudgeSessionId !== undefined;
-			const activeJudgeSessionId = this._getJudgeSessionId(activeSession, visibleSessions, comparisons);
-			if (activeJudgeSessionId) {
-				this._scheduleJudgeIsolation(activeJudgeSessionId);
-			}
+			// Side by side, the runs share the width, so the side pane steps aside while the grid shows.
+			const keepSidePaneHidden = this._comparisonGridActive;
 			this._setSidePaneSuppressed(keepSidePaneHidden);
 		}));
 		this._register(this.layoutService.onDidChangePartVisibility(event => {
@@ -82,53 +68,10 @@ export class SessionComparisonGridController extends Disposable implements IWork
 				this._partsHiddenByController.delete(event.partId);
 			}
 		}));
-		this._register(sessionsPartService.onDidFocusSession(sessionId => this._onDidFocusSession(sessionId)));
 		this._register(toDisposable(() => {
 			this._setSidePaneSuppressed(false);
 			this.layoutService.mainContainer.classList.remove(HIDE_INACTIVE_COMPARISON_INPUTS_CLASS, COMPARISON_GRID_ACTIVE_CLASS);
 		}));
-	}
-
-	private _onDidFocusSession(sessionId: string | undefined): void {
-		if (sessionId === undefined) {
-			return;
-		}
-		const visibleSessions = this.sessionsService.visibleSessions.get();
-		const focusedSession = visibleSessions.find(session => session?.sessionId === sessionId);
-		if (this._getJudgeSessionId(focusedSession, visibleSessions, this.comparisonService.comparisons.get()) !== sessionId) {
-			return;
-		}
-		this._isolateJudge(sessionId);
-	}
-
-	private _scheduleJudgeIsolation(sessionId: string): void {
-		if (this._pendingJudgeIsolationSessionId === sessionId) {
-			return;
-		}
-		this._pendingJudgeIsolationSessionId = sessionId;
-		queueMicrotask(() => {
-			if (this._pendingJudgeIsolationSessionId !== sessionId) {
-				return;
-			}
-			this._pendingJudgeIsolationSessionId = undefined;
-			this._isolateJudge(sessionId);
-		});
-	}
-
-	private _isolateJudge(sessionId: string): void {
-		const visibleSessions = this.sessionsService.visibleSessions.get();
-		const judgeSession = visibleSessions.find(session => session?.sessionId === sessionId);
-		if (!judgeSession || this._getJudgeSessionId(judgeSession, visibleSessions, this.comparisonService.comparisons.get()) !== sessionId) {
-			return;
-		}
-		this._isolatedJudgeSessionId = sessionId;
-		for (const session of visibleSessions) {
-			if (session?.sessionId !== sessionId) {
-				this.sessionsService.closeSession(session);
-			}
-		}
-		this.sessionsService.showSession(judgeSession.resource);
-		this._setSidePaneSuppressed(true);
 	}
 
 	private _isComparisonGrid(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): boolean {
@@ -141,16 +84,6 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			participant.role === SessionComparisonParticipantRole.Attempt
 			&& participant.sessionResource
 			&& isEqual(participant.sessionResource, session!.resource)));
-	}
-
-	private _getJudgeSessionId(session: IActiveSession | undefined, visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): string | undefined {
-		if (!session) {
-			return undefined;
-		}
-		const comparison = this._getComparisonForVisibleSessions(visibleSessions, comparisons);
-		const participant = comparison?.participants.find(candidate =>
-			candidate.sessionResource && isEqual(candidate.sessionResource, session.resource));
-		return participant?.role === SessionComparisonParticipantRole.Judge ? session.sessionId : undefined;
 	}
 
 	private _getComparisonForVisibleSessions(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): ISessionComparison | undefined {

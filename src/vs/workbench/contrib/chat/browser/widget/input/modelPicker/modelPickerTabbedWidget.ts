@@ -82,6 +82,17 @@ export interface ITabbedModelPickerContext {
 	/** Warning banner shown when switching options mid-session would reset the prompt cache. */
 	readonly cacheBreakHint: { readonly text: string; readonly link: IActionListHeaderLink | undefined; readonly dismiss: () => void } | undefined;
 	readonly configurationCacheBreakHint?: ITabbedModelPickerContext['cacheBreakHint'];
+	/** Compare mode, when the owner offers running several models side by side. */
+	readonly multiModel?: ITabbedModelPickerMultiModel;
+}
+
+/** How the tabbed picker reads and edits a multi-model selection. */
+export interface ITabbedModelPickerMultiModel {
+	readonly isEnabled: () => boolean;
+	readonly getSelectedModelIds: () => readonly string[];
+	readonly maxModels: number;
+	readonly setEnabled: (enabled: boolean) => void;
+	readonly toggleModel: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 }
 
 /** A provider-tabbed picker with Copilot routing modes and a drill-in configuration page. */
@@ -268,6 +279,7 @@ export class TabbedModelPicker extends Disposable {
 			widgetClassNames: () => [
 				'chat-model-picker-widget',
 				...(this._searchVisible ? ['search-mode'] : []),
+				...(this._context && this._isCompareMode(this._context) ? ['compare-mode'] : []),
 			],
 			tabLabels: 'active',
 			filterInTabBar: true,
@@ -278,11 +290,12 @@ export class TabbedModelPicker extends Disposable {
 				const destination = currentDestinations.find(candidate => candidate.id === activeTab) ?? currentDestinations[0];
 				const sections = this._buildSections(destination, current);
 				const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
+				const compare = this._isCompareMode(current);
 				// Size to the Copilot tab, whichever Copilot mode is selected: the taller of
 				// its model list and its Auto view, unless Auto is all there is.
 				const showAuto = isBuiltIn && (forSizing
 					? this._isAutoOnly(current)
-					: this._isAutoMode(current));
+					: !compare && this._isAutoMode(current));
 				const alternateSizingItems = forSizing && isBuiltIn && !showAuto && (this._autoModel(current) || this._hydraFusionModel(current))
 					? [this._buildAutoModeItems(destination, sections, current)]
 					: undefined;
@@ -293,7 +306,9 @@ export class TabbedModelPicker extends Disposable {
 					: showAuto
 						? this._buildAutoModeItems(destination, sections, current)
 						: this._buildItems(destination, sections, current);
-				const hint = current.cacheBreakHint ?? current.configurationCacheBreakHint;
+				const hint = compare
+					? { text: localize('chat.modelPicker.compareHint', "Choose up to {0} models to run in parallel", current.multiModel?.maxModels ?? 0), link: undefined, dismiss: undefined }
+					: current.cacheBreakHint ?? current.configurationCacheBreakHint;
 				const baseListOptions = withChatInputPickerMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 					stopToolbarPointerPropagation: true,
@@ -311,7 +326,7 @@ export class TabbedModelPicker extends Disposable {
 					},
 					onDidChangeFilter: () => current.onDidSearch(),
 					headerText: hint?.text,
-					headerIcon: hint ? Codicon.info : undefined,
+					headerIcon: hint ? (compare ? Codicon.layers : Codicon.info) : undefined,
 					headerLink: hint?.link,
 					headerDismiss: hint?.dismiss,
 					// A tab with nothing promoted would open on an empty list, so leave it expanded.
@@ -347,11 +362,14 @@ export class TabbedModelPicker extends Disposable {
 			delegate: {
 				onSelect: action => {
 					void action.run();
-					this._widget.hide();
+					// Compare rows toggle in place, so a multi-model choice takes several clicks.
+					if (!this._context || !this._isCompareMode(this._context)) {
+						this._widget.hide();
+					}
 				},
 				onHide: () => { },
 			},
-			accessibilityProvider: getModelPickerAccessibilityProvider(this._searchVisible),
+			accessibilityProvider: getModelPickerAccessibilityProvider(this._searchVisible, this._isCompareMode(context)),
 		});
 		if (this._context?.selectedModelId) {
 			this._rememberSpeedVariant(this._context.selectedModelId);
@@ -464,6 +482,20 @@ export class TabbedModelPicker extends Disposable {
 				},
 			});
 		}
+		const multiModel = context.multiModel;
+		if (multiModel && this._canCompare(context)) {
+			const compare = multiModel.isEnabled();
+			actions.push({
+				id: 'compare',
+				icon: Codicon.layers,
+				tooltip: compare
+					? localize('chat.modelPicker.compareOff', "Stop Comparing Models")
+					: localize('chat.modelPicker.compareOn', "Compare Models"),
+				alignEnd: true,
+				checked: compare,
+				run: () => this._toggleCompareMode(!multiModel.isEnabled()),
+			});
+		}
 		actions.push({
 			id: 'search',
 			icon: Codicon.search,
@@ -479,6 +511,73 @@ export class TabbedModelPicker extends Disposable {
 			},
 		});
 		return actions;
+	}
+
+	private _isCompareMode(context: ITabbedModelPickerContext): boolean {
+		return !!context.multiModel?.isEnabled() && this._canCompare(context);
+	}
+
+	/** Comparing needs at least two individual models; routing models are not a fixed choice. */
+	private _canCompare(context: ITabbedModelPickerContext): boolean {
+		return context.models.filter(model => !isAutoModel(model) && !isHydraFusionModel(model)).length >= 2;
+	}
+
+	private _toggleCompareMode(enabled: boolean): void {
+		const context = this._context;
+		const multiModel = context?.multiModel;
+		if (!context || !multiModel) {
+			return;
+		}
+		multiModel.setEnabled(enabled);
+		// Start from the model already in use, so comparing reads as adding models to it.
+		const current = context.models.find(model => model.identifier === context.selectedModelId);
+		if (enabled && current && !isAutoModel(current) && !isHydraFusionModel(current) && multiModel.getSelectedModelIds().length === 0) {
+			multiModel.toggleModel(current);
+		}
+		this._showCurrent();
+	}
+
+	private _toggleCompareModel(model: ILanguageModelChatMetadataAndIdentifier): void {
+		const multiModel = this._context?.multiModel;
+		if (!multiModel) {
+			return;
+		}
+		multiModel.toggleModel(model);
+		this._widget.refreshActiveList({ focusItemId: model.identifier, preserveScrollPosition: true, preserveHover: true });
+	}
+
+	private _createCompareModelItem(
+		model: ILanguageModelChatMetadataAndIdentifier,
+		multiModel: ITabbedModelPickerMultiModel,
+		section?: string,
+		providerLabel?: string,
+	): IActionListItem<IActionWidgetDropdownAction> {
+		const selectedIds = multiModel.getSelectedModelIds();
+		const checked = selectedIds.includes(model.identifier);
+		const atLimit = !checked && selectedIds.length >= multiModel.maxModels;
+		const { action: baseAction, ariaDescription } = createModelAction(model, undefined, next => this._toggleCompareModel(next), section, true);
+		const action = { ...baseAction, checked, enabled: !atLimit };
+		const badge = getModelBadge(model, { providerLabel });
+		const limit = localize('chat.modelPicker.compareLimit', "Up to {0} models can run at once", multiModel.maxModels);
+		return {
+			item: action,
+			kind: ActionListItemKind.Action,
+			label: action.label,
+			description: badge ? undefined : action.description,
+			badge: badge?.text,
+			ariaDescription: [ariaDescription, atLimit ? limit : undefined].filter(Boolean).join(', '),
+			group: { title: '', icon: checked ? Codicon.passFilled : Codicon.circleLargeOutline },
+			hideIcon: false,
+			section,
+			disabled: atLimit,
+			className: [
+				'chat-model-picker-model',
+				'chat-model-picker-compare-model',
+				...(checked ? ['chat-model-picker-compare-selected'] : []),
+				...(badge ? [`chat-model-picker-badge-${badge.tone}`] : []),
+			].join(' '),
+			tooltip: atLimit ? limit : model.metadata.name,
+		};
 	}
 
 	private _buildItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
@@ -552,7 +651,7 @@ export class TabbedModelPicker extends Disposable {
 	 * get in the way of a result list, but each row still names its provider.
 	 */
 	private _buildSearchItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
-		const routingModels = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION
+		const routingModels = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION && !this._isCompareMode(context)
 			? [this._autoModel(context), this._hydraFusionModel(context)].filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model)
 			: [];
 		return [...sections.pinned, ...sections.suggested, ...sections.other, ...routingModels]
@@ -654,6 +753,9 @@ export class TabbedModelPicker extends Disposable {
 		section?: string,
 		providerLabel?: string,
 	): IActionListItem<IActionWidgetDropdownAction> {
+		if (context.multiModel && this._isCompareMode(context)) {
+			return this._createCompareModelItem(model, context.multiModel, section, providerLabel);
+		}
 		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, next => {
 			this._selectionVersion++;
 			const pair = this._speedVariants.get(next.identifier);
@@ -828,7 +930,7 @@ export class TabbedModelPicker extends Disposable {
 		if (!this._autoModel(context) && !this._hydraFusionModel(context)) {
 			return undefined;
 		}
-		if (this._isAutoOnly(context)) {
+		if (this._isAutoOnly(context) || this._isCompareMode(context)) {
 			return undefined;
 		}
 		const defaultModel = this._getOrganizationDefaultModel(context);

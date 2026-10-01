@@ -9,11 +9,15 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionComparisonViewService } from '../../browser/sessionComparisonViewService.js';
+import { SESSION_COMPARISON_VIEW_ID, SessionComparisonViewService } from '../../browser/sessionComparisonViewService.js';
 
 suite('Session comparison navigation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,6 +52,7 @@ suite('Session comparison navigation', () => {
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
 		const openedSessions: string[] = [];
 		const openedGrids: string[][] = [];
+		const activeCustomView = observableValue<ICustomViewDescriptor | undefined>('activeCustomView', undefined);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
 			override comparisons = comparisons;
@@ -60,32 +65,61 @@ suite('Session comparison navigation', () => {
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override async openSession(resource: URI): Promise<void> {
+				activeCustomView.set(undefined, undefined);
 				openedSessions.push(sessions.find(session => session.resource.toString() === resource.toString())!.sessionId);
 			}
 			override async openSessionsInGrid(targets: readonly IActiveSession[]): Promise<void> {
 				openedGrids.push(targets.map(session => session.sessionId));
 			}
 		}());
-		const service = instantiationService.createInstance(SessionComparisonViewService);
-		return { service, comparisons, statuses, openedSessions, openedGrids };
+		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+			override readonly activeCustomView = activeCustomView;
+			override showCustomView(id: string): void {
+				activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id }), undefined);
+			}
+			override hideCustomView(): void {
+				activeCustomView.set(undefined, undefined);
+			}
+		}());
+		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { }());
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		const service = store.add(instantiationService.createInstance(SessionComparisonViewService));
+		return { service, comparisons, statuses, openedSessions, openedGrids, activeCustomView };
 	}
 
-	test('opens attempts in the grid when the Judge is available', async () => {
+	test('opens the comparison as one conversation instead of a grid', async () => {
 		const fixture = setup();
 		await fixture.service.open('comparison');
 		assert.deepStrictEqual({
+			activeComparison: fixture.service.activeComparisonId.get(),
+			customView: fixture.activeCustomView.get()?.id,
 			openedSessions: fixture.openedSessions,
 			openedGrids: fixture.openedGrids,
 		}, {
+			activeComparison: 'comparison',
+			customView: SESSION_COMPARISON_VIEW_ID,
 			openedSessions: [],
-			openedGrids: [['attempt-0', 'attempt-1']],
+			openedGrids: [],
 		});
 	});
 
-	test('opens attempts in the grid when synthesis is running', async () => {
+	test('reports a comparison that no longer exists', async () => {
+		const fixture = setup();
+		await assert.rejects(() => fixture.service.open('missing'), /no longer available/);
+		assert.deepStrictEqual({ activeComparison: fixture.service.activeComparisonId.get(), customView: fixture.activeCustomView.get() }, { activeComparison: undefined, customView: undefined });
+	});
+
+	test('opening a participant leaves the comparison for its session', async () => {
+		const fixture = setup();
+		await fixture.service.open('comparison');
+		await fixture.service.openParticipant('comparison', 'judge-2');
+		assert.deepStrictEqual({ openedSessions: fixture.openedSessions, customView: fixture.activeCustomView.get() }, { openedSessions: ['judge-2'], customView: undefined });
+	});
+
+	test('opens the runs side by side, including while synthesis is running', async () => {
 		const fixture = setup();
 		fixture.statuses[3].set(SessionStatus.InProgress, undefined);
-		await fixture.service.open('comparison');
+		await fixture.service.openSideBySide('comparison');
 		assert.deepStrictEqual({
 			openedSessions: fixture.openedSessions,
 			openedGrids: fixture.openedGrids,
@@ -95,7 +129,7 @@ suite('Session comparison navigation', () => {
 		});
 	});
 
-	test('opens only available attempts in the grid', async () => {
+	test('opens only available runs side by side', async () => {
 		const fixture = setup();
 		fixture.comparisons.set([{
 			...fixture.comparisons.get()[0],
@@ -107,17 +141,11 @@ suite('Session comparison navigation', () => {
 					launchError: 'Failed to start',
 				} : participant),
 		}], undefined);
-		await fixture.service.open('comparison');
-		assert.deepStrictEqual({
-			openedSessions: fixture.openedSessions,
-			openedGrids: fixture.openedGrids,
-		}, {
-			openedSessions: [],
-			openedGrids: [['attempt-0']],
-		});
+		await fixture.service.openSideBySide('comparison');
+		assert.deepStrictEqual(fixture.openedGrids, [['attempt-0']]);
 	});
 
-	test('reports when no attempt session is available', async () => {
+	test('reports when no run session is available side by side', async () => {
 		const fixture = setup();
 		fixture.comparisons.set([{
 			...fixture.comparisons.get()[0],
@@ -126,14 +154,8 @@ suite('Session comparison navigation', () => {
 				sessionResource: undefined,
 			})),
 		}], undefined);
-		await assert.rejects(() => fixture.service.open('comparison'), /No comparison attempts are available/);
-		assert.deepStrictEqual({
-			openedSessions: fixture.openedSessions,
-			openedGrids: fixture.openedGrids,
-		}, {
-			openedSessions: [],
-			openedGrids: [],
-		});
+		await assert.rejects(() => fixture.service.openSideBySide('comparison'), /No comparison runs are available/);
+		assert.deepStrictEqual({ openedSessions: fixture.openedSessions, openedGrids: fixture.openedGrids }, { openedSessions: [], openedGrids: [] });
 	});
 
 });
