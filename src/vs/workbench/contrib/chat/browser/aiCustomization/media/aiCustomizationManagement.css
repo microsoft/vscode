@@ -80,12 +80,6 @@
 	outline-offset: -1px;
 }
 
-.ai-customization-management-editor .sidebar-home-icon {
-	flex-shrink: 0;
-	font-size: 14px;
-	opacity: 0.85;
-}
-
 .ai-customization-management-editor .sidebar-home-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -143,17 +137,6 @@
 	outline-offset: -1px;
 }
 
-.ai-customization-management-editor .sidebar-migration-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: inherit;
-	opacity: 1;
-}
-
 .ai-customization-management-editor .sidebar-migration-label {
 	flex: 1;
 	overflow: hidden;
@@ -189,24 +172,8 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-/* Selected section - using list selection */
-.ai-customization-management-editor .monaco-list .monaco-list-row.section-list-item.selected .section-icon {
-	color: inherit;
-	opacity: 1;
-}
-
 .ai-customization-management-editor .monaco-list .monaco-list-row.section-list-item.selected .section-count {
 	color: inherit;
-}
-
-.ai-customization-management-editor .section-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	opacity: 0.85;
 }
 
 .ai-customization-management-editor .section-label {
