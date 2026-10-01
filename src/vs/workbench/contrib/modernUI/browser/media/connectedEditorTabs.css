@@ -173,11 +173,9 @@
 	background-color: var(--modern-ui-connected-tab-border);
 }
 
-/* Wrapped scrolling does not add the pill-style bottom gutter. ScrollableElement writes overflow
- * inline, so the connected shoulders must explicitly escape both clipping ancestors. */
+/* Wrapped scrolling does not add the pill-style bottom gutter. */
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping > .monaco-scrollable-element {
 	padding-bottom: 0;
-	overflow: visible !important;
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping {
@@ -192,7 +190,6 @@
 	--modern-ui-connected-tab-action-inset: calc((var(--editor-group-tab-height) - var(--vscode-spacing-size200)) / 2 + var(--vscode-spacing-size20));
 	--modern-ui-tab-action-padding: calc(var(--vscode-spacing-size200) + 2 * var(--modern-ui-connected-tab-action-inset));
 	row-gap: var(--vscode-spacing-size20);
-	overflow: visible !important;
 }
 
 /* Preserve the existing explicit selection and focus borders in high contrast. */

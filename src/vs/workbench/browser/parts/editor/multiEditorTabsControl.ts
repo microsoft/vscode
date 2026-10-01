@@ -2104,7 +2104,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
 			tab.classList.toggle('connected-tab-top-row', connected && topTabBar && tab.offsetTop === top);
 		});
-		this.parent.classList.toggle('connected-tabs-wrapping', connected && tabsWrapMultiLine);
+		const connectedTabsWrapping = connected && Array.from(this.parent.children).some(element =>
+			isHTMLElement(element) &&
+			element.classList.contains('tabs-and-actions-container') &&
+			element.classList.contains('wrapping')
+		);
+		this.parent.classList.toggle('connected-tabs-wrapping', connectedTabsWrapping);
+		const overflow = connected && tabsWrapMultiLine ? 'visible' : 'hidden';
+		assertReturnsDefined(this.tabsContainer).style.overflow = overflow;
+		assertReturnsDefined(this.tabsScrollbar).getDomNode().style.overflow = overflow;
 		if (!tabsWrapMultiLine) {
 			this.doLayoutTabsNonWrapping(options);
 		} else {

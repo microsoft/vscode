@@ -912,6 +912,41 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('connected wrapping state aggregates across separate pinned and unpinned rows', async () => {
+		const group = connectedGroup();
+		control.dispose();
+		container.replaceChildren();
+		for (let index = model.count; index < 6; index++) {
+			const editor = disposables.add(new TestFileEditorInput(URI.file(`/path/aggregate-${index}.ts`), 'testEditorInput'));
+			model.openEditor(editor, { pinned: true });
+		}
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, pinnedTabsOnSeparateRow: true, wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+		const multiRowControl = disposables.add(instantiationService.createInstance(MultiRowEditorControl, container, editorPartsView, groupsView, groupView, model, undefined, false, false));
+		multiRowControl.updateOptions(oldOptions, partOptions);
+		const stickyEditor = model.getEditorByIndex(0)!;
+		model.stick(stickyEditor);
+		multiRowControl.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		await layoutConnectedGroup(group, 150, multiRowControl);
+		const tabBars = Array.from(container.querySelectorAll<HTMLElement>('.tabs-and-actions-container'));
+		const initiallyWrapped = {
+			pinned: tabBars[0].classList.contains('wrapping'),
+			unpinned: tabBars[1].classList.contains('wrapping'),
+			aggregate: container.classList.contains('connected-tabs-wrapping'),
+		};
+
+		multiRowControl.updateEditorDirty(stickyEditor);
+		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+
+		assert.deepStrictEqual({
+			initiallyWrapped,
+			afterPinnedOnlyLayout: container.classList.contains('connected-tabs-wrapping'),
+		}, {
+			initiallyWrapped: { pinned: false, unpinned: true, aggregate: true },
+			afterPinnedOnlyLayout: true,
+		});
+	});
+
 	test('connected wrapped last tab adds its shoulder to the editor actions margin', async () => {
 		const group = connectedGroup();
 		const oldOptions = partOptions;
