@@ -8,6 +8,8 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
+import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
@@ -20,7 +22,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
-import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
+import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../copilotCliEventsUri.js';
 
 /** Output channel ID for the current window's renderer log. */
 const WINDOW_LOG_CHANNEL_ID = 'rendererLog';
@@ -105,15 +107,13 @@ export interface IAgentHostLogContent {
 }
 
 /**
- * Returns true when the chat session belongs to an agent host (local or
- * remote Copilot CLI). Only these sessions have AHP logs and agent-host
- * process logs, so the AHP Log view is gated on this.
+ * Returns whether the session belongs to a local or remote agent host, independently of its provider.
  */
 export function isAgentHostSession(resource: URI | undefined): boolean {
 	if (!resource) {
 		return false;
 	}
-	return resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME || !!parseRemoteAuthorityFromScheme(resource.scheme);
+	return resource.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || isRemoteAgentHostSessionType(resource.scheme);
 }
 
 /**
@@ -121,7 +121,7 @@ export function isAgentHostSession(resource: URI | undefined): boolean {
  * URI, or `undefined` for local/unknown sessions.
  */
 export function getRemoteConnectionForSession(sessionResource: URI, connections: readonly IRemoteAgentHostConnectionInfo[]): IRemoteAgentHostConnectionInfo | undefined {
-	const authority = parseRemoteAuthorityFromScheme(sessionResource.scheme);
+	const authority = findRemoteAgentHostSessionTypeAuthority(sessionResource.scheme, connections.map(connection => agentHostAuthority(connection.address)));
 	return authority ? connections.find(connection => agentHostAuthority(connection.address) === authority) : undefined;
 }
 
@@ -140,7 +140,7 @@ export async function enumerateAgentHostLogSources(
 
 	const { pathService, agentHostService, remoteAgentHostService, outputService, fileService, environmentService } = services;
 	const userHome = pathService.userHome({ preferLocal: true });
-	const isLocal = sessionResource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME;
+	const isLocal = sessionResource.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX);
 	const remoteConnection = isLocal ? undefined : getRemoteConnectionForSession(sessionResource, remoteAgentHostService.connections);
 
 	const sources: IAgentHostLogSource[] = [];

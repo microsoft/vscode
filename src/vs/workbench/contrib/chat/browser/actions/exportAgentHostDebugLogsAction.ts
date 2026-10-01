@@ -14,7 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
-import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
@@ -35,8 +35,8 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme } from '../copilotCliEventsUri.js';
-import { getRemoteConnectionForSession } from '../chatDebug/agentHostLogSources.js';
+import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
+import { getRemoteConnectionForSession, isAgentHostSession } from '../chatDebug/agentHostLogSources.js';
 import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chatDebug/agentHostUsageSidecar.js';
 
 const SHARED_PROCESS_LOG_FILE_NAME = 'sharedprocess.log';
@@ -516,18 +516,10 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 	}
 }
 
-/**
- * Translates a chat session URI scheme into an agent-host session context,
- * or `undefined` if the scheme does not belong to a Copilot CLI agent-host
- * session (i.e. local AH or remote AH; the EH CLI extension's own
- * `copilotcli:` sessions are excluded).
- */
+/** Translates a local or remote agent-host chat resource into a session export context. */
 export function toActiveAgentHostSession(resource: URI, chatTitle: string | undefined, sessionTitle?: string): IActiveAgentHostSessionForExport | undefined {
-	if (resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
-		return { resource: resource.with({ fragment: null }), sessionTitle, chatTitle, isLocal: true, chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
-	}
-	if (parseRemoteAuthorityFromScheme(resource.scheme)) {
-		return { resource: resource.with({ fragment: null }), sessionTitle, chatTitle, isLocal: false, chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
+	if (isAgentHostSession(resource)) {
+		return { resource: resource.with({ fragment: null }), sessionTitle, chatTitle, isLocal: resource.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX), chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
 	}
 	return undefined;
 }

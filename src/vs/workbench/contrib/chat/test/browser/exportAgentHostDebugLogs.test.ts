@@ -13,7 +13,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AhpJsonlLogger, isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
-import type { IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IAgentHostService, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -21,10 +25,12 @@ import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IFileService, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
-import { BrowserAgentHostDebugLogsExportService, collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, notifyAgentHostDebugLogsExported, prepareAgentHostDebugLogsExport, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { BrowserAgentHostDebugLogsExportService, collectAgentHostDebugLogs, collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, IAgentHostDebugLogsExportService, notifyAgentHostDebugLogsExported, prepareAgentHostDebugLogsExport, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
@@ -214,6 +220,19 @@ suite('createHostArtifactStream', () => {
 suite('toActiveAgentHostSession', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('recognizes agent-host providers without accepting extension-owned sessions', () => {
+		const schemes = ['agent-host-claude', 'remote-cloudsandbox__env-1-copilot', 'remote-host-my-agent', 'copilotcli', 'copilot', 'untitled'];
+		assert.deepStrictEqual(schemes.map(scheme => {
+			const context = toActiveAgentHostSession(URI.from({ scheme, path: '/session-1', fragment: 'side-chat' }), 'Chat', 'Session');
+			return context ? { scheme: context.resource.scheme, isLocal: context.isLocal, chatId: context.chatId, fragment: context.resource.fragment } : undefined;
+		}), [
+			{ scheme: 'agent-host-claude', isLocal: true, chatId: 'side-chat', fragment: '' },
+			{ scheme: 'remote-cloudsandbox__env-1-copilot', isLocal: false, chatId: 'side-chat', fragment: '' },
+			{ scheme: 'remote-host-my-agent', isLocal: false, chatId: 'side-chat', fragment: '' },
+			undefined, undefined, undefined,
+		]);
+	});
+
 	test('separates the selected chat from its owning session', () => {
 		const local = toActiveAgentHostSession(URI.parse('agent-host-copilotcli:/session-1#side-chat'), 'Side chat', 'Session one');
 		const remote = toActiveAgentHostSession(URI.parse('remote-test-copilotcli:/session-2'), 'Main chat', 'Session two');
@@ -276,6 +295,84 @@ suite('toActiveAgentHostSession', () => {
 			failed: { backendChat: undefined, sessionTitle: 'Session one' },
 		});
 	});
+});
+
+suite('collectAgentHostDebugLogs', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const provider of ['copilot', 'copilotcli']) {
+		for (const connected of [true, false]) {
+			test(`exports only ${provider} host traffic ${connected ? 'when host log collection is unsupported' : 'after disconnection'}`, async () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				const logService = new NullLogService();
+				const fileService = disposables.add(new FileService(logService));
+				disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+				const logsHome = URI.from({ scheme: Schemas.inMemory, path: '/logs' });
+				const windowLogs = URI.joinPath(logsHome, 'window1');
+				const outputLogs = URI.joinPath(windowLogs, 'output_1');
+				await fileService.createFolder(outputLogs);
+				const address = provider === 'copilot' ? 'cloudsandbox:env-1' : 'ws://remote:8080';
+				const unrelatedAddress = 'cloudsandbox:env-2';
+				const loggers = ['initial', 'reconnected', 'unrelated'].map((connectionId, index) => disposables.add(new AhpJsonlLogger(
+					{ logsHome, logId: index < 2 ? address : unrelatedAddress, connectionId, transport: 'webpubsub', maxFileSizeBytes: 1, maxFiles: 3 },
+					fileService,
+					logService,
+				)));
+				for (const logger of loggers) {
+					logger.log({ jsonrpc: '2.0', id: 1, method: 'initialize' }, 'c2s');
+					logger.log({ jsonrpc: '2.0', id: 1, result: {} }, 's2c');
+					await logger.flush();
+				}
+				const outputLogName = provider === 'copilot' ? 'agentHost.otlp.cloudsandboxenv-1.log' : 'agentHost.otlp.wsremote8080.log';
+				await fileService.writeFile(URI.joinPath(outputLogs, outputLogName), VSBuffer.fromString('host log'));
+				await fileService.writeFile(URI.joinPath(outputLogs, 'agentHost.otlp.cloudsandboxenv-2.log'), VSBuffer.fromString('unrelated'));
+				const resource = URI.from({ scheme: remoteAgentHostSessionTypeId(agentHostAuthority(address), provider), path: '/session-1' });
+				const activeSession = toActiveAgentHostSession(resource, 'Chat', 'Session');
+				assert.ok(activeSession);
+				const backendSession = URI.parse(`${provider === 'copilot' ? 'ahp-session' : 'copilotcli'}:/session-1`);
+				const requests: (string | undefined)[] = [];
+				const connection = upcastPartial<IAgentConnection>({
+					getSubscriptionUnmanaged: () => undefined,
+					collectDebugLogs: async session => {
+						requests.push(session?.toString());
+						throw new Error('Method not found');
+					},
+				});
+				instantiationService.stub(IAgentHostService, { clientId: 'local-client' });
+				instantiationService.stub(IAgentHostConnectionsService, {
+					resolveSessionResource: () => connected ? { connection, connectionAuthority: agentHostAuthority(address), backendSession } : undefined,
+				});
+				instantiationService.stub(IRemoteAgentHostService, {
+					connections: [address, unrelatedAddress].map(address => ({ address, name: address, status: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected })),
+				});
+				instantiationService.stub(IFileService, fileService);
+				instantiationService.stub(ILogService, logService);
+				instantiationService.stub(IWorkbenchEnvironmentService, {
+					logsHome,
+					windowLogsPath: windowLogs,
+					logFile: URI.joinPath(windowLogs, 'renderer.log'),
+					userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/data' }),
+				});
+				instantiationService.stub(IAgentHostDebugLogsExportService, { hostArtifactKind: 'archive' });
+
+				const result = await instantiationService.invokeFunction(accessor => collectAgentHostDebugLogs(accessor, activeSession, () => assert.fail('Unexpected host artifact')));
+				const wireFiles = result.files.filter(file => file.path.startsWith('ahp/'));
+				assert.deepStrictEqual({
+					requests,
+					hostArtifact: result.hostArtifact,
+					wireFileCount: wireFiles.length,
+					allWireFilesMatchHost: wireFiles.every(file => isAhpLogFileFor(address, file.path.substring('ahp/'.length))),
+					forwardedLogs: result.files.filter(file => file.path.startsWith('vscode-logs/Agent Host/')).map(file => file.path),
+				}, {
+					requests: connected ? [backendSession.toString()] : [],
+					hostArtifact: undefined,
+					wireFileCount: 4,
+					allWireFilesMatchHost: true,
+					forwardedLogs: [`vscode-logs/Agent Host/${outputLogName}`],
+				});
+			});
+		}
+	}
 });
 
 suite('collectRotatedLogFiles', () => {
