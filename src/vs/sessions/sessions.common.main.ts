@@ -125,6 +125,7 @@ import '../workbench/services/authentication/browser/authenticationMcpAccessServ
 import '../workbench/services/authentication/browser/authenticationMcpService.js';
 import '../workbench/services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
 import '../workbench/services/authentication/browser/authenticationQueryService.js';
+import '../workbench/services/github/browser/githubService.js';
 import '../platform/hover/browser/hoverService.js';
 import '../platform/userInteraction/browser/userInteractionServiceImpl.js';
 import '../workbench/services/assignment/common/assignmentService.js';
