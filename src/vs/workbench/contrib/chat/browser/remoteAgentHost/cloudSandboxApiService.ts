@@ -405,8 +405,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					}
 					if (cached.unstartedSince !== undefined && discoveryTime - cached.unstartedSince >= STALLED_SESSION_GRACE_MS) {
 						cache.set(task.id, cached);
-						removedTaskIds.push(task.id);
-						this._logService.trace(`${LOG_PREFIX} Hiding stalled queued sandbox task ${task.id} with no AHP resource.`);
+						// An unread page may contain this candidate's recovery update.
+						if (!truncated || scannedTaskIds.has(task.id)) {
+							removedTaskIds.push(task.id);
+							this._logService.trace(`${LOG_PREFIX} Hiding stalled queued sandbox task ${task.id} with no AHP resource.`);
+						}
 						return undefined;
 					}
 					if (cached.session && cached.repositoryId !== undefined && !cached.session.repoName) {

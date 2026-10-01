@@ -723,6 +723,70 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 		assert.deepStrictEqual(results, [['stalled'], []]);
 	}));
 
+	for (const truncation of ['scope failure', 'page failure', 'page limit']) {
+		for (const observed of [false, true]) {
+			test(`only removes observed candidates during ${truncation} (observed=${observed})`, () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
+				const current = unstartedTask('stalled', startTime - oneHour + 1_000);
+				const other = {
+					...task('other', 'Work', 123, 'other-session', 'other-environment'),
+					updated_at: new Date(startTime - oneHour).toISOString(),
+				};
+				let truncate = false;
+				const { service, requestedUrls } = createService(store, {
+					tasks: [current, other], repositories: new Map([[123, { full_name: 'owner/repo' }]]),
+					onRequest: url => {
+						if (!truncate || url.pathname !== '/agents/tasks') {
+							return undefined;
+						}
+						if (url.searchParams.get('with_repo') === 'true') {
+							return jsonResponse({ tasks: observed ? [other, current] : [other] });
+						}
+						if (truncation === 'scope failure' || (truncation === 'page failure' && url.searchParams.get('page') === '2')) {
+							return jsonResponse({}, 503);
+						}
+						return jsonResponse({ tasks: [] }, 200, { link: '<https://api.githubcopilot.com/agents/tasks?page=2>; rel="next"' });
+					},
+				});
+				await service.listSessions(CancellationToken.None);
+				await timeout(1_000);
+				if (!observed) {
+					current.updated_at = new Date(startTime + 1_000).toISOString();
+					current.state = 'idle';
+					current.sessions[0].state = 'idle';
+					current.sessions[0].updated_at = current.updated_at;
+					current.sessions[0].ahp_resource_uri = 'ahp-session:/started';
+				}
+				truncate = true;
+				const partial = await service.listSessions(CancellationToken.None, { incremental: true });
+				const partialDetailReads = requestedUrls.filter(url => url.endsWith('/tasks/stalled')).length;
+				truncate = false;
+				const recovered = await service.listSessions(CancellationToken.None, { incremental: true });
+
+				assert.deepStrictEqual({
+					partial: partial.kind === 'failed' ? partial : {
+						kind: partial.kind,
+						sessions: partial.sessions.map(session => session.taskId),
+						removedTaskIds: partial.kind === 'complete' ? [] : partial.removedTaskIds,
+					},
+					partialDetailReads,
+					recovered: recovered.kind === 'failed' ? recovered : {
+						kind: recovered.kind,
+						sessions: recovered.sessions.map(session => [session.taskId, session.status]),
+						removedTaskIds: recovered.kind === 'complete' ? [] : recovered.removedTaskIds,
+					},
+				}, {
+					partial: { kind: 'partial', sessions: ['other'], removedTaskIds: observed ? ['stalled'] : [] },
+					partialDetailReads: 1,
+					recovered: {
+						kind: 'incremental',
+						sessions: observed ? [] : [['stalled', SessionStatus.Idle]],
+						removedTaskIds: observed ? ['stalled'] : [],
+					},
+				});
+			}));
+		}
+	}
+
 	test('restores a hidden task when discovery reports that its session started', () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
 		const current = unstartedTask('stalled');
 		const { service, requestedUrls } = createService(store, { tasks: [current], repositories: new Map() });
