@@ -169,10 +169,11 @@ export class NewChatView extends AbstractChatView {
 	}
 
 
-	override sendQuery(text: string): void {
+	override sendQuery(text: string): boolean {
 		if (this._widget instanceof NewChatWidget) {
-			this._widget.sendQuery(text);
+			return this._widget.sendQuery(text);
 		}
+		return false;
 	}
 
 	override submitInput(): Promise<boolean> {

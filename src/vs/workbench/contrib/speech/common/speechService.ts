@@ -93,14 +93,14 @@ export interface IVoiceLiveSession {
 	readonly sdp: string;
 }
 
-export type IVoiceLiveSessionResult =
-	| { readonly status: 'unavailable' }
-	| { readonly status: 'available' }
-	| { readonly status: 'ready'; readonly session: IVoiceLiveSession };
+export interface IVoiceLiveSessionResult {
+	readonly available: boolean;
+	readonly session?: IVoiceLiveSession;
+}
 
 export interface IVoiceLiveSessionProvider {
 	readonly metadata: ISpeechProviderMetadata;
-	createVoiceLiveSession(sdp?: string): Promise<IVoiceLiveSessionResult | undefined>;
+	createVoiceLiveSession(sdp: string | undefined, token: CancellationToken): Promise<IVoiceLiveSessionResult | undefined>;
 }
 
 export interface ISpeechService {
@@ -113,7 +113,7 @@ export interface ISpeechService {
 
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable;
 	registerVoiceLiveSessionProvider(identifier: string, provider: IVoiceLiveSessionProvider): IDisposable;
-	createVoiceLiveSession(identifier: string, extension: ExtensionIdentifier, sdp?: string): Promise<IVoiceLiveSessionResult | undefined>;
+	createVoiceLiveSession(identifier: string, extension: ExtensionIdentifier, sdp: string | undefined, token: CancellationToken): Promise<IVoiceLiveSessionResult | undefined>;
 
 	readonly onDidStartSpeechToTextSession: Event<void>;
 	readonly onDidEndSpeechToTextSession: Event<void>;

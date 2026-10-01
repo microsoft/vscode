@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ExtHostSpeechShape, IMainContext, MainContext, MainThreadSpeechShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
@@ -128,8 +128,11 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		this.sessions.delete(session);
 	}
 
-	async $createVoiceLiveSession(handle: number, sdp?: string): Promise<vscode.VoiceLiveSessionResult | undefined> {
-		return await this.voiceLiveSessionProviders.get(handle)?.provideVoiceLiveSession(sdp) ?? undefined;
+	async $createVoiceLiveSession(handle: number, sdp: string | undefined, token: CancellationToken): Promise<vscode.VoiceLiveSessionResult | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		return await this.voiceLiveSessionProviders.get(handle)?.provideVoiceLiveSession(sdp, token) ?? undefined;
 	}
 
 	registerProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.SpeechProvider): IDisposable {

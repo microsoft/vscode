@@ -9,11 +9,13 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { FetchOptions, IFetcherService, Response } from '../../../../platform/networking/common/fetcherService';
 import { createFakeResponse } from '../../../../platform/test/node/fetcher';
 import { createGptLiveSession, isGptLiveModelAvailable } from '../gptLiveSession';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 
 class TestFetcherService extends mock<IFetcherService>() {
 	override readonly onDidFetch = Event.None;
 	override readonly onDidCompleteFetch = Event.None;
 	override readonly fetch = vi.fn<(url: string, options: FetchOptions) => Promise<Response>>();
+	override makeAbortController(): AbortController { return new AbortController(); }
 }
 
 describe('isGptLiveModelAvailable', () => {
@@ -23,7 +25,7 @@ describe('isGptLiveModelAvailable', () => {
 			data: [{ id: 'gpt-4.1' }, { id: 'configured-live-model' }],
 		}));
 
-		const available = await isGptLiveModelAvailable(fetcher, 'secret-key', 'configured-live-model');
+		const available = await isGptLiveModelAvailable(fetcher, 'secret-key', 'configured-live-model', CancellationToken.None);
 
 		expect({
 			available,
@@ -45,7 +47,7 @@ describe('isGptLiveModelAvailable', () => {
 			data: [{ id: 'gpt-4.1' }],
 		}));
 
-		await expect(isGptLiveModelAvailable(fetcher, 'secret-key', 'gpt-live-1')).resolves.toBe(false);
+		await expect(isGptLiveModelAvailable(fetcher, 'secret-key', 'gpt-live-1', CancellationToken.None)).resolves.toBe(false);
 	});
 });
 
@@ -57,7 +59,7 @@ describe('createGptLiveSession', () => {
 			transport: { type: 'webrtc', sdp: 'answer-sdp' },
 		}));
 
-		const result = await createGptLiveSession(fetcher, 'secret-key', 'configured-live-model', 'offer-sdp\r\n');
+		const result = await createGptLiveSession(fetcher, 'secret-key', 'configured-live-model', 'offer-sdp\r\n', CancellationToken.None);
 
 		expect({
 			result,
@@ -93,7 +95,7 @@ describe('createGptLiveSession', () => {
 	it('rejects an empty SDP offer before making a request', async () => {
 		const fetcher = new TestFetcherService();
 
-		await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', '  ')).rejects.toThrow('An SDP offer is required');
+		await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', '  ', CancellationToken.None)).rejects.toThrow('An SDP offer is required');
 		expect(fetcher.fetch).not.toHaveBeenCalled();
 	});
 
@@ -103,7 +105,7 @@ describe('createGptLiveSession', () => {
 
 		let error: Error | undefined;
 		try {
-			await createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp');
+			await createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp', CancellationToken.None);
 		} catch (caught) {
 			error = caught instanceof Error ? caught : new Error(String(caught));
 		}
@@ -124,6 +126,50 @@ describe('createGptLiveSession', () => {
 			transport: { type: 'webrtc' },
 		}));
 
-		await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp')).rejects.toThrow('invalid session response');
+		await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp', CancellationToken.None)).rejects.toThrow('invalid session response');
+	});
+
+	it('does not issue a billable session request after cancellation', async () => {
+		const fetcher = new TestFetcherService();
+		const source = new CancellationTokenSource();
+		try {
+			source.cancel();
+			await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp', source.token)).rejects.toThrow('Canceled');
+			expect(fetcher.fetch).not.toHaveBeenCalled();
+		} finally {
+			source.dispose();
+		}
+	});
+
+	it('aborts an in-flight session request when cancelled', async () => {
+		const fetcher = new TestFetcherService();
+		const source = new CancellationTokenSource();
+		fetcher.fetch.mockImplementation(async (_url, options) => {
+			source.cancel();
+			expect(options.signal?.aborted).toBe(true);
+			throw new Error('aborted');
+		});
+		try {
+			await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp', source.token)).rejects.toThrow('aborted');
+		} finally {
+			source.dispose();
+		}
+	});
+
+	it('keeps cancellation wired while consuming the session response body', async () => {
+		const fetcher = new TestFetcherService();
+		const source = new CancellationTokenSource();
+		const response = createFakeResponse(201, {});
+		fetcher.fetch.mockResolvedValue(response);
+		vi.spyOn(response, 'json').mockImplementation(async () => {
+			source.cancel();
+			expect(fetcher.fetch.mock.calls[0][1].signal?.aborted).toBe(true);
+			throw new Error('body aborted');
+		});
+		try {
+			await expect(createGptLiveSession(fetcher, 'secret-key', 'gpt-live-1', 'offer-sdp', source.token)).rejects.toThrow('body aborted');
+		} finally {
+			source.dispose();
+		}
 	});
 });

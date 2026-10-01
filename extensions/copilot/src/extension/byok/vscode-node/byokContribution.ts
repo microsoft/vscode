@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { LanguageModelChatInformation, LanguageModelChatProvider, lm, speech } from 'vscode';
+import { CancellationToken, LanguageModelChatInformation, LanguageModelChatProvider, lm, speech } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
@@ -46,43 +46,46 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		super();
 		this._byokStorageService = new BYOKStorageService(extensionContext);
 		this._register(speech.registerVoiceLiveSessionProvider(GPT_LIVE_SESSION_PROVIDER_ID, {
-			provideVoiceLiveSession: sdp => this._provideGptLiveSession(sdp),
+			provideVoiceLiveSession: (sdp, token) => this._provideGptLiveSession(sdp, token),
 		}));
 		this._applyPolicy();
 		this._register(this._authService.onDidAuthenticationChange(() => this._applyPolicy()));
 	}
 
-	private async _provideGptLiveSession(sdp?: string): Promise<GptLiveSessionResult> {
+	private async _provideGptLiveSession(sdp: string | undefined, token: CancellationToken): Promise<GptLiveSessionResult> {
 		if (!isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken)) {
 			this._logService.info('BYOK: GPT-Live is unavailable because client BYOK is not allowed.');
-			return { status: 'unavailable' };
+			return { available: false };
+		}
+		const modelId = this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_MODEL_SETTING)?.trim();
+		if (!modelId || token.isCancellationRequested) {
+			return { available: false };
 		}
 		const openAIModels = await lm.selectChatModels({ vendor: OAIBYOKLMProvider.providerId });
+		if (token.isCancellationRequested || !isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken)
+			|| modelId !== this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_MODEL_SETTING)?.trim()) {
+			return { available: false };
+		}
 		const apiKey = openAIModels.length > 0 ? this._openAIProvider?.apiKey : undefined;
 		if (!apiKey) {
 			this._logService.info('BYOK: GPT-Live is unavailable because no OpenAI API key is configured.');
-			return { status: 'unavailable' };
-		}
-		const modelId = this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_MODEL_SETTING)?.trim();
-		if (!modelId) {
-			this._logService.info('BYOK: GPT-Live is unavailable because no voice model is configured.');
-			return { status: 'unavailable' };
+			return { available: false };
 		}
 		if (sdp === undefined) {
 			try {
-				const isAvailable = await isGptLiveModelAvailable(this._fetcherService, apiKey, modelId);
+				const isAvailable = await isGptLiveModelAvailable(this._fetcherService, apiKey, modelId, token);
 				this._logService.info(`BYOK: configured GPT-Live model is ${isAvailable ? 'available' : 'unavailable'}.`);
 				return isAvailable
-					? { status: 'available' }
-					: { status: 'unavailable' };
+					? { available: true }
+					: { available: false };
 			} catch (error) {
 				this._logService.warn(`BYOK: failed to check GPT-Live model availability: ${error instanceof Error ? error.message : String(error)}`);
-				return { status: 'unavailable' };
+				return { available: false };
 			}
 		}
 		return {
-			status: 'ready',
-			session: await createGptLiveSession(this._fetcherService, apiKey, modelId, sdp),
+			available: true,
+			session: await createGptLiveSession(this._fetcherService, apiKey, modelId, sdp, token),
 		};
 	}
 

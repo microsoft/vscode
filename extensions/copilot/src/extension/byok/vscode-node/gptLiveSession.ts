@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { l10n } from 'vscode';
-import { IFetcherService } from '../../../platform/networking/common/fetcherService';
+import { CancellationToken, l10n } from 'vscode';
+import { FetchOptions, IFetcherService, Response } from '../../../platform/networking/common/fetcherService';
+import { CancellationError } from '../../../util/vs/base/common/errors';
 
 const GPT_LIVE_SESSIONS_URL = 'https://api.openai.com/v1/live/sessions';
 const OPENAI_MODELS_URL = 'https://api.openai.com/v1/models';
@@ -17,10 +18,10 @@ export interface GptLiveSession {
 	readonly sdp: string;
 }
 
-export type GptLiveSessionResult =
-	| { readonly status: 'unavailable' }
-	| { readonly status: 'available' }
-	| { readonly status: 'ready'; readonly session: GptLiveSession };
+export interface GptLiveSessionResult {
+	readonly available: boolean;
+	readonly session?: GptLiveSession;
+}
 
 interface GptLiveSessionResponse {
 	readonly session?: {
@@ -44,32 +45,47 @@ interface OpenAIErrorResponse {
 	};
 }
 
-export async function isGptLiveModelAvailable(fetcherService: IFetcherService, apiKey: string, modelId: string): Promise<boolean> {
-	const response = await fetcherService.fetch(OPENAI_MODELS_URL, {
+async function fetchGptLive<T>(fetcherService: IFetcherService, url: string, options: FetchOptions, token: CancellationToken, consume: (response: Response) => Promise<T>): Promise<T> {
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
+	}
+	const controller = fetcherService.makeAbortController();
+	const listener = token.onCancellationRequested(() => controller.abort());
+	try {
+		const response = await fetcherService.fetch(url, { ...options, signal: controller.signal });
+		return await consume(response);
+	} finally {
+		listener.dispose();
+	}
+}
+
+export async function isGptLiveModelAvailable(fetcherService: IFetcherService, apiKey: string, modelId: string, token: CancellationToken): Promise<boolean> {
+	return fetchGptLive(fetcherService, OPENAI_MODELS_URL, {
 		callSite: 'openai-gpt-live-model-availability',
 		method: 'GET',
 		headers: {
 			Authorization: `Bearer ${apiKey}`,
 		},
 		expectJSON: true,
-	});
-	if (!response.ok) {
-		return false;
-	}
+	}, token, async response => {
+		if (!response.ok) {
+			return false;
+		}
 
-	const result = await response.json() as OpenAIModelsResponse;
-	if (!Array.isArray(result.data)) {
-		throw new Error(l10n.t('OpenAI returned an invalid model list while checking GPT-Live availability.'));
-	}
-	return result.data.some(model => model.id === modelId);
+		const result = await response.json() as OpenAIModelsResponse;
+		if (!Array.isArray(result?.data)) {
+			throw new Error(l10n.t('OpenAI returned an invalid model list while checking GPT-Live availability.'));
+		}
+		return result.data.some(model => model?.id === modelId);
+	});
 }
 
-export async function createGptLiveSession(fetcherService: IFetcherService, apiKey: string, modelId: string, sdp: string): Promise<GptLiveSession> {
+export async function createGptLiveSession(fetcherService: IFetcherService, apiKey: string, modelId: string, sdp: string, token: CancellationToken): Promise<GptLiveSession> {
 	if (!sdp.trim()) {
 		throw new Error(l10n.t('An SDP offer is required to create a GPT-Live session.'));
 	}
 
-	const response = await fetcherService.fetch(GPT_LIVE_SESSIONS_URL, {
+	return fetchGptLive(fetcherService, GPT_LIVE_SESSIONS_URL, {
 		callSite: 'openai-gpt-live-session',
 		method: 'POST',
 		headers: {
@@ -89,22 +105,23 @@ export async function createGptLiveSession(fetcherService: IFetcherService, apiK
 			},
 		},
 		expectJSON: true,
+	}, token, async response => {
+
+		if (!response.ok) {
+			const result = await response.json().catch(() => undefined) as OpenAIErrorResponse | undefined;
+			const message = result?.error?.message;
+			throw new Error(typeof message === 'string' && message
+				? l10n.t('OpenAI GPT-Live session creation failed with status {0}: {1}', response.status, message)
+				: l10n.t('OpenAI GPT-Live session creation failed with status {0}.', response.status));
+		}
+
+		const result = await response.json() as GptLiveSessionResponse;
+		const sessionId = result?.session?.id;
+		const answer = result?.transport?.sdp;
+		if (typeof sessionId !== 'string' || !sessionId || result.transport?.type !== 'webrtc' || typeof answer !== 'string' || !answer) {
+			throw new Error(l10n.t('OpenAI GPT-Live returned an invalid session response.'));
+		}
+
+		return { sessionId, sdp: answer };
 	});
-
-	if (!response.ok) {
-		const result = await response.json().catch(() => undefined) as OpenAIErrorResponse | undefined;
-		const message = result?.error?.message;
-		throw new Error(typeof message === 'string' && message
-			? l10n.t('OpenAI GPT-Live session creation failed with status {0}: {1}', response.status, message)
-			: l10n.t('OpenAI GPT-Live session creation failed with status {0}.', response.status));
-	}
-
-	const result = await response.json() as GptLiveSessionResponse;
-	const sessionId = result.session?.id;
-	const answer = result.transport?.sdp;
-	if (typeof sessionId !== 'string' || !sessionId || result.transport?.type !== 'webrtc' || typeof answer !== 'string' || !answer) {
-		throw new Error(l10n.t('OpenAI GPT-Live returned an invalid session response.'));
-	}
-
-	return { sessionId, sdp: answer };
 }

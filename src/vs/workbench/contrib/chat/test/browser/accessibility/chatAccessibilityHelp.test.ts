@@ -19,6 +19,19 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	test('documents scoped BYOK prompts, deterministic answers, and restarting after input changes', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			scoped: help.includes('only the bound chat input\'s prompts and responses are read'),
+			restart: help.includes('Switching the bound input or discarding a recording stops Voice Mode'),
+			editorInputs: help.includes('including chat editor tabs and the chat sidebar'),
+			approval: help.includes('approval commands must be complete, unqualified English replies'),
+			naturalConsent: help.includes('I approve, or I accept to approve the current prompt'),
+			choices: help.includes('say an exact displayed choice or its number'),
+			custom: help.includes('say other followed by your answer'),
+			clarification: help.includes('Ambiguous replies ask for clarification without approving anything'),
+		}, { scoped: true, restart: true, editorInputs: true, approval: true, naturalConsent: true, choices: true, custom: true, clarification: true });
+	});
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
 		test(`documents skipping MCP startup only on supported surfaces (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);

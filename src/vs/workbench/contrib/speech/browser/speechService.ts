@@ -134,15 +134,18 @@ export class SpeechService extends Disposable implements ISpeechService {
 		return toDisposable(() => this.voiceLiveSessionProviders.delete(identifier));
 	}
 
-	async createVoiceLiveSession(identifier: string, extension: ExtensionIdentifier, sdp?: string): Promise<IVoiceLiveSessionResult | undefined> {
+	async createVoiceLiveSession(identifier: string, extension: ExtensionIdentifier, sdp: string | undefined, token: CancellationToken): Promise<IVoiceLiveSessionResult | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 		await this.extensionService.activateByEvent('onSpeech');
 
 		const provider = this.voiceLiveSessionProviders.get(identifier);
-		if (!provider || !ExtensionIdentifier.equals(provider.metadata.extension, extension)) {
+		if (token.isCancellationRequested || !provider || !ExtensionIdentifier.equals(provider.metadata.extension, extension)) {
 			return undefined;
 		}
 
-		return provider.createVoiceLiveSession(sdp);
+		return provider.createVoiceLiveSession(sdp, token);
 	}
 
 	private handleHasSpeechProviderChange(): void {

@@ -1420,7 +1420,7 @@ export interface ExtHostSpeechShape {
 
 	$createKeywordRecognitionSession(handle: number, session: number): Promise<void>;
 	$cancelKeywordRecognitionSession(session: number): Promise<void>;
-	$createVoiceLiveSession(handle: number, sdp?: string): Promise<IVoiceLiveSessionResult | undefined>;
+	$createVoiceLiveSession(handle: number, sdp: string | undefined, token: CancellationToken): Promise<IVoiceLiveSessionResult | undefined>;
 }
 
 export interface BrowserTabDto {

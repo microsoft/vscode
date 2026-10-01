@@ -72,13 +72,16 @@ declare module 'vscode' {
 		readonly sdp: string;
 	}
 
-	export type VoiceLiveSessionResult =
-		| { readonly status: 'unavailable' }
-		| { readonly status: 'available' }
-		| { readonly status: 'ready'; readonly session: VoiceLiveSession };
+	export interface VoiceLiveSessionResult {
+		/** Whether a live session can be created with the current provider configuration. */
+		readonly available: boolean;
+		/** The created session, present only when an SDP offer was supplied. */
+		readonly session?: VoiceLiveSession;
+	}
 
 	export interface VoiceLiveSessionProvider {
-		provideVoiceLiveSession(sdp?: string): ProviderResult<VoiceLiveSessionResult>;
+		/** Checks availability without an SDP offer, or exchanges an offer for a live session. */
+		provideVoiceLiveSession(sdp: string | undefined, token: CancellationToken): ProviderResult<VoiceLiveSessionResult>;
 	}
 
 	export namespace speech {

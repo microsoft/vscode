@@ -34,7 +34,10 @@ export const AGENTS_VOICE_ENTITLED = new RawContextKey<boolean>('agentsVoiceEnti
 export const AGENTS_VOICE_ENABLED = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ContextKeyExpr.equals('config.agents.voice.enabled', true),
-	AGENTS_VOICE_ENTITLED,
+	ContextKeyExpr.or(
+		AGENTS_VOICE_ENTITLED,
+		ContextKeyExpr.regex('config.agents.voice.useBYOKVoiceModel', /\S/),
+	),
 )!;
 
 export function getAgentsVoicePolicyValue(policyData: IPolicyData): false | undefined {

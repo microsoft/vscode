@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatQuestion } from '../../../common/chatService/chatService.js';
-import { resolveQuestionAnswers } from '../../../common/voiceClient/voiceQuestionAnswers.js';
+import { IBackendQuestionAnswer, resolveQuestionAnswers } from '../../../common/voiceClient/voiceQuestionAnswers.js';
 
 suite('VoiceQuestionAnswers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,6 +37,12 @@ suite('VoiceQuestionAnswers', () => {
 	const text: IChatQuestion = { id: 'q_text', type: 'text', title: 'Anything else?' };
 
 	suite('resolveQuestionAnswers', () => {
+		test('rejects malformed wire answer entries without throwing or submitting a partial form', () => {
+			const malformed = ['null', '42', '[]', '{"question_id":"q_text","freeform":42}', '{"question_id":"q_multi","values":"auth"}', '{"question_id":"q_multi","values":[null]}'];
+			assert.deepStrictEqual(malformed.map(json =>
+				resolveQuestionAnswers([single, multi, text], [{ question_id: 'q_single', value: 'westus' }, JSON.parse(json) as IBackendQuestionAnswer]),
+			), malformed.map(() => undefined));
+		});
 		test('accepts freeform when the question omits allowFreeformInput', () => {
 			// The widget and the pending payload both read an omitted flag as
 			// enabled, so rejecting here would refuse an answer the user was

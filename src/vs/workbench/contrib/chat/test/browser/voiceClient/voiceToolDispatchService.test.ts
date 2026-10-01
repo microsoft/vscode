@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -19,6 +20,7 @@ import { ILanguageModelToolsService } from '../../../common/tools/languageModelT
 import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuestionsTool.js';
 import { derivePendingId, IVoiceToolCall } from '../../../common/voiceClient/voiceClientService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { VoiceLiveInputRouter } from '../../../common/voiceClient/voiceLiveInputRouter.js';
 
 suite('VoiceToolDispatchService - model selection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -270,11 +272,11 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 	const sessionResource = URI.parse('agent-session://test/one');
 	const requestId = 'req-1';
 
-	function serviceFor(part: object | readonly object[]): VoiceToolDispatchService {
+	function serviceFor(part: object | readonly object[], canceled = false, currentRequestId = requestId): VoiceToolDispatchService {
 		const parts = Array.isArray(part) ? part : [part];
 		const model = new class extends mock<IChatModel>() {
 			override getRequests() {
-				return [{ id: requestId, response: { response: { value: parts } } }] as unknown as ReturnType<IChatModel['getRequests']>;
+				return [{ id: currentRequestId, response: { isCanceled: canceled, response: { value: parts } } }] as unknown as ReturnType<IChatModel['getRequests']>;
 			}
 		};
 		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
@@ -345,6 +347,54 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 		assert.strictEqual(part.isUsed, true);
 		assert.deepStrictEqual(part.data, answers);
 		assert.deepStrictEqual(await part.completion.p, { answers });
+	});
+
+	test('a direct-provider ordinal reaches the exact carousel and completes its waiting agent', async () => {
+		const part = carousel();
+		const router = new VoiceLiveInputRouter();
+		router.updateContext({
+			display_locale: 'en-US',
+			sessions: [{
+				id: sessionResource.toString(), is_active: true, agent_state: 'waiting_for_confirmation',
+				pending: { type: 'questions', request_id: requestId, pending_id: derivePendingId(requestId, part), questions: [{
+					id: 'region', type: 'singleSelect', title: 'Region', allow_freeform: false,
+					options: [{ label: 'West US', value: 'westus' }, { label: 'East US', value: 'eastus' }],
+				}] },
+			}],
+		});
+		const routed = router.resolve('direct-answer', 'second', router.captureTarget());
+		assert.ok(routed.toolCall);
+		const result = await serviceFor(part).respondToSession(routed.toolCall);
+		assert.deepStrictEqual({ result, data: part.data, used: part.isUsed, completion: await part.completion.p }, {
+			result: { ok: true }, data: { region: { selectedValue: 'eastus' } }, used: true,
+			completion: { answers: { region: { selectedValue: 'eastus' } } },
+		});
+	});
+
+	test('refuses voice responses for canceled requests or a prior request after the session advanced', async () => {
+		const canceled = carousel();
+		const prior = carousel();
+		const results = await Promise.all([
+			serviceFor(canceled, true).respondToSession(answerCall(canceled, { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] })),
+			serviceFor(prior, false, 'new-request').respondToSession(answerCall(prior, { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] })),
+		]);
+		assert.deepStrictEqual({ results, used: [!!canceled.isUsed, !!prior.isUsed] }, {
+			results: [{ ok: false, reason: 'stale_pending' }, { ok: false, reason: 'stale_pending' }], used: [false, false],
+		});
+	});
+
+	test('does not apply a response canceled while its session model was being resolved', async () => {
+		const part = carousel();
+		const cts = new CancellationTokenSource();
+		try {
+			const pending = serviceFor(part).respondToSession(answerCall(part, { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] }), cts.token);
+			cts.cancel();
+			assert.deepStrictEqual({ result: await pending, used: !!part.isUsed, data: part.data }, {
+				result: { ok: false, reason: 'stale_pending' }, used: false, data: undefined,
+			});
+		} finally {
+			cts.dispose();
+		}
 	});
 
 	test('a value the form does not offer leaves it untouched', async () => {

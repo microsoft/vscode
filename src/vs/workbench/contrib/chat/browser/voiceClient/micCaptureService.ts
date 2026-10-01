@@ -246,8 +246,12 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	get isMuted(): boolean { return this._isMuted; }
 	set isMuted(value: boolean) {
 		this._isMuted = value;
+		this._updateTrackEnabled();
+	}
+
+	private _updateTrackEnabled(): void {
 		for (const track of this._micStream?.getAudioTracks() ?? []) {
-			track.enabled = !value && this._pttStreaming;
+			track.enabled = !this._isMuted && this._pttStreaming;
 		}
 	}
 
@@ -287,7 +291,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._pttHeld = true;
 		this._pttStreaming = true;
 		this._pttReleasedDuringAcquire = false;
-		this._isMuted = false;
+		this.isMuted = false;
 
 		if (this._isCapturing) {
 			this._onPttStart.fire(passive);
@@ -306,6 +310,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			this._pttHeld = false;
 			this._pttStreaming = false;
 			this._pttReleasedDuringAcquire = false;
+			this._updateTrackEnabled();
 			throw err;
 		} finally {
 			if (pttGeneration === this._pttGeneration) {
@@ -384,6 +389,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._pttHeld = false;
 		this._pttStreaming = false;
 		this._pttReleasedDuringAcquire = false;
+		this._updateTrackEnabled();
 		// Still emit the per-press diagnostic (keyed by turnId), matching pttUp.
 		this._diagPttUpTs = Date.now();
 		this._scheduleDiagnosticFire();
@@ -451,6 +457,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			return;
 		}
 		this._micStream = micStream;
+		this._updateTrackEnabled();
 
 		const cleanupFailedCapture = () => {
 			if (this._micStream === micStream) {
@@ -661,6 +668,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._pttDrainSamplesSent = 0;
 		if (this._pttStreaming && !this._pttHeld) {
 			this._pttStreaming = false;
+			this._updateTrackEnabled();
 			this._onPttEnd.fire();
 		}
 	}

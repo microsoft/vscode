@@ -1581,8 +1581,8 @@ export class NewChatWidget extends Disposable {
 		this._aquariumToggle?.setHostVisible(visible);
 	}
 
-	sendQuery(text: string): void {
-		this._newChatInput.sendQuery(text);
+	sendQuery(text: string): boolean {
+		return this._newChatInput.sendQuery(text);
 	}
 
 	submitInput(): Promise<boolean> {

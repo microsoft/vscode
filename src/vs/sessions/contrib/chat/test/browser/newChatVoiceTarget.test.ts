@@ -24,7 +24,7 @@ suite('NewChatVoiceTargetService', () => {
 		return upcastPartial<INewChatVoiceComposer>({
 			onDidFocus: Event.None,
 			routesWhileSessionActive,
-			sendQuery: () => undefined,
+			sendQuery: () => true,
 			prefillInput: () => undefined,
 			focus: () => undefined,
 		});

@@ -491,6 +491,8 @@ export interface IVoiceToolCall {
 	readonly callId: string;
 	readonly name: string;
 	readonly args: Record<string, unknown>;
+	/** Capture turn owning this call, when the transport can identify it. */
+	readonly turnId?: string;
 }
 
 export interface IVoiceSpeechStarted {

@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { autorun, derived, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
@@ -47,6 +48,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuestionsTool.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 
 class TestConfigurationService extends BaseTestConfigurationService {
 	constructor(configuration: Record<string, unknown> = {}) {
@@ -119,7 +121,8 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override readonly onError = Event.None;
 	private readonly connectionStateEmitter = new Emitter<boolean>();
 	override readonly onDidChangeConnectionState = this.connectionStateEmitter.event;
-	override readonly onDidChangeRemoteAudioState = Event.None;
+	private readonly remoteAudioStateEmitter = new Emitter<boolean>();
+	override readonly onDidChangeRemoteAudioState = this.remoteAudioStateEmitter.event;
 	override readonly onFatalDisconnect = Event.None;
 	override readonly onConnectionIssue = Event.None;
 	override readonly onTurnAutoEnded = Event.None;
@@ -127,13 +130,21 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private resuming = false;
 	private reconnecting = false;
 	gptLiveByok = false;
+	gptLiveAvailability: Promise<boolean> | undefined;
+	availabilityChecks = 0;
+	connectCalls = 0;
+	stopSpeakingCalls = 0;
+	override stopSpeaking(): void { this.stopSpeakingCalls++; }
 
 	override get isConnected(): boolean { return this.connected; }
 	override get isResuming(): boolean { return this.resuming; }
 	override get willReconnect(): boolean { return this.reconnecting; }
-	override hasGptLiveByok(): Promise<boolean> { return Promise.resolve(this.gptLiveByok); }
+	override hasGptLiveByok(): Promise<boolean> {
+		this.availabilityChecks++;
+		return this.gptLiveAvailability ?? Promise.resolve(this.gptLiveByok);
+	}
 	override disconnect(): void { this.connected = false; }
-	override async connect(): Promise<void> { }
+	override async connect(): Promise<void> { this.connectCalls++; }
 	readonly wireEvents: ({ type: 'session_context'; context: IVoiceSessionContext } | { type: 'request_narration'; kind: VoiceNarrationKind; text: string; confirmationType?: VoiceConfirmationType })[] = [];
 	readonly pttStarts: { turnId: string; hasActiveSession: boolean; passive: boolean }[] = [];
 	pttEndCalls = 0;
@@ -201,6 +212,10 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.speechStartedEmitter.fire({ turnId });
 	}
 
+	fireRemoteAudioState(speaking: boolean): void {
+		this.remoteAudioStateEmitter.fire(speaking);
+	}
+
 	fireNarrationInterrupted(event: IVoiceNarrationSignal): void {
 		this.narrationInterruptedEmitter.fire(event);
 	}
@@ -238,6 +253,7 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.narrationInterruptedEmitter.dispose();
 		this.connectionStateEmitter.dispose();
 		this.sessionInitEmitter.dispose();
+		this.remoteAudioStateEmitter.dispose();
 	}
 }
 
@@ -479,7 +495,7 @@ class NewSessionChatService extends mock<IChatService>() {
 		this.created.push(resource);
 		return { object: { sessionResource: resource }, dispose: () => { } } as unknown as IChatModelReference;
 	}
-	override async acquireOrLoadSession(): Promise<IChatModelReference> {
+	override async acquireOrLoadSession(_resource: URI, _location: ChatAgentLocation, _token: CancellationToken): Promise<IChatModelReference> {
 		return { object: {}, dispose: () => { } } as unknown as IChatModelReference;
 	}
 	override async sendRequest(resource: URI, message: string): Promise<ChatSendResult> {
@@ -716,7 +732,7 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 	}
 
 	override getAllWidgets() { return this.widgets; }
-	override getWidgetBySessionResource(): undefined { return undefined; }
+	override getWidgetBySessionResource(_resource: URI): IChatWidget | undefined { return undefined; }
 
 	focus(resource: URI): void {
 		this.lastFocusedWidget = {
@@ -748,6 +764,7 @@ class MaterializingChatWidget extends mock<IChatWidget>() {
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly acceptedInputs: string[] = [];
+	readonly acceptedSessionIds: string[] = [];
 
 	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
 		let result: string | undefined;
@@ -755,6 +772,10 @@ class TestCommandService extends mock<ICommandService>() {
 			result = 'chat-session';
 		} else if (commandId === '_chat.voice.acceptInput' && typeof args[0] === 'string') {
 			this.acceptedInputs.push(args[0]);
+			if (typeof args[1] === 'string') {
+				this.acceptedSessionIds.push(args[1]);
+			}
+			return true as T;
 		}
 		return result as T;
 	}
@@ -996,7 +1017,122 @@ suite('VoiceSessionController', () => {
 
 		await controller.connect(mainWindow);
 
+		assert.strictEqual(notificationService.notifications.length, 0);
+		voiceClientService.fireSessionInit();
 		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Using gpt-live-1 from your OpenAI provider for Voice Mode.']);
+	});
+
+	test('serializes availability checks and does not connect after a preflight disconnect', async () => {
+		const availability = new DeferredPromise<boolean>();
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveAvailability = availability.p;
+		const controller = createController(voiceClientService);
+		const first = controller.connect(mainWindow);
+		await controller.connect(mainWindow);
+		const connectingDuringPreflight = controller.isConnecting.get();
+		controller.disconnect();
+		availability.complete(true);
+		await first;
+		assert.deepStrictEqual({
+			connectingDuringPreflight,
+			connectingAfterDisconnect: controller.isConnecting.get(),
+			availabilityChecks: voiceClientService.availabilityChecks,
+			connectCalls: voiceClientService.connectCalls,
+		}, { connectingDuringPreflight: true, connectingAfterDisconnect: false, availabilityChecks: 1, connectCalls: 0 });
+	});
+
+	test('bounds a stalled availability check with the connect watchdog', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const availability = new DeferredPromise<boolean>();
+			const voiceClientService = new TestVoiceClientService();
+			voiceClientService.gptLiveAvailability = availability.p;
+			const controller = createController(voiceClientService);
+			const connection = controller.connect(mainWindow);
+			await clock.tickAsync(60_000);
+			availability.complete(true);
+			await connection;
+			assert.deepStrictEqual({ connecting: controller.isConnecting.get(), connectCalls: voiceClientService.connectCalls }, { connecting: false, connectCalls: 0 });
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('keeps a BYOK session on a free plan when the Copilot entitlement refreshes', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveByok = true;
+		const entitlementService = new MutableTestChatEntitlementService();
+		entitlementService.entitlement = ChatEntitlement.Free;
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, entitlementService);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		voiceClientService.fireSessionInit();
+		entitlementService.setEntitlement(ChatEntitlement.Free);
+		await Promise.resolve();
+		assert.strictEqual(controller.isConnected.get(), true);
+	});
+
+	test('interrupts direct remote audio when starting push-to-talk', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, new RecordingMicCaptureService());
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		voiceClientService.fireSessionInit();
+		const before = voiceClientService.stopSpeakingCalls;
+		controller.pttDown();
+		assert.strictEqual(voiceClientService.stopSpeakingCalls, before + 1);
+	});
+
+	test('shows remote speaking during passive listening without overriding a deliberate held press', async () => {
+		const results = [];
+		for (const passive of [false, true]) {
+			const voiceClientService = new TestVoiceClientService();
+			voiceClientService.gptLiveByok = true;
+			const controller = createController(voiceClientService, undefined, undefined, undefined, new RecordingMicCaptureService());
+			await controller.connect(mainWindow);
+			voiceClientService.fireConnectionState(true);
+			voiceClientService.fireSessionInit();
+			controller.pttDown(passive ? 'auto' : 'explicit');
+			voiceClientService.fireRemoteAudioState(true);
+			const during = controller.voiceState.get();
+			voiceClientService.fireRemoteAudioState(false);
+			results.push({ passive, during, after: controller.voiceState.get() });
+		}
+		assert.deepStrictEqual(results, [
+			{ passive: false, during: 'listening', after: 'listening' },
+			{ passive: true, during: 'speaking', after: 'listening' },
+		]);
+	});
+
+	test('keeps remote speaking visible when an asynchronous chat send completes', async () => {
+		const accepted = new DeferredPromise<boolean>();
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveByok = true;
+		const session = URI.parse('chat-session:/voice-owner');
+		const commandService = new class extends TestCommandService {
+			override async executeCommand<T>(id: string): Promise<T> {
+				if (id === '_chat.voice.getCurrentSession') {
+					return session.toString() as T;
+				}
+				if (id === '_chat.voice.acceptInput') {
+					return accepted.p as Promise<T>;
+				}
+				return super.executeCommand<T>(id);
+			}
+		}();
+		const controller = createController(voiceClientService, undefined, commandService);
+		controller.setTargetSession(session);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		voiceClientService.fireSessionInit();
+		voiceClientService.fireToolCall({ callId: 'send', name: 'send_to_chat', args: { text: 'Fix it', coding_session_id: session.toString() } });
+		await clock.tickAsync(0);
+		voiceClientService.fireRemoteAudioState(true);
+		accepted.complete(true);
+		await voiceClientService.toolResultReceived;
+		assert.deepStrictEqual({ state: controller.voiceState.get(), results: voiceClientService.toolResults }, {
+			state: 'speaking', results: [{ callId: 'send', result: 'ok' }],
+		});
 	});
 
 	test('does not connect when Voice Mode is disabled', async () => {
@@ -3205,6 +3341,56 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(voiceClientService.requests.map(request => request.kind), ['confirmation']);
 	});
 
+	test('narrates resident questions and approvals when transition detail is absent or blank', () => {
+		const outcomes: { kind: string; textIncludesPrompt: boolean; exactPending: boolean }[] = [];
+		for (const detail of [undefined, '', ' \t ']) {
+			for (const kind of ['question', 'confirmation']) {
+				const voiceClientService = new TestVoiceClientService();
+				const chatService = new ControllableChatService();
+				const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+				const sessionResource = URI.parse(`chat-session:/empty-detail-${kind}-${outcomes.length}`);
+				controller.setActiveSessionShown(sessionResource);
+				const part = kind === 'question'
+					? new ChatQuestionCarouselData([{
+						id: 'region',
+						type: 'singleSelect',
+						title: 'Which region?',
+						options: [{ id: 'west', label: 'West', value: 'westus' }],
+						allowFreeformInput: false,
+					}], false)
+					: waitingTerminalTool('empty-detail-tool', 'npm run build');
+				const model = pendingResponsePartModel(sessionResource, part);
+				chatService.setModels([model]);
+
+				controller['_handleNarratableStateChange'](sessionResource.toString(), 'waiting_for_confirmation', detail, undefined, sessionResource.toString(), kind === 'question' ? 'questionnaire' : 'tool');
+				const pending = controller['_buildPendingPayload'](model);
+				outcomes.push({
+					kind: voiceClientService.requests[0]?.kind,
+					textIncludesPrompt: voiceClientService.requests[0]?.text.includes(kind === 'question' ? 'Which region? Options: 1, West.' : 'tool approval: Run zsh command?') === true,
+					exactPending: !!pending && voiceClientService.requests[0]?.pendingId === pending.pending_id,
+				});
+			}
+		}
+		assert.deepStrictEqual(outcomes, Array.from({ length: 3 }, () => [
+			{ kind: 'question', textIncludesPrompt: true, exactPending: true },
+			{ kind: 'confirmation', textIncludesPrompt: true, exactPending: true },
+		]).flat());
+	});
+
+	test('empty transition detail neither invents an approval nor narrates another bound session', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const shown = URI.parse('chat-session:/empty-detail-shown');
+		controller.setActiveSessionShown(shown);
+		controller['_handleNarratableStateChange'](shown.toString(), 'waiting_for_confirmation', undefined, undefined, shown.toString(), 'tool');
+		chatService.setModels([pendingResponsePartModel(shown, waitingTerminalTool('other-session-tool'))]);
+		controller.setTargetSession(URI.parse('chat-session:/bound-elsewhere'));
+		controller['_handleNarratableStateChange'](shown.toString(), 'waiting_for_confirmation', undefined, undefined, shown.toString(), 'tool');
+
+		assert.deepStrictEqual(voiceClientService.requests, []);
+	});
+
 	test('request cancellation and disconnect cancel pending voice progress', () => {
 		const firstVoiceClient = new TestVoiceClientService();
 		const firstController = createController(firstVoiceClient);
@@ -4444,6 +4630,28 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('publishes the promoted draft as active before its chat view is shown', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveByok = true;
+		const controller = createController(voiceClientService);
+		controller.setDraftTarget();
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		voiceClientService.fireSessionInit();
+		const session = URI.parse('agent-host-copilotcli:/created-draft');
+		controller.promoteDraftTarget(session);
+		voiceClientService.flushSessionContext();
+		const context = voiceClientService.wireEvents.filter(event => event.type === 'session_context').at(-1)?.context;
+		assert.deepStrictEqual({
+			connected: controller.isConnected.get(),
+			draft: controller.hasDraftTarget.get(),
+			target: controller.targetSession.get()?.toString(),
+			active: context?.sessions.filter(entry => entry.is_active).map(entry => entry.id),
+		}, {
+			connected: true, draft: false, target: session.toString(), active: [session.toString()],
+		});
+	});
+
 	test('untagged solicited narration dropped after retargeting retries when its session returns', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
@@ -4831,27 +5039,31 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(controller.targetSession.get()?.toString(), backgroundSession.toString());
 	});
 
-	test('materializing an untitled chat preserves Voice Mode ownership', async () => {
-		const voiceClientService = new TestVoiceClientService();
-		const untitledSession = URI.parse('agent-host-copilotcli:/untitled-voice-session');
-		const materializedSession = URI.parse('agent-host-copilotcli:/materialized-voice-session');
-		const widget = store.add(new MaterializingChatWidget(untitledSession));
-		const chatWidgetService = new TestChatWidgetService([widget]);
-		const controller = createController(
-			voiceClientService, undefined, undefined, undefined, undefined, undefined,
-			undefined, undefined, undefined, undefined, undefined, undefined, chatWidgetService,
-		);
-		await controller.connect(mainWindow);
-		voiceClientService.fireConnectionState(true);
-		await voiceClientService.sessionCommandSent.p;
-		voiceClientService.fireSessionInit();
-		controller.setTargetSession(untitledSession);
+	for (const byok of [false, true]) {
+		test(`materializing an untitled chat preserves Voice Mode ownership (BYOK=${byok})`, async () => {
+			const voiceClientService = new TestVoiceClientService();
+			voiceClientService.gptLiveByok = byok;
+			const untitledSession = URI.parse('agent-host-copilotcli:/untitled-voice-session');
+			const materializedSession = URI.parse('agent-host-copilotcli:/materialized-voice-session');
+			const widget = store.add(new MaterializingChatWidget(untitledSession));
+			const chatWidgetService = new TestChatWidgetService([widget]);
+			const controller = createController(
+				voiceClientService, undefined, undefined, undefined, undefined, undefined,
+				undefined, undefined, undefined, undefined, undefined, undefined, chatWidgetService,
+			);
+			await controller.connect(mainWindow);
+			voiceClientService.fireConnectionState(true);
+			await voiceClientService.sessionCommandSent.p;
+			voiceClientService.fireSessionInit();
+			controller.setTargetSession(untitledSession);
 
-		widget.materialize(materializedSession);
+			widget.materialize(materializedSession);
 
-		assert.strictEqual(controller.isConnected.get(), true);
-		assert.strictEqual(controller.targetSession.get()?.toString(), materializedSession.toString());
-	});
+			assert.deepStrictEqual({ connected: controller.isConnected.get(), target: controller.targetSession.get()?.toString() }, {
+				connected: true, target: materializedSession.toString(),
+			});
+		});
+	}
 
 	test('stops tracking a removed chat widget', () => {
 		const voiceClientService = new TestVoiceClientService();
@@ -5770,6 +5982,172 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('direct-provider send_to_chat keeps the captured input target instead of using the newly focused session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		controller.setTargetSession(URI.parse('chat-session:/b'));
+		voiceClientService.fireToolCall({ callId: 'captured-a', name: 'send_to_chat', args: { text: 'Fix A', coding_session_id: 'chat-session:/a' } });
+		await voiceClientService.toolResultReceived;
+		assert.deepStrictEqual({
+			sent: chatService.sent, target: controller.targetSession.get()?.toString(),
+			awaitingSession: Reflect.get(controller, '_awaitingReplyForSession'), results: voiceClientService.toolResults,
+		}, {
+			sent: [{ resource: 'chat-session:/a', message: 'Fix A' }], target: 'chat-session:/b',
+			awaitingSession: 'chat-session:/a', results: [{ callId: 'captured-a', result: 'ok' }],
+		});
+	});
+
+	test('disconnect cancels a pending session load and prevents late delivery or stale tool acknowledgement', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const started = new DeferredPromise<void>();
+		const loaded = new DeferredPromise<IChatModelReference>();
+		let canceled = false;
+		let released = 0;
+		const chatService = new class extends NewSessionChatService {
+			override async acquireOrLoadSession(_resource: URI, _location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference> {
+				const listener = token.onCancellationRequested(() => canceled = true);
+				started.complete();
+				try {
+					return await loaded.p;
+				} finally {
+					listener.dispose();
+				}
+			}
+		}();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		voiceClientService.fireToolCall({ callId: 'late-send', name: 'send_to_chat', args: { text: 'Fix A', coding_session_id: 'chat-session:/a' } });
+		await started.p;
+		controller.disconnect();
+		await loaded.complete({ object: new class extends mock<IChatModel>() { }(), dispose: () => released++ });
+		await clock.tickAsync(0);
+		assert.deepStrictEqual({ canceled, released, sent: chatService.sent, results: voiceClientService.toolResults, connected: controller.isConnected.get() }, {
+			canceled: true, released: 1, sent: [], results: [], connected: false,
+		});
+	});
+
+	test('a captured input with a resident widget uses that exact input even after another widget takes focus', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new class extends TestCommandService {
+			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
+				if (id.startsWith('_chat.voice.')) {
+					throw new Error('Sidebar voice bridge is not registered');
+				}
+				return super.executeCommand<T>(id, ...args);
+			}
+		}();
+		const chatService = new NewSessionChatService();
+		const resource = URI.parse('chat-session:/a');
+		const inputs: { text: string | undefined; options: Parameters<IChatWidget['acceptInput']>[1] }[] = [];
+		const widget = store.add(new class extends MaterializingChatWidget {
+			override getInput(): string { return 'Typed draft'; }
+			override async acceptInput(text?: string, options?: Parameters<IChatWidget['acceptInput']>[1]): Promise<IChatResponseModel> {
+				inputs.push({ text, options });
+				return new class extends mock<IChatResponseModel>() {
+					override readonly id = 'response-a';
+					override readonly onDidChange = Event.None;
+					override readonly isComplete = true;
+				}();
+			}
+		}(resource));
+		const widgetService = new class extends TestChatWidgetService {
+			override getWidgetBySessionResource(target: URI) {
+				return target.toString() === resource.toString() ? widget : undefined;
+			}
+		}();
+		widgetService.focus(URI.parse('chat-session:/b'));
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService, undefined, undefined, undefined, undefined, undefined, widgetService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		voiceClientService.fireToolCall({ callId: 'resident-a', name: 'send_to_chat', args: { text: 'Fix A', coding_session_id: resource.toString() } });
+		await voiceClientService.toolResultReceived;
+		assert.deepStrictEqual({ inputs, sidebarInputs: commandService.acceptedInputs, directSends: chatService.sent, results: voiceClientService.toolResults }, {
+			inputs: [{ text: 'Typed draft Fix A', options: { preserveFocus: true, isVoiceModeInput: true } }],
+			sidebarInputs: [], directSends: [], results: [{ callId: 'resident-a', result: 'ok' }],
+		});
+	});
+
+	test('send_to_chat reports failure when the command silently refuses a stale or unavailable input', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new class extends TestCommandService {
+			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
+				return id === '_chat.voice.acceptInput' ? undefined as T : super.executeCommand<T>(id, ...args);
+			}
+		}();
+		const controller = createController(voiceClientService, undefined, commandService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		voiceClientService.fireToolCall({ callId: 'missing-input', name: 'send_to_chat', args: { text: 'Fix A' } });
+		await voiceClientService.toolResultReceived;
+		assert.deepStrictEqual({ results: voiceClientService.toolResults, awaiting: Reflect.get(controller, '_awaitingReplyAudio') }, {
+			results: [{ callId: 'missing-input', result: 'error' }], awaiting: false,
+		});
+	});
+
+	test('a discarded voice turn cannot approve a prompt after another PTT turn starts', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const dispatch = Reflect.get(controller, 'voiceToolDispatchService') as IVoiceToolDispatchService;
+		const respond = sinon.spy(dispatch, 'respondToSession');
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		controller.pttDown();
+		const discardedTurn = Reflect.get(controller, '_pttCurrentTurnId') as string;
+		controller.discardListening();
+		await clock.tickAsync(6000);
+		controller.pttDown();
+		voiceClientService.fireToolCall({
+			callId: 'discarded-approval', name: 'respond_to_session', turnId: discardedTurn,
+			args: { coding_session_id: 'chat-session:/a', request_id: 'request', pending_id: 'pending', response: { type: 'approve' } },
+		});
+		await voiceClientService.toolResultReceived;
+		assert.deepStrictEqual({ dispatched: respond.callCount, results: voiceClientService.toolResults }, {
+			dispatched: 0, results: [{ callId: 'discarded-approval', result: { ok: false, reason: 'stale_pending' } }],
+		});
+	});
+
+	test('discarding direct-provider input retires the connection to prevent buffered remote replies', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveByok = true;
+		const controller = createController(voiceClientService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		controller.discardListening();
+		assert.deepStrictEqual({ connected: controller.isConnected.get(), providerConnected: voiceClientService.isConnected }, {
+			connected: false, providerConnected: false,
+		});
+	});
+
+	for (const toDraft of [false, true]) {
+		test(`switching the bound BYOK input retires untagged audio (draft=${toDraft})`, async () => {
+			const voiceClientService = new TestVoiceClientService();
+			voiceClientService.gptLiveByok = true;
+			const controller = createController(voiceClientService);
+			const original = URI.parse('chat-session:/a');
+			controller.setTargetSession(original);
+			await controller.connect(mainWindow);
+			(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+			controller.setTargetSession(original);
+			const unchanged = controller.isConnected.get();
+			if (toDraft) {
+				controller.setDraftTarget();
+			} else {
+				controller.setTargetSession(URI.parse('chat-session:/b'));
+			}
+			assert.deepStrictEqual({
+				unchanged, connected: controller.isConnected.get(), target: controller.targetSession.get()?.toString(), draft: controller.hasDraftTarget.get(),
+				status: controller.statusText.get(),
+			}, {
+				unchanged: true, connected: false, target: toDraft ? undefined : 'chat-session:/b', draft: toDraft,
+				status: 'Chat input changed. Restart Voice Mode in the intended input.',
+			});
+		});
+	}
+
 	test('send_to_chat with new_session keeps the created session alive when no pane adopts it', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		// TestCommandService leaves `_chat.voice.switchToSession` unhandled, so
@@ -6285,6 +6663,7 @@ suite('VoiceSessionController live transcription', () => {
 
 		instantiationService.stub(IVoiceClientService, {
 			disconnect: () => { },
+			stopSpeaking: () => { },
 		});
 		instantiationService.stub(IMicCaptureService, {
 			isMuted: false,

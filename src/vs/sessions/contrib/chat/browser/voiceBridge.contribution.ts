@@ -16,7 +16,7 @@ import { IVoiceSessionController, VoiceNewSessionPreparationResult } from '../..
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, inheritableSessionTarget, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';
 
@@ -83,7 +83,7 @@ export async function prepareNewVoiceSession(
  * - `_chat.voice.switchToSession` activates the session that owns a chat resource.
  * - `_chat.voice.activateSession` narrates a session's pending voice item on demand.
  */
-class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchContribution {
+export class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.voiceBridge';
 
@@ -118,27 +118,33 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 
 		// Prefer the active session widget; Agents often leaves DOM focus on the
 		// sessions list, making `lastFocusedWidget` stale.
-		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string, expectedSessionId?: string) => {
 			if (!text) {
-				return;
+				return false;
 			}
 			// Route through the new-session composer so dictation creates the
 			// session instead of using a stale `lastFocusedWidget`.
 			const composer = this._activeComposerTarget();
-			if (composer) {
-				composer.sendQuery(text);
-				return;
+			if (composer && (!expectedSessionId || expectedSessionId === NEW_CHAT_VOICE_SENTINEL.toString())) {
+				return composer.sendQuery(text);
 			}
-			const widget = this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			const widget = expectedSessionId
+				? this.chatWidgetService.getWidgetBySessionResource(URI.parse(expectedSessionId))
+				: this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			if (expectedSessionId && widget?.viewModel?.sessionResource.toString() !== expectedSessionId) {
+				return false;
+			}
 			if (widget?.viewModel) {
 				if (widget.viewModel.editing) {
 					// Let the user review edited input before submitting.
 					widget.input.setValue(text, false);
+					return true;
 				} else {
 					// Preserve any text the user already typed in the input.
-					widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
+					return widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
 				}
 			}
+			return false;
 		}));
 
 		// Report the shown session (the active Agents session), not DOM focus.
@@ -290,26 +296,47 @@ registerWorkbenchContribution2(SessionsVoiceBridgeContribution.ID, SessionsVoice
  * list, so forward {@link ISessionsService.activeSession}. Draft composers report
  * `undefined` to avoid reusing a stale session.
  */
-class SessionsVoiceActiveSessionContribution extends Disposable implements IWorkbenchContribution {
+export class SessionsVoiceActiveSessionContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.voiceActiveSession';
 
 	constructor(
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@INewSessionComposerService newSessionComposerService: INewSessionComposerService,
+		@INewChatVoiceTargetService newChatVoiceTargetService: INewChatVoiceTargetService,
 	) {
 		super();
 
 		let voiceDraftSession: IActiveSession | undefined;
+		let voiceDraftRequest: ISendRequestOptions | undefined;
+		this._register(newSessionComposerService.onWillSendRequest(({ options }) => {
+			const composer = newChatVoiceTargetService.activeComposer.get();
+			if (!options.background && composer && Object.is(composer, newSessionComposerService.activeComposer.get())
+				&& this.voiceSessionController.isConnected.get() && this.voiceSessionController.hasDraftTarget.get()) {
+				voiceDraftRequest = options;
+			}
+		}));
+		this._register(sessionsManagementService.onDidSendRequest(event => {
+			// A welcome-composer send can replace the draft facade; correlate the actual send instead.
+			if (event.options === voiceDraftRequest) {
+				voiceDraftRequest = undefined;
+				this.voiceSessionController.promoteDraftTarget(event.chat.resource);
+			}
+		}));
 		this._register(autorun(reader => {
 			const active = this.sessionsService.activeSession.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			if (!hasDraftTarget || !this.voiceSessionController.isConnected.read(reader)) {
+				voiceDraftRequest = undefined;
+			}
 			if (!hasDraftTarget) {
 				voiceDraftSession = undefined;
 			} else if (!voiceDraftSession && active && !active.isCreated.read(reader)) {
 				voiceDraftSession = active;
 			}
-			if (voiceDraftSession?.isCreated.read(reader)) {
+			if (!voiceDraftRequest && voiceDraftSession?.isCreated.read(reader)) {
 				this.voiceSessionController.promoteDraftTarget(voiceDraftSession.activeChat.read(reader).resource);
 				voiceDraftSession = undefined;
 			}

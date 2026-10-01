@@ -60,8 +60,8 @@ export interface INewChatVoiceComposer {
 	 * Otherwise, it targets only before any session exists.
 	 */
 	readonly routesWhileSessionActive?: boolean;
-	/** Append `text` to the current draft and submit, creating the session. */
-	sendQuery(text: string): void;
+	/** Append `text` and submit; false if the composer cannot accept input. */
+	sendQuery(text: string): boolean;
 	/** Set `text` without submitting. */
 	prefillInput(text: string): void;
 	/** Focus the composer input. */
