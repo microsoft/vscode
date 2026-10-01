@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
@@ -27,9 +27,15 @@ const definition = {
 	created_at: '2026-09-22T00:00:00Z', updated_at: '2026-09-22T00:00:00Z',
 };
 
+interface ResponseData {
+	status: number;
+	data?: object;
+	headers?: Record<string, string>;
+}
+
 class Requests extends mock<IRequestService>() {
 	readonly calls: IRequestOptions[] = [];
-	readonly responses: { status: number; data?: object; headers?: Record<string, string> }[] = [];
+	readonly responses: (ResponseData | Promise<ResponseData>)[] = [];
 	onRequest?: () => void;
 	override async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		this.calls.push(options);
@@ -37,8 +43,9 @@ class Requests extends mock<IRequestService>() {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const response = this.responses.shift();
-		assert.ok(response, 'Unexpected API request.');
+		const pending = this.responses.shift();
+		assert.ok(pending, 'Unexpected API request.');
+		const response = await raceCancellationError(Promise.resolve(pending), token);
 		return {
 			res: { statusCode: response.status, headers: response.headers ?? {} },
 			stream: bufferToStream(VSBuffer.fromString(response.data === undefined ? '' : JSON.stringify(response.data))),
@@ -109,6 +116,61 @@ suite('CloudAutomationApiClient', () => {
 		await assert.rejects(client.update('octocat', repository, definition.id, { disabled: false }, CancellationToken.None), /Validation Failed: minute_utc/);
 		assert.deepStrictEqual({ contentType: requests.calls[0].headers?.['Content-Type'], body: JSON.parse(requests.calls[0].data!) }, { contentType: 'application/merge-patch+json', body: { disabled: false } });
 	});
+
+	for (const outcome of ['success', 'cancel', 'failure'] as const) {
+		test(`missing prompts use at most five concurrent detail requests (${outcome})`, async () => {
+			const { requests, client } = setup();
+			const source = disposables.add(new CancellationTokenSource());
+			const definitions = Array.from({ length: 7 }, (_, index) => ({ ...definition, id: `automation-${index}` }));
+			const pending = definitions.map(() => new DeferredPromise<ResponseData>());
+			const firstBatch = new DeferredPromise<void>();
+			const nextRequest = new DeferredPromise<void>();
+			requests.onRequest = () => {
+				if (requests.calls.length === 6) {
+					void firstBatch.complete();
+				} else if (requests.calls.length === 7) {
+					void nextRequest.complete();
+				}
+			};
+			requests.responses.push(
+				{ status: 200, data: { automations: definitions.map(({ prompt: _prompt, ...summary }) => summary) } },
+				...pending.map(value => value.p),
+			);
+			const list = client.list('octocat', repository, source.token);
+			const error = new Error('Detail failed');
+			const settled = outcome === 'success' ? list : assert.rejects(list, outcome === 'cancel' ? isCancellationError : value => value === error);
+			try {
+				await firstBatch.p;
+				assert.strictEqual(requests.calls.length, 6, 'One list request and five concurrent detail requests');
+				if (outcome === 'success') {
+					await pending[4].complete({ status: 200, data: definitions[4] });
+					await nextRequest.p;
+					for (let index = pending.length - 1; index >= 0; index--) {
+						if (index !== 4) {
+							await pending[index].complete({ status: 200, data: definitions[index] });
+						}
+					}
+					assert.deepStrictEqual(await list, definitions, 'Preserves list order despite out-of-order detail responses');
+				} else {
+					if (outcome === 'cancel') {
+						source.cancel();
+					} else {
+						await pending[0].error(error);
+					}
+					await settled;
+					assert.strictEqual(requests.calls.length, 6, 'Does not dispatch queued details after cancellation or failure');
+				}
+			} finally {
+				source.cancel();
+				await settled;
+				for (const response of pending) {
+					if (!response.isSettled) {
+						await response.complete({ status: 200, data: definition });
+					}
+				}
+			}
+		});
+	}
 
 	test('treats a lost creation result as uncertain rather than allowing an automatic retry', async () => {
 		const { requests, client } = setup();

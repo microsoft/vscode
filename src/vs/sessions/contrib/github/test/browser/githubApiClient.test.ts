@@ -10,6 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider } from '../../../../../base/common/defaultAccount.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -193,7 +194,7 @@ suite('GitHubApiClient', () => {
 		}, { sentBeforeScopesMatched: false, authorization: 'token token-pinned', signIns: 0 });
 	});
 
-	for (const change of ['provider', 'host', 'missing host'] as const) {
+	for (const change of ['provider', 'host', 'missing host', 'session'] as const) {
 		test(`rejects a pinned request when the ${change} changes during authentication`, async () => {
 			const enterprise = change !== 'provider';
 			if (enterprise) {
@@ -201,7 +202,7 @@ suite('GitHubApiClient', () => {
 				defaultAccountService.gitHubBaseUrl = 'https://first.example.com';
 			}
 			defaultAccountService.currentDefaultAccount = {
-				accountName: 'octocat', sessionId: 'default-session', enterprise,
+				accountName: 'octocat', sessionId: 'session-1', enterprise,
 				authenticationProvider: defaultAccountService.authenticationProvider,
 			};
 			const sessions = new DeferredPromise<readonly AuthenticationSession[]>();
@@ -218,6 +219,8 @@ suite('GitHubApiClient', () => {
 					...defaultAccountService.currentDefaultAccount, enterprise: true,
 					authenticationProvider: defaultAccountService.authenticationProvider,
 				};
+			} else if (change === 'session') {
+				defaultAccountService.currentDefaultAccount = { ...defaultAccountService.currentDefaultAccount, sessionId: 'another-session' };
 			} else {
 				defaultAccountService.gitHubBaseUrl = change === 'host' ? 'https://second.example.com' : undefined;
 			}
@@ -232,6 +235,11 @@ suite('GitHubApiClient', () => {
 			accountName: 'octocat', sessionId: 'default-session', enterprise: false,
 			authenticationProvider: defaultAccountService.authenticationProvider,
 		};
+		const repositorySession = authenticationService.sessions[0];
+		authenticationService.sessions = [
+			{ ...repositorySession, id: 'default-session', scopes: ['read:user'] },
+			{ ...repositorySession, account: { ...repositorySession.account, label: 'renamed-label' } },
+		];
 		let dispatches = 0;
 		await client.requestCopilot('POST', '/agents/repos/o/r/automations', 'test', {
 			accountName: 'octocat', onDispatch: () => { dispatches++; },
@@ -240,6 +248,54 @@ suite('GitHubApiClient', () => {
 			url: requestService.lastOptions?.url, dispatches,
 		}, { url: 'https://api.githubcopilot.com/agents/repos/o/r/automations', dispatches: 1 });
 	});
+
+	for (const mismatch of ['account ID', 'authorization server', 'missing selected session'] as const) {
+		test(`does not substitute a same-label token with ${mismatch}`, async () => {
+			defaultAccountService.currentDefaultAccount = {
+				accountName: 'octocat', sessionId: 'default-session', enterprise: false,
+				authenticationProvider: defaultAccountService.authenticationProvider,
+			};
+			const selected = { ...authenticationService.sessions[0], id: 'default-session', scopes: ['read:user'], authorizationServer: URI.parse('https://github.com') };
+			const candidate = {
+				...selected, id: 'repo-session', scopes: ['repo'],
+				account: { ...selected.account, id: mismatch === 'account ID' ? 'another-account' : selected.account.id },
+				authorizationServer: URI.parse(mismatch === 'authorization server' ? 'https://enterprise.example.com' : 'https://github.com'),
+			};
+			authenticationService.sessions = mismatch === 'missing selected session' ? [candidate] : [candidate, selected];
+			await assert.rejects(client.requestCopilot('POST', '/agents/repos/o/r/automations', 'test', {
+				accountName: 'octocat', createAuthenticationSession: false,
+			}), GitHubAuthenticationError);
+			assert.deepStrictEqual({ request: requestService.lastOptions, signIns: authenticationService.createSessionCalls }, { request: undefined, signIns: [] });
+		});
+	}
+
+	test('selects the matching identity instead of the first same-label repository session', async () => {
+		defaultAccountService.currentDefaultAccount = {
+			accountName: 'octocat', sessionId: 'default-session', enterprise: false,
+			authenticationProvider: defaultAccountService.authenticationProvider,
+		};
+		const selected = { ...authenticationService.sessions[0], id: 'default-session', scopes: ['read:user'] };
+		authenticationService.sessions = [
+			{ ...selected, id: 'other-session', account: { id: 'other-account', label: 'octocat' }, scopes: ['repo'], accessToken: 'wrong-token' },
+			selected,
+			{ ...selected, id: 'repo-session', scopes: ['repo'], accessToken: 'selected-token' },
+		];
+		await client.request('GET', '/user/repos', 'test', { accountName: 'octocat' });
+		assert.strictEqual(requestService.lastOptions?.headers?.Authorization, 'token selected-token');
+	});
+
+	for (const method of ['GET', 'POST', 'PATCH', 'DELETE']) {
+		test(`Copilot ${method} sets remote fallback policy without changing existing REST callers`, async () => {
+			defaultAccountService.currentDefaultAccount = {
+				accountName: 'octocat', sessionId: 'session-1', enterprise: false,
+				authenticationProvider: defaultAccountService.authenticationProvider,
+			};
+			await client.requestCopilot(method, '/agents/automations/id', 'test', { accountName: 'octocat' });
+			const copilot = requestService.lastOptions?.disableRemoteFallback;
+			await client.request(method, '/repos/o/r', 'test');
+			assert.deepStrictEqual({ copilot, rest: requestService.lastOptions?.disableRemoteFallback }, { copilot: method !== 'GET', rest: false });
+		});
+	}
 
 	for (const signedIn of [false, true]) {
 		test(`interactively obtains repository access when ${signedIn ? 'existing scopes are insufficient' : 'signed out'}`, async () => {

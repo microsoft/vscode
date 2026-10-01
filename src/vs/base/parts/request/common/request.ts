@@ -50,6 +50,8 @@ export interface IRequestOptions {
 	 * be supported in all implementations.
 	 */
 	disableCache?: boolean;
+	/** Do not replay a browser request through the remote agent after a local failure or HTTP 405. */
+	disableRemoteFallback?: boolean;
 	/**
 	 * Identifies the call site making this request, used for telemetry.
 	 * Use "NO_FETCH_TELEMETRY" to opt out of request telemetry.

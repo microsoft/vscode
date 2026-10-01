@@ -13,7 +13,7 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 import { deriveGitHubEndpoints, GITHUB_DOT_COM_COPILOT_API_BASE_URI, IGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRequestService, asText } from '../../../../platform/request/common/request.js';
-import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 
 const LOG_PREFIX = '[GitHubApiClient]';
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
@@ -161,7 +161,12 @@ export class GitHubApiClient extends Disposable {
 
 	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, connection: IGitHubApiConnection, options?: IGitHubApiRequestOptions, copilot = false): Promise<IGitHubApiResponse<T>> {
 		const cancellationToken = options?.token ?? CancellationToken.None;
-		const token = await this._getAuthToken(connection.authenticationProviderId, options?.createAuthenticationSession !== false, cancellationToken, options?.authenticationScopes, options?.accountName);
+		const selectedAccount = options?.accountName !== undefined ? this._defaultAccountService.currentDefaultAccount : undefined;
+		if (options?.accountName !== undefined && (selectedAccount?.accountName !== options.accountName || selectedAccount.authenticationProvider.id !== connection.authenticationProviderId)) {
+			throw new GitHubAuthenticationError();
+		}
+		const selectedSessionId = selectedAccount?.sessionId;
+		const token = await this._getAuthToken(connection.authenticationProviderId, options?.createAuthenticationSession !== false, cancellationToken, options?.authenticationScopes, selectedSessionId);
 		if (cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -169,6 +174,7 @@ export class GitHubApiClient extends Disposable {
 			const currentAccount = this._defaultAccountService.currentDefaultAccount;
 			const currentConnection = this._getConnection();
 			if (currentAccount?.accountName !== options.accountName
+				|| currentAccount.sessionId !== selectedSessionId
 				|| currentAccount.authenticationProvider.id !== connection.authenticationProviderId
 				|| currentConnection?.authenticationProviderId !== connection.authenticationProviderId
 				|| currentConnection.endpoints.apiBaseUri !== connection.endpoints.apiBaseUri) {
@@ -193,6 +199,7 @@ export class GitHubApiClient extends Disposable {
 			data: options?.data !== undefined ? JSON.stringify(options.data) : undefined,
 			// The renderer cache can return stale 200 responses despite ETag polling.
 			disableCache: true,
+			disableRemoteFallback: copilot && method !== 'GET' && method !== 'HEAD',
 			callSite,
 			timeout: options?.timeout,
 		};
@@ -256,7 +263,7 @@ export class GitHubApiClient extends Disposable {
 		return { data, statusCode, etag: responseETag, link };
 	}
 
-	private async _getAuthToken(authenticationProviderId: string, createIfNone: boolean, token: CancellationToken, scopes?: readonly string[], accountName?: string): Promise<string> {
+	private async _getAuthToken(authenticationProviderId: string, createIfNone: boolean, token: CancellationToken, scopes?: readonly string[], selectedSessionId?: string): Promise<string> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -267,10 +274,18 @@ export class GitHubApiClient extends Disposable {
 			}
 			sessions = await raceCancellationError(this._authenticationService.getSessions(authenticationProviderId, [], { createIfNone: true }), token);
 		}
+		const selectedSession = selectedSessionId !== undefined ? sessions.find(session => session.id === selectedSessionId) : undefined;
+		if (selectedSessionId !== undefined && !selectedSession) {
+			throw new GitHubAuthenticationError();
+		}
+		const matchesAccount = (session: AuthenticationSession) => !selectedSession || (
+			session.account.id === selectedSession.account.id
+			&& session.authorizationServer?.toString() === selectedSession.authorizationServer?.toString()
+			&& session.scopes.includes('repo'));
 		const matchingSessions = sessions.filter(session =>
 			session.accessToken
 			&& (!scopes || scopes.every(scope => session.scopes.includes(scope)))
-			&& (accountName === undefined || (session.account.label === accountName && session.scopes.includes('repo'))));
+			&& matchesAccount(session));
 		let session = matchingSessions.find(session => session.scopes.includes('repo')) ?? matchingSessions[0];
 		if (!session && scopes && createIfNone) {
 			if (token.isCancellationRequested) {
@@ -286,7 +301,7 @@ export class GitHubApiClient extends Disposable {
 			}
 		}
 		if (!session?.accessToken || (scopes && !scopes.every(scope => session.scopes.includes(scope)))
-			|| (accountName !== undefined && (session.account.label !== accountName || !session.scopes.includes('repo')))) {
+			|| !matchesAccount(session)) {
 			throw new GitHubAuthenticationError();
 		}
 

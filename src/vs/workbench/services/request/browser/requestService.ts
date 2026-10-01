@@ -41,13 +41,13 @@ export class BrowserRequestService extends AbstractRequestService implements IRe
 			const context = await this.logAndRequest(options, () => request(options, token, () => navigator.onLine));
 
 			const connection = this.remoteAgentService.getConnection();
-			if (connection && context.res.statusCode === 405) {
+			if (!options.disableRemoteFallback && connection && context.res.statusCode === 405) {
 				return this._makeRemoteRequest(connection, options, token);
 			}
 			return context;
 		} catch (error) {
 			const connection = this.remoteAgentService.getConnection();
-			if (connection) {
+			if (!options.disableRemoteFallback && connection) {
 				return this._makeRemoteRequest(connection, options, token);
 			}
 			throw error;

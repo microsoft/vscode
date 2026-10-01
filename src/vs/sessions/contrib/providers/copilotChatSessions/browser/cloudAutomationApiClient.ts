@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Limiter } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isStringArray } from '../../../../../base/common/types.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../nls.js';
@@ -100,25 +101,35 @@ export class CloudAutomationApiClient extends Disposable {
 	}
 
 	async list(accountName: string, repository: ICloudAutomationRepository, token: CancellationToken): Promise<readonly ICloudAutomationDefinition[]> {
-		const definitions: ICloudAutomationDefinition[] = [];
-		for (let page = 1; page <= 10; page++) {
-			const response = await this.request<ICloudAutomationList>(accountName, 'GET', `${repositoryAutomationsPath(repository)}/v2?per_page=100&page=${page}&ownership=user`, token);
-			if (!Array.isArray(response.data?.automations)) {
-				throw invalidResponse();
-			}
-			for (const definition of response.data.automations) {
-				if (definition.prompt === undefined && typeof definition.id === 'string') {
-					definitions.push(await this.get(accountName, repository, definition.id, token));
-					continue;
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(token));
+		const limiter = store.add(new Limiter<ICloudAutomationDefinition>(5));
+		try {
+			const definitions: ICloudAutomationDefinition[] = [];
+			for (let page = 1; page <= 10; page++) {
+				const response = await this.request<ICloudAutomationList>(accountName, 'GET', `${repositoryAutomationsPath(repository)}/v2?per_page=100&page=${page}&ownership=user`, source.token);
+				if (!Array.isArray(response.data?.automations)) {
+					throw invalidResponse();
 				}
-				validateDefinition(definition, repository);
-				definitions.push(definition);
+				definitions.push(...await Promise.all(response.data.automations.map(definition => limiter.queue(async () => {
+					if (source.token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+					if (definition?.prompt === undefined && typeof definition?.id === 'string') {
+						return this.get(accountName, repository, definition.id, source.token);
+					}
+					validateDefinition(definition, repository);
+					return definition;
+				}))));
+				if (!hasNextPage(response.link)) {
+					return definitions;
+				}
 			}
-			if (!hasNextPage(response.link)) {
-				return definitions;
-			}
+			throw new Error(localize('cloudAutomations.catalogueLimit', "This repository has more cloud automations than can be loaded. Its catalogue is incomplete."));
+		} finally {
+			source.cancel();
+			store.dispose();
 		}
-		throw new Error(localize('cloudAutomations.catalogueLimit', "This repository has more cloud automations than can be loaded. Its catalogue is incomplete."));
 	}
 
 	async get(accountName: string, repository: ICloudAutomationRepository, id: string, token: CancellationToken): Promise<ICloudAutomationDefinition> {
