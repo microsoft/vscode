@@ -22,6 +22,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { addUNCHostToAllowlist } from '../../../../base/node/unc.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 export class TestParcelWatcher extends ParcelWatcher {
 
@@ -42,6 +43,10 @@ export class TestParcelWatcher extends ParcelWatcher {
 		return (await this.removeDuplicateRequests(requests, false /* validate paths skipped for tests */)).map(request => request.path);
 	}
 
+	async deduplicateRequests(requests: IRecursiveWatchRequest[]): Promise<IRecursiveWatchRequest[]> {
+		return this.removeDuplicateRequests(requests, false /* validate paths skipped for tests */);
+	}
+
 	protected override getUpdateWatchersDelay(): number {
 		return 0;
 	}
@@ -59,6 +64,45 @@ export class TestParcelWatcher extends ParcelWatcher {
 		}
 	}
 }
+
+suite('File Watcher (parcel) request deduplication', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uncorrelated same-root requests preserve a broad watcher in either order', async () => {
+		const watcher = store.add(new TestParcelWatcher());
+		const broad: IRecursiveWatchRequest = { path: '/workspace', excludes: [], recursive: true };
+		const narrow: IRecursiveWatchRequest = { path: '/workspace', excludes: [], includes: ['mcp/*.mjs'], recursive: true };
+
+		assert.deepStrictEqual(await watcher.deduplicateRequests([broad, narrow]), [broad]);
+		assert.deepStrictEqual(await watcher.deduplicateRequests([narrow, broad]), [broad]);
+	});
+
+	test('uncorrelated same-root requests combine narrow includes and preserve shared excludes', async () => {
+		const watcher = store.add(new TestParcelWatcher());
+		const first: IRecursiveWatchRequest = { path: '/workspace', excludes: ['**/node_modules/**'], includes: ['mcp/*.mjs'], recursive: true };
+		const second: IRecursiveWatchRequest = { path: '/workspace', excludes: ['**/node_modules/**'], includes: ['.custom/agents/*.md'], recursive: true };
+
+		assert.deepStrictEqual(await watcher.deduplicateRequests([first, second]), [
+			{ ...first, includes: ['mcp/*.mjs', '.custom/agents/*.md'] }
+		]);
+	});
+
+	test('uncorrelated same-root requests do not retain exclusions absent from another request', async () => {
+		const watcher = store.add(new TestParcelWatcher());
+		const first: IRecursiveWatchRequest = { path: '/workspace', excludes: ['mcp/**'], recursive: true };
+		const second: IRecursiveWatchRequest = { path: '/workspace', excludes: [], includes: ['mcp/*.mjs'], recursive: true };
+
+		assert.deepStrictEqual(await watcher.deduplicateRequests([first, second]), [{ ...first, excludes: [] }]);
+	});
+
+	test('requests with different correlation IDs remain separate', async () => {
+		const watcher = store.add(new TestParcelWatcher());
+		const first: IRecursiveWatchRequest = { path: '/workspace', excludes: [], recursive: true, correlationId: 1 };
+		const second: IRecursiveWatchRequest = { path: '/workspace', excludes: [], includes: ['mcp/*.mjs'], recursive: true, correlationId: 2 };
+
+		assert.deepStrictEqual(await watcher.deduplicateRequests([first, second]), [first, second]);
+	});
+});
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
