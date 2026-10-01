@@ -124,9 +124,6 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 		}
 
 		const prompt = buildPrompt(tool, parameters, kind);
-		if (prompt === undefined) {
-			return undefined;
-		}
 		const response = await this._languageModelsService.sendChatRequest(
 			models[0],
 			undefined,
@@ -180,18 +177,14 @@ function normalizeRiskCacheParameters(parameters: unknown, kind: ToolRiskPromptK
 	return parameters;
 }
 
-function buildPrompt(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string | undefined {
-	// A truncated command could hide the part that makes it risky
-	const argsJson = serializeParameters(parameters, kind !== 'terminal');
-	if (argsJson === undefined) {
-		return undefined;
-	}
+function buildPrompt(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string {
+	const argsJson = serializeParameters(parameters);
 	return kind === 'terminal'
 		? buildTerminalPrompt(tool, argsJson)
 		: buildGenericToolPrompt(tool, argsJson);
 }
 
-function serializeParameters(parameters: unknown, allowTruncation: boolean): string | undefined {
+function serializeParameters(parameters: unknown): string {
 	let argsJson: string;
 	try {
 		argsJson = JSON.stringify(parameters ?? {});
@@ -199,9 +192,6 @@ function serializeParameters(parameters: unknown, allowTruncation: boolean): str
 		argsJson = '{}';
 	}
 	if (argsJson.length > MAX_PARAM_BYTES) {
-		if (!allowTruncation) {
-			return undefined;
-		}
 		argsJson = argsJson.slice(0, MAX_PARAM_BYTES) + '...[truncated]';
 	}
 	return argsJson;

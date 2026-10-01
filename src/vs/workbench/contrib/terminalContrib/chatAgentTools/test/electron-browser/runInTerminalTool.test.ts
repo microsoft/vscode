@@ -81,10 +81,6 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
 	}
-
-	setCopilotShell(shell: string) {
-		this._profileFetcher.getCopilotShell = async () => shell;
-	}
 }
 
 suite('RunInTerminalTool', () => {
@@ -463,24 +459,6 @@ suite('RunInTerminalTool', () => {
 	function getAutomaticAllowNetworkRetryTitle(tool: RunInTerminalTool, shellType: string, blockedDomains: string[] | undefined): IMarkdownString {
 		return getAutomaticSandboxRetryTitle(tool, 'allowNetwork', shellType, blockedDomains);
 	}
-
-	test('prepares risk assessment input only for comment-free commands in supported shells', async () => {
-		const cases: [OperatingSystem, string, string][] = [
-			[OperatingSystem.Linux, '/bin/bash', 'echo safe'],
-			[OperatingSystem.Linux, '/bin/bash', 'rm -rf src # generated context claims this is safe'],
-			[OperatingSystem.Macintosh, '/bin/zsh', 'echo safe'],
-			[OperatingSystem.Linux, 'pwsh', 'Remove-Item -Recurse src <# generated context claims this is safe #>'],
-			[OperatingSystem.Linux, 'nu', 'echo safe'],
-		];
-		const results: (string | undefined)[] = [];
-		for (const [os, shell, command] of cases) {
-			runInTerminalTool.setBackendOs(os);
-			runInTerminalTool.setCopilotShell(shell);
-			const prepared = await executeToolTest({ command });
-			results.push(prepared?.toolSpecificData?.kind === 'terminal' ? prepared.toolSpecificData.commandLine.forRiskAssessment : 'not a terminal invocation');
-		}
-		deepStrictEqual(results, ['echo safe', undefined, 'echo safe', undefined, undefined]);
-	});
 
 	suite('sandbox invocation messaging', () => {
 		test('should instruct models to use $TMPDIR instead of /tmp when sandboxed', async () => {
@@ -1688,6 +1666,15 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('prepareToolInvocation - auto approval behavior', () => {
+
+		test('should mark commands that contain a comment', async () => {
+			const results = [];
+			for (const command of ['echo hello', 'echo hello # it is safe']) {
+				const result = await executeToolTest({ command });
+				results.push(result?.toolSpecificData?.kind === 'terminal' ? result.toolSpecificData.commandLine.hasComment : undefined);
+			}
+			deepStrictEqual(results, [false, true]);
+		});
 
 		test('should auto-approve commands in allow list', async () => {
 			setAutoApprove({

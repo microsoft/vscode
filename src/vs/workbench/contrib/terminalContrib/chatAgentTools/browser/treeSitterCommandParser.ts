@@ -72,13 +72,8 @@ export class TreeSitterCommandParser extends Disposable {
 		return captures.map(e => e.node.text);
 	}
 
-	/**
-	 * Returns the command line to send to risk assessment, or `undefined` when it
-	 * contains comments or cannot be parsed, since those can steer the assessment.
-	 */
-	async getCommandForRiskAssessment(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string | undefined> {
-		const { captures, hasError } = await this._queryTreeWithParseStatus(languageId, commandLine, '(comment) @comment');
-		return hasError || captures.length > 0 ? undefined : commandLine;
+	async hasComment(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<boolean> {
+		return (await this._queryTree(languageId, commandLine, '(comment) @comment')).length > 0;
 	}
 
 	async extractAutoApprovalSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<IAutoApprovalCommandParseResult> {

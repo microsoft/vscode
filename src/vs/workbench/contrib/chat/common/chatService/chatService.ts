@@ -672,8 +672,8 @@ export interface IChatTerminalToolInvocationData {
 		original: string;
 		userEdited?: string;
 		toolEdited?: string;
-		/** Command to send to risk assessment, or `undefined` when it cannot be assessed safely. */
-		forRiskAssessment?: string;
+		/** Whether the command contains a comment, which could mislead the Autopilot risk assessment. */
+		hasComment?: boolean;
 		// command to show in the chat UI (potentially different from what is actually run in the terminal)
 		forDisplay?: string;
 		// isSandboxWrapped boolean to run in the terminal (potentially different from original command)

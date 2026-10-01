@@ -96,15 +96,6 @@ const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 const INPUT_NEEDED_NOTIFICATION_THROTTLE_MS = 5000;
 
-function getRiskAssessmentParserLanguage(shell: string, os: OperatingSystem): TreeSitterCommandParserLanguage | undefined {
-	if (isPowerShell(shell, os)) {
-		return TreeSitterCommandParserLanguage.PowerShell;
-	}
-	// Other shells use comment syntax the Bash grammar does not recognize
-	const shellName = (os === OperatingSystem.Windows ? win32 : posix).basename(shell).replace(/\.exe$/i, '').toLowerCase();
-	return /^(bash|dash|fish|ksh|sh|zsh)$/.test(shellName) ? TreeSitterCommandParserLanguage.Bash : undefined;
-}
-
 export interface ISandboxingOnNetworkRestrictedOptions {
 	sandboxMode: 'on-network-restricted';
 	allowToRunUnsandboxedCommands: boolean;
@@ -994,15 +985,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalSandboxService.checkForSandboxingPrereqs(false, sandboxPrecheckInputs)
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
-		const riskAssessmentParserLanguage = getRiskAssessmentParserLanguage(shell, os);
-		let commandForRiskAssessment: string | undefined;
-		if (riskAssessmentParserLanguage !== undefined) {
-			try {
-				commandForRiskAssessment = await this._treeSitterCommandParser.getCommandForRiskAssessment(riskAssessmentParserLanguage, args.command);
-			} catch (e) {
-				this._logService.warn('RunInTerminalTool: Failed to prepare command for risk assessment', e);
-			}
-		}
 		const isSandboxEnabled = sandboxPrereqs.enabled;
 		const isSandboxAllowNetworkEnabled = isSandboxEnabled && await this._terminalSandboxService.isSandboxAllowNetworkEnabled();
 		const allowUnsandboxedCommands = this._getAllowToRunUnsandboxedCommands(args);
@@ -1042,7 +1024,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalCommandId,
 					commandLine: {
 						original: args.command,
-						forRiskAssessment: commandForRiskAssessment,
 						forDisplay: commandToDisplay,
 					},
 					cwd,
@@ -1066,7 +1047,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalCommandId,
 					commandLine: {
 						original: args.command,
-						forRiskAssessment: commandForRiskAssessment,
 						forDisplay: commandToDisplay,
 					},
 					cwd,
@@ -1098,6 +1078,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		requestAllowNetworkReason = rewriteResult.requestAllowNetworkReason;
 		const blockedDomains = rewriteResult.blockedDomains;
 
+		const treeSitterLanguage = isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash;
 		const toolSpecificData: IChatTerminalToolInvocationData = {
 			kind: 'terminal',
 			terminalToolSessionId,
@@ -1105,7 +1086,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLine: {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
-				forRiskAssessment: commandForRiskAssessment,
+				hasComment: await this._treeSitterCommandParser.hasComment(treeSitterLanguage, args.command).catch(() => true),
 				forDisplay: forDisplayCommand ?? normalizeTerminalCommandForDisplay(rewrittenCommand ?? args.command),
 				isSandboxWrapped,
 			},
@@ -1165,7 +1146,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			cwd,
 			os,
 			shell,
-			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+			treeSitterLanguage,
 			terminalToolSessionId,
 			chatSessionResource,
 			requiresUnsandboxConfirmation,

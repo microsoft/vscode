@@ -251,7 +251,7 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 function setupRiskGateTool(
 	setup: TestToolsServiceSetup,
 	store: any,
-	opts?: { withConfirmation?: boolean; permissionLevel?: ChatPermissionLevel; advancedEnabled?: boolean; toolId?: string; parameters?: unknown; toolSpecificData?: IChatTerminalToolInvocationData },
+	opts?: { withConfirmation?: boolean; permissionLevel?: ChatPermissionLevel; advancedEnabled?: boolean; toolId?: string; toolSpecificData?: IChatTerminalToolInvocationData },
 ): { invoke: (token?: CancellationToken) => Promise<{ content: { value: string }[] }>; wasInvoked: () => boolean } {
 	const withConfirmation = opts?.withConfirmation ?? true;
 	const permissionLevel = opts?.permissionLevel ?? ChatPermissionLevel.Autopilot;
@@ -263,10 +263,7 @@ function setupRiskGateTool(
 
 	let invoked = false;
 	const tool = registerToolForTest(setup.service, store, toolId, {
-		prepareToolInvocation: async () => ({
-			...(withConfirmation ? { confirmationMessages: { title: 'Confirm?', message: 'Proceed?' } } : {}),
-			toolSpecificData: opts?.toolSpecificData,
-		}),
+		prepareToolInvocation: async () => ({ ...(withConfirmation ? { confirmationMessages: { title: 'Confirm?', message: 'Proceed?' } } : {}), toolSpecificData: opts?.toolSpecificData }),
 		invoke: async () => { invoked = true; return { content: [{ kind: 'text', value: 'ran' }] }; },
 	});
 
@@ -274,7 +271,7 @@ function setupRiskGateTool(
 	stubGetSession(setup.chatService, sessionId, { requestId: 'req-risk', modeInfo: { permissionLevel } });
 
 	return {
-		invoke: (token: CancellationToken = CancellationToken.None) => setup.service.invokeTool(tool.makeDto(opts?.parameters ?? { x: 1 }, { sessionId }), async () => 0, token) as Promise<{ content: { value: string }[] }>,
+		invoke: (token: CancellationToken = CancellationToken.None) => setup.service.invokeTool(tool.makeDto({ x: 1 }, { sessionId }), async () => 0, token) as Promise<{ content: { value: string }[] }>,
 		wasInvoked: () => invoked,
 	};
 }
@@ -2019,15 +2016,7 @@ suite('LanguageModelToolsService', () => {
 		const setup = createTestToolsService(store);
 		setup.riskAssessmentService.enabled = true;
 		setup.riskAssessmentService.assessment = { risk: ToolRiskLevel.Red, explanation: 'Force-pushes main, overwriting history.' };
-		const t = setupRiskGateTool(setup, store, {
-			withConfirmation: false,
-			toolId: 'run_in_terminal',
-			toolSpecificData: {
-				kind: 'terminal',
-				commandLine: { original: 'git push --force origin main', forRiskAssessment: 'git push --force origin main' },
-				language: 'sh',
-			},
-		});
+		const t = setupRiskGateTool(setup, store, { withConfirmation: false, toolId: 'run_in_terminal' });
 
 		const result = await t.invoke();
 
@@ -2046,47 +2035,36 @@ suite('LanguageModelToolsService', () => {
 		const setup = createTestToolsService(store);
 		setup.riskAssessmentService.enabled = true;
 		setup.riskAssessmentService.assessment = { risk: ToolRiskLevel.Orange, explanation: 'Installs a package.' };
+		const t = setupRiskGateTool(setup, store, { withConfirmation: false, toolId: 'run_in_terminal' });
+
+		const result = await t.invoke();
+
+		assert.deepStrictEqual(
+			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, value: result.content[0].value },
+			{ invoked: true, assessCalls: 1, value: 'ran' },
+		);
+	});
+
+	test('autopilot risk gate skips a terminal command with a comment without assessing it', async () => {
+		const setup = createTestToolsService(store);
+		setup.riskAssessmentService.enabled = true;
+		setup.riskAssessmentService.assessment = { risk: ToolRiskLevel.Green, explanation: 'Removes generated files.' };
 		const t = setupRiskGateTool(setup, store, {
 			withConfirmation: false,
 			toolId: 'run_in_terminal',
-			parameters: { command: 'echo hello', explanation: 'ignored' },
-			toolSpecificData: {
-				kind: 'terminal',
-				commandLine: { original: 'echo hello', forRiskAssessment: 'echo hello' },
-				language: 'sh',
-			},
+			toolSpecificData: { kind: 'terminal', commandLine: { original: 'rm -rf src # generated, safe to delete', hasComment: true }, language: 'sh' },
 		});
 
 		const result = await t.invoke();
 
 		assert.deepStrictEqual(
-			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls, value: result.content[0].value },
-			{ invoked: true, assessCalls: [{ toolId: 'run_in_terminal', parameters: { command: 'echo hello' }, kind: undefined }], value: 'ran' },
+			{
+				invoked: t.wasInvoked(),
+				assessCalls: setup.riskAssessmentService.assessCalls.length,
+				isRiskMessage: String(result.content[0].value).startsWith('Autopilot skipped this tool call'),
+			},
+			{ invoked: false, assessCalls: 0, isRiskMessage: true },
 		);
-	});
-
-	test('autopilot risk gate skips terminal commands that cannot be assessed', async () => {
-		const results = [];
-		for (const { forRiskAssessment, assessError } of [{ forRiskAssessment: undefined }, { forRiskAssessment: 'echo hello' }, { forRiskAssessment: 'echo hello', assessError: new Error('network down') }]) {
-			const setup = createTestToolsService(store);
-			setup.riskAssessmentService.enabled = true;
-			setup.riskAssessmentService.assessment = undefined;
-			setup.riskAssessmentService.assessError = assessError;
-			const t = setupRiskGateTool(setup, store, {
-				withConfirmation: false,
-				toolId: 'run_in_terminal',
-				toolSpecificData: { kind: 'terminal', commandLine: { original: 'echo hello', forRiskAssessment }, language: 'sh' },
-			});
-			const result = await t.invoke();
-			results.push({ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, value: result.content[0].value });
-		}
-
-		const value = 'Autopilot skipped this tool call because its risk could not be assessed safely. The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.';
-		assert.deepStrictEqual(results, [
-			{ invoked: false, assessCalls: 0, value },
-			{ invoked: false, assessCalls: 1, value },
-			{ invoked: false, assessCalls: 1, value },
-		]);
 	});
 
 	test('autopilot risk gate classifies a fetch web page call even when it has no confirmation', async () => {

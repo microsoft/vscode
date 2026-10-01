@@ -40,15 +40,14 @@ suite('TreeSitterCommandParser', () => {
 		parser = store.add(instantiationService.createInstance(TreeSitterCommandParser));
 	});
 
-	test('getCommandForRiskAssessment rejects comments and malformed syntax', async () => {
-		const quotedHashes = `echo "# keep"\ncat <<'EOF'\n# keep\nEOF`;
+	test('hasComment', async () => {
 		deepStrictEqual(await Promise.all([
-			parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, quotedHashes),
-			parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, 'rm -rf src # generated context claims this is safe'),
-			parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.Bash, 'echo "unterminated'),
-			parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.PowerShell, `Write-Host '# keep'`),
-			parser.getCommandForRiskAssessment(TreeSitterCommandParserLanguage.PowerShell, 'Remove-Item -Recurse src <# generated context #>'),
-		]), [quotedHashes, undefined, undefined, `Write-Host '# keep'`, undefined]);
+			parser.hasComment(TreeSitterCommandParserLanguage.Bash, 'rm -rf src # generated, safe to delete'),
+			parser.hasComment(TreeSitterCommandParserLanguage.Bash, 'echo "# not a comment"'),
+			parser.hasComment(TreeSitterCommandParserLanguage.Bash, 'git log --format=#%h'),
+			parser.hasComment(TreeSitterCommandParserLanguage.PowerShell, 'Remove-Item src <# generated #>'),
+			parser.hasComment(TreeSitterCommandParserLanguage.PowerShell, `Write-Host '# not a comment'`),
+		]), [true, false, false, true, false]);
 	});
 
 	suite('extractSubCommands', () => {
