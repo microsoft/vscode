@@ -646,9 +646,16 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				'The tray must remain flush with the prompt after expansion.');
 		}
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
-		assert(parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0
-			&& parseFloat(trayStyle.borderBottomLeftRadius) > 0 && parseFloat(trayStyle.borderBottomRightRadius) > 0,
-			'The floating tray must round every corner.');
+		const hasRoundedTopCorners = parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0;
+		if (hasChatBackground && experimentalComposerLayout) {
+			assert(hasRoundedTopCorners
+				&& parseFloat(trayStyle.borderBottomLeftRadius) === 0 && parseFloat(trayStyle.borderBottomRightRadius) === 0,
+				'The custom-background experimental tray must have rounded top corners and square bottom corners.');
+		} else {
+			assert(hasRoundedTopCorners
+				&& parseFloat(trayStyle.borderBottomLeftRadius) > 0 && parseFloat(trayStyle.borderBottomRightRadius) > 0,
+				'The floating tray must round every corner.');
+		}
 		assert(trayBounds.left >= promptBounds.left - 1 && trayBounds.right <= promptBounds.right + 1,
 			'The tray must fit within the prompt width.');
 		if (phoneLayout) {
@@ -901,7 +908,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer paints only the workspace, worktree, branch, and harness options tray with the opaque main session surface. The chat input remains visually unchanged.'],
+		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer paints only the workspace, worktree, branch, and harness options tray with the opaque main session surface. The picker controls use the tray surface instead of separate resting fills, and the tray has square bottom corners where it meets the unchanged chat input.'],
 		render: context => renderNewChatWidget(context, {
 			withWorkspace: true,
 			withControlPickers: true,
