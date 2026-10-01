@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -19,6 +18,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { IAgentService } from '../../common/agentService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -89,12 +89,6 @@ function registerCoreServices(services: ServiceCollection): void {
 		storageResource: URI.file('/storage.json'),
 		fetchFn: globalThis.fetch,
 		gitHubServiceOptions: {
-			endpoint: {
-				onDidChange: Event.None,
-				getApiBaseUri: () => 'https://api.github.com',
-				getGraphQlUri: () => 'https://api.github.com/graphql',
-			},
-			tokenProvider: { getToken: () => undefined },
 			fetch: globalThis.fetch,
 		},
 	});
@@ -190,6 +184,7 @@ suite('Agent Host service registrations', () => {
 			IAgentHostGitHubEndpointService,
 			IAgentHostProxyResolver,
 			IAgentHostClientConnectionService,
+			IAgentService,
 			IByokLmBridgeRegistry,
 		]);
 		assertCompleteAcyclicGraph(services, externallyRegistered);
@@ -214,6 +209,7 @@ suite('Agent Host service registrations', () => {
 			IAgentHostGitHubEndpointService,
 			IAgentHostProxyResolver,
 			IAgentHostClientConnectionService,
+			IAgentService,
 			IByokLmBridgeRegistry,
 			IAgentHostGitService,
 			IAgentHostOTelService,

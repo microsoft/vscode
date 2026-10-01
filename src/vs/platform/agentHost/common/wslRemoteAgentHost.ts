@@ -125,6 +125,7 @@ export interface IWSLRemoteAgentHostMainService {
 	readonly onDidReportConnectProgress: Event<IWSLConnectProgress>;
 
 	readonly onDidRelayMessage: Event<IRelayMessage>;
+	readonly onDidRelayActivity: Event<string /* connectionId */>;
 	readonly onDidRelayClose: Event<string /* connectionId */>;
 	relaySend(connectionId: string, message: string): Promise<void>;
 

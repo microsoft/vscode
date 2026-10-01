@@ -31,7 +31,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
@@ -115,7 +115,7 @@ export function makeSession(resource: URI, opts?: {
 		createdAt: chat.createdAt,
 		workspace: observableValue('workspace', workspace),
 		title: chat.title,
-		updatedAt: chat.updatedAt,
+		updatedAt: constObservable(chat.updatedAt.get() ?? chat.createdAt),
 		status: chat.status,
 		modelId: chat.modelId,
 		mode: chat.mode,
@@ -152,22 +152,18 @@ export interface ICreateOptions {
 		readonly newSession: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean };
 		readonly existingSession: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean };
 	};
-	readonly newSessionViewState?: { readonly auxiliaryBarVisible: boolean };
-	readonly newSessionViewStateRaw?: string;
-	/** [D7] Value for `sessions.layout.autoCollapseSessionsSidebar` (defaults to enabled). */
-	readonly responsiveSidebar?: boolean;
-	/** [D7] When set, `openView`/`openViewContainer` reveal the auxiliary bar (mirroring production) so navigation reveals can be exercised. */
+	/** When set, `openView`/`openViewContainer` reveal the auxiliary bar (mirroring production) so navigation reveals can be exercised. */
 	readonly revealAuxiliaryBarOnOpen?: boolean;
-	/** Initial main container width (defaults to 2000). Set below `SMALL_WINDOW_MAX_WIDTH` to start space-constrained. */
+	/** Initial main container width (defaults to 2000). */
 	readonly mainContainerWidth?: number;
 	/** Initial part visibility overrides applied before the controller is constructed (mirrors restored layout after a reload). */
 	readonly initialPartVisibility?: ReadonlyMap<Parts, boolean>;
 	/** IDs of aux-bar view containers active at construction (defaults to Changes + Files). Empty ⇒ no active aux containers (e.g. a quick chat). */
 	readonly activeAuxViewContainerIds?: readonly string[];
-	/** When set, resolves the lifecycle `Restored` phase so a single-pane controller's managed-tab / detail-panel behaviour activates. */
+	/** When set, resolves the lifecycle `Restored` phase so a desktop controller's managed-tab / detail-panel behaviour activates. */
 	readonly activateAux?: boolean;
-	/** When true, the layout service reports single-pane layout enabled (drives base single-pane branches). */
-	readonly singlePaneLayoutEnabled?: boolean;
+	/** When true, the layout service reports desktop layout (drives base desktop branches). */
+	readonly desktopLayout?: boolean;
 }
 
 /**
@@ -216,9 +212,9 @@ export interface ITestLayoutHarness {
 	editorRevealedExplicitly: boolean;
 	/** Current suppression depth for `suppressEditorPartAutoVisibility()`. */
 	editorPartAutoVisibilitySuppressionDepth: number;
-	/** Whether the lifecycle `Restored` phase has resolved (activates single-pane managed-tab / detail-panel behaviour). */
+	/** Whether the lifecycle `Restored` phase has resolved (activates desktop managed-tab / detail-panel behaviour). */
 	activateAux: boolean;
-	/** Editors in the main part's active group (drives the single-pane managed-tab logic). */
+	/** Editors in the main part's active group (drives the desktop managed-tab logic). */
 	activeGroupEditors: EditorInput[];
 	/** Fires when the active editor group begins disposal. */
 	onWillDisposeActiveGroup: Emitter<void>;
@@ -242,7 +238,7 @@ export interface ITestLayoutHarness {
 	saveWorkingSetCalls: string[];
 	/**
 	 * Optional callback invoked synchronously during `applyWorkingSet`, allowing
-	 * tests to simulate external visibility changes (e.g. the single-pane detail
+	 * tests to simulate external visibility changes (e.g. the desktop detail
 	 * panel) while `_isRestoringSessionLayout` is true.
 	 */
 	onApplyWorkingSet?: (workingSet: IEditorWorkingSet | 'empty') => void;
@@ -269,28 +265,17 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	const storageService = store.add(new TestStorageService());
 	if (options.layoutState) {
 		const raw = JSON.stringify(options.layoutState);
-		// Seed both the classic desktop key and the fresh single-pane key so the
-		// same harness serves both the LayoutController and SinglePaneLayoutController tests.
+		// The same harness serves base/mobile and desktop controller tests.
 		storageService.store('sessions.layoutState', raw, StorageScope.WORKSPACE, 0);
 		storageService.store('sessions.singlePane.layoutState', raw, StorageScope.WORKSPACE, 0);
 	}
 	if (options.sidePaneVisibilityState) {
 		storageService.store('sessions.singlePane.sidePaneVisibility', JSON.stringify(options.sidePaneVisibilityState), StorageScope.WORKSPACE, 0);
 	}
-	if (options.newSessionViewState) {
-		const raw = JSON.stringify(options.newSessionViewState);
-		storageService.store('sessions.newSessionViewState', raw, StorageScope.WORKSPACE, 0);
-		storageService.store('sessions.singlePane.newSessionViewState', raw, StorageScope.WORKSPACE, 0);
-	}
-	if (options.newSessionViewStateRaw !== undefined) {
-		storageService.store('sessions.newSessionViewState', options.newSessionViewStateRaw, StorageScope.WORKSPACE, 0);
-		storageService.store('sessions.singlePane.newSessionViewState', options.newSessionViewStateRaw, StorageScope.WORKSPACE, 0);
-	}
 	instaService.stub(IStorageService, storageService);
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('workbench.editor.useModal', options.useModal ?? 'all');
-	configService.setUserConfiguration('sessions.layout.autoCollapseSessionsSidebar', options.responsiveSidebar ?? true);
 	instaService.stub(IConfigurationService, configService);
 	const contextKeyService = store.add(new MockContextKeyService());
 	instaService.stub(IContextKeyService, contextKeyService);
@@ -360,7 +345,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		saveWorkingSetCalls: [],
 		openChangesEditorCalls: [],
 		sessionChangesService: store.add(new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
-			override get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
+			override get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
 		}, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
 			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
@@ -454,7 +439,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override setChangesetId(): void { }
 	});
 	instaService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
-		// Resolves only when a test opts in via `activateAux`, so the single-pane
+		// Resolves only when a test opts in via `activateAux`, so the desktop
 		// managed-tab / detail-panel behaviour is not spun up otherwise.
 		override when(): Promise<void> { return harness.activateAux ? Promise.resolve() : new Promise<void>(() => { }); }
 	});
@@ -528,16 +513,16 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			const sidePaneWasVisible = before.editor || before.auxiliaryBar;
 			harness.onWillToggleSidePane.fire();
 			try {
-				const singlePane = options.singlePaneLayoutEnabled ?? false;
-				// Mirror SinglePaneWorkbench: un-maximize before toggling both parts.
-				if (singlePane && harness.editorMaximized) {
+				const desktop = options.desktopLayout ?? false;
+				// Mirror DesktopWorkbench: un-maximize before toggling both parts.
+				if (desktop && harness.editorMaximized) {
 					this.setEditorMaximized(false);
 				}
 				const visible = !this.isSidePaneVisible();
 				const suppression = this.suppressEditorPartAutoVisibility();
 				try {
 					if (visible) {
-						const restore = harness.sidePaneStateBeforeHide ?? (singlePane
+						const restore = harness.sidePaneStateBeforeHide ?? (desktop
 							? { editor: true, auxiliaryBar: false }
 							: { editor: true, auxiliaryBar: true });
 						this.setPartHidden(!restore.editor, Parts.EDITOR_PART, true);
@@ -558,7 +543,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			}
 			return this.isSidePaneVisible();
 		}
-		get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
+		get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
 		readonly onDidChangeEditorMaximized = harness.onDidChangeEditorMaximized.event;
 		override readonly onDidLayoutMainContainer = harness.onDidLayoutMainContainer.event;
 		override get mainContainerDimension(): IDimension { return { width: harness.mainContainerWidth, height: 1000 }; }

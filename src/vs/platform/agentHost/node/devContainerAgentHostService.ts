@@ -11,7 +11,7 @@ import { lstat, rename, rm, stat, writeFile } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { join, posix } from '../../../base/common/path.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
@@ -165,6 +165,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage = this._onDidRelayMessage.event;
+
+	readonly onDidRelayActivity: Event<string> = Event.None;
 
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose = this._onDidRelayClose.event;

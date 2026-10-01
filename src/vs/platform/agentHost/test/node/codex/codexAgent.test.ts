@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
@@ -721,10 +721,11 @@ suite('CodexAgent', () => {
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
 				_logService: { warn(message: string): void };
+				_recordFirstDiscoveryResult(chats: readonly IAgentDiscoveredChat[]): void;
 			}): Promise<boolean>;
 		})._emitCodexChats;
 
-		await emitCodexChats.call({
+		const result = await emitCodexChats.call({
 			_isShuttingDown: false,
 			_connectionGeneration: 0,
 			_discoveredCodexChats: new Map(),
@@ -736,12 +737,16 @@ suite('CodexAgent', () => {
 			},
 			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },
 			_logService: { warn: () => { } },
+			_recordFirstDiscoveryResult: () => { },
 		});
 
-		assert.deepStrictEqual(emitted, [
-			{ ...chats[0], external: false },
-			{ ...chats[1], external: false },
-			{ ...chats[2], external: true },
-		]);
+		assert.deepStrictEqual({ result, emitted }, {
+			result: true,
+			emitted: [
+				{ ...chats[0], external: false },
+				{ ...chats[1], external: false },
+				{ ...chats[2], external: true },
+			],
+		});
 	});
 });
