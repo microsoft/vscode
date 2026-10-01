@@ -1197,6 +1197,7 @@ suite('mapSessionEvents — history replay', () => {
 
 	test('maps generated image resource links on replayed tool completion', async () => {
 		const uri = 'generated-images:/session/generated-image.png?version=1';
+		const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image Preview' } };
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'Draw a puppy' } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
@@ -1207,6 +1208,7 @@ suite('mapSessionEvents — history replay', () => {
 					success: true,
 					result: {
 						content: 'Generated an image.',
+						structuredContent: { imageGeneration },
 						contents: [{ type: 'resource_link', uri, name: 'generated-image.png', mimeType: 'image/png', size: 128 }],
 					},
 				},
@@ -1216,10 +1218,18 @@ suite('mapSessionEvents — history replay', () => {
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
 		const part = turns[0].responseParts[0];
 		assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
-		assert.deepStrictEqual(part.toolCall.content, [
-			{ type: ToolResultContentType.Text, text: 'Generated an image.' },
-			{ type: ToolResultContentType.Resource, uri, contentType: 'image/png', sizeHint: 128 },
-		]);
+		assert.deepStrictEqual({
+			content: part.toolCall.content,
+			title: part.toolCall.pastTenseMessage,
+			meta: part.toolCall._meta,
+		}, {
+			content: [
+				{ type: ToolResultContentType.Text, text: 'Generated an image.' },
+				{ type: ToolResultContentType.Resource, uri, contentType: 'image/png', sizeHint: 128 },
+			],
+			title: 'Generated image with Image Preview',
+			meta: { 'vscode.imageGeneration': imageGeneration },
+		});
 	});
 
 	test('maps SDK shell_exit full output to terminal completion on replay', async () => {

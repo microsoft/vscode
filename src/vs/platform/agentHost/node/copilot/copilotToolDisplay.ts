@@ -12,6 +12,7 @@ import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import type { ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
@@ -871,7 +872,17 @@ export function getStreamingInvocationMessage(toolName: string, displayName: str
 	}
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
+export function getSdkImageGenerationMetadata(data: unknown): IImageGenerationToolMetadata | undefined {
+	if (!isObject(data)) {
+		return undefined;
+	}
+	const structuredContent = (data as Record<string, unknown>)['structuredContent'];
+	return isObject(structuredContent)
+		? parseImageGenerationToolMetadata((structuredContent as Record<string, unknown>)['imageGeneration'])
+		: undefined;
+}
+
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, imageGeneration?: IImageGenerationToolMetadata): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
 	}
@@ -896,7 +907,9 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 
 	switch (toolName) {
 		case CopilotToolName.ImageGeneration:
-			return localize('toolComplete.imageGeneration', "Generated image");
+			return imageGeneration
+				? localize('toolComplete.imageGenerationModel', "Generated image with {0}", imageGeneration.requestedModel.name ?? imageGeneration.requestedModel.id)
+				: localize('toolComplete.imageGeneration', "Generated image");
 		case CopilotToolName.ImageGenerationMock:
 			return localize('toolComplete.imageGenerationMock', "Generated mock image");
 		case CopilotToolName.WebFetch: {

@@ -39,6 +39,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -10785,15 +10786,24 @@ Use the attached image as context.
 			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 			session.resetTurnState('turn-image');
 			const uri = 'generated-images:/session/generated-image.png?version=1';
+			const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image Preview' } };
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-image',
 				toolName: 'image_generation',
+				model: 'claude-sonnet-5',
 			});
+			const progress = {
+				toolCallId: 'tc-image',
+				progressMessage: 'Generating image',
+				structuredContent: { imageGeneration },
+			};
+			mockSession.fire('tool.execution_progress', progress);
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-image',
 				success: true,
 				result: {
 					content: 'Generated images.',
+					structuredContent: { imageGeneration },
 					contents: [
 						{ type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' },
 						{ type: 'resource_link', uri, name: 'generated-image.png', mimeType: 'image/png', size: 128 },
@@ -10803,11 +10813,26 @@ Use the attached image as context.
 			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
 
 			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete);
-			assert.deepStrictEqual(completed?.result.content, [
-				{ type: ToolResultContentType.Text, text: 'Generated images.' },
-				{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' },
-				{ type: ToolResultContentType.Resource, uri, contentType: 'image/png', sizeHint: 128 },
-			]);
+			const progressActions = () => getActions(signals).filter(action => action.type === ActionType.ChatToolCallContentChanged);
+			const progressAction = progressActions()[0];
+			mockSession.fire('tool.execution_progress', progress);
+			assert.deepStrictEqual({
+				content: completed?.result.content,
+				title: completed?.result.pastTenseMessage,
+				completedModel: completed && readImageGenerationToolMetadata(completed),
+				runningModel: progressAction && readImageGenerationToolMetadata(progressAction),
+				progressActionsAfterCompletion: progressActions().length,
+			}, {
+				content: [
+					{ type: ToolResultContentType.Text, text: 'Generated images.' },
+					{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' },
+					{ type: ToolResultContentType.Resource, uri, contentType: 'image/png', sizeHint: 128 },
+				],
+				title: 'Generated image with Image Preview',
+				completedModel: imageGeneration,
+				runningModel: imageGeneration,
+				progressActionsAfterCompletion: 1,
+			});
 		});
 
 		test('tool_start carries MCP App UI metadata from the SDK', async () => {

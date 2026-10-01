@@ -18,6 +18,7 @@ import { buildSubagentChatUri, getTurnError, isMessageHiddenFromTranscript, isMe
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -389,9 +390,15 @@ function getSubagentAgentName(tc: ToolCallState): string | undefined {
 	return v && v.length > 0 ? v : undefined;
 }
 
-/** Surfaces `_meta.progressMessage` of a running tool call as the invocation's progress step. */
+/** Surfaces host progress and image-model attribution as the invocation's progress step. */
 function applyToolCallProgress(invocation: ChatToolInvocation, tc: ToolCallState): void {
-	const progressMessage = tc.status === ToolCallStatus.Running ? readToolCallMeta(tc).progressMessage : undefined;
+	if (tc.status !== ToolCallStatus.Running) {
+		return;
+	}
+	const imageModel = readImageGenerationToolMetadata(tc)?.requestedModel;
+	const progressMessage = imageModel
+		? localize('imageGenerationModelProgress', "Generating image with {0}", imageModel.name ?? imageModel.id)
+		: readToolCallMeta(tc).progressMessage;
 	if (progressMessage !== undefined) {
 		invocation.acceptProgress({ message: progressMessage });
 	}
@@ -1897,7 +1904,7 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 }
 
 function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData | undefined {
-	if (tc.status !== ToolCallStatus.Completed || !tc.success || !imageGenerationToolNames.has(tc.toolName)) {
+	if (tc.status !== ToolCallStatus.Completed || !tc.success || (!imageGenerationToolNames.has(tc.toolName) && !readImageGenerationToolMetadata(tc))) {
 		return undefined;
 	}
 	const hasImage = tc.content?.some(block =>
@@ -1905,6 +1912,19 @@ function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData
 			? block.contentType.startsWith('image/') && block.data.length > 0
 			: block.type === ToolResultContentType.Resource && block.contentType?.startsWith('image/') && block.uri.length > 0);
 	return hasImage ? { kind: 'generatedImage' } : undefined;
+}
+
+function buildImageGenerationInputData(tc: ToolCallState): IChatToolInputInvocationData | undefined {
+	const imageGeneration = readImageGenerationToolMetadata(tc);
+	if (!imageGenerationToolNames.has(tc.toolName) && !imageGeneration) {
+		return undefined;
+	}
+	return {
+		kind: 'input',
+		rawInput: tc.status === ToolCallStatus.Streaming ? tc.partialInput : getInlineToolInput(tc.toolInput),
+		editable: false,
+		imageGeneration: imageGeneration ?? {},
+	};
 }
 
 function buildAutomationConfiguredToolData(tc: ToolCallState): IChatAutomationConfiguredData | undefined {
@@ -1971,7 +1991,8 @@ function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<I
 }
 
 function getImageGenerationTerminalMessage(tc: ToolCallState): string | undefined {
-	if (!imageGenerationToolNames.has(tc.toolName)) {
+	const imageModel = readImageGenerationToolMetadata(tc)?.requestedModel;
+	if (!imageGenerationToolNames.has(tc.toolName) && !imageModel) {
 		return undefined;
 	}
 	if (tc.status === ToolCallStatus.Cancelled) {
@@ -1979,6 +2000,9 @@ function getImageGenerationTerminalMessage(tc: ToolCallState): string | undefine
 	}
 	if (tc.status === ToolCallStatus.Completed && !tc.success) {
 		return localize('imageGenerationFailed', "Generated image failed");
+	}
+	if (tc.status === ToolCallStatus.Completed && imageModel) {
+		return localize('imageGenerationModelCompleted', "Generated image with {0}", imageModel.name ?? imageModel.id);
 	}
 	return undefined;
 }
@@ -2609,7 +2633,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	} else if (getToolKind(tc) === 'search') {
 		invocation.toolSpecificData = { kind: 'search' };
 	} else if (tc.status !== ToolCallStatus.Streaming) {
-		invocation.toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);
+		invocation.toolSpecificData = buildImageGenerationInputData(tc) ?? buildMcpAppToolInputData(tc, connectionAuthority);
 	}
 
 	return invocation;
@@ -2757,6 +2781,19 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		existing.invocationMessage = addCommentReference(tc, resourceUris) ?? existing.invocationMessage;
 	}
 	applyToolCallProgress(existing, tc);
+
+	const imageInput = buildImageGenerationInputData(tc);
+	if (imageInput) {
+		const previous = existing.toolSpecificData?.kind === 'input' ? existing.toolSpecificData : undefined;
+		if (previous?.rawInput !== imageInput.rawInput
+			|| previous?.imageGeneration?.requestedModel?.id !== imageInput.imageGeneration?.requestedModel?.id
+			|| previous?.imageGeneration?.requestedModel?.name !== imageInput.imageGeneration?.requestedModel?.name
+			|| !previous?.imageGeneration) {
+			existing.toolSpecificData = imageInput;
+			existing.notifyToolSpecificDataChanged();
+		}
+		return;
+	}
 
 	if (getToolKind(tc) === 'fusionPhase') {
 		updateFusionPhaseToolSpecificData(existing, tc, sessionResource);

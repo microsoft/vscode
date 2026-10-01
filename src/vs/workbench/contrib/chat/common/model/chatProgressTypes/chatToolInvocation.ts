@@ -369,7 +369,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 		if (result?.toolResultMessage) {
 			this.pastTenseMessage = result.toolResultMessage;
-		} else if (this._progress.get().message) {
+		} else if (this.toolSpecificData?.kind !== 'generatedImage' && this._progress.get().message) {
 			this.pastTenseMessage = this._progress.get().message;
 		}
 

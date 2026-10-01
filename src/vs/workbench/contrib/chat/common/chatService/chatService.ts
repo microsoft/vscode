@@ -831,6 +831,8 @@ export interface IChatToolInputInvocationData {
 	kind: 'input';
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rawInput: any;
+	/** Image-generation input and its independently selected image model. */
+	imageGeneration?: { readonly requestedModel?: { readonly id: string; readonly name?: string } };
 	/** Optional MCP App UI metadata for rendering during and after tool execution */
 	mcpAppData?: ChatMcpAppData;
 	/**
