@@ -211,7 +211,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/2786fba1b7f0b41a26e238ea678ef381bd004d977f16abcb600239e142d1488e)
 
 #### workbench/statusBar/statusBar/CompactDensity/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/b8d16bfa494f5199f0f12641dbeb4cd46253302adee8420b6377a8f80c8418cc)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a867ed66fc28256d67e6be33b41650ee2d79aaf227678110a7f12f49515761fa)
 
 #### workbench/statusBar/statusBar/DefaultDensity/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0868da3910e76f140c77881af39dfc566aca0dd1222f075937c7be1f02d2adf2)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f9131d58b7b5f051a5ed88c7f2bebbdedda45a5144a441fe73e87bcbdafeef2e)
