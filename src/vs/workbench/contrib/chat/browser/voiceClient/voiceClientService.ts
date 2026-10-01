@@ -127,6 +127,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _openAiCurrentResponseId: string | undefined;
 	private _openAiResponseCounter = 0;
 	private _openAiResponseRequestedForCurrentUtterance = false;
+	private _openAiResponseInFlight = false;
 
 	// --- Keep-alive ping/pong ---
 	private _pingTimer: ReturnType<Window['setInterval']> | undefined;
@@ -466,9 +467,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'speech_started':
-					if (this._isOpenAiRealtimeMode()) {
-						this._openAiResponseRequestedForCurrentUtterance = false;
-					}
 					this._onSpeechStarted.fire({ turnId: asOptionalString(msg.turn_id) });
 					break;
 				case 'input_audio_buffer.speech_stopped':
@@ -590,9 +588,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					break;
 				}
 				case 'response.created':
+					this._openAiResponseInFlight = true;
 					this._openAiCurrentResponseId = this._resolveOpenAiResponseId(msg as { response_id?: unknown; response?: { id?: unknown }; event_id?: unknown });
 					break;
 				case 'response.done':
+					this._openAiResponseInFlight = false;
+					this._openAiResponseRequestedForCurrentUtterance = false;
 					this._openAiCurrentResponseId = undefined;
 					break;
 				case 'conversation.item.input_audio_transcription.completed':
@@ -622,6 +623,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					break;
 				}
 				case 'error':
+					const errorCode = asOptionalString((msg as { error?: { code?: unknown } }).error?.code);
+					if (this._isOpenAiRealtimeMode() && (errorCode === 'input_audio_buffer_commit_empty' || errorCode === 'conversation_already_has_active_response')) {
+						this._logService.warn(`[voice] OpenAI non-fatal turn race ignored code=${errorCode}`);
+						if (errorCode === 'conversation_already_has_active_response') {
+							this._openAiResponseInFlight = true;
+						}
+						break;
+					}
 					const errorMessage = getVoiceErrorMessage(msg as {
 						detail?: string;
 						message?: string;
@@ -708,6 +717,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._currentWsUrl = undefined;
 		this._sessionStartedOnSocket = false;
 		this._openAiAudioChunkSeen.clear();
+		this._openAiCurrentResponseId = undefined;
+		this._openAiResponseRequestedForCurrentUtterance = false;
+		this._openAiResponseInFlight = false;
 		this._window = undefined;
 		this._lastSessionId = undefined;
 		this._isResuming = false;
@@ -792,6 +804,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private _requestOpenAiAudioResponse(trigger: 'ptt_end' | 'speech_stopped'): void {
 		if (this._ws?.readyState !== WebSocket.OPEN) {
+			return;
+		}
+		if (this._openAiResponseInFlight) {
 			return;
 		}
 		if (this._openAiResponseRequestedForCurrentUtterance) {
