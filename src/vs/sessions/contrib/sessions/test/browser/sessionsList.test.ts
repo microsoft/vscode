@@ -517,10 +517,8 @@ suite('Sessions - SessionsList', () => {
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
 			const customizationsLabel = customizationsSection?.querySelector('.session-section-label');
 			const migrationIndicator = customizationsSection?.querySelector('.session-section-migration-indicator');
-			const countBadge = customizationsSection?.querySelector('.session-section-count-badge .monaco-count-badge');
 			const customizationsPresentation = {
-				countBadge: countBadge?.textContent,
-				countBadgeNextToLabel: countBadge?.parentElement?.previousElementSibling === customizationsLabel,
+				hasTotalCountBadge: customizationsSection?.querySelector('.monaco-count-badge') !== null,
 				migrationIndicatorVisible: migrationIndicator?.classList.contains('visible'),
 				migrationIndicatorOutsideLabel: !!migrationIndicator && !customizationsLabel?.contains(migrationIndicator),
 				hasExtensionsIcon: customizationsSection?.querySelector('.session-section-icon')?.classList.contains('codicon-extensions'),
@@ -581,8 +579,7 @@ suite('Sessions - SessionsList', () => {
 				],
 				headerInTreatment: true,
 				customizationsPresentation: {
-					countBadge: '7',
-					countBadgeNextToLabel: true,
+					hasTotalCountBadge: false,
 					migrationIndicatorVisible: true,
 					migrationIndicatorOutsideLabel: true,
 					hasExtensionsIcon: true,
