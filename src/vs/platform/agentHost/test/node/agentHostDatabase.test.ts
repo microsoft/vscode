@@ -636,6 +636,44 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('repairs missing chat columns without lowering a future schema version', async () => {
+		const path = join(temporaryDirectory!, 'agent-host-future-v17.db');
+		database = new AgentHostDatabase(path);
+		await database.registerSessionV2('session://future-v17', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.replaceSessionChatCatalog('session://future-v17', [
+			{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' },
+		], undefined);
+		await database.close();
+		database = undefined;
+
+		const futureDatabase = await openDatabase(path);
+		await exec(futureDatabase, `ALTER TABLE session_chats DROP COLUMN is_read;
+			ALTER TABLE session_chats ADD COLUMN parent_chat TEXT;
+			ALTER TABLE session_chats ADD COLUMN storage_resource TEXT;
+			PRAGMA user_version = 17`);
+		await close(futureDatabase);
+
+		database = new AgentHostDatabase(path);
+		const catalog = await database.getSessionChatCatalog('session://future-v17');
+		await database.close();
+		database = undefined;
+
+		const repairedDatabase = await openDatabase(path);
+		const version = await all(repairedDatabase, 'PRAGMA user_version');
+		const columns = (await all(repairedDatabase, 'PRAGMA table_info(session_chats)')).map(row => row.name);
+		await close(repairedDatabase);
+
+		assert.deepStrictEqual({ catalog, version, columns }, {
+			catalog: {
+				revision: 1,
+				legacyMirroredRevision: 0,
+				chats: [{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' }],
+			},
+			version: [{ user_version: 17 }],
+			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],
+		});
+	});
+
 	test('upgrades a pre-release v6 catalog while preserving unknown tables', async () => {
 		const path = join(temporaryDirectory!, 'agent-host-future-v6.db');
 		database = new AgentHostDatabase(path);

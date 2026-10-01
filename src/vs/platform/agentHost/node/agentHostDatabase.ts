@@ -339,7 +339,7 @@ const migrations = [
 ] as const;
 
 async function normalizePreReleaseCatalogSchema(database: Database, currentVersion: number): Promise<number> {
-	if (currentVersion < 4 || currentVersion >= CHAT_READ_MIGRATION_VERSION || !await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'sessions_v2'`, [])) {
+	if (currentVersion < 4 || !await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'sessions_v2'`, [])) {
 		return currentVersion;
 	}
 	const hasFinalCatalog = await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chat_catalogs'`, [])
@@ -348,6 +348,15 @@ async function normalizePreReleaseCatalogSchema(database: Database, currentVersi
 		const chatColumns = await all(database, 'PRAGMA table_info(session_chats)', []);
 		const hasArchived = chatColumns.some(column => column.name === 'archived');
 		const hasRead = chatColumns.some(column => column.name === 'is_read');
+		if (currentVersion >= CHAT_READ_MIGRATION_VERSION) {
+			if (!hasArchived) {
+				await exec(database, chatArchiveMigrationSql);
+			}
+			if (!hasRead) {
+				await exec(database, chatReadMigrationSql);
+			}
+			return currentVersion;
+		}
 		if (hasArchived && hasRead) {
 			await exec(database, `PRAGMA user_version = ${CHAT_READ_MIGRATION_VERSION}`);
 			return CHAT_READ_MIGRATION_VERSION;
@@ -361,6 +370,9 @@ async function normalizePreReleaseCatalogSchema(database: Database, currentVersi
 			await exec(database, `PRAGMA user_version = ${CHAT_ARCHIVE_MIGRATION_VERSION}`);
 			return CHAT_ARCHIVE_MIGRATION_VERSION;
 		}
+	}
+	if (currentVersion >= CHAT_READ_MIGRATION_VERSION) {
+		return currentVersion;
 	}
 	const isPreReleaseVersion11 = currentVersion === 11;
 	if (hasFinalCatalog && currentVersion >= 5 && !isPreReleaseVersion11) {
