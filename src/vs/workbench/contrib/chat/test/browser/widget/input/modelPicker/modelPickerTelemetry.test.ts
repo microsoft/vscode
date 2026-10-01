@@ -349,19 +349,21 @@ suite('ModelPickerTelemetry', () => {
 		};
 	}
 
-	test('Free entitlement replaces a persisted HydraFusion selection when the picker is constructed', () => {
-		const hydraFusion = createModel('hydrafusion');
-		const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model], ChatEntitlement.Free);
-		assert.deepStrictEqual({
-			selected: result.picker.selectedModel?.identifier,
-			delegateSelections: result.delegateSelections,
-			programmaticDelegateSelections: result.programmaticDelegateSelections,
-		}, {
-			selected: autoModel.identifier,
-			delegateSelections: [],
-			programmaticDelegateSelections: [autoModel.identifier],
+	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
+		test(`${ChatEntitlement[entitlement]} entitlement replaces a persisted HydraFusion selection when the picker is constructed`, () => {
+			const hydraFusion = createModel('hydrafusion');
+			const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model], entitlement);
+			assert.deepStrictEqual({
+				selected: result.picker.selectedModel?.identifier,
+				delegateSelections: result.delegateSelections,
+				programmaticDelegateSelections: result.programmaticDelegateSelections,
+			}, {
+				selected: autoModel.identifier,
+				delegateSelections: [],
+				programmaticDelegateSelections: [autoModel.identifier],
+			});
 		});
-	});
+	}
 
 	test('Free entitlement falls back to setModel when the delegate has no programmatic selection', () => {
 		const hydraFusion = createModel('hydrafusion');
