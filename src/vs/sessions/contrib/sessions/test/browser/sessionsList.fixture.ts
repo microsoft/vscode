@@ -547,20 +547,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_PeerChatInProgress: defineSessionsListFixture({
 		sessions: [{
 			id: 'a',
-			title: 'Single-pane details behavior',
+			title: 'Desktop details behavior',
 			workspace: 'vscode',
 			minutesAgo: 0,
 			status: SessionStatus.InProgress,
 			mainChatStatus: SessionStatus.Completed,
 			chats: [
-				{ id: 'layout', title: 'Fix single-pane details layout' },
+				{ id: 'layout', title: 'Fix desktop details layout' },
 				{ id: 'restore', title: 'Fix empty files restore', status: SessionStatus.InProgress },
 			],
 		}],
 		view: { width: 620 },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix single-pane details layout" peer chat shows an inactive dot. The session details say "Working...".'],
+		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix desktop details layout" peer chat shows an inactive dot. The session details say "Working...".'],
 	}),
 	SessionsList_NestedChatApprovals: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_APPROVAL_SESSION],

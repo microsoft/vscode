@@ -22,20 +22,20 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { HasDockedDetailsContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
-import { DetailPanelTarget, SinglePaneDetailPanelCoordinator } from './singlePaneDetailPanelCoordinator.js';
-import { SinglePaneDockedTabsCoordinator } from './singlePaneDockedTabsCoordinator.js';
-import { isChangesEditorInput, isEditorWithoutDockedDetails, isFileEditorInput, isMainPartEmpty } from './singlePaneSharedHelpers.js';
-import { ISinglePaneLayoutContext, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
-import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from './singlePaneVisibilityProfileStore.js';
+import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
+import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
+import { isChangesEditorInput, isEditorWithoutDockedDetails, isFileEditorInput, isMainPartEmpty } from './desktopSharedHelpers.js';
+import { IDesktopLayoutContext, DesktopLayoutStrategy } from './desktopLayoutStrategy.js';
+import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
 
-/** Command that toggles the single-pane detail panel (auxiliary bar) from the editor header. */
+/** Command that toggles the desktop detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
-const singlePaneHeaderToggleDetailsOrder = 10;
+const desktopHeaderToggleDetailsOrder = 10;
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
@@ -47,21 +47,21 @@ const singlePaneHeaderToggleDetailsOrder = 10;
  *  - the detail-panel mapping while an Existing Session is active;
  *  - the Toggle Details command (kind-agnostic — it also applies while a New Session's docked
  *    tabs are visible — hosted here since Existing is the steady-state default);
- *  - owning (constructing/disposing) the shared {@link SinglePaneDockedTabsCoordinator}, whose
+ *  - owning (constructing/disposing) the shared {@link DesktopDockedTabsCoordinator}, whose
  *    managed-tabs reconcile pipeline and detail-only editor-area collapse must stay
  *    single-instance across the New→Existing submit transition — see its doc comment.
  */
-export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy {
+export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
-	private _managedTabs: SinglePaneDockedTabsCoordinator | undefined;
+	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
 	private _detailHiddenTransiently = false;
 	private _detailHiddenByEditor = false;
 	private _changingDetailTransiently = false;
 
 	constructor(
-		ctx: ISinglePaneLayoutContext,
-		private readonly _visibilityStore: SinglePaneVisibilityProfileStore,
-		private readonly _detailPanel: SinglePaneDetailPanelCoordinator,
+		ctx: IDesktopLayoutContext,
+		private readonly _visibilityStore: DesktopVisibilityProfileStore,
+		private readonly _detailPanel: DesktopDetailPanelCoordinator,
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -112,14 +112,14 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 	 * the controller (mirrors the original managed-tabs/editor-collapse strategies' timing) so
 	 * the reconcile pipeline only starts once the workbench's restored editor group exists.
 	 */
-	registerManagedTabs(managedTabs: SinglePaneDockedTabsCoordinator): void {
+	registerManagedTabs(managedTabs: DesktopDockedTabsCoordinator): void {
 		this._managedTabs = managedTabs;
 		this._registerManagedTabsSupplement();
 	}
 
-	private get managedTabs(): SinglePaneDockedTabsCoordinator {
+	private get managedTabs(): DesktopDockedTabsCoordinator {
 		if (!this._managedTabs) {
-			throw new Error('SinglePaneExistingSessionStrategy: managed tabs accessed before registerManagedTabs()');
+			throw new Error('DesktopExistingSessionStrategy: managed tabs accessed before registerManagedTabs()');
 		}
 		return this._managedTabs;
 	}
@@ -483,19 +483,19 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
 							IsAuxiliaryWindowContext.toNegated(),
-							SinglePaneLayoutEnabledContext)
+							DesktopLayoutContext)
 					},
 					menu: {
 						id: MenuId.EditorTitleLayout,
 						group: 'navigation',
-						order: singlePaneHeaderToggleDetailsOrder,
+						order: desktopHeaderToggleDetailsOrder,
 						// Not every tab type has a detail panel to show/hide (e.g. browser and
 						// search tabs), so only surface the toggle for tab types that do.
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
 							IsAuxiliaryWindowContext.toNegated(),
 							IsTopRightEditorGroupContext,
-							SinglePaneLayoutEnabledContext,
+							DesktopLayoutContext,
 							MainEditorAreaVisibleContext,
 							HasDockedDetailsContext)
 					}

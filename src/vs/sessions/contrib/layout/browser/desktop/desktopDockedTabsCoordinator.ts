@@ -21,7 +21,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { DockedEditorInput } from '../../../../common/dockedEditorInput.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
@@ -29,7 +29,7 @@ import { ISessionChangesService } from '../../../changes/browser/sessionChangesS
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISinglePaneLayoutContext } from './singlePaneLayoutStrategy.js';
+import { IDesktopLayoutContext } from './desktopLayoutStrategy.js';
 
 /** Options to open the Changes tab pinned first, inactive (the workbench auto-activates it only when the group is empty). */
 const CHANGES_TAB_OPTIONS: IEditorOptions = { pinned: true, index: 0, inactive: true, preserveFocus: true, activation: EditorActivation.PRESERVE, isExplicit: false };
@@ -90,15 +90,15 @@ interface IPendingReconcile {
  * Owns the two managed docked tabs (the pinned Changes multi-diff tab and the empty Files
  * placeholder tab for workspace sessions) and the detail-only editor-area collapse. Shared
  * (not a strategy) because both belong to one reconcile pipeline that must stay single-instance
- * across the New→Existing submit transition — see `SinglePaneLayoutStrategy`'s doc comment.
- * Owned and disposed by {@link import('./singlePaneExistingSessionStrategy.js').SinglePaneExistingSessionStrategy}.
- * `SinglePaneDraftSessionStrategy` supplies workspace-draft supplementary reconcile intents via
+ * across the New→Existing submit transition — see `DesktopLayoutStrategy`'s doc comment.
+ * Owned and disposed by {@link import('./desktopExistingSessionStrategy.js').DesktopExistingSessionStrategy}.
+ * `DesktopDraftSessionStrategy` supplies workspace-draft supplementary reconcile intents via
  * {@link queueReconcile}; workspace-less drafts never want managed tabs, so the ambient
  * session-change trigger below reconciles them away on its own.
  *
- * See `SINGLE_PANE_SCENARIOS.md` for the full reconcile rules.
+ * See `DESKTOP.md` for the full reconcile rules.
  */
-export class SinglePaneDockedTabsCoordinator extends Disposable {
+export class DesktopDockedTabsCoordinator extends Disposable {
 
 	/** Non-docked editors closed (as reopenable inputs + tab index) while the editor area is hidden. */
 	private _collapsedEditors: { readonly editor: IUntypedEditorInput; readonly index: number }[] | undefined;
@@ -128,7 +128,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 	private _editorAreaVisible: boolean | undefined;
 
 	constructor(
-		private readonly _ctx: ISinglePaneLayoutContext,
+		private readonly _ctx: IDesktopLayoutContext,
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -140,10 +140,10 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 	) {
 		super();
 
-		this._changesTabMissingContext = SinglePaneChangesTabMissingContext.bindTo(contextKeyService);
-		this._filesTabMissingContext = SinglePaneFilesTabMissingContext.bindTo(contextKeyService);
-		this._changesTabAvailableContext = SinglePaneChangesTabAvailableContext.bindTo(contextKeyService);
-		this._filesTabAvailableContext = SinglePaneFilesTabAvailableContext.bindTo(contextKeyService);
+		this._changesTabMissingContext = DesktopChangesTabMissingContext.bindTo(contextKeyService);
+		this._filesTabMissingContext = DesktopFilesTabMissingContext.bindTo(contextKeyService);
+		this._changesTabAvailableContext = DesktopChangesTabAvailableContext.bindTo(contextKeyService);
+		this._filesTabAvailableContext = DesktopFilesTabAvailableContext.bindTo(contextKeyService);
 
 		// [Ambient trigger] Session switch / created transition, kind-agnostic (fires for New,
 		// Existing, and Quick Chat alike — a quick chat's target wants neither tab, so this

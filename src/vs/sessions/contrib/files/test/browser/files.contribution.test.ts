@@ -28,7 +28,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { TestFileEditorInput } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { DesktopLayoutContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { DownloadRemoteFileAction, RegisterFilesViewContribution, SESSIONS_FILES_CONTAINER_ID } from '../../browser/files.contribution.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID } from '../../browser/filesView.js';
@@ -43,22 +43,22 @@ suite('Sessions Files view availability', () => {
 		const views = viewsRegistry.getViews(container);
 		store.add(toDisposable(() => viewsRegistry.deregisterViews(views, container)));
 		const context = store.add(new MockContextKeyService());
-		const singlePane = SinglePaneLayoutEnabledContext.bindTo(context);
+		const desktop = DesktopLayoutContext.bindTo(context);
 		const quickChat = IsQuickChatSessionContext.bindTo(context);
 		const hasWorkspace = SessionHasWorkspaceContext.bindTo(context);
 		const folders = WorkspaceFolderCountContext.bindTo(context);
 		const phone = IsPhoneLayoutContext.bindTo(context);
 
 		const cases = [
-			{ singlePane: true, quickChat: true, hasWorkspace: false, folders: 0, phone: false },
-			{ singlePane: true, quickChat: true, hasWorkspace: false, folders: 1, phone: false },
-			{ singlePane: true, quickChat: false, hasWorkspace: true, folders: 1, phone: false },
-			{ singlePane: true, quickChat: false, hasWorkspace: true, folders: 0, phone: false },
-			{ singlePane: false, quickChat: true, hasWorkspace: false, folders: 0, phone: false },
-			{ singlePane: true, quickChat: true, hasWorkspace: false, folders: 0, phone: true },
+			{ desktop: true, quickChat: true, hasWorkspace: false, folders: 0, phone: false },
+			{ desktop: true, quickChat: true, hasWorkspace: false, folders: 1, phone: false },
+			{ desktop: true, quickChat: false, hasWorkspace: true, folders: 1, phone: false },
+			{ desktop: true, quickChat: false, hasWorkspace: true, folders: 0, phone: false },
+			{ desktop: false, quickChat: true, hasWorkspace: false, folders: 0, phone: false },
+			{ desktop: true, quickChat: true, hasWorkspace: false, folders: 0, phone: true },
 		];
 		const visibleViews = cases.map(testCase => {
-			singlePane.set(testCase.singlePane);
+			desktop.set(testCase.desktop);
 			quickChat.set(testCase.quickChat);
 			hasWorkspace.set(testCase.hasWorkspace);
 			folders.set(testCase.folders);
@@ -88,7 +88,7 @@ suite('Sessions Download Remote File action', () => {
 		const activeEditor = ActiveEditorContext.bindTo(context);
 		const scheme = ResourceContextKey.Scheme.bindTo(context);
 		const fileSystem = ResourceContextKey.IsFileSystemResource.bindTo(context);
-		const singlePane = SinglePaneLayoutEnabledContext.bindTo(context);
+		const desktop = DesktopLayoutContext.bindTo(context);
 		const menuItems = [
 			{ id: Menus.SessionsEditorHeaderPrimary, name: 'header' },
 			{ id: Menus.SessionsEditorTitle, name: 'sessionsEditorTitle' },
@@ -98,21 +98,21 @@ suite('Sessions Download Remote File action', () => {
 			.filter(item => item.command.id === DownloadRemoteFileAction.ID)
 			.map(item => ({ item, menu: menu.name })));
 		const cases = [
-			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: true },
-			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: Schemas.vscodeRemote, sessions: true, fileSystem: true, singlePane: true },
-			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: false },
-			{ activeEditor: EmptyFileEditorInput.EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, singlePane: true },
-			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: Schemas.file, sessions: true, fileSystem: true, singlePane: true },
-			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: Schemas.untitled, sessions: true, fileSystem: false, singlePane: true },
-			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: false, fileSystem: true, singlePane: true },
-			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: false, singlePane: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, desktop: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: Schemas.vscodeRemote, sessions: true, fileSystem: true, desktop: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, desktop: false },
+			{ activeEditor: EmptyFileEditorInput.EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: true, desktop: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: Schemas.file, sessions: true, fileSystem: true, desktop: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: Schemas.untitled, sessions: true, fileSystem: false, desktop: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: false, fileSystem: true, desktop: true },
+			{ activeEditor: TEXT_FILE_EDITOR_ID, scheme: AGENT_HOST_SCHEME, sessions: true, fileSystem: false, desktop: true },
 		];
 		assert.deepStrictEqual(cases.map(testCase => {
 			sessions.set(testCase.sessions);
 			activeEditor.set(testCase.activeEditor);
 			scheme.set(testCase.scheme);
 			fileSystem.set(testCase.fileSystem);
-			singlePane.set(testCase.singlePane);
+			desktop.set(testCase.desktop);
 			return menuItems.filter(({ item }) => item.when?.evaluate({
 				getValue: key => context.getContextKeyValue(key),
 			})).map(({ item, menu }) => ({ menu, group: item.group }));

@@ -109,7 +109,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/56b9ac7ce8ad6692c3269e73900a765e59c5705d6dc93d35b3134cf9ff571cde)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionExperimentalComposerBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/4edfb07460717f1bc685c54bb3a800f6320f4cca0f93141d17dcb10cf78c34ce)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a7661db84cd3f7febb2c036cb8f7b17bdc09d05dccb6114ba7ba21aa3e439f3b)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/bd4b7314d7d4e2bb7f1765f25901efdb6d4b6d08f6acc5766f95d597d87ea968)
@@ -196,7 +196,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/57948fc81ca82530917b6c16bfebbaeb3d0675dd954b9df170eaeccb69fd9904)
 
 #### sessions/sessionsList/SessionsList_PeerChatInProgress/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0beaf1569f475635e1ad97d7d7fdca9769142d83345994afe8783846deac6693)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/4f35b1978db64ba5b6fb71f186e089e928c7f4c762c72dda62b8b56d745e1010)
 
 #### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8ce3a612a7d5f50553d976259d4cbf04007a7d709bd0d7fd6734d57fbe69d271)
