@@ -118,6 +118,9 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 const ContextTiers = ['default', 'long_context'] as const;
 export const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 
+/** Copilot runtime feature flag that stores memories in the repository's `.github/copilot-memories.jsonl`. */
+const COPILOT_LOCAL_MEMORY_FEATURE_FLAG = 'copilot_swe_agent_memory_in_repo_store';
+
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
 type UserInputInvocation = Parameters<UserInputHandler>[1];
@@ -956,10 +959,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		const hydraFusionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 		const memoryEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
+		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
 		const featureFlags = {
 			CONNECTORS: copilotConnectorsEnabled,
+			// When on, the runtime uses the in-repo memory store instead of cloud memory.
+			// Always explicit so only the VS Code opt-in can switch the store.
+			[COPILOT_LOCAL_MEMORY_FEATURE_FLAG]: localMemoryEnabled,
 			...(copilotConnectorsEnabled ? { MANAGED_MCP_SERVERS: true } : {}),
 			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true } : {}),
 		};

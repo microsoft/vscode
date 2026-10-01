@@ -721,7 +721,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 				featureFlags,
 				connectorCalls,
 			}, {
-				featureFlags: { CONNECTORS: true, MANAGED_MCP_SERVERS: true },
+				featureFlags: { CONNECTORS: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 				connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true'],
 			});
 		} finally {
@@ -1796,28 +1796,38 @@ suite('CopilotSessionLauncher resume config', () => {
 			enabledExperimentalMode: true,
 			enabledFeatureFlags: {
 				CONNECTORS: false,
+				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
 			},
 			disabledExperimentalMode: undefined,
-			disabledFeatureFlags: { CONNECTORS: false },
+			disabledFeatureFlags: { CONNECTORS: false, copilot_swe_agent_memory_in_repo_store: false },
 			defaultExperimentalMode: undefined,
-			defaultFeatureFlags: { CONNECTORS: false },
-			connectorFeatureFlags: { CONNECTORS: true, MANAGED_MCP_SERVERS: true },
+			defaultFeatureFlags: { CONNECTORS: false, copilot_swe_agent_memory_in_repo_store: false },
+			connectorFeatureFlags: { CONNECTORS: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 		});
 	});
 
-	test('explicitly disables Copilot Memory unless opted in', async () => {
+	test('explicitly disables Copilot Memory and the local store unless opted in', async () => {
 		const store = disposables.add(new DisposableStore());
-		const enabled = await buildResumeConfig(createLauncher(store, { memory: true }), { id: 'gpt-5' });
-		const disabled = await buildResumeConfig(createLauncher(store, { memory: false }), { id: 'gpt-5' });
-		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+		const configs = {
+			cloud: await buildResumeConfig(createLauncher(store, { memory: true }), { id: 'gpt-5' }),
+			local: await buildResumeConfig(createLauncher(store, { memory: true, localMemory: true }), { id: 'gpt-5' }),
+			localWithoutMemory: await buildResumeConfig(createLauncher(store, { memory: false, localMemory: true }), { id: 'gpt-5' }),
+			disabled: await buildResumeConfig(createLauncher(store, { memory: false }), { id: 'gpt-5' }),
+			notOptedIn: await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' }),
+		};
 
-		assert.deepStrictEqual([enabled.memory, disabled.memory, notOptedIn.memory], [
-			{ enabled: true },
-			{ enabled: false },
-			{ enabled: false },
-		]);
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(configs).map(([name, config]) => [name, {
+			memory: config.memory,
+			localStore: config.featureFlags?.copilot_swe_agent_memory_in_repo_store,
+		}])), {
+			cloud: { memory: { enabled: true }, localStore: false },
+			local: { memory: { enabled: true }, localStore: true },
+			localWithoutMemory: { memory: { enabled: false }, localStore: false },
+			disabled: { memory: { enabled: false }, localStore: false },
+			notOptedIn: { memory: { enabled: false }, localStore: false },
+		});
 	});
 
 	test('exposes only the client semantic-search override', async () => {
