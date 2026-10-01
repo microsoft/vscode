@@ -118,7 +118,8 @@ export class ThinkingDataItem implements ThinkingData {
 				}
 			}
 		}
-		if (delta.metadata) {
+		// A completion marker must not overwrite the saved reasoning signature.
+		if (delta.metadata && delta.metadata.vscode_reasoning_done !== true) {
 			this.metadata = delta.metadata;
 		}
 	}

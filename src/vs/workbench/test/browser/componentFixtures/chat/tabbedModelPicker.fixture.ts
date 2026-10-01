@@ -374,7 +374,10 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 				registration.defineInstance(IContextViewService, createInlineContextViewService(container, disposableStore));
 			}
 			registration.defineInstance(ILanguageModelsService, createLanguageModelsService());
-			registration.defineInstance(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ entitlement: options.entitlement ?? ChatEntitlement.Free }));
+			registration.defineInstance(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
+				entitlement: options.entitlement ?? ChatEntitlement.Free,
+				onDidChangeEntitlement: Event.None,
+			}));
 			// The shared harness discards writes, so the picker cannot remember anything.
 			registration.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 		},
@@ -548,6 +551,7 @@ function renderInputPicker(context: ComponentFixtureContext, initialModel = COPI
 		{
 			currentModel: selected,
 			setModel: model => selected.set(model, undefined),
+			setModelProgrammatically: model => selected.set(model, undefined),
 			getModels: () => COPILOT_ONLY_MODELS,
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true, showManageModelsAction: false, showUnavailableFeatured: false,
@@ -674,20 +678,21 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		render: context => renderPicker(context, { models: RELAYED_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5' }),
 	}),
 	PickerWithHydraFusion: defineComponentFixture({
-		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5' }),
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
 	PickerAutoModeWithHydraFusion: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/auto' }),
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/auto', entitlement: ChatEntitlement.Pro }),
 	}),
 	PickerHydraFusionSelected: defineComponentFixture({
-		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: HYDRA_FUSION_MODEL.identifier }),
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: HYDRA_FUSION_MODEL.identifier, entitlement: ChatEntitlement.Pro }),
 	}),
 	PickerHydraFusionNeedsUpdate: defineComponentFixture({
 		render: context => renderPicker(context, {
 			models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL],
 			selectedModelId: 'agent-host-copilotcli/gpt-5-5',
 			controlModels: { 'hydrafusion': { label: 'HydraFusion', featured: true, exists: true, minVSCodeVersion: '99.0.0' } },
+			entitlement: ChatEntitlement.Pro,
 		}),
 	}),
 	PickerLockedModels: defineComponentFixture({
