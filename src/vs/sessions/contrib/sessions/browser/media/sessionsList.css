@@ -1087,20 +1087,6 @@
 		white-space: nowrap;
 	}
 
-	.session-section-migration-indicator {
-		display: none;
-		flex-shrink: 0;
-		width: var(--vscode-spacing-size60);
-		height: var(--vscode-spacing-size60);
-		margin-left: var(--vscode-spacing-size40);
-		border-radius: var(--vscode-cornerRadius-circle);
-		background-color: var(--vscode-activityWarningBadge-background, var(--vscode-editorWarning-foreground));
-	}
-
-	.session-section-migration-indicator.visible {
-		display: block;
-	}
-
 	.session-section-icon {
 		flex-shrink: 0;
 		margin-right: 6px;
