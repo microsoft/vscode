@@ -71,6 +71,7 @@ export class ProjectBoardContextPills extends Disposable {
 	readonly element: HTMLElement;
 	private readonly sections = observableValue<ContextSections>(this, { artifacts: [], references: [], pullRequests: [] });
 	private readonly pills = observableValue<readonly IChatPill[]>(this, []);
+	private readonly visible = observableValue(this, true);
 	private previous: { readonly sharedContext: IProjectBoardCard['sharedContext']; readonly pullRequests: IProjectBoardCard['pullRequests']; readonly metadataContext: readonly IProjectBoardContext[] | undefined } | undefined;
 
 	constructor(
@@ -107,8 +108,12 @@ export class ProjectBoardContextPills extends Disposable {
 			return { sections, pill };
 		});
 		this._register(autorun(reader => {
-			this.pills.set(sources.filter(source => source.sections.read(reader).some(section => section.entries.length)).map(source => source.pill), undefined);
+			this.pills.set(this.visible.read(reader) ? sources.filter(source => source.sections.read(reader).some(section => section.entries.length)).map(source => source.pill) : [], undefined);
 		}));
+	}
+
+	setVisible(visible: boolean): void {
+		this.visible.set(visible, undefined);
 	}
 
 	update(card: IProjectBoardCard, metadata: IProjectBoardMetadata | undefined): void {

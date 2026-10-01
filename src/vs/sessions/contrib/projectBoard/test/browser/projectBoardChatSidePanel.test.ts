@@ -27,6 +27,7 @@ import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget
 import { IChatModelReference, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatModel, IChatModelInputState, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -123,6 +124,7 @@ suite('ProjectBoardChatSidePanel', () => {
 			override clear = sinon.spy();
 			override focus = sinon.spy();
 			override hasChatFocus = sinon.stub().returns(true);
+			override hasLoadedChat = sinon.stub().returns(true);
 			override isBodyVisible(): boolean { return true; }
 		}();
 		const openView = sinon.stub().callsFake(async () => {
@@ -191,6 +193,193 @@ suite('ProjectBoardChatSidePanel', () => {
 		assert.deepStrictEqual({
 			current: h.panel.activeCardId.get(), opens: h.pane.open.callCount, focuses: h.pane.focus.callCount, reads: h.markRead.callCount,
 		}, { current: canonicalId, opens: 1, focuses: 1, reads: 1 });
+	});
+
+	test('reopening the loaded exact chat preserves the pane and highlight and updates close focus ownership', async () => {
+		const h = setup();
+		const card = createCard();
+		const firstOrigin = sinon.spy();
+		const latestOrigin = sinon.spy();
+		const identities: (string | undefined)[] = [];
+		store.add(autorun(reader => identities.push(h.panel.activeCardId.read(reader))));
+		await h.panel.open(card, firstOrigin);
+		await h.panel.open({ ...card }, latestOrigin);
+		assert.deepStrictEqual({
+			opens: h.pane.open.callCount, views: h.openView.callCount, clears: h.pane.clear.callCount,
+			trusts: h.trust.callCount, reads: h.markRead.callCount, focuses: h.pane.focus.callCount, identities,
+		}, {
+			opens: 1, views: 1, clears: 0, trusts: 2, reads: 2, focuses: 2,
+			identities: [undefined, getProjectBoardCardId(card.session, card.chat)],
+		});
+		h.panel.close();
+		await h.waitForClose();
+		assert.deepStrictEqual([firstOrigin.callCount, latestOrigin.callCount, h.pane.clear.callCount], [0, 1, 1]);
+	});
+
+	test('reopening still checks trust while retaining the loaded pane until trust is declined', async () => {
+		const h = setup();
+		const card = createCard();
+		await h.panel.open(card, () => { });
+		const trust = new DeferredPromise<boolean>();
+		h.trust.returns(trust.p);
+		const opening = h.panel.open(card, () => { });
+		assert.strictEqual(h.pane.clear.callCount, 0);
+		await trust.complete(false);
+		await opening;
+		await h.waitForClose();
+		assert.deepStrictEqual({
+			opens: h.pane.open.callCount, clears: h.pane.clear.callCount, reads: h.markRead.callCount,
+			focuses: h.pane.focus.callCount, current: h.panel.activeCardId.get(),
+		}, { opens: 1, clears: 1, reads: 1, focuses: 1, current: undefined });
+	});
+
+	test('closing during a reuse trust check cannot refocus or mark the closed chat read', async () => {
+		const h = setup();
+		const card = createCard();
+		await h.panel.open(card, () => { });
+		const trust = new DeferredPromise<boolean>();
+		h.trust.returns(trust.p);
+		const opening = h.panel.open(card, () => { });
+		h.panel.close();
+		await opening;
+		await trust.complete(true);
+		await h.waitForClose();
+		assert.deepStrictEqual([h.pane.open.callCount, h.pane.clear.callCount, h.pane.focus.callCount, h.markRead.callCount], [1, 1, 1, 1]);
+	});
+
+	test('a newer different chat wins over a pending same-chat trust check', async () => {
+		const h = setup();
+		const card = createCard();
+		await h.panel.open(card, () => { });
+		const trust = new DeferredPromise<boolean>();
+		h.trust.onSecondCall().returns(trust.p);
+		const reopening = h.panel.open(card, () => { });
+		const next = createCard('next');
+		await h.panel.open(next, () => { });
+		await trust.complete(false);
+		await reopening;
+		assert.deepStrictEqual({
+			opens: h.pane.open.callCount, clears: h.pane.clear.callCount, reads: h.markRead.callCount,
+			current: h.panel.activeCardId.get(),
+		}, { opens: 2, clears: 1, reads: 2, current: getProjectBoardCardId(next.session, next.chat) });
+	});
+
+	test('reuse falls back to loading when the model or exact identity changes during the trust check', async () => {
+		for (const change of ['model', 'identity']) {
+			const h = setup();
+			const card = createCard();
+			await h.panel.open(card, () => { });
+			const trust = new DeferredPromise<boolean>();
+			h.trust.returns(trust.p);
+			const reopening = h.panel.open(card, () => { });
+			assert.strictEqual(h.pane.clear.callCount, 0);
+			if (change === 'model') {
+				h.pane.hasLoadedChat.returns(false);
+			} else {
+				h.paneActiveCardId.set('replaced-card', undefined);
+			}
+			await trust.complete(true);
+			await reopening;
+			assert.deepStrictEqual([h.pane.open.callCount, h.pane.clear.callCount, h.markRead.callCount], [2, 1, 2]);
+		}
+	});
+
+	test('does not reuse a chat under a different provider or owning session', async () => {
+		for (const sessionChange of [{ providerId: 'other-provider' }, { resource: URI.parse('test-session:other') }]) {
+			const h = setup();
+			const card = createCard();
+			await h.panel.open(card, () => { });
+			await h.panel.open({ ...card, session: { ...card.session, ...sessionChange } }, () => { });
+			assert.deepStrictEqual([h.pane.open.callCount, h.pane.clear.callCount, h.markRead.callCount], [2, 1, 2]);
+		}
+	});
+
+	test('same-address canonical replacement can reuse the loaded pane under its current identity', async () => {
+		const h = setup();
+		const card = createCard();
+		await h.panel.open(card, () => { });
+		const canonical = { ...card, session: { ...card.session, resource: URI.parse('test-session:canonical') } };
+		h.paneActiveCardId.set(getProjectBoardCardId(canonical.session, canonical.chat), undefined);
+		await h.panel.open(canonical, () => { });
+		assert.deepStrictEqual([h.pane.open.callCount, h.pane.clear.callCount, h.trust.callCount], [1, 0, 2]);
+		assert.strictEqual(h.markRead.lastCall.args[0], canonical.session);
+	});
+
+	test('leaving the Hub or hiding AI cancels pending reuse without refocusing or marking read', async () => {
+		for (const change of ['view', 'AI']) {
+			const h = setup();
+			const card = createCard();
+			await h.panel.open(card, () => { });
+			const trust = new DeferredPromise<boolean>();
+			h.trust.returns(trust.p);
+			const reopening = h.panel.open(card, () => { });
+			if (change === 'view') {
+				h.customView.set(undefined, undefined);
+			} else {
+				h.sentiment.hidden = true;
+				h.sentimentChanged.fire();
+			}
+			await trust.complete(true);
+			await reopening;
+			assert.deepStrictEqual([h.pane.open.callCount, h.pane.clear.callCount, h.pane.focus.callCount, h.markRead.callCount], [1, 1, 1, 1]);
+			assert.strictEqual(h.panel.activeCardId.get(), undefined);
+		}
+	});
+
+	test('reopening a hidden or unbound pane uses the ordinary load path', async () => {
+		for (const change of ['hidden', 'unbound']) {
+			const h = setup();
+			const card = createCard();
+			await h.panel.open(card, () => { });
+			if (change === 'hidden') {
+				h.auxiliaryBarVisible.set(false, undefined);
+			} else {
+				h.pane.hasLoadedChat.returns(false);
+			}
+			await h.panel.open(card, () => { });
+			assert.deepStrictEqual([h.pane.open.callCount, h.pane.clear.callCount, h.openView.callCount], [2, 1, 2]);
+		}
+	});
+
+	test('reopening a still-loading chat never reuses its unpublished model', async () => {
+		const h = setup();
+		const card = createCard();
+		const started = new DeferredPromise<void>();
+		const loaded = new DeferredPromise<void>();
+		h.pane.open.onFirstCall().callsFake(async () => {
+			h.paneActiveCardId.set(getProjectBoardCardId(card.session, card.chat), undefined);
+			await started.complete();
+			await loaded.p;
+		});
+		const first = h.panel.open(card, () => { });
+		await started.p;
+		await h.panel.open(card, () => { });
+		await loaded.complete();
+		await first;
+		assert.deepStrictEqual([h.pane.open.callCount, h.pane.clear.callCount, h.pane.focus.callCount, h.markRead.callCount], [2, 1, 1, 1]);
+	});
+
+	test('a failed same-chat trust check closes the pane and permits retry', async () => {
+		const h = setup();
+		const card = createCard();
+		await h.panel.open(card, () => { });
+		h.trust.onSecondCall().rejects(new Error('trust failed'));
+		await assert.rejects(h.panel.open(card, () => { }), /trust failed/);
+		await h.waitForClose();
+		assert.strictEqual(h.panel.activeCardId.get(), undefined);
+		await h.panel.open(card, () => { });
+		assert.deepStrictEqual([h.pane.open.callCount, h.pane.clear.callCount, h.markRead.callCount], [2, 1, 2]);
+	});
+
+	test('a failed reuse read update reports the error without rebuilding or discarding the chat', async () => {
+		const h = setup();
+		const card = createCard();
+		await h.panel.open(card, () => { });
+		h.markRead.rejects(new Error('read update failed'));
+		await h.panel.open(card, () => { });
+		assert.deepStrictEqual({
+			opens: h.pane.open.callCount, clears: h.pane.clear.callCount, current: h.panel.activeCardId.get(), errors: h.notifications.length,
+		}, { opens: 1, clears: 0, current: getProjectBoardCardId(card.session, card.chat), errors: 1 });
 	});
 
 	test('failed replacement and cancelled late loads cannot leave or restore a current card', async () => {
@@ -477,6 +666,7 @@ suite('ProjectBoardChatContent', () => {
 		instantiation.stub(ISessionsManagementService, { getSession, onDidReplaceSession: replacements.event });
 		const notify = sinon.spy();
 		instantiation.stub(INotificationService, { info: notify });
+		let boundViewModel: ChatViewModel | undefined;
 		const widget = new class extends mock<ChatWidget>() {
 			override render = sinon.spy();
 			override setReadOnly = sinon.spy();
@@ -485,7 +675,17 @@ suite('ProjectBoardChatContent', () => {
 			override getInput = sinon.stub().returns('');
 			override getInputState = sinon.stub().returns(undefined);
 			override setInput = sinon.spy();
-			override setModel = sinon.spy();
+			override setModel = sinon.spy((model: IChatModel | undefined) => {
+				if (model) {
+					const boundModel = model;
+					boundViewModel = new class extends mock<ChatViewModel>() {
+						override get model(): IChatModel { return boundModel; }
+					}();
+				} else {
+					boundViewModel = undefined;
+				}
+			});
+			override get viewModel() { return boundViewModel; }
 			override restoreViewState = sinon.spy();
 			override getViewState(): IChatWidgetViewState { return { scrollTop: 42, isAtBottom: false }; }
 			override focusInput = sinon.spy();
@@ -754,6 +954,15 @@ suite('ProjectBoardChatContent', () => {
 			unboundBeforeRelease: h.widget.setModel.getCall(1).args[0] === undefined && h.widget.setModel.getCall(1).calledBefore(h.released.firstCall),
 			cacheSize: h.cache.size,
 		}, { loaded: h.card.chat.resource, bound: h.ref.object, readOnly: false, released: 1, unboundBeforeRelease: true, cacheSize: 1 });
+	});
+
+	test('reuse requires a model still bound to the widget, not just a retained reference', async () => {
+		const h = setup();
+		assert.strictEqual(h.content.hasLoadedModel(), false);
+		await h.content.load(CancellationToken.None);
+		assert.strictEqual(h.content.hasLoadedModel(), true);
+		h.widget.setModel(undefined);
+		assert.strictEqual(h.content.hasLoadedModel(), false);
 	});
 
 	test('late cancelled loads release their reference without binding a disposed widget', async () => {
