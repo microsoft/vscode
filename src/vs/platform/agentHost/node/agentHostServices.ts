@@ -65,7 +65,6 @@ import { AgentHostProviderService, IAgentHostProviderService } from './agentHost
 import { AgentHostChatInputService, IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
-import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
@@ -101,7 +100,6 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
 	services.set(IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
 	services.set(IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
-	services.set(IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
 	services.set(IAgentHostGitHubService, new SyncDescriptor(AgentHostGitHubService, [inputs.gitHubServiceOptions]));
 	services.set(ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
 	services.set(IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
