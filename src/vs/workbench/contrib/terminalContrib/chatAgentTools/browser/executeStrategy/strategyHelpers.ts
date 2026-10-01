@@ -87,11 +87,15 @@ export function createAltBufferPromise(
  * 3. The next shell prompt line(s)
  *
  * This function removes (1) and (3) to isolate the actual output.
+ *
+ * @param isBufferContents Whether the output was read from the buffer with `getContentsAsText`
+ * rather than from `getOutput()`. Only then is the echo also matched by its layout in the
+ * terminal, since `getOutput()` starts after the echo.
  */
-export function stripCommandEchoAndPrompt(output: string, commandLine: string, log?: (message: string) => void): string {
+export function stripCommandEchoAndPrompt(output: string, commandLine: string, log?: (message: string) => void, isBufferContents?: boolean): string {
 	log?.(`stripCommandEchoAndPrompt input: output length=${output.length}, commandLine length=${commandLine.length}`);
 
-	const result = _stripCommandEchoAndPromptOnce(output, commandLine, log);
+	const result = _stripCommandEchoAndPromptOnce(output, commandLine, log, isBufferContents);
 
 	// After stripping the first command echo and trailing prompt, the remaining
 	// content may still contain the command re-echoed by the shell (prompt + echo).
@@ -99,18 +103,18 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string, l
 	// and the shell's subsequent prompt + command echo. If the command appears again
 	// in the remaining text, strip it one more time.
 	if (result.trim().length > 0 && findCommandEcho(result, commandLine)) {
-		return _stripCommandEchoAndPromptOnce(result, commandLine, log);
+		return _stripCommandEchoAndPromptOnce(result, commandLine, log, isBufferContents);
 	}
 
 	return result;
 }
 
-function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log?: (message: string) => void): string {
+function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log?: (message: string) => void, isBufferContents?: boolean): string {
 	// Strip leading lines that are part of the command echo using findCommandEcho.
 	// Allow suffix matching to handle partial command echoes from getOutput()
 	// where the prompt line is not included, and layout matching to handle
-	// echoes that the terminal wrapped or the shell redrew.
-	const echoResult = findCommandEcho(output, commandLine, /*allowSuffixMatch*/ true, /*allowLayoutMatch*/ true);
+	// echoes in the buffer that the terminal wrapped or the shell redrew.
+	const echoResult = findCommandEcho(output, commandLine, /*allowSuffixMatch*/ true, /*allowLayoutMatch*/ isBufferContents);
 	const lines = echoResult ? echoResult.linesAfter : output.split('\n');
 	const startIndex = 0;
 
