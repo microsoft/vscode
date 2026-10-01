@@ -22,7 +22,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
-import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
+import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
@@ -191,7 +191,7 @@ suite('aiCustomizationListWidget', () => {
 			uri: URI.file('Q:\\workspace\\.github\\prompts\\review.prompt.md'),
 			name: 'review',
 			displayName: 'Review',
-			filename: 'review.prompt.md',
+			filename: '.github\\prompts\\review.prompt.md',
 			description: 'Review the current changes',
 			source: PromptsStorage.local,
 			promptType: PromptsType.prompt,
@@ -199,7 +199,7 @@ suite('aiCustomizationListWidget', () => {
 			status: 'degraded',
 		};
 
-		assert.strictEqual(getCustomizationItemAriaLabel(item), 'Review. Review the current changes. Needs attention');
+		assert.strictEqual(getCustomizationItemAriaLabel(item), 'Review. .github\\prompts\\review.prompt.md. Needs attention');
 	});
 
 	test('virtualized row actions use a focused-row tab stop and skip disabled controls', () => {
@@ -473,10 +473,36 @@ suite('aiCustomizationListWidget', () => {
 			);
 		});
 
-		test('truncates non-hook descriptions to the first line', () => {
+		suite('splitPathLabel', () => {
+			test('keeps the filename visible after a path separator', () => {
+				assert.deepStrictEqual({
+					posix: splitPathLabel('.github/prompts/deeply/nested/review.prompt.md'),
+					windows: splitPathLabel('.github\\prompts\\deeply\\nested\\review.prompt.md'),
+					filename: splitPathLabel('review.prompt.md'),
+				}, {
+					posix: {
+						prefix: '.github/prompts/deeply/nested',
+						suffix: '/review.prompt.md',
+						suffixOffset: 29,
+					},
+					windows: {
+						prefix: '.github\\prompts\\deeply\\nested',
+						suffix: '\\review.prompt.md',
+						suffixOffset: 29,
+					},
+					filename: {
+						prefix: '',
+						suffix: 'review.prompt.md',
+						suffixOffset: 0,
+					},
+				});
+			});
+		});
+
+		test('shows the file location for non-hook customizations', () => {
 			assert.strictEqual(
-				getCustomizationSecondaryText('Show the first line.\nHide the rest.', 'prompt.md', PromptsType.prompt),
-				'Show the first line.'
+				getCustomizationSecondaryText('Prompt description', '.github/prompts/review.prompt.md', PromptsType.prompt),
+				'.github/prompts/review.prompt.md'
 			);
 		});
 
@@ -708,7 +734,7 @@ suite('aiCustomizationListWidget', () => {
 				id: 'instruction',
 				uri: URI.file('Q:\\workspace\\.github\\instructions\\typescript.instructions.md'),
 				name: 'TypeScript',
-				filename: 'typescript.instructions.md',
+				filename: '.github\\instructions\\typescript.instructions.md',
 				description: 'TypeScript instructions',
 				source: PromptsStorage.local,
 				promptType: PromptsType.instructions,
@@ -737,11 +763,15 @@ suite('aiCustomizationListWidget', () => {
 				statusDisplay: row?.querySelector<HTMLElement>('.item-status-icon')?.style.display,
 				hasOverflowAction: !!row?.querySelector('.item-right .codicon-ellipsis'),
 				descriptionDisplay: row?.querySelector<HTMLElement>('.item-description')?.style.display,
+				secondaryText: row?.querySelector<HTMLElement>('.item-description')?.textContent,
+				usesHookSecondaryTextStyling: !row?.querySelector<HTMLElement>('.item-description')?.classList.contains('is-filename'),
 			}, {
 				badgeDisplay: 'none',
 				statusDisplay: 'none',
 				hasOverflowAction: true,
 				descriptionDisplay: '',
+				secondaryText: '.github\\instructions\\typescript.instructions.md',
+				usesHookSecondaryTextStyling: true,
 			});
 		});
 

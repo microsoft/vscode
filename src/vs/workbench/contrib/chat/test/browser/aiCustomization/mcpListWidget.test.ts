@@ -1832,13 +1832,13 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		test('hides configuration paths from rows and accessible labels', () => {
+		test('shows configuration paths instead of descriptions in rows and accessible labels', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
 			const createServer = (id: string, label: string, path: string) => new class extends mock<IWorkbenchMcpServer>() {
 				override readonly id = id;
 				override readonly label = label;
-				override readonly description = '';
+				override readonly description = 'Server description';
 				override readonly name = label;
 				override readonly installState = McpServerInstallState.Installed;
 				override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() {
@@ -1850,6 +1850,7 @@ suite('mcpListWidget', () => {
 				return {
 					path: ctx.templateData.sourcePath.textContent,
 					hover: ctx.readSource().hover,
+					description: ctx.read().text,
 					ariaLabel: ctx.read().ariaLabel,
 				};
 			};
@@ -1859,14 +1860,16 @@ suite('mcpListWidget', () => {
 				home: render(createServer('user-server', 'User Server', '/Users/test/.config/mcp.json')),
 			}, {
 				workspace: {
-					path: '',
-					hover: '',
-					ariaLabel: 'Workspace Server',
+					path: '.vscode/mcp.json',
+					hover: '/workspace/.vscode/mcp.json',
+					description: '',
+					ariaLabel: 'Workspace Server, configured in .vscode/mcp.json',
 				},
 				home: {
-					path: '',
-					hover: '',
-					ariaLabel: 'User Server',
+					path: '~/.config/mcp.json',
+					hover: '/Users/test/.config/mcp.json',
+					description: '',
+					ariaLabel: 'User Server, configured in ~/.config/mcp.json',
 				},
 			});
 		});

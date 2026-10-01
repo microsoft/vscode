@@ -32,7 +32,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { matchesContiguousSubString, IMatch } from '../../../../../base/common/filters.js';
+import { matchesContiguousSubString } from '../../../../../base/common/filters.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -47,7 +47,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
-import { getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
+import { getCustomizationSecondaryText, MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
@@ -134,6 +134,7 @@ interface IAICustomizationItemTemplateData {
 	readonly statusIcon: HTMLElement;
 	readonly descriptionContainer: HTMLElement;
 	readonly description: HighlightedLabel;
+	readonly path: MiddleEllipsisPathLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	readonly iconDisposables: DisposableStore;
@@ -295,6 +296,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const statusIcon = DOM.append(nameRow, $('.item-status-icon'));
 		const descriptionContainer = DOM.append(textContainer, $('.item-description'));
 		const description = disposables.add(new HighlightedLabel(descriptionContainer));
+		const path = disposables.add(new MiddleEllipsisPathLabel(descriptionContainer));
 
 		// Right section for actions (hover-visible)
 		const actionsContainer = DOM.append(container, $('.item-right'));
@@ -317,6 +319,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			statusIcon,
 			descriptionContainer,
 			description,
+			path,
 			disposables,
 			elementDisposables,
 			iconDisposables,
@@ -430,35 +433,20 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			templateData.statusIcon.className = 'item-status-icon';
 		}
 
-		// Hooks show shell commands here, so keep the full text instead of truncating to the first sentence.
 		const secondaryText = getCustomizationSecondaryText(element.description, element.filename, element.promptType);
-		let secondaryTextMatches: IMatch[] | undefined;
-		if (secondaryText && element.description && element.descriptionMatches) {
-			if (secondaryText === element.description) {
-				// No truncation, matches can be used as-is.
-				secondaryTextMatches = element.descriptionMatches;
-			} else {
-				// Description was truncated for display; clamp matches to the visible range.
-				const maxLength = secondaryText.length;
-				const clampedMatches = element.descriptionMatches.map(match => {
-					// Discard matches that are entirely outside the visible portion.
-					if (match.start >= maxLength || match.end <= 0) {
-						return undefined;
-					}
-					const clampedStart = Math.max(0, match.start);
-					const clampedEnd = Math.min(match.end, maxLength);
-					return clampedEnd > clampedStart ? { start: clampedStart, end: clampedEnd } : undefined;
-				}).filter((match): match is IMatch => !!match);
-				secondaryTextMatches = clampedMatches.length ? clampedMatches : undefined;
-			}
-		}
 		if (secondaryText) {
-			templateData.description.set(secondaryText, secondaryTextMatches);
+			const isPath = element.promptType !== PromptsType.hook || !element.description;
+			templateData.description.element.style.display = isPath ? 'none' : '';
+			templateData.path.element.style.display = isPath ? '' : 'none';
+			if (isPath) {
+				templateData.path.set(secondaryText, element.secondaryTextMatches);
+			} else {
+				templateData.description.set(secondaryText, element.secondaryTextMatches);
+			}
 			templateData.descriptionContainer.style.display = '';
-			// Style differently for filename vs description
-			templateData.descriptionContainer.classList.toggle('is-filename', !element.description);
 		} else {
 			templateData.description.set('', undefined);
+			templateData.path.set('');
 			templateData.descriptionContainer.style.display = 'none';
 		}
 
@@ -1425,7 +1413,7 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private applySearchFilter(items: readonly IAICustomizationListItem[]): IAICustomizationListItem[] {
 		if (!this.searchQuery.trim()) {
-			return items.map(item => ({ ...item, nameMatches: undefined, descriptionMatches: undefined }));
+			return items.map(item => ({ ...item, nameMatches: undefined, secondaryTextMatches: undefined }));
 		}
 
 		const query = this.searchQuery.toLowerCase();
@@ -1433,16 +1421,17 @@ export class AICustomizationListWidget extends Disposable {
 
 		for (const item of items) {
 			const displayName = item.displayName ?? formatDisplayName(item.name);
+			const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
 			const nameMatches = matchesContiguousSubString(query, displayName);
-			const descriptionMatches = item.description ? matchesContiguousSubString(query, item.description) : null;
-			const filenameMatches = matchesContiguousSubString(query, item.filename);
+			const secondaryTextMatches = matchesContiguousSubString(query, secondaryText);
+			const descriptionMatches = item.description && item.description !== secondaryText ? matchesContiguousSubString(query, item.description) : null;
 			const badgeMatches = item.badge ? matchesContiguousSubString(query, item.badge) : null;
 
-			if (nameMatches || descriptionMatches || filenameMatches || badgeMatches) {
+			if (nameMatches || secondaryTextMatches || descriptionMatches || badgeMatches) {
 				matched.push({
 					...item,
 					nameMatches: nameMatches || undefined,
-					descriptionMatches: descriptionMatches || undefined,
+					secondaryTextMatches: secondaryTextMatches || undefined,
 				});
 			}
 		}
