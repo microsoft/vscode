@@ -604,29 +604,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		}),
 	}),
 
-	SessionChatPills_ResponsiveWide: defineComponentFixture({
+	...Object.fromEntries([
+		['Wide', '600px'],
+		['Medium', '280px'],
+		['Narrow', '180px'],
+		['Overflow', '60px'],
+	].map(([name, width]) => [`SessionChatPills_Responsive${name}`, defineComponentFixture({
 		render: ctx => renderPills(ctx, createMockSession({
 			status: SessionStatus.NeedsInput,
 			turnChanges: [editedFile('app.ts', 452, 85), editedFile('util.ts', 8, 2)],
 			artifacts: [{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') }],
 			browsers: [{ title: 'Project Preview' }, { title: 'Component Explorer' }],
-		}), {
-			compact: 'auto',
-			width: '600px',
-		}),
-	}),
-
-	SessionChatPills_ResponsiveNarrow: defineComponentFixture({
-		render: ctx => renderPills(ctx, createMockSession({
-			status: SessionStatus.NeedsInput,
-			turnChanges: [editedFile('app.ts', 452, 85), editedFile('util.ts', 8, 2)],
-			artifacts: [{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') }],
-			browsers: [{ title: 'Project Preview' }, { title: 'Component Explorer' }],
-		}), {
-			compact: 'auto',
-			width: '180px',
-		}),
-	}),
+			subagents: ['Review implementation', 'Review tests'],
+		}), { compact: 'auto', width }),
+	})])),
 
 	// --- Gating -------------------------------------------------------------
 
