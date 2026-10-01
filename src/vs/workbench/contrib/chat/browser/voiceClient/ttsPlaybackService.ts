@@ -93,6 +93,7 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 	private _analyserNode: AnalyserNode | undefined;
 	private _isPlaying = false;
 	private _lastPlayedSamples: Float32Array | null = null;
+	private _pcm16CarryByte: number | undefined;
 
 	private readonly _onPlaybackStarted = this._register(new Emitter<void>());
 	readonly onPlaybackStarted: Event<void> = this._onPlaybackStarted.event;
@@ -151,7 +152,19 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 				}
 				let decoded: AudioBuffer | undefined;
 				if (audioFormatHint === 'pcm16') {
-					decoded = decodePcm16Chunk(ctx, bytes);
+					let pcmBytes = bytes;
+					if (this._pcm16CarryByte !== undefined) {
+						const combined = new Uint8Array(bytes.byteLength + 1);
+						combined[0] = this._pcm16CarryByte;
+						combined.set(bytes, 1);
+						pcmBytes = combined;
+						this._pcm16CarryByte = undefined;
+					}
+					if (pcmBytes.byteLength % 2 === 1) {
+						this._pcm16CarryByte = pcmBytes[pcmBytes.byteLength - 1];
+						pcmBytes = pcmBytes.slice(0, pcmBytes.byteLength - 1);
+					}
+					decoded = decodePcm16Chunk(ctx, pcmBytes);
 				} else {
 					try {
 						decoded = await ctx.decodeAudioData(arrayBuf);
@@ -176,6 +189,7 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 
 	stopPlayback(): void {
 		this._playbackGen++;
+		this._pcm16CarryByte = undefined;
 		if (this._playbackTurn) {
 			this._captureSamples(this._playbackTurn);
 		}
