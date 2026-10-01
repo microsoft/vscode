@@ -26,6 +26,7 @@ import { IAgentConfigurationService } from '../../node/agentConfigurationService
 import { IAgentHostAuthenticationController, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
@@ -179,6 +180,7 @@ suite('Agent Host service registrations', () => {
 			IInstantiationService,
 			IAgentHostStateManager,
 			IAgentConfigurationService,
+			IAgentHostManagedSettingsService,
 			IAgentHostAuthenticationService,
 			IAgentHostAuthenticationController,
 			IAgentHostGitHubEndpointService,
@@ -204,6 +206,7 @@ suite('Agent Host service registrations', () => {
 			IInstantiationService,
 			IAgentHostStateManager,
 			IAgentConfigurationService,
+			IAgentHostManagedSettingsService,
 			IAgentHostAuthenticationService,
 			IAgentHostAuthenticationController,
 			IAgentHostGitHubEndpointService,
