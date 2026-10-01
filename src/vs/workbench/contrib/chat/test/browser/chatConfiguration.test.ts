@@ -36,12 +36,18 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
 	});
 
-	test('Marketplace visibility is default-off while the GitHub Feed is default-on', () => {
+	test('Marketplace visibility is experiment-controlled and default-off while the GitHub Feed is default-on', () => {
 		assert.deepStrictEqual({
-			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled].default,
+			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled],
 			publicFeed: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled].default,
 		}, {
-			marketplace: false,
+			marketplace: {
+				type: 'boolean',
+				tags: ['experimental'],
+				description: 'Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages.',
+				default: false,
+				experiment: { mode: 'auto' },
+			},
 			publicFeed: true,
 		});
 	});

@@ -36,6 +36,8 @@ import { UnsupportedMcpGalleryPackageError } from '../../../../../../platform/mc
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
@@ -78,6 +80,16 @@ const sources = [
 	CustomizationMarketplaceSources.PluginMarketplaces,
 	{ ...CustomizationMarketplaceSources.McpGallery, enablementSetting: mcpGalleryTestSetting },
 ];
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+
+	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
+		if (eventName && data) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
 
 function resource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 	return {
@@ -579,12 +591,15 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IQuickInputService, quickInputService);
 		instantiationService.stub(ILabelService, labelService);
 		instantiationService.stub(ILogService, logService);
+		const telemetryService = new TestTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ICommandService, commandService);
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
 			service, instantiationService, fileService, provider, storageService, commandService, deletedSkills, installedPlugins, marketplaceService, marketplaceChanges, agentPlugins, pluginService, repositoryService, pluginGitService, mcpService, mcpChanges,
 			connectorsService, connectedConnectors, connectorChanges, connectorAccountChanges, connectorDisconnected, mcpGalleryManifestService, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService, removedPluginEnablements,
+			telemetryService,
 		};
 	}
 
@@ -662,10 +677,24 @@ suite('CustomizationMarketplaceInstallService', () => {
 				state,
 				pluginInstalls: fixture.pluginService.calls,
 				sourceStillEnabled: fixture.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled),
+				telemetry: fixture.telemetryService.events.map(event => ({
+					...event,
+					data: { ...event.data, durationMs: typeof event.data.durationMs === 'number' },
+				})),
 			}, {
 				state: { kind: 'unavailable', message: 'Enable the customization marketplace to install this resource.' },
 				pluginInstalls: [{ source: 'owner/catalog#release', options: { path: 'plugins/demo' } }],
 				sourceStillEnabled: true,
+				telemetry: [{
+					name: 'chatCustomizationMarketplace.install',
+					data: {
+						surface: 'marketplace',
+						customizationType: 'plugin',
+						installKind: 'plugin',
+						outcome: 'success',
+						durationMs: true,
+					},
+				}],
 			});
 		});
 

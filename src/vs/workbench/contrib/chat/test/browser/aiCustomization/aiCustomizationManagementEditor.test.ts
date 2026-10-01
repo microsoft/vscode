@@ -49,6 +49,8 @@ import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatform
 import type { ICustomizationMigrationDashboardActivity, ICustomizationMigrationDashboardDestination, ICustomizationMigrationDashboardItem, ICustomizationMigrationDashboardOverview } from '../../../browser/aiCustomization/customizationMigrationDashboard.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 import type { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -229,6 +231,7 @@ suite('aiCustomizationManagementEditor', () => {
 		hoverService: IHoverService;
 		instantiationService: IInstantiationService;
 		configurationService: IConfigurationService;
+		telemetryService: ITelemetryService;
 		editorDisposables: DisposableStore;
 		harnessService: { activeSessionResource: ISettableObservable<URI>; activeHarness: ISettableObservable<string>; findHarnessById: ICustomizationHarnessService['findHarnessById'] };
 		migrationFlowId: string | undefined;
@@ -754,6 +757,31 @@ suite('aiCustomizationManagementEditor', () => {
 		await editor.setInput(reopenedInput, undefined, {}, CancellationToken.None);
 
 		assert.deepStrictEqual(visibilityChanges, [false, true]);
+	});
+
+	test('triggers the Marketplace experiment when the editor opens in either arm', async () => {
+		const { editor } = createContributedSectionEditor();
+		const configurationService = editor.configurationService as IConfigurationService & { setValue(key: string, value: unknown): void };
+		const control = new TestExperimentTriggerTelemetryService();
+		const treatment = new TestExperimentTriggerTelemetryService();
+		const controlInput = store.add(new AICustomizationManagementEditorInput());
+		const treatmentInput = store.add(new AICustomizationManagementEditorInput());
+
+		configurationService.setValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		editor.telemetryService = control;
+		await editor.setInput(controlInput, undefined, {}, CancellationToken.None);
+		editor.clearInput();
+		configurationService.setValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		editor.telemetryService = treatment;
+		await editor.setInput(treatmentInput, undefined, {}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			control: control.triggers,
+			treatment: treatment.triggers,
+		}, {
+			control: ['config.chat.customizations.marketplace.enabled'],
+			treatment: ['config.chat.customizations.marketplace.enabled'],
+		});
 	});
 
 	test('selecting a contributed section focuses its widget instead of the hidden prompts search', () => {

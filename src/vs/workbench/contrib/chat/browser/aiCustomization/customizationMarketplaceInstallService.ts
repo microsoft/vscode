@@ -27,11 +27,13 @@ import { mcpGalleryServiceUrlConfig } from '../../../../../platform/mcp/common/m
 import { UnsupportedMcpGalleryPackageError } from '../../../../../platform/mcp/common/mcpGalleryService.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { getCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
@@ -117,6 +119,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -753,7 +756,12 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		this.emitChange();
 		let didComplete = false;
 		try {
-			await operation;
+			await runCustomizationMarketplaceInstallWithTelemetry(
+				this.telemetryService,
+				getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation),
+				() => operation,
+				token,
+			);
 			didComplete = true;
 		} catch (error) {
 			if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isSourceEnabled(resource.sourceId)) {
