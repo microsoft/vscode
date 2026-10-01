@@ -16274,6 +16274,28 @@ Use the attached image as context.
 			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in onPreToolUse: tool=edit');
 		});
 
+		test('holds every tool until the turn-start barrier settles', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session } = await createAgentSession(disposables, { captureRuntime: capturedRuntime });
+			const barrier = new DeferredPromise<void>();
+			(session as unknown as { _turnStartBarrier: Promise<void> | undefined })._turnStartBarrier = barrier.p;
+
+			let settled = false;
+			const hook = capturedRuntime.current!.handlePreToolUse({
+				sessionId: 'test-session-1',
+				timestamp: new Date(0),
+				workingDirectory: '/tmp',
+				toolName: 'bash',
+				toolArgs: { command: 'echo hi' },
+			}).then(() => { settled = true; });
+			await timeout(0);
+			const beforeBarrier = settled;
+			barrier.complete();
+			await hook;
+
+			assert.deepStrictEqual({ beforeBarrier, afterBarrier: settled }, { beforeBarrier: false, afterBarrier: true });
+		});
+
 		test('denies GitHub fallback tools during Agent Merge turns', async () => {
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 			const { session } = await createAgentSession(disposables, { captureRuntime: capturedRuntime });

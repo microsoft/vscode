@@ -525,6 +525,14 @@ export interface IAgentChatContext {
 	readonly hostInstructions?: readonly string[];
 	/** Records provider stage timing for the turn being sent; supplied only for a send. */
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
+	/**
+	 * Settles once the turn-start checkpoint has been captured; supplied only
+	 * for a send to a provider that sets {@link IAgentChats.supportsTurnStartBarrier}
+	 * when the host dispatches without waiting for that capture. The provider
+	 * must await it before running any tool of the turn, because tools can
+	 * modify the working tree the checkpoint describes.
+	 */
+	readonly turnStartBarrier?: Promise<void>;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
 }
@@ -829,6 +837,13 @@ export interface IAgentPrepareChatResult {
  * the provider needs the owning session or storage scope.
  */
 export interface IAgentChats {
+	/**
+	 * Whether the provider honors {@link IAgentChatContext.turnStartBarrier} by
+	 * running no tool of a turn before it settles. Only then may the host send
+	 * a turn before its turn-start checkpoint has been captured.
+	 */
+	readonly supportsTurnStartBarrier?: boolean;
+
 	/**
 	 * Optional pre-send preparation, such as materializing a deferred provider
 	 * session, after the turn's model/agent selection and working directories

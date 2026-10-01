@@ -30,6 +30,8 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	 */
 	private readonly _sequencer = new SequencerByKey<string>();
 	private readonly _turnStartCheckpoints = new Map<string, Map<string, ITurnStartCheckpoint>>();
+	/** Settling markers of the turn-start captures queued per session key. */
+	private readonly _pendingTurnStartCaptures = new Map<string, Set<Promise<void>>>();
 
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -75,7 +77,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				}
 
 				// Check if the baseline ref already exists
-				const baselineCheckpointRef = await this.getBaselineCheckpoint(sessionUri, repositoryRootUri);
+				const baselineCheckpointRef = await this._readBaselineCheckpoint(sessionUri, repositoryRootUri);
 				if (baselineCheckpointRef) {
 					continue;
 				}
@@ -96,7 +98,31 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	}
 
 	captureTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
-		return this._sequencer.queue(sessionUri.toString(), () => this._captureTurnStartCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
+		const sessionKey = sessionUri.toString();
+		const capture = this._sequencer.queue(sessionKey, () => this._captureTurnStartCheckpoint(sessionUri, chatUri, turnId, workingDirectories));
+		// Readers wait for in-flight captures: a turn can be sent before its capture
+		// completes, and the first capture of a session also creates its baseline.
+		let pending = this._pendingTurnStartCaptures.get(sessionKey);
+		if (!pending) {
+			pending = new Set();
+			this._pendingTurnStartCaptures.set(sessionKey, pending);
+		}
+		const settled = capture.then(undefined, () => undefined);
+		pending.add(settled);
+		void settled.then(() => {
+			pending.delete(settled);
+			if (pending.size === 0 && this._pendingTurnStartCaptures.get(sessionKey) === pending) {
+				this._pendingTurnStartCaptures.delete(sessionKey);
+			}
+		});
+		return capture;
+	}
+
+	private async _whenTurnStartCapturesSettled(sessionUri: URI): Promise<void> {
+		const pending = this._pendingTurnStartCaptures.get(sessionUri.toString());
+		if (pending?.size) {
+			await Promise.all(pending);
+		}
 	}
 
 	private async _captureTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void> {
@@ -143,7 +169,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 					// The baseline lookup is independent of the capture, so overlap it.
 					const [tree, hasBaseline] = await Promise.all([
 						this._gitService.captureWorkingTreeAsTree(repositoryRootUri),
-						this.getBaselineCheckpoint(sessionUri, repositoryRootUri),
+						this._readBaselineCheckpoint(sessionUri, repositoryRootUri),
 					]);
 					if (tree) {
 						if (!hasBaseline) {
@@ -233,7 +259,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 					// Check if the baseline ref exists for this repository. If it
 					// doesn't exist, we cannot capture a turn checkpoint for this repository.
-					const baselineCheckpointRef = await this.getBaselineCheckpoint(sessionUri, repositoryRootUri);
+					const baselineCheckpointRef = await this._readBaselineCheckpoint(sessionUri, repositoryRootUri);
 					if (!baselineCheckpointRef) {
 						continue;
 					}
@@ -306,6 +332,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		turnId: string,
 		workingDirectory?: URI
 	): Promise<{ parent: string; current: string } | undefined> {
+		await this._whenTurnStartCapturesSettled(sessionUri);
 		if (!workingDirectory) {
 			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri.toString());
 			if (!workingDirectories || workingDirectories.length === 0) {
@@ -319,7 +346,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			const [currentCheckpointRef, previousCheckpointRef, baselineCheckpointRef] = await Promise.all([
 				ref.object.getTurnCheckpointRef(turnId),
 				ref.object.getPreviousCheckpointRef(turnId),
-				this.getBaselineCheckpoint(sessionUri, workingDirectory)
+				this._readBaselineCheckpoint(sessionUri, workingDirectory)
 			]);
 			if (!currentCheckpointRef || !baselineCheckpointRef) {
 				return undefined;
@@ -344,6 +371,12 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	}
 
 	async getBaselineCheckpoint(sessionUri: URI, workingDirectory?: URI): Promise<string | undefined> {
+		await this._whenTurnStartCapturesSettled(sessionUri);
+		return this._readBaselineCheckpoint(sessionUri, workingDirectory);
+	}
+
+	/** Reads the baseline ref without waiting for pending captures; safe inside sequenced captures. */
+	private async _readBaselineCheckpoint(sessionUri: URI, workingDirectory?: URI): Promise<string | undefined> {
 		if (!workingDirectory) {
 			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri.toString());
 			if (!workingDirectories || workingDirectories.length === 0) {
@@ -437,7 +470,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 						continue;
 					}
 
-					const baselineCheckpointRef = await this.getBaselineCheckpoint(sessionUri, repositoryRootUri);
+					const baselineCheckpointRef = await this._readBaselineCheckpoint(sessionUri, repositoryRootUri);
 					if (!baselineCheckpointRef) {
 						continue;
 					}
@@ -478,7 +511,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 	}
 
 	private async _ensureBaselineCheckpoint(sessionUri: URI, repositoryRootUri: URI, tree: string): Promise<void> {
-		if (await this.getBaselineCheckpoint(sessionUri, repositoryRootUri)) {
+		if (await this._readBaselineCheckpoint(sessionUri, repositoryRootUri)) {
 			return;
 		}
 

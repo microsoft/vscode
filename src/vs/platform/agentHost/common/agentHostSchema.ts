@@ -578,6 +578,15 @@ export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests'
  */
 export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPreparation';
 
+/**
+ * Root config key forwarded from the renderer's
+ * `chat.agentHost.experimental.deferTurnStartCheckpoint` setting. When `true`,
+ * a turn is sent to a provider that supports a turn-start barrier while its
+ * turn-start checkpoint is still being captured; the provider holds the
+ * turn's tools until the capture completes.
+ */
+export const AgentHostDeferTurnStartCheckpointConfigKey = 'deferTurnStartCheckpoint';
+
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
@@ -941,6 +950,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.overlapProviderPreparation.title', "Overlap Provider Preparation"),
 		description: localize('agentHost.config.overlapProviderPreparation.description', "Whether agents prepare their session for a turn while the turn-start checkpoint is captured, instead of after it."),
+		default: false,
+	}),
+	[AgentHostDeferTurnStartCheckpointConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.deferTurnStartCheckpoint.title', "Defer Turn-Start Checkpoint"),
+		description: localize('agentHost.config.deferTurnStartCheckpoint.description', "Whether turns are sent while their turn-start checkpoint is still being captured, with the agent's tools held until the capture completes."),
 		default: false,
 	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({

@@ -159,6 +159,24 @@ suite('AgentHostCheckpointService', () => {
 		]);
 	});
 
+	test('baseline readers wait for an in-flight first turn-start capture that creates the baseline', async () => {
+		const captureStarted = new DeferredPromise<void>();
+		const releaseCapture = new DeferredPromise<void>();
+		const { chat, session, service, workingDirectory } = createTestService(async () => {
+			captureStarted.complete();
+			await releaseCapture.p;
+			return 'tree-before-first-turn';
+		}, { baseline: false, previous: false });
+
+		const capture = service.captureTurnStartCheckpoint(session, chat, 'turn-1', [workingDirectory]);
+		await captureStarted.p;
+		const baseline = service.getBaselineCheckpoint(session, workingDirectory);
+		releaseCapture.complete();
+		await capture;
+
+		assert.strictEqual(await baseline, buildCheckpointRefName(AgentSession.id(session), 0));
+	});
+
 	test('discard waits for an in-flight turn-start capture', async () => {
 		const captureStarted = new DeferredPromise<void>();
 		const releaseCapture = new DeferredPromise<void>();

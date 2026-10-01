@@ -31,8 +31,8 @@ import { readAgentPermissionResponseMeta } from '../common/meta/agentPermissionR
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
-import { AgentHostOverlapProviderPreparationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { AgentHostOverlapProviderPreparationSettingId } from '../common/agentService.js';
+import { AgentHostDeferTurnStartCheckpointConfigKey, AgentHostOverlapProviderPreparationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostDeferTurnStartCheckpointSettingId, AgentHostOverlapProviderPreparationSettingId } from '../common/agentService.js';
 import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -250,8 +250,8 @@ export class AgentSideEffects extends Disposable {
 	private readonly _pendingSessionCustomizationPublishes = new Map<ProtocolURI, Promise<void>>();
 	private readonly _pendingMcpServerStarts = new NKeyMap<CancellationTokenSource, [ProtocolURI, string]>();
 	private readonly _pendingCustomizationEnablementRefreshes = new Set<ProtocolURI>();
-	/** Set while a turn reached the overlap experiment's divergence before the assignment context arrived. */
-	private _overlapExperimentTriggerPending = false;
+	/** Experiment settings whose trigger a turn reached before the assignment context arrived. */
+	private readonly _pendingExperimentTriggers = new Set<string>();
 
 	/**
 	 * Buffers signals whose `parentToolCallId` references a subagent
@@ -305,11 +305,13 @@ export class AgentSideEffects extends Disposable {
 			sendTurnMessage: options => void this._sendTurnMessage(options),
 		}));
 		this._register(this._agentConfigService.onDidRootConfigChange(() => {
-			if (this._overlapExperimentTriggerPending) {
+			if (this._pendingExperimentTriggers.size) {
 				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
 				queueMicrotask(() => {
-					if (this._overlapExperimentTriggerPending && !this._store.isDisposed) {
-						this._reportOverlapExperimentTrigger();
+					if (!this._store.isDisposed) {
+						for (const settingId of [...this._pendingExperimentTriggers]) {
+							this._reportExperimentTrigger(settingId);
+						}
 					}
 				});
 			}
@@ -2034,7 +2036,7 @@ export class AgentSideEffects extends Disposable {
 			// surfaces any error exactly as it would without the overlap.
 			let providerPreparation: Promise<void> | undefined;
 			if (agent.chats.prepareTurn) {
-				this._reportOverlapExperimentTrigger();
+				this._reportExperimentTrigger(AgentHostOverlapProviderPreparationSettingId);
 				if (this._agentConfigService.getRootValue(platformRootSchema, AgentHostOverlapProviderPreparationConfigKey) === true) {
 					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, clientOperationContext).catch(err => {
 						this._logService.warn(`[AgentSideEffects] Turn preparation failed for ${chat}; sending will prepare again`, err);
@@ -2048,10 +2050,24 @@ export class AgentSideEffects extends Disposable {
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			this._turnTracker.markSendStage(turnChannel, turnId, 'contributions');
 			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId, workingDirectories: resolvedWorkingDirectories });
+			// A provider that holds the turn's tools behind a barrier can be sent the
+			// turn while the turn-start checkpoint is still being captured. Its tools
+			// cannot modify the working tree before the capture completes, so the
+			// checkpoint still describes the tree the agent starts from.
+			let turnStartBarrier: Promise<void> | undefined;
+			if (checkpointCapture && agent.chats.supportsTurnStartBarrier) {
+				this._reportExperimentTrigger(AgentHostDeferTurnStartCheckpointSettingId);
+				if (this._agentConfigService.getRootValue(platformRootSchema, AgentHostDeferTurnStartCheckpointConfigKey) === true) {
+					turnStartBarrier = checkpointCapture.catch(err => {
+						this._logService.warn(`[AgentSideEffects] Turn-start checkpoint failed for ${chat}; the turn continues without it`, err);
+					});
+				}
+			}
 			const sendContext = {
 				...clientOperationContext,
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
 				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
+				...(turnStartBarrier ? { turnStartBarrier } : {}),
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),
 			};
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
@@ -2064,7 +2080,7 @@ export class AgentSideEffects extends Disposable {
 				this._turnTracker.markSendStage(turnChannel, turnId, 'providerPreparation');
 				await providerPreparation;
 			}
-			if (checkpointCapture) {
+			if (checkpointCapture && !turnStartBarrier) {
 				// Measures only what the checkpoint still costs the critical path
 				// after overlapping the work above, not the capture's total cost.
 				this._turnTracker.markSendStage(turnChannel, turnId, 'checkpoint');
@@ -2116,6 +2132,20 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
+	 * Reports where an experiment's treatment and control diverge. Agent host telemetry
+	 * only carries the assignment context that ExP attributes the event by once the
+	 * workbench has forwarded it, so until then the trigger stays pending.
+	 */
+	private _reportExperimentTrigger(settingId: string): void {
+		if (typeof this._agentConfigService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string') {
+			this._pendingExperimentTriggers.add(settingId);
+			return;
+		}
+		this._pendingExperimentTriggers.delete(settingId);
+		logSettingExperimentTrigger(this._telemetryService, settingId);
+	}
+
+	/**
 	 * Discards a turn-start checkpoint that was started concurrently with the
 	 * rest of the send path, for a turn that will never reach the provider.
 	 *
@@ -2128,18 +2158,6 @@ export class AgentSideEffects extends Disposable {
 	 * caller. It is the only cleanup on the failure path, where no such
 	 * cancellation discard exists.
 	 */
-	/**
-	 * Reports where overlapped and sequential provider preparation diverge. Agent host
-	 * telemetry only carries the assignment context that ExP attributes the event by once
-	 * the workbench has forwarded it, so until then the trigger stays pending.
-	 */
-	private _reportOverlapExperimentTrigger(): void {
-		this._overlapExperimentTriggerPending = typeof this._agentConfigService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
-		if (!this._overlapExperimentTriggerPending) {
-			logSettingExperimentTrigger(this._telemetryService, AgentHostOverlapProviderPreparationSettingId);
-		}
-	}
-
 	private async _discardPendingTurnStartCheckpoint(capture: Promise<void> | undefined, sessionChannel: ProtocolURI, chatUri: URI, turnId: string): Promise<void> {
 		if (!capture) {
 			return;
