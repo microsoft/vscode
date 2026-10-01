@@ -993,18 +993,18 @@ suite('CopilotConnectorsService', () => {
 				...event,
 				data: { ...event.data, durationMs: typeof event.data.durationMs === 'number' },
 			})), [{
-			name: 'copilotConnectors.connectionAction',
-			data: {
-				action: 'connect',
-				outcome: 'error',
-				connectorName: 'mail',
-				connectionStatusBefore: 'not_loaded',
-				connectionStatusAfter: 'not_connected',
-				durationMs: true,
-				connectorMcpServerCount: 1,
-				httpStatusCode: 500,
-			},
-		}]);
+				name: 'copilotConnectors.connectionAction',
+				data: {
+					action: 'connect',
+					outcome: 'error',
+					connectorName: 'mail',
+					connectionStatusBefore: 'not_loaded',
+					connectionStatusAfter: 'not_connected',
+					durationMs: true,
+					connectorMcpServerCount: 1,
+					httpStatusCode: 500,
+				},
+			}]);
 	});
 
 	test('refreshes live sessions on the first authoritative catalog even when no connector is connected', async () => {
