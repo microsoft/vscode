@@ -60,7 +60,7 @@ const clearInputOnSendStart = Reflect.get(NewChatInputWidget.prototype, '_clearI
 const showContextPicker = Reflect.get(NewChatInputWidget.prototype, '_showContextPicker') as (this: IContextPickerHarness) => void;
 const showAttachmentPicker = Reflect.get(NewChatContextAttachments.prototype, 'showPicker') as (this: IAttachmentPickerHarness, folderUri?: URI, contextActions?: readonly IWorkspacePickerContextAction[], anchor?: HTMLElement) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
-const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
+const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon; placement?: 'top' }[]) => readonly { label?: string; type?: string }[];
 
 interface IDraftStateHarness {
 	readonly storageService: {
@@ -851,8 +851,12 @@ suite('NewChatInputWidget', () => {
 		});
 	});
 
-	test('orders native attachment picks before provider context actions', () => {
+	test('orders top context actions before native attachment picks and remaining context actions', () => {
 		const picks = getStaticContextPicks([{
+			label: 'Agent...',
+			icon: Codicon.agent,
+			placement: 'top',
+		}, {
 			label: 'Issue...',
 			icon: Codicon.issues,
 		}, {
@@ -861,6 +865,8 @@ suite('NewChatInputWidget', () => {
 		}]);
 
 		assert.deepStrictEqual(picks.map(pick => pick.label ?? pick.type), [
+			'Agent...',
+			'separator',
 			'Files...',
 			'Image from Clipboard',
 			'separator',

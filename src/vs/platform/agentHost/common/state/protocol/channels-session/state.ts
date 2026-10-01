@@ -537,6 +537,14 @@ export interface SessionChatSummary {
 	 * chat is not archived.
 	 */
 	archived?: boolean;
+	/**
+	 * Aggregate summary of file changes associated with this chat.
+	 *
+	 * Servers may populate this so session lists can show per-chat change
+	 * counts without subscribing to the session or chat channel. Updates travel
+	 * with the rest of the catalog in `root/sessionSummaryChanged`.
+	 */
+	changes?: ChangesSummary;
 }
 
 /**

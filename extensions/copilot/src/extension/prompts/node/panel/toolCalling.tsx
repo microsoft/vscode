@@ -142,7 +142,8 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		// budget-mode models (e.g. Haiku 4.5) 400 on them (#318076).
 		const modelSupportsHistoricalThinking = !!this.promptEndpoint.supportsAdaptiveThinking;
 		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
-			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking);
+			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking)
+			|| (this.promptEndpoint.apiType === 'chatCompletions' && this.promptEndpoint.supportsThinkingContentInHistory);
 		const thinkingApi = this.promptEndpoint.apiType ?? round.originApi ?? thinkingOriginFromMetadata(round.thinking?.metadata);
 		const continuesCurrentTask = this.props.isCurrentTask && thinkingApi === 'chatCompletions';
 		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || continuesCurrentTask || apiSupportsHistoricalThinking);

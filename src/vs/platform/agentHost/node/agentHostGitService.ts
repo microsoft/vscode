@@ -700,11 +700,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return absoluteIndexPath;
 	}
 
-	private async _tryCopyFile(source: string, target: string): Promise<boolean> {
+	private async _tryCopyIndex(source: string, target: string): Promise<boolean> {
 		try {
+			const stat = await fsPromises.stat(source);
 			await fsPromises.copyFile(source, target);
+			// A newer index timestamp can make Git miss racily clean, same-size working-tree edits.
+			await fsPromises.utimes(target, stat.atime, stat.mtime);
 			return true;
-		} catch {
+		} catch (error) {
+			this._logService.debug('[agentHostGitService] Copying the index failed; seeding the temp index from HEAD', error);
 			return false;
 		}
 	}
@@ -936,7 +940,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// working tree is in `changedPaths` and is restaged below, so a copy
 			// of the index yields the same tree as seeding from HEAD while
 			// skipping a `git read-tree` process, which is costly on Windows.
-			if (indexPath && canRestageOntoIndexCopy(statusOut) && await this._tryCopyFile(indexPath, indexFile)) {
+			if (indexPath && canRestageOntoIndexCopy(statusOut) && await this._tryCopyIndex(indexPath, indexFile)) {
 				const tree = await this._stageAndWriteTree(repositoryRoot, tempDir, changedPaths, env);
 				if (tree) {
 					return tree;

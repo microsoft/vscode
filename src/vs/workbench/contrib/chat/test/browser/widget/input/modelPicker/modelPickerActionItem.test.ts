@@ -90,6 +90,7 @@ suite('ModelPickerActionItem', () => {
 		const delegate: IModelPickerDelegate = {
 			currentModel: constObservable(model),
 			setModel: () => { },
+			setModelProgrammatically: () => { },
 			getModels: () => [model],
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true,
@@ -156,6 +157,7 @@ suite('ModelPickerActionItem', () => {
 		const delegate: IModelPickerDelegate = {
 			currentModel: constObservable(undefined),
 			setModel: () => { },
+			setModelProgrammatically: () => { },
 			getModels: () => [],
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true,

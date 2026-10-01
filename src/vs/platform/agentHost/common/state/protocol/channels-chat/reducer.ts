@@ -430,6 +430,29 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 		case ActionType.ChatActivityChanged:
 			return { ...state, activity: action.activity };
 
+		case ActionType.ChatBackgroundWorkSet: {
+			const list = state.backgroundWork ?? [];
+			const idx = list.findIndex(work => work.id === action.work.id);
+			const next = list.slice();
+			if (idx < 0) {
+				next.push(action.work);
+			} else {
+				next[idx] = action.work;
+			}
+			return { ...state, backgroundWork: next };
+		}
+
+		case ActionType.ChatBackgroundWorkRemoved: {
+			const list = state.backgroundWork ?? [];
+			const idx = list.findIndex(work => work.id === action.id);
+			if (idx < 0) {
+				return state;
+			}
+			const next = list.slice();
+			next.splice(idx, 1);
+			return { ...state, backgroundWork: next };
+		}
+
 		case ActionType.ChatMovableChanged:
 			return { ...state, movable: action.movable };
 

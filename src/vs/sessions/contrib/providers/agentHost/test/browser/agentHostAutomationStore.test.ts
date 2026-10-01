@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -20,14 +21,16 @@ import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../pla
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationEnablementKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AUTOMATION_CATALOG_URI, StateComponents, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentHostAutomationStore } from '../../browser/agentHostAutomationStore.js';
+import { AgentHostAutomationStore, type IAgentHostAutomationBoundaryMapper } from '../../browser/agentHostAutomationStore.js';
+import { type IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import type { ISyncedCustomizationOrigin } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ReconnectableAgentHostAutomationStore } from '../../browser/reconnectableAgentHostAutomationStore.js';
 import { AutomationUnavailableError, type AutomationCatalogueState } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -273,21 +276,54 @@ class TestAutomationConnection {
 	}
 }
 
+class TestActiveClientService extends mock<IAgentHostActiveClientService>() {
+	readonly customizations = observableValue<readonly ClientPluginCustomization[]>(this, []);
+	readonly syncedUris = new ResourceMap<URI>();
+	readonly scopes: { sessionType: string; roots: string[]; disposed: boolean }[] = [];
+	resolution: Promise<void> = Promise.resolve();
+
+	override getOrigin(syncedUri: URI) {
+		for (const [source, synced] of this.syncedUris) {
+			if (synced.toString() === syncedUri.toString()) {
+				return upcastPartial<ISyncedCustomizationOrigin>({ uri: source });
+			}
+		}
+		return undefined;
+	}
+
+	override acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
+		const scope = { sessionType, roots: roots.map(root => root.toString()), disposed: false };
+		this.scopes.push(scope);
+		return {
+			customizations: this.customizations,
+			customAgents: constObservable([]),
+			tools: constObservable([]),
+			isResolved: constObservable(true),
+			whenResolved: () => this.resolution,
+			getSyncedUri: sourceUri => this.syncedUris.get(sourceUri),
+			activeClient: clientId => constObservable({ clientId, customizations: [...this.customizations.get()], tools: [] }),
+			dispose: () => scope.disposed = true,
+		};
+	}
+}
+
 suite('AgentHostAutomationStore', () => {
 
 	const disposables = new DisposableStore();
+	const activeClientService = new class extends mock<IAgentHostActiveClientService>() { }();
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function reconnectable(enabled = true) {
+	function reconnectable(enabled = true, activeClient: IAgentHostActiveClientService = activeClientService, boundaryMapper?: IAgentHostAutomationBoundaryMapper) {
 		const storage = disposables.add(new InMemoryStorageService());
 		const configuration = new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: enabled });
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configuration);
-		const store = disposables.add(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, 'host', undefined));
+		instantiationService.stub(IAgentHostActiveClientService, activeClient);
+		const store = disposables.add(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, 'host', boundaryMapper));
 		return { store, storage, configuration };
 	}
 
@@ -303,6 +339,262 @@ suite('AgentHostAutomationStore', () => {
 			updatedAt: '2026-01-01T00:00:00Z',
 		};
 	}
+
+	function plugin(uri: string, enabled = true): ClientPluginCustomization {
+		return {
+			type: CustomizationType.Plugin,
+			id: uri,
+			uri,
+			name: 'Test Plugin',
+			nonce: 'v1',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
+		};
+	}
+
+	function customizationConnection() {
+		const connection = disposables.add(new TestAutomationConnection());
+		connection.initializeResult.set({
+			...connection.initializeResult.get()!,
+			automations: { create: {}, customizations: {} },
+		}, undefined);
+		return connection;
+	}
+
+	test('captures enabled customizations only with negotiated capability', async () => {
+		const enabled = plugin('virtual://client/plugins/enabled');
+		const inherited = { ...plugin('virtual://client/plugins/inherited'), enablement: undefined };
+		for (const advertised of [true, false]) {
+			const activeClient = new TestActiveClientService();
+			activeClient.customizations.set([enabled, plugin('virtual://client/plugins/disabled', false), inherited], undefined);
+			const { store } = reconnectable(true, activeClient);
+			const connection = customizationConnection();
+			if (!advertised) {
+				connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {} } }, undefined);
+			}
+			store.setConnection(connection);
+			const automation = await store.createAutomation({
+				...createOptions(),
+				sessionTemplate: { agent: { uri: 'file:///agents/not-bundled.agent.md' } },
+			});
+			const create = connection.dispatched[0].action;
+			assert.ok(create.type === ActionType.AutomationCreateRequested);
+			// A reconnected older host must not receive even previously saved entries.
+			connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {} } }, undefined);
+			await store.updateAutomation(automation.id, { name: 'Renamed' });
+			const update = connection.dispatched[1].action;
+			assert.ok(update.type === ActionType.AutomationUpdateRequested);
+			assert.deepStrictEqual({
+				hasCustomizations: Object.hasOwn(create.definition.session, 'customizations'),
+				customizations: create.definition.session.customizations,
+				agent: create.definition.session.agent,
+				scopes: activeClient.scopes,
+				updateHasCustomizations: Object.hasOwn(update.changes.session!, 'customizations'),
+			}, {
+				hasCustomizations: advertised,
+				customizations: advertised ? [enabled, inherited] : undefined,
+				agent: { uri: 'file:///agents/not-bundled.agent.md' },
+				scopes: advertised ? [{ sessionType: 'copilotcli', roots: [], disposed: true }] : [],
+				updateHasCustomizations: false,
+			});
+		}
+	});
+
+	test('ordinary edits preserve captured customizations verbatim without acquiring a scope', async () => {
+		const saved = [plugin('virtual://another-client/plugins/saved')];
+		const activeClient = new TestActiveClientService();
+		activeClient.customizations.set(saved, undefined);
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		const target = {
+			kind: 'workspace', providerId: 'host', sessionTypeId: 'copilotcli',
+			folderUri: URI.file('/workspace'), isolation: { kind: 'default' },
+		} as const;
+		const automation = await store.createAutomation({ ...createOptions(), target });
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		activeClient.customizations.set([plugin('virtual://client/plugins/new')], undefined);
+		await store.updateAutomation(automation.id, {
+			name: 'Renamed', prompt: 'New prompt', enabled: false,
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
+			target: { ...target, folderUri: URI.parse(target.folderUri.toString()), isolation: { kind: 'folder' } },
+			sessionTemplate: { modelId: 'new-model', config: { mode: 'autopilot' } },
+		});
+		await store.updateAutomation(automation.id, { sessionTemplate: null });
+		const updates = connection.dispatched.slice(1).map(({ action }) => {
+			assert.ok(action.type === ActionType.AutomationUpdateRequested);
+			return {
+				customizations: action.changes.session?.customizations,
+				sameEntries: action.changes.session?.customizations === create.definition.session.customizations,
+			};
+		});
+		assert.deepStrictEqual({ updates, scopes: activeClient.scopes }, {
+			updates: [{ customizations: saved, sameEntries: true }, { customizations: saved, sameEntries: true }],
+			scopes: [{ sessionType: 'copilotcli', roots: ['file:///workspace'], disposed: true }],
+		});
+	});
+
+	test('retargeting recaptures for the mapped harness and client workspace roots', async () => {
+		const activeClient = new TestActiveClientService();
+		const { store } = reconnectable(true, activeClient, {
+			toHost: uri => uri.with({ scheme: 'file', authority: '' }),
+			fromHost: uri => uri.with({ scheme: 'vscode-remote', authority: 'test-host' }),
+			resourceSchemeForProvider: provider => `remote-${provider}`,
+			providerForResourceScheme: scheme => scheme.startsWith('remote-') ? scheme.slice('remote-'.length) : undefined,
+		});
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		const first = plugin('virtual://client/plugins/first');
+		const second = plugin('virtual://client/plugins/second');
+		activeClient.customizations.set([first], undefined);
+		let automation = await store.createAutomation({
+			...createOptions(),
+			target: {
+				kind: 'workspace', providerId: 'host',
+				folderUri: URI.parse('vscode-remote://test-host/workspace/one'), isolation: { kind: 'default' },
+			},
+			modelId: 'remote-copilotcli:model',
+		});
+		activeClient.customizations.set([second], undefined);
+		automation = await store.updateAutomation(automation.id, {
+			target: {
+				kind: 'workspace', providerId: 'host', sessionTypeId: 'copilotcli',
+				folderUri: URI.parse('vscode-remote://test-host/workspace/two'), isolation: { kind: 'default' },
+			},
+		});
+		activeClient.customizations.set([], undefined);
+		automation = await store.updateAutomation(automation.id, {
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+		});
+		activeClient.customizations.set([first], undefined);
+		await store.updateAutomation(automation.id, {
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'claude' },
+		});
+		const sessions = connection.dispatched.map(({ action }) => {
+			assert.ok(action.type === ActionType.AutomationCreateRequested || action.type === ActionType.AutomationUpdateRequested);
+			const session = action.type === ActionType.AutomationCreateRequested ? action.definition.session : action.changes.session!;
+			return { customizations: session.customizations, workingDirectories: session.workingDirectories };
+		});
+		assert.deepStrictEqual({ sessions, scopes: activeClient.scopes }, {
+			sessions: [
+				{ customizations: [first], workingDirectories: ['file:///workspace/one'] },
+				{ customizations: [second], workingDirectories: ['file:///workspace/two'] },
+				{ customizations: [], workingDirectories: undefined },
+				{ customizations: [first], workingDirectories: undefined },
+			],
+			scopes: [
+				{ sessionType: 'remote-copilotcli', roots: ['vscode-remote://test-host/workspace/one'], disposed: true },
+				{ sessionType: 'remote-copilotcli', roots: ['vscode-remote://test-host/workspace/two'], disposed: true },
+				{ sessionType: 'remote-copilotcli', roots: [], disposed: true },
+				{ sessionType: 'remote-claude', roots: [], disposed: true },
+			],
+		});
+	});
+
+	test('waits for customization resolution and holds the scope until the host responds', async () => {
+		const activeClient = new TestActiveClientService();
+		const resolution = new DeferredPromise<void>();
+		activeClient.resolution = resolution.p;
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		connection.suppressCreatePublication = true;
+		store.setConnection(connection);
+		const pending = store.createAutomation(createOptions());
+		const beforeResolution = { dispatched: connection.dispatched.length, disposed: activeClient.scopes[0].disposed };
+		const enabled = plugin('virtual://client/plugins/resolved');
+		activeClient.customizations.set([enabled], undefined);
+		await resolution.complete();
+		await connection.createRequested.p;
+		const duringDispatch = { dispatched: connection.dispatched.length, disposed: activeClient.scopes[0].disposed };
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		connection.setAutomation({
+			resource: create.resource, definition: create.definition, runs: [],
+			operations: [AutomationOperation.Update], createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+		});
+		await pending;
+		assert.deepStrictEqual({
+			beforeResolution, duringDispatch,
+			afterResponse: activeClient.scopes[0].disposed,
+			customizations: create.definition.session.customizations,
+		}, {
+			beforeResolution: { dispatched: 0, disposed: false },
+			duringDispatch: { dispatched: 1, disposed: false },
+			afterResponse: true,
+			customizations: [enabled],
+		});
+	});
+
+	test('releases customization scopes when resolution or a mutation guard rejects', async () => {
+		for (const failure of ['resolution', 'guard'] as const) {
+			const activeClient = new TestActiveClientService();
+			const { store } = reconnectable(true, activeClient);
+			const connection = customizationConnection();
+			store.setConnection(connection);
+			if (failure === 'resolution') {
+				activeClient.resolution = Promise.reject(new Error('Resolution failed'));
+			}
+			await assert.rejects(store.createAutomation(createOptions(), () => { throw new Error('Guard failed'); }), /failed/);
+			assert.deepStrictEqual({ disposed: activeClient.scopes[0].disposed, dispatched: connection.dispatched }, { disposed: true, dispatched: [] });
+		}
+	});
+
+	test('retargeting keeps a bundled agent by mapping it into the new target bundle', async () => {
+		const activeClient = new TestActiveClientService();
+		const source = URI.file('/user/prompts/review.agent.md');
+		const first = plugin('vscode-synced-customization:/scope-one');
+		const second = plugin('vscode-synced-customization:/scope-two');
+		activeClient.customizations.set([first], undefined);
+		activeClient.syncedUris.set(source, URI.joinPath(URI.parse(first.uri), 'agents', 'review.agent.md'));
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		const automation = await store.createAutomation({ ...createOptions(), sessionTemplate: { agent: { uri: source.toString() } } });
+		// The new scope bundles the same source; the store only knows the previous bundle's URI.
+		activeClient.customizations.set([second], undefined);
+		activeClient.syncedUris.set(source, URI.joinPath(URI.parse(second.uri), 'agents', 'review.agent.md'));
+		await store.updateAutomation(automation.id, {
+			target: { kind: 'workspace', providerId: 'host', sessionTypeId: 'copilotcli', folderUri: URI.file('/workspace'), isolation: { kind: 'default' } },
+		});
+		const update = connection.dispatched[1].action;
+		assert.ok(update.type === ActionType.AutomationUpdateRequested);
+		assert.deepStrictEqual({ agent: update.changes.session?.agent, customizations: update.changes.session?.customizations }, {
+			agent: { uri: 'vscode-synced-customization:/scope-two/agents/review.agent.md' },
+			customizations: [second],
+		});
+	});
+
+	test('rewrites a selected source agent to its bundled URI when capturing', async () => {
+		const activeClient = new TestActiveClientService();
+		const source = URI.file('/extensions/review.agent.md');
+		const bundle = plugin('vscode-synced-customization:/automation-scope');
+		const bundledAgent = URI.joinPath(URI.parse(bundle.uri), 'agents', 'review.agent.md');
+		activeClient.customizations.set([bundle], undefined);
+		activeClient.syncedUris.set(source, bundledAgent);
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		const automation = await store.createAutomation({
+			...createOptions(), sessionTemplate: { agent: { uri: source.toString() } },
+		});
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		// Stale origins must not select an agent in a plugin that is no longer sent.
+		activeClient.customizations.set([], undefined);
+		await store.updateAutomation(automation.id, {
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'claude' },
+			sessionTemplate: { agent: { uri: source.toString() } },
+		});
+		const update = connection.dispatched[1].action;
+		assert.ok(update.type === ActionType.AutomationUpdateRequested);
+		assert.deepStrictEqual({
+			create: { agent: create.definition.session.agent, customizations: create.definition.session.customizations },
+			update: { agent: update.changes.session?.agent, customizations: update.changes.session?.customizations },
+		}, {
+			create: { agent: { uri: 'vscode-synced-customization:/automation-scope/agents/review.agent.md' }, customizations: [bundle] },
+			update: { agent: { uri: source.toString() }, customizations: [] },
+		});
+	});
 
 	test('disconnected, initializing, unsupported and disabled hosts never use browser ledgers', async () => {
 		const reasons = {
@@ -529,7 +821,7 @@ suite('AgentHostAutomationStore', () => {
 		const connection = new TestAutomationConnection(false);
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const loading = store.catalogueState.get();
 		connection.setCatalogAvailable();
 
@@ -546,7 +838,7 @@ suite('AgentHostAutomationStore', () => {
 		const connection = new TestAutomationConnection();
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		await store.createAutomation({
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
@@ -571,7 +863,7 @@ suite('AgentHostAutomationStore', () => {
 		disposables.add(connection);
 		connection.runPrimarySession = 'ahp-session:/session';
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 
 		const automation = await store.createAutomation({
 			name: 'Review changes',
@@ -618,7 +910,7 @@ suite('AgentHostAutomationStore', () => {
 	test('does not forward generic chat modes to Agent Host session config', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 
 		await store.createAutomation({
 			name: 'Review changes',
@@ -639,7 +931,7 @@ suite('AgentHostAutomationStore', () => {
 	test('applies legacy Autopilot configuration to the default provider', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 
 		await store.createAutomation({
 			name: 'Review changes',
@@ -666,7 +958,7 @@ suite('AgentHostAutomationStore', () => {
 	test('preserves Agent Host config on an unrelated canonical update', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
@@ -692,7 +984,7 @@ suite('AgentHostAutomationStore', () => {
 	test('does not apply legacy Copilot configuration to another session type', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 
 		await store.createAutomation({
 			name: 'Review changes',
@@ -719,7 +1011,7 @@ suite('AgentHostAutomationStore', () => {
 	test('filters session-owned values from canonical templates', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 
 		await store.createAutomation({
 			name: 'Review changes',
@@ -746,7 +1038,7 @@ suite('AgentHostAutomationStore', () => {
 	test('clears provider configuration and agent with an explicit template reset', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
@@ -787,7 +1079,7 @@ suite('AgentHostAutomationStore', () => {
 	test('drops provider configuration when retargeting to another session type', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
@@ -821,7 +1113,7 @@ suite('AgentHostAutomationStore', () => {
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
-		}, new NullLogService(), storage));
+		}, new NullLogService(), storage, activeClientService));
 		const sessionTemplate = {
 			modelId: 'agent-host-copilotcli:auto',
 			modelConfiguration: { thinkingLevel: 'low', futureOption: 'preserved' },
@@ -888,7 +1180,7 @@ suite('AgentHostAutomationStore', () => {
 	test('rejects model configuration without a model identifier instead of dropping it', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const options = {
 			name: 'Model configuration',
 			prompt: 'Review changes.',
@@ -918,7 +1210,7 @@ suite('AgentHostAutomationStore', () => {
 	test('explicit empty and omitted model configuration replace stale model options', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({
 			name: 'Reset model configuration',
 			prompt: 'Review changes.',
@@ -947,7 +1239,7 @@ suite('AgentHostAutomationStore', () => {
 	test('applies the first flat permission update when the projected session template is empty', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
@@ -968,7 +1260,7 @@ suite('AgentHostAutomationStore', () => {
 		const connection = new TestAutomationConnection();
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({
 			name: 'Scheduled review',
 			prompt: 'Review changes.',
@@ -997,7 +1289,7 @@ suite('AgentHostAutomationStore', () => {
 			fromHost: resource => URI.from({ scheme: 'client', path: resource.path }),
 			resourceSchemeForProvider: provider => `remote-test-${provider}`,
 			providerForSessionScheme: scheme => scheme === 'ahp-session' ? 'mock' : scheme,
-		}, new NullLogService(), storage));
+		}, new NullLogService(), storage, activeClientService));
 
 		const automation = await store.createAutomation({
 			name: 'Remote',
@@ -1041,7 +1333,7 @@ suite('AgentHostAutomationStore', () => {
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
 			providerForResourceScheme: scheme => scheme.startsWith('agent-host-') ? scheme.slice('agent-host-'.length) : undefined,
-		}, new NullLogService(), storage));
+		}, new NullLogService(), storage, activeClientService));
 
 		const automation = await store.createAutomation({
 			name: 'Local',
@@ -1070,7 +1362,7 @@ suite('AgentHostAutomationStore', () => {
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
 			providerForResourceScheme: scheme => scheme.startsWith('agent-host-') ? scheme.slice('agent-host-'.length) : undefined,
-		}, new NullLogService(), storage));
+		}, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({
 			name: 'Retargeted',
 			prompt: 'Say hi.',
@@ -1102,7 +1394,7 @@ suite('AgentHostAutomationStore', () => {
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
 			providerForResourceScheme: scheme => scheme.startsWith('agent-host-') ? scheme.slice('agent-host-'.length) : undefined,
-		}, new NullLogService(), storage));
+		}, new NullLogService(), storage, activeClientService));
 		const folderUri = URI.file('/workspace');
 
 		const defaultProvider = await store.createAutomation({
@@ -1142,7 +1434,7 @@ suite('AgentHostAutomationStore', () => {
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
-		}, new NullLogService(), storage));
+		}, new NullLogService(), storage, activeClientService));
 		const timestamp = new Date().toISOString();
 
 		connection.setAutomation({
@@ -1212,7 +1504,7 @@ suite('AgentHostAutomationStore', () => {
 		const connection = new TestAutomationConnection();
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({
 			name: 'Restricted',
 			prompt: 'Review.',
@@ -1275,7 +1567,7 @@ suite('AgentHostAutomationStore', () => {
 		const connection = new TestAutomationConnection();
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({
 			name: 'Cancelable',
 			prompt: 'Review.',
@@ -1343,7 +1635,7 @@ suite('AgentHostAutomationStore', () => {
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
-		}, new NullLogService(), storage));
+		}, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({
 			name: 'Long-running',
 			prompt: 'Review.',
@@ -1390,8 +1682,8 @@ suite('AgentHostAutomationStore', () => {
 		localConnection.setAutomation({ ...entry, resource: 'ahp-automation:/nested/review', runs: [] });
 		remoteConnection.setAutomation({ ...entry, definition: { ...entry.definition, title: 'Remote review' } });
 		const storage = disposables.add(new InMemoryStorageService());
-		const local = disposables.add(new AgentHostAutomationStore('local', localConnection, undefined, new NullLogService(), storage));
-		const remote = disposables.add(new AgentHostAutomationStore('remote', remoteConnection, undefined, new NullLogService(), storage));
+		const local = disposables.add(new AgentHostAutomationStore('local', localConnection, undefined, new NullLogService(), storage, activeClientService));
+		const remote = disposables.add(new AgentHostAutomationStore('remote', remoteConnection, undefined, new NullLogService(), storage, activeClientService));
 		const providers = [
 			upcastPartial<ISessionsProvider>({ id: 'local', automations: local }),
 			upcastPartial<ISessionsProvider>({ id: 'remote', automations: remote }),

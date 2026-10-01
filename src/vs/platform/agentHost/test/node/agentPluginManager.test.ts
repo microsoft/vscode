@@ -110,6 +110,27 @@ suite('AgentPluginManager', () => {
 
 	suite('syncCustomizations', () => {
 
+		test('uses immutable host directories in place without client reads or cache entries', async () => {
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const hostManager = new AgentPluginManager(URI.file('/userData'), fileService, new NullLogService());
+			const directory = URI.joinPath(hostManager.hostPluginsPath, 'automations', 'captured');
+			await fileService.createFolder(directory);
+			await fileService.writeFile(URI.joinPath(directory, 'index.js'), VSBuffer.fromString('immutable'));
+			const ref = { ...makeRef('host', 'revision'), uri: directory.toString() };
+			const [result] = await hostManager.syncCustomizations('not-connected', [ref]);
+			assert.deepStrictEqual({
+				pluginDir: result.pluginDir?.toString(),
+				customization: result.customization,
+				content: (await fileService.readFile(URI.joinPath(directory, 'index.js'))).value.toString(),
+				cacheExists: await fileService.exists(URI.joinPath(hostManager.basePath, 'cache.json')),
+			}, {
+				pluginDir: directory.toString(),
+				customization: { ...ref, load: { kind: 'loaded' } },
+				content: 'immutable',
+				cacheExists: false,
+			});
+		});
+
 		test('returns loaded status and pluginDir for each synced plugin', async () => {
 			await seedPluginDir('alpha', { 'index.js': 'a' });
 			await seedPluginDir('beta', { 'index.js': 'b' });
