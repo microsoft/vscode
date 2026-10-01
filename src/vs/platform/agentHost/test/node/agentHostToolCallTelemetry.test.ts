@@ -22,7 +22,8 @@ import { AgentSession, IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { CustomizationType, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -423,6 +424,14 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 	test('emits userCancelled with mcp source kind for a denied mcp tool', () => {
 		setupSession();
+		stateManager.setSessionCustomizations(sessionKey, [{
+			type: CustomizationType.McpServer,
+			id: 'c1',
+			uri: 'mcp://managed/mail',
+			name: 'mail',
+			state: { kind: McpServerStatus.Ready },
+			_meta: withMcpServerSourceMeta(undefined, 'managed'),
+		}]);
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-mcp', 'lookup', { kind: ToolCallContributorKind.MCP, customizationId: 'c1' });
@@ -437,6 +446,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolId: 'lookup',
 				toolExtensionId: undefined,
 				toolSourceKind: 'mcp',
+				mcpSourceKind: 'managed',
 				toolCallId: 'tc-mcp',
 				provider: 'mock',
 				invocationTimeMs: undefined,
@@ -453,6 +463,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			toolId: 'lookup',
 			toolExtensionId: undefined,
 			toolSourceKind: 'mcp',
+			mcpSourceKind: 'managed',
 			toolCallId: 'tc-mcp',
 			provider: 'mock',
 			invocationTimeMs: undefined,

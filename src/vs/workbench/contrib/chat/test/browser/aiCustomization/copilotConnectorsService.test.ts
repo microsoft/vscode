@@ -26,6 +26,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
+import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { CopilotConnectorsMarketplaceProvider, CopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -55,6 +56,16 @@ function catalogResponse(status: 'available' | 'connected', names = ['mail']): u
 			},
 		})),
 	};
+}
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+
+	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
+		if (eventName && data) {
+			this.events.push({ name: eventName, data });
+		}
+	}
 }
 
 suite('CopilotConnectorsService', () => {
@@ -160,6 +171,7 @@ suite('CopilotConnectorsService', () => {
 				return true;
 			}
 		}();
+		const telemetryService = new TestTelemetryService();
 		const service = store.add(new CopilotConnectorsService(
 			new CopilotConnectorsRequestService(requestService, productService, new NullLogService()),
 			authenticationService,
@@ -168,11 +180,12 @@ suite('CopilotConnectorsService', () => {
 			configurationService,
 			openerService,
 			agentHostService,
+			telemetryService,
 			new NullLogService(),
 		));
 		return {
 			service, requests, requestTokens, authorizationHeaders, opened, configurationService, authenticationCalls, consentCalls, signInCalls, authenticationService, defaultAccountService,
-			initialAccount, initialSession, accountChanged, sessionsChanged, reconciliations,
+			initialAccount, initialSession, accountChanged, sessionsChanged, reconciliations, telemetryService,
 			queueReconciliationWait: (wait: Promise<void>) => reconciliationWaits.push(wait),
 			setReconciliationError: (error: Error | undefined) => { reconciliationError = error; },
 			setAccount: (value: IDefaultAccount | null, notify = true) => {
@@ -902,6 +915,10 @@ suite('CopilotConnectorsService', () => {
 				connector: server.connector.name,
 				serverName: server.serverName,
 			})),
+			telemetry: fixture.telemetryService.events.map(event => ({
+				...event,
+				data: typeof event.data.durationMs === 'number' ? { ...event.data, durationMs: true } : event.data,
+			})),
 		}, {
 			requests: [{
 				type: 'GET',
@@ -920,7 +937,74 @@ suite('CopilotConnectorsService', () => {
 			connectionStateKnown: true,
 			reconciliations: 2,
 			connected: [{ connector: 'mail', serverName: 'mail-server' }],
+			telemetry: [{
+				name: 'copilotConnectors.catalogSnapshot',
+				data: {
+					catalogAccess: 'scoped',
+					connectorCount: 1,
+					connectedConnectorCount: 0,
+					notConnectedConnectorCount: 1,
+					pendingConnectorCount: 0,
+					errorConnectorCount: 0,
+					unknownConnectorCount: 0,
+					mcpServerCount: 1,
+					connectedMcpServerCount: 0,
+				},
+			}, {
+				name: 'copilotConnectors.catalogSnapshot',
+				data: {
+					catalogAccess: 'scoped',
+					connectorCount: 1,
+					connectedConnectorCount: 1,
+					notConnectedConnectorCount: 0,
+					pendingConnectorCount: 0,
+					errorConnectorCount: 0,
+					unknownConnectorCount: 0,
+					mcpServerCount: 1,
+					connectedMcpServerCount: 1,
+				},
+			}, {
+				name: 'copilotConnectors.connectionAction',
+				data: {
+					action: 'connect',
+					outcome: 'success',
+					connectorName: 'mail',
+					connectionStatusBefore: 'not_loaded',
+					connectionStatusAfter: 'connected',
+					durationMs: true,
+					connectorMcpServerCount: 1,
+					httpStatusCode: undefined,
+				},
+			}],
 		});
+	});
+
+	test('reports failed connection actions with bounded diagnostics', async () => {
+		const fixture = createFixture([
+			{ body: catalogResponse('available') },
+			{ status: 500 },
+		]);
+
+		await assert.rejects(fixture.service.connect('mail', CancellationToken.None), /HTTP 500/);
+
+		assert.deepStrictEqual(fixture.telemetryService.events
+			.filter(event => event.name === 'copilotConnectors.connectionAction')
+			.map(event => ({
+				...event,
+				data: { ...event.data, durationMs: typeof event.data.durationMs === 'number' },
+			})), [{
+			name: 'copilotConnectors.connectionAction',
+			data: {
+				action: 'connect',
+				outcome: 'error',
+				connectorName: 'mail',
+				connectionStatusBefore: 'not_loaded',
+				connectionStatusAfter: 'not_connected',
+				durationMs: true,
+				connectorMcpServerCount: 1,
+				httpStatusCode: 500,
+			},
+		}]);
 	});
 
 	test('refreshes live sessions on the first authoritative catalog even when no connector is connected', async () => {
@@ -946,7 +1030,13 @@ suite('CopilotConnectorsService', () => {
 		await fixture.service.refresh(CancellationToken.None);
 		await fixture.service.refresh(CancellationToken.None);
 
-		assert.strictEqual(fixture.reconciliations.length, 1);
+		assert.deepStrictEqual({
+			reconciliations: fixture.reconciliations.length,
+			catalogSnapshots: fixture.telemetryService.events.filter(event => event.name === 'copilotConnectors.catalogSnapshot').length,
+		}, {
+			reconciliations: 1,
+			catalogSnapshots: 1,
+		});
 	});
 
 	test('disconnects a connector and refreshes its state', async () => {
