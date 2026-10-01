@@ -309,10 +309,11 @@ class GitHubAnonymousClient extends Disposable implements IGitHubAnonymousClient
 		}
 		const url = new URL(`${this.apiBaseUri}${path}`);
 		const endpoint = new URL(this.apiBaseUri);
-		if (url.origin !== endpoint.origin || !url.pathname.startsWith(`${endpoint.pathname.replace(/\/+$/, '')}/`)
+		const apiBasePath = `${endpoint.pathname.replace(/\/+$/, '')}/`;
+		if (url.origin !== endpoint.origin || !url.pathname.startsWith(apiBasePath)
 			|| url.username || url.password || url.hash) {
 			throw new GitHubRequestError('Anonymous GitHub read escaped its API endpoint', 'validation');
 		}
-		return this._transport.anonymousGet<T>(this._account, { ...options, url: url.href }, signal);
+		return this._transport.anonymousGet<T>(this._account, apiBasePath, { ...options, url: url.href }, signal);
 	}
 }

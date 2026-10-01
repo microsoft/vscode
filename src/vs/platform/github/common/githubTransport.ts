@@ -158,17 +158,17 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		return this._trackRequest(signal, () => this._rest<T>(account, token, request, signal));
 	}
 
-	anonymousGet<T>(account: GitHubAnonymousAccount, request: GitHubAnonymousReadOptions & { readonly url: string }, signal: AbortSignal): Promise<GitHubRestResponse<T>> {
-		return this._trackRequest(signal, () => this._rest<T>(account, undefined, { ...request, method: 'GET', body: undefined }, signal));
+	anonymousGet<T>(account: GitHubAnonymousAccount, apiBasePath: string, request: GitHubAnonymousReadOptions & { readonly url: string }, signal: AbortSignal): Promise<GitHubRestResponse<T>> {
+		return this._trackRequest(signal, () => this._rest<T>(account, undefined, { ...request, method: 'GET', body: undefined }, signal, apiBasePath));
 	}
 
-	private async _rest<T>(account: GitHubRequestAccount, token: string | undefined, request: GitHubRestRequest, signal: AbortSignal): Promise<GitHubRestResponse<T>> {
+	private async _rest<T>(account: GitHubRequestAccount, token: string | undefined, request: GitHubRestRequest, signal: AbortSignal, anonymousApiBasePath?: string): Promise<GitHubRestResponse<T>> {
 		signal.throwIfAborted();
 		const deadline = this._deadline(request);
 		const finalUrl = this._redirects.get(request.url) ?? request.url;
 		const cacheKey = this._restCacheKey(account, request, finalUrl);
 		if (request.method !== 'GET') {
-			return this._executeRest<T>(account, token, request, signal, cacheKey);
+			return this._executeRest<T>(account, token, request, signal, cacheKey, anonymousApiBasePath);
 		}
 
 		const coalescingKey = this._restCoalescingKey(account, request, finalUrl);
@@ -183,7 +183,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			const controller = new AbortController();
 			const requestDeadline = this._deadline({});
 			let admitted = false;
-			const promise = this._executeRest<unknown>(account, token, { ...request, deadline: requestDeadline }, controller.signal, cacheKey, () => { admitted = true; });
+			const promise = this._executeRest<unknown>(account, token, { ...request, deadline: requestDeadline }, controller.signal, cacheKey, anonymousApiBasePath, () => { admitted = true; });
 			if (!admitted) {
 				return await promise as GitHubRestResponse<T>;
 			}
@@ -547,6 +547,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		request: GitHubRestRequest,
 		signal: AbortSignal,
 		cacheKey: string,
+		anonymousApiBasePath?: string,
 		onAdmitted?: () => void,
 	): Promise<GitHubRestResponse<T>> {
 		const priority = request.priority ?? (request.method === 'GET' ? 'interactive' : 'mutation');
@@ -577,7 +578,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				signal,
 				redirect: 'manual',
 				...(account.kind === 'anonymous' ? { credentials: 'omit', referrerPolicy: 'no-referrer' } as const : {}),
-			}, request.method === 'GET', request.caller, onDispatch);
+			}, request.method === 'GET', request.caller, onDispatch, anonymousApiBasePath);
 			this._logService?.trace(`[GitHubTransport] REST ${operation} returned HTTP ${response.status}`);
 			const finalUrl = response.url || this._redirects.get(request.url) || request.url;
 			const body = await this._readResponse(account, response, signal, restResource(request.url));
@@ -675,7 +676,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		});
 	}
 
-	private async _fetchRestWithRedirects(account: GitHubRequestAccount, initialUrl: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined, onDispatch: () => void): Promise<Response> {
+	private async _fetchRestWithRedirects(account: GitHubRequestAccount, initialUrl: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined, onDispatch: () => void, anonymousApiBasePath?: string): Promise<Response> {
 		let url = this._redirects.get(initialUrl) ?? initialUrl;
 		const initialOrigin = new URL(url).origin;
 		for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
@@ -697,6 +698,9 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			const target = new URL(url);
 			if (target.origin !== initialOrigin || (account.kind === 'anonymous' && (target.username || target.password))) {
 				throw new GitHubRequestError('GitHub redirect changed origin', 'authorization', response.status);
+			}
+			if (account.kind === 'anonymous' && (!anonymousApiBasePath || !target.pathname.startsWith(anonymousApiBasePath))) {
+				throw new GitHubRequestError('Anonymous GitHub redirect escaped its API endpoint', 'authorization', response.status);
 			}
 			this._logService?.trace(`[GitHubTransport] Following REST redirect to ${formatRequestUrl(url)}`);
 		}

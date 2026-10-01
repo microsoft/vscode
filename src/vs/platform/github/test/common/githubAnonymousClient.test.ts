@@ -231,6 +231,92 @@ suite('GitHub anonymous clients', () => {
 		assert.deepStrictEqual(requests, [{ url: `${apiBaseUri}/old`, credentialless: true }, { url: `${apiBaseUri}/renamed`, credentialless: true }]);
 	});
 
+	for (const location of ['/outside', '../outside', '/api/v30/outside', '/api/v3/../outside', '/api/v3/%2e%2e/outside', '/api/v3']) {
+		test(`rejects anonymous redirects outside the API base: ${location}`, async () => {
+			const baseUri = 'https://enterprise.example.test/api/v3';
+			const requests: string[] = [];
+			const service = create({
+				fetch: async input => {
+					requests.push(String(input));
+					return String(input) === `${baseUri}/old`
+						? new Response(null, { status: 302, headers: { Location: location } })
+						: new Response('{"outside":true}', { headers: { ETag: '"outside"' } });
+				},
+			});
+			const client = store.add(service.acquireAnonymousClient({ apiBaseUri: `${baseUri}///` })).object;
+			await assert.rejects(client.get('/old', signal()), { kind: 'authorization' });
+			await assert.rejects(client.get('/old', signal()), { kind: 'authorization' });
+			assert.deepStrictEqual(requests, [`${baseUri}/old`, `${baseUri}/old`]);
+		});
+	}
+
+	test('anonymous redirects within the normalized API base retain conditional caching', async () => {
+		const baseUri = 'https://enterprise.example.test/api/v3';
+		const requests: { url: string; etag: string | null }[] = [];
+		const service = create({
+			fetch: async (input, init) => {
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				requests.push({ url: String(input), etag });
+				if (String(input) === `${baseUri}/old`) {
+					return new Response(null, { status: 301, headers: { Location: 'renamed' } });
+				}
+				return etag
+					? new Response(null, { status: 304 })
+					: new Response('{"public":true}', { headers: { ETag: '"public"' } });
+			},
+		});
+		const client = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://enterprise.example.test/ignored/../api/v3///' })).object;
+		await client.get('/old', signal());
+		const reused = await client.get('/old', signal());
+		assert.deepStrictEqual({ requests, statusCode: reused.statusCode, data: reused.data, finalUrl: reused.finalUrl }, {
+			requests: [
+				{ url: `${baseUri}/old`, etag: null },
+				{ url: `${baseUri}/renamed`, etag: null },
+				{ url: `${baseUri}/renamed`, etag: '"public"' },
+			],
+			statusCode: 304, data: { public: true }, finalUrl: `${baseUri}/renamed`,
+		});
+	});
+
+	test('a cached anonymous redirect cannot redirect outside the API base', async () => {
+		const baseUri = 'https://enterprise.example.test/api/v3';
+		const requests: string[] = [];
+		const service = create({
+			fetch: async input => {
+				requests.push(String(input));
+				if (String(input) === `${baseUri}/old`) {
+					return new Response(null, { status: 302, headers: { Location: '/api/v3/renamed' } });
+				}
+				return requests.length === 3
+					? new Response(null, { status: 307, headers: { Location: '/outside' } })
+					: new Response('{"public":true}', { headers: { ETag: '"public"' } });
+			},
+		});
+		const client = store.add(service.acquireAnonymousClient({ apiBaseUri: baseUri })).object;
+		await client.get('/old', signal());
+		await assert.rejects(client.get('/old', signal()), { kind: 'authorization' });
+		assert.deepStrictEqual(requests, [`${baseUri}/old`, `${baseUri}/renamed`, `${baseUri}/renamed`]);
+	});
+
+	test('anonymous API path boundaries do not restrict authenticated redirects', async () => {
+		const baseUri = 'https://enterprise.example.test/api/v3';
+		const requests: string[] = [];
+		const service = create({
+			credentialProvider: { onDidChange: Event.None, getToken: () => 'token' },
+			fetch: async input => {
+				requests.push(String(input));
+				return requests.length === 1
+					? new Response(null, { status: 302, headers: { Location: '/outside' } })
+					: new Response('{"authenticated":true}');
+			},
+		});
+		const client = store.add(service.acquireClient({ ...authorizedOptions, apiBaseUri: baseUri, graphQlUri: 'https://enterprise.example.test/api/graphql' })).object;
+		const response = await client.transport.rest({ host: 'enterprise.example.test', accountId: '101' }, 'token', { method: 'GET', url: `${baseUri}/old` }, signal());
+		assert.deepStrictEqual({ requests, data: response.data }, {
+			requests: [`${baseUri}/old`, 'https://enterprise.example.test/outside'], data: { authenticated: true },
+		});
+	});
+
 	test('anonymous work participates in the same host concurrency bound as authenticated work', async () => {
 		const gates = Array.from({ length: 3 }, () => new DeferredPromise<Response>());
 		const requests: boolean[] = [];
