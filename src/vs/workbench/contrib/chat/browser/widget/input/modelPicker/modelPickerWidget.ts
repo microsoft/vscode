@@ -269,7 +269,11 @@ export class ModelPickerWidget extends Disposable {
 		this._selectedModel = selectedModel;
 		this._tabbedPicker.value?.setSelectedModel(selectedModel?.identifier);
 		if (selectedModel && selectedModel !== model) {
-			this._delegate.setModelProgrammatically(selectedModel);
+			if (this._delegate.setModelProgrammatically) {
+				this._delegate.setModelProgrammatically(selectedModel);
+			} else {
+				this._delegate.setModel(selectedModel);
+			}
 		}
 		this._renderLabel();
 	}

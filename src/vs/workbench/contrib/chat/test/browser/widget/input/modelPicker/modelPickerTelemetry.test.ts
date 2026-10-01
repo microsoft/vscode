@@ -82,7 +82,7 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(tabbed: boolean, selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro) {
+	function createPicker(tabbed: boolean, selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
@@ -301,7 +301,7 @@ suite('ModelPickerTelemetry', () => {
 		const picker = store.add(instantiationService.createInstance(ModelPickerWidget, {
 			currentModel: constObservable(selectedModel),
 			setModel: model => delegateSelections.push(model.identifier),
-			setModelProgrammatically: model => programmaticDelegateSelections.push(model.identifier),
+			setModelProgrammatically: supportsProgrammaticSelection ? model => programmaticDelegateSelections.push(model.identifier) : undefined,
 			getModels: () => models,
 			getChatSessionId: () => 'session-1',
 			getPresentationOptions: () => ({
@@ -360,6 +360,20 @@ suite('ModelPickerTelemetry', () => {
 			selected: autoModel.identifier,
 			delegateSelections: [],
 			programmaticDelegateSelections: [autoModel.identifier],
+		});
+	});
+
+	test('Free entitlement falls back to setModel when the delegate has no programmatic selection', () => {
+		const hydraFusion = createModel('hydrafusion');
+		const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model], ChatEntitlement.Free, false);
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			delegateSelections: result.delegateSelections,
+			programmaticDelegateSelections: result.programmaticDelegateSelections,
+		}, {
+			selected: autoModel.identifier,
+			delegateSelections: [autoModel.identifier],
+			programmaticDelegateSelections: [],
 		});
 	});
 
