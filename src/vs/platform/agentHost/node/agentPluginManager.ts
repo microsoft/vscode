@@ -7,10 +7,9 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { Schemas } from '../../../base/common/network.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
+import { AGENT_HOST_FILE_SCHEME, IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
 import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCustomization } from '../common/state/sessionState.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
@@ -141,9 +140,8 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 */
 	private async _syncPlugin(clientId: string, ref: ClientPluginCustomization): Promise<URI> {
 		const uri = URI.parse(ref.uri);
-		// Normalize so `..` segments cannot escape the host-owned directory.
-		if (uri.scheme === Schemas.file && extUriBiasedIgnorePathCase.isEqualOrParent(extUriBiasedIgnorePathCase.normalizePath(uri), this.hostPluginsPath)) {
-			return uri;
+		if (uri.scheme === AGENT_HOST_FILE_SCHEME) {
+			return uri.with({ scheme: Schemas.file });
 		}
 		const pluginUri = toAgentClientUri(uri, clientId);
 		const destDir = this._dirFor(ref.uri, ref.nonce);
