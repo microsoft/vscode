@@ -769,6 +769,35 @@ suite('Desktop layout strategies', () => {
 		});
 	});
 
+	test('Quick Chat preserves the side pane when a pending restore crosses a multi-session layout', () => {
+		harness = createTestHarness(store);
+		const { ctx, state } = createStrategyTestContext(store, harness);
+		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+		const otherSession = makeSession(URI.parse('session:/other'));
+		state.isRestoringSessionLayout = true;
+		harness.editorGroupsHaveContent = false;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		createDraftStrategy(ctx);
+
+		activate(quickChat);
+		harness.visibleSessionsObs.set([quickChat, otherSession], undefined);
+		harness.visibleSessionsObs.set([quickChat], undefined);
+		harness.setPartHiddenCalls.length = 0;
+		state.isRestoringSessionLayout = false;
+		state.endSessionLayoutRestore();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [],
+		});
+	});
+
 	test('Quick Chat reveals its restored editors after layout restoration settles', () => {
 		harness = createTestHarness(store);
 		const { ctx, state } = createStrategyTestContext(store, harness);

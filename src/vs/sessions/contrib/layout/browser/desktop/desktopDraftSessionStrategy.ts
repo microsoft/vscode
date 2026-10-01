@@ -181,6 +181,9 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 
 			const sessionKey = activeSession.resource.toString();
 			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
+			if (multipleSessionsVisible) {
+				this._pendingEditorRestoreKey = undefined;
+			}
 			if (this._activeQuickChatKey !== sessionKey) {
 				this._activeQuickChatKey = sessionKey;
 				const hasSavedWorkingSet = this._ctx.hasSavedWorkingSet(activeSession.resource);
