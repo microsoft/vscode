@@ -127,6 +127,7 @@ suite('ModelPickerActionItem', () => {
 		const configuration = container.querySelector<HTMLElement>('.model-picker-config')!;
 		return {
 			domNode: container.querySelector<HTMLElement>('.model-picker-split')!,
+			minimumWidth: item.minimumWidth,
 			container: container.getBoundingClientRect(),
 			name: name.getBoundingClientRect(),
 			label: label.getBoundingClientRect(),
@@ -138,6 +139,26 @@ suite('ModelPickerActionItem', () => {
 			})),
 		};
 	}
+
+	test('includes the gap in the minimum width only when the configuration section is visible', () => {
+		const model = createModel('A model name long enough to reach its minimum width');
+		const states = [true, false].map(showConfiguration => {
+			const picker = renderPicker(showConfiguration ? model : {
+				...model,
+				metadata: { ...model.metadata, configurationSchema: undefined },
+			}, { itemWidth: 100 });
+			const configuration = picker.domNode.querySelector<HTMLElement>('.model-picker-config')!;
+			return {
+				configurationVisible: configuration.offsetWidth > 0,
+				minimumWidthBeyondSections: picker.minimumWidth - 90 - configuration.offsetWidth,
+			};
+		});
+
+		assert.deepStrictEqual(states, [
+			{ configurationVisible: true, minimumWidthBeyondSections: 2 },
+			{ configurationVisible: false, minimumWidthBeyondSections: 0 },
+		]);
+	});
 
 	for (const tabbed of [false, true]) {
 		test(`hovering either half highlights the full model picker with tabbed picker ${tabbed}`, () => {

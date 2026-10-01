@@ -139,7 +139,8 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _updateMinimumWidth(nameWidth: number): void {
-		const minimumWidth = nameWidth + (this._configButton?.offsetWidth ?? 0);
+		const configurationWidth = this._configButton && this._configButton.offsetWidth > 0 ? dom.getTotalWidth(this._configButton) : 0;
+		const minimumWidth = nameWidth + configurationWidth;
 		if (this._minimumWidth !== minimumWidth) {
 			this._minimumWidth = minimumWidth;
 			this._onDidChangeMinimumWidth.fire(minimumWidth);
