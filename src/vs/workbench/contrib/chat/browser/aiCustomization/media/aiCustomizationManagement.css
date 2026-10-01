@@ -2673,6 +2673,8 @@ per-word capitalization does not survive translation. */
 	margin-right: var(--vscode-spacing-size40);
 	font-size: var(--vscode-codiconFontSize-compact);
 	color: inherit;
+	position: relative;
+	top: -1px;
 	vertical-align: text-bottom;
 }
 
