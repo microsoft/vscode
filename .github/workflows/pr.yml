@@ -100,6 +100,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Avoid overlapping ESLint's worker memory with the parallel compilation checks.
       - name: ESLint
         run: npm run eslint
 
