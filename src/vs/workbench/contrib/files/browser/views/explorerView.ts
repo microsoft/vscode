@@ -29,7 +29,7 @@ import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigat
 import { IThemeService, IFileIconTheme } from '../../../../../platform/theme/common/themeService.js';
 import { IWorkbenchThemeService } from '../../../../services/themes/common/workbenchThemeService.js';
 import { ITreeContextMenuEvent, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
-import { MenuId, Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { MenuId, MenuRegistry, Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
@@ -1207,3 +1207,41 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '8_folderActions',
+	order: 10,
+	command: {
+		id: 'workbench.files.action.collapseExplorerFolders',
+		title: nls.localize2('collapseAllExplorerFolders', "Collapse All")
+	},
+	when: ExplorerFolderContext
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.files.action.expandExplorerFolders',
+			title: nls.localize2('expandExplorerFolders', "Expand Folders in Explorer"),
+			f1: false
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId(VIEW_ID);
+		if (view !== null) {
+			const explorerView = view as ExplorerView;
+			explorerView.expandAll();
+		}
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '8_folderActions',
+	order: 20,
+	command: {
+		id: 'workbench.files.action.expandExplorerFolders',
+		title: nls.localize2('expandAllExplorerFolders', "Expand All")
+	},
+	when: ExplorerFolderContext
