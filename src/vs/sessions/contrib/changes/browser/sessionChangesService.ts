@@ -16,7 +16,7 @@ import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEdi
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../workbench/services/decorations/common/decorations.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
@@ -59,7 +59,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 			return changesViewService.activeSessionChangesObs.read(reader).length;
 		});
 
-		if (!layoutService.isSinglePaneLayoutEnabled) {
+		if (layoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
 			return;
 		}
 
@@ -135,7 +135,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		}
 		const multiDiffSource = this.getChangesEditorResource(sessionResource);
 
-		if (this.layoutService.isSinglePaneLayoutEnabled) {
+		if (this.layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
 			const input = this.instantiationService.createInstance(SessionChangesEditorInput, multiDiffSource);
 			const pane = await this.editorService.openEditor(input, { ...editorOptions, pinned: true }, group);
 			await this.expandRevealTarget(pane?.input, editorOptions);

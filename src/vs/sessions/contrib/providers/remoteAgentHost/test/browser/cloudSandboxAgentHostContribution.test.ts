@@ -35,6 +35,7 @@ import {
 	type ICloudSandboxEnvironment as ICloudSandboxEnvironmentRecord,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
@@ -962,6 +963,30 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 			merged: [discoveredSession(), other],
 			afterRemoval: [other],
 		});
+	});
+
+	test('persists filtered stalled sandbox removals so the row does not return on restart', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const session = discoveredSession({ name: 'New remote session', status: SessionStatus.InProgress });
+		const first = await createContribution(store, [session], { storageService });
+		first.contribution.dispose();
+		let result: ICloudSandboxDiscoveryResult = { kind: 'failed', reason: 'offline' };
+		const restored = await createContribution(store, [], { storageService, listSessions: async () => result });
+		const provider = restored.contribution.stubProviders.get(cloudSandboxAddress(session.environmentId))!;
+		result = { kind: 'incremental', sessions: [], removedTaskIds: [session.taskId] };
+		await restored.runDiscovery();
+		restored.contribution.dispose();
+		const next = await createContribution(store, [], {
+			storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+
+		assert.deepStrictEqual({
+			removed: provider.disposed,
+			cached: readInventory(storageService),
+			restored: next.contribution.stubProviders.size,
+			connections: [...restored.connectedTo, ...next.connectedTo],
+			history: [...restored.historyRequests, ...next.historyRequests],
+		}, { removed: true, cached: [], restored: 0, connections: [], history: [] });
 	});
 
 	test('refreshes existing provider metadata and persists repository replacement and removal', async () => {

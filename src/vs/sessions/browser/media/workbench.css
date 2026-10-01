@@ -299,6 +299,14 @@
 	&:not(.nopanel) .part.panel {
 		border-bottom-right-radius: var(--agents-window-corner-radius);
 	}
+
+	&.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.nosidebar .agents-part-card .session-view.session-grid-bottom-left {
+		border-bottom-left-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
+	}
+
+	&.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.noeditorpane .agents-part-card .session-view.session-grid-bottom-right {
+		border-bottom-right-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
+	}
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar::before {

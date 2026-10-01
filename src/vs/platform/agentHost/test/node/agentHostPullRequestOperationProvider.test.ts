@@ -15,7 +15,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestOperationContribution } from '../../node/agentHostPullRequestOperationProvider.js';
 import { AgentHostPullRequestLifecycleOperationHandler } from '../../node/agentHostPullRequestLifecycleOperationHandler.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
-import { buildChatUri, SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { buildFolderChangesetOwnerUri, ChangesetKind } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -195,12 +195,14 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			persisted: persistedArtifacts.map(({ id: _id, ...artifact }) => artifact),
 		}, {
 			live: [{
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: 'Improve archive nudges',
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/123',
 				isGitHub: true,
 			}, {
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: '',
 				isArtifact: true,
@@ -208,12 +210,14 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				isGitHub: true,
 			}],
 			persisted: [{
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: 'Improve archive nudges',
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/123',
 				isGitHub: true,
 			}, {
+				chat: buildDefaultChatUri('agent:/session'),
 				type: SessionArtifactType.PullRequest,
 				label: '',
 				isArtifact: true,
@@ -282,11 +286,61 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			defaultScopeOperations: operationsFor(defaultScopeOwner),
 			peerScopeOperations: operationsFor(peerScopeOwner),
 		}, {
-			artifacts: [{ type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true }],
+			artifacts: [{ chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Tools change', isArtifact: true, link: 'https://github.com/contoso/tools/pull/7', isGitHub: true }],
 			recordedGitHubStates: [[peerScopeOwner, { pullRequestUrls: ['https://github.com/contoso/tools/pull/7'], associatedPullRequestUrls: ['https://github.com/contoso/tools/pull/7'], pullRequestBranchName: 'feature/tools' }]],
 			defaultScopeOperations: ['pr-mark-ready'],
 			peerScopeOperations: ['pr-merge'],
 		});
+	});
+
+	test('records a created PR under the initiating chat when chats share a folder', async () => {
+		const sessionKey = 'agent:/session';
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.restoreSession({
+			resource: sessionKey,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
+			workingDirectories: ['file:///repo'],
+		}, []);
+		const peerChat = buildChatUri(sessionKey, 'peer');
+		stateManager.addChat(sessionKey, peerChat, { workingDirectories: ['file:///repo'] });
+		const sharedFolderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///repo']));
+		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
+			stateManager,
+			disposables.add(new InstantiationService()),
+			nullGitStateService,
+			createStatusService(),
+			new class extends mock<IAgentConfigurationService>() {
+				override readonly onDidRootConfigChange = Event.None;
+				override getRootValue() { return undefined as never; }
+			}(),
+			createSessionDataService(new TestSessionDatabase()),
+			new NullLogService(),
+		));
+
+		await contribution.recordCreatedPullRequest({
+			sessionKey,
+			ownerUri: sharedFolderOwner,
+			conversationChat: peerChat,
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/8',
+			pullRequestNumber: 8,
+			pullRequestTitle: 'Peer chat PR',
+			branchName: 'feature/peer',
+		});
+
+		assert.deepStrictEqual(readSessionArtifacts(stateManager.getSessionState(sessionKey)?._meta).map(({ id: _id, ...artifact }) => artifact), [
+			{
+				chat: peerChat,
+				type: SessionArtifactType.PullRequest,
+				label: 'Peer chat PR',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/8',
+				isGitHub: true,
+			},
+		]);
 	});
 
 	test('advertises PR operations for GitHub branches with uncommitted changes', () => {

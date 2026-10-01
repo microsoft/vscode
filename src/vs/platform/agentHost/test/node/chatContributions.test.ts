@@ -874,6 +874,11 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		observed?.push('persistedTurnUsage');
 		return originalGetTurnUsages();
 	};
+	const originalGetPersistedTurns = usageDatabase.getPersistedTurns.bind(usageDatabase);
+	usageDatabase.getPersistedTurns = async () => {
+		observed?.push('persistedFailedTurns');
+		return originalGetPersistedTurns();
+	};
 	const agentConfigService = createConfigurationService(enableSendInstructions);
 	const sessionDataService = createSessionDataService(usageDatabase);
 	const worktree = new RecordingWorktreeIsolation(observed);
@@ -915,7 +920,8 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	const providerService = createTestAgentHostProviderService(() => queueAgent);
 	services.set(IAgentHostProviderService, providerService);
 	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
-	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
+	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+	services.set(IAgentHostLocalTurns, localTurns);
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, service);
@@ -931,7 +937,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, localTurns };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -2166,7 +2172,7 @@ suite('AgentHostChatContributions', () => {
 			{ ...hydrationTurn('built-in-hydration-order'), message: { text: injectSideChatContext('side question'), origin: { kind: MessageKind.User } } },
 		]);
 
-		assert.deepStrictEqual(observed, ['persistedTurnUsage']);
+		assert.deepStrictEqual(observed, ['persistedTurnUsage', 'persistedFailedTurns']);
 		assert.deepStrictEqual(calls, ['beforeSideChat:seed', 'afterSideChat:plain']);
 		assert.deepStrictEqual(turns.map(turn => [turn.id, turn.message.text]), [['built-in-hydration-order', 'side question']]);
 	});
@@ -2964,6 +2970,95 @@ suite('AgentHostChatContributions', () => {
 
 		assert.deepStrictEqual(calls, ['first:initial', 'second:initial,first']);
 		assert.deepStrictEqual(turns.map(turn => turn.id), ['initial', 'first', 'second']);
+	});
+
+	test('persists a terminal failed turn after its nearest non-local predecessor', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildDefaultChatUri(contributions.session);
+		const providerTurn = hydrationTurn('provider-turn');
+		const localTurn = {
+			...hydrationTurn('local-command'),
+			message: { text: '/rename Renamed', origin: { kind: MessageKind.User } },
+		};
+		contributions.stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: providerTurn.id,
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: providerTurn.message,
+		});
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: providerTurn.id, duration: 1 });
+		contributions.stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: localTurn.id,
+			startedAt: '2025-01-01T00:01:00.000Z',
+			message: localTurn.message,
+		});
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: localTurn.id, duration: 1 });
+		contributions.localTurns.record(contributions.session, chat, localTurn, providerTurn.id);
+		contributions.stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'failed-turn',
+			startedAt: '2025-01-01T00:02:00.000Z',
+			message: { text: 'failed prompt', origin: { kind: MessageKind.User } },
+		});
+		contributions.stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatError,
+			turnId: 'failed-turn',
+			duration: 1,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'requestFailed', message: 'failed' } },
+		});
+		contributions.service.turnEnd({
+			session: contributions.session,
+			channel: chat,
+			turnId: 'failed-turn',
+			reason: { kind: 'error', error: { errorType: 'requestFailed', message: 'failed' }, resumable: false },
+		});
+		await timeout(0);
+
+		const [record] = (await contributions.database.getPersistedTurns()).filter(candidate => candidate.kind === 'failed');
+		assert.ok(record);
+		const restored = await contributions.service.hydrateTurns({ session: contributions.session, chat }, [providerTurn]);
+
+		assert.deepStrictEqual({
+			anchor: record.anchorTurnId,
+			restored: restored.map(turn => turn.id),
+		}, {
+			anchor: providerTurn.id,
+			restored: [providerTurn.id, 'failed-turn'],
+		});
+	});
+
+	test('persists neither resumable failures nor failures that later complete successfully', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildDefaultChatUri(contributions.session);
+		const error = { errorType: 'requestFailed', message: 'failed' };
+		for (const turnId of ['resumable-turn', 'completed-turn']) {
+			contributions.stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: turnId, origin: { kind: MessageKind.User } },
+			});
+			contributions.stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatError,
+				turnId,
+				duration: 1,
+				part: { kind: ResponsePartKind.Error, error, ...(turnId === 'resumable-turn' ? { resumable: true } : {}) },
+			});
+			contributions.service.turnEnd({
+				session: contributions.session,
+				channel: chat,
+				turnId,
+				reason: { kind: 'error', error, resumable: turnId === 'resumable-turn' },
+			});
+		}
+		await timeout(0);
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnResume, turnId: 'completed-turn' });
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'completed-turn', duration: 1 });
+		contributions.service.turnEnd({ session: contributions.session, channel: chat, turnId: 'completed-turn', reason: { kind: 'success' } });
+		await timeout(0);
+
+		assert.deepStrictEqual((await contributions.database.getPersistedTurns()).filter(record => record.kind === 'failed'), []);
 	});
 
 	test('awaits asynchronous hydration contributions', async () => {

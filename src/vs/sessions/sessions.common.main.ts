@@ -125,6 +125,7 @@ import '../workbench/services/authentication/browser/authenticationMcpAccessServ
 import '../workbench/services/authentication/browser/authenticationMcpService.js';
 import '../workbench/services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
 import '../workbench/services/authentication/browser/authenticationQueryService.js';
+import '../workbench/services/github/browser/githubService.js';
 import '../platform/hover/browser/hoverService.js';
 import '../platform/userInteraction/browser/userInteractionServiceImpl.js';
 import '../workbench/services/assignment/common/assignmentService.js';
@@ -471,6 +472,7 @@ import './contrib/chat/browser/chat.contribution.js';
 import './contrib/chat/browser/btwSlashCommand.contribution.js';
 import './contrib/chat/browser/requestOriginProvider.contribution.js';
 import './contrib/chat/browser/sideChatProvider.contribution.js';
+import './contrib/sessionComparison/browser/sessionComparison.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import './contrib/providers/agentHost/browser/agentHostForkActions.js';
@@ -479,6 +481,7 @@ import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.cont
 import './contrib/sessions/browser/sessions.contribution.js';
 import './services/sessions/browser/sessionsListModelService.js';
 import './services/sessions/browser/sessionGroupsService.js';
+import './services/sessions/browser/sessionComparisonService.js';
 import './services/sessions/browser/sessionSectionOrderService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';

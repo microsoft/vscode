@@ -64,6 +64,7 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { TestPathService } from '../../workbenchTestServices.js';
 import { IWorkspaceContextService, IWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -395,7 +396,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 			reg.defineInstance(IViewDescriptorService, new class extends mock<IViewDescriptorService>() { override readonly onDidChangeLocation = Event.None; }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override readonly onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { override readonly onDidChangeExtensions = Event.None; }());
-			reg.defineInstance(IPathService, new class extends mock<IPathService>() { }());
+			reg.defineInstance(IPathService, new TestPathService());
 			reg.defineInstance(IListService, new ListService());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
 			reg.defineInstance(ISCMService, new class extends mock<ISCMService>() {

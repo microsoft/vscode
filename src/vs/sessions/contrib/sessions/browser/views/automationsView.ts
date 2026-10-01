@@ -108,7 +108,6 @@ interface IAutomationCardEntry {
 	readonly folderEl: HTMLElement;
 	readonly folderHover: MutableDisposable<IDisposable>;
 	readonly promptEl: HTMLElement;
-	readonly disabledBadge: HTMLElement;
 	readonly disposables: DisposableStore;
 }
 
@@ -554,15 +553,20 @@ class AutomationCardsSection extends Disposable {
 
 		const nameRow = DOM.append(main, $('.automations-card-name'));
 		const nameTextEl = DOM.append(nameRow, $('span.automations-card-name-text'));
-		const disabledBadge = DOM.append(nameRow, $('span.automations-card-disabled-badge'));
-		disabledBadge.textContent = localize('disabled', "Disabled");
+
+		const promptEl = DOM.append(main, $('.automations-card-prompt'));
+		const promptHover = disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), promptEl, () => promptEl.textContent ?? ''));
+		disposables.add(DOM.addDisposableListener(main, DOM.EventType.FOCUS, () => {
+			if (main.matches(':focus-visible')) {
+				promptHover.show();
+			}
+		}));
+		disposables.add(DOM.addDisposableListener(main, DOM.EventType.BLUR, () => promptHover.hide()));
 
 		const metaEl = DOM.append(main, $('.automations-card-meta'));
 		const scheduleEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-schedule'));
 		const folderEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-folder'));
 		const folderHover = disposables.add(new MutableDisposable());
-
-		const promptEl = DOM.append(main, $('.automations-card-prompt'));
 
 		const actions = DOM.append(card, $('.automations-card-actions'));
 		actions.setAttribute('role', 'group');
@@ -641,7 +645,6 @@ class AutomationCardsSection extends Disposable {
 			folderEl,
 			folderHover,
 			promptEl,
-			disabledBadge,
 			disposables,
 		};
 		this.updateCard(entry, automation);
@@ -654,8 +657,9 @@ class AutomationCardsSection extends Disposable {
 		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));
 		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
 		card.enabledContext.set(automation.enabled);
-		const schedule = formatSchedule(automation.schedule);
-		const scheduleChanged = !previous || formatSchedule(previous.schedule) !== schedule;
+		const schedule = automation.enabled ? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
+		const enabledChanged = !previous || previous.enabled !== automation.enabled;
+		const scheduleChanged = !previous || enabledChanged || formatSchedule(previous.schedule) !== formatSchedule(automation.schedule);
 		const nameChanged = !previous || previous.name !== automation.name;
 		if (nameChanged || scheduleChanged) {
 			card.card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, schedule));
@@ -667,24 +671,30 @@ class AutomationCardsSection extends Disposable {
 			card.moreActionsButton.setAriaLabel(moreActionsLabel);
 			card.nameText.textContent = automation.name;
 		}
-		if (!previous || previous.enabled !== automation.enabled) {
-			card.disabledBadge.style.display = automation.enabled ? 'none' : '';
+		if (enabledChanged) {
+			card.card.classList.toggle('automation-disabled', !automation.enabled);
 		}
 		if (scheduleChanged) {
-			card.scheduleEl.textContent = schedule;
+			const icon = !automation.enabled ? Codicon.circleSlash : automation.schedule.interval === 'manual' ? Codicon.person : Codicon.clockface;
+			DOM.reset(card.scheduleEl,
+				$('span' + ThemeIcon.asCSSSelector(icon), { 'aria-hidden': 'true' }),
+				$('span.automations-card-meta-label', undefined, schedule));
 		}
 
 		const folderLabel = getAutomationTargetLabel(automation.target);
-		if (!previous || getAutomationTargetLabel(previous.target) !== folderLabel) {
-			card.folderEl.textContent = folderLabel;
-			card.folderHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel);
+		if (!previous || enabledChanged || getAutomationTargetLabel(previous.target) !== folderLabel) {
+			const showFolder = automation.enabled && automation.target.kind === 'workspace';
+			card.folderEl.style.display = showFolder ? '' : 'none';
+			DOM.reset(card.folderEl,
+				$('span' + ThemeIcon.asCSSSelector(Codicon.folder), { 'aria-hidden': 'true' }),
+				$('span.automations-card-meta-label', undefined, folderLabel));
+			card.folderHover.value = showFolder
+				? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel)
+				: undefined;
 		}
 
 		if (!previous || previous.prompt !== automation.prompt) {
-			const maxLength = 120;
-			card.promptEl.textContent = automation.prompt.length > maxLength
-				? automation.prompt.slice(0, maxLength) + '…'
-				: automation.prompt;
+			card.promptEl.textContent = automation.prompt;
 		}
 	}
 
@@ -732,7 +742,7 @@ class AutomationCardsSection extends Disposable {
 		const title = DOM.append(this.emptyContainer, $('h3.automations-cards-empty-title'));
 		title.textContent = localize('noAutomationsYet', "No automations yet");
 		const desc = DOM.append(this.emptyContainer, $('p.automations-cards-empty-description'));
-		desc.textContent = localize('noAutomationsDesc', "Create an automation to schedule an agent session to run on a cadence you choose.");
+		desc.textContent = localize('noAutomationsDesc', "Describe what you want to automate, then choose when it runs.");
 
 		const createButton = this.emptyStateDisposables.add(new Button(this.emptyContainer, {
 			...defaultButtonStyles,
@@ -979,13 +989,13 @@ class AutomationCardsSection extends Disposable {
 			source.textContent = localize('automationTemplateSource', "From {0}", template.source.label);
 			this.templateDisposables.add(this.hoverService.setupDelayedHover(source, { content: template.source.label }));
 		}
-		const scheduleElement = DOM.append(card, $('span.automations-template-card-schedule'));
-		scheduleElement.textContent = schedule;
 		const description = DOM.append(card, $('span.automations-template-card-prompt'));
 		description.id = `automations-template-${this.templateAriaId}-${template.id}-description`;
 		description.textContent = template.description;
 		this.templateDisposables.add(this.hoverService.setupDelayedHover(description, { content: template.prompt }));
 		card.setAttribute('aria-describedby', description.id);
+		const scheduleElement = DOM.append(card, $('span.automations-template-card-schedule'));
+		scheduleElement.textContent = schedule;
 
 		this.templateDisposables.add(DOM.addDisposableListener(card, DOM.EventType.CLICK, () => {
 			void this.openCreateDialog({
@@ -1566,7 +1576,7 @@ function formatHourMinute(hour: number, minute: number): string {
 }
 
 function getAutomationTargetLabel(target: AutomationTarget): string {
-	return target.kind === 'workspace' ? basename(target.folderUri) : localize('quickChat', "No workspace");
+	return target.kind === 'workspace' ? basename(target.folderUri) : '';
 }
 
 function groupRunsByDate(runs: readonly IAutomationRun[]): { key: string; label: string; runs: IAutomationRun[] }[] {
