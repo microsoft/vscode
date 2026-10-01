@@ -61,6 +61,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	const session = constObservable<IActiveSession | undefined>(new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'fixture';
 		override readonly providerId = provider.id;
+		override readonly workspace = constObservable(undefined);
 		override readonly activeChat = constObservable(new class extends mock<IChat>() {
 			override readonly changesets = constObservable(undefined);
 		}());

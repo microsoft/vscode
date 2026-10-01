@@ -156,7 +156,8 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			const failures: IMcpServerCustomizationMigrationFailure[] = [];
 			for (const requested of requestedCandidates) {
 				const current = currentCandidates.get(getMcpServerCustomizationMigrationCandidateKey(requested));
-				if (!current || !equals(current.projectedConfiguration, requested.projectedConfiguration)) {
+				if (!current || !equals(current.projectedConfiguration, requested.projectedConfiguration)
+					|| !equals(current.removedProperties, requested.removedProperties)) {
 					failures.push(this.noLongerEligible(requested));
 				} else {
 					eligibleCandidates.push(current);

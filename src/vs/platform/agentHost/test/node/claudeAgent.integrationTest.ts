@@ -97,6 +97,7 @@ const noopOTelService: IAgentHostOTelService = {
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,
+	setSessionComparisonMetadata: () => { },
 	releaseSessionTraceContext: () => { },
 	withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
 	getCurrentTraceContext: () => undefined,
@@ -736,6 +737,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
@@ -877,6 +879,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
@@ -960,6 +963,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],

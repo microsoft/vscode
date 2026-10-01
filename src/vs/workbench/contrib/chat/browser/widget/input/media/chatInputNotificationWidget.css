@@ -61,6 +61,8 @@
 	line-height: var(--chat-input-notification-line-height);
 	min-width: 0;
 	overflow-wrap: break-word;
+	user-select: text;
+	-webkit-user-select: text;
 	white-space: normal;
 }
 

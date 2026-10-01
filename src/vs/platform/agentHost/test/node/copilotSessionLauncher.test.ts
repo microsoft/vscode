@@ -721,7 +721,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 				featureFlags,
 				connectorCalls,
 			}, {
-				featureFlags: { CONNECTORS: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+				featureFlags: { CONNECTORS: true, TGREP: false, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 				connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true'],
 			});
 		} finally {
@@ -1808,15 +1808,16 @@ suite('CopilotSessionLauncher resume config', () => {
 			enabledExperimentalMode: true,
 			enabledFeatureFlags: {
 				CONNECTORS: false,
+				TGREP: false,
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
 			},
 			disabledExperimentalMode: undefined,
-			disabledFeatureFlags: { CONNECTORS: false, copilot_swe_agent_memory_in_repo_store: false },
+			disabledFeatureFlags: { CONNECTORS: false, TGREP: false, copilot_swe_agent_memory_in_repo_store: false },
 			defaultExperimentalMode: undefined,
-			defaultFeatureFlags: { CONNECTORS: false, copilot_swe_agent_memory_in_repo_store: false },
-			connectorFeatureFlags: { CONNECTORS: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+			defaultFeatureFlags: { CONNECTORS: false, TGREP: false, copilot_swe_agent_memory_in_repo_store: false },
+			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 		});
 	});
 
@@ -1839,6 +1840,20 @@ suite('CopilotSessionLauncher resume config', () => {
 			localWithoutMemory: { memory: { enabled: false }, localStore: false },
 			disabled: { memory: { enabled: false }, localStore: false },
 			notOptedIn: { memory: { enabled: false }, localStore: false },
+		});
+	});
+
+	test('configures repository-size-gated tgrep feature flag', async () => {
+		const store = disposables.add(new DisposableStore());
+		const disabled = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+		const enabled = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Tgrep]: true }), { id: 'gpt-5' });
+
+		assert.deepStrictEqual({
+			disabled: disabled.featureFlags,
+			enabled: enabled.featureFlags,
+		}, {
+			disabled: { CONNECTORS: false, TGREP: false, copilot_swe_agent_memory_in_repo_store: false },
+			enabled: { CONNECTORS: false, TGREP: true, copilot_swe_agent_memory_in_repo_store: false },
 		});
 	});
 

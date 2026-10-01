@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
@@ -1016,8 +1015,6 @@ interface IRenderEditorOptions {
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly migrationActivity?: boolean;
-	readonly migrationCategory?: CustomizationMigrationCategoryId;
-	readonly migrationPartialSelection?: boolean;
 }
 
 // ============================================================================
@@ -1239,7 +1236,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					started: true,
 					activity: Array.from({ length: 4 }, (_, activityIndex) => ({
 						id: `activity-${activityIndex}`,
-						categoryLabel: 'Prompts to skills',
+						categoryLabel: 'Prompt to Skills',
 						scopeLabel: 'Your profile',
 						storage: PromptsStorage.user,
 						items: Array.from({ length: 4 }, (_, itemIndex) => ({
@@ -1328,7 +1325,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const agentHostCustomizationService = createMockAgentHostCustomizationService(options.activeSessionMcpServers);
 			const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
 				override acquireMcpServerSupportScope() {
-					if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers && !options.migrationDashboard) {
+					if (!options.migrationDashboard) {
 						return undefined;
 					}
 					const support: IAgentHostMcpServerSupportSnapshot = {
@@ -1993,22 +1990,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			input.blur();
 			await new Promise(resolve => setTimeout(resolve, 300));
 		}
-	}
-
-	if (options.migrationCategory) {
-		editor.showCustomizationMigrationPage(options.migrationCategory);
-	}
-
-	if (options.migrationPartialSelection) {
-		let firstMigrationCheckbox: HTMLElement | null = null;
-		for (let attempt = 0; attempt < 20 && !firstMigrationCheckbox; attempt++) {
-			firstMigrationCheckbox = ctx.container.querySelector<HTMLElement>('.prompt-migration-checkbox [role="checkbox"]');
-			if (!firstMigrationCheckbox) {
-				await new Promise(resolve => setTimeout(resolve, 50));
-			}
-		}
-		firstMigrationCheckbox?.click();
-		await new Promise(resolve => setTimeout(resolve, 50));
 	}
 
 	if (options.scrollToBottom) {
@@ -3145,7 +3126,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	MigrationDashboard: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The migration dashboard groups customizations under Your profile and vscode. Both scopes include a Custom location settings row for customizations found in unsupported configured locations.'],
+		expectedVisualDescriptions: ['The migration dashboard shows a flat tree of numbered migration types scoped to Workspace or Profile. Each expanded type lists the specific customizations and their source locations.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
@@ -3240,54 +3221,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Tools,
 			],
 			emptyToolExtensions: true,
-		}),
-	}),
-
-	PromptMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		deferPaint: true,
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
-		}),
-	}),
-
-	UserDataMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.UserData,
-		}),
-	}),
-
-	McpMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Migrate MCP Servers page shows Remote Browser moving from the workspace .vscode/mcp.json file to the root .mcp.json file, with no file open or more-actions controls.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.McpServers,
-		}),
-	}),
-
-	ConfiguredLocationsMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		deferPaint: true,
-		expectedVisualDescriptions: ['The Migrate Configured Locations page shows one Agents section containing only SuperAgent. Instructions and Skills sections are not shown because they have no files to migrate.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			files: [{
-				uri: URI.file('/workspace/.custom/agents/super.agent.md'),
-				storage: PromptsStorage.local,
-				type: PromptsType.agent,
-				source: PromptFileSource.ConfigWorkspace,
-				name: 'SuperAgent',
-			}],
-			configuration: {
-				[PromptsConfig.AGENTS_LOCATION_KEY]: {
-					'.custom/agents': true,
-				},
-			},
-			migrationCategory: CustomizationMigrationCategoryId.ConfiguredLocations,
 		}),
 	}),
 

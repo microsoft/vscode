@@ -29,7 +29,7 @@ export const enum CopilotCliConfigKey {
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
 	ClaudeAdvisor = 'claudeAdvisor',
-	/** Force-enable tgrep indexed search for Copilot SDK sessions (sets USE_TGREP=true). Off by default. */
+	/** Enable repository-size-gated tgrep indexed search for Copilot SDK sessions. Off by default. */
 	Tgrep = 'tgrep',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
@@ -205,7 +205,7 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.Tgrep]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.tgrep.title', "Indexed Search (tgrep)"),
-		description: localize('agentHost.config.tgrep.description', "When enabled, Copilot SDK sessions force-enable tgrep indexed search, bypassing the repository-size threshold. Requires a local Git repository on a non-virtual filesystem."),
+		description: localize('agentHost.config.tgrep.description', "When enabled, Copilot SDK sessions use tgrep indexed search for eligible large repositories. Requires a local Git repository on a non-virtual filesystem."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.Opus48Prompt]: schemaProperty<boolean>({

@@ -40,7 +40,7 @@ import { SessionType } from '../../../common/chatSessionsService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ICustomizationHarnessService, ICustomizationMcpServerMigrationProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationType } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
@@ -1227,6 +1227,74 @@ suite('CustomizationMigrationService', () => {
 
 		assert.deepStrictEqual(result.failures.map(failure => failure.reason), ['noLongerEligible']);
 	});
+
+	for (const [property, before, after] of [
+		['gallery', { gallery: false }, { gallery: true }],
+		['version', { version: '1' }, { version: '2' }],
+		['dev', { dev: {} }, { dev: { watch: '*.ts' } }],
+		['sandboxEnabled', { sandboxEnabled: false }, { sandboxEnabled: true }],
+	] as const) {
+		test(`rejects a stale ${property} removal when the provider replans before execution`, async () => {
+			const root = URI.file('/stale-removal');
+			const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+			const targetUri = URI.joinPath(root, '.mcp.json');
+			const fileService = store.add(new FileService(new NullLogService()));
+			const fileProvider = store.add(new TrackingFileSystemProvider());
+			store.add(fileService.registerProvider(Schemas.file, fileProvider));
+			await fileService.writeFile(sourceUri, VSBuffer.fromString(JSON.stringify({ servers: { server: { command: 'node', ...before } } })));
+			const targetContent = '{"mcpServers":{}}';
+			await fileService.writeFile(targetUri, VSBuffer.fromString(targetContent));
+			const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' });
+			const harnessService = new class extends TestCustomizationHarnessService {
+				override readonly activeSessionResource = observableValue('activeSessionResource', session);
+				override readonly activeHarness = observableValue('activeHarness', SessionType.AgentHostCopilot);
+			}();
+			const snapshot = createWorkspaceMcpSupportSnapshot(root);
+			const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+				override acquireMcpServerSupportScope() {
+					return {
+						support: constObservable(snapshot),
+						isResolved: constObservable(true),
+						whenResolved: () => Promise.resolve(),
+						dispose: () => { },
+					};
+				}
+			}();
+			const customizationService = new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getClientWorkingDirectoryUris() { return [root]; }
+			}();
+			const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, customizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration()), configurationResolverService));
+			const originalPlan = await service.computeMigration(session, CustomizationMigrationType.McpServers);
+			const sourceContent = JSON.stringify({ servers: { server: { command: 'node', ...after } } });
+			await fileService.writeFile(sourceUri, VSBuffer.fromString(sourceContent));
+			const currentPlan = await service.computeMigration(session, CustomizationMigrationType.McpServers);
+			fileProvider.resetRequests();
+
+			const result = await service.migrateMcpServers(session, originalPlan.candidates);
+			assert.deepStrictEqual({
+				originalRemovals: originalPlan.candidates.map(candidate => candidate.removedProperties),
+				currentRemovals: currentPlan.candidates.map(candidate => candidate.removedProperties),
+				originalProjections: originalPlan.candidates.map(candidate => candidate.projectedConfiguration),
+				currentProjections: currentPlan.candidates.map(candidate => candidate.projectedConfiguration),
+				migratedCount: result.migratedCount,
+				reasons: result.failures.map(failure => failure.reason),
+				writes: fileProvider.writeRequests,
+				source: (await fileService.readFile(sourceUri)).value.toString(),
+				target: (await fileService.readFile(targetUri)).value.toString(),
+			}, {
+				originalRemovals: [before],
+				currentRemovals: [after],
+				originalProjections: [{ type: McpServerType.LOCAL, command: 'node' }],
+				currentProjections: [{ type: McpServerType.LOCAL, command: 'node' }],
+				migratedCount: 0,
+				reasons: [McpServerCustomizationMigrationFailureReason.NoLongerEligible],
+				writes: [],
+				source: sourceContent,
+				target: targetContent,
+			});
+		});
+	}
 
 	test('migrates when the write itself republishes an equivalent support snapshot', async () => {
 		const root = URI.file('/republish');

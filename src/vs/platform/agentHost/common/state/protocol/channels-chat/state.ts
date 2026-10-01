@@ -49,6 +49,15 @@ export interface ChatState {
 	/** How this chat came into existence */
 	origin?: ChatOrigin;
 	/**
+	 * Whether this chat is eligible to be the source of `moveChat`, including
+	 * same-session ordering.
+	 *
+	 * The host is authoritative. Absence means `false`. A `true` value does not
+	 * guarantee that a particular request will succeed. A chat referenced by its
+	 * owning session's `defaultChat` MUST NOT be movable.
+	 */
+	movable?: boolean;
+	/**
 	 * How the user can interact with this chat. See {@link ChatInteractivity}.
 	 *
 	 * Supports agent-team patterns where worker chats are read-only or hidden.
@@ -81,6 +90,17 @@ export interface ChatState {
 	 * obtain it by subscribing to the chat channel.
 	 */
 	changesets?: Changeset[];
+	/**
+	 * Work running in the background for this chat, such as shells and
+	 * subagents. Only active work is listed: hosts remove an entry once the work
+	 * ends. An entry may have been started by an earlier turn rather than the
+	 * {@link ChatState.activeTurn | activeTurn}.
+	 *
+	 * Like {@link ChatState.changesets | changesets}, this is intentionally
+	 * absent from {@link ChatSummary}; clients obtain it by subscribing to the
+	 * chat channel.
+	 */
+	backgroundWork?: BackgroundWork[];
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -147,6 +167,13 @@ export interface ChatSummary {
 	/** How this chat came into existence */
 	origin?: ChatOrigin;
 	/**
+	 * Whether this chat is structurally eligible to be the source of
+	 * `moveChat`. Absence means `false`.
+	 *
+	 * See {@link ChatState.movable} for the full semantics.
+	 */
+	movable?: boolean;
+	/**
 	 * How the user can interact with this chat. See {@link ChatInteractivity}.
 	 *
 	 * Supports agent-team patterns where worker chats are read-only or hidden.
@@ -160,6 +187,90 @@ export interface ChatSummary {
 	 */
 	workingDirectories?: URI[];
 }
+
+/**
+ * Kind of {@link BackgroundWork}.
+ *
+ * This is a general/typological union (not a lifecycle), so the discriminant is
+ * a `*Kind`.
+ *
+ * @category Background Work
+ * @nonexhaustive
+ */
+export const enum BackgroundWorkKind {
+	/** A shell command that continues after its initiating tool call returns. */
+	Shell = 'shell',
+	/** A subagent running in the background. */
+	Subagent = 'subagent',
+}
+
+/**
+ * Fields common to every {@link BackgroundWork} variant.
+ *
+ * @category Background Work
+ */
+interface BackgroundWorkBase {
+	/**
+	 * Identifier of this entry, unique within the owning chat across all kinds.
+	 * The host derives it however it likes (for example from the kind plus the
+	 * agent's own task id); consumers MUST treat it as opaque. It is the key for
+	 * the `chat/backgroundWorkSet` / `chat/backgroundWorkRemoved` upsert
+	 * convention.
+	 */
+	id: string;
+	/** Human-readable label, such as the command's purpose or the subagent's name. */
+	label: string;
+	/** ISO 8601 timestamp when the work started. */
+	startedAt: string;
+	/** Provider-specific metadata. */
+	_meta?: Record<string, unknown>;
+}
+
+/**
+ * A shell command continuing outside its initiating tool call. Covers shells
+ * tied to the agent's lifetime (attached) and shells that outlive it
+ * (detached). Whether a shell is attached is provider-specific and goes in its
+ * `_meta`.
+ *
+ * @category Background Work
+ */
+export interface BackgroundShellWork extends BackgroundWorkBase {
+	kind: BackgroundWorkKind.Shell;
+	/** Command line, displayed as plain text. */
+	command: string;
+	/**
+	 * Terminal carrying this shell's output. Hosts SHOULD set this whenever they
+	 * can show that output. Clients open it like
+	 * {@link ToolResultTerminalContent.resource}; `isPty` on its
+	 * {@link TerminalState} says whether the output is plain text.
+	 */
+	terminal?: URI;
+}
+
+/**
+ * A subagent running in the background. Its own state lives in its chat.
+ *
+ * @category Background Work
+ */
+export interface BackgroundSubagentWork extends BackgroundWorkBase {
+	kind: BackgroundWorkKind.Subagent;
+	/**
+	 * The subagent's chat: the same chat the spawning tool call's
+	 * {@link ToolResultSubagentContent.resource} points to.
+	 */
+	chat: URI;
+}
+
+/**
+ * Work running in the background for a chat, such as a shell or a subagent.
+ * Clients that don't recognize a `kind` should keep the entry and may render it
+ * from the common fields.
+ *
+ * @category Background Work
+ */
+export type BackgroundWork =
+	| BackgroundShellWork
+	| BackgroundSubagentWork;
 
 /**
  * Discriminant for {@link ChatOrigin} — how a chat came into existence.
@@ -204,8 +315,9 @@ export interface SideChatSelection {
 }
 
 /**
- * How a chat came into existence. Clients MAY use it to render
- * contextual UI (parent indicators, fork markers, "spawned by tool" badges).
+ * How a chat came into existence. Clients MAY use it to render creation
+ * provenance (fork markers and "spawned by tool" badges). Any host-internal
+ * hierarchy used to move a complete chat subtree is not exposed by AHP.
  *
  * Fork and side-chat origins both carry a stable top-level `turnId` alongside
  * their discriminated `kind` value instead of snapshotting whether that turn
