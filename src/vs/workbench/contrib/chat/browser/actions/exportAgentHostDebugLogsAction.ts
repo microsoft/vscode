@@ -211,8 +211,9 @@ export function createHostArtifactStream(
  * Agent Host's own debug-log bundle (collected and packaged by the host), plus
  * the logs this side owns: the window/shared-process output channels, remote
  * forwarded logs, the AHP transport JSONL logs, and the client-local capture
- * sidecars. The combined export is capped at 1,000 files, with at most the ten
- * most recently modified AHP files per host.
+ * sidecars. ZIP exports are capped at 1,000 combined files; folder exports keep
+ * up to 1,000 client files. Both keep at most the ten most recently modified AHP
+ * files per host.
  *
  * Both the workbench-side action (resolves the active session via
  * `IChatWidgetService`) and the sessions-app-side action (resolves it via
@@ -283,7 +284,8 @@ export async function collectAgentHostDebugLogs(
 	}
 
 	const files: IAgentHostDebugLogFile[] = [];
-	const availableEntries = Math.max(0, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES - (hostArtifact?.entries.length ?? 0));
+	const hostArchiveEntries = hostArtifact?.kind === 'archive' ? hostArtifact.entries.length : 0;
+	const availableEntries = Math.max(0, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES - hostArchiveEntries);
 	let omittedFiles = 0;
 	const appendFile = (file: IAgentHostDebugLogFile) => {
 		if (files.length < availableEntries) {
