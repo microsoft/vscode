@@ -196,7 +196,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/57948fc81ca82530917b6c16bfebbaeb3d0675dd954b9df170eaeccb69fd9904)
 
 #### sessions/sessionsList/SessionsList_PeerChatInProgress/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/8dc81e0c1e0c8cdc048f10fddd2ba6bedbdb28c392ee1601ada33687cb686f9d)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/8dc81e0a1e0c8cdc048f10fddd2ba6bedbdb28c392ee1601ada33687cb686f9d)
 
 #### sessions/sessionsList/SessionsList_SelectedKeyboardFocus/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8ce3a612a7d5f50553d976259d4cbf04007a7d709bd0d7fd6734d57fbe69d271)
