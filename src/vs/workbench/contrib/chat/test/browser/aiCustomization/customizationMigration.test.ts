@@ -17,7 +17,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, IMcpServerCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, resolveWorkspaceMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
@@ -134,7 +134,7 @@ suite('customizationMigration', () => {
 		} as const;
 
 		assert.deepStrictEqual({
-			presentation: category.getCandidatePresentation(candidate, uri => uri.path),
+			presentation: category.getCandidatePresentation(candidate, uri => uri.path, 'Copilot'),
 			description: category.getPageDescription([candidate], 'Copilot'),
 			banner: category.getBanner?.([candidate], 'Copilot', undefined, []),
 			confirmation: category.getConfirmation([candidate], 'Copilot'),
@@ -150,7 +150,7 @@ suite('customizationMigration', () => {
 			presentation: {
 				name: 'Server',
 				selectionAriaLabel: 'Select Server from /workspace/.vscode/mcp.json',
-				pathLabel: '/workspace/.vscode/mcp.json to /workspace/.mcp.json',
+				pathLabel: 'Workspace: /workspace/.vscode/mcp.json to /workspace/.mcp.json',
 			},
 			description: 'Select the eligible MCP server to move so Copilot can discover it directly. Servers that cannot be migrated and unselected servers stay in their current files.',
 			banner: {
@@ -165,13 +165,19 @@ suite('customizationMigration', () => {
 		});
 	});
 
-	test('configured locations banner links to affected settings', () => {
+	test('configured locations copy explains harness discovery and links to affected settings', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.ConfiguredLocations);
+		const agent: IPromptPath = {
+			uri: URI.file('/workspace/.custom/agents/super.agent.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.agent,
+			source: PromptFileSource.ConfigWorkspace,
+		};
 		const modifiedSettingIds = [
 			PromptsConfig.MODE_LOCATION_KEY,
 			PromptsConfig.SKILLS_LOCATION_KEY,
 		];
-		const banner = category.getBanner?.([], 'Copilot', undefined, modifiedSettingIds);
+		const banner = category.getBanner?.([agent], 'Copilot', undefined, modifiedSettingIds);
 		const message = banner?.message;
 		const settingsLinks = [
 			PromptsConfig.MODE_LOCATION_KEY,
@@ -180,9 +186,12 @@ suite('customizationMigration', () => {
 
 		assert.deepStrictEqual(isMarkdownString(message) ? {
 			settingIds: category.configurationSettingIds,
+			card: category.getCardDescription([agent], 'Copilot'),
+			pageDescription: category.getPageDescription([agent], 'Copilot'),
 			value: message.value,
 			isTrusted: message.isTrusted,
 			consequence: banner?.consequence,
+			confirmationDetail: category.getConfirmation([agent], 'Copilot').detail,
 		} : message, {
 			settingIds: [
 				PromptsConfig.AGENTS_LOCATION_KEY,
@@ -190,13 +199,74 @@ suite('customizationMigration', () => {
 				PromptsConfig.SKILLS_LOCATION_KEY,
 				PromptsConfig.INSTRUCTIONS_LOCATION_KEY,
 			],
-			value: `The settings ${settingsLinks[0]} and ${settingsLinks[1]} are no longer read by Copilot. Move the customizations into supported harness folders so both VS Code and Copilot can use them.`,
+			card: 'Found 1 customization in a location observed only by the Local agent harness. Copilot picks it up when running in VS Code. Move it to a supported location for use outside VS Code.',
+			pageDescription: 'Found 1 customization in a location configured through VS Code settings. These settings are only observed by the Local agent harness. Copilot picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the selected customization to a supported harness location for use outside VS Code.',
+			value: `The settings ${settingsLinks[0]} and ${settingsLinks[1]} are only observed by the Local agent harness. Copilot picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the customizations into supported harness folders so Copilot can find them when running independently.`,
 			isTrusted: { enabledCommands: ['workbench.action.openSettings'] },
 			consequence: 'The option to clear unused location settings after migration is selected by default.',
+			confirmationDetail: 'This moves 1 customization out of a VS Code-configured location.',
 		});
 	});
 
-	test('groups user MCP migrations separately and scopes confirmation to the selected servers', () => {
+	for (const storage of [PromptsStorage.local, PromptsStorage.user] as const) {
+		test(`shows each removed MCP property warning in ${storage} rows instead of confirmations`, () => {
+			const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+			const server: IMcpServerCustomizationMigrationCandidate = {
+				type: CustomizationMigrationType.McpServers,
+				storage,
+				id: 'server',
+				name: 'Server',
+				sourceUri: URI.file('/profile/mcp.json'),
+				targetUri: URI.file('/home/.copilot/mcp-config.json'),
+				projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+			};
+			const cases: { removed: NonNullable<IMcpServerCustomizationMigrationCandidate['removedProperties']>; warning: string }[] = [
+				{
+					removed: { gallery: true },
+					warning: 'The \'gallery\' property will be removed. This MCP server will no longer be automatically updated from the registry.',
+				},
+				{
+					removed: { version: '1.0.0' },
+					warning: 'The \'version\' property will be removed. The migrated configuration will no longer record version metadata. Version pins in the command, arguments, or URL will not change.',
+				},
+				{
+					removed: { dev: {} },
+					warning: 'The \'dev\' property will be removed. VS Code will no longer auto-start this server in development mode, restart it when watched files change, attach a debugger, or enable development-mode logging.',
+				},
+				{
+					removed: { sandboxEnabled: true },
+					warning: 'The \'sandboxEnabled\' property will be removed. VS Code\'s per-server sandbox and its filesystem and network restrictions will no longer be applied to this server. Any sandboxing after migration is controlled by Copilot.',
+				},
+				{
+					removed: { sandboxEnabled: false },
+					warning: 'The \'sandboxEnabled\' property will be removed. VS Code sandboxing is already disabled for this server. Any sandboxing after migration is controlled by Copilot.',
+				},
+				{
+					removed: { gallery: false },
+					warning: 'The \'gallery\' property will be removed. Automatic updates from the registry are already disabled for this MCP server.',
+				},
+				{
+					removed: { gallery: 'https://registry.example' },
+					warning: 'The \'gallery\' property will be removed. This MCP server will no longer be automatically updated from the registry.',
+				},
+			];
+			const detail = category.getConfirmation([server], 'Copilot').detail;
+			const allRemovals = { gallery: true, version: '1.0.0', dev: {}, sandboxEnabled: true };
+			assert.deepStrictEqual({
+				individual: cases.map(entry => category.getCandidatePresentation({ ...server, removedProperties: entry.removed }, uri => uri.path, 'Copilot').changesLabel),
+				combined: category.getCandidatePresentation({ ...server, removedProperties: allRemovals }, uri => uri.path, 'Copilot').changesLabel,
+				confirmations: cases.map(entry => category.getConfirmation([{ ...server, removedProperties: entry.removed }], 'Copilot').detail),
+				noChanges: category.getCandidatePresentation(server, uri => uri.path, 'Copilot').changesLabel,
+			}, {
+				individual: cases.map(entry => entry.warning),
+				combined: cases.slice(0, 4).map(entry => entry.warning).join('\n'),
+				confirmations: cases.map(() => detail),
+				noChanges: undefined,
+			});
+		});
+	}
+
+	test('preserves MCP storage and scopes confirmation to the selected servers', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
 		const user = {
 			type: CustomizationMigrationType.McpServers,
@@ -216,7 +286,7 @@ suite('customizationMigration', () => {
 			confirmations,
 			banner: banner?.message,
 		}, {
-			groups: [['User', [PromptsStorage.user]], ['Workspace', [PromptsStorage.local]]],
+			groups: [['Ready to migrate', [PromptsStorage.local, PromptsStorage.user]]],
 			confirmations: [
 				{
 					message: 'Migrate 1 MCP server?',
@@ -235,6 +305,43 @@ suite('customizationMigration', () => {
 				},
 			],
 			banner: 'User servers move to mcp-config.json in Copilot home, making them available across profiles and workspaces. Disabled user servers may become enabled after migration. Workspace servers move to the root .mcp.json. Unselected servers and servers that cannot be migrated stay in their current files.',
+		});
+	});
+
+	test('separates MCP migrations with property removals and describes their changes', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+		const ready: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.user,
+			id: 'ready',
+			name: 'Ready',
+			sourceUri: URI.file('/profile/mcp.json'),
+			targetUri: URI.file('/home/.copilot/mcp-config.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		};
+		const changed = { ...ready, id: 'changed', name: 'Changed', removedProperties: { gallery: true } };
+		const warning = 'The \'gallery\' property will be removed. This MCP server will no longer be automatically updated from the registry.';
+		const empty = { ...ready, id: 'empty', removedProperties: {} };
+		const summarizeGroups = (candidates: readonly IMcpServerCustomizationMigrationCandidate[]) => category.group(candidates)
+			.map(group => ({ key: group.key, label: group.label, ids: group.customizations.filter(isMcpServerCustomizationMigrationCandidate).map(candidate => candidate.id) }));
+		assert.deepStrictEqual({
+			groups: summarizeGroups([changed, ready, empty]),
+			onlyChanged: summarizeGroups([changed]),
+			empty: summarizeGroups([]),
+			presentation: category.getCandidatePresentation(changed, uri => uri.path, 'Copilot'),
+		}, {
+			groups: [
+				{ key: 'ready', label: 'Ready to migrate', ids: ['ready', 'empty'] },
+				{ key: 'changes', label: 'Migrates with changes', ids: ['changed'] },
+			],
+			onlyChanged: [{ key: 'changes', label: 'Migrates with changes', ids: ['changed'] }],
+			empty: [],
+			presentation: {
+				name: 'Changed',
+				selectionAriaLabel: `Select Changed from /profile/mcp.json. ${warning}`,
+				pathLabel: 'User: /profile/mcp.json to /home/.copilot/mcp-config.json',
+				changesLabel: warning,
+			},
 		});
 	});
 

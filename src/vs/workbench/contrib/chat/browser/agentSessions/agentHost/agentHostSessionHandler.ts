@@ -1664,7 +1664,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// failure) so the user sees the actual cause, falling back to a
 					// generic message.
 					// Only a root session can be an id the host has yet to learn at `createSession`.
-					if (history.length === 0 && (sessionResource.fragment || !isNotFoundError(err))) {
+					if (history.length === 0 && (sessionResource.fragment || new URLSearchParams(sessionResource.query).has(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM) || !isNotFoundError(err))) {
 						history.push({
 							type: 'request',
 							prompt: '',
@@ -2360,20 +2360,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _resolveChatUriFromState(sessionResource: URI, state: SessionState): string {
+		const explicitChatUri = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
+		if (explicitChatUri) {
+			URI.parse(explicitChatUri, true);
+			return explicitChatUri;
+		}
 		if (sessionResource.fragment) {
-			const explicitChatUri = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
-			if (explicitChatUri) {
-				const parsed = parseChatUri(explicitChatUri);
-				if (!parsed || parsed.chatId !== sessionResource.fragment) {
-					throw new Error(`Subagent chat URI does not match editor chat '${sessionResource.fragment}'`);
-				}
-				const owningSession = URI.parse(parsed.session);
-				const expectedSession = this._resolveSessionUri(sessionResource);
-				if (!isEqual(owningSession, expectedSession)) {
-					throw new Error(`Subagent chat belongs to ${owningSession.toString()}, expected ${expectedSession.toString()}`);
-				}
-				return explicitChatUri;
-			}
 			const match = state.chats.find(summary => parseChatUri(summary.resource)?.chatId === sessionResource.fragment);
 			if (!match) {
 				throw new Error(`Cannot resolve chat '${sessionResource.fragment}' from session state for ${sessionResource.toString()}`);
@@ -2403,11 +2395,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (mapped) {
 			return mapped;
 		}
-		if (!sessionResource.fragment) {
-			return buildDefaultChatUri(session);
-		}
 		const explicitChat = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
-		return explicitChat ?? buildChatUri(session, sessionResource.fragment);
+		if (explicitChat) {
+			return explicitChat;
+		}
+		return sessionResource.fragment ? buildChatUri(session, sessionResource.fragment) : buildDefaultChatUri(session);
 	}
 
 	private _getCurrentActiveClient(sessionResource: URI): SessionActiveClient {
@@ -3662,11 +3654,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			store.add(autorun(reader => {
 				// The turn's own pick tells us Auto is routing before the host
-				// reports what it landed on, so the row can start as "Auto routing task".
-				const selectedModelId = turn$.read(reader)?.message?.model?.id;
+				// reports what it landed on. Slash commands may complete entirely
+				// in the host, so wait for an actual routing result for those.
+				const turn = turn$.read(reader);
+				const selectedModelId = turn?.message?.model?.id;
 				const resolution = this._createTurnModelLookup(opts.sessionResource, selectedModelId, this._hideAutoExplainability.read(reader))
 					.toAutoModeResolution?.(usage$.read(reader));
-				if (!resolution || equals(lastAutoModeResolution, resolution)) {
+				if (!resolution || (!resolution.resolved && turn?.message.text.startsWith('/')) || equals(lastAutoModeResolution, resolution)) {
 					return;
 				}
 				lastAutoModeResolution = resolution;

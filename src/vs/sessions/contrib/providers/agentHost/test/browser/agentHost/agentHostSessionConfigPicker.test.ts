@@ -36,7 +36,7 @@ import { NullTelemetryService } from '../../../../../../../platform/telemetry/co
 import { IView } from '../../../../../../../workbench/common/views.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
 import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
@@ -303,7 +303,7 @@ function setupServices(
 	instantiationService.stub(IAgentWorkbenchLayoutService, new (class extends mock<IAgentWorkbenchLayoutService>() {
 		// Desktop drafts use the isolation dropdown rather than the phone repository sheet.
 		override readonly mainContainer = document.createElement('div');
-		override readonly isSinglePaneLayoutEnabled = true;
+		override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
 		override revealEditorPartExplicitly(): void {
 			actionWidget.events.push('revealEditorPartExplicitly');
 		}

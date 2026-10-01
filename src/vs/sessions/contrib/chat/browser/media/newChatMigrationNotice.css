@@ -11,6 +11,15 @@
 	right: 0;
 	width: auto;
 	margin-top: var(--vscode-spacing-size160);
+	/* The composer floats over the chat background wallpaper, which the shared
+		notice's translucent fill lets read straight through. Composite the same
+		tint over the opaque session background so the notice stays a legible chip. */
+	background-color: color-mix(in srgb, var(--vscode-foreground) 3%, var(--session-view-background, var(--vscode-editor-background)));
+}
+
+.hc-black .chat-customization-migration-notice.new-chat-migration-notice,
+.hc-light .chat-customization-migration-notice.new-chat-migration-notice {
+	background-color: var(--vscode-editor-background);
 }
 
 .new-chat-migration-notice .chat-customization-migration-notice-content {

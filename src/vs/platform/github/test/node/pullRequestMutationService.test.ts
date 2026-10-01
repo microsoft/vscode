@@ -199,6 +199,8 @@ suite('PullRequestMutationService', () => {
 						node_id: 'PR8',
 						html_url: 'https://example.test/pull/8',
 						created_at: '2026-01-01T00:00:00Z',
+						title: 'Server title',
+						state: 'open',
 					}),
 				}),
 				gitHubGraphQLStep({
@@ -227,8 +229,33 @@ suite('PullRequestMutationService', () => {
 				ref: { ...ref, number: 8 },
 				id: 'PR8',
 				url: 'https://example.test/pull/8',
+				title: 'PR',
 				createdAt: '2026-01-01T00:00:00Z',
+				state: 'open',
 			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('rejects a malformed create response without replaying the write', async () => {
+		await withServers(async server => {
+			server.enqueue(gitHubRestStep({ method: 'POST', path: '/repos/octo/repo/pulls', response: gitHubJsonResponse({ number: 8 }) }));
+			const { ref, service } = setup(server);
+			await assert.rejects(service.createPullRequest(ref, { title: 'PR', body: '', head: 'feature', base: 'main', draft: false }, signal()), { kind: 'malformedResponse' });
+			assert.strictEqual(server.requests.length, 1);
+			server.assertSatisfied();
+		});
+	});
+
+	test('surfaces auto-merge GraphQL failures without replaying the mutation', async () => {
+		await withServers(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: 'AgentHostEnablePullRequestAutoMerge',
+				response: gitHubGraphQLResponse(undefined, [{ message: 'Auto-merge is not enabled', type: 'UNPROCESSABLE' }]),
+			}));
+			const { ref, service } = setup(server);
+			await assert.rejects(service.enableAutoMerge(ref, { pullRequestId: 'PR7', method: 'REBASE' }, signal()), /Auto-merge is not enabled/);
+			assert.strictEqual(server.requests.length, 1);
 			server.assertSatisfied();
 		});
 	});

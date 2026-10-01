@@ -13,8 +13,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISessionChatCustomization } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
 
 export { getHighestPriorityPullRequestIcon };
+export { type ISessionChatCustomization, SessionCustomizationKind } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
@@ -285,6 +287,8 @@ export interface ISessionArtifact {
 	readonly id: string;
 	readonly kind: SessionArtifactKind;
 	readonly label: string;
+	/** Chat that recorded this entry, when the provider exposes its provenance. */
+	readonly chat?: URI;
 	/**
 	 * `true` for an artifact — something the session produced — and `false` for
 	 * a reference, something it only points the user at.
@@ -298,26 +302,6 @@ export interface ISessionArtifact {
 	readonly commitHash?: string;
 	/** Whether a pull request or issue lives on GitHub. */
 	readonly isGitHub?: boolean;
-}
-
-/** The kinds of customization a chat can use. */
-export const enum SessionCustomizationKind {
-	Agent = 'agent',
-	Skill = 'skill',
-	Instruction = 'instruction',
-	Hook = 'hook',
-	Prompt = 'prompt',
-	McpServer = 'mcpServer',
-	Plugin = 'plugin',
-}
-
-/** A customization the agent used or read during a chat. Provider-neutral. */
-export interface ISessionChatCustomization {
-	readonly id: string;
-	readonly kind: SessionCustomizationKind;
-	readonly name: string;
-	/** Source file or directory, used to reveal the customization. */
-	readonly uri?: URI;
 }
 
 /**
@@ -698,8 +682,8 @@ export interface IChat {
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
-	/** When the chat was last updated. */
-	readonly updatedAt: IObservable<Date>;
+	/** When the chat was last updated. `undefined` while the provider resolves the exact per-chat timestamp; consumers should omit it rather than fall back to aggregate session time. */
+	readonly updatedAt: IObservable<Date | undefined>;
 	/** Current chat status. */
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
@@ -847,6 +831,10 @@ export interface ISession {
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+	/** Provider-owned permission level selected while configuring a new session. */
+	readonly permissionLevel?: IObservable<string>;
+	/** Provider-owned branch selected while configuring a new session. */
+	readonly branch?: IObservable<string | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
 	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */

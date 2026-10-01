@@ -56,7 +56,14 @@ interface ITaskSummary {
 
 /** A full task, which additionally carries the sessions bound to sandbox environments. */
 interface ITaskDetail extends ITaskSummary {
-	readonly sessions?: readonly { readonly id: string; readonly environment_id?: string; readonly state?: string }[];
+	readonly sessions?: readonly {
+		readonly id: string;
+		readonly environment_id?: string;
+		readonly state?: string;
+		readonly created_at?: string;
+		readonly updated_at?: string;
+		readonly ahp_resource_uri?: string | null;
+	}[];
 }
 
 interface ICachedSandboxTask {
@@ -64,6 +71,8 @@ interface ICachedSandboxTask {
 	readonly session?: ICloudSandboxDiscoveredSession;
 	readonly repositoryId?: number;
 	readonly needsRefresh?: boolean;
+	/** An unchanged, default-titled queued session with no AHP resource; recheck its age on every scan. */
+	readonly unstartedSince?: number;
 }
 
 const LOG_PREFIX = '[CloudSandboxApi]';
@@ -135,6 +144,8 @@ const DISCOVERY_TASK_PAGE_LIMIT = 10;
 const DISCOVERY_TASK_FETCH_CONCURRENCY = 5;
 
 const DISCOVERY_OVERLAP_MS = 60_000;
+
+const STALLED_SESSION_GRACE_MS = 60 * 60_000;
 
 /** HTTP status GitHub answers a rate-limited request with. */
 const HTTP_TOO_MANY_REQUESTS = 429;
@@ -335,11 +346,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const scannedTaskIds = new Set(tasks.keys());
 		if (since) {
 			for (const [id, cached] of cache) {
-				if (!tasks.has(id) && (cached.needsRefresh || !cached.session || (cached.repositoryId !== undefined && !cached.session.repoName))) {
+				if (!tasks.has(id) && (cached.needsRefresh || !cached.session || cached.unstartedSince !== undefined || (cached.repositoryId !== undefined && !cached.session.repoName))) {
 					tasks.set(id, cached.summary);
 				}
 			}
 		}
+		const discoveryTime = checkpoint ?? Date.now();
 		const removedTaskIds: string[] = [];
 		const sandboxTasks: ITaskSummary[] = [];
 		for (const task of tasks.values()) {
@@ -381,6 +393,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						cached = {
 							summary: task,
 							repositoryId: full.repository?.id ?? task.repository?.id,
+							unstartedSince: getUnstartedSessionCreatedAt(full),
 							session: binding ? {
 								...binding,
 								taskId: task.id,
@@ -389,6 +402,15 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 								...(status !== undefined ? { status } : {}),
 							} : undefined,
 						};
+					}
+					if (cached.unstartedSince !== undefined && discoveryTime - cached.unstartedSince >= STALLED_SESSION_GRACE_MS) {
+						cache.set(task.id, cached);
+						// An unread page may contain this candidate's recovery update.
+						if (!truncated || scannedTaskIds.has(task.id)) {
+							removedTaskIds.push(task.id);
+							this._logService.trace(`${LOG_PREFIX} Hiding stalled queued sandbox task ${task.id} with no AHP resource.`);
+						}
+						return undefined;
 					}
 					if (cached.session && cached.repositoryId !== undefined && !cached.session.repoName) {
 						const repoName = await this._resolveRepositoryName(cached.repositoryId, token);
@@ -906,4 +928,16 @@ function getTaskEnvironmentBinding(task: ITaskDetail): { environmentId: string; 
 		}
 	}
 	return undefined;
+}
+
+function getUnstartedSessionCreatedAt(task: ITaskDetail): number | undefined {
+	if (task.name !== 'New remote session' || task.state !== 'queued' || task.sessions?.length !== 1) {
+		return undefined;
+	}
+	const session = task.sessions[0];
+	if (session.state !== 'queued' || session.ahp_resource_uri || !session.created_at || session.updated_at !== session.created_at) {
+		return undefined;
+	}
+	const createdAt = Date.parse(session.created_at);
+	return Number.isFinite(createdAt) ? createdAt : undefined;
 }

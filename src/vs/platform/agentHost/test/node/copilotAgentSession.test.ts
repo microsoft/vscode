@@ -67,7 +67,7 @@ import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { type IShellInitScript } from '../../common/shellInitScript.js';
-import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
+import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from '../../node/copilot/copilotSessionWrapper.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
@@ -158,11 +158,18 @@ class MockCopilotSession {
 	abortGate: Promise<void> | undefined;
 	modelGate: Promise<void> | undefined;
 	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
+	readonly providerSyncCalls: ICopilotByokSessionConfig[] = [];
 	agentSelectGate: Promise<void> | undefined;
 	agentDeselectGate: Promise<void> | undefined;
 	readonly compactCalls: unknown[] = [];
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
+	readonly pluginInstallCalls: Array<{ source: string }> = [];
+	pluginInstallGate: Promise<void> | undefined;
+	onPluginInstall: (() => void) | undefined;
+	readonly pluginMarketplaceAddCalls: Array<{ source: string }> = [];
+	pluginMarketplaceAddGate: Promise<void> | undefined;
+	onPluginMarketplaceAdd: (() => void) | undefined;
 	readonly fleetStartCalls: Array<{ prompt?: string }> = [];
 	fleetStartResult: { started: boolean } = { started: true };
 	fleetStartError: unknown = undefined;
@@ -374,6 +381,12 @@ class MockCopilotSession {
 			select: async () => { await this.agentSelectGate; },
 			deselect: async () => { await this.agentDeselectGate; },
 		},
+		provider: {
+			sync: async (config: ICopilotByokSessionConfig) => {
+				this.providerSyncCalls.push(config);
+				return { models: [], selectionIds: (config.models ?? []).map(m => `${m.provider}/${m.id}`) };
+			},
+		},
 		sendMessages: async (request: unknown) => {
 			this.sendMessagesRequests.push(request);
 			if (this.sendMessagesError) {
@@ -515,6 +528,35 @@ class MockCopilotSession {
 					throw this.commandInvokeError;
 				}
 				return this.commandInvokeResult;
+			},
+		},
+		plugins: {
+			list: async () => ({ plugins: [] }),
+			install: async (params: { source: string }) => {
+				this.pluginInstallCalls.push(params);
+				this.onPluginInstall?.();
+				await this.pluginInstallGate;
+				return {
+					plugin: { name: 'elasticsearch', marketplace: 'awesome-copilot', enabled: true },
+					skillsInstalled: 7,
+				};
+			},
+			uninstall: async () => { throw new Error('Not implemented'); },
+			update: async () => { throw new Error('Not implemented'); },
+			enable: async () => { throw new Error('Not implemented'); },
+			disable: async () => { throw new Error('Not implemented'); },
+			reload: async () => ({ plugins: [], errors: [] }),
+			marketplaces: {
+				add: async (params: { source: string }) => {
+					this.pluginMarketplaceAddCalls.push(params);
+					this.onPluginMarketplaceAdd?.();
+					await this.pluginMarketplaceAddGate;
+					return { name: 'test-marketplace', source: params.source };
+				},
+				remove: async () => { throw new Error('Not implemented'); },
+				list: async () => ({ marketplaces: [] }),
+				browse: async () => ({ plugins: [] }),
+				refresh: async () => ({ results: [] }),
 			},
 		},
 		fleet: {
@@ -1022,6 +1064,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	resume?: boolean;
 	initializeEnablementSession?: (session: string) => Promise<void>;
 	beforeLaunch?: () => void;
+	/** BYOK providers and models the SDK session launches with. */
+	launchByokConfig?: ICopilotByokSessionConfig;
+	/** BYOK providers and models the launcher currently resolves. */
+	resolveByokSessionConfig?: () => ICopilotByokSessionConfig;
 	sandboxPolicy?: ReturnType<IAgentConfigurationService['getSessionSandboxPolicy']>;
 	getSandboxHostSupport?: CopilotSessionLaunchPlan['client']['rpc']['sandbox']['getHostSupport'];
 	realpath?: (path: string) => Promise<string>;
@@ -1116,8 +1162,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (options?.captureRuntime) {
 				options.captureRuntime.current = runtime;
 			}
-			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, logService);
+			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, logService);
 		},
+		resolveByokSessionConfig: async () => options?.resolveByokSessionConfig?.() ?? {},
 	};
 
 	const services = new ServiceCollection();
@@ -1506,6 +1553,43 @@ suite('CopilotAgentSession', () => {
 			['gpt-5', { reasoningEffort: 'low', contextTier: 'default' }],
 			['auto', { reasoningEffort: undefined, contextTier: undefined }],
 		]);
+	});
+
+	test('registers BYOK models reported after launch before changing model (#337742)', async () => {
+		const provider = { name: 'customendpoint', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/customendpoint', bearerToken: 'nonce.test-session-1' };
+		const early = { id: 'Pool/early', provider: 'customendpoint' };
+		const late = { id: 'Pool/late', provider: 'customendpoint' };
+		let current: ICopilotByokSessionConfig = { providers: [provider], models: [early] };
+		const { session, mockSession } = await createAgentSession(disposables, {
+			launchByokConfig: { providers: [provider], models: [early] },
+			resolveByokSessionConfig: () => current,
+		});
+
+		// Nothing new: no provider sync.
+		await session.setModel('customendpoint/Pool/early');
+		current = { providers: [provider], models: [late] };
+		await session.setModel('customendpoint/Pool/late');
+		// A transient empty snapshot must not withdraw registered models.
+		current = {};
+		await session.syncByokModels();
+
+		assert.deepStrictEqual({ providerSyncCalls: mockSession.providerSyncCalls, setModelCalls: mockSession.setModelCalls.map(([model]) => model) }, {
+			providerSyncCalls: [{ providers: [provider], models: [early, late] }],
+			setModelCalls: ['customendpoint/Pool/early', 'customendpoint/Pool/late'],
+		});
+	});
+
+	test('a failed BYOK registration does not block the model change (#337742)', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			resolveByokSessionConfig: () => { throw new Error('bridge unavailable'); },
+		});
+
+		await session.setModel('copilot/auto');
+
+		assert.deepStrictEqual({ providerSyncCalls: mockSession.providerSyncCalls, setModelCalls: mockSession.setModelCalls.map(([model]) => model) }, {
+			providerSyncCalls: [],
+			setModelCalls: ['copilot/auto'],
+		});
 	});
 
 	test('times out non-settling SDK control-plane RPCs', async () => {
@@ -2180,7 +2264,7 @@ suite('CopilotAgentSession', () => {
 
 	suite('CopilotSessionWrapper', () => {
 		function createWrapper(mockSession: MockCopilotSession, logService: ILogService = new NullLogService()): CopilotSessionWrapper {
-			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, logService));
+			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, logService));
 		}
 
 		function lifecycleMessages(entries: CapturingLogService['infos']): string[] {
@@ -5476,6 +5560,69 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('shows delayed activity while a plugin command remains in progress', () => runWithFakedTimers({}, async () => {
+		const addGate = new DeferredPromise<void>();
+		const addStarted = new DeferredPromise<void>();
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{ name: 'plugin', kind: 'builtin', description: 'Manage plugins', allowDuringAgentExecution: true }],
+		};
+		mockSession.pluginMarketplaceAddGate = addGate.p;
+		mockSession.onPluginMarketplaceAdd = () => addStarted.complete();
+
+		const sendPromise = session.send('/plugin marketplace add github/example', undefined, 'turn-plugin', 'interactive');
+		await addStarted.p;
+		await timeout(1000);
+		addGate.complete();
+		await sendPromise;
+
+		assert.deepStrictEqual({
+			activity: getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []),
+			addCalls: mockSession.pluginMarketplaceAddCalls,
+		}, {
+			activity: ['Adding plugin marketplace…', undefined],
+			addCalls: [{ source: 'github/example' }],
+		});
+	}));
+
+	test('shows plugin install activity immediately', async () => {
+		const installGate = new DeferredPromise<void>();
+		const installStarted = new DeferredPromise<void>();
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{ name: 'plugin', kind: 'builtin', description: 'Manage plugins', allowDuringAgentExecution: true }],
+		};
+		mockSession.pluginInstallGate = installGate.p;
+		mockSession.onPluginInstall = () => installStarted.complete();
+
+		const sendPromise = session.send('/plugin install elasticsearch@awesome-copilot', undefined, 'turn-plugin', 'interactive');
+		await installStarted.p;
+		const activityWhileInstalling = getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []);
+		installGate.complete();
+		await sendPromise;
+
+		assert.deepStrictEqual({
+			activityWhileInstalling,
+			activity: getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []),
+			installCalls: mockSession.pluginInstallCalls,
+		}, {
+			activityWhileInstalling: ['Installing plugin…'],
+			activity: ['Installing plugin…', undefined],
+			installCalls: [{ source: 'elasticsearch@awesome-copilot' }],
+		});
+	});
+
+	test('does not show activity when a plugin command completes within the delay', () => runWithFakedTimers({}, async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{ name: 'plugin', kind: 'builtin', description: 'Manage plugins', allowDuringAgentExecution: true }],
+		};
+
+		await session.send('/plugin marketplace add github/example', undefined, 'turn-plugin', 'interactive');
+
+		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []), []);
+	}));
+
 	test('reapplies an agent-prompt mode override before the SDK send', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
@@ -6059,6 +6206,34 @@ suite('CopilotAgentSession', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId), ['tc-finished']);
+	});
+
+	test('reports idle again once a background subagent settles after its root turn', async () => {
+		// A deferred CLI client restart waits for this report. A background subagent still
+		// finishing when the root turn ends must hold the restart off until it settles.
+		let turnEndCount = 0;
+		const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { onTurnEnded: () => turnEndCount++ });
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'research', agentDisplayName: 'Research', agentDescription: 'Research',
+		}, { agentId: 'agent-1' });
+		mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+		const afterRootTurn = { hasActiveTurn: session.hasActiveTurn, hasActiveSubagents: session.hasActiveSubagents, turnEndCount };
+
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Research',
+			status: 'completed', agentType: 'research', prompt: 'Research', startedAt: new Date(0).toISOString(),
+		}];
+		mockSession.fire('session.background_tasks_changed', {});
+		await waitForSignal(signal => signal.kind === 'subagent_completed');
+
+		assert.deepStrictEqual({
+			afterRootTurn,
+			afterSubagent: { hasActiveSubagents: session.hasActiveSubagents, turnEndCount },
+		}, {
+			afterRootTurn: { hasActiveTurn: false, hasActiveSubagents: true, turnEndCount: 1 },
+			afterSubagent: { hasActiveSubagents: false, turnEndCount: 2 },
+		});
 	});
 
 	test('completes an idle subagent even when its confirmation is superseded or fails', async () => {
@@ -8724,7 +8899,7 @@ suite('CopilotAgentSession', () => {
 		}));
 
 		for (const platform of ['darwin', 'win32'] as const) {
-			test(`does not query or publish SDK sandbox diagnostics on ${platform}`, async () => {
+			test(`queries and publishes SDK sandbox diagnostics on ${platform}`, async () => {
 				let queries = 0;
 				const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On, [AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On };
 				const { session, mockSession, dispatchedActions, fireRootConfigChange } = await createAgentSession(disposables, {
@@ -8744,8 +8919,8 @@ suite('CopilotAgentSession', () => {
 					diagnostics: dispatchedActions.filter(action => action.type === ActionType.SessionMetaChanged).map(action => readAgentSandboxDiagnostics(action)),
 					sandbox: mockSession.sandboxConfigUpdates.at(-1),
 				}, {
-					queries: 0,
-					diagnostics: [],
+					queries: 3,
+					diagnostics: [['Unsupported sandbox.']],
 					sandbox: expectedSessionSandboxConfig(platform, sandbox),
 				});
 			});
