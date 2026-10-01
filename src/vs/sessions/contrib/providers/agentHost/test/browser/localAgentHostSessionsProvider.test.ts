@@ -26,7 +26,7 @@ import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWork, type BackgroundWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -6977,8 +6977,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('projects background shells from background work independently for default and peer chats', () => {
-			const provider = createProvider(disposables, agentHost);
+		test('reads background shells from each chat\'s state while the session is active', () => {
+			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
 			const rawId = 'background-shell-catalog';
 			const session = setupMultiChatSession(provider, rawId);
 			const backend = AgentSession.uri('copilotcli', rawId);
@@ -6997,23 +6998,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 				kind: BackgroundWorkKind.Subagent, id: 'subagent:reviewer', label: 'Reviewer',
 				startedAt, chat: buildChatUri(backend, 'reviewer'),
 			};
-			agentHost.setSessionState(rawId, 'copilotcli', makeState([
-				{ ...makeChatSummary(main, 'Main'), backgroundWork: [copilotShell, subagent] },
-				{ ...makeChatSummary(peer, 'Peer'), backgroundWork: [plainShell] },
-			], { defaultChat: main }));
-			const before = session.chats.get().map(chat => chat.backgroundShells?.get());
-			agentHost.setSessionState(rawId, 'copilotcli', makeState([
-				{ ...makeChatSummary(main, 'Main'), backgroundWork: [] },
-				{ ...makeChatSummary(peer, 'Peer'), backgroundWork: [plainShell] },
-			], { defaultChat: main }));
+			const chatState = (resource: string, backgroundWork: BackgroundWork[]): ChatState => ({
+				resource, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: startedAt, turns: [], backgroundWork,
+			});
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([makeChatSummary(main, 'Main'), makeChatSummary(peer, 'Peer')], { defaultChat: main }));
+			agentHost.setChatState(main, chatState(main, [copilotShell, subagent]));
+			agentHost.setChatState(peer, chatState(peer, [plainShell]));
+			disposables.add(autorun(reader => {
+				for (const chat of session.chats.read(reader)) {
+					chat.backgroundShells?.read(reader);
+				}
+			}));
+			const shells = () => session.chats.get().map(chat => chat.backgroundShells?.get());
+
+			const inactive = shells();
+			activeSession.set(new class extends mock<IActiveSession>() {
+				override readonly resource = session.resource;
+			}(), undefined);
+			const active = shells();
+			agentHost.setChatState(main, chatState(main, []));
+			const afterRemoval = shells();
 
 			const peerShell = { id: 'same-id', description: 'Build', command: 'npm run build', startedAt };
-			assert.deepStrictEqual({
-				before,
-				after: session.chats.get().map(chat => chat.backgroundShells?.get()),
-			}, {
-				before: [[{ id: 'shell:same-id', shellId: 'same-id', description: 'Run tests', command: 'npm test', startedAt, attachmentMode: 'attached' }], [peerShell]],
-				after: [[], [peerShell]],
+			assert.deepStrictEqual({ inactive, active, afterRemoval }, {
+				inactive: [[], []],
+				active: [[{ id: 'shell:same-id', shellId: 'same-id', description: 'Run tests', command: 'npm test', startedAt, attachmentMode: 'attached' }], [peerShell]],
+				afterRemoval: [[], [peerShell]],
 			});
 		});
 

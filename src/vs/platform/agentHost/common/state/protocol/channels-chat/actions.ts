@@ -531,7 +531,7 @@ export interface ChatActivityChangedAction {
 
 /**
  * Adds or replaces a {@link BackgroundWork} entry by `id`, independently of turn
- * state. Hosts mirror the resulting list through `session/chatUpdated`.
+ * state.
  *
  * @category Chat Actions
  * @version 1
@@ -544,7 +544,6 @@ export interface ChatBackgroundWorkSetAction {
 
 /**
  * Removes finished or no-longer-tracked background work; unknown IDs are a no-op.
- * Hosts mirror the resulting list through `session/chatUpdated`.
  *
  * @category Chat Actions
  * @version 1

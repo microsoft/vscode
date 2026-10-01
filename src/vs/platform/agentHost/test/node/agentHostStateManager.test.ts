@@ -98,7 +98,7 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(snapshot, undefined);
 	});
 
-	test('background work mirrors into the session catalog and survives turn completion with chat-scoped IDs', () => {
+	test('background work stays on each chat across turns and is not mirrored into the session catalog', () => {
 		manager.createSession(makeSessionSummary());
 		const peer = buildChatUri(sessionUri, 'peer');
 		manager.addChat(sessionUri, peer);
@@ -106,12 +106,6 @@ suite('AgentHostStateManager', () => {
 			kind: BackgroundWorkKind.Shell, id: 'shared-id', label: 'Run tests', command: 'npm test',
 			startedAt: new Date(0).toISOString(),
 		};
-		const updates: string[] = [];
-		disposables.add(manager.onDidEmitEnvelope(envelope => {
-			if (envelope.action.type === ActionType.SessionChatUpdated && envelope.action.changes.backgroundWork) {
-				updates.push(envelope.action.chat);
-			}
-		}));
 		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatBackgroundWorkSet, work: shell });
 		manager.dispatchServerAction(peer, { type: ActionType.ChatBackgroundWorkSet, work: { ...shell, command: 'npm run build' } });
 		manager.dispatchServerAction(sessionChatUri, {
@@ -124,15 +118,12 @@ suite('AgentHostStateManager', () => {
 
 		assert.deepStrictEqual({
 			afterTurn,
-			catalog: manager.getSessionState(sessionUri)?.chats.map(chat => ({ resource: chat.resource, work: chat.backgroundWork })),
-			updates,
+			chats: [sessionChatUri, peer].map(chat => manager.getChatState(chat)?.backgroundWork),
+			mirrored: manager.getSessionState(sessionUri)?.chats.some(chat => Object.keys(chat).includes('backgroundWork')),
 		}, {
 			afterTurn: [shell],
-			catalog: [
-				{ resource: sessionChatUri, work: [] },
-				{ resource: peer, work: [{ ...shell, command: 'npm run build' }] },
-			],
-			updates: [sessionChatUri, peer, sessionChatUri],
+			chats: [[], [{ ...shell, command: 'npm run build' }]],
+			mirrored: false,
 		});
 	});
 
