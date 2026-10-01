@@ -171,6 +171,10 @@ Provider-specific configuration remains opaque to shared Sessions code. Scoped A
 
 Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, chat creation, and optional worktree disk-usage measurement. Shared cleanup UI consumes the optional measurement through the management service and remains independent of provider transport or filesystem details. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
 
+`onDidDeleteChat` reports `{ session, sessionResource, chatResource }` only after the provider confirms success. The immutable resource pair is captured before the asynchronous provider operation. Consumers remove that exact chat's state rather than infer deletion from a potentially incomplete chat catalogue.
+
+Chat-owned presentation consumers use the immutable `{ sessionResource, chatResource }` identity derived from `activeSession.activeChat`. The workbench exposes one reload-fixed `ChatLayoutPresentation`; its runtime phone suspension invalidates queued presentation snapshots without changing ownership. `ChatLayoutContext` projects the existing active observables and invalidates foreground snapshots on owner changes, including A/B/A transitions. Request-origin ownership remains separately available in the captured snapshot. Replacement maps the supplied source main-chat resource to the destination main-chat resource and retains opaque peer resources, including when the session resource does not change.
+
 ### Provider ownership
 
 Backend state, transport, URI formats, recovery, and authentication remain inside provider contributions. Providers adapt those details into `ISession`, `IChat`, and shared operations.

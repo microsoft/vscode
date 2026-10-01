@@ -24,7 +24,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
@@ -56,8 +56,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly onDidUnarchiveSession: Event<ISession> = this._onDidUnarchiveSession.event;
 	private readonly _onDidDeleteSession = this._register(new Emitter<ISession>());
 	readonly onDidDeleteSession: Event<ISession> = this._onDidDeleteSession.event;
-	private readonly _onDidDeleteChat = this._register(new Emitter<ISession>());
-	readonly onDidDeleteChat: Event<ISession> = this._onDidDeleteChat.event;
+	private readonly _onDidDeleteChat = this._register(new Emitter<IChatDeletedEvent>());
+	readonly onDidDeleteChat = this._onDidDeleteChat.event;
 	private readonly _onDidRenameChat = this._register(new Emitter<ISession>());
 	readonly onDidRenameChat: Event<ISession> = this._onDidRenameChat.event;
 	private readonly _onDidRenameSession = this._register(new Emitter<ISession>());
@@ -1392,9 +1392,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
+		const deletedChat = Object.freeze({ session, sessionResource: session.resource, chatResource: chatUri });
 		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options) ?? false;
 		if (deleted) {
-			this._onDidDeleteChat.fire(session);
+			this._onDidDeleteChat.fire(deletedChat);
 		}
 		return deleted;
 	}

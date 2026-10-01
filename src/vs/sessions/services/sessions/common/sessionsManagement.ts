@@ -187,6 +187,12 @@ export interface IToggleSessionStickinessEvent {
 	readonly sticky: boolean;
 }
 
+export interface IChatDeletedEvent {
+	readonly session: ISession;
+	readonly sessionResource: URI;
+	readonly chatResource: URI;
+}
+
 /**
  * An active session extends {@link ISession} with the currently focused chat.
  */
@@ -369,7 +375,7 @@ export interface ISessionsManagementService {
 	/** Fires after a session was successfully deleted via {@link deleteSession}. */
 	readonly onDidDeleteSession: Event<ISession>;
 	/** Fires after a chat was successfully deleted via {@link deleteChat}. */
-	readonly onDidDeleteChat: Event<ISession>;
+	readonly onDidDeleteChat: Event<IChatDeletedEvent>;
 	/** Fires after a chat was successfully renamed via {@link renameChat}. */
 	readonly onDidRenameChat: Event<ISession>;
 	/** Fires after a session was successfully renamed via {@link renameSession}. */
