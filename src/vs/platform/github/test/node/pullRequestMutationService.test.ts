@@ -199,6 +199,8 @@ suite('PullRequestMutationService', () => {
 						node_id: 'PR8',
 						html_url: 'https://example.test/pull/8',
 						created_at: '2026-01-01T00:00:00Z',
+						title: 'Server title',
+						state: 'open',
 					}),
 				}),
 				gitHubGraphQLStep({
@@ -227,8 +229,33 @@ suite('PullRequestMutationService', () => {
 				ref: { ...ref, number: 8 },
 				id: 'PR8',
 				url: 'https://example.test/pull/8',
+				title: 'PR',
 				createdAt: '2026-01-01T00:00:00Z',
+				state: 'open',
 			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('rejects a malformed create response without replaying the write', async () => {
+		await withServers(async server => {
+			server.enqueue(gitHubRestStep({ method: 'POST', path: '/repos/octo/repo/pulls', response: gitHubJsonResponse({ number: 8 }) }));
+			const { ref, service } = setup(server);
+			await assert.rejects(service.createPullRequest(ref, { title: 'PR', body: '', head: 'feature', base: 'main', draft: false }, signal()), { kind: 'malformedResponse' });
+			assert.strictEqual(server.requests.length, 1);
+			server.assertSatisfied();
+		});
+	});
+
+	test('surfaces auto-merge GraphQL failures without replaying the mutation', async () => {
+		await withServers(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: 'AgentHostEnablePullRequestAutoMerge',
+				response: gitHubGraphQLResponse(undefined, [{ message: 'Auto-merge is not enabled', type: 'UNPROCESSABLE' }]),
+			}));
+			const { ref, service } = setup(server);
+			await assert.rejects(service.enableAutoMerge(ref, { pullRequestId: 'PR7', method: 'REBASE' }, signal()), /Auto-merge is not enabled/);
+			assert.strictEqual(server.requests.length, 1);
 			server.assertSatisfied();
 		});
 	});
@@ -334,6 +361,66 @@ suite('PullRequestMutationService', () => {
 		});
 	});
 
+	for (const kind of ['timeout', 'responseTooLarge'] as const) {
+		test(`reconciles an ambiguous ${kind} without blindly replaying a comment`, async () => {
+			await withServers(async server => {
+				let writes = 0;
+				const { ref, resources, service } = setup(server, completeSnapshot(server), undefined, async () => {
+					writes++;
+					return new Response(new ReadableStream<Uint8Array>({
+						start(controller) { controller.error(new GitHubRequestError('Response unavailable', kind, 200)); },
+					}));
+				});
+				resources.refreshHandler = () => {
+					resources.setSnapshot({
+						...resources.snapshot.get(),
+						topLevelComments: { status: 'ready', complete: false, value: [] },
+					});
+				};
+				const result = await service.addComment(ref, { operationId: 'operation-1', body: 'hello' }, signal());
+				assert.deepStrictEqual({ result, writes }, { result: { outcome: 'indeterminate' }, writes: 1 });
+			});
+		});
+	}
+
+	for (const operation of ['comment', 'reply'] as const) {
+		test(`does not reconcile a ${operation} that times out before dispatch`, async () => {
+			await withServers(async server => {
+				const scheduler = disposables.add(new FakeGitHubScheduler());
+				const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
+				const ref = { ...account, owner: 'octo', repo: 'repo', number: 7 };
+				const credentials = disposables.add(new TestCredentialService(account));
+				let writes = 0;
+				let refreshes = 0;
+				const transport = disposables.add(new GitHubTransport(async () => {
+					writes++;
+					return new Response('{}');
+				}, scheduler, false, undefined, { requestTimeout: 10 }));
+				for (const resource of ['core', 'graphql']) {
+					transport.rateLimits.updateFromResponse(account, new Response(null, {
+						status: 429, headers: {
+							'retry-after': '1', 'x-ratelimit-resource': resource,
+						}
+					}));
+				}
+				const resources = new TestResourceService(ref, completeSnapshot(server));
+				resources.refreshHandler = () => {
+					refreshes++;
+					throw new Error('A queued write must not require reconciliation');
+				};
+				const service = disposables.add(new PullRequestMutationService(scheduler, credentials, transport, resources, server.createEndpointService()));
+				const pending = operation === 'comment'
+					? service.addComment(ref, { operationId: 'operation-1', body: 'hello' }, signal())
+					: service.replyToThread(ref, { operationId: 'operation-1', body: 'hello', threadId: 'T1' }, signal());
+				const rejected = assert.rejects(pending, { kind: 'timeout' });
+				await new Promise(resolve => setTimeout(resolve, 0));
+				scheduler.advanceBy(10);
+				await rejected;
+				assert.deepStrictEqual({ writes, refreshes, timers: scheduler.pendingCount }, { writes: 0, refreshes: 0, timers: 0 });
+			});
+		});
+	}
+
 	test('never resolves a review thread when the reply fails', async () => {
 		await withServers(async server => {
 			server.enqueue(gitHubGraphQLStep({
@@ -420,6 +507,46 @@ suite('PullRequestMutationService', () => {
 			server.assertSatisfied();
 		});
 	});
+
+	for (const outcome of ['succeeded', 'indeterminate'] as const) {
+		test(`retries a proven-absent thread reply once and returns ${outcome}`, async () => {
+			await withServers(async server => {
+				server.enqueue(
+					gitHubGraphQLStep({ queryIncludes: 'AgentHostAddPullRequestReviewThreadReply', response: gitHubDisconnectResponse() }),
+					gitHubGraphQLStep({
+						queryIncludes: 'AgentHostAddPullRequestReviewThreadReply',
+						response: outcome === 'succeeded'
+							? gitHubGraphQLResponse({ addPullRequestReviewThreadReply: { comment: { id: 'C2', databaseId: 2, body: `reply\n\n${operationMarker}` } } })
+							: gitHubDisconnectResponse(),
+					}),
+				);
+				const { ref, resources, service } = setup(server);
+				let refreshes = 0;
+				resources.refreshHandler = () => {
+					refreshes++;
+					resources.setSnapshot({
+						...resources.snapshot.get(),
+						reviewThreads: {
+							status: 'ready', complete: true, headSha: 'head-1',
+							value: [{ id: 'T1', isResolved: false, comments: [] }],
+						},
+					});
+				};
+				const result = await service.replyToThread(ref, { operationId: 'operation-1', threadId: 'T1', body: 'reply' }, signal());
+				assert.deepStrictEqual({
+					outcome: result.outcome, commentId: result.value?.id, refreshes,
+					requests: server.requests.map(request => request.graphQl?.variables),
+				}, {
+					outcome, commentId: outcome === 'succeeded' ? '2' : undefined, refreshes: 1,
+					requests: [
+						{ threadId: 'T1', body: `reply\n\n${operationMarker}` },
+						{ threadId: 'T1', body: `reply\n\n${operationMarker}` },
+					],
+				});
+				server.assertSatisfied();
+			});
+		});
+	}
 
 	test('leaves a review thread open when resolution fails', async () => {
 		await withServers(async server => {

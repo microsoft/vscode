@@ -91,7 +91,7 @@ import { TestNotificationService } from '../../../platform/notification/test/com
 import product from '../../../platform/product/common/product.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressIndicator, IProgressNotificationOptions, IProgressOptions, IProgressService, IProgressStep, IProgressWindowOptions, Progress } from '../../../platform/progress/common/progress.js';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickInputAlignment, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickInputAlignment, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';
@@ -1767,6 +1767,18 @@ export class TestPathService implements IPathService {
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
+	async getOperatingSystem(_resource: URI): Promise<OperatingSystem | undefined> {
+		return isWindows ? OperatingSystem.Windows : OperatingSystem.Linux;
+	}
+
+	async getPath(_resource: URI) {
+		return this.path;
+	}
+
+	registerPathProvider(): IDisposable {
+		return Disposable.None;
+	}
+
 	userHome(options?: { preferLocal: boolean }): Promise<URI>;
 	userHome(options: { preferLocal: true }): URI;
 	userHome(options?: { preferLocal: boolean }): Promise<URI> | URI {
@@ -1947,6 +1959,10 @@ export class TestQuickInputService implements IQuickInputService {
 	readonly currentQuickInput = undefined;
 	readonly quickAccess = undefined!;
 	backButton!: IQuickInputButton;
+
+	withQuickInputAnchor<T>(_anchor: IQuickInput['anchor'], _anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T> {
+		return operation();
+	}
 
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;

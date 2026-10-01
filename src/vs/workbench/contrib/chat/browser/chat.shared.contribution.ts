@@ -23,7 +23,7 @@ import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agent
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
-import { ChatMicrosoftAuthenticationEnabledSettingId, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
+import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -65,7 +65,7 @@ import { ChatRequestOriginService, IChatRequestOriginService } from '../common/c
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, CustomizationMigrationHintMode, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
 import { agentsWindowHandoffConfigurationProperties } from './agentSessionsConfiguration.js';
 import { chatProgressConfigurationProperties } from './chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties } from './aiCustomization/customizationMarketplaceConfiguration.js';
@@ -110,6 +110,7 @@ import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
 import { ChatCopyActionRendering, registerChatCopyActions } from './actions/chatCopyActions.js';
 import { ChatModelFeedbackSurveyActionRendering, registerChatModelFeedbackSurveyActions } from './actions/chatModelFeedbackSurveyActions.js';
+import { ChatHarnessSwitchFeedbackSurveyService, IChatHarnessSwitchFeedbackSurveyService } from './feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { ChatModelFeedbackSurveyService, IChatModelFeedbackSurveyService } from './feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { ChatModelFeedbackSurveyPromptContribution } from './feedbackSurvey/chatModelFeedbackSurveyPromptContribution.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
@@ -222,8 +223,10 @@ import { ChatExpNotificationContribution } from './expNotification/chatExpNotifi
 import { ChatQuotaNotificationContribution } from './chatQuotaNotification.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
+import { ChatMicrosoftSignInProbeContribution, ChatMicrosoftSignInProbeService, IChatMicrosoftSignInProbeService } from './chatSetup/chatSetupMicrosoftProbe.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
+import { CodexStatusBarEntry } from './chatStatus/codexStatusEntry.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatWindowNotifier } from './chatWindowNotifier.js';
 import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
@@ -520,7 +523,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentSessions.showExternal.last7Days', "Show external sessions updated in the last 7 days."),
 				nls.localize('chat.agentSessions.showExternal.last30Days', "Show external sessions updated in the last 30 days."),
 			],
-			default: AgentHostExternalSessionsMode.Recent,
+			default: AgentHostExternalSessionsMode.Last7Days,
 			markdownDescription: nls.localize('chat.agentSessions.showExternal', "Controls which external agent sessions are shown. External sessions are sessions that were created in a different application and have not received a message from this application yet."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -1709,7 +1712,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[CopilotTgrepEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.tgrep.enabled', "When enabled, local Copilot Agent Host sessions force-enable tgrep indexed search, bypassing the repository-size threshold. Requires a local Git repository on a non-virtual filesystem. Changing this setting restarts the Copilot SDK client after active turns finish."),
+			markdownDescription: nls.localize('chat.copilot.tgrep.enabled', "When enabled, local Copilot Agent Host sessions use tgrep indexed search for eligible large repositories. Requires a local Git repository on a non-virtual filesystem. Changing this setting restarts the Copilot SDK client after active turns finish."),
 			default: false,
 			experiment: { mode: 'auto' },
 			tags: ['experimental', 'advanced'],
@@ -1765,7 +1768,7 @@ configurationRegistry.registerConfiguration({
 		[AgentHostHydraFusionEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilot.hydraFusion.enabled', "When enabled, makes the experimental HydraFusion model available to local Copilot Agent Host sessions. Changing this setting restarts the local Copilot runtime."),
-			default: false,
+			default: true,
 			experiment: { mode: 'startup' },
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['preview', 'experimental', 'advanced'],
@@ -1829,14 +1832,21 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' }
 		},
 		[ChatMicrosoftAuthenticationEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.microsoftAuthentication.enabled', "When enabled, sign-in dialogs offer \"Continue with Microsoft\". Signing in with Microsoft exchanges your Microsoft account for the GitHub access your organization has linked to it. The resulting GitHub sign-in lasts for the current window session only and is not saved."),
-			default: false,
+			type: 'string',
+			enum: [ChatMicrosoftAuthenticationMode.Auto, ChatMicrosoftAuthenticationMode.Always, ChatMicrosoftAuthenticationMode.Never],
+			enumDescriptions: [
+				nls.localize('chat.microsoftAuthentication.enabled.auto', "Offer \"Continue with Microsoft\" only when a Microsoft work or school account on this device is linked to a GitHub account. This is checked silently in the background: Microsoft may record a sign-in, and the GitHub access used for the check is revoked when possible."),
+				nls.localize('chat.microsoftAuthentication.enabled.always', "Always offer \"Continue with Microsoft\", without checking for a linked account."),
+				nls.localize('chat.microsoftAuthentication.enabled.never', "Never offer \"Continue with Microsoft\", and never check for a linked account."),
+			],
+			markdownDescription: nls.localize('chat.microsoftAuthentication.enabled', "Controls when sign-in surfaces, such as the sign-in dialog and the welcome screen, offer \"Continue with Microsoft\". Signing in with Microsoft exchanges your Microsoft account for the GitHub access your organization has linked to it. The resulting GitHub sign-in lasts for the current window session only and is not saved."),
+			default: ChatMicrosoftAuthenticationMode.Never,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
-			// Read when a sign-in dialog opens, so `startup` keeps the offered buttons stable for the
-			// life of the window instead of changing under a dialog the user already has open.
-			experiment: { mode: 'startup' }
+			// Rolled out through experimentation. `auto` rather than `startup`, so that pulling the
+			// treatment stops the background check in running windows too. A dialog reads the value
+			// once when it opens, so an open dialog never changes underneath the user.
+			experiment: { mode: 'auto' }
 		},
 		[AgentHostSdkSandboxEnabledSettingId]: {
 			type: 'string',
@@ -1994,15 +2004,14 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.instructions.config.locations.description',
-				"Specify location(s) of instructions files (`*{0}`) that can be attached in Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.\n\nThis setting is only used by the Local agent harness.",
+				"Specify location(s) of instructions files (`*{0}`) that can be attached in Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.\n\nLocations configured here are only observed by the Local agent harness. Other harnesses running in VS Code receive instructions from all additional locations configured here, in addition to their built-in locations. To use instructions with independent agent harnesses, such as Copilot CLI, review the {2} in the Agent Customizations editor to migrate them to supported locations.",
 				INSTRUCTION_FILE_EXTENSION,
 				getDocumentationUrl(PromptsType.instructions),
+				migrationsTabLink,
 			),
 			default: {
 				...DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
 			},
-			markdownDeprecationMessage: nls.localize('chat.instructions.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Review the {0} in the Agent Customizations editor to move instructions into supported locations.", migrationsTabLink),
-			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
 				pattern: VALID_PROMPT_FOLDER_PATTERN,
@@ -2094,17 +2103,16 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.agents.config.locations.description',
-				"Specify location(s) of custom agent files (`*{0}`). [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.\n\nThis setting is only used by the Local agent harness.",
+				"Specify location(s) of custom agent files (`*{0}`). [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.\n\nLocations configured here are only observed by the Local agent harness. Other harnesses running in VS Code receive agents from all additional locations configured here, in addition to their built-in locations. To use agents with independent agent harnesses, such as Copilot CLI, review the {2} in the Agent Customizations editor to migrate them to supported locations.",
 				AGENT_FILE_EXTENSION,
 				getDocumentationUrl(PromptsType.agent),
+				migrationsTabLink,
 			),
 			default: {
 				[AGENTS_SOURCE_FOLDER]: true,
 				[CLAUDE_AGENTS_SOURCE_FOLDER]: true,
 				[COPILOT_USER_AGENTS_SOURCE_FOLDER]: true,
 			},
-			markdownDeprecationMessage: nls.localize('chat.agents.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Review the {0} in the Agent Customizations editor to move agents into supported locations.", migrationsTabLink),
-			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
 				pattern: VALID_PROMPT_FOLDER_PATTERN,
@@ -2204,15 +2212,14 @@ configurationRegistry.registerConfiguration({
 			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations",),
 			markdownDescription: nls.localize(
 				'chat.agentSkillsLocations.description',
-				"Specify location(s) of agent skills (`{0}`) that can be used in Chat Sessions. [Learn More]({1}).\n\nEach path should contain skill subfolders with SKILL.md files (e.g., add `my-skills` if you have `my-skills/skillA/SKILL.md`). Relative paths are resolved from the root folder(s) of your workspace.\n\nThis setting is only used by the Local agent harness.",
+				"Specify location(s) of agent skills (`{0}`) that can be used in Chat Sessions. [Learn More]({1}).\n\nEach path should contain skill subfolders with SKILL.md files (e.g., add `my-skills` if you have `my-skills/skillA/SKILL.md`). Relative paths are resolved from the root folder(s) of your workspace.\n\nLocations configured here are only observed by the Local agent harness. Other harnesses running in VS Code receive skills from all additional locations configured here, in addition to their built-in locations. To use skills with independent agent harnesses, such as Copilot CLI, review the {2} in the Agent Customizations editor to migrate them to supported locations.",
 				SKILL_FILENAME,
 				getDocumentationUrl(PromptsType.skill),
+				migrationsTabLink,
 			),
 			default: {
 				...DEFAULT_SKILL_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
 			},
-			markdownDeprecationMessage: nls.localize('chat.agentSkillsLocations.deprecated', "This setting and the Local agent harness will be removed in a future release. Review the {0} in the Agent Customizations editor to move skills into supported locations.", migrationsTabLink),
-			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
 				pattern: VALID_PROMPT_FOLDER_PATTERN,
@@ -2364,6 +2371,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.tools.terminal.simpleCollapsible', "When enabled, terminal tool calls are always displayed in a collapsible container with a simplified view."),
 			tags: ['experimental'],
+		},
+		[ChatConfiguration.TerminalOutputReflow]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.tools.terminal.outputReflow', "Controls whether terminal output in chat reflows to fit the available width. When disabled, previews use the terminal's column count, or 80 columns when no terminal is available, and scroll horizontally when needed. This does not resize the terminal running the command."),
 		},
 		[ChatConfiguration.CompressOutputEnabled]: {
 			type: 'boolean',
@@ -2559,17 +2571,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.customizations.structuredPreview.enabled', "Controls whether the Chat Customizations editor shows a structured preview for markdown customization files (agents, skills, instructions, prompts). When disabled, the editor always opens the raw markdown in the embedded code editor."),
 			default: false,
 		},
-		[ChatConfiguration.ChatCustomizationsToggleStyle]: {
-			type: 'string',
-			enum: ['checkbox', 'switch'],
-			enumDescriptions: [
-				nls.localize('chat.experimental.customizations.toggleStyle.checkbox', "Use checkboxes for customization enablement controls."),
-				nls.localize('chat.experimental.customizations.toggleStyle.switch', "Use switches for customization enablement controls."),
-			],
-			tags: ['experimental'],
-			description: nls.localize('chat.experimental.customizations.toggleStyle', "Controls whether Plugin, MCP, and Tools customization pages use checkboxes or switches for enablement."),
-			default: 'switch',
-		},
 		...customizationMarketplaceConfigurationProperties,
 		[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: {
 			type: 'boolean',
@@ -2585,6 +2586,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			description: nls.localize('chat.customizations.promptMigration.enabled', "Controls whether the Chat Customizations editor offers to convert prompt files into skills for agent-host harnesses, which ignore prompt files. When disabled, the migration card and sidebar shortcut are hidden."),
 			default: true,
+		},
+		[ChatConfiguration.ChatCustomizationsMigrationEnabled]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: nls.localize('chat.customizations.migration.enabled', "Controls whether VS Code shows customization migration actions, hints, compatibility badges, and compatibility details for the active Agent Host harness."),
+			default: true,
+			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: {
 			type: 'boolean',
@@ -2604,19 +2612,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.customizations.mcpServerMigration.enabled', "Controls whether VS Code shows MCP server migration actions, hints, compatibility badges, and compatibility details. Migration moves eligible workspace MCP servers out of .vscode/mcp.json and into a .mcp.json file at the workspace root, where the active agent-host harness discovers them directly."),
 			default: false,
 		},
-		[ChatConfiguration.ChatCustomizationsMigrationHint]: {
-			type: 'string',
-			enum: [CustomizationMigrationHintMode.Never, CustomizationMigrationHintMode.Once, CustomizationMigrationHintMode.Always],
-			enumDescriptions: [
-				nls.localize('chat.customizations.migrationHint.never', "Never show customization migration hints in chat."),
-				nls.localize('chat.customizations.migrationHint.once', "Show a customization migration hint once per chat session."),
-				nls.localize('chat.customizations.migrationHint.always', "Show a customization migration hint for every chat request."),
-			],
-			description: nls.localize('chat.customizations.migrationHint', "Controls whether chat shows information about customizations that are not used by the active Agent Host harness."),
-			default: CustomizationMigrationHintMode.Never,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
-		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -3337,12 +3332,14 @@ registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitC
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatMicrosoftSignInProbeContribution.ID, ChatMicrosoftSignInProbeContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatQuotaNotificationContribution.ID, ChatQuotaNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatPromoNotificationContribution.ID, ChatPromoNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatExpNotificationContribution.ID, ChatExpNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(CodexStatusBarEntry.ID, CodexStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ClientToolSetsContribution.ID, ClientToolSetsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution, WorkbenchPhase.BlockRestore);
@@ -3425,6 +3422,7 @@ registerSingleton(ISessionChatPillVisibilityService, SessionChatPillVisibility, 
 registerSingleton(IChatPasteTargetService, ChatPasteTargetService, InstantiationType.Delayed);
 registerSingleton(IChatSideChatService, ChatSideChatService, InstantiationType.Delayed);
 registerSingleton(IChatRequestOriginService, ChatRequestOriginService, InstantiationType.Delayed);
+registerSingleton(IChatHarnessSwitchFeedbackSurveyService, ChatHarnessSwitchFeedbackSurveyService, InstantiationType.Delayed);
 registerSingleton(IChatModelFeedbackSurveyService, ChatModelFeedbackSurveyService, InstantiationType.Delayed);
 registerSingleton(IChatPetService, ChatPetService, InstantiationType.Delayed);
 registerSingleton(IChatPetWidgetService, ChatPetWidgetService, InstantiationType.Delayed);
@@ -3474,5 +3472,6 @@ registerSingleton(IChatDebugService, ChatDebugServiceImpl, InstantiationType.Del
 registerSingleton(IChatImageCarouselService, ChatImageCarouselService, InstantiationType.Delayed);
 registerSingleton(IAgentHostImportConversationStore, AgentHostImportConversationStore, InstantiationType.Delayed);
 registerSingleton(ISessionSummaryHoverService, SessionSummaryHoverService, InstantiationType.Delayed);
+registerSingleton(IChatMicrosoftSignInProbeService, ChatMicrosoftSignInProbeService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

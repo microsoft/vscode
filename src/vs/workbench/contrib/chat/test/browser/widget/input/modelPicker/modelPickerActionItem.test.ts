@@ -4,22 +4,139 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../../../base/browser/window.js';
 import { IAction } from '../../../../../../../../base/common/actions.js';
 import { Event } from '../../../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
+import { IActionWidgetService } from '../../../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUpdateService } from '../../../../../../../../platform/update/common/update.js';
+import { IUriIdentityService } from '../../../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../../platform/workspace/common/workspaceTrust.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
+import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from '../../../../../../../test/common/workbenchTestServices.js';
 import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../../browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../common/languageModels.js';
+import { NullLanguageModelsService } from '../../../../common/languageModels.js';
+import '../../../../../browser/widget/media/chat.css';
 
 suite('ModelPickerActionItem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createModel(name: string): ILanguageModelChatMetadataAndIdentifier {
+		return {
+			identifier: `copilot/${name}`,
+			metadata: upcastPartial<ILanguageModelChatMetadata>({
+				id: name,
+				name,
+				vendor: 'copilot',
+				family: name,
+				version: '1.0',
+				maxInputTokens: 256000,
+				maxOutputTokens: 8192,
+				isDefaultForLocation: {},
+				configurationSchema: {
+					properties: {
+						reasoningEffort: { type: 'string', group: 'navigation', enum: ['medium', 'high'], enumItemLabels: ['Medium', 'High'], default: 'high' },
+						contextSize: { type: 'number', group: 'tokens', enum: [128000, 256000], enumItemLabels: ['128K', '256K'], default: 256000 },
+					},
+				},
+			}),
+		};
+	}
+
+	/**
+	 * Renders the real picker as the chat input toolbar does, with the model's
+	 * name followed by its thinking effort / context size readout. The name has
+	 * no icon, so it keeps its label even when the picker is compact.
+	 */
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly itemWidth?: number } = {}) {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IActionWidgetService, {});
+		instantiationService.stub(ICommandService, {});
+		instantiationService.stub(IOpenerService, {});
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+			override getLanguageModelIds() { return [model.identifier]; }
+		}());
+		instantiationService.stub(IProductService, {});
+		const entitlementService = new TestChatEntitlementService();
+		entitlementService.entitlement = ChatEntitlement.Pro;
+		instantiationService.stub(IChatEntitlementService, entitlementService);
+		instantiationService.stub(IUpdateService, {});
+		instantiationService.stub(IUriIdentityService, {});
+		instantiationService.stub(IDefaultAccountService, {});
+		instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
+		instantiationService.stub(IWorkspaceTrustRequestService, {});
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+
+		const action: IAction = { id: 'test.modelPicker', label: '', tooltip: '', class: undefined, enabled: true, run: async () => { } };
+		const delegate: IModelPickerDelegate = {
+			currentModel: constObservable(model),
+			setModel: () => { },
+			setModelProgrammatically: () => { },
+			getModels: () => [model],
+			getPresentationOptions: () => ({
+				useGroupedModelPicker: true,
+				showManageModelsAction: false,
+				showUnavailableFeatured: false,
+				showFeatured: false,
+				showAutoModel: true,
+				showModelIcon: false,
+			}),
+		};
+		const item = disposables.add(new ModelPickerActionItem(
+			action,
+			delegate,
+			{ compact: constObservable(options.compact ?? false) },
+			instantiationService,
+			new MockContextKeyService(),
+			new MockKeybindingService(),
+		));
+
+		const session = append(mainWindow.document.body, $('.interactive-session'));
+		disposables.add(toDisposable(() => session.remove()));
+		session.style.setProperty('--vscode-spacing-size60', '6px');
+		const toolbar = append(session, $('.chat-input-toolbar'));
+		toolbar.style.display = 'flex';
+		const container = append(toolbar, $('.action-item'));
+		if (options.itemWidth !== undefined) {
+			container.style.width = `${options.itemWidth}px`;
+		}
+		item.render(container);
+
+		const name = container.querySelector<HTMLElement>('.model-picker-name')!;
+		const label = name.querySelector<HTMLElement>('.chat-input-picker-label')!;
+		const configuration = container.querySelector<HTMLElement>('.model-picker-config')!;
+		return {
+			container: container.getBoundingClientRect(),
+			name: name.getBoundingClientRect(),
+			label: label.getBoundingClientRect(),
+			labelTruncated: label.scrollWidth > label.clientWidth,
+			configuration: configuration.getBoundingClientRect(),
+		};
+	}
+
 	test('renders and opens the owned widget and disposes it with the action item', () => {
 		const widgetElement = $('button');
 		const anchors: (HTMLElement | undefined)[] = [];
+		const contextViewLayers: (number | undefined)[] = [];
 		let disposed = 0;
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stubInstance(ModelPickerWidget, {
@@ -30,6 +147,8 @@ suite('ModelPickerActionItem', () => {
 			minimumWidth: 60,
 			setSelectedModel: () => { },
 			setCompact: () => { },
+			setContextViewLayer: layer => contextViewLayers.push(layer),
+			setForceTabbedPicker: () => { },
 			render: container => container.appendChild(widgetElement),
 			show: anchor => anchors.push(anchor),
 			dispose: () => disposed++,
@@ -38,6 +157,7 @@ suite('ModelPickerActionItem', () => {
 		const delegate: IModelPickerDelegate = {
 			currentModel: constObservable(undefined),
 			setModel: () => { },
+			setModelProgrammatically: () => { },
 			getModels: () => [],
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true,
@@ -51,7 +171,7 @@ suite('ModelPickerActionItem', () => {
 		const item = disposables.add(new ModelPickerActionItem(
 			action,
 			delegate,
-			{ compact: constObservable(false) },
+			{ compact: constObservable(false), contextViewLayer: 1 },
 			instantiationService,
 			new MockContextKeyService(),
 			new MockKeybindingService(),
@@ -70,12 +190,39 @@ suite('ModelPickerActionItem', () => {
 			rendered,
 			defaultAnchor: anchors[0] === widgetElement,
 			explicitAnchor: anchors[1] === second,
+			contextViewLayers,
 			disposed,
 		}, {
 			rendered: { first: 0, second: true },
 			defaultAnchor: true,
 			explicitAnchor: true,
+			contextViewLayers: [1],
 			disposed: 1,
+		});
+	});
+
+	test('sizes a short model name to its label rather than the minimum label width', () => {
+		const expanded = renderPicker(createModel('o3'));
+		const compact = renderPicker(createModel('o3'), { compact: true });
+		// Narrower than the picker, so the name shrinks to its minimum width.
+		const long = renderPicker(createModel('A model name long enough to be truncated'), { itemWidth: 100 });
+
+		const spacing = (picker: typeof expanded) => ({
+			spaceBeforeConfiguration: Math.floor(picker.configuration.left - picker.label.right),
+			spaceAfterConfiguration: Math.floor(picker.container.right - picker.configuration.right),
+		});
+		assert.deepStrictEqual({
+			expanded: spacing(expanded),
+			compact: spacing(compact),
+			long: {
+				nameWidth: Math.floor(long.name.width),
+				labelTruncated: long.labelTruncated,
+			},
+		}, {
+			// Only the name's own padding separates it from the readout.
+			expanded: { spaceBeforeConfiguration: 6, spaceAfterConfiguration: 0 },
+			compact: { spaceBeforeConfiguration: 6, spaceAfterConfiguration: 0 },
+			long: { nameWidth: 90, labelTruncated: true },
 		});
 	});
 });

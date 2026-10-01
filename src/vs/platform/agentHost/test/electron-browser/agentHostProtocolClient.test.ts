@@ -18,7 +18,10 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
+import { AgentCanvasAvailability, AgentSession, AuthenticateParams } from '../../common/agent.js';
+import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
@@ -34,7 +37,7 @@ import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
@@ -192,6 +195,9 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	readonly onDidReceiveData = this._onDidReceiveData.event;
+
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
@@ -203,6 +209,10 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 
 	fireMessage(message: ProtocolMessage): void {
 		this._onMessage.fire(message);
+	}
+
+	fireData(): void {
+		this._onDidReceiveData.fire();
 	}
 
 	fireExtensionNotification(message: JsonRpcNotification): void {
@@ -429,6 +439,20 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(supported, [false, false, false, true]);
 	});
 
+	test('canvas facade requires the versioned capability and a local host identity', async () => {
+		const supported: boolean[] = [];
+		for (const meta of [undefined, { 'vscode.canvases.v1': 1 }, { 'vscode.canvases.v1': false }, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true)]) {
+			const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+			await connectClient(client, transport, meta);
+			supported.push(client.canvases !== undefined);
+		}
+		const remote = createClientForIdentity('remote.example:1234');
+		await connectClient(remote.client, remote.transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
+		supported.push(remote.client.canvases !== undefined);
+
+		assert.deepStrictEqual(supported, [false, false, false, true, false]);
+	});
+
 	test('Dev Container facade uses the parent transport and validates notifications', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true));
@@ -472,6 +496,18 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual({ method: sendRequest.method, params: sendRequest.params }, { method: DevContainerRelaySendExtensionMethod, params: { connectionId: 'container', data: 'outbound frame' } });
 		transport.fireMessage({ jsonrpc: '2.0', id: sendRequest.id, result: null });
 		await sending;
+		const stopping = service.stopContainer('/repo');
+		await flushMicrotasks();
+		const stopRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+		assert.deepStrictEqual({ method: stopRequest.method, params: stopRequest.params }, { method: DevContainerStopExtensionMethod, params: { workspaceFolder: '/repo' } });
+		transport.fireMessage({ jsonrpc: '2.0', id: stopRequest.id, result: true });
+		assert.strictEqual(await stopping, true);
+		const removing = service.removeContainer('/repo');
+		await flushMicrotasks();
+		const removeRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+		assert.deepStrictEqual({ method: removeRequest.method, params: removeRequest.params }, { method: DevContainerRemoveExtensionMethod, params: { workspaceFolder: '/repo' } });
+		transport.fireMessage({ jsonrpc: '2.0', id: removeRequest.id, result: false });
+		assert.strictEqual(await removing, false);
 		client.dispose();
 		assert.deepStrictEqual({ output, frames, closed, closeStates }, { output: ['output'], frames: ['frame'], closed: ['container'], closeStates: [AgentHostClientState.Closed] });
 	});
@@ -1063,6 +1099,68 @@ suite('AgentHostProtocolClient', () => {
 			await resultPromise;
 		});
 	});
+
+	test('applies full canvas snapshots, suppresses duplicates, clears, and resolves an exact revision', async () => {
+		const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
+		transport.sentMessages.length = 0;
+		const canvases = client.canvases;
+		assert.ok(canvases);
+		const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilotcli', 'test')));
+		const snapshots: unknown[] = [];
+		disposables.add(canvases.onDidChange(snapshot => snapshots.push({
+			chat: snapshot.chat.toString(),
+			canvases: snapshot.canvases,
+		})));
+		const params = {
+			chat: chat.toString(),
+			canvases: [{
+				instanceId: 'preview-1',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				revision: 3,
+				availability: AgentCanvasAvailability.Ready,
+			}],
+		};
+		transport.fireMessage({ jsonrpc: '2.0', method: AgentHostCanvasesChangedNotification, params } as unknown as ProtocolMessage);
+		transport.fireMessage({ jsonrpc: '2.0', method: AgentHostCanvasesChangedNotification, params } as unknown as ProtocolMessage);
+
+		const resultPromise = canvases.resolveSource(chat, 'preview-1', 3);
+		const sourceRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+
+		assert.deepStrictEqual(sourceRequest, {
+			jsonrpc: '2.0',
+			id: sourceRequest.id,
+			method: ResolveAgentHostCanvasSourceExtensionMethod,
+			params: {
+				chat: chat.toString(),
+				instanceId: 'preview-1',
+				revision: 3,
+			},
+		});
+
+		transport.fireMessage({ jsonrpc: '2.0', id: sourceRequest.id, result: { url: 'https://example.test/preview' } });
+		const source = await resultPromise;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			method: AgentHostCanvasesChangedNotification,
+			params: { chat: chat.toString(), canvases: [] },
+		} as unknown as ProtocolMessage);
+
+		assert.deepStrictEqual({
+			source,
+			snapshots,
+			current: canvases.getSnapshots(),
+		}, {
+			source: 'https://example.test/preview',
+			snapshots: [
+				params,
+				{ chat: chat.toString(), canvases: [] },
+			],
+			current: [],
+		});
+	});
+
 	test('preserves JSON-RPC error code and data', async () => {
 		const { client, transport } = createClient();
 		const resultPromise = client.resourceRead(URI.file('/missing'));
@@ -1165,6 +1263,47 @@ suite('AgentHostProtocolClient', () => {
 		await rejected;
 	});
 
+	test('a throwing dispose callback still closes the client and disposes its transport', async () => {
+		let transportDisposed = false;
+		const transport = disposables.add(new class extends TestProtocolTransport {
+			override dispose(): void {
+				transportDisposed = true;
+				super.dispose();
+			}
+		}());
+		const logService = new CountingLogService();
+		let callbackCount = 0;
+		const trust = createWorkspaceTrustServices();
+		const client = disposables.add(new AgentHostProtocolClient(
+			'test.example:1234', transport,
+			{ onDispose: () => { callbackCount++; throw new Error('release failed'); } },
+			logService, createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+			workspaceTrustEnablementService, trust.management, trust.request,
+		));
+		let closeCount = 0;
+		disposables.add(client.onDidClose(() => closeCount++));
+		const pending = client.resourceList(URI.file('/workspace'));
+		const rejected = assertRemoteProtocolError(pending, { code: -32000, message: 'Connection disposed: test.example:1234' });
+
+		client.dispose();
+		client.dispose();
+		await rejected;
+
+		assert.deepStrictEqual({
+			callbackCount,
+			closeCount,
+			warnings: logService.warnCount,
+			state: client.connectionState,
+			transportDisposed,
+		}, {
+			callbackCount: 1,
+			closeCount: 1,
+			warnings: 1,
+			state: AgentHostClientState.Closed,
+			transportDisposed: true,
+		});
+	});
+
 	test('dispose rejection wins when transport emits close while disposing', async () => {
 		const transport = disposables.add(new CloseOnDisposeProtocolTransport());
 		const { client } = createClient(transport);
@@ -1246,6 +1385,31 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.strictEqual(closeCount, 0);
 			assert.ok(answered >= 4, `expected several pings to have been answered, got ${answered}`);
+			client.dispose();
+		});
+	});
+
+	test('liveness keeps the connection open while a large message is still arriving', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const lowLoad = { hasHighLoad: () => false };
+			const { client, transport } = createClient(undefined, undefined, lowLoad);
+			let closeCount = 0;
+			disposables.add(client.onDidClose(() => closeCount++));
+
+			// A message that takes a minute to download: bytes keep arriving, but none completes.
+			for (let second = 0; second < 60; second++) {
+				await timeout(1_000);
+				transport.fireData();
+			}
+			const whileDownloading = { closeCount, pings: transport.sentMessages.filter(isPingRequest).length };
+
+			// Once the bytes stop, the usual liveness window applies.
+			await timeout(30_000);
+
+			assert.deepStrictEqual({ whileDownloading, afterDownloadStalls: closeCount }, {
+				whileDownloading: { closeCount: 0, pings: 0 },
+				afterDownloadStalls: 1,
+			});
 			client.dispose();
 		});
 	});
@@ -2104,6 +2268,109 @@ suite('AgentHostProtocolClient', () => {
 		const rejected = assertRemoteProtocolError(resultPromise, { code: -32000, message: 'Connection closed: test.example:1234' });
 		transport.fireClose();
 		await rejected;
+	});
+
+	suite('reverse MCP authentication', () => {
+		const request = {
+			serverName: 'Docs',
+			auth: {
+				reason: McpAuthRequiredReason.Required,
+				resource: {
+					resource: 'https://docs.example/mcp',
+					authorization_servers: ['https://issuer.example'],
+					scopes_supported: ['read', 'write'],
+				},
+				oauthClient: { clientId: 'docs-client' },
+				requiredScopes: ['read'],
+			},
+		};
+
+		test('routes the challenge to the registered handler and returns its result', async () => {
+			const requests: IAgentHostMcpAuthenticationRequest[] = [];
+			const responses: ProtocolTransportMessage[] = [];
+			for (const authenticated of [true, false]) {
+				const { client, transport } = createClient();
+				disposables.add(client.registerMcpAuthenticationHandler(async challenge => {
+					requests.push(challenge);
+					return authenticated;
+				}));
+				transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+				await timeout(0);
+				responses.push(...transport.sentMessages);
+			}
+			assert.deepStrictEqual({ requests, responses }, {
+				requests: [request, request],
+				responses: [
+					{ jsonrpc: '2.0', id: 51, result: { authenticated: true } },
+					{ jsonrpc: '2.0', id: 51, result: { authenticated: false } },
+				],
+			});
+		});
+
+		test('returns false without a handler or after disposing the registration', async () => {
+			const { client, transport } = createClient();
+			transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+			await timeout(0);
+			const registration = disposables.add(client.registerMcpAuthenticationHandler(async () => true));
+			registration.dispose();
+			transport.fireExtensionRequest(52, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+			await timeout(0);
+			assert.deepStrictEqual(transport.sentMessages, [
+				{ jsonrpc: '2.0', id: 51, result: { authenticated: false } },
+				{ jsonrpc: '2.0', id: 52, result: { authenticated: false } },
+			]);
+		});
+
+		test('logs handler errors and returns false', async () => {
+			const errors: string[] = [];
+			const logService = new class extends NullLogService {
+				override error(message: string): void {
+					errors.push(message);
+				}
+			}();
+			const { client, transport } = createClient(undefined, undefined, undefined, logService);
+			disposables.add(client.registerMcpAuthenticationHandler(async () => {
+				throw new Error('Authentication failed');
+			}));
+			transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+			await timeout(0);
+			assert.deepStrictEqual({ errors, responses: transport.sentMessages }, {
+				errors: ['[AgentHostProtocolClient] Failed to silently authenticate MCP server'],
+				responses: [{ jsonrpc: '2.0', id: 51, result: { authenticated: false } }],
+			});
+		});
+
+		test('rejects invalid parameters before invoking the handler', async () => {
+			const { client, transport } = createClient();
+			let calls = 0;
+			disposables.add(client.registerMcpAuthenticationHandler(async () => {
+				calls++;
+				return true;
+			}));
+			const invalidRequests = [
+				{},
+				{ ...request, serverName: 1 },
+				{ ...request, auth: null },
+				{ ...request, auth: { ...request.auth, reason: 'invalid' } },
+				{ ...request, auth: { ...request.auth, resource: { resource: 1 } } },
+				{ ...request, auth: { ...request.auth, requiredScopes: [1] } },
+				{ ...request, auth: { ...request.auth, oauthClient: { clientId: 1 } } },
+			];
+			for (const params of invalidRequests) {
+				transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, params);
+			}
+			await timeout(0);
+			assert.deepStrictEqual({
+				calls,
+				responses: transport.sentMessages.map(message => {
+					assert.ok(hasKey(message, { error: true, id: true }));
+					return { id: message.id, code: message.error.code };
+				}),
+			}, {
+				calls: 0,
+				responses: invalidRequests.map(() => ({ id: 51, code: -32000 })),
+			});
+		});
 	});
 
 	suite('reverse workspace trust', () => {
@@ -3750,8 +4017,10 @@ suite('AgentHostProtocolClient', () => {
 				jsonrpc: '2.0', id: initialAnnotationsSubscribe.id,
 				result: { snapshot: { resource: annotationsUri.toString(), state: { annotations: [] }, fromSeq: 5 } },
 			});
-			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token', expiresIn: 3600 });
+			const accountMeta = authenticationAccountMeta({ providerId: 'github', accountId: 'account' });
+			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token', expiresIn: 3600, _meta: accountMeta });
 			const initialAuthenticate = await waitForRequest(transports[0], 'authenticate');
+			assert.deepStrictEqual((initialAuthenticate.params as AuthenticateParams)._meta, accountMeta);
 			transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
 			await authentication;
 			await flushMicrotasks();
@@ -3796,6 +4065,7 @@ suite('AgentHostProtocolClient', () => {
 			});
 
 			const restoredAuthenticate = await waitForRequestAt(reconnectTransport, 'authenticate', 0);
+			assert.deepStrictEqual((restoredAuthenticate.params as AuthenticateParams)._meta, accountMeta);
 			const restoredExpiresIn = (restoredAuthenticate.params as { expiresIn?: number }).expiresIn;
 			assert.ok(restoredExpiresIn !== undefined && restoredExpiresIn > 0 && restoredExpiresIn <= 3600);
 			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
@@ -5166,6 +5436,43 @@ suite('AgentHostProtocolClient', () => {
 					});
 					await flushMicrotasks();
 					assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog keeps a reconnect alive while its large response is still arriving', async () => {
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					await completeHandshake(transports[0], client.connect());
+					transports[0].fireClose();
+					const reconnectTransport = await waitForTransport(transports, 1);
+					reconnectTransport.connectDeferred.complete();
+					const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+
+					// The host answers promptly, but the response takes a minute to download.
+					for (let second = 0; second < 60; second++) {
+						await timeout(1_000);
+						reconnectTransport.fireData();
+					}
+					const whileDownloading = {
+						transports: transports.length,
+						connection: client.connectionState,
+						pings: reconnectTransport.sentMessages.filter(isPingRequest).length,
+					};
+
+					reconnectTransport.fireMessage({
+						jsonrpc: '2.0', id: reconnect.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+					});
+					await flushMicrotasks();
+
+					assert.deepStrictEqual({ whileDownloading, afterDownload: client.connectionState }, {
+						whileDownloading: { transports: 2, connection: AgentHostClientState.Reconnecting, pings: 0 },
+						afterDownload: AgentHostClientState.Connected,
+					});
 				} finally {
 					client.dispose();
 				}

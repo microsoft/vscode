@@ -23,6 +23,7 @@ import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService }
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
+import { agentSandboxDiagnosticsMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -65,6 +66,7 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/ag
 import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, IToolSet, ToolAndToolSetEnablementMap, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
+import { IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -833,6 +835,7 @@ suite('AgentHostClientTools', () => {
 			const connection = new MockAgentHostConnection();
 
 			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
+			const inputNotifications = new Map<string, IChatInputNotification>();
 			const configValues: Record<string, unknown> = {};
 			const onDidChangeConfig = disposables.add(new Emitter<IConfigurationChangeEvent>());
 			const configService: Partial<IConfigurationService> = {
@@ -858,6 +861,10 @@ suite('AgentHostClientTools', () => {
 			});
 			instantiationService.stub(IChatWidgetService, {
 				getWidgetBySessionResource: () => undefined,
+			});
+			instantiationService.stub(IChatInputNotificationService, {
+				setNotification: notification => inputNotifications.set(notification.id, notification),
+				deleteNotification: id => inputNotifications.delete(id),
 			});
 			instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 			instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None });
@@ -977,7 +984,7 @@ suite('AgentHostClientTools', () => {
 				connectionAuthority: 'local',
 			}));
 
-			return { handler, connection, toolsService, configValues, onDidChangeConfig };
+			return { handler, connection, toolsService, configValues, onDidChangeConfig, inputNotifications };
 		}
 
 		const testRunTestsTool: IToolData = {
@@ -1199,6 +1206,25 @@ suite('AgentHostClientTools', () => {
 			// before reaching getClientTools.
 			const def = toolDataToDefinition(testRunTestsTool);
 			assert.strictEqual(def.name, 'runTests');
+		});
+
+		test('shows sandbox diagnostics for a provided session and clears them on disposal', async () => {
+			const { handler, connection, inputNotifications } = createHandlerWithMocks(disposables, []);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			connection.applySessionAction(AgentSession.uri('copilot', 'session-1'), {
+				type: ActionType.SessionMetaChanged,
+				_meta: { [agentSandboxDiagnosticsMetaKey]: ['Install bubblewrap.'] },
+			});
+			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			const shown = [...inputNotifications.values()].map(notification => ({
+				description: notification.description,
+				sessions: notification.sessionResources?.map(resource => resource.toString()),
+			}));
+			session.dispose();
+			assert.deepStrictEqual({ shown, remaining: inputNotifications.size }, {
+				shown: [{ description: new MarkdownString().appendText('Install bubblewrap.'), sessions: [sessionResource.toString()] }],
+				remaining: 0,
+			});
 		});
 
 		test('invokes an owned client tool when reconnecting to an active turn', async () => {

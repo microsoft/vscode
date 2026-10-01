@@ -20,6 +20,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
+import { getChangesEditorFileResource } from './changesEditorLabels.js';
 import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
@@ -324,10 +325,11 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const activeChangesStateObs = derivedObservableWithCache<IActiveChangesState>(this, (reader, lastValue) => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
 			if (!changeset) {
+				const activeSession = this.sessionsService.activeSession.read(reader);
 				return {
 					changeset: undefined,
 					changes: [],
-					isLoading: false,
+					isLoading: !!activeSession && this.activeSessionChangesetsLoadingObs.read(reader),
 					preservingEquivalentChangeset: false,
 				};
 			}
@@ -349,7 +351,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 			return {
 				changeset,
-				changes: changeset.changes.read(reader),
+				changes: isLoading
+					? []
+					: changeset.changes.read(reader),
 				isLoading,
 				preservingEquivalentChangeset: false,
 			};
@@ -386,11 +390,10 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const activeSessionChangesetsLoading = this.activeSessionChangesetsLoadingObs.read(reader);
 			const activeSessionChangeset = this.activeSessionChangesetObs.read(reader);
 			const activeSessionChangesetLoading = this.activeSessionChangesetLoadingObs.read(reader);
-			const activeSessionHasChanges = this.activeSessionChangesObs.read(reader).length > 0;
 
 			return activeSessionLoading
 				|| (activeSessionChangesetsLoading && !activeSessionChangeset)
-				|| (activeSessionChangesetLoading && !activeSessionHasChanges);
+				|| activeSessionChangesetLoading;
 		});
 
 		const activeSessionChangesSummaryObs = derivedObservableWithCache<ISessionChangesSummary | undefined>(this, (reader, lastValue) => {
@@ -742,8 +745,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 			return changes
 				.filter(change => change.reviewed)
-				.map(change => change.modifiedUri?.toString() ?? change.originalUri?.toString())
-				.filter((uri: string | undefined) => uri !== undefined);
+				.map(change => getChangesEditorFileResource(change).toString());
 		}));
 
 		const changesetOperationCountObs = derivedObservableWithCache<number>(this, (reader, lastValue) => {

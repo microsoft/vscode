@@ -11,6 +11,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
@@ -27,7 +28,7 @@ import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListSer
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
-import { ComponentFixtureContext, createEditorServices } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, ServiceRegistration } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
@@ -84,6 +85,12 @@ function createFixtureChatViewModel(sessionResource: URI): IChatViewModel {
 }
 
 export interface ChatInputFixtureOptions {
+	/** Binds the input to an existing session, including session-scoped notifications. */
+	readonly sessionResource?: URI;
+	/** Overrides services for input-specific fixture scenarios. */
+	readonly additionalServices?: (registration: ServiceRegistration) => void;
+	/** Whether the fixture's Send action is enabled. The draft stays editable. */
+	readonly sendEnabled?: boolean;
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
 	readonly editingSession?: IChatEditingSession;
 	readonly todos?: IChatTodo[];
@@ -129,7 +136,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, combinedModePermissionsPicker = false, voiceControl, notification, pet = false, secondaryPickerLabels = ['Local', 'Default permissions'] } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
-	const sessionResource = agentHostSessionConfig ? getNewChatSessionResource(SessionType.AgentHostCopilot) : undefined;
+	const sessionResource = fixtureOptions.sessionResource ?? (agentHostSessionConfig ? getNewChatSessionResource(SessionType.AgentHostCopilot) : undefined);
 
 	// Sprite sheets are resolved against the file root.
 	if (pet) {
@@ -172,6 +179,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 					override hasResolvedVendor() { return true; }
 				}());
 			}
+			fixtureOptions.additionalServices?.(reg);
 		},
 	});
 
@@ -213,7 +221,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		// real dictation / Voice Mode actions are contributed.
 		menuService.addItem(MenuId.ChatExecute, { command: { id: 'fixture.voiceControl', title: 'Voice', icon: voiceControlRenderings[voiceControl].icon }, group: 'navigation', order: 2 });
 	}
-	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUpCompact }, group: 'navigation', order: 4 });
+	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUpCompact, precondition: fixtureOptions.sendEnabled === false ? ContextKeyExpr.false() : undefined }, group: 'navigation', order: 4 });
 	const hasCustomSecondaryPickerLabels = fixtureOptions.secondaryPickerLabels !== undefined;
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: hasCustomSecondaryPickerLabels ? 'fixture.secondaryTarget' : 'workbench.action.chat.openSessionTargetPicker', title: secondaryPickerLabels[0] }, group: 'navigation', order: 0 });
 	if (hasCustomSecondaryPickerLabels) {

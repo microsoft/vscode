@@ -3571,6 +3571,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly id?: string,
 		readonly modelId?: string,
 		readonly modeInstructions2?: vscode.ChatRequestModeInstructions,
+		readonly isSystemInitiated?: boolean,
 	) { }
 }
 
@@ -3883,6 +3884,12 @@ export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 
 export class ChatReferenceDiagnostic implements vscode.ChatReferenceDiagnostic {
 	constructor(public readonly diagnostics: [vscode.Uri, vscode.Diagnostic[]][]) { }
+}
+
+export enum LanguageModelChatApiType {
+	ChatCompletions = 1,
+	Responses = 2,
+	Messages = 3
 }
 
 export enum LanguageModelChatMessageRole {

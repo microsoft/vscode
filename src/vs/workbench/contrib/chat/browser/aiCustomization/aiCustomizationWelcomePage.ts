@@ -7,8 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { affectsCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
@@ -17,6 +16,10 @@ import { IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../co
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationDiscoveryPage } from './aiCustomizationDiscoveryPage.js';
 import { PromptLaunchersAICustomizationWelcomePage } from './aiCustomizationWelcomePagePromptLaunchers.js';
+import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
+import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
+import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 
 const $ = DOM.$;
 
@@ -35,7 +38,14 @@ export interface ICustomizationMigrationCategorySummary {
 export interface IWelcomePageCallbacks {
 	selectSection(section: AICustomizationManagementSection): void;
 	selectSectionWithMarketplace(section: AICustomizationManagementSection): void;
-	openInstalled?(section: AICustomizationManagementSection, uri: URI | undefined): void;
+	openInstalled?(target: {
+		readonly section: AICustomizationManagementSection;
+		readonly uri?: URI;
+		readonly promptDetail?: IAICustomizationListItem;
+		readonly pluginDetail?: IAgentPluginItem;
+		readonly mcpDetail?: IMcpServerDetailInput;
+	}): void;
+	openMarketplaceItem(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void;
 	closeEditor(): void;
 	reviewMigrations(): void;
 	/**
@@ -48,6 +58,11 @@ export interface IWelcomePageCallbacks {
 	prefillChat(query: string, options?: { isPartialQuery?: boolean; newChat?: boolean }): void;
 }
 
+export interface ICustomizationMarketplaceOrigin {
+	readonly resourceKey: string;
+	readonly mode: 'browse' | 'search';
+}
+
 export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	readonly container: HTMLElement;
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void;
@@ -57,7 +72,9 @@ export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	setVisible?(visible: boolean): void;
 	layout?(dimension: DOM.Dimension | undefined): void;
 	getAccessibilityContent?(): string;
+	restoreMarketplaceItemFocus?(origin: ICustomizationMarketplaceOrigin): void;
 	setSearchQuery?(value: string): void;
+	resetFilters?(): void;
 	reset?(): void;
 }
 
@@ -109,11 +126,11 @@ export class AICustomizationWelcomePage extends Disposable {
 	}
 
 	isMarketplaceConfigurationChange(event: IConfigurationChangeEvent): boolean {
-		return affectsCustomizationMarketplaceSources(event, this.marketplaceService.allSources ?? this.marketplaceService.sources);
+		return affectsCustomizationDiscoveryAvailability(event, this.marketplaceService);
 	}
 
 	private isAnySourceEnabled(): boolean {
-		return getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).length > 0;
+		return isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService);
 	}
 
 	private updateImplementation(): void {
@@ -167,6 +184,10 @@ export class AICustomizationWelcomePage extends Disposable {
 		this.implementation.value?.reset?.();
 	}
 
+	resetFilters(): void {
+		this.implementation.value?.resetFilters?.();
+	}
+
 	setVisible(visible: boolean): void {
 		this.visible = visible;
 		this.implementation.value?.setVisible?.(visible);
@@ -179,6 +200,15 @@ export class AICustomizationWelcomePage extends Disposable {
 
 	getAccessibilityContent(): string {
 		return this.implementation.value?.getAccessibilityContent?.() ?? '';
+	}
+
+	restoreMarketplaceItemFocus(origin: ICustomizationMarketplaceOrigin): void {
+		const implementation = this.implementation.value;
+		if (implementation?.restoreMarketplaceItemFocus) {
+			implementation.restoreMarketplaceItemFocus(origin);
+		} else {
+			implementation?.focus();
+		}
 	}
 
 	setSearchQuery(value: string): void {

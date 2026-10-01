@@ -270,6 +270,9 @@ export interface ICloudSandboxApiService {
 	 */
 	createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession>;
 
+	/** Soft-delete the Mission Control task, including its persisted session history, without waking the sandbox. */
+	deleteTask(taskId: string, token: CancellationToken): Promise<void>;
+
 	/**
 	 * Read a task's persisted AHP history and fold it back into session and chat state. Served by
 	 * Mission Control's mirror, so it works without the sandbox. `undefined` when there is none.
