@@ -55,7 +55,7 @@ suite('AgentHostModePicker', () => {
 
 	teardown(() => resetShownWarnings());
 
-	function setup(enabled = true, confirmPermissions = true, policyRestricted = false, publishSandboxPolicy = true) {
+	function setup(enabled = true, confirmPermissions = true, policyRestricted = false, publishSandboxPolicy = true, hostOS = 'linux') {
 		const config: ResolveSessionConfigResult = {
 			schema: {
 				type: 'object',
@@ -70,11 +70,17 @@ suite('AgentHostModePicker', () => {
 		const configChanged = store.add(new Emitter<string>());
 		const resolving = observableValue('resolving', false);
 		const writes: { session: string; property: string; value: unknown }[] = [];
+		const devContainer = observableValue('devContainer', false);
+		store.add(autorun(reader => {
+			devContainer.read(reader);
+			configChanged.fire('test-session');
+		}));
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = 'local-agent-host';
 			override readonly onDidChangeSessionConfig = configChanged.event;
 			override getSessionConfig() { return config; }
 			override getSessionSandboxPolicy() { return publishSandboxPolicy ? { enabled: managedSandboxEnforced.get() } : undefined; }
+			override isDevContainerRequested() { return devContainer.get(); }
 			override isSessionConfigResolving() { return resolving; }
 			override async setSessionConfigValue(session: string, property: string, value: unknown): Promise<void> {
 				writes.push({ session, property, value });
@@ -145,7 +151,7 @@ suite('AgentHostModePicker', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const connection = new class extends mock<IAgentConnection>() {
 			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
-				return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
+				return { version: '1', os: hostOS, arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
 			}
 		}();
 		instantiationService.stub(IAgentHostConnectionsService, {
@@ -189,8 +195,36 @@ suite('AgentHostModePicker', () => {
 		const container = dom.append(document.body, dom.$('div'));
 		store.add({ dispose: () => container.remove() });
 		const trigger = picker.render(container);
-		return { picker, trigger, config, configChanged, configuration, actionWidget, writes, session, phone, resolving, permissionDelegate, managedSandboxEnforced, settingsRequests, hoverTargets };
+		return { picker, trigger, config, configChanged, configuration, actionWidget, writes, session, phone, resolving, permissionDelegate, managedSandboxEnforced, settingsRequests, hoverTargets, devContainer };
 	}
+
+	test('updates the sandbox toggle, icon, and accessible label while Dev Container availability is pending', async () => {
+		const { trigger, configuration, actionWidget, devContainer, config, writes } = setup(true, true, false, true, 'win32');
+		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), 'on');
+		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(true), 'off');
+		await timeout(0);
+		const read = () => {
+			trigger.click();
+			const result = {
+				checked: actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle?.checked,
+				icon: !!trigger.querySelector('.agent-host-mode-sandbox-icon'),
+				ariaLabel: trigger.querySelector('.agent-host-permissions-button')?.getAttribute('aria-label'),
+			};
+			actionWidget.hide();
+			return result;
+		};
+		const source = read();
+		devContainer.set(true, undefined);
+		const container = read();
+		devContainer.set(false, undefined);
+		assert.deepStrictEqual({ source, container, restored: read(), selection: config.values[SessionConfigKey.SandboxEnabled], writes }, {
+			source: { checked: false, icon: false, ariaLabel: 'Pick Permissions, Manual permissions' },
+			container: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions, terminal sandboxed' },
+			restored: { checked: false, icon: false, ariaLabel: 'Pick Permissions, Manual permissions' },
+			selection: undefined,
+			writes: [],
+		});
+	});
 
 	test('uses one shared tooltip for the combined label', () => {
 		const { trigger, hoverTargets } = setup();

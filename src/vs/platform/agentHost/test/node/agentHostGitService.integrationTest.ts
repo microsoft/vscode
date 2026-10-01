@@ -28,7 +28,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { CheckoutBlockedByLocalChangesError, GitRefType } from '../../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 
 class TestLogService extends NullLogService {
@@ -513,6 +513,87 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 			.sort();
 
 		assert.deepStrictEqual(treePaths, ['fresh.txt', 'new.txt']);
+	});
+
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree returns the HEAD tree for a clean working tree and the repository empty tree for a clean unborn repo', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		const unbornTree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+		await fs.writeFile(join(dir, 'tracked.txt'), 'one\n');
+		run('add', '.');
+		run('-c', 'commit.gpgSign=false', 'commit', '-q', '-m', 'init');
+
+		assert.deepStrictEqual({
+			unbornTree,
+			cleanTree: await svc!.captureWorkingTreeAsTree(URI.file(dir)),
+		}, {
+			unbornTree: EMPTY_TREE_OBJECT,
+			cleanTree: run('rev-parse', 'HEAD^{tree}').toString().trim(),
+		});
+	});
+
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree returns the repository-native empty tree for a clean unborn SHA-256 repo', async () => {
+		const dir = mkdtempSync(join(tmpdir(), 'agent-host-diff-sha256-'));
+		tmpRoot = dir;
+		try {
+			cp.execFileSync('git', ['init', '-q', '--object-format=sha256'], { cwd: dir, stdio: 'pipe' });
+		} catch {
+			return; // git predates SHA-256 repositories (added in 2.29)
+		}
+		const expected = cp.execFileSync('git', ['hash-object', '-t', 'tree', '--stdin'], { cwd: dir, input: '', encoding: 'utf8' }).trim();
+
+		assert.deepStrictEqual({ tree: await svc!.captureWorkingTreeAsTree(URI.file(dir)), isSha256: expected.length === 64 }, { tree: expected, isSha256: true });
+	});
+
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree captures working tree content when the index differs from HEAD, including in linked worktrees', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'staged-then-edited.txt'), 'one\n');
+		await fs.writeFile(join(dir, 'deleted.txt'), 'delete me\n');
+		await fs.writeFile(join(dir, 'untouched.txt'), 'same\n');
+		run('add', '.');
+		run('-c', 'commit.gpgSign=false', 'commit', '-q', '-m', 'init');
+
+		const worktreeRoot = mkdtempSync(join(tmpdir(), 'agent-host-diff-worktree-'));
+		const worktreeDir = join(worktreeRoot, 'linked');
+		run('worktree', 'add', '-q', worktreeDir);
+		await fs.writeFile(join(worktreeDir, 'untouched.txt'), 'linked\n');
+
+		const snapshot = async (repo: string) => {
+			const tree = await svc!.captureWorkingTreeAsTree(URI.file(repo));
+			assert.ok(tree, 'expected tree object');
+			const paths = cp.execFileSync('git', ['ls-tree', '-r', '--name-only', tree], { cwd: repo, encoding: 'utf8' }).trim().split(/\r?\n/g).filter(Boolean).sort();
+			return Object.fromEntries(paths.map(p => [p, cp.execFileSync('git', ['show', `${tree}:${p}`], { cwd: repo, encoding: 'utf8' })]));
+		};
+		try {
+			// Statuses restaged onto a copy of the index: MM, AM, ' D', and untracked.
+			await fs.writeFile(join(dir, 'staged-then-edited.txt'), 'two\n');
+			run('add', 'staged-then-edited.txt');
+			await fs.writeFile(join(dir, 'staged-then-edited.txt'), 'three\n');
+			await fs.writeFile(join(dir, 'staged-new.txt'), 'staged\n');
+			run('add', 'staged-new.txt');
+			await fs.writeFile(join(dir, 'staged-new.txt'), 'edited\n');
+			await fs.rm(join(dir, 'deleted.txt'));
+			await fs.writeFile(join(dir, 'untracked.txt'), 'new\n');
+			const indexCopy = await snapshot(dir);
+			const linked = await snapshot(worktreeDir);
+
+			// Statuses that fall back to seeding from HEAD: 'D ' kept on disk and AD.
+			run('rm', '-q', '--cached', 'untouched.txt');
+			await fs.writeFile(join(dir, 'added-then-removed.txt'), 'gone\n');
+			run('add', 'added-then-removed.txt');
+			await fs.rm(join(dir, 'added-then-removed.txt'));
+			const fallback = await snapshot(dir);
+
+			assert.deepStrictEqual({ indexCopy, linked, fallback }, {
+				indexCopy: { 'staged-new.txt': 'edited\n', 'staged-then-edited.txt': 'three\n', 'untouched.txt': 'same\n', 'untracked.txt': 'new\n' },
+				linked: { 'deleted.txt': 'delete me\n', 'staged-then-edited.txt': 'one\n', 'untouched.txt': 'linked\n' },
+				fallback: { 'staged-new.txt': 'edited\n', 'staged-then-edited.txt': 'three\n', 'untouched.txt': 'same\n', 'untracked.txt': 'new\n' },
+			});
+		} finally {
+			run('worktree', 'remove', '--force', worktreeDir);
+			await rmDirWithRetry(worktreeRoot);
+		}
 	});
 
 	(hasGit ? test : test.skip)('computes bounded per-file patches from an immutable working-tree snapshot', async () => {

@@ -54,6 +54,7 @@ export const enum AccessibleViewProviderId {
 	SessionsStorageCleanup = 'sessionsStorageCleanup',
 	SessionsChanges = 'sessionsChanges',
 	SessionsListNotification = 'sessionsListNotification',
+	SessionCanvas = 'sessionCanvas',
 	Survey = 'survey',
 	Automations = 'automations',
 	ConnectionDiagnostics = 'connectionDiagnostics',

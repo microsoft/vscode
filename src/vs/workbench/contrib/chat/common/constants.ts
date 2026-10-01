@@ -116,6 +116,7 @@ export enum ChatConfiguration {
 	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
 	ChatCustomizationsLocationsMigrationEnabled = 'chat.customizations.locationsMigration.enabled',
 	ChatCustomizationsMcpServerMigrationEnabled = 'chat.customizations.mcpServerMigration.enabled',
+	ChatCustomizationsMigrationEnabled = 'chat.customizations.migration.enabled',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	PermissionsSandboxToggleEnabled = 'chat.experimental.permissionsSandboxToggle.enabled',
@@ -148,6 +149,8 @@ export enum ChatConfiguration {
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
+
+export const CHAT_ATTACH_CONTEXT_ACTION_ID = 'workbench.action.chat.attachContext';
 
 export const enum CopilotHarnessIntroductionMode {
 	Off = 'off',
@@ -631,6 +634,8 @@ export const CHAT_SUBAGENT_RESOURCE_QUERY_PARAM = 'subagentChatResource';
 
 export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
+/** Cumulative number of sessions started from the Agents Window, persisted in application storage. */
+export const AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY = 'agentSessions.telemetry.totalSessions';
 export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
 	ChatEntitlementContextKeys.Setup.hidden.negate(),
 	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),
