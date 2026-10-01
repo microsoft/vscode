@@ -40,6 +40,8 @@ import { toUserDataProfile } from '../../../../../../../platform/userDataProfile
 import { TestContextService, TestUserDataProfileService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
+import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../mockChatSessionsService.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
@@ -126,6 +128,7 @@ suite('PromptsService', () => {
 		instaService.stub(IWorkbenchEnvironmentService, {});
 		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instaService.stub(ITelemetryService, NullTelemetryService);
+		instaService.stub(IChatSessionsService, new MockChatSessionsService());
 		instaService.stub(IStorageService, InMemoryStorageService);
 		instaService.stub(IExtensionService, {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
