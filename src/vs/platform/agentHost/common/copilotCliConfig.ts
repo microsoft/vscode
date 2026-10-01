@@ -121,6 +121,33 @@ export interface ICopilotCliModelCapabilityOverride {
 /** Map of model id → capability override. */
 export type CopilotCliModelCapabilityOverrides = Record<string, ICopilotCliModelCapabilityOverride>;
 
+/**
+ * Tools excluded by default for {@link COPILOT_HYDRA_FUSION_MODEL_ID}, matching
+ * the Copilot CLI's lean tool set. Their definitions add ~13K tokens to every
+ * HydraFusion request. A configured `availableTools` or `excludedTools`
+ * capability override replaces this default.
+ */
+export const HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS: readonly string[] = [
+	'web_fetch', 'ask_user',
+	'usages', 'problems',
+	'createJupyterNotebook', 'editNotebook', 'runNotebookCell', 'getNotebookSummary', 'readNotebookCellOutput',
+	'runTask', 'getTaskOutput', 'createAndRunTask',
+	'openBrowserPage', 'readPage', 'screenshotPage', 'navigatePage', 'clickElement', 'dragElement', 'hoverElement', 'typeInPage', 'runPlaywrightCode', 'handleDialog',
+	'runTests', 'testFailure',
+	'addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments',
+	'list_sessions', 'get_current_session', 'create_session', 'rename_chat', 'send_message', 'get_session_context', 'delete_session',
+	'setAgentMergeEnabled', 'readAgentMergeCI', 'replyToAgentMergeReviewThread', 'rerunAgentMergeWorkflow',
+	'add_artifact_or_reference', 'remove_artifact_or_reference', 'list_artifacts_and_references',
+];
+
+/**
+ * Built-in `excludedTools` default for a model (after `family` aliasing), used
+ * only when no `availableTools` or `excludedTools` capability override applies.
+ */
+export function getDefaultExcludedTools(modelId: string | undefined): readonly string[] | undefined {
+	return modelId === COPILOT_HYDRA_FUSION_MODEL_ID ? HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS : undefined;
+}
+
 /** Wildcard entry key matching every model id; a specific model-id entry wins field-by-field. */
 export const MODEL_CAPABILITY_OVERRIDE_WILDCARD = '*';
 

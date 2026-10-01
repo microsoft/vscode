@@ -13,4 +13,5 @@
 //   import './geminiPrompt.js';
 
 import './anthropicPrompt.js';
+import './hydraFusionPrompt.js';
 import './openaiPrompt.js';
