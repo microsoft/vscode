@@ -22,6 +22,7 @@ import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
 import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript } from '../meta/agentMessageMeta.js';
 export { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
+export { getInlineToolInput } from '../partialToolInput.js';
 export { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../meta/agentMessageMeta.js';
 import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
@@ -56,7 +57,6 @@ import {
 	type ToolCallCompletedState,
 	type ToolCallResult,
 	type ToolCallState,
-	type ToolInput,
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
@@ -510,11 +510,6 @@ export function getToolOutputText(result: ToolCallResult): string | undefined {
 		return undefined;
 	}
 	return textParts.map(p => p.text).join('\n');
-}
-
-/** Returns inline tool input, leaving referenced content to asynchronous consumers. */
-export function getInlineToolInput(toolInput: ToolInput | undefined): string | undefined {
-	return typeof toolInput === 'string' ? toolInput : undefined;
 }
 
 /**

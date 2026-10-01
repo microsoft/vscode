@@ -6,8 +6,7 @@
 import { appendEscapedMarkdownInlineCode } from '../../../../../base/common/htmlContent.js';
 import { isString } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
-import { parsePartialToolInputForDisplay } from '../../partialToolInput.js';
-import { getInlineToolInput } from '../../state/sessionState.js';
+import { getInlineToolInput, parsePartialToolInputForDisplay } from '../../partialToolInput.js';
 import { ToolCallStatus, type StringOrMarkdown, type ToolCallState } from '../../state/protocol/state.js';
 
 export interface IToolPresentation {
