@@ -111,6 +111,10 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+	background-color: var(--session-view-background);
+}
+
 /* Getting-started tip demoted below the input in the experimental composer, matching
 	the placement of the new-session migration notice. Hidden by the presenter until a
 	tip is showing, so it reserves no space otherwise. */

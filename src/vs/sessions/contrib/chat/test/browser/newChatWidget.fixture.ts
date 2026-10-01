@@ -121,7 +121,6 @@ interface INewChatWidgetFixtureOptions {
 	readonly primaryToolbarWidth?: number;
 	readonly phoneLayout?: boolean;
 	readonly chatBackground?: 'codicons' | 'loud';
-	readonly translucentInputBackground?: boolean;
 	readonly migrationCount?: number;
 	readonly experimentalComposerLayout?: boolean;
 	readonly collapsedSessionOptionsShowIcons?: boolean;
@@ -255,7 +254,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		primaryToolbarWidth,
 		phoneLayout = false,
 		chatBackground,
-		translucentInputBackground = false,
 		migrationCount = 0,
 		experimentalComposerLayout = false,
 		collapsedSessionOptionsShowIcons = false,
@@ -519,9 +517,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 	}
 	sessionView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
-	if (translucentInputBackground) {
-		sessionView.style.setProperty('--vscode-agentsChatInput-background', 'rgba(255, 255, 255, 0.82)');
-	}
 	const sessionViewContent = dom.append(sessionView, dom.$('.session-view-content'));
 	sessionViewContent.style.width = '100%';
 	sessionViewContent.style.height = '100%';
@@ -906,13 +901,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer keeps its options tray transparent and controls opaque. The translucent chat input color is composited over the main session surface, so the stripes do not show through the input.'],
+		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer paints only the workspace, worktree, branch, and harness options tray with the opaque main session surface. The chat input remains visually unchanged.'],
 		render: context => renderNewChatWidget(context, {
 			withWorkspace: true,
 			withControlPickers: true,
 			chatBackground: 'loud',
 			experimentalComposerLayout: true,
-			translucentInputBackground: true,
 		}),
 	}),
 	NewSessionOptionsExpanded: defineComponentFixture({

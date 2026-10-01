@@ -18,13 +18,6 @@
 	z-index: 1;
 }
 
-/* Composite the translucent input color over the main session surface rather
- * than directly over a configured chat background. */
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-input-area {
-	background-color: var(--session-view-background);
-	background-image: linear-gradient(var(--vscode-agentsChatInput-background), var(--vscode-agentsChatInput-background));
-}
-
 /* The tip sits in the input's notice slot, attached to the top of the input. */
 .new-chat-input-container > .chat-getting-started-tip-container {
 	width: 100%;
