@@ -19,6 +19,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { CloudAutomationApiClient, CloudAutomationMutationUncertainError } from '../../browser/cloudAutomationApiClient.js';
+import { GitHubApiError } from '../../../../github/browser/githubApiClient.js';
 
 const repository = { owner: 'example', name: 'private-repo' };
 const account: IDefaultAccount = { accountName: 'octocat', sessionId: 'auth-1', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } };
@@ -113,10 +114,11 @@ suite('CloudAutomationApiClient', () => {
 		});
 	});
 
-	test('PATCH only sends supplied fields and retains structured schedule validation errors', async () => {
+	test('PATCH only sends supplied fields and preserves definite HTTP validation failures', async () => {
 		const { requests, client } = setup();
 		requests.responses.push({ status: 422, data: { message: 'Validation Failed', errors: [{ message: 'minute_utc must be 0, 15, 30, or 45' }] } });
-		await assert.rejects(client.update('octocat', repository, definition.id, { disabled: false }, CancellationToken.None), /Validation Failed: minute_utc/);
+		await assert.rejects(client.update('octocat', repository, definition.id, { disabled: false }, CancellationToken.None),
+			error => error instanceof GitHubApiError && error.statusCode === 422);
 		assert.deepStrictEqual({ contentType: requests.calls[0].headers?.['Content-Type'], body: JSON.parse(requests.calls[0].data!) }, { contentType: 'application/merge-patch+json', body: { disabled: false } });
 	});
 

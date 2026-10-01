@@ -12,7 +12,7 @@ import { COPILOT_INTEGRATION_ID } from '../../../../platform/endpoint/common/lic
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { deriveGitHubEndpoints, GITHUB_DOT_COM_COPILOT_API_BASE_URI, IGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IRequestService, asText } from '../../../../platform/request/common/request.js';
+import { IRequestService, asJson } from '../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 
 const LOG_PREFIX = '[GitHubApiClient]';
@@ -220,46 +220,30 @@ export class GitHubApiClient extends Disposable {
 
 		if (
 			statusCode === 204 /* No Content */ ||
-			statusCode === 304 /* Not Modified */
+			statusCode === 304 /* Not Modified */ ||
+			(copilot && statusCode === 202 /* Accepted acknowledgement */)
 		) {
 			return { data: undefined, statusCode, etag: responseETag, link };
 		}
 
-		const body = await asText(response);
 		if (statusCode < 200 || statusCode >= 300) {
-			let message = `GitHub API request failed: ${method} ${pathForLogging} (${statusCode})`;
-			if (body) {
-				try {
-					const errorBody: { message?: string; errors?: { message?: string }[] } = JSON.parse(body);
-					const details = Array.isArray(errorBody.errors) ? errorBody.errors.map(error => error.message).filter(message => typeof message === 'string') : [];
-					message = [errorBody.message ?? message, ...details].join(': ');
-				} catch (error) {
-					this._logService.trace(`${LOG_PREFIX} Error response was not JSON`, error);
-				}
-			}
+			const errorBody = await asJson<{ message?: string }>(response).catch(() => undefined);
 			throw new GitHubApiError(
-				message,
+				errorBody?.message ?? `GitHub API request failed: ${method} ${pathForLogging} (${statusCode})`,
 				statusCode,
 				rateLimitRemaining,
 				parseRetryAfterHeader(response.res.headers?.['retry-after']),
 			);
 		}
 
-		if (!body && statusCode === 202) {
-			return { data: undefined, statusCode, etag: responseETag, link };
-		}
-		if (!body) {
+		const data = await asJson<T>(response);
+		if (!data) {
 			throw new GitHubApiError(
 				`Failed to parse response for ${method} ${pathForLogging}`,
 				statusCode,
 				rateLimitRemaining,
 			);
 		}
-		const data: T = JSON.parse(body);
-		if (!data) {
-			throw new GitHubApiError(`Failed to parse response for ${method} ${pathForLogging}`, statusCode, rateLimitRemaining);
-		}
-
 		return { data, statusCode, etag: responseETag, link };
 	}
 

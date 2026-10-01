@@ -19,7 +19,7 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRequestCompleteEvent, IRequestService } from '../../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationGetSessionsOptions, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
-import { GitHubApiClient, GitHubAuthenticationError } from '../../browser/githubApiClient.js';
+import { GitHubApiClient, GitHubApiError, GitHubAuthenticationError } from '../../browser/githubApiClient.js';
 
 /**
  * Captures the options passed to {@link IRequestService.request} and returns a
@@ -142,6 +142,78 @@ suite('GitHubApiClient', () => {
 			{ statusCode: 304, data: undefined, etag: '"etag-2"' },
 		);
 	});
+
+	for (const kind of ['REST', 'GraphQL'] as const) {
+		const request = () => kind === 'REST'
+			? client.request('POST', '/repos/o/r/issues', 'test')
+			: client.graphql('query Test { viewer { login } }', 'test');
+
+		for (const statusCode of [200, 201, 202]) {
+			test(`${kind} retains JSON parse errors for empty ${statusCode} responses`, async () => {
+				requestService.nextResponse = {
+					res: { statusCode, headers: {} },
+					stream: bufferToStream(VSBuffer.fromString('')),
+				};
+				await assert.rejects(request(), SyntaxError);
+			});
+		}
+
+		test(`${kind} retains malformed JSON diagnostics`, async () => {
+			const body = 'not-json';
+			requestService.nextResponse = {
+				res: { statusCode: 200, headers: {} },
+				stream: bufferToStream(VSBuffer.fromString(body)),
+			};
+			await assert.rejects(request(), error => error instanceof SyntaxError && error.message.endsWith(`:\n${body}`));
+		});
+
+		test(`${kind} continues parsing nonempty 202 responses`, async () => {
+			const data = { accepted: true };
+			requestService.nextResponse = {
+				res: { statusCode: 202, headers: {} },
+				stream: bufferToStream(VSBuffer.fromString(JSON.stringify(kind === 'REST' ? data : { data }))),
+			};
+			const response = kind === 'REST'
+				? (await client.request('POST', '/repos/o/r/issues', 'test')).data
+				: await client.graphql('query Test { viewer { login } }', 'test');
+			assert.deepStrictEqual(response, data);
+		});
+
+		test(`${kind} does not read an HTTP error body`, async () => {
+			requestService.nextResponse = {
+				res: { statusCode: 500, headers: {} },
+				get stream() { throw new Error('Error body must not be read'); },
+			};
+			await assert.rejects(request(), error => error instanceof GitHubApiError && error.statusCode === 500);
+		});
+
+		for (const body of ['', 'not-json', '{"message":"Validation Failed","errors":[{"message":"invalid schedule"}]}']) {
+			test(`${kind} retains status-based HTTP errors for ${body || 'empty body'}`, async () => {
+				requestService.nextResponse = {
+					res: { statusCode: 422, headers: {} },
+					stream: bufferToStream(VSBuffer.fromString(body)),
+				};
+				await assert.rejects(request(), error => error instanceof GitHubApiError
+					&& error.statusCode === 422
+					&& error.message === `GitHub API request failed: POST ${kind === 'REST' ? '/repos/o/r/issues' : '/graphql'} (422)`);
+			});
+		}
+	}
+
+	for (const body of ['', '{"accepted":true}']) {
+		test(`Copilot accepts 202 acknowledgements ${body ? 'with' : 'without'} a body`, async () => {
+			defaultAccountService.currentDefaultAccount = {
+				accountName: 'octocat', sessionId: 'session-1', enterprise: false,
+				authenticationProvider: defaultAccountService.authenticationProvider,
+			};
+			requestService.nextResponse = {
+				res: { statusCode: 202, headers: {} },
+				stream: bufferToStream(VSBuffer.fromString(body)),
+			};
+			const response = await client.requestCopilot('POST', '/agents/tasks/id/steer', 'test', { accountName: 'octocat' });
+			assert.deepStrictEqual({ data: response.data, statusCode: response.statusCode }, { data: undefined, statusCode: 202 });
+		});
+	}
 
 	test('does not create an authentication session for a silent request', async () => {
 		authenticationService.sessions = [];
