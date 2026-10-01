@@ -591,9 +591,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		for (const [glob, value] of this._editors) {
 			const registeredEditors: RegisteredEditors = [];
 			for (const editors of value.values()) {
-				let registeredEditor: RegisteredEditor | undefined = undefined;
-				// Merge all editors with the same id and glob pattern together
+				const registeredEditorsByLanguage = new Map<string | undefined, RegisteredEditor>();
+				// Merge all editors with the same id, glob pattern, and language together
 				for (const editor of editors) {
+					let registeredEditor = registeredEditorsByLanguage.get(editor.options?.language);
 					if (!registeredEditor) {
 						registeredEditor = {
 							editorInfo: editor.editorInfo,
@@ -601,14 +602,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 							options: {},
 							editorFactoryObject: {}
 						};
+						registeredEditorsByLanguage.set(editor.options?.language, registeredEditor);
 					}
 					// Merge options and factories
 					registeredEditor.options = { ...registeredEditor.options, ...editor.options };
 					registeredEditor.editorFactoryObject = { ...registeredEditor.editorFactoryObject, ...editor.editorFactoryObject };
 				}
-				if (registeredEditor) {
-					registeredEditors.push(registeredEditor);
-				}
+				registeredEditors.push(...registeredEditorsByLanguage.values());
 			}
 			editors.set(glob, registeredEditors);
 		}
@@ -1088,7 +1088,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	private mapEditorsToQuickPickEntry(resource: URI, showDefaultPicker: boolean | undefined, associationType: EditorAssociationType, defaultAssociationType = associationType) {
+	private mapEditorsToQuickPickEntry(resource: URI, showDefaultPicker: boolean | undefined, associationType: EditorAssociationType, defaultAssociationType = associationType, updateForLanguage?: boolean) {
 		const currentEditor = this.editorGroupService.activeGroup.findEditors(resource).at(0);
 		// If untitled, we want all registered editors
 		let registeredEditors = resource.scheme === Schemas.untitled
@@ -1099,7 +1099,31 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			: this.getEditorMatches(resource, { isDiffEditor: associationType === EditorAssociationType.DiffEditor }).matches.map(match => match.editor);
 		// We don't want duplicate Id entries
 		registeredEditors = distinct(registeredEditors, editor => editor.id);
-		const defaultRule = this.getEditorMatches(resource, { isDiffEditor: defaultAssociationType === EditorAssociationType.DiffEditor }).defaultRule;
+		
+		const matches = this.getEditorMatches(resource, { isDiffEditor: defaultAssociationType === EditorAssociationType.DiffEditor });
+		let defaultEditorId = matches.defaultRule.editor.id;
+
+		if (updateForLanguage) {
+			const langId = this.getEffectiveLanguageId(resource);
+			if (langId) {
+				const settingId = defaultAssociationType === EditorAssociationType.DiffEditor ? diffEditorLanguageAssociationsSettingId : editorLanguageAssociationsSettingId;
+				const langAssociations = this.getAllUserAssociationsForSetting(settingId, true);
+				const configured = langAssociations.find(a => a.language === langId);
+				if (configured) {
+					defaultEditorId = configured.viewType;
+				} else {
+					// Fallback to natural default for the language if any
+					const naturalLangEditor = this._registeredEditors.find(e => e.options?.language === langId && e.editorInfo.priority.editor === RegisteredEditorPriority.default);
+					if (naturalLangEditor) {
+						defaultEditorId = naturalLangEditor.editorInfo.id;
+					} else {
+						defaultEditorId = DEFAULT_EDITOR_ASSOCIATION.id;
+					}
+				}
+			}
+		}
+
+
 		// Not the most efficient way to do this, but we want to ensure the text editor is at the top of the quickpick
 		registeredEditors = registeredEditors.sort((a, b) => {
 			if (a.id === DEFAULT_EDITOR_ASSOCIATION.id) {
@@ -1118,7 +1142,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		registeredEditors.forEach(editor => {
 			const currentViewType = currentEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id;
 			const isActive = currentEditor ? editor.id === currentViewType : false;
-			const isDefault = editor.id === defaultRule.editor.id;
+			const isDefault = editor.id === defaultEditorId;
 			const quickPickEntry: IQuickPickItem = {
 				id: editor.id,
 				label: editor.label,
@@ -1127,7 +1151,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			};
 			quickPickEntries.push(quickPickEntry);
 		});
-		if (!showDefaultPicker && extname(resource) !== '') {
+		if (!showDefaultPicker) {
 			const separator: IQuickPickSeparator = { type: 'separator' };
 			quickPickEntries.push(separator);
 			const editorDefault = this.getEditorMatches(resource).defaultRule;
@@ -1214,7 +1238,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		};
 
 		// Get all the editors for the resource as quickpick entries
-		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker, associationType, updateSettingType);
+		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker, associationType, updateSettingType, updateForLanguage);
 
 		// Create the editor picker
 		const disposables = new DisposableStore();
@@ -1331,6 +1355,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			} else {
 				cacheStorage.add(globPattern);
 			}
+			
+			// Also store language patterns
+			for (const c of contribPoint) {
+				if (c.options?.language) {
+					cacheStorage.add(`lang:${c.options.language}`);
+				}
+			}
 		}
 
 		// Also store the users settings as those would have to activate on startup as well
@@ -1342,6 +1373,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		for (const association of userAssociations) {
 			if (association.filenamePattern) {
 				cacheStorage.add(association.filenamePattern);
+			}
+			if (association.language) {
+				cacheStorage.add(`lang:${association.language}`);
 			}
 		}
 		this.storageService.store(EditorResolverService.cacheStorageID, JSON.stringify(Array.from(cacheStorage)), StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -1369,7 +1403,11 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		for (const cacheEntry of this.cache) {
-			if (globMatchesResource(cacheEntry, resource)) {
+			if (cacheEntry.startsWith('lang:')) {
+				if (this.getEffectiveLanguageId(resource) === cacheEntry.slice(5)) {
+					return true;
+				}
+			} else if (globMatchesResource(cacheEntry, resource)) {
 				return true;
 			}
 		}

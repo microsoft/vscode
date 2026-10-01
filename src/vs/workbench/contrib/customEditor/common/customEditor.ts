@@ -128,7 +128,7 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 				return false;
 			}
 			const matchesFilename = selector.filenamePattern ? globMatchesResource(selector.filenamePattern, resource) : true;
-			const matchesLanguage = selector.language ? (languageId !== undefined && selector.language.toLowerCase() === languageId.toLowerCase()) : true;
+			const matchesLanguage = selector.language ? (languageId !== undefined && selector.language === languageId) : true;
 			return matchesFilename && matchesLanguage;
 		});
 	}
