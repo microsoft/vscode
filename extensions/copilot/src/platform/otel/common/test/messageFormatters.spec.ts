@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it, vi } from 'vitest';
+import { createPngDataUrl } from '../../../image/common/test/testImageData';
 import { collectSystemTextsFromRequestBody, extractTextFromContent, normalizeProviderMessages, stringifyToolDefinitionsForOTel, stringifyToolsRawForTelemetry, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
 
 describe('toInputMessages', () => {
@@ -614,5 +615,283 @@ describe('truncateForOTel', () => {
 		const result = truncateForOTel(s, 5);
 		expect(result.length).toBeLessThanOrEqual(5);
 		expect(result).toBe('aaaaa');
+	});
+});
+
+describe('normalizeProviderMessages attachment parts', () => {
+	const pngDataUrl = createPngDataUrl(100, 50);
+	const pngBase64 = pngDataUrl.split(',')[1];
+	const pngBytes = Buffer.from(pngBase64, 'base64').length;
+	// 100x50 scales to 1536x768 → 3x2 tiles → 6 * 170 + 85
+	const pngTokens = 1105;
+	const uploadedUrl = 'https://github.com/github-copilot/chat/attachments/0f8fad5b-d9cb-469f-a165-70867728950e';
+
+	it('emits an inline Anthropic image as a blob with size, dimensions and a token estimate', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [
+				{ type: 'text', text: 'What is in this picture?' },
+				{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: pngBase64 } },
+			],
+		}]);
+		expect(result).toEqual([{
+			role: 'user',
+			parts: [
+				{ type: 'text', content: 'What is in this picture?' },
+				{ type: 'blob', modality: 'image', mime_type: 'image/png', content: pngBase64, size_bytes: pngBytes, width: 100, height: 50, estimated_tokens: pngTokens },
+			],
+		}]);
+	});
+
+	it('emits a URL-referenced Anthropic image as a uri part with what the block carries', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image', source: { type: 'url', url: uploadedUrl } }],
+		}]);
+		expect(result[0].parts).toEqual([
+			{ type: 'uri', modality: 'image', mime_type: null, uri: uploadedUrl },
+		]);
+	});
+
+	it('fills a uri part from the attachment resolver', () => {
+		const resolveAttachment = vi.fn().mockReturnValue({ mimeType: 'image/png', sizeBytes: 184233, width: 1440, height: 900, estimatedTokens: 1105 });
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image', source: { type: 'url', url: uploadedUrl } }],
+		}], { resolveAttachment });
+		expect(resolveAttachment).toHaveBeenCalledWith(uploadedUrl);
+		expect(result[0].parts).toEqual([
+			{ type: 'uri', modality: 'image', mime_type: 'image/png', uri: uploadedUrl, size_bytes: 184233, width: 1440, height: 900, estimated_tokens: 1105 },
+		]);
+	});
+
+	it('prefers the mime type on the block over the resolver and omits unknown fields', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image_url', image_url: { url: uploadedUrl, detail: 'high', media_type: 'image/jpeg' } }],
+		}], { resolveAttachment: () => ({ mimeType: 'image/png', sizeBytes: 10 }) });
+		expect(result[0].parts).toEqual([
+			{ type: 'uri', modality: 'image', mime_type: 'image/jpeg', uri: uploadedUrl, size_bytes: 10 },
+		]);
+	});
+
+	it('prices a URL image at the block\'s detail when the resolver knows the dimensions', () => {
+		const resolveAttachment = () => ({ mimeType: 'image/png', sizeBytes: 184233, width: 1440, height: 900, estimatedTokens: 1105 });
+		const low = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image_url', image_url: { url: uploadedUrl, detail: 'low' } }],
+		}], { resolveAttachment });
+		expect(low[0].parts[0]).toMatchObject({ type: 'uri', width: 1440, height: 900, estimated_tokens: 85 });
+
+		const noDimensions = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image_url', image_url: { url: uploadedUrl, detail: 'low' } }],
+		}], { resolveAttachment: () => ({ sizeBytes: 10, estimatedTokens: 1105 }) });
+		expect(noDimensions[0].parts[0]).toMatchObject({ type: 'uri', size_bytes: 10, estimated_tokens: 1105 });
+	});
+
+	it('falls through to the file id when a Responses data URL has no payload', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [
+				{ type: 'input_image', image_url: 'data:image/png;base64,', file_id: 'file-img' },
+				{ type: 'input_file', file_data: 'data:application/pdf;base64,', file_id: 'file-pdf' },
+			],
+		}]);
+		expect(result[0].parts).toEqual([
+			{ type: 'file', modality: 'image', mime_type: null, file_id: 'file-img' },
+			{ type: 'file', modality: 'document', mime_type: null, file_id: 'file-pdf' },
+		]);
+	});
+
+	it('keeps the resolver estimate when its dimensions cannot be priced', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image_url', image_url: { url: uploadedUrl, detail: 'high' } }],
+		}], { resolveAttachment: () => ({ mimeType: 'image/png', sizeBytes: 10, width: 0, height: 50, estimatedTokens: 1105 }) });
+		expect(result[0].parts[0]).toEqual({ type: 'uri', modality: 'image', mime_type: 'image/png', uri: uploadedUrl, size_bytes: 10, width: 0, height: 50, estimated_tokens: 1105 });
+	});
+
+	it('reports only the bytes of an inline image whose header gives a zero dimension', () => {
+		const zeroWidthPng = createPngDataUrl(0, 50);
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image_url', image_url: { url: zeroWidthPng } }],
+		}]);
+		expect(result[0].parts[0]).toEqual({ type: 'blob', modality: 'image', mime_type: 'image/png', content: zeroWidthPng.split(',')[1], size_bytes: 24 });
+	});
+
+	it('types attachments nested in an Anthropic tool_result and leaves its other blocks alone', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{
+				type: 'tool_result',
+				tool_use_id: 'toolu_1',
+				content: [
+					{ type: 'text', text: 'Rendered the chart:' },
+					{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: pngBase64 } },
+					{ type: 'image', source: { type: 'url', url: uploadedUrl } },
+				],
+			}],
+		}], { resolveAttachment: () => ({ mimeType: 'image/png', sizeBytes: 5, width: 100, height: 50 }) });
+		expect(result[0].parts).toEqual([{
+			type: 'tool_call_response',
+			id: 'toolu_1',
+			response: [
+				{ type: 'text', text: 'Rendered the chart:' },
+				{ type: 'blob', modality: 'image', mime_type: 'image/png', content: pngBase64, size_bytes: pngBytes, width: 100, height: 50, estimated_tokens: pngTokens },
+				{ type: 'uri', modality: 'image', mime_type: 'image/png', uri: uploadedUrl, size_bytes: 5, width: 100, height: 50, estimated_tokens: pngTokens },
+			],
+		}]);
+	});
+
+	it('keeps a string tool_result untouched', () => {
+		const result = normalizeProviderMessages([
+			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'plain' }] },
+			{ role: 'tool', tool_call_id: 'call_1', content: 'plain too' },
+		]);
+		expect(result[0].parts).toEqual([{ type: 'tool_call_response', id: 'toolu_1', response: 'plain' }]);
+		expect(result[1].parts).toEqual([{ type: 'tool_call_response', id: 'call_1', response: 'plain too' }]);
+	});
+
+	it('types attachments in a Responses function_call_output but still joins text-only output', () => {
+		const withImage = normalizeProviderMessages([{
+			type: 'function_call_output',
+			call_id: 'call_1',
+			output: [
+				{ type: 'input_text', text: 'screenshot attached' },
+				{ type: 'input_image', image_url: pngDataUrl, detail: 'auto' },
+			],
+		}]);
+		expect(withImage).toEqual([{
+			role: 'tool',
+			parts: [{
+				type: 'tool_call_response',
+				id: 'call_1',
+				response: [
+					{ type: 'input_text', text: 'screenshot attached' },
+					{ type: 'blob', modality: 'image', mime_type: 'image/png', content: pngBase64, size_bytes: pngBytes, width: 100, height: 50, estimated_tokens: pngTokens },
+				],
+			}],
+		}]);
+
+		const textOnly = normalizeProviderMessages([{
+			type: 'function_call_output',
+			call_id: 'call_2',
+			output: [{ type: 'output_text', text: 'a' }, { type: 'output_text', text: 'b' }],
+		}]);
+		expect(textOnly[0].parts[0]).toEqual({ type: 'tool_call_response', id: 'call_2', response: 'ab' });
+	});
+
+	it('serialises an unusable attachment as text inside a mixed tool output', () => {
+		const unusable = { type: 'input_image', image_url: '', detail: 'auto' };
+		const result = normalizeProviderMessages([{
+			type: 'function_call_output',
+			call_id: 'call_1',
+			output: [
+				{ type: 'input_image', image_url: pngDataUrl, detail: 'auto' },
+				unusable,
+				{ type: 'input_text', text: 'done' },
+			],
+		}, {
+			role: 'user',
+			content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'image', source: { type: 'url', url: '' } }] }],
+		}]);
+		expect(result[0].parts[0]).toMatchObject({
+			response: [
+				{ type: 'blob', modality: 'image', content: pngBase64 },
+				{ type: 'text', content: JSON.stringify(unusable) },
+				{ type: 'input_text', text: 'done' },
+			],
+		});
+		expect(result[1].parts[0]).toMatchObject({
+			response: [{ type: 'text', content: JSON.stringify({ type: 'image', source: { type: 'url', url: '' } }) }],
+		});
+	});
+
+	it('emits an inline Anthropic PDF as a document blob with a size-based token estimate', () => {
+		// 48 bytes encode without padding; the estimate is one token per eight bytes.
+		const pdfBase64 = Buffer.alloc(48, '%PDF-1.4').toString('base64');
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } }],
+		}]);
+		expect(result[0].parts).toEqual([
+			{ type: 'blob', modality: 'document', mime_type: 'application/pdf', content: pdfBase64, size_bytes: 48, estimated_tokens: 6 },
+		]);
+	});
+
+	it('handles Chat Completions image_url given as a data URL string', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image_url', image_url: pngDataUrl }],
+		}]);
+		expect(result[0].parts).toEqual([
+			{ type: 'blob', modality: 'image', mime_type: 'image/png', content: pngBase64, size_bytes: pngBytes, width: 100, height: 50, estimated_tokens: pngTokens },
+		]);
+	});
+
+	it('applies detail: low to the token estimate', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'input_image', image_url: pngDataUrl, detail: 'low' }],
+		}]);
+		expect(result[0].parts[0]).toMatchObject({ type: 'blob', modality: 'image', estimated_tokens: 85 });
+	});
+
+	it('handles Responses API input_file by data and by file id', () => {
+		const pdfBase64 = Buffer.from('%PDF-1.4 tiny').toString('base64');
+		const result = normalizeProviderMessages([{
+			type: 'message',
+			role: 'user',
+			content: [
+				{ type: 'input_file', filename: 'spec.pdf', file_data: `data:application/pdf;base64,${pdfBase64}` },
+				{ type: 'input_file', file_id: 'file_123' },
+			],
+		}]);
+		expect(result[0].parts).toEqual([
+			{ type: 'blob', modality: 'document', mime_type: 'application/pdf', content: pdfBase64, size_bytes: 13, estimated_tokens: 2 },
+			{ type: 'file', modality: 'document', mime_type: null, file_id: 'file_123' },
+		]);
+	});
+
+	it('keeps the blob when the image header cannot be read', () => {
+		const junk = Buffer.from('not an image').toString('base64');
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: junk } }],
+		}]);
+		expect(result[0].parts).toEqual([
+			{ type: 'blob', modality: 'image', mime_type: 'image/png', content: junk, size_bytes: 12 },
+		]);
+	});
+
+	it('falls back to the text rendering for an attachment block with no usable source', () => {
+		const blocks = [
+			{ type: 'image', source: { type: 'mystery' } },
+			{ type: 'image', source: { type: 'url', url: '' } },
+			{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: '' } },
+			{ type: 'image_url', image_url: { url: '' } },
+			{ type: 'image_url', image_url: 'data:image/png;base64,' },
+			{ type: 'input_image', image_url: '', file_id: '' },
+			{ type: 'input_file', file_data: '' },
+		];
+		const result = normalizeProviderMessages([{ role: 'user', content: blocks }]);
+		expect(result[0].parts).toEqual(blocks.map(block => ({ type: 'text', content: JSON.stringify(block) })));
+	});
+
+	it('uses a file id when the inline payload beside it is empty', () => {
+		const result = normalizeProviderMessages([{
+			type: 'message',
+			role: 'user',
+			content: [{ type: 'input_file', file_data: '', file_id: 'file_9' }],
+		}]);
+		expect(result[0].parts).toEqual([{ type: 'file', modality: 'document', mime_type: null, file_id: 'file_9' }]);
+	});
+
+	it('keeps the joined-text output when a function_call_output attachment block is unusable', () => {
+		const block = { type: 'input_image' };
+		const result = normalizeProviderMessages([{ type: 'function_call_output', call_id: 'call_1', output: [{ type: 'output_text', text: 'x' }, block] }]);
+		expect(result[0].parts).toEqual([{ type: 'tool_call_response', id: 'call_1', response: `x${JSON.stringify(block)}` }]);
 	});
 });

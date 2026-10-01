@@ -4,12 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestType } from '@vscode/copilot-api';
+import { getImageDimensionsFromBytes } from '../../../util/common/imageUtils';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
-import { IImageService } from '../common/imageService';
+import { calculateImageTokenCostForDimensions } from '../../tokenizer/common/attachmentTokenCost';
+import { IImageService, UploadedAttachmentMetadata } from '../common/imageService';
+
+/** Upper bound on remembered uploads; a session rarely gets anywhere near it. */
+const MAX_REMEMBERED_UPLOADS = 500;
 
 export class ImageServiceImpl implements IImageService {
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _uploadedAttachments = new Map<string, UploadedAttachmentMetadata>();
 
 	constructor(
 		@ICAPIClientService private readonly capiClient: ICAPIClientService,
@@ -45,10 +52,38 @@ export class ImageServiceImpl implements IImageService {
 				throw new Error(`Image upload failed: ${response.status} ${response.statusText}`);
 			}
 			const result = await response.json() as { url: string };
-			return URI.parse(result.url);
+			const uri = URI.parse(result.url);
+			this.rememberUpload(uri.toString(), binaryData, mimeType);
+			return uri;
 		} catch (error) {
 			throw new Error(`Error uploading image: ${error}`);
 		}
+	}
+
+	getUploadedAttachmentMetadata(uri: string): UploadedAttachmentMetadata | undefined {
+		return this._uploadedAttachments.get(uri);
+	}
+
+	private rememberUpload(uri: string, binaryData: Uint8Array, mimeType: string): void {
+		const metadata: UploadedAttachmentMetadata = { mimeType, sizeBytes: binaryData.byteLength };
+		try {
+			const { width, height } = getImageDimensionsFromBytes(binaryData, mimeType);
+			// Attachments are sent at `detail: 'high'`, which is also the formula's default.
+			// Priced first so a header reporting a zero dimension leaves no dimensions behind.
+			const estimatedTokens = calculateImageTokenCostForDimensions(width, height, 'high');
+			metadata.width = width;
+			metadata.height = height;
+			metadata.estimatedTokens = estimatedTokens;
+		} catch {
+			// Unreadable header or dimensions the formula rejects: keep the size only.
+		}
+		if (this._uploadedAttachments.size >= MAX_REMEMBERED_UPLOADS) {
+			const oldest = this._uploadedAttachments.keys().next().value;
+			if (oldest !== undefined) {
+				this._uploadedAttachments.delete(oldest);
+			}
+		}
+		this._uploadedAttachments.set(uri, metadata);
 	}
 
 	async resizeImage(data: Uint8Array, mimeType: string): Promise<{ data: Uint8Array; mimeType: string }> {

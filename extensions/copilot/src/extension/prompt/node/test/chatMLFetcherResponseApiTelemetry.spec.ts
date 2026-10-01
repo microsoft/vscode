@@ -22,6 +22,7 @@ import { FinishedCallback, getCopilotServiceRequestId } from '../../../../platfo
 import { FetcherId, IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
+import { nullImageService } from '../../../../platform/image/common/imageService';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
@@ -76,6 +77,7 @@ describe('ChatMLFetcherImpl Response API telemetry', () => {
 			]).seal() as unknown as IInstantiationService,
 			new NullChatWebSocketManager(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+			nullImageService,
 		);
 	});
 
@@ -197,6 +199,7 @@ describe('ChatMLFetcherImpl request.options.tools telemetry', () => {
 			]).seal() as unknown as IInstantiationService,
 			new NullChatWebSocketManager(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+			nullImageService,
 		);
 	});
 

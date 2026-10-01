@@ -8,6 +8,20 @@ import { URI } from '../../../util/vs/base/common/uri';
 
 export const IImageService = createServiceIdentifier<IImageService>('IImageService');
 
+/**
+ * What the extension learned about a chat attachment it uploaded, keyed by the
+ * URL the model receives. The bytes leave the process at upload time, so this is
+ * the only place their size, dimensions and token estimate survive.
+ */
+export interface UploadedAttachmentMetadata {
+	mimeType?: string;
+	sizeBytes: number;
+	width?: number;
+	height?: number;
+	/** Prompt-budget estimate for the attachment; not a billed figure. */
+	estimatedTokens?: number;
+}
+
 export interface IImageService {
 	readonly _serviceBrand: undefined;
 
@@ -27,6 +41,13 @@ export interface IImageService {
 	 * The output MIME type may differ from the input (e.g. GIF/WebP inputs are re-encoded as PNG).
 	 */
 	resizeImage(data: Uint8Array, mimeType: string): Promise<{ data: Uint8Array; mimeType: string }>;
+
+	/**
+	 * Returns what is known about an attachment previously uploaded through
+	 * {@link uploadChatImageAttachment} in this session, or `undefined` for any
+	 * other URL.
+	 */
+	getUploadedAttachmentMetadata(uri: string): UploadedAttachmentMetadata | undefined;
 }
 
 export const nullImageService: IImageService = {
@@ -36,5 +57,8 @@ export const nullImageService: IImageService = {
 	},
 	async resizeImage(data: Uint8Array, mimeType: string): Promise<{ data: Uint8Array; mimeType: string }> {
 		return { data, mimeType };
+	},
+	getUploadedAttachmentMetadata(): UploadedAttachmentMetadata | undefined {
+		return undefined;
 	}
 };

@@ -18,6 +18,7 @@ import { ConfigKey, HARD_TOOL_LIMIT, IConfigurationService } from '../../../plat
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, responseApiInputToRawMessagesForLogging, sendCompletionOutputTelemetry } from '../../../platform/endpoint/node/responsesApi';
+import { IImageService } from '../../../platform/image/common/imageService';
 import { getImageTelemetryMeasurementsFromMessages, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
 import { collectSingleLineErrorMessage, ILogService } from '../../../platform/log/common/logService';
 import { FinishedCallback, getCopilotServiceRequestId, getRequestId, IResponseDelta, OptionalChatRequestParams, RequestId } from '../../../platform/networking/common/fetch';
@@ -130,6 +131,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatWebSocketManager private readonly _webSocketManager: IChatWebSocketManager,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IImageService private readonly _imageService: IImageService,
 	) {
 		super(options);
 	}
@@ -291,7 +293,11 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						// Normalize provider-specific content to OTel schema; exclude
 						// system entries since they are emitted via `system_instructions`.
 						const nonSystemMessages = capiMessages.filter(m => (m as { role?: unknown }).role !== 'system');
-						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalizeProviderMessages(nonSystemMessages)), this._otelService.config.maxAttributeSizeChars));
+						const normalized = normalizeProviderMessages(nonSystemMessages, {
+							// Uploaded attachments reach the model by URL; the upload is where their size and token estimate were last seen.
+							resolveAttachment: uri => this._imageService.getUploadedAttachmentMetadata(uri),
+						});
+						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalized), this._otelService.config.maxAttributeSizeChars));
 					}
 					// Tool definitions: emit on every chat span so trace viewers can render the
 					// tool catalog per LLM call (issue #299934). Includes `parameters` per

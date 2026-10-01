@@ -6,7 +6,6 @@
 import { OutputMode, Raw, toMode } from '@vscode/prompt-tsx';
 import type { LanguageModelChatTool } from 'vscode';
 import { LRUCache } from '../../../util/common/cache';
-import { getImageDimensions } from '../../../util/common/imageUtils';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { ITokenizer, TokenizerType } from '../../../util/common/tokenizer';
 import { WorkerWithRpcProxy } from '../../../util/node/worker';
@@ -15,6 +14,7 @@ import { Lazy } from '../../../util/vs/base/common/lazy';
 import { Disposable, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { basename, join } from '../../../util/vs/base/common/path';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { calculateImageTokenCost, estimateDocumentTokenCost } from '../common/attachmentTokenCost';
 import { TikTokenImpl } from './tikTokenizerImpl';
 
 export const ITokenizerProvider = createServiceIdentifier<ITokenizerProvider>('ITokenizerProvider');
@@ -331,50 +331,4 @@ class BPETokenizer extends Disposable implements ITokenizer {
 }
 
 
-//#region Image tokenizer helpers
-
-// https://platform.openai.com/docs/guides/vision#calculating-costs
-export function calculateImageTokenCost(imageUrl: string, detail: 'low' | 'high' | 'auto' | undefined): number {
-	let { width, height } = getImageDimensions(imageUrl);
-
-	if (detail === 'low') {
-		return 85;
-	}
-
-	// Scale image to fit within a 2048 x 2048 square if necessary.
-	if (width > 2048 || height > 2048) {
-		const scaleFactor = 2048 / Math.max(width, height);
-		width = Math.round(width * scaleFactor);
-		height = Math.round(height * scaleFactor);
-	}
-
-	const scaleFactor = 768 / Math.min(width, height);
-	width = Math.round(width * scaleFactor);
-	height = Math.round(height * scaleFactor);
-
-	const tiles = Math.ceil(width / 512) * Math.ceil(height / 512);
-
-	return tiles * 170 + 85;
-}
-
-/**
- * Estimates the token cost of a base64-encoded document (e.g. PDF) without BPE tokenization.
- * Uses a size-based heuristic to avoid tokenizing large binary payloads and polluting
- * the LRU cache. Intentionally conservative (overestimates) to avoid exceeding context limits.
- */
-export function estimateDocumentTokenCost(base64Data: string | undefined): number {
-	if (!base64Data) {
-		return 0;
-	}
-	// Roughly estimate original bytes from base64 length.
-	// Base64 encodes 3 bytes into 4 characters, so bytes ~= len * 3 / 4.
-	const length = base64Data.length;
-	const estimatedBytes = Math.floor((length * 3) / 4);
-	// Heuristic: assume approximately 1 token per 8 bytes of document data.
-	// This is a rough estimate that avoids expensive BPE tokenization of large
-	// binary payloads and avoids polluting the LRU token cache.
-	const estimatedTokens = Math.ceil(estimatedBytes / 8);
-	return estimatedTokens;
-}
-
-//#endregion
+export { calculateImageTokenCost, estimateDocumentTokenCost } from '../common/attachmentTokenCost';
