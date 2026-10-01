@@ -403,9 +403,9 @@ suite('SettingsTree', () => {
 			settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxAllowNetwork, 'chat.agent.sandbox'),
 			settingKeyToDisplayFormat('other.allowNetwork'),
 		], [
-			{ category: 'Chat › Agent › Sandbox', label: 'Allow Outbound connections' },
-			{ category: 'Agent › Sandbox', label: 'Allow Outbound connections' },
-			{ category: '', label: 'Allow Outbound connections' },
+			{ category: 'Chat › Agent › Sandbox', label: 'Allow Outbound Connections' },
+			{ category: 'Agent › Sandbox', label: 'Allow Outbound Connections' },
+			{ category: '', label: 'Allow Outbound Connections' },
 			{ category: 'Other', label: 'Allow Network' },
 		]);
 	});

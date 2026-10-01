@@ -33,7 +33,7 @@ export function readSessionSandboxPolicy(source: { readonly _meta?: Record<strin
 }
 
 export function withSessionSandboxPolicy(meta: Record<string, unknown> | undefined, policy: ISessionSandboxPolicy | undefined): Record<string, unknown> {
-	return {
+	const result: Record<string, unknown> = {
 		...meta,
 		[sandboxPolicyKey]: policy ? {
 			enabled: policy.enabled,
@@ -46,4 +46,6 @@ export function withSessionSandboxPolicy(meta: Record<string, unknown> | undefin
 			...(policy.failClosed !== undefined ? { failClosed: policy.failClosed } : {}),
 		} : undefined,
 	};
+	delete result['vscode.sandboxPolicy'];
+	return result;
 }

@@ -552,7 +552,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY) !== false),
 		order: 20,
 		keywords: ['Sandbox', 'sandboxing'],
-		markdownDescription: localize('agentSandbox.allowNetwork', "When {0} is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		markdownDescription: localize('agentSandbox.allowNetwork', "When {0} is enabled, controls whether to allow outbound connections to all network domains in the sandbox while preserving file system restrictions. Agent Host Copilot local-network access is controlled separately by {1}.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowLocalNetwork}#\``),
 		type: 'boolean',
 		default: true,
 		tags: ['preview'],
@@ -564,7 +564,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			localization: {
 				description: {
 					key: 'agentSandbox.allowNetwork',
-					value: localize('agentSandbox.allowNetwork', "When {0} is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+					value: localize('agentSandbox.allowNetwork', "When {0} is enabled, controls whether to allow outbound connections to all network domains in the sandbox while preserving file system restrictions. Agent Host Copilot local-network access is controlled separately by {1}.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowLocalNetwork}#\``),
 				}
 			}
 		}

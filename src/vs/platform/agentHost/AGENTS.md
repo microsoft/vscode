@@ -656,9 +656,13 @@ successful re-enablement locks direct disabling again.
 
 The host publishes the resolved floor in the optional `vscode.resolvedSandboxPolicy`
 session `_meta` slot through the server-only `SessionMetaChanged` action, including
-the optional outbound-network restriction.
+the required `enabled` flag and optional `allowBypass`, `allowOutbound`,
+`allowLocalNetwork`, `allowDevToolAccess`, `sandboxMcpServers`, `sandboxLspServers`,
+and `failClosed` flags. These describe bypass, outbound and local-network access,
+developer-tool access, MCP/LSP server sandboxing, and fail-closed restrictions.
 Session snapshots include it for reconnecting clients; subsequent resolutions
 replace it, including an explicit disabled floor when the requirement disappears.
+Writing the resolved floor removes the legacy `vscode.sandboxPolicy` slot.
 Clients validate this metadata and use it only for that session's sandbox controls,
 not to modify global settings. Missing metadata from older or other hosts is not
 evidence of an enforced floor. Native managed settings remain runtime-enforced;

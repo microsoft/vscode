@@ -136,7 +136,7 @@
             "localization": {
                 "description": {
                     "key": "agentSandbox.allowNetwork",
-                    "value": "When `#chat.agent.sandbox.enabled#` is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions."
+                    "value": "When `#chat.agent.sandbox.enabled#` is enabled, controls whether to allow outbound connections to all network domains in the sandbox while preserving file system restrictions. Agent Host Copilot local-network access is controlled separately by `#chat.agent.sandbox.allowLocalNetwork#`."
                 }
             },
             "type": "boolean",

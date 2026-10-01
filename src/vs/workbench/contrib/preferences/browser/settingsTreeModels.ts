@@ -801,7 +801,7 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 	let displayLabel: string | undefined;
 	switch (key) {
 		case AgentSandboxSettingId.AgentSandboxAllowNetwork:
-			displayLabel = localize('agentSandbox.allowNetwork.label', "Allow Outbound connections");
+			displayLabel = localize('agentSandbox.allowNetwork.label', "Allow Outbound Connections");
 			break;
 		case AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands:
 			displayLabel = localize('agentSandbox.allowUnsandboxedCommands.label', "Allow Sandbox Bypass");
