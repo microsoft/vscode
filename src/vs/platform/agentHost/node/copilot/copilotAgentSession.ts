@@ -45,7 +45,6 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoAppro
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { AgentCanvasAvailability, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvas, type IAgentCanvasSnapshot, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AGENT_HOST_CANVAS_LIMIT } from '../../common/agentHostExtensionProtocol.js';
-import { renderWorkspaceSnapshot, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
@@ -870,8 +869,6 @@ const managedSettingsPermissionRetryTimeoutMs = 3000;
  */
 export class CopilotAgentSession extends Disposable {
 	private _hostInstructions: readonly string[] | undefined;
-	/** Reports the workspace snapshot as delivered once the SDK takes the host instructions that carry it. */
-	private _pendingWorkspaceSnapshotDelivery: (() => void) | undefined;
 	private _pendingSnapshotReminder: string | undefined;
 	readonly sessionId: string;
 	readonly resourceUri: URI;
@@ -3209,7 +3206,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder, workspaceSnapshot?: IWorkspaceSnapshot): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder): Promise<void> {
 		if (this._workingDirectoryMutationInProgress) {
 			throw new Error('Cannot start a turn while the working directory is changing');
 		}
@@ -3226,9 +3223,7 @@ export class CopilotAgentSession extends Disposable {
 			currentTurn.messageCharLen = prompt.length;
 		}
 		const turn = this._currentTurn.value;
-		const workspaceSnapshotInstruction = workspaceSnapshot && renderWorkspaceSnapshot(workspaceSnapshot);
-		this._hostInstructions = workspaceSnapshotInstruction ? [...(hostInstructions ?? []), workspaceSnapshotInstruction] : hostInstructions;
-		this._pendingWorkspaceSnapshotDelivery = workspaceSnapshot && (() => workspaceSnapshot.onDidDeliver?.());
+		this._hostInstructions = hostInstructions;
 		this._pendingSnapshotReminder = this._snapshotReadonlyReminder(attachments);
 		if (this._tryStartDevelopmentRecoverableError(prompt)) {
 			return;
@@ -3246,7 +3241,6 @@ export class CopilotAgentSession extends Disposable {
 				this._clearActiveTurn();
 			}
 			this._hostInstructions = undefined;
-			this._pendingWorkspaceSnapshotDelivery = undefined;
 			this._pendingSnapshotReminder = undefined;
 			throw err;
 		}
@@ -3257,15 +3251,8 @@ export class CopilotAgentSession extends Disposable {
 			...(this._hostInstructions ?? []),
 			...(this._pendingSnapshotReminder ? [this._pendingSnapshotReminder] : []),
 		];
-		const deliverWorkspaceSnapshot = this._pendingWorkspaceSnapshotDelivery;
 		this._hostInstructions = undefined;
-		this._pendingWorkspaceSnapshotDelivery = undefined;
 		this._pendingSnapshotReminder = undefined;
-		try {
-			deliverWorkspaceSnapshot?.();
-		} catch (err) {
-			this._logService.error(`[Copilot:${this.sessionId}] Failed to report workspace snapshot delivery: ${getErrorMessage(err)}`);
-		}
 		const additionalContext = parts.length > 0 ? parts.join('\n\n') : undefined;
 		return additionalContext ? { additionalContext } : undefined;
 	}
@@ -3636,7 +3623,6 @@ export class CopilotAgentSession extends Disposable {
 			totalFailures,
 		};
 		this._hostInstructions = undefined;
-		this._pendingWorkspaceSnapshotDelivery = undefined;
 		this._pendingSnapshotReminder = undefined;
 		if (match.groups?.tool) {
 			this._emitDevelopmentCompletedToolCall(turn);

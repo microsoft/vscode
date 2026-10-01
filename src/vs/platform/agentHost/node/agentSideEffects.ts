@@ -2018,7 +2018,6 @@ export class AgentSideEffects extends Disposable {
 				...clientOperationContext,
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
 				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
-				...(contribution.workspaceSnapshot ? { workspaceSnapshot: contribution.workspaceSnapshot } : {}),
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),
 			};
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {

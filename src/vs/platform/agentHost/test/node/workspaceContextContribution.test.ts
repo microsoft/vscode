@@ -24,7 +24,6 @@ import type { IAgentHostChatContributions } from '../../common/agentHostChatCont
 import { AgentHostWorkspaceSnapshotEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, ROOT_STATE_URI, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
-import { renderWorkspaceSnapshot, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -153,20 +152,7 @@ suite('WorkspaceContextContribution', () => {
 		/** Accepts a turn, as a dispatched `ChatTurnStarted` does before the send path runs. */
 		const accept = (channel = chat) => startTurn(channel, true);
 		/** Hands the chat's active turn to the provider, as the send path does after its final cancellation checks. */
-		const pendingSnapshots = new Map<string, IWorkspaceSnapshot>();
-		/**
-		 * Marks the chat's active turn dispatched to the provider. Unless `deliver`
-		 * is false, the provider then submits it to the model with the snapshot
-		 * its outgoing turn carried, as the Copilot provider does.
-		 */
-		const dispatch = (channel = chat, deliver = true) => {
-			turnTracker.markSendDispatched(channel, activeTurns.get(channel)!);
-			const snapshot = pendingSnapshots.get(channel);
-			pendingSnapshots.delete(channel);
-			if (deliver && snapshot) {
-				snapshot.onDidDeliver?.();
-			}
-		};
+		const dispatch = (channel = chat) => turnTracker.markSendDispatched(channel, activeTurns.get(channel)!);
 		/** Ends the chat's active turn, recording it in history and notifying contributions. */
 		const endTurn = (channel = chat, reason: 'success' | 'localCommand' | 'cancelled' = 'cancelled') => {
 			const turnId = activeTurns.get(channel);
@@ -184,21 +170,14 @@ suite('WorkspaceContextContribution', () => {
 		 * one without the dispatched-action hook if none is active. Unless
 		 * `dispatchAndComplete` is false, it then dispatches and completes the turn.
 		 */
-		let lastSnapshot: IWorkspaceSnapshot | undefined;
 		const send = async (channel = chat, workingDirectories: readonly URI[] | undefined = roots.map(root => URI.parse(root)), dispatchAndComplete = true) => {
 			const turnId = activeTurns.get(channel) ?? startTurn(channel, false);
-			const { workspaceSnapshot, ...result } = await service.outgoingTurn({ session, chat: channel, turnId, workingDirectories, message: userMessage });
-			lastSnapshot = workspaceSnapshot;
-			if (workspaceSnapshot) {
-				pendingSnapshots.set(channel, workspaceSnapshot);
-			}
+			const result = await service.outgoingTurn({ session, chat: channel, turnId, workingDirectories, message: userMessage });
 			if (dispatchAndComplete) {
 				dispatch(channel);
 				endTurn(channel, 'success');
 			}
-			// Rendered as the provider does.
-			const instruction = workspaceSnapshot && renderWorkspaceSnapshot(workspaceSnapshot);
-			return instruction ? { ...result, instructions: [...(result.instructions ?? []), instruction] } : result;
+			return result;
 		};
 		/** Accepts a turn, lets preparation finish, and sends it. */
 		const firstTurn = async (channel = chat, workingDirectories?: readonly URI[], dispatchAndComplete = true) => {
@@ -215,7 +194,7 @@ suite('WorkspaceContextContribution', () => {
 			const { waitMs: _waitMs, ...event } = call.args[0];
 			return event;
 		});
-		return { log, state, service, session, chat, disk, accept, dispatch, send, firstTurn, endTurn, addChat, events, worktreeIsolation, setEnabled, lastSnapshot: () => lastSnapshot };
+		return { log, state, service, session, chat, disk, accept, dispatch, send, firstTurn, endTurn, addChat, events, worktreeIsolation, setEnabled };
 	}
 
 	const structureOf = (result: { instructions?: readonly string[] }) => result.instructions?.[0].split('```text\n')[1].split('\n```')[0];
@@ -425,15 +404,6 @@ suite('WorkspaceContextContribution', () => {
 		context.endTurn(context.chat, 'cancelled');
 		const next = await context.firstTurn();
 		assert.deepStrictEqual({ next, reported: context.events().length }, { next: { message: userMessage }, reported: 1 });
-	});
-
-	test('keeps the snapshot when the provider abandons the send before submitting it', async () => {
-		const context = await setupContext();
-		await context.firstTurn(context.chat, undefined, false);
-		context.dispatch(context.chat, false);
-		context.endTurn(context.chat, 'cancelled');
-		const next = await context.firstTurn();
-		assert.deepStrictEqual({ next: !!next.instructions?.length, reported: context.events().length }, { next: true, reported: 1 });
 	});
 
 	test('ignores a cancelled send that finishes after the next turn started', async () => {

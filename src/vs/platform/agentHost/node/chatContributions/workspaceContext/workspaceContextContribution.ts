@@ -6,6 +6,7 @@
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource, type CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { appendEscapedMarkdownCodeBlockFence } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, type IDisposable } from '../../../../../base/common/lifecycle.js';
 import { isAbsolute, join } from '../../../../../base/common/path.js';
 import { compare } from '../../../../../base/common/strings.js';
@@ -17,7 +18,6 @@ import { AgentHostWorkspaceSnapshotEnabledConfigKey, platformRootSchema } from '
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type Turn, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
-import { renderWorkspaceSnapshotStructure, type IWorkspaceSnapshotRoot } from '../../../common/workspaceSnapshot.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { resolveAgentHostFileCompletionRoots } from '../../agentHostFileCompletionUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
@@ -42,6 +42,22 @@ const EXCLUDED_FOLDERS = new Set(['node_modules', 'bower_components', 'out', 'di
 const EXCLUDED_FILES = new Set(['package-lock.json', 'yarn.lock', 'thumbs.db']);
 
 type RootOutcome = 'pending' | 'included' | 'empty' | 'gitAdministrative' | 'failed';
+
+/** One working directory's rendered file-name tree. */
+interface IWorkspaceSnapshotRoot {
+	/** The rendered root path. */
+	readonly heading: string;
+	/** The listed entries in display order, already indented and escaped. */
+	readonly lines: readonly string[];
+	/** Whether entries were left out to fit the size budget. */
+	readonly truncated: boolean;
+}
+
+function renderStructure(roots: readonly IWorkspaceSnapshotRoot[]): string {
+	return roots
+		.map(root => [root.heading, ...root.lines, ...(root.truncated ? ['...'] : [])].join('\n'))
+		.join('\n\n');
+}
 
 /** One root's preparation, updated in place when it finishes. */
 interface IPreparedRoot {
@@ -68,12 +84,6 @@ interface ICandidateTurn {
 	readonly turnId: string;
 	/** Set once the outgoing turn ran; reported only if the turn reaches the provider. */
 	report?: { readonly event: IAgentHostWorkspaceSnapshotEvent; readonly detail: string };
-	/**
-	 * Whether the turn carries a snapshot. Such a turn counts as reaching the
-	 * provider only when the provider submits it to the model, rather than
-	 * when the host hands it over.
-	 */
-	awaitingDelivery?: boolean;
 }
 
 function snapshotKey(enumerationRoots: readonly URI[]): string {
@@ -87,10 +97,7 @@ function snapshotKey(enumerationRoots: readonly URI[]): string {
 export class WorkspaceContextContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'workspaceContext';
-	/**
-	 * Only sequences this contribution's hooks among the others. The provider
-	 * renders the snapshot after every host instruction, whatever the order.
-	 */
+	/** Instructions follow `markdownPlanRichLinks` (100) and precede `chatSurface` (300). */
 	readonly order = 175;
 	private readonly _prepared = this._register(new DisposableMap<ProtocolURI, IPreparedSnapshot>());
 	/** First-turn chats whose session is creating its worktree, keyed by session id. */
@@ -147,12 +154,12 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			}
 			const waitMs = Date.now() - waitStarted;
 			const roots = prepared.roots.flatMap(root => root.outcome === 'included' && root.snapshot ? [root.snapshot] : []);
-			candidate.report = this._createReport(prepared, preparation, waitMs, renderWorkspaceSnapshotStructure({ roots }).length);
+			const structure = renderStructure(roots);
+			candidate.report = this._createReport(prepared, preparation, waitMs, structure.length);
 			if (roots.length === 0) {
 				return undefined;
 			}
-			candidate.awaitingDelivery = true;
-			return { workspaceSnapshot: { roots, onDidDeliver: () => this._onSnapshotDelivered(turn.chat, turn.turnId) } };
+			return { instructions: [`<workspace_info>\nInitial workspace structure (file names only):\n${appendEscapedMarkdownCodeBlockFence(structure, 'text')}\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>`] };
 		} finally {
 			if (this._isActiveTurn(turn)) {
 				this._stopPreparing(turn.chat);
@@ -260,20 +267,8 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 		};
 	}
 
-	/** A first turn without a snapshot reaches the provider when the host hands it over. */
+	/** A first turn reaches the provider, and its snapshot counts as sent, when the host hands it over. */
 	private _onTurnDispatched(chat: ProtocolURI, turnId: string): void {
-		const candidate = this._candidates.get(chat);
-		if (candidate?.turnId === turnId && !candidate.awaitingDelivery) {
-			this._consume(chat, candidate.report);
-		}
-	}
-
-	/**
-	 * A first turn with a snapshot reaches the provider when the provider
-	 * submits it to the model. A send abandoned before then, such as one
-	 * cancelled while it was being prepared, leaves the snapshot for the next turn.
-	 */
-	private _onSnapshotDelivered(chat: ProtocolURI, turnId: string): void {
 		const candidate = this._candidates.get(chat);
 		if (candidate?.turnId === turnId) {
 			this._consume(chat, candidate.report);

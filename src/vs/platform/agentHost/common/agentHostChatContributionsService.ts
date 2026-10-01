@@ -12,7 +12,6 @@ import type { IAgent } from './agent.js';
 import type { AgentHostLaunchKind, AgentHostTurnFailureStage, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { StateAction } from './state/sessionActions.js';
 import type { ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
-import type { IWorkspaceSnapshot } from './workspaceSnapshot.js';
 
 export const IAgentHostChatContributions = createDecorator<IAgentHostChatContributions>('agentHostChatContributions');
 
@@ -73,19 +72,12 @@ export interface ISendContribution {
 	 * before this hook runs and cannot be replaced here.
 	 */
 	readonly text?: string;
-	/**
-	 * A workspace file-name snapshot the provider adds to the turn's host
-	 * instructions, reporting back when the turn is submitted to the model.
-	 */
-	readonly workspaceSnapshot?: IWorkspaceSnapshot;
 }
 
 /** The combined output of all outgoing-turn contributions. */
 export interface IOutgoingTurnContributionResult {
 	/** Omitted when no contribution supplied an instruction. */
 	readonly instructions?: readonly string[];
-	/** The last snapshot a contribution supplied; see {@link ISendContribution.workspaceSnapshot}. */
-	readonly workspaceSnapshot?: IWorkspaceSnapshot;
 	/** The final message after ordered contributions have applied text replacements. */
 	readonly message: Message;
 }

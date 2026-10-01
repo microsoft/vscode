@@ -51,7 +51,6 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
-import { renderWorkspaceSnapshot, type IWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { TerminalClaimKind } from '../../common/state/protocol/state.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -3433,39 +3432,6 @@ suite('CopilotAgentSession', () => {
 				attachments: [{ type: 'file', path: snapshotUri.fsPath, displayName: 'Pasted Image' }],
 			}],
 			additionalContext: { additionalContext: expectedSnapshotReadonlyNote([snapshotUri.fsPath]) },
-		});
-	});
-
-	suite('workspace snapshot', () => {
-		function snapshot(onDidDeliver: () => void): IWorkspaceSnapshot {
-			return { roots: [{ heading: '/repo', lines: ['README.md', 'src/', '\tmain.ts'], truncated: true }], onDidDeliver };
-		}
-
-		test('adds the snapshot to the host instructions and reports delivery only when the prompt is submitted', async () => {
-			const { session } = await createAgentSession(disposables);
-			let delivered = 0;
-			const sent = snapshot(() => delivered++);
-
-			await session.send('hello', undefined, undefined, undefined, undefined, undefined, ['<other/>'], undefined, false, undefined, sent);
-			const deliveredBeforeSubmit = delivered;
-
-			assert.deepStrictEqual({ deliveredBeforeSubmit, additionalContext: session.handleUserPromptSubmitted(), delivered }, {
-				deliveredBeforeSubmit: 0,
-				additionalContext: { additionalContext: '<other/>\n\n' + renderWorkspaceSnapshot(sent) },
-				delivered: 1,
-			});
-		});
-
-		test('does not report delivery when the send is rejected', async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
-			const failure = Promise.reject(new Error('send failed'));
-			failure.catch(() => { });
-			mockSession.sendGate = failure;
-			let delivered = 0;
-
-			await assert.rejects(session.send('hello', undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, snapshot(() => delivered++)));
-
-			assert.deepStrictEqual({ additionalContext: session.handleUserPromptSubmitted(), delivered }, { additionalContext: undefined, delivered: 0 });
 		});
 	});
 

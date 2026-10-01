@@ -22,7 +22,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -35,7 +35,6 @@ import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
-import { renderWorkspaceSnapshot } from '../../common/workspaceSnapshot.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -1690,8 +1689,7 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-2');
 			await waitForSendMessageCalls(1);
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
-			const workspaceSnapshot = !URI.isUri(sendContext) ? sendContext?.workspaceSnapshot : undefined;
-			const snapshot = workspaceSnapshot && renderWorkspaceSnapshot(workspaceSnapshot);
+			const snapshot = resolveAgentHostInstructions(sendContext)?.find(instruction => instruction.startsWith('<workspace_info>'));
 			assert.deepStrictEqual({ afterCancel, snapshotSent: snapshot !== undefined, reported: reportedSnapshots() }, {
 				afterCancel: { sends: 0, reported: 0 },
 				snapshotSent: true,
@@ -1788,8 +1786,7 @@ suite('AgentSideEffects', () => {
 			await waitForSendMessageCalls(1);
 
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
-			const workspaceSnapshot = !URI.isUri(sendContext) ? sendContext?.workspaceSnapshot : undefined;
-			const snapshot = workspaceSnapshot && renderWorkspaceSnapshot(workspaceSnapshot);
+			const snapshot = resolveAgentHostInstructions(sendContext)?.find(instruction => instruction.startsWith('<workspace_info>'));
 			assert.strictEqual(snapshot?.split('```text\n')[1].split('\n```')[0], `${JSON.stringify(worktree.fsPath).slice(1, -1)}\nmeta.json`);
 		});
 
@@ -2858,8 +2855,7 @@ suite('AgentSideEffects', () => {
 			await waitForSendMessageCalls(1);
 
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
-			const workspaceSnapshot = !URI.isUri(sendContext) ? sendContext?.workspaceSnapshot : undefined;
-			const snapshot = workspaceSnapshot && renderWorkspaceSnapshot(workspaceSnapshot);
+			const snapshot = resolveAgentHostInstructions(sendContext)?.find(instruction => instruction.startsWith('<workspace_info>'));
 			const reported = telemetry.events.filter(event => event.eventName === 'agentHost.workspaceSnapshot').map(event => (event.data as { preparation?: string }).preparation);
 			assert.deepStrictEqual({ prompt: agent.sendMessageCalls[0].prompt, snapshotSent: snapshot !== undefined, reported }, {
 				prompt: 'Bump the version to 2', snapshotSent: true, reported: ['prepared'],
