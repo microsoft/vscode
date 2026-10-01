@@ -10,10 +10,12 @@ import { Event } from '../../../base/common/event.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { isDark, type ColorScheme } from '../../theme/common/theme.js';
 
 const maxContinuations = 32;
 const defaultPageSize = 30;
@@ -32,6 +34,30 @@ export const CustomizationMarketplaceMediaType = {
 } as const;
 
 export type CustomizationMarketplaceMediaType = typeof CustomizationMarketplaceMediaType[keyof typeof CustomizationMarketplaceMediaType];
+
+export interface ICustomizationMarketplaceThemedIcon {
+	readonly light: URI;
+	readonly dark: URI;
+}
+
+export type CustomizationMarketplaceIcon = URI | ICustomizationMarketplaceThemedIcon;
+
+export function getCustomizationMarketplaceIconUri(icon: CustomizationMarketplaceIcon | undefined, themeType: ColorScheme): URI | undefined {
+	return URI.isUri(icon) ? icon : icon?.[isDark(themeType) ? 'dark' : 'light'];
+}
+
+export function isCustomizationMarketplaceIconEqual(
+	first: CustomizationMarketplaceIcon | undefined,
+	second: CustomizationMarketplaceIcon | undefined,
+): boolean {
+	if (first === undefined || second === undefined) {
+		return first === second;
+	}
+	if (URI.isUri(first) || URI.isUri(second)) {
+		return URI.isUri(first) && URI.isUri(second) && isEqual(first, second);
+	}
+	return isEqual(first.light, second.light) && isEqual(first.dark, second.dark);
+}
 
 /** Source-validated installation provenance; repository paths name the resource directory, not its manifest. */
 export type CustomizationMarketplaceInstallation =
@@ -54,7 +80,8 @@ export interface ICustomizationMarketplaceEntry {
 	/** Validated original URL for external opening, preserving escaped path separators. */
 	readonly externalUrl?: string;
 	readonly repository?: URI;
-	readonly icon?: URI;
+	readonly readmeUri?: URI;
+	readonly icon?: CustomizationMarketplaceIcon;
 	readonly publisher?: string;
 	/** Source-supplied origin within a feed, distinct from the feed's display name. */
 	readonly originLabel?: string;

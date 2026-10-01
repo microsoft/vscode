@@ -193,9 +193,9 @@ suite('RemoteAgentHost auth notifications', () => {
 		});
 		const logService = new NullLogService();
 		instantiationService.stub(ILogService, logService);
-		const authenticateCalls: Array<{ readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }> = [];
+		const authenticateCalls: Parameters<IAgentConnection['authenticate']>[0][] = [];
 		const connection = {
-			authenticate: async (params: { readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }) => {
+			authenticate: async (params: Parameters<IAgentConnection['authenticate']>[0]) => {
 				authenticateCalls.push(params);
 				return { authenticated: true };
 			},
@@ -225,6 +225,12 @@ suite('RemoteAgentHost auth notifications', () => {
 			resource: 'https://api.example.com/session',
 			scopes: ['session:read'],
 			token: 'session-token',
+			_meta: {
+				'vscode.authentication.account': {
+					providerId: 'test-provider',
+					accountId: 'account-id',
+				},
+			},
 		}]);
 	});
 

@@ -18,7 +18,7 @@ export interface ISessionGridEntry {
 	readonly placement?: ISessionGridPlacement;
 }
 
-/** A host keeps grid identity stable while its content is projected onto a single-pane surface. */
+/** A host keeps grid identity stable while its content is projected onto the desktop surface. */
 class SessionGridLeaf implements ISerializableView {
 	readonly element = $('.session-grid-leaf');
 	private projected = false;
@@ -321,12 +321,28 @@ export class SessionGridLayout extends Disposable {
 	private layoutViews(): void {
 		const projectedId = this.projectedId;
 		const host = projectedId === undefined ? undefined : this.projectionHost;
+		let bottomLeftId = projectedId;
+		let bottomRightId = projectedId;
+		if (projectedId === undefined && this.grid.value) {
+			const cornerLeaf = (node: GridNode<SessionGridLeaf>, orientation: Orientation, right: boolean): string => {
+				if (!isGridBranchNode(node)) {
+					return node.view.id;
+				}
+				const index = orientation === Orientation.VERTICAL || right ? node.children.length - 1 : 0;
+				return cornerLeaf(node.children[index], orientation === Orientation.HORIZONTAL ? Orientation.VERTICAL : Orientation.HORIZONTAL, right);
+			};
+			const root = this.grid.value.getViews();
+			bottomLeftId = cornerLeaf(root, this.grid.value.orientation, false);
+			bottomRightId = cornerLeaf(root, this.grid.value.orientation, true);
+		}
 		if (this.grid.value) {
 			this.grid.value.element.style.display = host ? 'none' : '';
 		}
 		this.projectionHost.style.display = host ? '' : 'none';
 		for (const leaf of this.leaves.values()) {
 			leaf.project(host, leaf.id === projectedId);
+			leaf.view.element.classList.toggle('session-grid-bottom-left', leaf.id === bottomLeftId);
+			leaf.view.element.classList.toggle('session-grid-bottom-right', leaf.id === bottomRightId);
 		}
 		if (this.dimensions) {
 			const { width, height, top, left } = this.dimensions;

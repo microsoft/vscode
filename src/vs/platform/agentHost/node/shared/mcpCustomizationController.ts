@@ -53,6 +53,26 @@ export interface ISdkMcpServer {
  */
 export type IMcpServerRuntimeState = Pick<McpServerCustomization, 'state' | 'channel'>;
 
+/** Joins discovered declarations with live top-level servers without losing declaration identity or enablement. */
+export function mergeMcpServerCustomizations(declarations: readonly Customization[], liveServers: readonly Customization[]): Customization[] {
+	const byId = new Map(declarations.map(customization => [customization.id, customization]));
+	for (const live of liveServers) {
+		const declaration = byId.get(live.id);
+		byId.set(live.id, declaration?.type === CustomizationType.McpServer && live.type === CustomizationType.McpServer
+			? {
+				...live,
+				...declaration,
+				state: live.state,
+				channel: live.channel,
+				mcpApp: live.mcpApp ?? declaration.mcpApp,
+				enablement: declaration.enablement,
+				_meta: { ...live._meta, ...declaration._meta },
+			}
+			: declaration ?? live);
+	}
+	return [...byId.values()];
+}
+
 /** Applies live MCP runtime fields to matching top-level or child customizations. */
 export function applyMcpServerRuntimeStates<T extends Customization>(customization: T, runtimeStates: ReadonlyMap<string, IMcpServerRuntimeState> | undefined): T {
 	if (!runtimeStates?.size) {
@@ -264,9 +284,20 @@ export class McpCustomizationController extends Disposable {
 		return findMcpServerName(customizations, id);
 	}
 
+	/** Returns the currently published customization for an MCP server name. */
+	customizationForServer(serverName: string): McpServerCustomization | undefined {
+		const customizations = this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [];
+		return getMcpServerCustomizations(customizations).find(server => server.name === serverName);
+	}
+
 	/** Returns the last live state recorded for the MCP server named `serverName`. */
 	stateForServer(serverName: string): McpServerState | undefined {
 		return this._live.get().get(serverName)?.state;
+	}
+
+	/** Returns the last runtime enablement reported for the MCP server named `serverName`. */
+	enabledForServer(serverName: string): boolean | undefined {
+		return this._live.get().get(serverName)?.enabled;
 	}
 
 	/** Snapshot used by providers to reconcile desired and observed enablement. */

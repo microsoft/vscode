@@ -26,12 +26,6 @@ export const enum BYOKUtilityModelDefault {
 	Copilot = 'copilot',
 }
 
-export const enum CustomizationMigrationHintMode {
-	Never = 'never',
-	Once = 'once',
-	Always = 'always',
-}
-
 export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
@@ -122,7 +116,7 @@ export enum ChatConfiguration {
 	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
 	ChatCustomizationsLocationsMigrationEnabled = 'chat.customizations.locationsMigration.enabled',
 	ChatCustomizationsMcpServerMigrationEnabled = 'chat.customizations.mcpServerMigration.enabled',
-	ChatCustomizationsMigrationHint = 'chat.customizations.migrationHint',
+	ChatCustomizationsMigrationEnabled = 'chat.customizations.migration.enabled',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	PermissionsSandboxToggleEnabled = 'chat.experimental.permissionsSandboxToggle.enabled',
@@ -155,6 +149,8 @@ export enum ChatConfiguration {
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
+
+export const CHAT_ATTACH_CONTEXT_ACTION_ID = 'workbench.action.chat.attachContext';
 
 export const enum CopilotHarnessIntroductionMode {
 	Off = 'off',

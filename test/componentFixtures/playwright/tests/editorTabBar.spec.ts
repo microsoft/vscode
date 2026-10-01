@@ -10,7 +10,7 @@ test('Dark Modern keeps legacy, connected, and pill tab surfaces distinct', asyn
 	test.setTimeout(60_000);
 
 	const surfaceColors = async (style: 'Legacy' | 'Connected' | 'Pill') => {
-		await openFixture(page, `editor/editorTabBar/editorTabBar/TabStyleCompatibility/${style}/DarkModern`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/TabStyles/${style}/DarkModern`, '.tabs-container > .tab.active');
 		return page.locator('.editor-group-container > .title.tabs').evaluate(title => {
 			if (!(title instanceof HTMLElement)) {
 				throw new Error('Expected an editor title element');
@@ -61,7 +61,7 @@ for (const [group, expected] of [
 	}],
 ] as const) {
 	test(`connected tabs show legacy border customizations in ${group}`, async ({ page }) => {
-		await openFixture(page, `editor/editorTabBar/editorTabBar/ConnectedLegacyBorders/${group}/Dark`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/Colors/ConnectedLegacyBorders/${group}/Dark`, '.tabs-container > .tab.active');
 
 		const colors = await page.locator('.tabs-container').evaluate(tabs => {
 			const active = tabs.querySelector<HTMLElement>('.tab.active');
@@ -126,7 +126,7 @@ for (const [style, expected] of [
 	}],
 ] as const) {
 	test(`${style} tabs retain their border ownership`, async ({ page }) => {
-		await openFixture(page, `editor/editorTabBar/editorTabBar/BorderOwnership/${style}/Dark`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/Colors/BorderOwnership/${style}/Dark`, '.tabs-container > .tab.active');
 		const ownership = await page.locator('.tabs-container > .tab.active').evaluate(active => {
 			const top = active.querySelector<HTMLElement>('.tab-border-top-container');
 			const bottom = active.querySelector<HTMLElement>('.tab-border-bottom-container');
@@ -175,7 +175,7 @@ for (const [theme, expected] of [
 	['LightHighContrast', { activeTop: 'rgb(181, 32, 13)', accent: 'rgb(0, 107, 189)', tabBorder: 'rgb(15, 74, 133)' }],
 ] as const) {
 	test(`pill borders retain high contrast ownership in ${theme}`, async ({ page }) => {
-		await openFixture(page, `editor/editorTabBar/editorTabBar/BorderOwnership/Pill/${theme}`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/Colors/BorderOwnership/Pill/${theme}`, '.tabs-container > .tab.active');
 		const ownership = await page.locator('.tabs-container').evaluate(tabs => {
 			const activeFill = tabs.querySelector<HTMLElement>('.tab.active > .tab-fill');
 			const inactiveFill = tabs.querySelector<HTMLElement>('.tab:not(.active) > .tab-fill');
@@ -203,7 +203,7 @@ for (const [theme, expected] of [
 	});
 
 	test(`connected borders retain high contrast ownership in ${theme}`, async ({ page }) => {
-		await openFixture(page, `editor/editorTabBar/editorTabBar/BorderOwnership/Connected/${theme}`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/Colors/BorderOwnership/Connected/${theme}`, '.tabs-container > .tab.active');
 		const ownership = await page.locator('.editor-group-container').evaluate(group => {
 			const activeFill = group.querySelector<HTMLElement>('.tab.active > .tab-fill');
 			const inactiveFill = group.querySelector<HTMLElement>('.tab:not(.active):not(.first-in-row) > .tab-fill');
@@ -250,7 +250,7 @@ for (const [theme, expected] of [
 }
 
 test('wrapped upper connected tabs inset customized border accents', async ({ page }) => {
-	await openFixture(page, 'editor/editorTabBar/editorTabBar/BorderOwnership/ConnectedWrapped/Dark', '.tabs-container > .tab.active.connected-tab-upper-row');
+	await openFixture(page, 'editor/tabs/Colors/BorderOwnership/ConnectedWrapped/Dark', '.tabs-container > .tab.active.connected-tab-upper-row');
 	const ownership = await page.locator('.tab.active.connected-tab-upper-row').evaluate(active => {
 		const fill = active.querySelector<HTMLElement>('.tab-fill');
 		const top = active.querySelector<HTMLElement>('.tab-border-top-container');
@@ -285,7 +285,7 @@ test('wrapped upper connected tabs inset customized border accents', async ({ pa
 });
 
 test('wrapped upper connected hover borders use focused and unfocused inset accents', async ({ page }) => {
-	await openFixture(page, 'editor/editorTabBar/editorTabBar/BorderOwnership/ConnectedWrapped/Dark', '.tabs-container > .tab.active.connected-tab-upper-row');
+	await openFixture(page, 'editor/tabs/Colors/BorderOwnership/ConnectedWrapped/Dark', '.tabs-container > .tab.active.connected-tab-upper-row');
 	const hovered = page.locator('.tabs-container > .tab.connected-tab-upper-row:not(.active)').first();
 	await hovered.hover();
 	const readOwnership = () => hovered.evaluate(tab => {
@@ -330,7 +330,7 @@ test('wrapped upper connected hover borders use focused and unfocused inset acce
 });
 
 test('connected tabs honor all modern editor tab customizations', async ({ page }) => {
-	await openFixture(page, 'editor/editorTabBar/editorTabBar/BorderOwnership/ConnectedModernEditorTokens/Dark', '.tabs-container > .tab.active');
+	await openFixture(page, 'editor/tabs/Colors/BorderOwnership/ConnectedModernEditorTokens/Dark', '.tabs-container > .tab.active');
 	const tabs = page.locator('.tabs-container');
 	const active = tabs.locator('> .tab.active');
 	const inactive = tabs.locator('> .tab:not(.active):not(.selected)').first();
@@ -402,7 +402,7 @@ for (const [fixture, expected] of [
 	}],
 ] as const) {
 	test(`connected border continuity stays aligned for ${fixture}`, async ({ page }) => {
-		await openFixture(page, `editor/editorTabBar/editorTabBar/ConnectedBorderContinuity/${fixture}/Dark`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/Colors/Continuity/${fixture}/Dark`, '.tabs-container > .tab.active');
 		const state = await page.locator('.part.editor').evaluate(editor => {
 			const group = editor.querySelector<HTMLElement>('.editor-group-container.active');
 			const active = group?.querySelector<HTMLElement>('.tab.active');
@@ -446,7 +446,7 @@ for (const [fixture, expected] of [
 
 for (const theme of ['DarkHighContrast', 'LightHighContrast']) {
 	test(`connected tab actions respect disabled hover state in ${theme}`, async ({ page }) => {
-		await openFixture(page, `editor/editorTabBar/editorTabBar/ConnectedSurface/SingleTab/${theme}`, '.tabs-container > .tab');
+		await openFixture(page, `editor/tabs/Layout/SingleEditor/${theme}`, '.tabs-container > .tab');
 		const action = page.locator('.tab-actions .action-label');
 
 		await action.hover();

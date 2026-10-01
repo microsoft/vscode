@@ -6,13 +6,17 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
@@ -651,6 +655,9 @@ suite('aiCustomizationListWidget', () => {
 				onWillExecuteCommand: Event.None,
 				onDidExecuteCommand: Event.None,
 			});
+			instaService.stub(ICustomizationMarketplaceService, {
+				sources: [],
+			});
 
 			// The widget reads items from the items model; stub it with empty
 			// per-section observables. This avoids needing to wire up the full
@@ -735,6 +742,101 @@ suite('aiCustomizationListWidget', () => {
 				statusDisplay: 'none',
 				hasOverflowAction: true,
 				descriptionDisplay: '',
+			});
+		});
+
+		test('shows one aligned icon per item when a marketplace skill has an icon', async () => {
+			const marketplaceUri = URI.file('/workspace/.github/skills/marketplace/SKILL.md');
+			const plainUri = URI.file('/workspace/.github/skills/plain/SKILL.md');
+			const themeChanges = disposables.add(new Emitter<ReturnType<IThemeService['getColorTheme']>>());
+			let themeType = ColorScheme.DARK;
+			instaService.stub(IThemeService, new class extends mock<IThemeService>() {
+				override readonly onDidColorThemeChange = themeChanges.event;
+				override getColorTheme() { return { type: themeType } as ReturnType<IThemeService['getColorTheme']>; }
+			}());
+			const marketplaceItem: IAICustomizationListItem = {
+				id: 'marketplace',
+				uri: marketplaceUri,
+				name: 'Marketplace Skill',
+				filename: 'SKILL.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+				marketplace: {
+					resource: {
+						sourceId: 'testSource',
+						identifier: 'marketplace',
+						displayName: 'Marketplace Skill',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.Skill,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+						icon: {
+							light: URI.parse('https://example.com/skill-light.png'),
+							dark: URI.parse('https://example.com/skill-dark.png'),
+						},
+					},
+					state: { kind: 'installed', target: { kind: 'skill', uri: marketplaceUri } },
+				},
+			};
+			const plainItem: IAICustomizationListItem = {
+				id: 'plain',
+				uri: plainUri,
+				name: 'Plain Skill',
+				filename: 'SKILL.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			};
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [marketplaceItem, plainItem]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 2),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			const rows = [...widget.element.querySelectorAll<HTMLElement>('.ai-customization-list-item')];
+			const withMarketplaceIcon = widget.element.classList.contains('show-item-type-icons');
+			const readIconState = () => rows.map(row => {
+				const icon = row.querySelector<HTMLElement>('.item-type-icon')!;
+				return {
+					name: row.querySelector('.item-name')?.textContent,
+					image: icon.querySelector<HTMLImageElement>('img')?.src,
+					fallbackDisplay: icon.querySelector<HTMLElement>('.codicon')?.style.display,
+					visibleChildren: [...icon.children].filter(child => !(child instanceof HTMLElement) || !child.hidden).length,
+				};
+			});
+			const darkIconState = readIconState();
+			themeType = ColorScheme.LIGHT;
+			themeChanges.fire({ type: themeType } as ReturnType<IThemeService['getColorTheme']>);
+			const lightIconState = readIconState();
+			items.set([plainItem], undefined);
+
+			assert.deepStrictEqual({
+				withMarketplaceIcon,
+				darkIconState,
+				lightIconState,
+				withoutMarketplaceIcon: widget.element.classList.contains('show-item-type-icons'),
+			}, {
+				withMarketplaceIcon: true,
+				darkIconState: [
+					{ name: 'Marketplace Skill', image: 'https://example.com/skill-dark.png', fallbackDisplay: 'none', visibleChildren: 1 },
+					{ name: 'Plain Skill', image: undefined, fallbackDisplay: '', visibleChildren: 1 },
+				],
+				lightIconState: [
+					{ name: 'Marketplace Skill', image: 'https://example.com/skill-light.png', fallbackDisplay: 'none', visibleChildren: 1 },
+					{ name: 'Plain Skill', image: undefined, fallbackDisplay: '', visibleChildren: 1 },
+				],
+				withoutMarketplaceIcon: false,
 			});
 		});
 
@@ -928,7 +1030,7 @@ suite('aiCustomizationListWidget', () => {
 				groups,
 				rowCount,
 			}, {
-				groups: ['Workspace', 'User'],
+				groups: ['User', 'Workspace'],
 				rowCount: 6,
 			});
 		});

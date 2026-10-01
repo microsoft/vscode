@@ -78,6 +78,7 @@
 	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size60) !important;
 }
 
+.modern-ui-tabs.monaco-workbench:not(.file-icons-enabled) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left),
 .modern-ui-tabs .part.editor > .content .editor-group-container > .title.tabs:not(.show-file-icons) .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left) {
 	padding-left: var(--vscode-spacing-size80) !important;
 }
