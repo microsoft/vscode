@@ -1401,7 +1401,6 @@ suite('ActionListWidget', () => {
 			toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
 			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
 			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
-			clearsScrollbar: detailRow.getBoundingClientRect().right - toolbar.getBoundingClientRect().right >= verticalScrollbar.getBoundingClientRect().width,
 		};
 		detailRow.classList.add('focused');
 		const focused = {
@@ -1410,6 +1409,7 @@ suite('ActionListWidget', () => {
 			toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
 			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
 			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
+			clearsScrollbar: detailRow.getBoundingClientRect().right - toolbar.getBoundingClientRect().right >= verticalScrollbar.getBoundingClientRect().width,
 		};
 
 		assert.deepStrictEqual({
