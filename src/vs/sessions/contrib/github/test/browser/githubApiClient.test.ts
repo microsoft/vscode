@@ -11,7 +11,7 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
-import { IDefaultAccountAuthenticationProvider } from '../../../../../base/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider } from '../../../../../base/common/defaultAccount.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -82,6 +82,7 @@ class FakeAuthenticationService implements Partial<IAuthenticationService> {
 }
 
 class FakeDefaultAccountService extends mock<IDefaultAccountService>() {
+	override currentDefaultAccount: IDefaultAccount | null = null;
 	authenticationProvider: IDefaultAccountAuthenticationProvider = {
 		id: 'github',
 		name: 'GitHub',
@@ -164,6 +165,80 @@ suite('GitHubApiClient', () => {
 			created: authenticationService.createSessionCalls,
 			request: requestService.lastOptions,
 		}, { created: [], request: undefined });
+	});
+
+	test('requires both the pinned account and requested scopes', async () => {
+		defaultAccountService.currentDefaultAccount = {
+			accountName: 'octocat',
+			sessionId: 'session-1',
+			enterprise: false,
+			authenticationProvider: defaultAccountService.authenticationProvider,
+		};
+		authenticationService.sessions = [
+			{ id: 'session-1', accessToken: 'token-pinned', account: { id: 'account-1', label: 'octocat' }, scopes: ['repo'] },
+			{ id: 'session-other', accessToken: 'token-other', account: { id: 'other', label: 'other' }, scopes: ['repo', 'workflow'] },
+		];
+		const options = { accountName: 'octocat', authenticationScopes: ['repo', 'workflow'], createAuthenticationSession: false };
+		await assert.rejects(client.request('GET', '/user/repos', 'test', options), GitHubAuthenticationError);
+		const sentBeforeScopesMatched = requestService.lastOptions !== undefined;
+		authenticationService.sessions = [
+			{ ...authenticationService.sessions[0], scopes: ['repo', 'workflow'] },
+			authenticationService.sessions[1],
+		];
+		await client.request('GET', '/user/repos', 'test', options);
+		assert.deepStrictEqual({
+			sentBeforeScopesMatched,
+			authorization: requestService.lastOptions?.headers?.Authorization,
+			signIns: authenticationService.createSessionCalls.length,
+		}, { sentBeforeScopesMatched: false, authorization: 'token token-pinned', signIns: 0 });
+	});
+
+	for (const change of ['provider', 'host', 'missing host'] as const) {
+		test(`rejects a pinned request when the ${change} changes during authentication`, async () => {
+			const enterprise = change !== 'provider';
+			if (enterprise) {
+				defaultAccountService.authenticationProvider = { id: 'github-enterprise', name: 'GitHub Enterprise', enterprise: true };
+				defaultAccountService.gitHubBaseUrl = 'https://first.example.com';
+			}
+			defaultAccountService.currentDefaultAccount = {
+				accountName: 'octocat', sessionId: 'default-session', enterprise,
+				authenticationProvider: defaultAccountService.authenticationProvider,
+			};
+			const sessions = new DeferredPromise<readonly AuthenticationSession[]>();
+			authenticationService.getSessionsResult = sessions.p;
+			let dispatches = 0;
+			const options = { accountName: 'octocat', onDispatch: () => { dispatches++; } };
+			const request = enterprise
+				? client.request('POST', '/repos/o/r/issues', 'test', options)
+				: client.requestCopilot('POST', '/agents/repos/o/r/automations', 'test', options);
+
+			if (change === 'provider') {
+				defaultAccountService.authenticationProvider = { id: 'github-enterprise', name: 'GitHub Enterprise', enterprise: true };
+				defaultAccountService.currentDefaultAccount = {
+					...defaultAccountService.currentDefaultAccount, enterprise: true,
+					authenticationProvider: defaultAccountService.authenticationProvider,
+				};
+			} else {
+				defaultAccountService.gitHubBaseUrl = change === 'host' ? 'https://second.example.com' : undefined;
+			}
+			await sessions.complete(authenticationService.sessions);
+			await assert.rejects(request, GitHubAuthenticationError);
+			assert.deepStrictEqual({ request: requestService.lastOptions, dispatches }, { request: undefined, dispatches: 0 });
+		});
+	}
+
+	test('allows distinct default and repository authentication sessions on an unchanged connection', async () => {
+		defaultAccountService.currentDefaultAccount = {
+			accountName: 'octocat', sessionId: 'default-session', enterprise: false,
+			authenticationProvider: defaultAccountService.authenticationProvider,
+		};
+		let dispatches = 0;
+		await client.requestCopilot('POST', '/agents/repos/o/r/automations', 'test', {
+			accountName: 'octocat', onDispatch: () => { dispatches++; },
+		});
+		assert.deepStrictEqual({
+			url: requestService.lastOptions?.url, dispatches,
+		}, { url: 'https://api.githubcopilot.com/agents/repos/o/r/automations', dispatches: 1 });
 	});
 
 	for (const signedIn of [false, true]) {
