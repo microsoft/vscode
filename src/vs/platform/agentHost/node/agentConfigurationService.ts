@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import { dirname } from '../../../base/common/path.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -17,14 +18,15 @@ import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, 
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { automationRootConfigSchema } from '../common/automationConfig.js';
-import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { type ISessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
+import { type ISessionSandboxPolicy, readSessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
 import { ISessionSandboxState, readSessionSandboxState, withSessionSandboxState } from '../common/meta/agentSandboxStateMeta.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
@@ -114,7 +116,7 @@ export interface IAgentConfigurationService {
 	 */
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void;
 
-	/** Runtime-owned sandbox floor; never accepted from client configuration. */
+	/** Effective runtime and forwarded VS Code sandbox floor for this configuration owner. */
 	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined;
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void;
 	getSessionSandboxEnabled(session: ProtocolURI): boolean | undefined;
@@ -180,6 +182,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		@ILogService private readonly _logService: ILogService,
 		private readonly _rootConfigResource?: URI,
 		providerConfigurations: readonly IAgentCustomizationSettingsRegistration[] = [],
+		private readonly _managedSettingsService?: IAgentHostManagedSettingsService,
 	) {
 		super();
 		// Merge our customization schema/values into the existing root config
@@ -205,11 +208,22 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			this._sessionSandboxPolicies.delete(session);
 			this._sessionSandboxChanges.delete(session);
 		}));
+		if (this._managedSettingsService) {
+			this._register(this._managedSettingsService.onDidChangeSandboxRequired(() => {
+				for (const session of this._stateManager.getSessionUris()) {
+					this._publishSessionSandboxPolicy(session);
+				}
+			}));
+		}
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {
+				for (const session of this._stateManager.getSessionUris()) {
+					this._publishSessionSandboxPolicy(session);
+				}
 				this._onDidRootConfigChange.fire();
 			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
+				this._publishSessionSandboxPolicy(envelope.channel);
 				if (Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled)) {
 					this._sessionSandboxChanges.set(envelope.channel, this.getSessionConfigValues(envelope.channel));
 				}
@@ -260,20 +274,44 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined {
 		const owner = resolveAgentHostSession(URI.parse(session)).toString();
-		return this._sessionSandboxPolicies.get(owner);
+		const runtimePolicy = this._sessionSandboxPolicies.get(owner);
+		const sandbox = this.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
+		if (!this._managedSettingsService?.sandboxRequired) {
+			return runtimePolicy;
+		}
+		const runtimeAllowsBypass = runtimePolicy?.allowBypass !== false
+			&& (!runtimePolicy?.enabled || runtimePolicy.allowBypass === true);
+		return {
+			...runtimePolicy,
+			enabled: true,
+			allowBypass: runtimeAllowsBypass && sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands] === true,
+			// A known VS Code requirement must not offer the runtime's retry-Off path for unresolved policy.
+			...(runtimePolicy?.failClosed ? { failClosed: false } : {}),
+		};
 	}
 
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void {
 		session = resolveAgentHostSession(URI.parse(session)).toString();
-		const previousPolicy = this._sessionSandboxPolicies.get(session);
 		this._sessionSandboxPolicies.set(session, policy);
+		this._publishSessionSandboxPolicy(session);
+	}
+
+	private _publishSessionSandboxPolicy(session: ProtocolURI): void {
 		const state = this._stateManager.getSessionState(session);
+		const previousPolicy = readSessionSandboxPolicy(state);
+		const policy = this.getSessionSandboxPolicy(session);
+		if (!state || equals(previousPolicy, policy)) {
+			return;
+		}
+		if (!state.config?.schema.properties[SessionConfigKey.SandboxEnabled] && !this._sessionSandboxPolicies.has(session)) {
+			return;
+		}
 		// A previously unmanaged Off is not an authorized bypass of a new floor.
-		const meta = policy.enabled && !previousPolicy?.enabled
+		const meta = policy?.enabled && !previousPolicy?.enabled
 			? withSessionSandboxState(state?._meta, undefined)
 			: state?._meta;
 		this._stateManager.setSessionMeta(session, withSessionSandboxPolicy(meta, policy));
-		if (policy.enabled && !policy.failClosed && !(policy.allowBypass && this.getSessionSandboxEnabled(session) === false) && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off') {
+		if (policy?.enabled && !policy.failClosed && !(policy.allowBypass && this.getSessionSandboxEnabled(session) === false) && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off') {
 			this.updateSessionConfig(session, { [SessionConfigKey.SandboxEnabled]: 'default' });
 		}
 		this._onDidSessionConfigChange.fire({ session, config: { [SessionConfigKey.SandboxEnabled]: this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] }, origin: undefined });

@@ -64,6 +64,8 @@ export interface IAgentHostConnectionInfo {
  */
 export interface IAgentHostSessionIdentity {
 	readonly connectionAuthority: string;
+	/** Provider-owned remote address, retained even when the live connection has been removed. */
+	readonly connectionAddress?: string;
 	readonly backendSession: URI;
 	readonly defaultChangesetKind?: DefaultChangesetKind;
 }
@@ -74,6 +76,7 @@ export interface IAgentHostSessionResolution extends IAgentHostSessionIdentity {
 
 /** Provider-owned policy needed to resolve a workbench session resource back to its host. */
 export interface IAgentHostSessionResolutionPolicy {
+	readonly connectionAddress?: string;
 	readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias;
 	readonly defaultChangesetKind?: DefaultChangesetKind;
 }

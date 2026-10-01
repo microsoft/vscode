@@ -255,6 +255,17 @@
 	gap: 4px;
 }
 
+.monaco-workbench.session-comparison-grid-active .session-header-bar .chat-composite-bar-title-actions .action-label.codicon-close {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.monaco-workbench.session-comparison-grid-active .session-header-bar:hover .chat-composite-bar-title-actions .action-label.codicon-close,
+.monaco-workbench.session-comparison-grid-active .session-header-bar:focus-within .chat-composite-bar-title-actions .action-label.codicon-close {
+	opacity: 1;
+	pointer-events: auto;
+}
+
 /* Floating variant: a lightweight, absolutely positioned toolbar with no header chrome */
 .chat-composite-bar.chat-composite-bar-toolbar-floating {
 	position: absolute;
@@ -577,6 +588,11 @@
 	position: relative;
 	border-radius: calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness));
 	overflow: hidden;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .session-view > .session-view-content {
+	/* Keep sticky-scroll and other transcript overlays below the session frame. */
+	isolation: isolate;
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .session-view::after {

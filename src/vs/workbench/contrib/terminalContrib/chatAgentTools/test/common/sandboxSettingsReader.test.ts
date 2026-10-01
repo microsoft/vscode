@@ -51,7 +51,7 @@ suite('sandboxSettingsReader', () => {
 		[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, AgentHostSandboxKey.AllowUnsandboxedCommands, true],
 		[AgentSandboxSettingId.AgentSandboxMcpServers, AgentHostSandboxKey.SandboxMcpServers, true],
 		[AgentSandboxSettingId.AgentSandboxLspServers, AgentHostSandboxKey.SandboxLspServers, true],
-		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, AgentHostSandboxKey.AllowDevToolAccess, false],
+		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, AgentHostSandboxKey.AllowDevToolAccess, true],
 		[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, AgentHostSandboxKey.AllowLocalNetwork, false],
 	] as const) {
 		test(`forwards ${settingId} default and explicit choices to the agent host`, async () => {
@@ -65,6 +65,34 @@ suite('sandboxSettingsReader', () => {
 			assert.deepStrictEqual(values, [{ [key]: defaultValue }, { [key]: false }, { [key]: true }]);
 		});
 	}
+
+	test('does not forward policy authority through ordinary sandbox settings', () => {
+		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
+		const cfg = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === settingId ? value.value : undefined };
+			}
+		}({ [settingId]: AgentSandboxEnabledValue.On });
+		assert.deepStrictEqual(readAgentHostSandboxValues(cfg, new NullLogService()), {
+			enabled: 'on',
+		});
+	});
+
+	test('does not turn an off policy or a user opt-in into a mandatory sandbox floor', () => {
+		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
+		for (const value of [AgentSandboxEnabledValue.Off, false]) {
+			const cfg = new class extends TestConfigurationService {
+				override inspect<T>(key: string) {
+					const inspected = super.inspect<T>(key);
+					return { ...inspected, policyValue: key === settingId ? inspected.value : undefined };
+				}
+			}({ [settingId]: value });
+			assert.deepStrictEqual(readAgentHostSandboxValues(cfg, new NullLogService()), { enabled: 'off' });
+		}
+		const personal = new TestConfigurationService({ [settingId]: AgentSandboxEnabledValue.On });
+		assert.deepStrictEqual(readAgentHostSandboxValues(personal, new NullLogService()), { enabled: 'on' });
+	});
 
 	test('normalizes legacy boolean form of chat.agent.sandbox.enabled', () => {
 		const cfgOn = new TestConfigurationService();

@@ -17,7 +17,7 @@ import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
-import { IsQuickChatSessionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -29,7 +29,7 @@ export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBro
 export const NEW_SEARCH_TAB_COMMAND_ID = 'workbench.action.agentSessions.newSearchTab';
 export const NEW_CHANGES_TAB_COMMAND_ID = 'workbench.action.agentSessions.newChangesTab';
 
-// The add-tab actions are only registered in the single-pane layout, so the
+// The add-tab actions are only registered in the desktop layout, so the
 // `when` clauses don't need to gate on the setting.
 const addTabActionWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
@@ -43,11 +43,11 @@ const singleEditorTitleWhen = EditorTabsVisibleContext.negate();
 
 const changesTabActionWhen = ContextKeyExpr.and(
 	addTabActionWhen,
-	SinglePaneChangesTabAvailableContext);
+	DesktopChangesTabAvailableContext);
 
 const filesTabActionWhen = ContextKeyExpr.and(
 	addTabActionWhen,
-	SinglePaneFilesTabAvailableContext);
+	DesktopFilesTabAvailableContext);
 
 const searchTabActionWhen = ContextKeyExpr.and(
 	addTabActionWhen,
@@ -75,8 +75,8 @@ export class NewFileTabAction extends Action2 {
 				// Only offer when the Files tab is not already shown.
 				when: ContextKeyExpr.and(
 					addTabLayoutWhen,
-					SinglePaneFilesTabAvailableContext,
-					ContextKeyExpr.or(singleEditorTitleWhen, SinglePaneFilesTabMissingContext))
+					DesktopFilesTabAvailableContext,
+					ContextKeyExpr.or(singleEditorTitleWhen, DesktopFilesTabMissingContext))
 			}
 		});
 	}
@@ -179,8 +179,8 @@ export class NewChangesTabAction extends Action2 {
 				// Only offer when the session has a Changes editor but its tab is closed.
 				when: ContextKeyExpr.and(
 					addTabLayoutWhen,
-					SinglePaneChangesTabAvailableContext,
-					ContextKeyExpr.or(singleEditorTitleWhen, SinglePaneChangesTabMissingContext))
+					DesktopChangesTabAvailableContext,
+					ContextKeyExpr.or(singleEditorTitleWhen, DesktopChangesTabMissingContext))
 			}
 		});
 	}

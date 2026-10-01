@@ -220,6 +220,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentPluginManager, {
 		_serviceBrand: undefined,
 		basePath: URI.file('/plugins'),
+		hostPluginsPath: URI.file('/plugins/.host'),
 		syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({ customization })),
 	});
 	instantiationService.stub(ISessionDataService, options.sessionStore?.service ?? { _serviceBrand: undefined });
@@ -4076,6 +4077,45 @@ suite('CodexAgent chat backing durability', () => {
 			stillNeedsResume: true, ready: {}, requests: ['thread/resume', 'thread/resume', 'mcpServerStatus/list'], actions: [], threadId: 'locked-thread', needsResume: false,
 		});
 	});
+
+	for (const loaded of [true, false]) {
+		test(`preparing a chat with pending customization changes ${loaded ? 'keeps its loaded thread' : 'checks writer ownership when unloaded'}`, async () => {
+			const agent = await createAgent(disposables);
+			const peer = disposables.add(createTestPeer());
+			connect(agent, peer);
+			const session = AgentSession.uri('codex', 'prepare-pending-customizations');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.threadId = 'existing-thread';
+			entry.firstTurnSent = true;
+			entry.hasNativeHistory = false;
+			agent['_markSessionForReload'](entry);
+			const requests: string[] = [];
+			const error = { code: -32600, message: 'thread existing-thread already has an active writer' };
+			peer.outbound.on('data', (chunk: Buffer) => {
+				const request = JSON.parse(chunk.toString()) as ITestWireRequest;
+				requests.push(request.method);
+				if (request.method === 'thread/read') {
+					peer.push({ id: request.id, result: { thread: { id: entry.threadId, status: { type: loaded ? 'idle' : 'notLoaded' } } } });
+				} else if (request.method === 'thread/resume') {
+					peer.push({ id: request.id, error });
+				} else {
+					peer.push({ id: request.id, result: {} });
+				}
+			});
+
+			const result = await agent.chats.prepareChat!(chat, context);
+
+			assert.deepStrictEqual({ result, requests, needsResume: entry.needsResume, unsubscribeBeforeResume: entry.unsubscribeBeforeResume }, {
+				result: loaded ? {} : { error: { errorType: 'CodexThreadInUse', message: error.message } },
+				requests: loaded ? ['thread/read'] : ['thread/read', 'thread/unsubscribe', 'thread/resume'],
+				needsResume: true,
+				unsubscribeBeforeResume: true,
+			});
+		});
+	}
 
 	test('preparing a fresh chat leaves its native backing lazy', async () => {
 		const agent = await createAgent(disposables);

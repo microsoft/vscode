@@ -165,13 +165,17 @@ export interface SessionState extends SessionMetadata {
 	 * reconnecting in time, or reconnect without resubscribing to the session.
 	 */
 	activeClients: SessionActiveClient[];
-	/** Catalog of chats in this session. */
+	/**
+	 * Catalog of chats in this session.
+	 *
+	 * Order is host-authoritative and durable. Catalog order is independent of
+	 * `defaultChat`.
+	 */
 	chats: ChatSummary[];
 	/**
 	 * The chat that receives input when the user addresses the session without
-	 * selecting a specific chat. This is a UI routing hint, not a hierarchy
-	 * marker — chats remain equal peers at the protocol level. Hosts MAY change
-	 * this over the session's lifetime.
+	 * selecting a specific chat. This routing designation does not determine the
+	 * chat's catalog position. Hosts MAY change it over the session's lifetime.
 	 */
 	defaultChat?: URI;
 	/** Session configuration schema and current values */
@@ -497,20 +501,15 @@ export interface SessionSummary extends SessionMetadata {
 	 */
 	_meta?: Record<string, unknown>;
 	/**
-	 * Lightweight ordered chat catalog for session-list presentation.
-	 *
-	 * This intentionally omits volatile chat state such as status and activity,
-	 * while retaining interactivity so generic clients can hide chats or present
-	 * them as read-only without subscribing to the session channel.
+	 * Lightweight host-authoritative ordered chat catalog.
 	 */
 	chats?: SessionChatSummary[];
-	/** Chat that receives input when no specific chat is selected. */
+	/** Chat that receives input when none is selected, independent of catalog position. */
 	defaultChat?: URI;
 }
 
 /**
- * Lightweight chat information suitable for listing a session without
- * subscribing to its session channel.
+ * Lightweight chat information in a session catalog.
  *
  * @category Session State
  */
@@ -529,7 +528,23 @@ export interface SessionChatSummary {
 	 * backward compatibility.
 	 */
 	interactivity?: ChatInteractivity;
+	/**
+	 * Whether this chat has been archived independently of its owning session
+	 * (see `chat/isArchivedChanged`).
+	 *
+	 * Generic clients use this to group or filter archived chats in session
+	 * lists without subscribing to the session channel. Absence means the
+	 * chat is not archived.
+	 */
 	archived?: boolean;
+	/**
+	 * Aggregate summary of file changes associated with this chat.
+	 *
+	 * Servers may populate this so session lists can show per-chat change
+	 * counts without subscribing to the session or chat channel. Updates travel
+	 * with the rest of the catalog in `root/sessionSummaryChanged`.
+	 */
+	changes?: ChangesSummary;
 }
 
 /**
