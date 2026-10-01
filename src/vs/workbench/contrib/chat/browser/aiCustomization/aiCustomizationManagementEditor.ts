@@ -71,7 +71,7 @@ import {
 	SIDEBAR_MAX_WIDTH,
 	CONTENT_MIN_WIDTH,
 } from './aiCustomizationManagement.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon, toolsIcon } from './aiCustomizationIcons.js';
+import { skillIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationResult, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
@@ -231,7 +231,6 @@ type CustomizationEditorSaveItemClassification = {
 interface ISectionItem {
 	readonly id: AICustomizationManagementSection;
 	readonly label: string;
-	readonly icon: ThemeIcon;
 	readonly description: string;
 	count: number;
 }
@@ -277,7 +276,6 @@ class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
 
 interface ISectionItemTemplateData {
 	readonly container: HTMLElement;
-	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly templateDisposables: DisposableStore;
@@ -290,17 +288,14 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 
 	renderTemplate(container: HTMLElement): ISectionItemTemplateData {
 		container.classList.add('section-list-item');
-		const icon = DOM.append(container, $('.section-icon'));
 		const label = DOM.append(container, $('.section-label'));
 		const count = DOM.append(container, $('.section-count'));
 		const templateDisposables = new DisposableStore();
-		return { container, icon, label, count, templateDisposables };
+		return { container, label, count, templateDisposables };
 	}
 
 	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.templateDisposables.clear();
-		templateData.icon.className = 'section-icon';
-		templateData.icon.classList.add(...ThemeIcon.asClassNameArray(element.icon));
 		templateData.label.textContent = element.label;
 		if (element.count > 0) {
 			templateData.count.textContent = String(element.count);
@@ -713,7 +708,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private sidebarHeaderContainer: HTMLElement | undefined;
 	private homeButton: HTMLElement | undefined;
-	private homeButtonIcon: HTMLElement | undefined;
 	private homeButtonLabel: HTMLElement | undefined;
 	private migrationShortcutContainer: HTMLElement | undefined;
 	private migrationShortcutButton: HTMLButtonElement | undefined;
@@ -786,23 +780,23 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this._register(toDisposable(() => this.disposeBuiltinEditingSessions()));
 
 		// Build sections from the workspace service configuration
-		const sectionInfo: Record<string, { label: string; icon: ThemeIcon; description: string }> = {
-			[AICustomizationManagementSection.Agents]: { label: localize('agents', "Agents"), icon: agentIcon, description: localize('agentsDesc', "Define custom agents with specialized personas, tool access, and instructions for specific tasks.") },
-			[AICustomizationManagementSection.Skills]: { label: localize('skills', "Skills"), icon: skillIcon, description: localize('skillsDesc', "Create reusable skill files that provide domain-specific knowledge and workflows.") },
-			[AICustomizationManagementSection.Instructions]: { label: localize('instructions', "Instructions"), icon: instructionsIcon, description: localize('instructionsDesc', "Set always-on instructions that guide AI behavior across your workspace or user profile.") },
-			[AICustomizationManagementSection.Prompts]: { label: localize('prompts', "Prompts"), icon: promptIcon, description: localize('promptsDesc', "Reusable prompt templates that can be invoked as slash commands.") },
-			[AICustomizationManagementSection.Hooks]: { label: localize('hooks', "Hooks"), icon: hookIcon, description: localize('hooksDesc', "Configure automated actions triggered by events like saving files or running tasks.") },
-			[AICustomizationManagementSection.McpServers]: { label: localize('mcpServers', "MCP Servers"), icon: Codicon.server, description: localize('mcpServersDesc', "Connect external tool servers that extend AI capabilities with custom tools and data sources.") },
-			[AICustomizationManagementSection.Plugins]: { label: localize('plugins', "Plugins"), icon: pluginIcon, description: localize('pluginsDesc', "Install and manage agent plugins that add additional tools, skills, and integrations.") },
-			[AICustomizationManagementSection.Models]: { label: localize('models', "Models"), icon: Codicon.vm, description: localize('modelsDesc', "Configure and manage language models available for use.") },
-			[AICustomizationManagementSection.Tools]: { label: localize('tools', "Tools"), icon: toolsIcon, description: localize('toolsDesc', "Enable or disable groups of language model tools available to chat.") },
+		const sectionInfo: Record<string, { label: string; description: string }> = {
+			[AICustomizationManagementSection.Agents]: { label: localize('agents', "Agents"), description: localize('agentsDesc', "Define custom agents with specialized personas, tool access, and instructions for specific tasks.") },
+			[AICustomizationManagementSection.Skills]: { label: localize('skills', "Skills"), description: localize('skillsDesc', "Create reusable skill files that provide domain-specific knowledge and workflows.") },
+			[AICustomizationManagementSection.Instructions]: { label: localize('instructions', "Instructions"), description: localize('instructionsDesc', "Set always-on instructions that guide AI behavior across your workspace or user profile.") },
+			[AICustomizationManagementSection.Prompts]: { label: localize('prompts', "Prompts"), description: localize('promptsDesc', "Reusable prompt templates that can be invoked as slash commands.") },
+			[AICustomizationManagementSection.Hooks]: { label: localize('hooks', "Hooks"), description: localize('hooksDesc', "Configure automated actions triggered by events like saving files or running tasks.") },
+			[AICustomizationManagementSection.McpServers]: { label: localize('mcpServers', "MCP Servers"), description: localize('mcpServersDesc', "Connect external tool servers that extend AI capabilities with custom tools and data sources.") },
+			[AICustomizationManagementSection.Plugins]: { label: localize('plugins', "Plugins"), description: localize('pluginsDesc', "Install and manage agent plugins that add additional tools, skills, and integrations.") },
+			[AICustomizationManagementSection.Models]: { label: localize('models', "Models"), description: localize('modelsDesc', "Configure and manage language models available for use.") },
+			[AICustomizationManagementSection.Tools]: { label: localize('tools', "Tools"), description: localize('toolsDesc', "Enable or disable groups of language model tools available to chat.") },
 		};
 		const activeHarnessId = this.harnessService.activeHarness.get();
 		for (const id of this.workspaceService.managementSections) {
 			const contribution = aiCustomizationManagementSectionRegistry.get(id, activeHarnessId) ?? aiCustomizationManagementSectionRegistry.getDefault(id);
 			const info = contribution ?? sectionInfo[id];
 			if (info) {
-				this.allSections.push({ id, label: info.label, icon: info.icon, description: info.description, count: 0 });
+				this.allSections.push({ id, label: info.label, description: info.description, count: 0 });
 			}
 		}
 		this.rebuildVisibleSections();
@@ -950,7 +944,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
 			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
 			if (!hidden.has(s.id) && (!contributed || !!contribution) && this.isContributedSectionEnabled(s.id)) {
-				this.sections.push(contribution ? { ...s, label: contribution.label, icon: contribution.icon, description: contribution.description } : s);
+				this.sections.push(contribution ? { ...s, label: contribution.label, description: contribution.description } : s);
 			}
 		}
 
@@ -1120,9 +1114,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const homeButton = this.homeButton = DOM.append(headerRow, $('button.sidebar-home-button'));
 		homeButton.classList.add('sidebar-harness-home-button');
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), homeButton, () => this.getHomeButtonTooltip()));
-		const homeIcon = this.homeButtonIcon = DOM.append(homeButton, $('span.sidebar-home-icon'));
-		homeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
-		homeIcon.setAttribute('aria-hidden', 'true');
 		this.homeButtonLabel = DOM.append(homeButton, $('span.sidebar-home-label'));
 		this.editorDisposables.add(DOM.addDisposableListener(homeButton, 'click', () => {
 			this.showWelcomePage({ resetFilters: true });
@@ -1143,12 +1134,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private updateHomeButtonHarnessPresentation(): void {
 		this.updateTargetLabelPresentation();
 
-		if (!this.homeButton || !this.homeButtonIcon || !this.homeButtonLabel) {
+		if (!this.homeButton || !this.homeButtonLabel) {
 			return;
 		}
 
-		this.homeButtonIcon.className = 'sidebar-home-icon';
-		this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
 		const label = this.welcomePage?.isDiscover
 			? localize('homeButtonLabel', "Discover")
 			: localize('overviewButtonLabel', "Overview");
@@ -1177,10 +1166,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			button,
 			localize('customizationMigrationShortcutTooltip', "Review customizations that need migration"),
 		));
-
-		const icon = DOM.append(button, $('span.sidebar-migration-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
-		icon.setAttribute('aria-hidden', 'true');
 
 		DOM.append(button, $('span.sidebar-migration-label')).textContent = localize('customizationMigrationShortcutLabel', "Migrations");
 		this.migrationShortcutCount = DOM.append(button, $('span.sidebar-migration-count'));
