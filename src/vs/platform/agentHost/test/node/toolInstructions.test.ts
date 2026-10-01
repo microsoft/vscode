@@ -101,10 +101,15 @@ suite('toolInstructions', () => {
 			]);
 		});
 
-		test('preserves a remove or transform-function override untouched', () => {
-			const transform = (s: string) => s;
+		test('preserves a remove override untouched', () => {
 			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: 'remove' }, [lineFor('a')]), { action: 'remove' });
-			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: transform }, [lineFor('a')]), { action: transform });
+		});
+
+		test('runs a transform override and appends the universal lines to its output', async () => {
+			const transform = (s: string) => s.replace('<ask_user>x</ask_user>', '');
+			const composed = resolveToolInstructionsOverride(hasTools('a'), { action: transform }, [lineFor('a')]);
+			assert.ok(composed && typeof composed.action === 'function', 'expected a transform override');
+			assert.strictEqual(await composed.action('<bash>keep</bash><ask_user>x</ask_user>'), '<bash>keep</bash>\nuse a');
 		});
 	});
 

@@ -33,6 +33,8 @@ export const enum CopilotCliConfigKey {
 	Tgrep = 'tgrep',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
+	/** Apply the Copilot Chat Claude agent prompt (ported) as section overrides on Claude Opus models. Off by default. */
+	OpusAltPrompt = 'opusAltPrompt',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
@@ -67,6 +69,8 @@ export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.
 export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
+
+export const OpusAltPromptEnabledSettingId = 'chat.opusAltPrompt.enabled';
 
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
@@ -204,6 +208,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.opus48Prompt.title', "Opus 4.8 Agent Prompt"),
 		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.OpusAltPrompt]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.opusAltPrompt.title', "Opus Alternate Agent Prompt"),
+		description: localize('agentHost.config.opusAltPrompt.description', "When enabled, Copilot SDK sessions running a Claude Opus model apply system-prompt section overrides ported from the Copilot Chat Claude agent prompt, replacing the SDK's verification and thoroughness mandates with Copilot Chat's scope and exploration restraint guidance. Applies to sessions launched after the change."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
