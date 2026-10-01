@@ -685,7 +685,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			const previous = requestsForCorrelation.get(path);
 			if (previous && request.correlationId === undefined) {
 				const includes = !previous.includes?.length || !request.includes?.length ? undefined : [...previous.includes, ...request.includes];
-				const excludes = patternsEquals(previous.excludes, request.excludes) ? previous.excludes : [];
+				const excludes = previous.excludes.filter(exclude => request.excludes.includes(exclude));
 				const broad = !request.includes?.length ? request : previous;
 				requestsForCorrelation.set(path, !includes
 					? { ...broad, excludes }
