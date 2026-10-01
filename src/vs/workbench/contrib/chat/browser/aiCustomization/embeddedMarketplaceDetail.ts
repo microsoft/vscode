@@ -14,10 +14,12 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { asTextOrError, IRequestService } from '../../../../../platform/request/common/request.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -45,6 +47,11 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	private readonly titleActionsEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
 	private readonly publisherEl: HTMLElement;
+	private readonly installStateEl: HTMLElement;
+	private readonly installStateCardEl: HTMLElement;
+	private readonly installStateIconEl: HTMLElement;
+	private readonly installStateSummaryEl: HTMLElement;
+	private readonly installStateDetailsEl: HTMLElement;
 	private readonly queriesEl: HTMLElement;
 	private readonly factsEl: HTMLElement;
 	private readonly readmeEl: HTMLElement;
@@ -65,6 +72,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		@ICustomizationMarketplaceInstallService private readonly installService: ICustomizationMarketplaceInstallService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IRequestService private readonly requestService: IRequestService,
 	) {
@@ -79,6 +87,17 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.publisherEl = DOM.append(nameRow, $('.embedded-detail-publisher'));
 		this.titleActionsEl = DOM.append(header, $('.embedded-detail-title-actions'));
 		this.descriptionEl = DOM.append(this.root, $('p.embedded-detail-description.marketplace-detail-description'));
+
+		this.installStateEl = DOM.append(this.root, $('section.mcp-detail-diagnostics'));
+		this.installStateEl.style.display = 'none';
+		const installStateSection = DOM.append(this.installStateEl, $('section.mcp-detail-diagnostic-section'));
+		this.installStateCardEl = DOM.append(installStateSection, $('.mcp-detail-diagnostic-card'));
+		const installStateHeader = DOM.append(this.installStateCardEl, $('.mcp-detail-diagnostic-header'));
+		this.installStateIconEl = DOM.append(installStateHeader, $('.mcp-detail-diagnostic-icon'));
+		this.installStateIconEl.setAttribute('aria-hidden', 'true');
+		this.installStateSummaryEl = DOM.append(installStateHeader, $('.mcp-detail-diagnostic-summary'));
+		this.installStateSummaryEl.setAttribute('aria-live', 'polite');
+		this.installStateDetailsEl = DOM.append(this.installStateCardEl, $('.mcp-detail-diagnostic-details'));
 
 		const queriesSection = DOM.append(this.root, $('section.embedded-detail-section.marketplace-detail-queries'));
 		DOM.append(queriesSection, $('h3.embedded-detail-section-title')).textContent = localize('marketplaceDetail.tryThis', "Try this");
@@ -125,6 +144,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.descriptionEl.textContent = '';
 		this.publisherEl.textContent = '';
 		this.publisherEl.style.display = 'none';
+		this.installStateEl.style.display = 'none';
 		this.iconDisposables.clear();
 		DOM.clearNode(this.iconEl);
 		DOM.clearNode(this.titleActionsEl);
@@ -141,10 +161,12 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		}
 		const state = this.installService.getInstallState(resource);
 		const target = getLocationTarget(state);
+		const statePresentation = getInstallStatePresentation(state);
 		return [
 			resource.displayName,
 			resource.publisher,
 			resource.description,
+			statePresentation ? [statePresentation.summary, ...statePresentation.details].join('\n') : undefined,
 			formatList(localize('marketplaceDetail.queries', "Try this"), resource.representativeQueries),
 			localize('marketplaceDetail.typeAccessible', "Type: {0}", getMarketplaceTypeLabel(resource)),
 			resource.publisher ? localize('marketplaceDetail.publisherAccessible', "Publisher: {0}", resource.publisher) : undefined,
@@ -170,6 +192,9 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.titleEl.textContent = resource.displayName;
 		this.publisherEl.textContent = resource.publisher ?? '';
 		this.publisherEl.style.display = resource.publisher ? '' : 'none';
+		if (resource.publisher) {
+			this.renderDisposables.add(this.hoverService.setupDelayedHover(this.publisherEl, { content: resource.publisher }));
+		}
 		this.renderIcon();
 		this.descriptionEl.textContent = resource.description || localize('marketplaceDetail.noDescription', "No description provided.");
 		this.renderQueries(resource.representativeQueries);
@@ -203,6 +228,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.locationFactEl = undefined;
 
 		const state = this.installService.getInstallState(resource);
+		this.renderInstallStateBanner(state);
 		this.renderInstallAction(resource, state);
 
 		const location = getLocationTarget(state);
@@ -211,6 +237,24 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 			value.textContent = location.fsPath || location.toString();
 			value.title = location.fsPath || location.toString();
 			this.locationFactEl = this.appendFact(localize('marketplaceDetail.location', "Location"), value);
+		}
+	}
+
+	private renderInstallStateBanner(state: CustomizationMarketplaceInstallState): void {
+		const presentation = getInstallStatePresentation(state);
+		this.installStateEl.style.display = presentation ? '' : 'none';
+		if (!presentation) {
+			return;
+		}
+
+		this.installStateCardEl.className = `mcp-detail-diagnostic-card ${presentation.kind}`;
+		this.installStateIconEl.className = 'mcp-detail-diagnostic-icon';
+		this.installStateIconEl.classList.add(...ThemeIcon.asClassNameArray(presentation.icon));
+		this.installStateSummaryEl.textContent = presentation.summary;
+		DOM.clearNode(this.installStateDetailsEl);
+		this.installStateDetailsEl.style.display = presentation.details.length ? '' : 'none';
+		for (const message of presentation.details) {
+			DOM.append(this.installStateDetailsEl, $('p.mcp-detail-diagnostic-message')).textContent = message;
 		}
 	}
 
@@ -251,28 +295,47 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 			? localize('marketplaceDetail.installed', "Installed")
 			: state.kind === 'installing'
 				? localize('marketplaceDetail.installing', "Installing...")
-				: state.kind === 'uninstalling'
-					? localize('marketplaceDetail.uninstalling', "Uninstalling...")
-					: setupUrl
-						? localize('marketplaceDetail.viewSetup', "View Setup")
-						: localize('marketplaceDetail.install', "Install");
+				: state.kind === 'repairing'
+					? localize('marketplaceDetail.repairing', "Repairing...")
+					: state.kind === 'missing'
+						? localize('marketplaceDetail.repair', "Repair")
+						: state.kind === 'uninstalling'
+							? localize('marketplaceDetail.uninstalling', "Uninstalling...")
+							: setupUrl
+								? localize('marketplaceDetail.viewSetup', "View Setup")
+								: state.kind === 'unavailable'
+									? localize('marketplaceDetail.unavailable', "Unavailable")
+									: localize('marketplaceDetail.install', "Install");
+		const action = state.kind === 'missing' && !state.repairUnavailableMessage
+			? () => this.installService.repair(resource)
+			: state.kind === 'available'
+				? () => this.options.install(resource)
+				: setupUrl
+					? () => this.options.openExternal(setupUrl)
+					: undefined;
 		const button = this.installActionDisposables.add(new Button(this.titleActionsEl, {
 			...defaultButtonStyles,
 			ariaLabel: localize('marketplaceDetail.actionAria', "{0} {1}", label, resource.displayName),
 		}));
 		button.label = label;
-		button.enabled = state.kind === 'available' || !!setupUrl;
-		button.element.setAttribute('aria-busy', String(state.kind === 'installing'));
+		button.enabled = action !== undefined;
+		button.element.setAttribute('aria-busy', String(state.kind === 'installing' || state.kind === 'repairing'));
+		if (!action) {
+			return;
+		}
 		this.installActionDisposables.add(button.onDidClick(async () => {
 			try {
-				if (setupUrl) {
-					await this.options.openExternal(setupUrl);
-				} else {
-					await this.options.install(resource);
+				await action();
+				if (state.kind === 'available') {
 					status(localize('marketplaceDetail.installedStatus', "Installed {0}.", resource.displayName));
+				} else if (state.kind === 'missing') {
+					status(localize('marketplaceDetail.repairedStatus', "Repaired {0}.", resource.displayName));
 				}
 			} catch (error) {
-				this.notificationService.error(localize('marketplaceDetail.installError', "Could not install {0}. {1}", resource.displayName, getErrorMessage(error)));
+				const message = state.kind === 'missing'
+					? localize('marketplaceDetail.repairError', "Could not repair {0}. {1}", resource.displayName, getErrorMessage(error))
+					: localize('marketplaceDetail.installError', "Could not install {0}. {1}", resource.displayName, getErrorMessage(error));
+				this.notificationService.error(message);
 			}
 		}));
 	}
@@ -448,6 +511,34 @@ function getLocationTarget(state: CustomizationMarketplaceInstallState): URI | u
 		case 'missing':
 		case 'error':
 			return state.target.kind === 'plugin' || state.target.kind === 'skill' ? state.target.uri : undefined;
+		default:
+			return undefined;
+	}
+}
+
+function getInstallStatePresentation(state: CustomizationMarketplaceInstallState): { readonly kind: 'warning' | 'error'; readonly icon: ThemeIcon; readonly summary: string; readonly details: readonly string[] } | undefined {
+	switch (state.kind) {
+		case 'missing':
+			return {
+				kind: 'warning',
+				icon: Codicon.warning,
+				summary: localize('marketplaceDetail.missingSummary', "This customization needs repair"),
+				details: state.repairUnavailableMessage ? [state.repairUnavailableMessage] : [],
+			};
+		case 'error':
+			return {
+				kind: 'error',
+				icon: Codicon.error,
+				summary: localize('marketplaceDetail.errorSummary', "This customization has an error"),
+				details: [state.message],
+			};
+		case 'unavailable':
+			return {
+				kind: 'warning',
+				icon: Codicon.warning,
+				summary: localize('marketplaceDetail.unavailableSummary', "This customization is unavailable"),
+				details: [state.message],
+			};
 		default:
 			return undefined;
 	}

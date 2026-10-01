@@ -127,10 +127,16 @@ function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'de
 }
 
 function getPluginPublisher(plugin: IMarketplacePlugin): string | undefined {
-	const repository = plugin.sourceDescriptor.kind === PluginSourceKind.GitHub
-		? plugin.sourceDescriptor.repo
-		: plugin.marketplaceReference.githubRepo;
-	return repository?.split('/', 1)[0];
+	if (plugin.sourceDescriptor.kind === PluginSourceKind.GitHub) {
+		return plugin.sourceDescriptor.repo.split('/', 1)[0];
+	}
+	if (plugin.sourceDescriptor.kind === PluginSourceKind.GitUrl) {
+		const match = plugin.sourceDescriptor.url.match(/^https:\/\/github\.com\/(?<owner>[^/]+)\//i);
+		if (match?.groups) {
+			return match.groups.owner;
+		}
+	}
+	return plugin.marketplaceReference.githubRepo?.split('/', 1)[0];
 }
 
 function getPluginMarketplaceTypes(mediaType: string | undefined): ReadonlySet<MarketplaceType> | undefined {

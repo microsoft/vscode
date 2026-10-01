@@ -121,6 +121,22 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		assert.strictEqual(page.items[0].publisher, 'octo-org');
 	});
 
+	test('uses a GitHub URL plugin source owner as the publisher', async () => {
+		const service = new TestPluginMarketplaceService();
+		service.page = {
+			items: [{
+				...plugin,
+				sourceDescriptor: { kind: PluginSourceKind.GitUrl, url: 'https://github.com/acme/monorepo.git', path: 'plugins/review' },
+			}],
+			errors: [],
+		};
+		const provider = new PluginCustomizationMarketplaceProvider('custom', service, new TestConfigurationService());
+
+		const page = await provider.query({}, CancellationToken.None);
+
+		assert.strictEqual(page.items[0].publisher, 'acme');
+	});
+
 	test('default provider is suppressed while the public feed is enabled', async () => {
 		const service = new TestPluginMarketplaceService();
 		const provider = new PluginCustomizationMarketplaceProvider('default', service, new TestConfigurationService({

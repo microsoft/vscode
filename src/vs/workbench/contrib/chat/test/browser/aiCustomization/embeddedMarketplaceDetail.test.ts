@@ -159,6 +159,72 @@ suite('EmbeddedMarketplaceDetail', () => {
 		});
 	});
 
+	test('renders failure states and repairs missing customizations', async () => {
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'test',
+			identifier: 'review',
+			displayName: 'Repository review',
+			description: 'Reviews pull requests.',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+		};
+		const target = { kind: 'skill' as const, uri: URI.file('C:\\skills\\review') };
+		const missing = render(resource, undefined, { kind: 'missing', target });
+		const blockedMissing = render(resource, undefined, { kind: 'missing', target, repairUnavailableMessage: 'The source is no longer available.' });
+		const error = render(resource, undefined, { kind: 'error', target, message: 'Installation failed.' });
+		const unavailable = render(resource, undefined, { kind: 'unavailable', message: 'This item requires a newer version.' });
+
+		missing.parent.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
+		await timeout(0);
+
+		const state = (result: ReturnType<typeof render>) => ({
+			banner: result.parent.querySelector('.mcp-detail-diagnostic-card')?.textContent,
+			bannerClass: result.parent.querySelector('.mcp-detail-diagnostic-card')?.className,
+			action: result.parent.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.textContent,
+			actionDisabled: result.parent.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.classList.contains('disabled'),
+			accessible: result.detail.getAccessibilityContent(),
+		});
+		assert.deepStrictEqual({
+			missing: state(missing),
+			missingCounts: missing.getActionCounts(),
+			blockedMissing: state(blockedMissing),
+			error: state(error),
+			unavailable: state(unavailable),
+		}, {
+			missing: {
+				banner: 'This customization needs repair',
+				bannerClass: 'mcp-detail-diagnostic-card warning',
+				action: 'Repair',
+				actionDisabled: false,
+				accessible: 'Repository review\n\nReviews pull requests.\n\nThis customization needs repair\n\nType: Skill\n\nSource: Marketplace\n\nLocation: c:\\skills\\review',
+			},
+			missingCounts: { installCount: 0, repairCount: 1, uninstallCount: 0 },
+			blockedMissing: {
+				banner: 'This customization needs repairThe source is no longer available.',
+				bannerClass: 'mcp-detail-diagnostic-card warning',
+				action: 'Repair',
+				actionDisabled: true,
+				accessible: 'Repository review\n\nReviews pull requests.\n\nThis customization needs repair\nThe source is no longer available.\n\nType: Skill\n\nSource: Marketplace\n\nLocation: c:\\skills\\review',
+			},
+			error: {
+				banner: 'This customization has an errorInstallation failed.',
+				bannerClass: 'mcp-detail-diagnostic-card error',
+				action: 'Install',
+				actionDisabled: true,
+				accessible: 'Repository review\n\nReviews pull requests.\n\nThis customization has an error\nInstallation failed.\n\nType: Skill\n\nSource: Marketplace\n\nLocation: c:\\skills\\review',
+			},
+			unavailable: {
+				banner: 'This customization is unavailableThis item requires a newer version.',
+				bannerClass: 'mcp-detail-diagnostic-card warning',
+				action: 'Unavailable',
+				actionDisabled: true,
+				accessible: 'Repository review\n\nReviews pull requests.\n\nThis customization is unavailable\nThis item requires a newer version.\n\nType: Skill\n\nSource: Marketplace',
+			},
+		});
+	});
+
 	test('fetches and renders the plugin README inline without a Contains section', async () => {
 		const { detail, parent, fireInstallChange, getRequestCount } = render({
 			sourceId: 'test',

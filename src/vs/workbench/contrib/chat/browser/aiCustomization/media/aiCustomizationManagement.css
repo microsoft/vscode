@@ -2013,7 +2013,12 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-publisher {
 	align-self: flex-end;
-	flex-shrink: 0;
+	flex-shrink: 1;
+	min-width: 0;
+	max-width: 40%;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
 	font-weight: var(--vscode-fontWeight-regular);
