@@ -87,6 +87,26 @@ suite('File Watcher (parcel) request deduplication', () => {
 		]);
 	});
 
+	test('uncorrelated same-root requests combine overlapping narrow includes', async () => {
+		const watcher = store.add(new TestParcelWatcher());
+		const first: IRecursiveWatchRequest = { path: '/workspace', excludes: [], includes: ['mcp/*.mjs', 'shared/**'], recursive: true };
+		const second: IRecursiveWatchRequest = { path: '/workspace', excludes: [], includes: ['shared/*.json', '.custom/agents/*.md'], recursive: true };
+
+		assert.deepStrictEqual(await watcher.deduplicateRequests([first, second]), [
+			{ ...first, includes: ['mcp/*.mjs', 'shared/**', 'shared/*.json', '.custom/agents/*.md'] }
+		]);
+	});
+
+	test('uncorrelated same-root requests retain overlapping excludes', async () => {
+		const watcher = store.add(new TestParcelWatcher());
+		const first: IRecursiveWatchRequest = { path: '/workspace', excludes: ['**/node_modules/**', '**/dist/**'], recursive: true };
+		const second: IRecursiveWatchRequest = { path: '/workspace', excludes: ['**/node_modules/**'], recursive: true };
+
+		assert.deepStrictEqual(await watcher.deduplicateRequests([first, second]), [
+			{ ...first, excludes: ['**/node_modules/**'] }
+		]);
+	});
+
 	test('uncorrelated same-root requests do not retain exclusions absent from another request', async () => {
 		const watcher = store.add(new TestParcelWatcher());
 		const first: IRecursiveWatchRequest = { path: '/workspace', excludes: ['mcp/**'], recursive: true };
