@@ -256,6 +256,8 @@ export enum TerminalIpcChannels {
 }
 
 export const enum ProcessPropertyType {
+	ChatOwner = 'chatOwner',
+	SessionOwner = 'sessionOwner',
 	Cwd = 'cwd',
 	InitialCwd = 'initialCwd',
 	FixedDimensions = 'fixedDimensions',
@@ -275,6 +277,8 @@ export interface IProcessProperty<T extends ProcessPropertyType = ProcessPropert
 }
 
 export interface IProcessPropertyMap {
+	[ProcessPropertyType.ChatOwner]: ITerminalChatOwner | undefined;
+	[ProcessPropertyType.SessionOwner]: ITerminalChatOwner | undefined;
 	[ProcessPropertyType.Cwd]: string;
 	[ProcessPropertyType.InitialCwd]: string;
 	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions;
@@ -495,7 +499,19 @@ export interface IHeartbeatService {
 
 export const remoteResolverTerminal = Symbol('remoteResolverTerminal');
 
+export interface ITerminalChatOwner {
+	readonly backend: string;
+	readonly sessionResource: string;
+	readonly chatResource: string;
+}
+
+export function terminalChatOwnersEqual(a: ITerminalChatOwner | undefined, b: ITerminalChatOwner | undefined): boolean {
+	return a === b || !!a && !!b && a.backend === b.backend && a.sessionResource === b.sessionResource && a.chatResource === b.chatResource;
+}
+
 export interface IShellLaunchConfig {
+	chatOwner?: ITerminalChatOwner;
+	sessionOwner?: ITerminalChatOwner;
 	/**
 	 * The name of the terminal, if this is not set the name of the process will be used.
 	 */
@@ -566,6 +582,8 @@ export interface IShellLaunchConfig {
 	 * This is a terminal that attaches to an already running terminal.
 	 */
 	attachPersistentProcess?: {
+		chatOwner?: ITerminalChatOwner;
+		sessionOwner?: ITerminalChatOwner;
 		id: number;
 		findRevivedId?: boolean;
 		pid: number;
@@ -703,6 +721,7 @@ export interface ITerminalTabAction {
 export type WaitOnExitValue = boolean | string | ((exitCode: number) => string);
 
 export interface ICreateContributedTerminalProfileOptions {
+	chatOwner?: ITerminalChatOwner;
 	icon?: URI | string | { light: URI; dark: URI };
 	color?: string;
 	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
@@ -723,6 +742,8 @@ export const enum TerminalLocationConfigValue {
 export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };
 
 export interface IShellLaunchConfigDto {
+	chatOwner?: ITerminalChatOwner;
+	sessionOwner?: ITerminalChatOwner;
 	name?: string;
 	executable?: string;
 	args?: string[] | string;

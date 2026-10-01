@@ -11,7 +11,7 @@ import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js'
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
+import { ITerminalChatOwner, terminalChatOwnersEqual, TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -22,7 +22,10 @@ import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationResolverService } from '../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 const LOG_PREFIX = '[AgentHostSessionTaskRunner]';
 
@@ -47,6 +50,10 @@ function isEqualCwd(a: string, b: string, ignoreCase: boolean): boolean {
 /** Tracks one reusable terminal and its current task launch. */
 interface ITaskTerminal {
 	readonly instance: ITerminalInstance;
+	readonly address: string;
+	readonly cwd: string | undefined;
+	readonly label: string;
+	key: string;
 	isLaunching: boolean;
 	executionId: number;
 }
@@ -73,6 +80,9 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) { }
 
 	canRun(session: ISession): boolean {
@@ -80,10 +90,38 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 	}
 
 	async runTask(task: ITaskEntry, session: ISession, chat?: IChat): Promise<IDisposable | undefined> {
+		const presentationState = this._layoutService.chatLayoutPresentation.state.get();
+		const chatResource = (chat ?? session.mainChat.get()).resource;
+		const address = this._getAddress(session);
+		const chatOwner = this._layoutService.chatLayoutPresentation.enabled ? Object.freeze({ backend: `agentHost:${address}`, sessionResource: session.resource.toString(), chatResource: chatResource.toString() }) : undefined;
+		let deleted = false;
+		const deletionListener = this._sessionsManagementService.onDidDeleteChat(e => {
+			if (isEqual(e.sessionResource, session.resource) && isEqual(e.chatResource, chatResource)) {
+				deleted = true;
+			}
+		});
+		const removalListener = this._sessionsManagementService.onDidChangeSessions(e => {
+			if (e.removed.some(removed => isEqual(removed.resource, session.resource))) {
+				deleted = true;
+			}
+		});
+		try {
+			return await this._runTask(task, session, chat, chatOwner, () => !chatOwner || !deleted && this._layoutService.chatLayoutPresentation.isCurrent(presentationState) && !session.isArchived.get());
+		} finally {
+			deletionListener.dispose();
+			removalListener.dispose();
+		}
+	}
+
+	private async _runTask(task: ITaskEntry, session: ISession, chat: IChat | undefined, chatOwner: ITerminalChatOwner | undefined, isCurrent: () => boolean): Promise<IDisposable | undefined> {
+		const address = this._getAddress(session);
+		const chatResource = (chat ?? session.mainChat.get()).resource;
+		if (!isCurrent()) {
+			return undefined;
+		}
 		if (!this._isSessionRemoteHostAvailable(session)) {
 			return undefined;
 		}
-		const address = this._getAddress(session);
 		if (!address) {
 			return undefined;
 		}
@@ -108,29 +146,30 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 			return undefined;
 		}
 
-		if (!this._isSessionRemoteHostAvailable(session)) {
+		if (!this._isSessionRemoteHostAvailable(session) || !isCurrent()) {
 			return undefined;
 		}
-		const terminalKey = JSON.stringify([address, cwd?.toString(), task.label]);
+		const terminalKey = JSON.stringify([address, cwd?.toString(), task.label, chatOwner]);
 		const presentation = this._getPresentation(task);
 		const shouldReuse = !(typeof presentation?.panel === 'string' && presentation.panel.toLowerCase() === 'new');
-		let taskTerminal = shouldReuse ? this._getReusableTerminal(terminalKey, address) : undefined;
+		let taskTerminal = shouldReuse ? this._getReusableTerminal(terminalKey, address, cwd?.toString(), task.label, chatOwner) : undefined;
 		const isReused = !!taskTerminal;
 		if (!taskTerminal) {
 			const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
 				cwd,
 				name: localize('agentHostSessionTaskTerminalName', "Task: {0}", task.label),
+				chatOwner,
 			});
 			if (!instance) {
 				this._logService.warn(`${LOG_PREFIX} Failed to create terminal for task '${task.label}' on '${address}'.`);
 				return undefined;
 			}
-			taskTerminal = { instance, isLaunching: false, executionId: 0 };
+			taskTerminal = { instance, address, cwd: cwd?.toString(), label: task.label, key: terminalKey, isLaunching: false, executionId: 0 };
 			if (shouldReuse) {
 				this._taskTerminals.set(terminalKey, taskTerminal);
 				instance.store.add(instance.onDisposed(() => {
-					if (this._taskTerminals.get(terminalKey) === taskTerminal) {
-						this._taskTerminals.delete(terminalKey);
+					if (this._taskTerminals.get(taskTerminal!.key) === taskTerminal) {
+						this._taskTerminals.delete(taskTerminal!.key);
 					}
 				}));
 			}
@@ -140,8 +179,20 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		taskTerminal.isLaunching = true;
 		const executionId = ++taskTerminal.executionId;
 		try {
-			this._terminalService.setActiveInstance(instance);
-			await this._terminalGroupService.showPanel(true);
+			if (!isCurrent()) {
+				return undefined;
+			}
+			const active = this._sessionsService.activeSession.get();
+			if (!chatOwner) {
+				this._terminalService.setActiveInstance(instance);
+				await this._terminalGroupService.showPanel(true);
+			} else if (isEqual(active?.resource, session.resource) && isEqual(active?.activeChat.get().resource, chatResource)) {
+				await this._terminalService.showBackgroundTerminal(instance, true, true);
+				const focused = this._sessionsService.activeSession.get();
+				if (isCurrent() && isEqual(focused?.resource, session.resource) && isEqual(focused?.activeChat.get().resource, chatResource)) {
+					this._terminalService.setActiveInstance(instance);
+				}
+			}
 			if (isReused) {
 				// Discard anything typed at the prompt since the last run so it is
 				// not prepended to the task command, like `ITerminalInstance.runCommand`.
@@ -152,12 +203,17 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 				instance.clearBuffer();
 			}
 			this._agentHostTerminalService.markCommandPending(instance);
-			await instance.sendText(command, /*shouldExecute*/ true);
+			if (isCurrent()) {
+				await instance.sendText(command, /*shouldExecute*/ true);
+			}
 		} finally {
 			taskTerminal.isLaunching = false;
 		}
 
 		return toDisposable(() => {
+			if (chatOwner && !this._layoutService.chatLayoutPresentation.state.get().active) {
+				return;
+			}
 			if (taskTerminal.executionId === executionId) {
 				instance.dispose(TerminalExitReason.User);
 			}
@@ -174,8 +230,9 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 	 * not hidden in the background (e.g. after switching sessions), since only
 	 * foreground terminals can be activated.
 	 */
-	private _getReusableTerminal(key: string, address: string): ITaskTerminal | undefined {
-		const taskTerminal = this._taskTerminals.get(key);
+	private _getReusableTerminal(key: string, address: string, cwd: string | undefined, label: string, chatOwner: ITerminalChatOwner | undefined): ITaskTerminal | undefined {
+		const taskTerminal = this._taskTerminals.get(key) ?? (chatOwner && [...this._taskTerminals.values()].find(entry =>
+			entry.address === address && entry.cwd === cwd && entry.label === label && terminalChatOwnersEqual(entry.instance.shellLaunchConfig.chatOwner, chatOwner)));
 		if (!taskTerminal) {
 			return undefined;
 		}
@@ -187,7 +244,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		if (taskTerminal.isLaunching || this._agentHostTerminalService.isCommandExecuting(instance) !== false) {
 			return undefined;
 		}
-		if (!this._terminalService.foregroundInstances.includes(instance)) {
+		if (chatOwner && !terminalChatOwnersEqual(instance.shellLaunchConfig.chatOwner, chatOwner) || !chatOwner && !this._terminalService.foregroundInstances.includes(instance)) {
 			return undefined;
 		}
 		const terminalCwd = this._agentHostTerminalService.getCwd(instance);
@@ -197,7 +254,15 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		// Local Windows and macOS file systems are case-insensitive; a remote
 		// host's OS is unknown, so only treat Windows-style paths as such.
 		const ignoreCase = address === LOCAL_AGENT_HOST_ADDRESS ? OS !== OperatingSystem.Linux : /^[a-zA-Z]:[\\/]/.test(terminalCwd.initial);
-		return isEqualCwd(terminalCwd.current, terminalCwd.initial, ignoreCase) ? taskTerminal : undefined;
+		if (!isEqualCwd(terminalCwd.current, terminalCwd.initial, ignoreCase)) {
+			return undefined;
+		}
+		if (taskTerminal.key !== key) {
+			this._taskTerminals.delete(taskTerminal.key);
+			taskTerminal.key = key;
+			this._taskTerminals.set(key, taskTerminal);
+		}
+		return taskTerminal;
 	}
 
 	/**

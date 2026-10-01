@@ -21,6 +21,7 @@ import { CommandLineAutoApprover } from '../../chatAgentTools/browser/tools/comm
 import { TerminalChatContextKeys } from './terminalChat.js';
 import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { isNumber, isString } from '../../../../../base/common/types.js';
+import { terminalChatOwnersEqual } from '../../../../../platform/terminal/common/terminal.js';
 
 const enum StorageKeys {
 	ToolSessionMappings = 'terminalChat.toolSessionMappings',
@@ -228,6 +229,10 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	registerTerminalInstanceWithChatSession(chatSessionResource: URI, instance: ITerminalInstance): void {
+		const owner = this._terminalService.captureChatOwner({ originChatResource: chatSessionResource });
+		if (owner && !terminalChatOwnersEqual(instance.shellLaunchConfig.chatOwner, owner)) {
+			void instance.setChatOwner(owner).catch(error => this._logService.error('Failed to associate terminal with chat owner', error));
+		}
 		// If already registered with the same session, skip to avoid duplicate listeners
 		const existingResource = this._chatSessionResourceByTerminalInstance.get(instance);
 		if (existingResource && existingResource.toString() === chatSessionResource.toString()) {

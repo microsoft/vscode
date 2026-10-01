@@ -230,6 +230,8 @@ suite('RunInTerminalTool', () => {
 			getChatSessionContribution: () => chatSessionContribution,
 		});
 		instantiationService.stub(ITerminalService, {
+			captureChatOwner: () => undefined,
+			captureChatCreationOptions: () => ({}),
 			createTerminal: async () => {
 				createTerminalCallCount++;
 				return createdTerminalInstance;
@@ -2556,6 +2558,8 @@ suite('RunInTerminalTool', () => {
 			}), StorageScope.WORKSPACE, StorageTarget.USER);
 
 			instantiationService.stub(ITerminalService, {
+				captureChatOwner: () => undefined,
+				captureChatCreationOptions: () => ({}),
 				onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 				instances: [mockTerminal1, mockTerminal2],
 				foregroundInstances: [],
@@ -3497,6 +3501,8 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		});
 		const terminalInstancesChangedEmitter = store.add(new Emitter<void>());
 		instantiationService.stub(ITerminalService, {
+			captureChatOwner: () => undefined,
+			captureChatCreationOptions: () => ({}),
 			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 			onDidChangeInstances: terminalInstancesChangedEmitter.event,
 			foregroundInstances: [],

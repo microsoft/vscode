@@ -3,20 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fail, strictEqual } from 'assert';
+import { deepStrictEqual, fail, rejects, strictEqual } from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
-import { TerminalLocation, TitleEventSource, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
+import { IShellLaunchConfig, ITerminalChatOwner, TerminalLocation, TitleEventSource, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalService } from '../../browser/terminalService.js';
-import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
+import { ITerminalProfileService, TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 
 suite('Workbench - TerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,6 +56,102 @@ suite('Workbench - TerminalService', () => {
 	});
 
 	suite('background terminals', () => {
+		test('native backend identity is stable and qualified by remote authority before initialization', () => {
+			const local = terminalService.defaultBackendIdentity;
+			instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
+				override readonly remoteAuthority = 'SSH-Remote+Host';
+			});
+			const remote = store.add(instantiationService.createInstance(TerminalService));
+			deepStrictEqual([local, remote.defaultBackendIdentity], ['pty', 'pty:ssh-remote+host']);
+		});
+
+		test('creation options capture origin cwd and generation before profiles are ready', async () => {
+			let generation = 1;
+			const owner: ITerminalChatOwner = { backend: 'pty', sessionResource: 'opaque:/session', chatResource: 'opaque:/A' };
+			store.add(terminalService.registerChatOwnerProvider(() => owner, undefined, () => {
+				const captured = generation;
+				return { cwd: URI.file('/A'), isCurrent: () => captured === generation };
+			}));
+			const origin = terminalService.captureChatCreationOptions();
+			const profiles = new DeferredPromise<void>();
+			instantiationService.stub(ITerminalProfileService, 'availableProfiles', []);
+			instantiationService.stub(ITerminalProfileService, 'profilesReady', profiles.p);
+			instantiationService.stub(ITerminalInstanceService, 'convertProfileToShellLaunchConfig', (config: IShellLaunchConfig) => ({ ...config }));
+			const creating = terminalService.createTerminal({ ...origin, config: { hideFromUser: true }, skipContributedProfileCheck: true });
+			const rejection = rejects(creating, CancellationError);
+			generation++;
+			await profiles.complete();
+			await rejection;
+			deepStrictEqual({ cwd: origin.cwd, current: origin.isCurrent?.(), instances: terminalService.instances.length }, { cwd: URI.file('/A'), current: false, instances: 0 });
+		});
+
+		test('captures the request origin before asynchronous creation and preserves restored backend ownership', async () => {
+			const firstOwner: ITerminalChatOwner = { backend: 'pty', sessionResource: 'opaque:/session', chatResource: 'opaque:/A' };
+			const secondOwner = { ...firstOwner, chatResource: 'opaque:/B' };
+			let focusedOwner = firstOwner;
+			store.add(terminalService.registerChatOwnerProvider(() => focusedOwner));
+			const configs: IShellLaunchConfig[] = [];
+			instantiationService.stub(ITerminalInstanceService, 'convertProfileToShellLaunchConfig', (config: IShellLaunchConfig) => ({ ...config }));
+			instantiationService.stub(ITerminalInstanceService, 'createInstance', (config: IShellLaunchConfig) => {
+				configs.push(config);
+				return {
+					instanceId: 400 + configs.length,
+					shellLaunchConfig: config,
+					onDisposed: store.add(new Emitter<ITerminalInstance>()).event,
+				} satisfies Partial<ITerminalInstance> as ITerminalInstance;
+			});
+			terminalService.registerProcessSupport(true);
+			const creating = terminalService.createTerminal({ config: { hideFromUser: true }, skipContributedProfileCheck: true });
+			focusedOwner = secondOwner;
+			await creating;
+			await terminalService.createTerminal({
+				config: { hideFromUser: true, attachPersistentProcess: { id: 17, pid: 100, title: 'restored', titleSource: TitleEventSource.Api, cwd: '/same', shellIntegrationNonce: 'nonce', chatOwner: firstOwner } },
+				skipContributedProfileCheck: true,
+			});
+			await terminalService.createTerminal({ config: { hideFromUser: true }, chatOwner: null, skipContributedProfileCheck: true });
+			await terminalService.createTerminal({ config: { hideFromUser: true, chatOwner: firstOwner }, chatOwner: secondOwner, skipContributedProfileCheck: true });
+			deepStrictEqual(configs.map(config => config.chatOwner), [firstOwner, firstOwner, undefined, firstOwner]);
+		});
+
+		test('owned contributed creation snapshots host and cwd and returns its background process without focus', async () => {
+			const firstOwner: ITerminalChatOwner = { backend: 'agentHost:A', sessionResource: 'opaque:/session', chatResource: 'opaque:/A' };
+			const secondOwner = { ...firstOwner, backend: 'agentHost:B', chatResource: 'opaque:/B' };
+			let focusedOwner = firstOwner;
+			let focusCalls = 0;
+			const profiles = new DeferredPromise<void>();
+			const requests: { id: string; cwd: string | URI | undefined }[] = [];
+			const configs: IShellLaunchConfig[] = [];
+			store.add(terminalService.registerChatOwnerProvider(() => focusedOwner, () => false, owner => ({ cwd: URI.file(owner.chatResource === firstOwner.chatResource ? '/A' : '/B') })));
+			instantiationService.stub(ITerminalProfileService, 'getDefaultProfile', undefined);
+			instantiationService.stub(ITerminalProfileService, 'availableProfiles', []);
+			instantiationService.stub(ITerminalProfileService, 'profilesReady', profiles.p);
+			instantiationService.stub(ITerminalProfileService, 'getContributedDefaultProfile', () => Promise.resolve({ extensionIdentifier: focusedOwner.backend, id: focusedOwner.chatResource, title: 'Host' }));
+			instantiationService.stub(ITerminalInstanceService, 'convertProfileToShellLaunchConfig', (config: IShellLaunchConfig) => ({ ...config }));
+			instantiationService.stub(ITerminalInstanceService, 'createInstance', (config: IShellLaunchConfig) => {
+				configs.push(config);
+				return {
+					instanceId: 400 + configs.length,
+					shellLaunchConfig: config,
+					onDisposed: store.add(new Emitter<ITerminalInstance>()).event,
+					focusWhenReady: async () => { focusCalls++; },
+				} satisfies Partial<ITerminalInstance> as ITerminalInstance;
+			});
+			terminalService.createContributedTerminalProfile = async (_extension, id, options) => {
+				requests.push({ id, cwd: options.cwd });
+				await terminalService.createTerminal({
+					config: { hideFromUser: true, customPtyImplementation: () => { throw new Error('Not launched'); } },
+					chatOwner: options.chatOwner,
+					skipContributedProfileCheck: true,
+				});
+			};
+			terminalService.registerProcessSupport(true);
+			const creating = terminalService.createTerminal();
+			focusedOwner = secondOwner;
+			await profiles.complete();
+			const created = await creating;
+			deepStrictEqual({ requests, owner: created.shellLaunchConfig.chatOwner, focusCalls }, { requests: [{ id: firstOwner.chatResource, cwd: URI.file('/A') }], owner: firstOwner, focusCalls: 0 });
+		});
+
 		test('should remove disposed hidden terminals and their listeners', async () => {
 			const disposalEmitters = Array.from({ length: 3 }, () => store.add(new Emitter<ITerminalInstance>()));
 			const instances = disposalEmitters.map((emitter, index) => ({
@@ -87,6 +188,26 @@ suite('Workbench - TerminalService', () => {
 
 		setup(() => {
 			onExitEmitter = store.add(new Emitter<number | undefined>());
+		});
+
+		test('owned cleanup rechecks its generation after terminal confirmation before disposal', async () => {
+			await setConfirmOnKill(configurationService, 'always');
+			const confirmation = new DeferredPromise<{ confirmed: boolean }>();
+			instantiationService.stub(IDialogService, 'confirm', () => confirmation.p);
+			let current = true;
+			let disposed = 0;
+			const instance = {
+				instanceId: 1,
+				target: TerminalLocation.Panel,
+				hasChildProcesses: true,
+				onExit: onExitEmitter.event,
+				dispose: () => { disposed++; onExitEmitter.fire(undefined); },
+			} satisfies Partial<ITerminalInstance> as ITerminalInstance;
+			const closing = terminalService.safeDisposeTerminal(instance, () => current);
+			current = false;
+			await confirmation.complete({ confirmed: true });
+			await closing;
+			strictEqual(disposed, 0);
 		});
 
 		test('should not show prompt when confirmOnKill is never', async () => {

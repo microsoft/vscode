@@ -10,6 +10,7 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey, isNumber, isObject, isString } from '../../../../../base/common/types.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -17,7 +18,7 @@ import { AiAgentEnvValue, AiAgentEnvVar } from '../../../../../platform/chat/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
-import { ITerminalLogService, ITerminalProfile, TerminalSettingId, type IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalChatOwner, ITerminalLogService, ITerminalProfile, TerminalSettingId, type IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { getShellIntegrationTimeout } from '../../../terminal/common/terminalEnvironment.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
@@ -57,8 +58,8 @@ export class ToolTerminalCreator {
 	) {
 	}
 
-	async createTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem, token: CancellationToken): Promise<IToolTerminal> {
-		const instance = await this._createCopilotTerminal(shellOrProfile, os);
+	async createTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem, token: CancellationToken, originChatResource?: URI, chatOwner?: ITerminalChatOwner, isCurrent?: () => boolean): Promise<IToolTerminal> {
+		const instance = await this._createCopilotTerminal(shellOrProfile, os, originChatResource, chatOwner, isCurrent);
 		const toolTerminal: IToolTerminal = {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
@@ -145,7 +146,7 @@ export class ToolTerminalCreator {
 		}
 	}
 
-	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem) {
+	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem, originChatResource?: URI, chatOwner?: ITerminalChatOwner, isCurrent?: () => boolean) {
 		const shellPath = isString(shellOrProfile) ? shellOrProfile : shellOrProfile.path;
 
 		const env: Record<string, string> = {
@@ -211,7 +212,7 @@ export class ToolTerminalCreator {
 			};
 		}
 
-		return this._terminalService.createTerminal({ config });
+		return this._terminalService.createTerminal({ config, originChatResource, chatOwner: chatOwner ?? null, isCurrent });
 	}
 
 	private _waitForShellIntegration(

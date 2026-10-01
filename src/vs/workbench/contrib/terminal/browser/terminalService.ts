@@ -7,8 +7,9 @@ import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import * as cssValue from '../../../../base/browser/cssValue.js';
 import { DeferredPromise, timeout, type MaybePromise } from '../../../../base/common/async.js';
 import { debounce, memoize } from '../../../../base/common/decorators.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { DynamicListEventMultiplexer, Emitter, Event, IDynamicListEventMultiplexer } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,7 +21,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalSettingId, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, terminalChatOwnersEqual, TerminalExitReason, TerminalLocation, TerminalSettingId, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
 import { formatMessageForTerminal } from '../../../../platform/terminal/common/terminalStrings.js';
 import { iconForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
@@ -74,6 +75,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private _isShuttingDown: boolean = false;
 	private _backgroundedTerminalInstances: IBackgroundTerminal[] = [];
+	private _chatOwnerProvider: ((options: ICreateTerminalOptions | undefined) => IShellLaunchConfig['chatOwner']) | undefined;
+	private _chatOwnerIsForeground: ((owner: NonNullable<IShellLaunchConfig['chatOwner']>) => boolean) | undefined;
+	private _chatOwnerCreationOptions: ((owner: NonNullable<IShellLaunchConfig['chatOwner']>) => Pick<ICreateTerminalOptions, 'cwd' | 'isCurrent'>) | undefined;
 	private readonly _backgroundedTerminalDisposables = this._register(new DisposableMap<number>());
 	private _processSupportContextKey: IContextKey<boolean>;
 
@@ -337,6 +341,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return this._primaryBackend;
 	}
 
+	get defaultBackendIdentity(): string {
+		const authority = this._environmentService.remoteAuthority;
+		return authority ? `pty:${authority.toLowerCase()}` : 'pty';
+	}
+
 	async setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
 		if (!this._primaryBackend || id <= 0) {
 			return;
@@ -427,7 +436,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 	}
 
-	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
+	async safeDisposeTerminal(instance: ITerminalInstance, isCurrent?: () => boolean): Promise<void> {
+		if (isCurrent && !isCurrent()) {
+			this._logService.trace('Terminal disposal was canceled', instance.instanceId);
+			return;
+		}
 		// Confirm on kill in the editor is handled by the editor input
 		if (instance.target !== TerminalLocation.Editor &&
 			instance.hasChildProcesses &&
@@ -436,6 +449,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 			if (veto) {
 				return;
 			}
+		}
+		if (isCurrent && !isCurrent()) {
+			this._logService.trace('Terminal disposal was canceled after confirmation', instance.instanceId);
+			return;
 		}
 		return new Promise<void>(r => {
 			Event.once(instance.onExit)(() => r());
@@ -730,7 +747,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			return;
 		}
 		const tabs = this._terminalGroupService.groups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup));
-		const state: ITerminalsLayoutInfoById = { tabs, background: this._backgroundedTerminalInstances.map(bg => bg.instance).filter(i => i.shellLaunchConfig.forcePersist).map(i => i.persistentProcessId).filter((e): e is number => e !== undefined) };
+		const state: ITerminalsLayoutInfoById = { tabs, background: this._backgroundedTerminalInstances.map(bg => bg.instance).filter(i => i.shellLaunchConfig.forcePersist || i.shellLaunchConfig.chatOwner && i.shouldPersist).map(i => i.persistentProcessId).filter((e): e is number => e !== undefined) };
 		this._primaryBackend?.setTerminalLayoutInfo(state);
 	}
 
@@ -972,7 +989,48 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return this;
 	}
 
+	registerChatOwnerProvider(provider: (options: ICreateTerminalOptions | undefined) => IShellLaunchConfig['chatOwner'], isForeground?: (owner: NonNullable<IShellLaunchConfig['chatOwner']>) => boolean, captureOptions?: (owner: NonNullable<IShellLaunchConfig['chatOwner']>) => Pick<ICreateTerminalOptions, 'cwd' | 'isCurrent'>): IDisposable {
+		if (this._chatOwnerProvider) {
+			throw new Error('A terminal chat owner provider is already registered');
+		}
+		this._chatOwnerProvider = provider;
+		this._chatOwnerIsForeground = isForeground;
+		this._chatOwnerCreationOptions = captureOptions;
+		return toDisposable(() => {
+			if (this._chatOwnerProvider === provider) {
+				this._chatOwnerProvider = undefined;
+				this._chatOwnerIsForeground = undefined;
+				this._chatOwnerCreationOptions = undefined;
+			}
+		});
+	}
+
+	captureChatOwner(options?: ICreateTerminalOptions): IShellLaunchConfig['chatOwner'] {
+		const config = options?.config;
+		const shellConfig = config && !hasKey(config, { extensionIdentifier: true }) && !hasKey(config, { isDefault: true }) ? config : undefined;
+		return shellConfig?.chatOwner ?? shellConfig?.attachPersistentProcess?.chatOwner
+			?? (options?.chatOwner === null ? undefined : options?.chatOwner ?? this._chatOwnerProvider?.(options));
+	}
+
+	captureChatCreationOptions(options?: ICreateTerminalOptions): ICreateTerminalOptions {
+		const owner = this.captureChatOwner(options);
+		const captured = owner && !(options?.config && hasKey(options.config, { attachPersistentProcess: true })) ? this._chatOwnerCreationOptions?.(owner) : undefined;
+		const capturedIsCurrent = captured?.isCurrent;
+		const suppliedIsCurrent = options?.isCurrent;
+		return {
+			...options,
+			chatOwner: owner ?? null,
+			cwd: options?.cwd ?? captured?.cwd,
+			isCurrent: capturedIsCurrent && suppliedIsCurrent ? () => capturedIsCurrent() && suppliedIsCurrent() : suppliedIsCurrent ?? capturedIsCurrent,
+		};
+	}
+
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
+		options = this.captureChatCreationOptions(options);
+		const chatOwner = options.chatOwner ?? undefined;
+		const initialConfig = options.config && !hasKey(options.config, { extensionIdentifier: true }) ? this._terminalInstanceService.convertProfileToShellLaunchConfig(options.config) : {};
+		const captureContributedOrigin = !!chatOwner && !options.skipContributedProfileCheck && !initialConfig.customPtyImplementation;
+		const contributedOrigin = captureContributedOrigin ? await this._getContributedProfile(initialConfig, options) : undefined;
 		// Await the initialization of available profiles as long as this is not a pty terminal or a
 		// local terminal in a remote workspace as profile won't be used in those cases and these
 		// terminals need to be launched before remote connections are established.
@@ -1003,20 +1061,29 @@ export class TerminalService extends Disposable implements ITerminalService {
 			config = this._terminalProfileService.getDefaultProfile();
 		}
 		const shellLaunchConfig = config && hasKey(config, { extensionIdentifier: true }) ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
+		shellLaunchConfig.chatOwner ??= shellLaunchConfig.attachPersistentProcess?.chatOwner ?? chatOwner;
+		shellLaunchConfig.sessionOwner ??= shellLaunchConfig.attachPersistentProcess?.sessionOwner;
 
 		// Get the contributed profile if it was provided
-		const contributedProfile = options?.skipContributedProfileCheck ? undefined : await this._getContributedProfile(shellLaunchConfig, options);
+		const contributedProfile = options?.skipContributedProfileCheck ? undefined : captureContributedOrigin ? contributedOrigin : await this._getContributedProfile(shellLaunchConfig, options);
 
 		const splitActiveTerminal = typeof options?.location === 'object' && hasKey(options.location, { splitActiveTerminal: true })
 			? options.location.splitActiveTerminal
 			: typeof options?.location === 'object' ? hasKey(options.location, { parentTerminal: true }) : false;
 
 		await this._resolveCwd(shellLaunchConfig, splitActiveTerminal, options);
+		if (options.isCurrent && !options.isCurrent()) {
+			throw new CancellationError();
+		}
+		if (shellLaunchConfig.chatOwner && shellLaunchConfig.chatOwner.backend !== this.defaultBackendIdentity && !shellLaunchConfig.customPtyImplementation && !shellLaunchConfig.attachPersistentProcess && !contributedProfile) {
+			throw new Error(`No terminal profile available for owned backend ${shellLaunchConfig.chatOwner.backend}`);
+		}
 
 		// Launch the contributed profile
 		// If it's a custom pty implementation, we did not await the profiles ready, so
 		// we cannot launch the contributed profile and doing so would cause an error
 		if (!shellLaunchConfig.customPtyImplementation && contributedProfile) {
+			const previousInstances = new Set(this.instances);
 			const resolvedLocation = await this.resolveLocation(options?.location);
 			let location: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
 			if (splitActiveTerminal) {
@@ -1030,17 +1097,28 @@ export class TerminalService extends Disposable implements ITerminalService {
 				location,
 				cwd: shellLaunchConfig.cwd,
 				titleTemplate: contributedProfile.titleTemplate,
+				chatOwner: shellLaunchConfig.chatOwner,
 			});
 			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			// TODO@meganrogge: This returns undefined in the remote & web smoke tests but the function
 			// does not return undefined. This should be handled correctly.
-			const instance = instanceHost.instances[instanceHost.instances.length - 1];
-			await instance?.focusWhenReady();
+			const instance = shellLaunchConfig.chatOwner
+				? this.instances.find(candidate => !previousInstances.has(candidate) && terminalChatOwnersEqual(candidate.shellLaunchConfig.chatOwner, shellLaunchConfig.chatOwner))
+				: instanceHost.instances[instanceHost.instances.length - 1];
+			if (!instance) {
+				throw new Error(`Terminal profile did not create a process for ${shellLaunchConfig.chatOwner?.backend ?? this.defaultBackendIdentity}`);
+			}
+			if (!shellLaunchConfig.chatOwner) {
+				await instance?.focusWhenReady();
+			}
 			this._terminalHasBeenCreated.set(true);
 			return instance;
 		}
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
+			if (shellLaunchConfig.chatOwner) {
+				throw new Error(`No terminal process backend available for ${shellLaunchConfig.chatOwner.backend}`);
+			}
 			const resolvedLocation = await this.resolveLocation(options?.location);
 			let location: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
 			if (splitActiveTerminal) {
@@ -1057,12 +1135,15 @@ export class TerminalService extends Disposable implements ITerminalService {
 					location,
 					cwd: shellLaunchConfig.cwd,
 					titleTemplate: fallbackProfile.titleTemplate,
+					chatOwner: shellLaunchConfig.chatOwner,
 				});
 				const instance = instanceHost.instances[instanceCount];
 				if (!instance) {
 					continue;
 				}
-				await instance.focusWhenReady();
+				if (!shellLaunchConfig.chatOwner) {
+					await instance.focusWhenReady();
+				}
 				this._terminalHasBeenCreated.set(true);
 				return instance;
 			}
@@ -1072,7 +1153,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._evaluateLocalCwd(shellLaunchConfig);
 		const location = await this.resolveLocation(options?.location) || this._terminalConfigurationService.defaultLocation;
 
-		if (shellLaunchConfig.hideFromUser) {
+		if (shellLaunchConfig.hideFromUser || shellLaunchConfig.chatOwner && this._chatOwnerIsForeground?.(shellLaunchConfig.chatOwner) === false) {
+			if (options?.isCurrent && !options.isCurrent()) {
+				throw new CancellationError();
+			}
 			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, location);
 			this._backgroundedTerminalInstances.push({ instance, terminalLocationOptions: options?.location });
 			this._backgroundedTerminalDisposables.set(instance.instanceId, instance.onDisposed(instance => this._onBackgroundTerminalDisposed(instance)));
@@ -1081,6 +1165,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 
 		const parent = await this._getSplitParent(options?.location);
+		if (options?.isCurrent && !options.isCurrent()) {
+			throw new CancellationError();
+		}
 		this._terminalHasBeenCreated.set(true);
 		this._extensionService.activateByEvent('onTerminal:*');
 		let instance;
@@ -1328,7 +1415,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._onDidDisposeInstance.fire(instance);
 	}
 
-	public async showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void> {
+	public async showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean, preserveFocus?: boolean): Promise<void> {
 		const index = this._backgroundedTerminalInstances.findIndex(bg => bg.instance === instance);
 		if (index === -1) {
 			return;
@@ -1345,7 +1432,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 		} else {
 			const editorOptions = backgroundTerminal.terminalLocationOptions ? this._getEditorOptions(backgroundTerminal.terminalLocationOptions) : this._getEditorOptions(instance.target);
-			this._terminalEditorService.openEditor(instance, editorOptions);
+			this._terminalEditorService.openEditor(instance, preserveFocus ? { ...editorOptions, viewColumn: editorOptions?.viewColumn ?? ACTIVE_GROUP, preserveFocus: true } : editorOptions);
 		}
 
 		this._onDidChangeInstances.fire();

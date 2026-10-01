@@ -43,6 +43,7 @@ suite('TerminalChatService', () => {
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
+			override captureChatOwner() { return undefined; }
 			override onDidChangeInstances = Event.None;
 			override instances: readonly ITerminalInstance[] = [];
 			override foregroundInstances: readonly ITerminalInstance[] = [];

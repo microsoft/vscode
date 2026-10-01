@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IKeyMods } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue, type IDecorationAddon, type ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
+import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalChatOwner, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue, type IDecorationAddon, type ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -566,6 +566,10 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * profile will be used at the default target.
 	 */
 	createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
+	registerChatOwnerProvider(provider: (options: ICreateTerminalOptions | undefined) => ITerminalChatOwner | undefined, isForeground?: (owner: ITerminalChatOwner) => boolean, captureOptions?: (owner: ITerminalChatOwner) => Pick<ICreateTerminalOptions, 'cwd' | 'isCurrent'>): IDisposable;
+	captureChatOwner(options?: ICreateTerminalOptions): ITerminalChatOwner | undefined;
+	captureChatCreationOptions(options?: ICreateTerminalOptions): ICreateTerminalOptions;
+	readonly defaultBackendIdentity: string;
 
 	/**
 	 * Creates and focuses a terminal.
@@ -600,7 +604,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * @param suppressSetActive Do not set the active instance when there is only one terminal
 	 * @param forceSaveState Used when the window is shutting down and we need to reveal and save hideFromUser terminals
 	 */
-	showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void>;
+	showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean, preserveFocus?: boolean): Promise<void>;
 	/**
 	 * Moves a visible terminal instance to the background. The terminal process
 	 * remains alive but the instance is removed from its group/editor and tracked
@@ -628,7 +632,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
-	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
+	safeDisposeTerminal(instance: ITerminalInstance, isCurrent?: () => boolean): Promise<void>;
 
 	getDefaultInstanceHost(): ITerminalInstanceHost;
 	getInstanceHost(target: ITerminalLocationOptions | undefined): Promise<ITerminalInstanceHost>;
@@ -720,6 +724,8 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 export const terminalEditorId = 'terminalEditor';
 
 interface ITerminalEditorInputObject {
+	readonly chatOwner?: ITerminalChatOwner;
+	readonly sessionOwner?: ITerminalChatOwner;
 	readonly id: number;
 	readonly pid: number;
 	readonly title: string;
@@ -744,6 +750,9 @@ export interface IDeserializedTerminalEditorInput extends ITerminalEditorInputOb
 export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: MaybePromise<ITerminalInstance> } | { splitActiveTerminal: boolean };
 
 export interface ICreateTerminalOptions {
+	isCurrent?: () => boolean;
+	chatOwner?: ITerminalChatOwner | null;
+	originChatResource?: URI;
 	/**
 	 * The shell launch config or profile to launch with, when not specified the default terminal
 	 * profile will be used.
@@ -1146,6 +1155,8 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * The shell launch config used to launch the shell.
 	 */
 	readonly shellLaunchConfig: IShellLaunchConfig;
+	setChatOwner(owner: ITerminalChatOwner | undefined): Promise<void>;
+	setSessionOwner(owner: ITerminalChatOwner | undefined): Promise<void>;
 
 	/**
 	 * Whether to disable layout for the terminal. This is useful when the size of the terminal is

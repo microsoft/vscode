@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
+import { ITerminalChatOwner, ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
 import { AgentHostPty } from './agentHostPty.js';
 import { AgentHostOutputChannel } from './agentHostOutputChannel.js';
 import { AhpTerminalCommandSource } from './ahpTerminalCommandSource.js';
@@ -19,6 +19,8 @@ import { ITerminalChatService, ITerminalInstance, ITerminalLocationOptions, ITer
 import { ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
 
 export interface IAgentHostTerminalCreateOptions {
+	readonly chatOwner?: ITerminalChatOwner;
+	readonly sessionOwner?: ITerminalChatOwner;
 	/** Human-readable terminal name. */
 	readonly name?: string;
 	/** Initial working directory. */
@@ -104,7 +106,7 @@ export interface IAgentHostTerminalService {
 	 * Attaches to an existing server-side terminal by subscribing to its
 	 * state without creating a new process.
 	 */
-	reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): Promise<ITerminalInstance>;
+	reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string, originChatResource?: URI): Promise<ITerminalInstance>;
 
 	/** Attach a non-pty output channel directly to chat without creating a terminal instance. */
 	attachOutputTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): IDisposable;
@@ -299,6 +301,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 					name: localize('agentHostTerminal.profileName', "Agent Host ({0})", displayName),
 					cwd: options.cwd ? (typeof options.cwd === 'string' ? URI.file(options.cwd) : options.cwd) : this._defaultCwd,
 					location: options.location,
+					chatOwner: options.chatOwner,
 				});
 			},
 		};
@@ -339,7 +342,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 	async createTerminal(connection: IAgentConnection, options?: IAgentHostTerminalCreateOptions): Promise<ITerminalInstance> {
 		const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: `/${generateUuid()}` });
 		const name = options?.name ?? localize('agentHostTerminal.default', "Agent Host Terminal");
-		const key = terminalUri.toString();
+		const key = this._getTerminalKey(connection, terminalUri);
 		const ptyRegistration = this._createPtyRegistration(key, connection.clientId);
 
 		let instance: ITerminalInstance;
@@ -360,8 +363,10 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 					name,
 					icon: { id: 'remote' },
 					isFeatureTerminal: false,
+					sessionOwner: options?.sessionOwner,
 				},
 				location: options?.location,
+				chatOwner: options?.chatOwner,
 			});
 		} catch (error) {
 			ptyRegistration.dispose();
@@ -373,13 +378,19 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		return instance;
 	}
 
-	async reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): Promise<ITerminalInstance> {
-		const key = terminalUri.toString();
+	private _getTerminalKey(connection: IAgentConnection, terminalUri: URI): string {
+		const address = this._entries.find(entry => entry.getConnection()?.clientId === connection.clientId)?.address;
+		return JSON.stringify([address ?? connection.clientId, terminalUri.toString()]);
+	}
+
+	async reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string, originChatResource?: URI): Promise<ITerminalInstance> {
+		const chatOwner = originChatResource ? this._terminalService.captureChatOwner({ originChatResource }) : undefined;
+		const key = this._getTerminalKey(connection, terminalUri);
 		const pending = this._pendingRevives.get(key);
 		if (pending) {
 			return pending;
 		}
-		const revive = this._doReviveTerminal(connection, terminalUri, terminalToolSessionId, key).finally(() => {
+		const revive = this._doReviveTerminal(connection, terminalUri, terminalToolSessionId, key, chatOwner, originChatResource).finally(() => {
 			if (this._pendingRevives.get(key) === revive) {
 				this._pendingRevives.delete(key);
 			}
@@ -395,7 +406,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		return store;
 	}
 
-	private async _doReviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string, key: string): Promise<ITerminalInstance> {
+	private async _doReviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string, key: string, chatOwner?: ITerminalChatOwner, originChatResource?: URI): Promise<ITerminalInstance> {
 		const existing = this._revivedInstances.get(key);
 		if (existing) {
 			return existing;
@@ -425,6 +436,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 				isFeatureTerminal: true,
 				hideFromUser: true,
 			},
+			chatOwner: chatOwner ?? null,
 		}));
 		store.add(this._terminalChatService.registerAhpCommandSource(terminalToolSessionId, commandSource, instancePromise));
 		let instance: ITerminalInstance;
@@ -436,6 +448,9 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 			throw error;
 		}
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, instance);
+		if (originChatResource) {
+			this._terminalChatService.registerTerminalInstanceWithChatSession(originChatResource, instance);
+		}
 
 		this._revivedInstances.set(key, instance);
 		instance.store.add(store);

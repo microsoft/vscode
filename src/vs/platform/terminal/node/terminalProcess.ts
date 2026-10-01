@@ -87,6 +87,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly shouldPersist = false;
 
 	private _properties: IProcessPropertyMap = {
+		chatOwner: undefined,
+		sessionOwner: undefined,
 		cwd: '',
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },

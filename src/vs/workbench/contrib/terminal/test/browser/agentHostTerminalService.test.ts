@@ -23,6 +23,8 @@ import { ICreateTerminalOptions, ITerminalChatService, ITerminalInstance, ITermi
 import { ITerminalProfileService } from '../../common/terminal.js';
 
 class TestTerminalInstance extends mock<ITerminalInstance>() {
+	constructor(override readonly instanceId: number) { super(); }
+	override readonly shellLaunchConfig: IShellLaunchConfig = {};
 	override readonly store = new DisposableStore();
 	private readonly _onDisposed = this.store.add(new Emitter<ITerminalInstance>());
 	override readonly onDisposed = this._onDisposed.event;
@@ -44,6 +46,8 @@ class TestTerminalService extends mock<ITerminalService>() {
 	private readonly _ptyFactories: NonNullable<IShellLaunchConfig['customPtyImplementation']>[] = [];
 	failNextCreation = false;
 	disposeInstanceOnCreation = false;
+	override readonly instances: TestTerminalInstance[] = [];
+	override captureChatOwner() { return undefined; }
 
 	constructor(private readonly _store: Pick<DisposableStore, 'add'>) {
 		super();
@@ -59,7 +63,9 @@ class TestTerminalService extends mock<ITerminalService>() {
 			this.failNextCreation = false;
 			throw new Error('terminal creation failed');
 		}
-		const instance = this._store.add(new TestTerminalInstance());
+		const instance = this._store.add(new TestTerminalInstance(this.instances.length + 1));
+		instance.shellLaunchConfig.chatOwner = options?.chatOwner ?? undefined;
+		this.instances.push(instance);
 		if (this.disposeInstanceOnCreation) {
 			instance.dispose();
 		}
@@ -74,7 +80,7 @@ class TestTerminalService extends mock<ITerminalService>() {
 }
 
 class TestAgentConnection extends mock<IAgentConnection>() {
-	override readonly clientId = 'test-client';
+	constructor(override readonly clientId = 'test-client') { super(); }
 	createTerminalCallCount = 0;
 	disposeTerminalCallCount = 0;
 	disposedSubscriptions = 0;
@@ -111,8 +117,10 @@ suite('AgentHostTerminalService', () => {
 	let terminalService: TestTerminalService;
 	let connection: TestAgentConnection;
 	let service: AgentHostTerminalService;
+	let registrations: DisposableStore;
 
 	setup(() => {
+		registrations = store.add(new DisposableStore());
 		terminalService = new TestTerminalService(store);
 		connection = new TestAgentConnection();
 		service = store.add(new AgentHostTerminalService(
@@ -121,10 +129,55 @@ suite('AgentHostTerminalService', () => {
 				override registerAhpCommandSource() { return Disposable.None; }
 				override registerTerminalInstanceWithToolSession() { }
 			},
-			new class extends mock<ITerminalProfileService>() { },
+			new class extends mock<ITerminalProfileService>() {
+				override registerTerminalProfileProvider() { return Disposable.None; }
+				override registerInternalContributedProfile() { return Disposable.None; }
+			},
 			new class extends mock<IQuickInputService>() { },
 			new class extends NullLogService { readonly _logBrand = undefined; },
 		));
+	});
+
+	test('live reconnect preserves chat ownership and leaves other host namespaces untouched', async () => {
+		let firstConnection = connection;
+		const otherConnection = new TestAgentConnection('other-host');
+		registrations.add(service.registerEntry({ name: 'First', address: 'first', getConnection: () => firstConnection }));
+		registrations.add(service.registerEntry({ name: 'Other', address: 'other', getConnection: () => otherConnection }));
+		const firstOwner = { backend: 'agentHost:first', sessionResource: 'opaque:/session', chatResource: 'opaque:/chat' };
+		const secondOwner = { ...firstOwner, backend: 'agentHost:other' };
+		const first = await service.createTerminal(firstConnection, { chatOwner: firstOwner });
+		const firstPty = terminalService.createPty();
+		await firstPty.start();
+		const second = await service.createTerminal(otherConnection, { chatOwner: secondOwner });
+		await terminalService.createPty().start();
+		firstConnection = new TestAgentConnection('new-first-client');
+		const recovered = await service.reconnectTerminals(firstConnection, connection.clientId);
+		assert.deepStrictEqual({
+			owners: [first.shellLaunchConfig.chatOwner, second.shellLaunchConfig.chatOwner],
+			addresses: [service.getAgentHostAddress(first), service.getAgentHostAddress(second)],
+			recovered,
+			newCreations: firstConnection.createTerminalCallCount,
+			otherCreations: otherConnection.createTerminalCallCount,
+		}, {
+			owners: [firstOwner, secondOwner],
+			addresses: ['first', 'other'],
+			recovered: { recovered: 1, total: 1 },
+			newCreations: 0,
+			otherCreations: 1,
+		});
+	});
+
+	test('equal opaque advertised terminal URIs on different hosts create distinct attach-only instances', async () => {
+		const terminalUri = URI.parse('conforming-terminal:/opaque/identifier');
+		const otherConnection = new TestAgentConnection('other-host');
+		const first = await service.reviveTerminal(connection, terminalUri, 'first-tool');
+		const second = await service.reviveTerminal(otherConnection, terminalUri, 'second-tool');
+		assert.notStrictEqual(first.instanceId, second.instanceId);
+		assert.deepStrictEqual({
+			instances: terminalService.instances.length,
+			hostProcessesCreated: connection.createTerminalCallCount + otherConnection.createTerminalCallCount,
+			hostProcessesDisposed: connection.disposeTerminalCallCount + otherConnection.disposeTerminalCallCount,
+		}, { instances: 2, hostProcessesCreated: 0, hostProcessesDisposed: 0 });
 	});
 
 	test('instance disposal locally disposes a created PTY without deleting the host terminal', async () => {

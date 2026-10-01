@@ -6,7 +6,7 @@
 import { execFile, exec } from 'child_process';
 import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Promises, Queue, timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment, isWindows, OperatingSystem, OS } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { getSystemShell } from '../../../base/node/shell.js';
@@ -139,11 +139,11 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onDidChangeProperty = this._traceEvent('_onDidChangeProperty', this._onDidChangeProperty.event);
 
 	private _traceEvent<T>(name: string, event: Event<T>): Event<T> {
-		event(e => {
+		this._register(event(e => {
 			if (this._logService.getLevel() === LogLevel.Trace) {
 				this._logService.trace(`[RPC Event] PtyService#${name}.fire(${JSON.stringify(e)})`);
 			}
-		});
+		}));
 		return event;
 	}
 
@@ -341,24 +341,24 @@ export class PtyService extends Disposable implements IPtyService {
 			options
 		};
 		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving && isString(shellLaunchConfig.initialText) ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
-		process.onProcessExit(event => {
+		persistentProcess.registerDisposable(process.onProcessExit(event => {
 			for (const contrib of this._contributions) {
 				contrib.handleProcessDispose(id);
 			}
 			persistentProcess.dispose();
 			this._ptys.delete(id);
 			this._onProcessExit.fire({ id, event });
-		});
-		persistentProcess.onProcessData(event => this._onProcessData.fire({ id, event }));
-		persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
-		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
-		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
-		persistentProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
-		persistentProcess.onPersistentProcessReady(() => {
+		}));
+		persistentProcess.registerDisposable(persistentProcess.onProcessData(event => this._onProcessData.fire({ id, event })));
+		persistentProcess.registerDisposable(persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event })));
+		persistentProcess.registerDisposable(persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event })));
+		persistentProcess.registerDisposable(persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id })));
+		persistentProcess.registerDisposable(persistentProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property })));
+		persistentProcess.registerDisposable(persistentProcess.onPersistentProcessReady(() => {
 			for (const contrib of this._contributions) {
 				contrib.handleProcessReady(id, process);
 			}
-		});
+		}));
 		this._ptys.set(id, persistentProcess);
 		return id;
 	}
@@ -654,6 +654,8 @@ export class PtyService extends Disposable implements IPtyService {
 			fixedDimensions: persistentProcess.fixedDimensions,
 			environmentVariableCollections: persistentProcess.processLaunchOptions.options.environmentVariableCollections,
 			reconnectionProperties: persistentProcess.shellLaunchConfig.reconnectionProperties,
+			chatOwner: persistentProcess.shellLaunchConfig.chatOwner,
+			sessionOwner: persistentProcess.shellLaunchConfig.sessionOwner,
 			waitOnExit: persistentProcess.shellLaunchConfig.waitOnExit,
 			hideFromUser: persistentProcess.shellLaunchConfig.hideFromUser,
 			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
@@ -781,7 +783,7 @@ class PersistentTerminalProcess extends Disposable {
 		super();
 		this._interactionState = new MutationLogger(`Persistent process "${this._persistentProcessId}" interaction state`, InteractionState.None, this._logService);
 		this._wasRevived = reviveBuffer !== undefined;
-		this._serializer = new XtermSerializer(
+		this._serializer = this._register(new XtermSerializer(
 			cols,
 			rows,
 			reconnectConstants.scrollback,
@@ -790,7 +792,7 @@ class PersistentTerminalProcess extends Disposable {
 			processLaunchOptions.options.shellIntegration.nonce,
 			shouldPersistTerminal ? rawReviveBuffer : undefined,
 			this._logService
-		);
+		));
 		if (name) {
 			this.setTitle(name, TitleEventSource.Api);
 		}
@@ -827,8 +829,13 @@ class PersistentTerminalProcess extends Disposable {
 		if (!this._disconnectRunner1.isScheduled() && !this._disconnectRunner2.isScheduled()) {
 			this._logService.warn(`Persistent process "${this._persistentProcessId}": Process had no disconnect runners but was an orphan`);
 		}
+
 		this._disconnectRunner1.cancel();
 		this._disconnectRunner2.cancel();
+	}
+
+	registerDisposable<T extends IDisposable>(disposable: T): T {
+		return this._register(disposable);
 	}
 
 	async detach(forcePersist?: boolean): Promise<void> {
@@ -850,6 +857,14 @@ class PersistentTerminalProcess extends Disposable {
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
+		if (type === ProcessPropertyType.ChatOwner) {
+			this.shellLaunchConfig.chatOwner = value as IProcessPropertyMap[ProcessPropertyType.ChatOwner];
+			return;
+		}
+		if (type === ProcessPropertyType.SessionOwner) {
+			this.shellLaunchConfig.sessionOwner = value as IProcessPropertyMap[ProcessPropertyType.SessionOwner];
+			return;
+		}
 		if (type === ProcessPropertyType.FixedDimensions) {
 			return this._setFixedDimensions(value as IProcessPropertyMap[ProcessPropertyType.FixedDimensions]);
 		}
@@ -1029,7 +1044,7 @@ class MutationLogger<T> {
 	}
 }
 
-export class XtermSerializer implements ITerminalSerializer {
+export class XtermSerializer extends Disposable implements ITerminalSerializer {
 	private readonly _xterm: XtermTerminal;
 	private readonly _shellIntegrationAddon: ShellIntegrationAddon;
 	private _unicodeAddon?: XtermUnicode11Addon;
@@ -1044,17 +1059,19 @@ export class XtermSerializer implements ITerminalSerializer {
 		private _rawReviveBuffer: string | undefined,
 		logService: ILogService
 	) {
+		super();
 		this._xterm = new XtermTerminal({
 			cols,
 			rows,
 			scrollback,
 			allowProposedApi: true
 		});
+		this._register(toDisposable(() => this._xterm.dispose()));
 		if (reviveBufferWithRestoreMessage) {
 			this._xterm.writeln(reviveBufferWithRestoreMessage);
 		}
 		this.setUnicodeVersion(unicodeVersion);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, undefined, logService);
+		this._shellIntegrationAddon = this._register(new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, undefined, logService));
 		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 
@@ -1163,7 +1180,7 @@ function printTime(ms: number): string {
 	return `${_h}${_m}${_s}${_ms}`;
 }
 
-interface ITerminalSerializer {
+interface ITerminalSerializer extends IDisposable {
 	handleData(data: string): void;
 	freeRawReviveBuffer(): void;
 	handleResize(cols: number, rows: number): void;

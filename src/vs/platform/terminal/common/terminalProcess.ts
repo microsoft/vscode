@@ -5,7 +5,7 @@
 
 import { UriComponents } from '../../../base/common/uri.js';
 import { ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from './environmentVariable.js';
-import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, IReconnectionProperties, ITerminalEnvironment, ITerminalTabAction, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from './terminal.js';
+import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, IReconnectionProperties, ITerminalChatOwner, ITerminalEnvironment, ITerminalTabAction, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from './terminal.js';
 
 export interface ISingleTerminalConfiguration<T> {
 	userValue: T | undefined;
@@ -40,6 +40,8 @@ export interface IGetTerminalLayoutInfoArgs {
 }
 
 export interface IProcessDetails {
+	chatOwner?: ITerminalChatOwner;
+	sessionOwner?: ITerminalChatOwner;
 	id: number;
 	pid: number;
 	title: string;

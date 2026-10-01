@@ -27,6 +27,11 @@ import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/w
 import { ITaskEntry, ISessionsTasksService, ISessionTaskWithTarget } from '../../../chat/browser/sessionsTasksService.js';
 import { osToTaskTargetOS } from '../../../chat/browser/taskCommand.js';
 import { AgentHostSessionTaskRunner } from '../../browser/agentHostSessionTaskRunner.js';
+import { ChatLayoutPresentation, CHAT_SPECIFIC_LAYOUT_SETTING } from '../../../../common/chatLayout.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 function makeSession(opts: { providerId: string; cwd?: URI; remoteConnectionStatus?: SessionRemoteConnectionStatus }): ISession {
 	const folder: ISessionFolder | undefined = opts.cwd ? {
@@ -89,13 +94,20 @@ suite('AgentHostSessionTaskRunner', () => {
 	let firstShowPanelCall: DeferredPromise<void> | undefined;
 	let secondShowPanelCall: DeferredPromise<void> | undefined;
 	let showPanelCallCount: number;
+	let configuration: TestConfigurationService;
+	let phone: ReturnType<typeof observableValue<boolean>>;
+	let instantiationService: TestInstantiationService;
+	let taskResolutionBarrier: DeferredPromise<void> | undefined;
+	let onDidDeleteChat: Emitter<IChatDeletedEvent>;
 
 	function createFakeTerminal(): ITerminalInstance {
 		const instanceStore = store.add(new DisposableStore());
 		const onDisposed = instanceStore.add(new Emitter<ITerminalInstance>());
 		let isDisposed = false;
 		const instance = {
+			instanceId: createdTerminals.length + 1,
 			get isDisposed() { return isDisposed; },
+			shellLaunchConfig: {},
 			store: instanceStore,
 			onDisposed: onDisposed.event,
 			sendText: async (text: string, shouldExecute: boolean) => { sentText.push({ text, shouldExecute }); },
@@ -128,12 +140,14 @@ suite('AgentHostSessionTaskRunner', () => {
 		firstShowPanelCall = undefined;
 		secondShowPanelCall = undefined;
 		showPanelCallCount = 0;
+		taskResolutionBarrier = undefined;
 
-		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IAgentHostTerminalService, new class extends mock<IAgentHostTerminalService>() {
 			override async createTerminalForEntry(address: string, options?: IAgentHostTerminalCreateOptions) {
 				const instance = createFakeTerminal();
+				instance.shellLaunchConfig.chatOwner = options?.chatOwner;
 				createdTerminals.push({ address, options, instance });
 				return instance;
 			}
@@ -151,6 +165,7 @@ suite('AgentHostSessionTaskRunner', () => {
 		instantiationService.stub(ISessionsTasksService, new class extends mock<ISessionsTasksService>() {
 			override async getAllTasks(owner: ISession | IChat) {
 				allTasksOwner = owner;
+				await taskResolutionBarrier?.p;
 				return allTasks;
 			}
 		});
@@ -198,6 +213,20 @@ suite('AgentHostSessionTaskRunner', () => {
 			}
 		});
 
+		configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: false });
+		phone = observableValue('phone', false);
+		const presentation = store.add(new ChatLayoutPresentation(configuration, true, phone));
+		onDidDeleteChat = store.add(new Emitter<IChatDeletedEvent>());
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override readonly onDidDeleteChat = onDidDeleteChat.event;
+			override readonly onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>()).event;
+		});
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly chatLayoutPresentation = presentation;
+		});
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(undefined);
+		});
 		runner = instantiationService.createInstance(AgentHostSessionTaskRunner);
 		// Reference unused imports to keep them in the bundle and silence linters.
 		void Event;
@@ -210,6 +239,91 @@ suite('AgentHostSessionTaskRunner', () => {
 	function shellTask(): ITaskEntry {
 		return { label: 'build', type: 'shell', command: 'echo', args: ['hi'] };
 	}
+
+	function enableChatOwnership(): void {
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: true }), true, phone));
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly chatLayoutPresentation = presentation;
+		});
+		runner = instantiationService.createInstance(AgentHostSessionTaskRunner);
+	}
+
+	test('same-cwd sibling tasks use distinct terminals and reuse only within their origin owner', async () => {
+		enableChatOwnership();
+		commandExecuting = false;
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.file('/x') });
+		const main = session.mainChat.get();
+		const peer = { ...main, resource: URI.parse('opaque:/peer'), workspace: session.workspace };
+		const owner = { ...session, chats: constObservable([main, peer]) };
+		store.add((await runner.runTask(shellTask(), owner))!);
+		store.add((await runner.runTask(shellTask(), owner, peer))!);
+		backgroundedTerminals.push(createdTerminals[0].instance);
+		store.add((await runner.runTask(shellTask(), owner))!);
+		assert.deepStrictEqual({
+			terminalIds: createdTerminals.map(entry => entry.instance.instanceId),
+			owners: createdTerminals.map(entry => entry.options?.chatOwner?.chatResource),
+			commands: sentText.filter(entry => entry.shouldExecute).length,
+			panelReveals: showPanelCallCount,
+		}, { terminalIds: [1, 2], owners: [main.resource.toString(), peer.resource.toString()], commands: 3, panelReveals: 0 });
+	});
+
+	test('task resolution retains the explicit peer origin through focus changes', async () => {
+		enableChatOwnership();
+		taskResolutionBarrier = new DeferredPromise<void>();
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.file('/x') });
+		const peer = { ...session.mainChat.get(), resource: URI.parse('conforming-host:/opaque/chat-id'), workspace: session.workspace };
+		const owner = { ...session, chats: constObservable([session.mainChat.get(), peer]) };
+		const running = runner.runTask(shellTask(), owner, peer);
+		await taskResolutionBarrier.complete();
+		store.add((await running)!);
+		assert.deepStrictEqual(createdTerminals.map(entry => entry.options?.chatOwner), [
+			{ backend: 'agentHost:__local__', sessionResource: session.resource.toString(), chatResource: peer.resource.toString() },
+		]);
+	});
+
+	test('task reuse follows promoted process ownership without adopting a same-cwd sibling', async () => {
+		enableChatOwnership();
+		commandExecuting = false;
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.file('/x') });
+		store.add((await runner.runTask(shellTask(), session))!);
+		const resource = URI.parse('opaque:/committed');
+		const main = { ...session.mainChat.get(), resource };
+		const committed = { ...session, resource, mainChat: constObservable(main) };
+		createdTerminals[0].instance.shellLaunchConfig.chatOwner = { backend: 'agentHost:__local__', sessionResource: resource.toString(), chatResource: resource.toString() };
+		store.add((await runner.runTask(shellTask(), committed))!);
+		assert.deepStrictEqual({ processes: createdTerminals.length, commands: sentText.filter(entry => entry.shouldExecute).length }, { processes: 1, commands: 2 });
+	});
+
+	test('task work queued before runtime phone is canceled without creating a process', async () => {
+		enableChatOwnership();
+		taskResolutionBarrier = new DeferredPromise<void>();
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.file('/x') });
+		const running = runner.runTask(shellTask(), session);
+		phone.set(true, undefined);
+		await taskResolutionBarrier.complete();
+		await running;
+		assert.deepStrictEqual({ terminals: createdTerminals.length, commands: sentText.length, panelReveals: showPanelCallCount }, { terminals: 0, commands: 0, panelReveals: 0 });
+	});
+
+	test('confirmed exact chat deletion cancels delayed task resolution without depending on catalog removal', async () => {
+		enableChatOwnership();
+		taskResolutionBarrier = new DeferredPromise<void>();
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.file('/x') });
+		const running = runner.runTask(shellTask(), session);
+		onDidDeleteChat.fire({ session, sessionResource: session.resource, chatResource: session.mainChat.get().resource });
+		await taskResolutionBarrier.complete();
+		await running;
+		assert.deepStrictEqual({ terminals: createdTerminals.length, commands: sentText.length }, { terminals: 0, commands: 0 });
+	});
+
+	test('a stop handle invoked during runtime phone retains its running process', async () => {
+		enableChatOwnership();
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.file('/x') });
+		const handle = store.add((await runner.runTask(shellTask(), session))!);
+		phone.set(true, undefined);
+		handle.dispose();
+		assert.deepStrictEqual({ terminals: createdTerminals.length, disposed: disposedTerminals.length }, { terminals: 1, disposed: 0 });
+	});
 
 	test('canRun: false for non-agent-host providers', () => {
 		assert.strictEqual(runner.canRun(makeSession({ providerId: 'copilot-chat-sessions' })), false);

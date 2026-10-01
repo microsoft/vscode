@@ -47,6 +47,8 @@ export class TerminalInputSerializer implements IEditorSerializer {
 			isFeatureTerminal: instance.shellLaunchConfig.isFeatureTerminal,
 			hideFromUser: instance.shellLaunchConfig.hideFromUser,
 			reconnectionProperties: instance.shellLaunchConfig.reconnectionProperties,
+			chatOwner: instance.shellLaunchConfig.chatOwner,
+			sessionOwner: instance.shellLaunchConfig.sessionOwner,
 			shellIntegrationNonce: instance.shellIntegrationNonce
 		};
 	}

@@ -189,6 +189,8 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			env: shellLaunchConfig.env,
 			useShellEnvironment: shellLaunchConfig.useShellEnvironment,
 			reconnectionProperties: shellLaunchConfig.reconnectionProperties,
+			chatOwner: shellLaunchConfig.chatOwner,
+			sessionOwner: shellLaunchConfig.sessionOwner,
 			type: shellLaunchConfig.type,
 			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal,
 			forceShellIntegration: shellLaunchConfig.forceShellIntegration,

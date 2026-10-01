@@ -7,6 +7,7 @@ import { asArray } from '../../../../base/common/arrays.js';
 import * as Async from '../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { isUNC } from '../../../../base/common/extpath.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedMap, Touch } from '../../../../base/common/map.js';
@@ -32,7 +33,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IShellLaunchConfig, WaitOnExitValue } from '../../../../platform/terminal/common/terminal.js';
+import { IShellLaunchConfig, terminalChatOwnersEqual, WaitOnExitValue } from '../../../../platform/terminal/common/terminal.js';
 import { formatMessageForTerminal } from '../../../../platform/terminal/common/terminalStrings.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -58,6 +59,7 @@ import { serializeVSCodeOscMessage } from '../../../../platform/terminal/common/
 interface ITerminalData {
 	terminal: ITerminalInstance;
 	lastTask: string;
+	lastTaskId?: string;
 	group?: string;
 	shellIntegrationNonce?: string;
 }
@@ -171,7 +173,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _previousTerminalInstance: ITerminalInstance | undefined;
 	private _terminalStatusManager: TaskTerminalStatus;
 	private _taskProblemMonitor: TaskProblemMonitor;
-	private _terminalCreationQueue: Promise<ITerminalInstance | void> = Promise.resolve();
+	private readonly _terminalCreationQueue = this._register(new Async.Queue<ITerminalInstance>());
 	private _hasReconnected: boolean = false;
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
 	private _terminalTabActions = [{ id: RerunForActiveTerminalCommandId, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
@@ -277,7 +279,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set(), new Map(), undefined) };
 			executeResult.promise.then(summary => {
 				this._lastTask = this._currentTask;
-			});
+			}, error => this._logService.error(error));
 			return executeResult;
 		} catch (error) {
 			if (error instanceof TaskError) {
@@ -441,7 +443,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _getInstances(task: Task): IActiveTerminalData[] {
 		const recentKey = task.getKey();
 		return Object.values(this._activeTasks).filter(
-			(value) => recentKey && recentKey === value.task.getKey());
+			(value) => recentKey && recentKey === value.task.getKey() && terminalChatOwnersEqual(task.terminalScope?.owner, value.terminal?.shellLaunchConfig.chatOwner ?? value.task.terminalScope?.owner));
 	}
 
 	private _removeFromActiveTasks(task: Task | string): void {
@@ -522,6 +524,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private _executeTask(task: Task, resolver: ITaskResolver, trigger: string, liveDependencies: Set<string>, encounteredTasks: Map<string, Promise<ITaskSummary>>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+		if (task.terminalScope && (CustomTask.is(task) || ContributedTask.is(task))) {
+			task.command = { ...task.command, presentation: { ...task.command.presentation!, focus: false, reveal: RevealKind.Never, revealProblems: RevealProblemKind.Never } };
+		}
 		this._showTaskLoadErrors(task);
 
 		const mapKey = task.getMapKey();
@@ -535,9 +540,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (task.configurationProperties.dependsOn) {
 				const nextLiveDependencies = new Set(liveDependencies).add(task.getCommonTaskId());
 				for (const dependency of task.configurationProperties.dependsOn) {
-					const dependencyTask = await resolver.resolve(dependency.uri, dependency.task);
+					let dependencyTask = await resolver.resolve(dependency.uri, dependency.task);
 					if (dependencyTask) {
 						this._adoptConfigurationForDependencyTask(dependencyTask, task);
+						dependencyTask = dependencyTask.clone();
+						dependencyTask.terminalScope = task.terminalScope;
 
 						// Track the dependency relationship
 						const taskMapKey = task.getMapKey();
@@ -1154,6 +1161,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 		}
 
+		if (task.terminalScope?.isForeground()) {
+			await this._terminalService.showBackgroundTerminal(terminal, true, true);
+			if (task.terminalScope.isForeground()) {
+				this._terminalService.setActiveInstance(terminal);
+			}
+		}
 		const showProblemPanel = task.command.presentation && (task.command.presentation.revealProblems === RevealProblemKind.Always);
 		if (showProblemPanel) {
 			this._viewsService.openView(Markers.MARKERS_VIEW_ID);
@@ -1430,10 +1443,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private async _reconnectToTerminal(task: Task): Promise<ITerminalInstance | undefined> {
 		const reconnectedInstances = this._terminalService.instances.filter(e => e.reconnectionProperties?.ownerId === TaskTerminalType);
-		return reconnectedInstances.find(e => getReconnectionData(e)?.lastTask === task.getCommonTaskId());
+		return reconnectedInstances.find(e => getReconnectionData(e)?.lastTask === task.getCommonTaskId() && terminalChatOwnersEqual(e.shellLaunchConfig.chatOwner, task.terminalScope?.owner));
 	}
 
 	private async _doCreateTerminal(task: Task, group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
+		if (task.terminalScope && !task.terminalScope.isCurrent()) {
+			throw new CancellationError();
+		}
 		const reconnectedTerminal = await this._reconnectToTerminal(task);
 		const registerOnDisposed = (terminal: ITerminalInstance) => {
 			const listener = terminal.onDisposed(() => {
@@ -1453,10 +1469,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			// Try to find an existing terminal to split.
 			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
 			for (const terminal of Object.values(this._terminals)) {
-				if (terminal.group === group) {
+				if (terminal.group === group && terminalChatOwnersEqual(terminal.terminal.shellLaunchConfig.chatOwner, task.terminalScope?.owner)) {
 					this._logService.trace(`Found terminal to split for group ${group}`);
 					const originalInstance = terminal.terminal;
-					const result = await this._terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
+					const result = await this._terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs, chatOwner: task.terminalScope?.owner, isCurrent: task.terminalScope?.isCurrent });
 					registerOnDisposed(result);
 					if (result) {
 						return result;
@@ -1466,7 +1482,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._logService.trace(`No terminal found to split for group ${group}`);
 		}
 		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
-		const createdTerminal = await this._terminalService.createTerminal({ config: launchConfigs });
+		const createdTerminal = await this._terminalService.createTerminal({ config: launchConfigs, chatOwner: task.terminalScope?.owner, isCurrent: task.terminalScope?.isCurrent });
 		registerOnDisposed(createdTerminal);
 		return createdTerminal;
 	}
@@ -1558,9 +1574,23 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const group = presentationOptions.group;
 
 		const taskKey = task.getMapKey();
+		launchConfigs.chatOwner = task.terminalScope?.owner;
+		if (task.terminalScope && !task.terminalScope.isCurrent()) {
+			throw new CancellationError();
+		}
 		let terminalToReuse: ITerminalData | undefined;
 		if (prefersSameTerminal) {
-			const terminalId = this._sameTaskTerminals[taskKey];
+			let terminalId = this._sameTaskTerminals[taskKey];
+			if (!terminalId && task.terminalScope) {
+				for (const [previousKey, candidateId] of Object.entries(this._sameTaskTerminals)) {
+					const candidate = this._terminals[candidateId];
+					if (candidate?.lastTaskId === task.getCommonTaskId() && terminalChatOwnersEqual(candidate.terminal.shellLaunchConfig.chatOwner, task.terminalScope.owner)) {
+						terminalId = candidateId;
+						delete this._sameTaskTerminals[previousKey];
+						break;
+					}
+				}
+			}
 			if (terminalId) {
 				terminalToReuse = this._terminals[terminalId];
 				delete this._sameTaskTerminals[taskKey];
@@ -1574,7 +1604,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				// (or, if the task has no group, a terminal used by a task without group).
 				for (const taskId of this._idleTaskTerminals.keys()) {
 					const idleTerminalId = this._idleTaskTerminals.get(taskId)!;
-					if (idleTerminalId && this._terminals[idleTerminalId] && this._terminals[idleTerminalId].group === group) {
+					if (idleTerminalId && this._terminals[idleTerminalId] && this._terminals[idleTerminalId].group === group && terminalChatOwnersEqual(this._terminals[idleTerminalId].terminal.shellLaunchConfig.chatOwner, task.terminalScope?.owner)) {
 						terminalId = this._idleTaskTerminals.remove(taskId);
 						break;
 					}
@@ -1582,6 +1612,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 			if (terminalId) {
 				terminalToReuse = this._terminals[terminalId];
+			}
+		}
+		if (terminalToReuse) {
+			if (!terminalChatOwnersEqual(terminalToReuse.terminal.shellLaunchConfig.chatOwner, task.terminalScope?.owner)) {
+				terminalToReuse = undefined;
 			}
 		}
 		if (terminalToReuse) {
@@ -1606,16 +1641,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				terminalToReuse.terminal.clearBuffer();
 			}
 			this._terminals[terminalToReuse.terminal.instanceId.toString()].lastTask = taskKey;
+			terminalToReuse.lastTaskId = task.getCommonTaskId();
 			return [terminalToReuse.terminal, undefined];
 		}
 
-		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(task, group, launchConfigs));
-		const terminal: ITerminalInstance = (await this._terminalCreationQueue)!;
+		const terminal = await this._terminalCreationQueue.queue(() => this._doCreateTerminal(task, group, launchConfigs));
 		if (task.configurationProperties.isBackground) {
 			terminal.shellLaunchConfig.reconnectionProperties = { ownerId: TaskTerminalType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 		}
 		const terminalKey = terminal.instanceId.toString();
-		const terminalData = { terminal: terminal, lastTask: taskKey, group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce };
+		const terminalData = { terminal: terminal, lastTask: taskKey, lastTaskId: task.getCommonTaskId(), group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce };
 		const onDisposedListener = terminal.onDisposed(() => {
 			this._deleteTaskAndTerminal(terminal, terminalData);
 			onDisposedListener.dispose();

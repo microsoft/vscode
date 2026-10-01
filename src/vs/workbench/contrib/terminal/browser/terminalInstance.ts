@@ -2429,6 +2429,24 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._processManager.updateProperty(type, value);
 	}
 
+	async setChatOwner(owner: IShellLaunchConfig['chatOwner']): Promise<void> {
+		this.shellLaunchConfig.chatOwner = owner;
+		if (this.shellLaunchConfig.attachPersistentProcess) {
+			this.shellLaunchConfig.attachPersistentProcess.chatOwner = owner;
+		}
+		await this.processReady;
+		await this._updateProperty(ProcessPropertyType.ChatOwner, owner);
+	}
+
+	async setSessionOwner(owner: IShellLaunchConfig['sessionOwner']): Promise<void> {
+		this.shellLaunchConfig.sessionOwner = owner;
+		if (this.shellLaunchConfig.attachPersistentProcess) {
+			this.shellLaunchConfig.attachPersistentProcess.sessionOwner = owner;
+		}
+		await this.processReady;
+		await this._updateProperty(ProcessPropertyType.SessionOwner, owner);
+	}
+
 	async rename(title?: string, source?: TitleEventSource) {
 		if (title !== undefined && !title) {
 			title = undefined;
