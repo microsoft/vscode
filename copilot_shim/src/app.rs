@@ -44,6 +44,13 @@ const NOT_INSTALLED_EXIT_CODE: i32 = 127;
 /// Exit code after Ctrl+C, as a shell reports a command that SIGINT ended.
 const CANCELLED_EXIT_CODE: i32 = 130;
 
+/// Turns on verbose diagnostics like `--vscode-shim verbose`, where arguments can't be changed, such as in scripts.
+const VERBOSE_VARIABLE: &str = "VSCODE_COPILOT_SHIM_VERBOSE";
+
+/// Points to the verbose diagnostics after a failure that they explain.
+const VERBOSE_HINT: &str =
+	"For details, run copilot --vscode-shim verbose, or set VSCODE_COPILOT_SHIM_VERBOSE=1.";
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ApplicationExit {
 	Code(i32),
@@ -333,7 +340,12 @@ pub(crate) fn run<R: Runtime>(
 	target: Option<HostTarget>,
 ) -> i32 {
 	let invocation = invocation::parse(arguments);
-	runtime.set_diagnostics_enabled(invocation.verbose);
+	runtime.set_diagnostics_enabled(
+		invocation.verbose
+			|| runtime
+				.environment_variable(VERBOSE_VARIABLE)
+				.is_some_and(|value| !value.is_empty() && value != "0"),
+	);
 	let (clear, arguments) = match invocation.result {
 		Ok(Invocation::Launch { clear, arguments }) => (clear, arguments),
 		// Commands for VS Code report and exit; they never launch the Copilot CLI.
@@ -346,7 +358,7 @@ pub(crate) fn run<R: Runtime>(
 	};
 	if clear {
 		if let Err(error) = runtime.clear_terminal() {
-			runtime.write_diagnostic(&format!("failed to clear the terminal: {error}"));
+			runtime.write_message(&format!("Could not clear the terminal: {error}"));
 			return ApplicationExit::InternalFailure.code();
 		}
 	}
@@ -367,9 +379,9 @@ fn launch_candidate<R: Runtime>(
 	let command = match candidate.command(arguments) {
 		Ok(command) => command,
 		Err(error) => {
-			runtime.write_diagnostic(&format!(
-				"failed to build the final command for candidate {:?}: {error:?}",
-				candidate.path
+			runtime.write_message(&format!(
+				"Could not start GitHub Copilot CLI at {}: {error:?}",
+				candidate.path.display()
 			));
 			return ApplicationExit::InternalFailure;
 		}
@@ -390,9 +402,8 @@ fn launch_candidate<R: Runtime>(
 			..
 		}) => ApplicationExit::Code(CANCELLED_EXIT_CODE),
 		Err(error) => {
-			runtime.write_diagnostic(&format!(
-				"failed to launch candidate {:?}: {}",
-				candidate.path,
+			runtime.write_message(&format!(
+				"Could not start GitHub Copilot CLI: {}",
 				describe_process_error(&error)
 			));
 			ApplicationExit::InternalFailure
@@ -404,7 +415,7 @@ fn request_install<R: Runtime>(
 	target: Option<HostTarget>,
 ) -> Result<Option<InstallerRoute>, ApplicationExit> {
 	if runtime.copilot_cli_command_disabled() {
-		runtime.write_diagnostic(&format!(
+		runtime.write_message(&format!(
 			"GitHub Copilot CLI was not found. Installing it from VS Code is turned off by the {} policy; contact your administrator.",
 			setup::COPILOT_CLI_COMMAND_POLICY
 		));
@@ -413,7 +424,7 @@ fn request_install<R: Runtime>(
 		));
 	}
 	if !runtime.can_prompt() {
-		runtime.write_diagnostic(&format!(
+		runtime.write_message(&format!(
 			"GitHub Copilot CLI was not found. Run copilot in a terminal to install it, or see {INSTALL_DOCUMENTATION_URL}"
 		));
 		return Err(ApplicationExit::Code(NOT_INSTALLED_EXIT_CODE));
@@ -428,7 +439,9 @@ fn request_install<R: Runtime>(
 	}
 
 	let response = runtime.prompt().map_err(|error| {
-		runtime.write_diagnostic(&format!("failed to read the install prompt: {error}"));
+		runtime.write_message(&format!(
+			"Could not read the answer to the install prompt: {error}"
+		));
 		ApplicationExit::InternalFailure
 	})?;
 	if response == PromptResponse::Declined {
@@ -455,9 +468,16 @@ fn request_install<R: Runtime>(
 				runtime.write_message(&format!(
 					"Could not prepare the Copilot CLI installer: {message}"
 				));
+			} else {
+				runtime.write_message(&format!(
+					"GitHub Copilot CLI couldn't be installed. To install it manually, see {INSTALL_DOCUMENTATION_URL}"
+				));
+				if !runtime.diagnostics_enabled() {
+					runtime.write_message(VERBOSE_HINT);
+				}
 			}
 			runtime.write_diagnostic(&format!(
-				"the installation failed at installer level {failure:?}; install GitHub Copilot CLI manually"
+				"the installation failed at installer level {failure:?}"
 			));
 			Err(ApplicationExit::InternalFailure)
 		}
@@ -479,13 +499,13 @@ fn unsupported_target(target: HostTarget) -> Option<UnsupportedTarget> {
 
 fn report_unsupported_target<R: Runtime>(runtime: &R, unsupported: Option<UnsupportedTarget>) {
 	match unsupported {
-		Some(target) => runtime.write_diagnostic(&format!(
-			"automatic installation is unavailable: {}",
+		Some(target) => runtime.write_message(&format!(
+			"GitHub Copilot CLI was not found. {}",
 			target.guidance()
 		)),
-		None => runtime.write_diagnostic(
-			"automatic installation is unavailable on this target; install GitHub Copilot CLI manually",
-		),
+		None => runtime.write_message(&format!(
+			"GitHub Copilot CLI was not found, and it can't be installed automatically on this system. To install it manually, see {INSTALL_DOCUMENTATION_URL}"
+		)),
 	}
 }
 
@@ -494,8 +514,13 @@ fn report_installer_plan_error<R: Runtime>(runtime: &R, error: &InstallerPlanErr
 		InstallerPlanError::Unsupported(target) => {
 			report_unsupported_target(runtime, Some(*target));
 		}
-		InstallerPlanError::MissingPrerequisites(tools) => runtime.write_diagnostic(&format!(
-			"cannot install; missing installer prerequisites: {tools:?}"
+		InstallerPlanError::MissingPrerequisites(tools) => runtime.write_message(&format!(
+			"GitHub Copilot CLI can't be installed because none of {} is available. Install one of them, or see {INSTALL_DOCUMENTATION_URL}",
+			tools
+				.iter()
+				.map(|tool| tool.command())
+				.collect::<Vec<_>>()
+				.join(", ")
 		)),
 	}
 }
@@ -522,8 +547,8 @@ fn report_installer_attempt<R: Runtime>(runtime: &R, attempt: &InstallerAttempt)
 }
 
 fn report_discovery_error<R: Runtime>(runtime: &R, error: &DiscoveryError) {
-	runtime.write_diagnostic(&format!(
-		"failed to identify the running shim{}: {}",
+	runtime.write_message(&format!(
+		"Could not start GitHub Copilot CLI: the running copilot command{} couldn't be identified: {}",
 		error
 			.path
 			.as_ref()
@@ -542,8 +567,8 @@ fn describe_process_error(error: &ProcessError) -> String {
 			format!("exceeded the {bytes} byte output limit")
 		}
 		ProcessError::SpawnFailed { program, error } => format!(
-			"could not start {:?}: {}",
-			program,
+			"{}: {}",
+			Path::new(program).display(),
 			describe_system_error(error)
 		),
 		ProcessError::SupervisionFailed(diagnostic) => format!(
@@ -909,10 +934,18 @@ mod tests {
 			Some(HostTarget::LinuxGnuX64),
 		);
 
+		let environment = configured_runtime();
+		environment
+			.environment
+			.borrow_mut()
+			.insert(String::from(VERBOSE_VARIABLE), OsString::from("1"));
+		run(&environment, Vec::new(), Some(HostTarget::LinuxGnuX64));
+
 		assert_eq!(
 			(
 				quiet_exit,
 				quiet.diagnostics.borrow().clone(),
+				environment.diagnostics.borrow().len(),
 				verbose_exit,
 				verbose.diagnostics.borrow().iter().any(|message| message
 					.contains("candidate discovery CandidateMetadata")
@@ -927,6 +960,7 @@ mod tests {
 			(
 				0,
 				Vec::<String>::new(),
+				1,
 				0,
 				true,
 				Some(CommandArguments::Native(Vec::new())),
@@ -1301,10 +1335,11 @@ mod tests {
 				unsupported_result,
 				unsupported.prompts.borrow().len(),
 				unsupported
-					.diagnostics
+					.messages
 					.borrow()
 					.iter()
 					.any(|message| message.contains("ARMhf")),
+				failed.messages.borrow().clone(),
 			),
 			(
 				Err(ApplicationExit::InternalFailure),
@@ -1317,6 +1352,9 @@ mod tests {
 				Err(ApplicationExit::InternalFailure),
 				0,
 				true,
+				vec![format!(
+					"GitHub Copilot CLI couldn't be installed. To install it manually, see {INSTALL_DOCUMENTATION_URL}"
+				)],
 			)
 		);
 	}
@@ -1369,7 +1407,7 @@ mod tests {
 		);
 	}
 	#[test]
-	fn without_a_terminal_a_missing_cli_only_explains_exit_127_when_verbose() {
+	fn without_a_terminal_a_missing_cli_explains_exit_127_without_verbose() {
 		let configured_runtime = || {
 			let runtime = FakeRuntime::default();
 			runtime.no_terminal.set(true);
@@ -1384,30 +1422,13 @@ mod tests {
 			Some(HostTarget::LinuxGnuX64),
 		);
 
-		let verbose = configured_runtime();
-		let verbose_exit = run(
-			&verbose,
-			vec![
-				OsString::from("--vscode-shim"),
-				OsString::from("verbose"),
-				OsString::from("-p"),
-			],
-			Some(HostTarget::LinuxGnuX64),
-		);
-
 		assert_eq!(
 			(
 				quiet_exit,
 				quiet.prompts.borrow().len(),
-				quiet.diagnostics.borrow().clone(),
-				verbose_exit,
-				verbose.prompts.borrow().len(),
-				verbose.diagnostics.borrow().clone(),
+				quiet.messages.borrow().clone(),
 			),
 			(
-				127,
-				0,
-				Vec::<String>::new(),
 				127,
 				0,
 				vec![format!(
@@ -1427,11 +1448,7 @@ mod tests {
 		};
 
 		let missing = policy_runtime("/empty");
-		let missing_exit = run(
-			&missing,
-			vec![OsString::from("--vscode-shim"), OsString::from("verbose")],
-			Some(HostTarget::LinuxGnuX64),
-		);
+		let missing_exit = run(&missing, Vec::new(), Some(HostTarget::LinuxGnuX64));
 
 		let installed = policy_runtime("/cli");
 		installed.add_program(&cli_path("/cli"));
@@ -1446,7 +1463,7 @@ mod tests {
 			(
 				missing_exit,
 				missing.prompts.borrow().len(),
-				missing.diagnostics.borrow().clone(),
+				missing.messages.borrow().clone(),
 				installed_exit,
 				programs(&installed),
 			),
@@ -1514,7 +1531,7 @@ mod tests {
 				signal_exit,
 				cancellation_exit,
 				failure_exit,
-				failed.diagnostics.borrow().clone(),
+				failed.messages.borrow().clone(),
 			),
 			(
 				301,
@@ -1522,7 +1539,7 @@ mod tests {
 				130,
 				1,
 				vec![String::from(
-					"failed to launch candidate \"/failed\": could not start \"/failed\": PermissionDenied",
+					"Could not start GitHub Copilot CLI: /failed: PermissionDenied",
 				)],
 			)
 		);

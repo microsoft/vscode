@@ -110,12 +110,19 @@ fn diagnostics_require_the_verbose_modifier() {
 	let binary = Path::new(env!("CARGO_BIN_EXE_copilot"));
 	let quiet = Command::new(binary)
 		.arg("--vscode-shim")
+		.env_remove("VSCODE_COPILOT_SHIM_VERBOSE")
 		.output()
 		.expect("run quiet malformed invocation");
 	let verbose = Command::new(binary)
 		.args(["--vscode-shim", "verbose", "--vscode-shim"])
+		.env_remove("VSCODE_COPILOT_SHIM_VERBOSE")
 		.output()
 		.expect("run verbose malformed invocation");
+	let environment = Command::new(binary)
+		.arg("--vscode-shim")
+		.env("VSCODE_COPILOT_SHIM_VERBOSE", "1")
+		.output()
+		.expect("run malformed invocation with verbose environment");
 
 	assert_eq!(
 		(
@@ -128,6 +135,10 @@ fn diagnostics_require_the_verbose_modifier() {
 				.expect("UTF-8 verbose diagnostic")
 				.trim_end()
 				.to_owned(),
+			String::from_utf8(environment.stderr)
+				.expect("UTF-8 verbose diagnostic")
+				.trim_end()
+				.to_owned(),
 		),
 		(
 			Some(2),
@@ -135,6 +146,7 @@ fn diagnostics_require_the_verbose_modifier() {
 			Vec::<u8>::new(),
 			Some(2),
 			Vec::<u8>::new(),
+			String::from("--vscode-shim requires an option name"),
 			String::from("--vscode-shim requires an option name"),
 		)
 	);
