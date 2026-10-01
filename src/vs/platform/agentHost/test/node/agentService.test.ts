@@ -5328,6 +5328,35 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('peer chats inherit the owning session ephemeral state', async () => {
+			class CapturingAgent extends MockAgent {
+				readonly createOptions = new Map<string, IAgentCreateChatOptions | undefined>();
+				override async createChat(_session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+					this.createOptions.set(chat.toString(), options);
+					return { providerData: `backing:${chat.path}` };
+				}
+			}
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new CapturingAgent('copilot', { multipleChats: {} }));
+			registerTestAgentProvider(svc, agent);
+			const ephemeralSession = await svc.createSession({ provider: agent.id, workingDirectories: [URI.file('/repo')], _meta: withEphemeralSessionMeta(undefined, true) });
+			const durableSession = await svc.createSession({ provider: agent.id, workingDirectories: [URI.file('/repo')] });
+			const ephemeralPeer = URI.parse(buildChatUri(ephemeralSession, 'ephemeral-peer'));
+			const durablePeer = URI.parse(buildChatUri(durableSession, 'durable-peer'));
+
+			await svc.createChat(ephemeralSession, ephemeralPeer);
+			await svc.createChat(durableSession, durablePeer);
+
+			assert.deepStrictEqual({
+				ephemeralPeer: agent.createOptions.get(ephemeralPeer.toString())?.isEphemeral,
+				durablePeer: agent.createOptions.get(durablePeer.toString())?.isEphemeral,
+			}, {
+				ephemeralPeer: true,
+				durablePeer: undefined,
+			});
+		});
+
 		test('forked chats keep inheriting the session folders when the source inherits them or the provider has no per-chat folders', async () => {
 			class ForkingAgent extends MockAgent {
 				readonly createOptions = new Map<string, IAgentCreateChatOptions | undefined>();

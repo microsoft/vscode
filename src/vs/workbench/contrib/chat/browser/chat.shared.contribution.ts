@@ -1783,7 +1783,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostCopilotLocalMemoryEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.memory.local.enabled', "When enabled together with {0}, local Copilot Agent Host sessions store Copilot Memory in the repository's `.github/copilot-memories.jsonl` file instead of GitHub's cloud memory service. The file is part of the working tree, so commits made by the agent or the Agents window can include it. Requires a GitHub-hosted repository; user-scoped memories and Copilot Memory policies configured on GitHub do not apply. Applies to sessions created or resumed after the setting changes.", '`#chat.copilot.memory.enabled#`'),
+			markdownDescription: nls.localize('chat.copilot.memory.local.enabled', "When enabled together with {0}, local Copilot Agent Host sessions store Copilot Memory in the repository's `.github/copilot-memories.jsonl` file instead of GitHub's cloud memory service. The file is part of the working tree, so commits made by the agent or the Agents window can include it. Requires a GitHub-hosted repository; user-scoped memories and Copilot Memory policies configured on GitHub do not apply. Changing this setting restarts the Copilot SDK client after active turns finish.", '`#chat.copilot.memory.enabled#`'),
 			default: false,
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['preview', 'experimental'],

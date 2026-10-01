@@ -1136,6 +1136,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
 
+	private _isLocalMemoryEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true
+			&& this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
+	}
+
 	private _getSkillCharBudget(): number {
 		return normalizeSkillCharBudget(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SkillCharBudget));
 	}
@@ -1208,6 +1213,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isClaudeAdvisorEnabled(),
 			this._isTgrepEnabled(),
 			this._isHydraFusionEnabled(),
+			this._isLocalMemoryEnabled(),
 			this._getSkillCharBudget(),
 			this._getCopilotSdkLogLevelSetting(),
 			this._getCopilotRuntimePath(),
@@ -5036,6 +5042,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					shellManager,
 					githubCredentials: this._getGitHubSessionCredentials(),
 					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
+					...(options.isEphemeral ? { isEphemeral: true } : {}),
 				};
 			} else {
 				sdkSessionId = chatSdkId;
@@ -5054,6 +5061,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
 					freeLongContext: this._isFreeLongContext(model?.id),
+					...(options.isEphemeral ? { isEphemeral: true } : {}),
 				};
 			}
 

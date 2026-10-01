@@ -7532,6 +7532,32 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('restarts the runtime only when the effective local memory store changes', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalMemory]: true });
+				await agent.listChatsToMigrate();
+				const localWithoutMemory = client.stopCallCount;
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.Memory]: true });
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					localWithoutMemory,
+					localWithMemory: client.stopCallCount,
+				}, {
+					localWithoutMemory: 0,
+					localWithMemory: 1,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('does not duplicate HydraFusion when the runtime advertises it', async () => {
 			const client = new TestCopilotClient([], [{ id: 'hydrafusion', name: 'HydraFusion' }]);
 			const { agent } = createTestAgentContext(disposables, {
