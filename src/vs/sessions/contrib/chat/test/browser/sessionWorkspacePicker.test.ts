@@ -909,7 +909,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				},
 			},
 		) as TestablePicker;
-		const label = 'Dev Container Sample...';
+		const label = 'Dev Container Sample';
 		const picker = create(true);
 		const submenu = picker.getItems().find(item => item.label === label)?.submenuActions?.[0];
 		const modes: boolean[] = [];

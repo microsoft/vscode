@@ -1788,7 +1788,7 @@ export class WorkspacePicker extends Disposable {
 			}));
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: localize('workspacePicker.devContainer.samples', "Dev Container Sample..."),
+				label: localize('workspacePicker.devContainer.samples', "Dev Container Sample"),
 				group: { title: '', icon: Codicon.remote },
 				item: sampleItem,
 				submenuActions: [new SubmenuAction('workspacePicker.devContainer.samples', '', devContainerSamples.map(sample => toAction({
