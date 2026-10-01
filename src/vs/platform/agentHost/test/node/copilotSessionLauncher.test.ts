@@ -1908,6 +1908,10 @@ suite('CopilotSessionLauncher resume config', () => {
 				[undefined, [semanticSearch]],
 			]
 		);
+		assert.deepStrictEqual(
+			{ count: HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS.length, keepsCliTools: ['ask_user', 'web_fetch'].filter(tool => HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS.includes(tool)) },
+			{ count: 42, keepsCliTools: [] }
+		);
 		store.dispose();
 	});
 

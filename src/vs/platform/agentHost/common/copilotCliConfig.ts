@@ -124,11 +124,11 @@ export type CopilotCliModelCapabilityOverrides = Record<string, ICopilotCliModel
 /**
  * Tools excluded by default for {@link COPILOT_HYDRA_FUSION_MODEL_ID}, matching
  * the Copilot CLI's lean tool set. Their definitions add ~13K tokens to every
- * HydraFusion request. A configured `availableTools` or `excludedTools`
+ * HydraFusion request. `ask_user` and `web_fetch` stay available because the
+ * interactive CLI ships them. A configured `availableTools` or `excludedTools`
  * capability override replaces this default.
  */
 export const HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS: readonly string[] = [
-	'web_fetch', 'ask_user',
 	'usages', 'problems',
 	'createJupyterNotebook', 'editNotebook', 'runNotebookCell', 'getNotebookSummary', 'readNotebookCellOutput',
 	'runTask', 'getTaskOutput', 'createAndRunTask',

@@ -9,7 +9,7 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
 - `openaiPrompt.ts` — OpenAI targeted post-edit inspection guidance, appended to `code_change_rules` without replacing the SDK foundation prompt.
-- `hydraFusionPrompt.ts` — HydraFusion (`hydrafusion`): replaces `tone` and `tool_efficiency` with the Copilot CLI's brevity, search/delegation, and tool-efficiency guidance. Pairs with the launcher's default `excludedTools` for the model (`HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS`).
+- `hydraFusionPrompt.ts` — HydraFusion (`hydrafusion`): replaces `tone` and `tool_efficiency` with the Copilot CLI's brevity, search/delegation, and tool-efficiency guidance. Pairs with the launcher's default `excludedTools` for the model (`HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS`: 42 VS Code-only tools; `ask_user` and `web_fetch` stay, as in the interactive CLI).
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
 ## How the system message is built
