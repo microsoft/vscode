@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableLongTimeout } from '../../../base/common/async.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 
 export interface IGitHubScheduler {
@@ -13,10 +14,7 @@ export interface IGitHubScheduler {
 
 export const systemGitHubScheduler: IGitHubScheduler = {
 	now: () => Date.now(),
-	schedule: (callback, delay) => {
-		const handle = setTimeout(callback, delay);
-		return toDisposable(() => clearTimeout(handle));
-	},
+	schedule: (callback, delay) => disposableLongTimeout(callback, delay),
 	jitter: maximum => Math.floor(Math.random() * (Math.max(0, maximum) + 1)),
 };
 

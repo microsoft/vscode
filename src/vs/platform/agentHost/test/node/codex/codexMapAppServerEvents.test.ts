@@ -244,7 +244,7 @@ suite('codexMapAppServerEvents', () => {
 	});
 
 	test('thread/tokenUsage/updated emits ChatUsage for the turn', () => {
-		const actions = mapTokenUsageUpdated({
+		const actions = mapTokenUsageUpdated(createCodexSessionMapState(), {
 			threadId: 'thr_1',
 			turnId: 'turn_a',
 			tokenUsage: {
@@ -261,9 +261,42 @@ suite('codexMapAppServerEvents', () => {
 				outputTokens: 6,
 				model: 'codex-model:openai:gpt-5.6-sol',
 				cacheReadTokens: 4,
-				_meta: { reasoningOutputTokens: 2, modelContextWindow: 200000 },
+				_meta: {
+					reasoningOutputTokens: 2,
+					modelContextWindow: 200000,
+					turnTokenTotals: [{ model: 'codex-model:openai:gpt-5.6-sol', inputTokens: 10, cachedTokens: 4, outputTokens: 6 }],
+					directTurnTokenTotals: [{ model: 'codex-model:openai:gpt-5.6-sol', inputTokens: 10, cachedTokens: 4, outputTokens: 6 }],
+				},
 			},
 		}]);
+	});
+
+	test('thread/tokenUsage/updated accumulates whole-turn totals across model calls', () => {
+		const state = createCodexSessionMapState();
+		const usage = (turnId: string, last: { input: number; cached: number; output: number }, total: { input: number; cached: number; output: number }) => {
+			const [action] = mapTokenUsageUpdated(state, {
+				threadId: 'thr_1',
+				turnId,
+				tokenUsage: {
+					last: { inputTokens: last.input, cachedInputTokens: last.cached, cacheWriteInputTokens: 0, outputTokens: last.output, reasoningOutputTokens: 0, totalTokens: last.input + last.output },
+					total: { inputTokens: total.input, cachedInputTokens: total.cached, cacheWriteInputTokens: 0, outputTokens: total.output, reasoningOutputTokens: 0, totalTokens: total.input + total.output },
+					modelContextWindow: 200000,
+				},
+			}, 'codex-model');
+			return action.type === ActionType.ChatUsage ? action.usage._meta?.turnTokenTotals : undefined;
+		};
+
+		assert.deepStrictEqual([
+			usage('turn_a', { input: 100, cached: 40, output: 10 }, { input: 1100, cached: 440, output: 110 }),
+			usage('turn_a', { input: 150, cached: 60, output: 20 }, { input: 1250, cached: 500, output: 130 }),
+			usage('turn_a', { input: 150, cached: 60, output: 20 }, { input: 1250, cached: 500, output: 130 }),
+			usage('turn_b', { input: 50, cached: 0, output: 5 }, { input: 1300, cached: 500, output: 135 }),
+		], [
+			[{ model: 'codex-model', inputTokens: 100, cachedTokens: 40, outputTokens: 10 }],
+			[{ model: 'codex-model', inputTokens: 250, cachedTokens: 100, outputTokens: 30 }],
+			[{ model: 'codex-model', inputTokens: 250, cachedTokens: 100, outputTokens: 30 }],
+			[{ model: 'codex-model', inputTokens: 50, cachedTokens: 0, outputTokens: 5 }],
+		]);
 	});
 
 	test('thread/tokenUsage/updated identifies one completed model call from cumulative usage', () => {

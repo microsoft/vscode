@@ -8,7 +8,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
-import type { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { AgentWorkbenchLayout, type IAgentWorkbenchLayoutService } from '../workbench.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from './editorPartSizing.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 
@@ -30,7 +30,7 @@ export class MainEditorPart extends MainEditorPartBase {
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		const agentLayoutService = this.layoutService as IAgentWorkbenchLayoutService;
-		const keepForDockedTabBar = agentLayoutService.isSinglePaneLayoutEnabled
+		const keepForDockedTabBar = agentLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop
 			&& this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && !keepForDockedTabBar) {
 			return;
@@ -45,7 +45,7 @@ export class MainEditorPart extends MainEditorPartBase {
 
 		super.layout(adjustedWidth, adjustedHeight, top, left);
 
-		if (agentLayoutService.isSinglePaneLayoutEnabled && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		if (agentLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			agentLayoutService.handleDockedEditorPartLayout(width);
 		}
 	}

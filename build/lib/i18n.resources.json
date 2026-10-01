@@ -777,6 +777,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/sessionComparison",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/sessionInputBanners",
 			"project": "vscode-sessions"
 		},

@@ -430,6 +430,9 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 		case ActionType.ChatActivityChanged:
 			return { ...state, activity: action.activity };
 
+		case ActionType.ChatMovableChanged:
+			return { ...state, movable: action.movable };
+
 		case ActionType.ChatChangesetsChanged: {
 			const { changesets: _omit, ...stateWithoutChangesets } = state;
 			return action.changesets
