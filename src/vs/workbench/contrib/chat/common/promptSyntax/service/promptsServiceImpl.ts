@@ -404,6 +404,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.getBuiltinPromptFiles(type, token),
 		]);
 
+		// Extension providers stop early on cancellation without throwing.
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
 		return prompts.flat();
 	}
 

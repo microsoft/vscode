@@ -9,11 +9,13 @@ import { IDialogService, IPrompt, IPromptButton } from '../../../../platform/dia
 import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter, IStatusHandle } from '../../../../platform/notification/common/notification.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
+import { NotificationViewItem } from '../../../common/notifications.js';
+import { LinkedTextNode } from '../../../../base/common/linkedText.js';
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
@@ -101,6 +103,33 @@ class EmptyNotificationService implements INotificationService {
 }
 
 suite('ExtHostMessageService', function () {
+
+	test('preserves command and web links in extension notifications', async () => {
+		const store = new DisposableStore();
+		try {
+			let messageNodes: LinkedTextNode[] | undefined;
+			const service = store.add(new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
+				const item = NotificationViewItem.create(notification, { global: NotificationsFilter.OFF, sources: new Map() })!;
+				store.add(toDisposable(() => item.close()));
+				messageNodes = item.message.linkedText.nodes;
+				queueMicrotask(() => notification.actions!.primary![0].run());
+			}), emptyCommandService, new TestDialogService(), new TestExtensionService()));
+
+			const selected = await service.$showMessage(Severity.Warning,
+				'See [logs](command:python.viewOutput) or [documentation](https://example.com).', {},
+				[{ handle: 42, title: 'Dismiss', isCloseAffordance: true }]);
+
+			assert.deepStrictEqual({ selected, messageNodes }, {
+				selected: 42,
+				messageNodes: [
+					'See ', { label: 'logs', href: 'command:python.viewOutput' },
+					' or ', { label: 'documentation', href: 'https://example.com' }, '.'
+				]
+			});
+		} finally {
+			store.dispose();
+		}
+	});
 
 	test('propagte handle on select', async function () {
 

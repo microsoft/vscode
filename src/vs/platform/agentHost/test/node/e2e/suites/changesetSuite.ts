@@ -1150,27 +1150,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const { workspace, changeset, file } = await createModifiedUncommittedChangeset('changeset-discard');
 		const resource = file.edit.after?.uri;
 		assert.ok(resource);
-		context.client.clearReceived();
-		const completed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/operationStatusChanged')
-			&& getActionEnvelope(n).channel === changeset
-			&& (getActionEnvelope(n).action as { operationId: string; status: string }).operationId === 'discard-changes'
-			&& (getActionEnvelope(n).action as { operationId: string; status: string }).status === 'idle',
-		);
-
-		await context.client.call('invokeChangesetOperation', {
-			channel: changeset,
-			operationId: 'discard-changes',
-			target: { kind: ChangesetOperationTargetKind.Resource, resource },
-		});
-		await completed;
-
-		const statuses = context.client.receivedNotifications(n =>
-			isActionNotification(n, 'changeset/operationStatusChanged')
-			&& getActionEnvelope(n).channel === changeset,
-		).map(n => getActionEnvelope(n).action as { operationId: string; status: string })
-			.filter(action => action.operationId === 'discard-changes')
-			.map(action => action.status);
+		const statuses = await invokeDiscard(changeset, resource);
 		assert.deepStrictEqual({
 			contents: readFileSync(join(workspace, 'seed.txt'), 'utf8').replaceAll('\r\n', '\n'),
 			statuses,

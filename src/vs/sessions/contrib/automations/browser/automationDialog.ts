@@ -7,9 +7,11 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IButton } from '../../../../base/browser/ui/button/button.js';
+import { Button, IButton, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
-import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
+import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -17,7 +19,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, disposableObservableValue, IObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
@@ -32,12 +34,13 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch } from '../../chat/browser/branchPicker.js';
@@ -46,7 +49,7 @@ import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobileP
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAutomationCustomizationChoice, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -243,10 +246,12 @@ interface IRenderFormHandle {
 	readonly getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture>;
 	readonly getBranch: () => string | undefined;
 	readonly waitForAutomationSessionSync: (token: CancellationToken) => Promise<void>;
-	readonly setSaving: (saving: boolean) => void;
+	readonly setSaving: (saving: boolean, committing?: boolean) => void;
+	readonly getCustomizationIds: () => readonly string[] | undefined;
+	readonly waitForCustomizationChoices: (token: CancellationToken) => Promise<void>;
 	readonly showTargetValidationError: (message: string | undefined) => void;
-	readonly showSessionConfigurationError: (message: string | undefined) => void;
-	readonly focusSessionConfigurationError: () => void;
+	readonly showSaveError: (message: string | undefined) => void;
+	readonly focusSaveError: () => void;
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
 	readonly cancelPromptSuggestion: () => boolean;
@@ -1031,7 +1036,14 @@ export function renderForm(
 	initialTarget: AutomationTarget | undefined,
 	initialSessionConfiguration: IAutomationSessionConfiguration | undefined,
 	allowedProviders: IObservable<readonly string[]>,
+	customizations?: { readonly service: IAutomationService; readonly hoverService: IHoverService; readonly existingId?: string },
 ): IRenderFormHandle {
+	let reloadCustomizations: () => void = () => { };
+	const validateForm = revalidate;
+	revalidate = () => {
+		reloadCustomizations();
+		validateForm();
+	};
 	const formContent = DOM.append(form, $('.automation-form-content'));
 	const nameRow = DOM.append(formContent, $('.automation-form-row'));
 	DOM.append(nameRow, $('span.automation-form-label', undefined, localize('automation.form.name', "Name")));
@@ -1049,7 +1061,11 @@ export function renderForm(
 
 	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const scheduleRow = DOM.append(formContent, $('.automation-form-row.automation-form-schedule-row'));
-	const useCustomDrawn = !hasNativeContextMenu(configurationService);
+	const scheduleSelectOptions: ISelectBoxOptions = {
+		useCustomDrawn: !hasNativeContextMenu(configurationService),
+		anchorPosition: AnchorPosition.ABOVE,
+		maxVisibleOptions: 6,
+	};
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
 	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.interval', "Schedule")));
@@ -1060,7 +1076,7 @@ export function renderForm(
 		intervalIndex,
 		contextViewService,
 		defaultSelectBoxStyles,
-		{ ariaLabel: localize('automation.form.interval', "Schedule"), useCustomDrawn },
+		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.interval', "Schedule") },
 	));
 	const intervalSelectContainer = DOM.append(intervalGroup, $('.automation-form-schedule-select-container'));
 	intervalSelect.render(intervalSelectContainer);
@@ -1076,7 +1092,7 @@ export function renderForm(
 		initialTimeIndex,
 		contextViewService,
 		defaultSelectBoxStyles,
-		{ ariaLabel: localize('automation.form.time', "Time"), useCustomDrawn },
+		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.time', "Time") },
 	));
 	const timeSelectContainer = DOM.append(timeGroup, $('.automation-form-schedule-select-container.automation-form-time-select-container'));
 	timeSelect.render(timeSelectContainer);
@@ -1094,7 +1110,7 @@ export function renderForm(
 		Math.min(Math.max(state.day, 0), DAYS_OF_WEEK.length - 1),
 		contextViewService,
 		defaultSelectBoxStyles,
-		{ ariaLabel: localize('automation.form.day', "Day of week"), useCustomDrawn },
+		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.day', "Day of week") },
 	));
 	const daySelectContainer = DOM.append(dayGroup, $('.automation-form-schedule-select-container'));
 	daySelect.render(daySelectContainer);
@@ -1400,11 +1416,6 @@ export function renderForm(
 		role: 'status',
 		'aria-atomic': 'true',
 	}));
-	const sessionConfigurationError = DOM.append(sessionConfiguration, $('span.automation-session-configuration-error', {
-		role: 'alert',
-		tabindex: '-1',
-	}));
-	DOM.hide(sessionConfigurationError);
 	disposables.add(autorun(reader => {
 		const hasTarget = isolationModel.isQuickChatObs.read(reader) || isolationModel.folderUriObs.read(reader) !== undefined;
 		setAutomationControlVisible(sessionConfiguration, hasTarget);
@@ -1452,16 +1463,42 @@ export function renderForm(
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
 
+	const customizationSelection = customizations ? disposables.add(new AutomationCustomizationSelection(
+		formContent, customizations.service, customizations.hoverService, logService, customizations.existingId,
+	)) : undefined;
+	reloadCustomizations = () => customizationSelection?.updateTarget(
+		state.providerId && state.sessionTypeId && allowedProviders.get().includes(state.providerId)
+			? createAutomationTarget(state, isolationModel.persistedBranch)
+			: undefined,
+	);
+	disposables.add(onDidChangeSessionTarget.event(reloadCustomizations));
+	disposables.add(autorun(reader => {
+		isolationModel.isQuickChatObs.read(reader);
+		isolationModel.folderUriObs.read(reader);
+		allowedProviders.read(reader);
+		reloadCustomizations();
+	}));
+
 	const saveStatus = DOM.append(form, $('span.automation-form-save-status', {
 		role: 'status',
 		'aria-atomic': 'true',
 	}));
+	const saveIcon = DOM.append(saveStatus, renderIcon(Codicon.loading));
+	saveIcon.classList.add('codicon-modifier-spin');
+	saveIcon.setAttribute('aria-hidden', 'true');
+	const saveStatusText = DOM.append(saveStatus, $('span'));
 	DOM.hide(saveStatus);
+	const saveError = DOM.append(form, $('.automation-form-save-error', { role: 'alert', tabindex: '-1' }));
+	DOM.append(saveError, renderIcon(Codicon.error)).setAttribute('aria-hidden', 'true');
+	const saveErrorText = DOM.append(saveError, $('span'));
+	DOM.hide(saveError);
 
 	return {
 		getPrompt: () => chatInput.inputEditor.getValue(),
 		getSessionConfiguration: token => automationSessionDraftSynchronizer.getSessionConfiguration(token),
 		getBranch: () => isolationModel.persistedBranch,
+		getCustomizationIds: () => customizationSelection?.getSelectedIds(),
+		waitForCustomizationChoices: async token => customizationSelection?.waitForChoices(token),
 		showTargetValidationError: message => {
 			const text = message ?? '';
 			if (targetError.textContent === text) {
@@ -1482,28 +1519,30 @@ export function renderForm(
 			updateAutomationSessionTarget();
 			return automationSessionDraftSynchronizer.waitForSync(token);
 		},
-		setSaving: saving => {
+		setSaving: (saving, committing) => {
 			formContent.toggleAttribute('inert', saving);
 			formContent.setAttribute('aria-busy', String(saving));
 			form.classList.toggle('saving', saving);
 			if (saving) {
 				DOM.show(saveStatus);
-				saveStatus.textContent = localize('automation.form.saving', "Saving automation…");
+				saveStatusText.textContent = committing && customizationSelection?.getSelectedIds()?.length
+					? localize('automation.form.syncingCustomizations', "Syncing customizations…")
+					: localize('automation.form.saving', "Saving automation…");
 			} else {
 				DOM.hide(saveStatus);
-				saveStatus.textContent = '';
+				saveStatusText.textContent = '';
 			}
 		},
-		showSessionConfigurationError: message => {
+		showSaveError: message => {
 			if (message) {
-				DOM.show(sessionConfigurationError);
-				sessionConfigurationError.textContent = message;
+				DOM.show(saveError);
+				saveErrorText.textContent = message;
 			} else {
-				DOM.hide(sessionConfigurationError);
-				sessionConfigurationError.textContent = '';
+				DOM.hide(saveError);
+				saveErrorText.textContent = '';
 			}
 		},
-		focusSessionConfigurationError: () => sessionConfigurationError.focus(),
+		focusSaveError: () => saveError.focus(),
 		getFocusableElements: () => {
 			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));
@@ -1525,6 +1564,185 @@ export function renderForm(
 			return true;
 		},
 	};
+}
+
+export class AutomationCustomizationSelection extends Disposable {
+	private readonly section: HTMLElement;
+	private readonly disclosure: Button;
+	private readonly chevron: HTMLElement;
+	private readonly summary: HTMLElement;
+	private readonly content: HTMLElement;
+	private readonly rows = this._register(new DisposableStore());
+	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly toggles = new Map<string, boolean>();
+	private choices: readonly IAutomationCustomizationChoice[] | undefined;
+	private loading: Promise<void> = Promise.resolve();
+	private targetKey: string | undefined;
+	private expanded = false;
+
+	constructor(
+		container: HTMLElement,
+		private readonly service: IAutomationService,
+		private readonly hoverService: IHoverService,
+		private readonly logService: ILogService,
+		private readonly existingId?: string,
+	) {
+		super();
+		this._register(toDisposable(() => this.request.value?.cancel()));
+		this.section = DOM.append(container, $('.automation-advanced'));
+		this.disclosure = this._register(new Button(this.section, { ...unthemedButtonStyles, secondary: true }));
+		this.disclosure.element.classList.add('automation-advanced-disclosure', 'automation-form-label');
+		this.chevron = DOM.append(this.disclosure.element, $('span.automation-advanced-chevron', { 'aria-hidden': 'true' }));
+		DOM.append(this.chevron, renderIcon(Codicon.chevronRight));
+		DOM.append(this.disclosure.element, $('span', undefined, localize('automation.advanced', "Advanced")));
+		this.summary = DOM.append(this.disclosure.element, $('span.automation-advanced-summary'));
+		this.content = DOM.append(this.section, $('.automation-customizations', { id: 'automation-customizations' }));
+		this.disclosure.element.setAttribute('aria-controls', this.content.id);
+		this.disclosure.element.setAttribute('aria-expanded', 'false');
+		DOM.hide(this.section, this.content);
+		this._register(this.disclosure.onDidClick(() => {
+			this.expanded = !this.expanded;
+			this.disclosure.element.setAttribute('aria-expanded', String(this.expanded));
+			DOM.reset(this.chevron, renderIcon(this.expanded ? Codicon.chevronDown : Codicon.chevronRight));
+			this.content.hidden = !this.expanded;
+			this.content.style.display = this.expanded ? '' : 'none';
+			this.summary.hidden = this.expanded;
+		}));
+	}
+
+	getSelectedIds(): readonly string[] | undefined {
+		return this.choices?.filter(choice => this.toggles.get(choice.id) ?? choice.selected).map(choice => choice.id);
+	}
+
+	/** Waits for the choices of the current target to load, so a save never omits the selection. */
+	async waitForChoices(token: CancellationToken): Promise<void> {
+		await raceCancellationError(this.loading, token);
+	}
+
+	updateTarget(target: AutomationTarget | undefined): void {
+		const key = target ? JSON.stringify({
+			kind: target.kind,
+			providerId: target.providerId,
+			sessionTypeId: target.sessionTypeId,
+			folder: target.kind === 'workspace' ? getComparisonKey(target.folderUri) : undefined,
+			// Isolation changes count as a new target for the saved selection, as in the provider.
+			isolation: target.kind === 'workspace' ? target.isolation : undefined,
+		}) : undefined;
+		if (key === this.targetKey) {
+			return;
+		}
+		this.targetKey = key;
+		this.request.value?.cancel();
+		this.request.clear();
+		this.choices = undefined;
+		this.rows.clear();
+		DOM.clearNode(this.content);
+		if (!target || !target.providerId || !target.sessionTypeId || !this.service.getCustomizationChoices) {
+			DOM.hide(this.section);
+			return;
+		}
+		DOM.show(this.section);
+		this.summary.textContent = localize('automation.customizations.loadingSummary', "Loading…");
+		const loading = DOM.append(this.content, $('.automation-customizations-message', { role: 'status' }));
+		const icon = DOM.append(loading, renderIcon(Codicon.loading));
+		icon.classList.add('codicon-modifier-spin');
+		icon.setAttribute('aria-hidden', 'true');
+		DOM.append(loading, $('span', undefined, localize('automation.customizations.loading', "Loading customizations…")));
+		const request = new CancellationTokenSource();
+		this.request.value = request;
+		this.loading = this.load(target, request);
+	}
+
+	private async load(target: AutomationTarget, request: CancellationTokenSource): Promise<void> {
+		try {
+			const choices = await this.service.getCustomizationChoices?.(target, this.existingId, request.token);
+			if (request.token.isCancellationRequested || this._store.isDisposed) {
+				return;
+			}
+			this.choices = choices;
+			if (choices === undefined) {
+				DOM.hide(this.section);
+				return;
+			}
+			this.renderChoices(choices);
+		} catch (error) {
+			if (!request.token.isCancellationRequested && !this._store.isDisposed) {
+				this.logService.error('[AutomationDialog] Failed to load customization choices.', error);
+				DOM.hide(this.section);
+			}
+		}
+	}
+
+	private updateSummary(): void {
+		const outdated = this.choices?.filter(choice => choice.outdated).length ?? 0;
+		this.summary.textContent = outdated
+			? localize('automation.customizations.summaryOutdated', "{0} of {1} customizations · {2} outdated", this.getSelectedIds()?.length ?? 0, this.choices?.length ?? 0, outdated)
+			: localize('automation.customizations.summary', "{0} of {1} customizations", this.getSelectedIds()?.length ?? 0, this.choices?.length ?? 0);
+	}
+
+	private renderChoices(choices: readonly IAutomationCustomizationChoice[]): void {
+		DOM.clearNode(this.content);
+		DOM.append(this.content, $('span.automation-form-label', undefined, localize('automation.customizations.heading', "Customizations")));
+		DOM.append(this.content, $('p.automation-customizations-description', undefined, localize('automation.customizations.description', "Choose which plugins and customizations runs of this automation can use.")));
+		if (!choices.length) {
+			DOM.append(this.content, $('p.automation-customizations-description', undefined, localize('automation.customizations.empty', "No customizations are available for this target.")));
+		}
+		for (const [index, choice] of choices.entries()) {
+			const row = DOM.append(this.content, $('.automation-customization-row'));
+			const checkbox = this.rows.add(new Checkbox(choice.label, this.toggles.get(choice.id) ?? choice.selected, defaultCheckboxStyles));
+			row.appendChild(checkbox.domNode);
+			const text = DOM.append(row, $('.automation-customization-text'));
+			const label = DOM.append(text, $('span.automation-customization-label', { id: `automation-customization-${index}` }, choice.label));
+			checkbox.domNode.setAttribute('aria-labelledby', label.id);
+			this.rows.add(this.hoverService.setupDelayedHover(label, { content: choice.label }));
+			if (choice.description) {
+				const description = DOM.append(text, $('span.automation-customization-description', { id: `automation-customization-description-${index}` }, choice.description));
+				checkbox.domNode.setAttribute('aria-describedby', description.id);
+				this.rows.add(this.hoverService.setupDelayedHover(description, { content: choice.description }));
+			}
+			if (choice.outdated) {
+				const outdated = DOM.append(row, $('span.automation-customization-outdated', { id: `automation-customization-outdated-${index}` }, localize('automation.customizations.outdated', "Outdated")));
+				checkbox.domNode.setAttribute('aria-describedby', choice.description
+					? `automation-customization-description-${index} ${outdated.id}`
+					: outdated.id);
+			}
+			this.rows.add(checkbox.onChange(() => {
+				this.toggles.set(choice.id, checkbox.checked);
+				this.updateSummary();
+			}));
+			this.rows.add(DOM.addDisposableListener(text, DOM.EventType.CLICK, () => {
+				checkbox.checked = !checkbox.checked;
+				this.toggles.set(choice.id, checkbox.checked);
+				this.updateSummary();
+				checkbox.focus();
+			}));
+		}
+		if (choices.some(choice => choice.outdated)) {
+			const hint = DOM.append(this.content, $('.automation-customizations-message'));
+			DOM.append(hint, renderIcon(Codicon.info)).setAttribute('aria-hidden', 'true');
+			DOM.append(hint, $('span', undefined, localize('automation.customizations.outdatedHint', "Outdated customizations will be updated when the automation is saved.")));
+		}
+		this.updateSummary();
+	}
+}
+
+export function createAutomationTarget(state: IFormState, branch: string | undefined): AutomationTarget | undefined {
+	if (state.isQuickChat) {
+		return state.providerId && state.sessionTypeId
+			? { kind: 'quickChat', providerId: state.providerId, sessionTypeId: state.sessionTypeId }
+			: undefined;
+	}
+	if (!state.folderUri) {
+		return undefined;
+	}
+	const isolation = state.isolationMode === 'worktree'
+		? (branch ? { kind: 'worktree' as const, branch } : undefined)
+		: state.isolationMode === 'workspace'
+			? { kind: 'folder' as const }
+			: { kind: 'default' as const };
+	return isolation
+		? { kind: 'workspace', folderUri: state.folderUri, providerId: state.providerId, sessionTypeId: state.sessionTypeId, isolation }
+		: undefined;
 }
 
 interface ITimeOption {

@@ -517,6 +517,9 @@ export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 /** Root config key forwarded from the renderer for the GitHub MCP server. */
 export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled';
 
+/** Root config key forwarded from the renderer for cached MCP tool routing. */
+export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
+
 /** Root config key forwarded from the renderer for Copilot connector discovery. */
 export const AgentHostMcpConnectorsEnabledConfigKey = 'mcpConnectorsEnabled';
 
@@ -554,6 +557,9 @@ export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefin
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
 
+/** Root config key controlling the initial workspace file-name snapshot in Copilot chats. */
+export const AgentHostWorkspaceSnapshotEnabledConfigKey = 'workspaceSnapshotEnabled';
+
 /** Root config key controlling agent session creation, messaging, and recursion limits. */
 export const AgentHostAgentOrchestrationLimitsConfigKey = 'agentOrchestrationLimits';
 export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
@@ -563,6 +569,14 @@ export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
+
+/**
+ * Root config key forwarded from the renderer's
+ * `chat.agentHost.experimental.overlapProviderPreparation` setting. When
+ * `true`, a provider that implements `IAgentChats.prepareTurn` prepares its
+ * session while the turn-start checkpoint is captured, instead of after it.
+ */
+export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPreparation';
 
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
@@ -876,6 +890,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.githubMcpServerEnabled.description', "Whether agent sessions include a GitHub MCP server by default."),
 		default: true,
 	}),
+	[AgentHostMcpToolRoutingEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.mcpToolRoutingEnabled.title', "MCP Tool Routing"),
+		description: localize('agentHost.config.mcpToolRoutingEnabled.description', "Whether Copilot agent sessions use cached MCP tool metadata for routing."),
+		default: false,
+	}),
 	[AgentHostMcpConnectorsEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpConnectorsEnabled.title', "Copilot Connectors"),
@@ -886,6 +906,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.markdownPlanRichLinks.title', "Markdown Plan Rich Links"),
 		description: localize('agentHost.config.markdownPlanRichLinks.description', "Whether agents receive guidance for using rich links and running task markers in Markdown plan documents."),
+		default: false,
+	}),
+	[AgentHostWorkspaceSnapshotEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.workspaceSnapshot.title', "Initial Workspace Snapshot"),
+		description: localize('agentHost.config.workspaceSnapshot.description', "Whether the first turn of a new Copilot chat includes a bounded file-name snapshot of its working directories."),
 		default: false,
 	}),
 	[AgentHostAgentOrchestrationLimitsConfigKey]: schemaProperty<AgentHostAgentOrchestrationLimits>({
@@ -910,6 +936,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.autoAttachPullRequests.title', "Automatic Pull Request Association"),
 		description: localize('agentHost.config.autoAttachPullRequests.description', "Whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded as artifacts or explicitly associated by session actions are considered."),
 		default: true,
+	}),
+	[AgentHostOverlapProviderPreparationConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.overlapProviderPreparation.title', "Overlap Provider Preparation"),
+		description: localize('agentHost.config.overlapProviderPreparation.description', "Whether agents prepare their session for a turn while the turn-start checkpoint is captured, instead of after it."),
+		default: false,
 	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

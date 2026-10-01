@@ -96,9 +96,9 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isPastedTextArtifact, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
-import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
 import { getStoredSelectedModel, storeSelectedModel } from '../../../common/chatSelectedModel.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
+import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
@@ -580,6 +580,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.inputActionsToolbar.getElement();
 	}
 
+	get attachContextButtonElement(): HTMLElement | undefined {
+		const element = this.attachContextActionViewItem?.element;
+		return element?.isConnected ? element : undefined;
+	}
+
 	setInputToolbarAriaLabel(label: string): void {
 		this.inputActionsToolbar.setAriaLabel(label);
 	}
@@ -769,6 +774,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionHasTargetedModels: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
+	private attachContextActionViewItem: MenuEntryActionViewItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
 	private readonly permissionWidgetDisposeListener = this._register(new MutableDisposable<IDisposable>());
 	private readonly overflowPickerWidget = this._register(new MutableDisposable<IDisposable>());
@@ -1477,7 +1483,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 				this.renderAttachedContext();
 			},
+			setModelProgrammatically: (model: ILanguageModelChatMetadataAndIdentifier) => {
+				this._applyProgrammaticLanguageModel(model);
+				if (!this.options.suppressModelPersistence) {
+					storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
+				}
+				this.renderAttachedContext();
+			},
 			getModels: () => this.getModels(),
+			getProvider: () => getAgentHostProviderForTelemetry(this.getCurrentSessionType(), this.chatSessionsService),
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			modelConfiguration: this._modelConfigStore,
@@ -3688,6 +3702,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				getOverflowAction: (action, getAnchor) => getOverflowAction(action, inputToolbarMenu, inputOverflowPickerHandlers, getAnchor, toolbarsContainer),
 			},
 			actionViewItemProvider: (action, options) => {
+				if (action.id === CHAT_ATTACH_CONTEXT_ACTION_ID && action instanceof MenuItemAction) {
+					return this.attachContextActionViewItem = this.instantiationService.createInstance(MenuEntryActionViewItem, action, options);
+				}
 				// Phone-layout branch: when an agents-window phone presenter
 				// is active, replace the desktop Mode + Model pickers with a
 				// single chip that opens a unified bottom sheet. The Mode
@@ -3795,6 +3812,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, options) => {
+				if (action.id === CHAT_ATTACH_CONTEXT_ACTION_ID && action instanceof MenuItemAction) {
+					return this.attachContextActionViewItem = this.instantiationService.createInstance(MenuEntryActionViewItem, action, options);
+				}
 				if (action.id === ChatVoiceInputModeAction.ID) {
 					return this.instantiationService.createInstance(VoiceInputModeActionViewItem, action, {
 						isActive: isVoiceInputActive,

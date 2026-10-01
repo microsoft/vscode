@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { observableFromEvent } from '../../../../../base/common/observable.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -42,6 +42,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return {
 			...super._adapterOptions(),
 			preserveStatusWhenDisconnected: true,
+			useSessionTitleForDefaultChat: true,
 			externalSessionState: (resource: URI, store: DisposableStore) => {
 				const key = this._localSessionStorageKey(AgentSession.id(resource));
 				store.add(this._chatService.onDidAcceptRequest(({ chatSessionResource }) => {
@@ -49,22 +50,14 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 						this._storageService.store(key, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 					}
 				}));
-				return observableFromEvent(this, this._storageService.onDidChangeValue(StorageScope.PROFILE, key, store),
-					() => !this._storageService.getBoolean(key, StorageScope.PROFILE, false));
+				// Preserve profile-local provenance without exposing sandbox sessions as external.
+				return constObservable(false);
 			},
 		};
 	}
 
 	private _localSessionStorageKey(rawId: string): string {
 		return `sessions.cloudSandbox.localSession.${this.id}.${rawId}`;
-	}
-
-	override async importSession(sessionId: string): Promise<void> {
-		await super.importSession(sessionId);
-		const rawId = this._rawIdFromChatId(sessionId);
-		if (rawId) {
-			this._storageService.store(this._localSessionStorageKey(rawId), true, StorageScope.PROFILE, StorageTarget.MACHINE);
-		}
 	}
 
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
@@ -138,6 +131,16 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	getSessionModifiedTime(rawId: string): number | undefined {
 		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
+	}
+
+	removeDeletedSession(rawId: string): void {
+		const session = this._removeCachedSession(rawId);
+		this._withheldSessions.delete(rawId);
+		this._provisionalSessions.delete(rawId);
+		if (session) {
+			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+			session.dispose();
+		}
 	}
 
 	override getSessions(): ISession[] {

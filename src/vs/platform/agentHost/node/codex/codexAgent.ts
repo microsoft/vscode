@@ -3606,7 +3606,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
 		if (subagent) {
 			const mapped = this._withHostTurnId(subagent.session, params);
-			for (const action of mapTokenUsageUpdated(mapped, subagent.session.model?.id)) {
+			for (const action of mapTokenUsageUpdated(subagent.session.mapState, mapped, subagent.session.model?.id)) {
 				this._fireSubagent(subagent, action);
 			}
 			const modelCall = mapTokenUsageModelCallCompleted(mapped, subagent.session.chatChannel!);
@@ -3629,7 +3629,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session.currentTurnId) {
 			return;
 		}
-		for (const action of mapTokenUsageUpdated(mapped, session.model?.id)) {
+		for (const action of mapTokenUsageUpdated(session.mapState, mapped, session.model?.id)) {
 			this._fire(session.sessionUri, action);
 		}
 		if (isNewModelCall) {
@@ -4665,6 +4665,18 @@ export class CodexAgent extends Disposable implements IAgent {
 			return {};
 		}
 		try {
+			const connection = this._connection;
+			if (session.unsubscribeBeforeResume && !session.resumePromise && connection.kind === 'ready') {
+				// Leave pending launch changes for the next send if this app-server still owns the thread.
+				const response = await connection.client.request<'thread/read', ThreadReadResponse>('thread/read', {
+					threadId: session.threadId,
+					includeTurns: false,
+				}).catch(() => undefined);
+				if (response && this._isCurrentConnection(connection) && response.thread.id === session.threadId
+					&& (response.thread.status.type === 'idle' || response.thread.status.type === 'active')) {
+					return {};
+				}
+			}
 			await this._ensureThreadConnection(session);
 			return {};
 		} catch (error) {

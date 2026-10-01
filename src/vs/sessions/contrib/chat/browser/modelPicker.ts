@@ -20,6 +20,7 @@ import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workben
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
@@ -53,6 +54,7 @@ export class ModelPicker extends Disposable {
 		@ISessionContext private readonly _sessionContext: ISessionContext,
 		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IChatPetService private readonly _chatPetService: IChatPetService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
@@ -76,7 +78,11 @@ export class ModelPicker extends Disposable {
 					});
 				}
 			},
+			setModelProgrammatically: model => {
+				this._selectionModel.selectModel(model.identifier, false);
+			},
 			getModels: () => [...this._selectionModel.state.get().models],
+			getProvider: () => getAgentHostProviderForTelemetry(this._sessionContext.session.get()?.sessionType, this._chatSessionsService),
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,
 				showModelIcon: true,
