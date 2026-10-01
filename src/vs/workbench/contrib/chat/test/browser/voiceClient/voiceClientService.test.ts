@@ -617,11 +617,11 @@ suite('VoiceClientService', () => {
 
 		const message = socket().sent.at(-1);
 		assert.strictEqual(message?.type, 'session.update');
-		const session = message?.session as { instructions?: string; input_audio_transcription?: { model?: string } } | undefined;
+		const session = message?.session as { instructions?: string; audio?: { input?: { transcription?: { model?: string } } } } | undefined;
 		assert.ok(session?.instructions?.includes('The app forwards the user\'s final transcript to the coding agent as a command in most cases.'));
 		assert.ok(session?.instructions?.includes('Got it, I\'ll send that off.'));
 		assert.ok(session?.instructions?.includes('Use workspace terminology.'));
-		assert.strictEqual(session?.input_audio_transcription?.model, 'gpt-4o-mini-transcribe');
+		assert.strictEqual(session?.audio?.input?.transcription?.model, 'gpt-4o-mini-transcribe');
 	});
 
 	test('resolves automatic language from display language before browser locale', () => {
