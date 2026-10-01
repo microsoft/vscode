@@ -65,6 +65,7 @@ interface IWSLSession {
 	readonly connectionToken: string | undefined;
 	readonly child: cp.ChildProcess;
 	readonly url: string;
+	readonly disposables: DisposableStore;
 }
 
 interface IWSLRelayLease {
@@ -355,6 +356,10 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 
 		child.stdout?.on('data', onStreamData);
 		child.stderr?.on('data', onStreamData);
+		bootstrapProgressDisposables.add(toDisposable(() => {
+			child.stdout?.removeListener('data', onStreamData);
+			child.stderr?.removeListener('data', onStreamData);
+		}));
 
 		// Race the URL parse against the child dying, initial startup silence,
 		// post-output silence, and an overall ceiling. Bootstrap downloads
@@ -370,37 +375,56 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			rejectForTimeout(`Timed out waiting for agent host in '${distro}' to print its WebSocket URL: exceeded the overall ${AGENT_HOST_READY_OVERALL_TIMEOUT_MS}ms bootstrap ceiling.`);
 		}, AGENT_HOST_READY_OVERALL_TIMEOUT_MS);
 
-		child.once('exit', (code, signal) => {
-			if (!url) {
-				rejectReady(new Error(`${LOG_PREFIX} Agent host in '${distro}' exited (code=${code}, signal=${signal}) before printing its WebSocket URL.\nOutput: ${outputLines.join('\n')}`));
+		const sessionDisposables = new DisposableStore();
+		let session: IWSLSession | undefined = undefined;
+		let childError: Error | undefined;
+		const onChildFailure = (error: Error) => {
+			childError = error;
+			if (session) {
+				this._logService.warn(error.message);
+				this._closeSession(distro, session);
+			} else {
+				rejectReady(error);
 			}
-		});
-		child.once('error', err => {
-			if (!url) {
-				rejectReady(new Error(`${LOG_PREFIX} Failed to start agent host in '${distro}': ${err.message}\nOutput: ${outputLines.join('\n')}`));
-			}
-		});
+		};
+		const onChildExit = (code: number | null, signal: NodeJS.Signals | null) => {
+			onChildFailure(new Error(`${LOG_PREFIX} Agent host in '${distro}' exited (code=${code}, signal=${signal}).\nOutput: ${outputLines.join('\n')}`));
+		};
+		const onChildError = (err: Error) => {
+			onChildFailure(new Error(`${LOG_PREFIX} Agent host in '${distro}' failed: ${err.message}\nOutput: ${outputLines.join('\n')}`));
+		};
+		child.on('exit', onChildExit);
+		child.on('error', onChildError);
+		sessionDisposables.add(toDisposable(() => {
+			child.removeListener('exit', onChildExit);
+			child.removeListener('error', onChildError);
+		}));
 
 		let resolvedUrl: { url: string; token: string | undefined };
 		try {
 			resolvedUrl = await urlPromise;
+			if (childError) {
+				throw childError;
+			}
 		} catch (err) {
 			clearReadyTimeouts();
 			flushBootstrapProgress();
 			bootstrapProgressDisposables.dispose();
+			sessionDisposables.dispose();
 			this._killChild(child);
 			throw err;
 		}
 		bootstrapProgressDisposables.dispose();
 		clearReadyTimeouts();
 
-		const session: IWSLSession = {
+		session = {
 			distro,
 			name: config.name,
 			address: connectionKey,
 			connectionToken: resolvedUrl.token,
 			child,
 			url: resolvedUrl.url,
+			disposables: sessionDisposables,
 		};
 		this._sessions.set(distro, session);
 		this._onDidChangeConnections.fire();
@@ -449,6 +473,10 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			this._onDidChangeConnections.fire();
 
 			return this._toResult(connection);
+		} catch (err) {
+			this._logService.warn(`${LOG_PREFIX} Failed to acquire relay for ${session.address}`, err);
+			this._closeSession(session.distro, session);
+			throw err;
 		} finally {
 			const remaining = (this._pendingRelayAcquisitions.get(session) ?? 1) - 1;
 			if (remaining > 0) {
@@ -543,7 +571,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			this._onDidCloseConnection.fire(connectionId);
 		}
 		if (this._canCloseSession(conn.session)) {
-			this._closeSession(conn.session.distro);
+			this._closeSession(conn.session.distro, conn.session);
 		}
 		this._onDidChangeConnections.fire();
 	}
@@ -589,8 +617,15 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			return;
 		}
 		this._sessions.delete(distro);
+		session.disposables.dispose();
+		for (const [connectionId, connection] of this._connections) {
+			if (connection.session === session) {
+				this._closeRelay(connectionId);
+			}
+		}
 		this._pruneReplacements();
 		this._killChild(session.child);
+		this._onDidChangeConnections.fire();
 	}
 
 	private _canCloseSession(session: IWSLSession): boolean {

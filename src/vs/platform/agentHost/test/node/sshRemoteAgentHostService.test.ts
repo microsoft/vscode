@@ -86,6 +86,7 @@ class MockSSHChannel {
 class MockSSHClient {
 	readonly execCalls: string[] = [];
 	ended = false;
+	hangExec = false;
 
 	private readonly _execResponses: Array<{ stdout: string; code: number }>;
 	private readonly _closeListeners: Array<() => void> = [];
@@ -133,6 +134,9 @@ class MockSSHClient {
 
 	exec(command: string, callback: (err: Error | undefined, stream: unknown) => void): this {
 		this.execCalls.push(command);
+		if (this.hangExec) {
+			return this;
+		}
 		const response = this._execResponses.shift() ?? { stdout: '', code: 0 };
 		const channel = new MockSSHChannel();
 		// Simulate async SSH exec: resolve immediately via microtask
@@ -1584,34 +1588,54 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	// --- Reconnect failure cleans up detached SSH client ---
 
-	test('failed lease renewal keeps the shared SSH session available for retry', async () => {
+	test('failed lease renewal closes all leases and the next reconnect discovers a fresh SSH session', async () => {
 		service.execResponses = discoveryResponses([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]);
 
 		const original = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
+		const other = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
 		const originalClient = service.mockClients[0];
-		assert.strictEqual(originalClient.ended, false);
 
-		// Make relay creation fail on the next call (the reconnect attempt)
-		service.relayHook = (call) => {
-			if (call === 2) {
+		// Make relay creation fail on the reconnect attempt.
+		service.relayHook = call => {
+			if (call === 3) {
 				return new Error('relay failed');
 			}
 			return undefined;
 		};
 
 		const closeEvents: string[] = [];
+		const relayCloseEvents: string[] = [];
 		disposables.add(service.onDidCloseConnection(id => closeEvents.push(id)));
+		disposables.add(service.onDidRelayClose(id => relayCloseEvents.push(id)));
 
 		await assert.rejects(
 			() => service.reconnect('myhost', 'test-host', undefined, undefined, undefined, undefined, original.connectionId),
 			/relay failed/,
 		);
 
-		assert.strictEqual(originalClient.ended, false);
-		assert.deepStrictEqual(closeEvents, []);
+		service.execResponses = discoveryResponses([makeEndpoint({ type: 'standalone', pid: 5678, instanceId: 'inst-2', endpoint: { type: 'tcp', host: '127.0.0.1', port: 9090 } })]);
+		const replacement = await service.reconnect('myhost', 'test-host', undefined, undefined, undefined, undefined, original.connectionId);
+
+		assert.deepStrictEqual({
+			ended: originalClient.ended,
+			listeners: [originalClient.closeListenerCount, originalClient.errorListenerCount],
+			closeEvents,
+			relayCloseEvents,
+			clientCount: service.mockClients.length,
+			discoveryCalls: service.mockClients[1].execCalls.filter(command => command.includes('agent endpoints')).length,
+			instanceId: replacement.instanceId,
+		}, {
+			ended: true,
+			listeners: [0, 0],
+			closeEvents: [original.connectionId, other.connectionId],
+			relayCloseEvents: [original.connectionId, other.connectionId],
+			clientCount: 2,
+			discoveryCalls: 1,
+			instanceId: 'inst-2',
+		});
 	});
 
-	test('a timed-out lease renewal keeps the shared SSH session available for retry', async () => {
+	test('a timed-out lease renewal closes all leases even when diagnostic SSH exec never resolves', async () => {
 		// Repro for: after a silent network drop, the SSH client's TCP is
 		// half-open but ssh2 hasn't seen 'close' yet. Reusing it for a fresh
 		// relay calls forwardOut, whose callback never fires. Without a
@@ -1621,16 +1645,20 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		service.execResponses = discoveryResponses([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]);
 
 		const original = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
+		const other = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
 		const originalClient = service.mockClients[0];
-		assert.strictEqual(originalClient.ended, false);
+		const execCallsBefore = originalClient.execCalls.length;
+		originalClient.hangExec = true;
 
 		// Use a short timeout so the test completes quickly.
 		service.setRelayCreationTimeoutForTest(50);
-		// Make the *reconnect* call's relay creation hang (the second relay).
-		service.hangRelayCreationOnCall = 2;
+		// Make the reconnect call's relay creation hang.
+		service.hangRelayCreationOnCall = 3;
 
 		const closeEvents: string[] = [];
+		const relayCloseEvents: string[] = [];
 		disposables.add(service.onDidCloseConnection(id => closeEvents.push(id)));
+		disposables.add(service.onDidRelayClose(id => relayCloseEvents.push(id)));
 
 		await assert.rejects(
 			() => service.reconnect('myhost', 'test-host', undefined, undefined, undefined, undefined, original.connectionId),
@@ -1638,8 +1666,40 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			'reconnect should reject (with a timeout error) instead of hanging when relay creation never settles'
 		);
 
-		assert.strictEqual(originalClient.ended, false);
-		assert.deepStrictEqual(closeEvents, []);
+		assert.deepStrictEqual({
+			ended: originalClient.ended,
+			diagnosticExecCalls: originalClient.execCalls.length - execCallsBefore,
+			closeEvents,
+			relayCloseEvents,
+		}, {
+			ended: true,
+			diagnosticExecCalls: 0,
+			closeEvents: [original.connectionId, other.connectionId],
+			relayCloseEvents: [original.connectionId, other.connectionId],
+		});
+	});
+
+	test('bounds diagnostic SSH exec after a failed lease renewal', async () => {
+		service.execResponses = discoveryResponses([makeEndpoint({ type: 'standalone', pid: 1234, instanceId: 'inst-1' })]);
+		const original = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
+		const client = service.mockClients[0];
+		const execCallsBefore = client.execCalls.length;
+		client.hangExec = true;
+		service.setRelayCreationTimeoutForTest(10);
+		service.relayResult = new Error('relay failed');
+
+		await assert.rejects(
+			service.reconnect('myhost', 'test-host', undefined, undefined, undefined, undefined, original.connectionId),
+			/relay failed/,
+		);
+
+		assert.deepStrictEqual({
+			ended: client.ended,
+			diagnosticExecCalls: client.execCalls.length - execCallsBefore,
+		}, {
+			ended: true,
+			diagnosticExecCalls: 1,
+		});
 	});
 
 	test('closes a relay that resolves after lease acquisition times out', async () => {

@@ -1177,6 +1177,47 @@ suite('AgentHostProtocolClient', () => {
 		await rejected;
 	});
 
+	test('a throwing dispose callback still closes the client and disposes its transport', async () => {
+		let transportDisposed = false;
+		const transport = disposables.add(new class extends TestProtocolTransport {
+			override dispose(): void {
+				transportDisposed = true;
+				super.dispose();
+			}
+		}());
+		const logService = new CountingLogService();
+		let callbackCount = 0;
+		const trust = createWorkspaceTrustServices();
+		const client = disposables.add(new AgentHostProtocolClient(
+			'test.example:1234', transport,
+			{ onDispose: () => { callbackCount++; throw new Error('release failed'); } },
+			logService, createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+			workspaceTrustEnablementService, trust.management, trust.request,
+		));
+		let closeCount = 0;
+		disposables.add(client.onDidClose(() => closeCount++));
+		const pending = client.resourceList(URI.file('/workspace'));
+		const rejected = assertRemoteProtocolError(pending, { code: -32000, message: 'Connection disposed: test.example:1234' });
+
+		client.dispose();
+		client.dispose();
+		await rejected;
+
+		assert.deepStrictEqual({
+			callbackCount,
+			closeCount,
+			warnings: logService.warnCount,
+			state: client.connectionState,
+			transportDisposed,
+		}, {
+			callbackCount: 1,
+			closeCount: 1,
+			warnings: 1,
+			state: AgentHostClientState.Closed,
+			transportDisposed: true,
+		});
+	});
+
 	test('dispose rejection wins when transport emits close while disposing', async () => {
 		const transport = disposables.add(new CloseOnDisposeProtocolTransport());
 		const { client } = createClient(transport);

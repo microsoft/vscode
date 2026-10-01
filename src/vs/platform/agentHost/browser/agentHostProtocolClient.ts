@@ -637,7 +637,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	override dispose(): void {
 		if (!this._didDispose) {
 			this._didDispose = true;
-			this._onDispose?.();
+			try {
+				this._onDispose?.();
+			} catch (error) {
+				this._logService.warn('[AgentHostProtocolClient] Dispose callback failed', error);
+			}
 		}
 		this._handleClose(connectionDisposedError(this._address));
 		super.dispose();

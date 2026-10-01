@@ -676,6 +676,8 @@ class SSHConnection extends Disposable {
 				return;
 			}
 			this._closed = true;
+			sshClient.removeListener('close', this._sshCloseListener);
+			sshClient.removeListener('error', this._sshErrorListener);
 			this._remoteStream?.close();
 			sshClient.end();
 			this._onDidClose.fire();
@@ -1201,6 +1203,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		const connectionId = generateUuid();
 		let lease: SSHRelayLease | undefined;
 		const timeoutMs = this.relayCreationTimeoutMs;
+		let timedOut = false;
 		let relay: { send: (data: string) => void; close: () => void } | undefined;
 		this._pendingRelayAcquisitions.set(session, (this._pendingRelayAcquisitions.get(session) ?? 0) + 1);
 		try {
@@ -1226,6 +1229,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			);
 			acceptRelay = false;
 			if (!relay) {
+				timedOut = true;
 				throw new Error(`SSH relay creation timed out after ${timeoutMs}ms (SSH client appears unresponsive)`);
 			}
 			if (this._connections.get(session.connectionKey) !== session) {
@@ -1244,13 +1248,20 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		} catch (error) {
 			const relayErrorMessage = error instanceof Error ? error.message : String(error);
 			this._logService.warn(`${LOG_PREFIX} Failed to connect to selected agent host endpoint: ${relayErrorMessage}`);
-			if (session.cliBin && session.cliDataDir) {
+			if (!timedOut && this._connections.get(session.connectionKey) === session && session.cliBin && session.cliDataDir) {
 				try {
-					await runAgentEndpoints(bindSshExec(session.sshClient), session.cliBin, session.cliDataDir, session.userDataPath);
+					const endpoints = await raceTimeout(
+						runAgentEndpoints(bindSshExec(session.sshClient), session.cliBin, session.cliDataDir, session.userDataPath),
+						timeoutMs,
+					);
+					if (!endpoints) {
+						this._logService.warn(`${LOG_PREFIX} Timed out rereading agent host endpoints after relay failure.`);
+					}
 				} catch (rereadError) {
 					this._logService.warn(`${LOG_PREFIX} Failed to reread agent host endpoints after relay failure: ${rereadError instanceof Error ? rereadError.message : String(rereadError)}`);
 				}
 			}
+			session.dispose();
 			throw new Error(`${LOG_PREFIX} Failed to connect to the selected remote agent host: ${relayErrorMessage}. Please retry connecting.`);
 		} finally {
 			const remaining = (this._pendingRelayAcquisitions.get(session) ?? 1) - 1;
