@@ -41,6 +41,7 @@ CopilotCliMemoInstallNow=Install now (about %1 MB download)
 CopilotCliMemoInstallNowNoSize=Install now
 CopilotCliMemoAdd=Add the copilot command
 CopilotCliMemoDontAdd=Don't add the copilot command
+CopilotCliMemoFound=Already installed at %1
 CopilotCliInstallingCaption=Installing GitHub Copilot CLI
 CopilotCliInstallingDescription=Setup is downloading and installing GitHub Copilot CLI.
 CopilotCliDownloadingPhase=Downloading...
