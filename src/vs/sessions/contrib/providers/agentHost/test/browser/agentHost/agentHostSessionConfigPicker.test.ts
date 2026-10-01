@@ -35,14 +35,13 @@ import { IStorageService } from '../../../../../../../platform/storage/common/st
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IView } from '../../../../../../../workbench/common/views.js';
-import { IsSessionsWindowContext } from '../../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
 import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext } from '../../../../../../common/contextkeys.js';
+import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../common/contextkeys.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
@@ -640,7 +639,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('waits for experimental layout configuration before placing running session controls', () => {
+	test('places running session controls from the scoped composer layout', () => {
 		const runningSessionIds = [
 			'sessions.agentHost.runningSessionModePicker',
 			'sessions.agentHost.runningSessionConfigPicker',
@@ -648,9 +647,7 @@ suite('Agent Host Session Config Picker', () => {
 			'sessions.agentHost.runningSessionCodexApprovalsPicker',
 		];
 		const context = new Context(1, null);
-		context.setValue(IsSessionsWindowContext.key, true);
 		context.setValue(ChatContextKeys.chatIsAgentHostSession.key, true);
-		context.setValue(IsPhoneLayoutContext.key, false);
 		const visible = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
 			.filter(item => runningSessionIds.includes(item.command.id))
@@ -658,26 +655,23 @@ suite('Agent Host Session Config Picker', () => {
 			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 			.map(item => item.command.id);
 
-		const initializing = {
-			primary: visible(MenuId.ChatInput),
-			secondary: visible(MenuId.ChatInputSecondary),
-		};
 		context.setValue(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, true);
 		context.setValue(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true);
-		const experimental = {
-			primary: visible(MenuId.ChatInput),
-			secondary: visible(MenuId.ChatInputSecondary),
-		};
-		context.setValue(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, false);
 		const legacy = {
 			primary: visible(MenuId.ChatInput),
 			secondary: visible(MenuId.ChatInputSecondary),
 		};
+		context.setValue(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, false);
+		context.setValue(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, false);
+		context.setValue(SessionUsesExperimentalComposerLayoutContext.key, true);
+		const experimental = {
+			primary: visible(MenuId.ChatInput),
+			secondary: visible(MenuId.ChatInputSecondary),
+		};
 
-		assert.deepStrictEqual({ initializing, experimental, legacy }, {
-			initializing: { primary: [], secondary: [] },
-			experimental: { primary: runningSessionIds, secondary: [] },
+		assert.deepStrictEqual({ legacy, experimental }, {
 			legacy: { primary: [], secondary: runningSessionIds },
+			experimental: { primary: runningSessionIds, secondary: [] },
 		});
 	});
 
