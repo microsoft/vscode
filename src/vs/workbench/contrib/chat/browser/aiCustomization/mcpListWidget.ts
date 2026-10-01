@@ -3179,6 +3179,52 @@ export class McpListWidget extends Disposable {
 		}
 	}
 
+	revealAndSelectServer(serverId: string | undefined, serverName: string, connectorName?: string): boolean {
+		if (this.searchQuery) {
+			this.searchInput.value = '';
+			this.searchQuery = '';
+			this.delayedFilter.cancel();
+			void this.filterServers();
+			return false;
+		}
+		const entry = this.getVisibleMcpEntries().find(entry => {
+			if (connectorName) {
+				return entry.type === 'builtin-item' && entry.connector?.connector.name === connectorName;
+			}
+			if (serverId) {
+				switch (entry.type) {
+					case 'server-item':
+					case 'session-server-item':
+						return entry.server.id === serverId;
+					case 'builtin-item':
+						return entry.id === serverId || entry.activeSessionServer?.id === serverId;
+					case 'group-header':
+					case 'marketplace-item':
+						return false;
+				}
+			}
+			switch (entry.type) {
+				case 'server-item':
+					return entry.server.label === serverName;
+				case 'session-server-item':
+					return entry.server.name === serverName;
+				case 'builtin-item':
+					return entry.label === serverName || entry.connector?.connector.displayName === serverName;
+				case 'group-header':
+				case 'marketplace-item':
+					return false;
+			}
+		});
+		if (!entry) {
+			return false;
+		}
+		this.list.reveal(entry);
+		this.list.setFocus([entry]);
+		this.list.setSelection([entry]);
+		this.list.domFocus();
+		return true;
+	}
+
 	/**
 	 * Focuses the list.
 	 */
