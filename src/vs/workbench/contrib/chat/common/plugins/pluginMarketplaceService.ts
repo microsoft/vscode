@@ -208,7 +208,8 @@ export interface IPluginMarketplaceService {
 	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]>;
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
-	removeInstalledPlugin(pluginUri: URI): void;
+	/** Removes the exact durable installed entry, including when its metadata is not hydrated. */
+	removeInstalledPlugin(pluginUri: URI): boolean;
 	/** Returns whether the given marketplace is trusted — either explicitly trusted by the user, or allowed by the enterprise allowlist when strict mode is active. */
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean;
 	/**
@@ -807,10 +808,14 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 	}
 
-	removeInstalledPlugin(pluginUri: URI): void {
+	removeInstalledPlugin(pluginUri: URI): boolean {
 		this._pluginMetadata.delete(pluginUri.toString());
 		const current = this._installedPluginsStore.get();
+		if (!current.some(entry => isEqual(entry.pluginUri, pluginUri))) {
+			return false;
+		}
 		this._installedPluginsStore.set(current.filter(e => !isEqual(e.pluginUri, pluginUri)), undefined);
+		return true;
 	}
 
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean {

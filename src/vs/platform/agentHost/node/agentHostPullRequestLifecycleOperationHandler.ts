@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import type { PullRequestRef } from '../../github/common/githubPullRequestService.js';
-import { IGitHubService } from '../../github/common/githubService.js';
+import { IGitHubClient } from '../../github/common/githubService.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
+import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostPullRequestOperationId, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, resolveMergeMethod } from '../common/agentMerge.js';
@@ -15,7 +18,6 @@ import { parseChangesetUri } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { parsePullRequestUrl } from './agentMergeController.js';
 import { IAgentHostPullRequestStatusService, type IAgentHostPullRequestStatus } from './agentHostPullRequestStatusService.js';
 
 /**
@@ -32,7 +34,7 @@ export type PullRequestLifecycleAction = 'mark-ready' | 'merge' | 'enable-auto-m
  *
  * Unlike `AgentHostPullRequestOperationHandler` — which drives the local git
  * repository before creating a pull request — every action here is a pure
- * GitHub mutation issued through {@link IGitHubService}, so it inherits that
+ * GitHub mutation issued through {@link IAgentHostGitHubService}, so it inherits that
  * service's credential handling, request queueing, and merge-safety gates.
  */
 export class AgentHostPullRequestLifecycleOperationHandler implements IChangesetOperationHandler {
@@ -47,7 +49,7 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		private readonly _action: PullRequestLifecycleAction,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostPullRequestStatusService private readonly _statusService: IAgentHostPullRequestStatusService,
-		@IGitHubService private readonly _gitHubService: IGitHubService,
+		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
@@ -56,15 +58,17 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		if (token.isCancellationRequested) {
 			abortController.abort();
 		}
-		const cancellationListener = token.onCancellationRequested(() => abortController.abort());
+		const store = new DisposableStore();
+		store.add(token.onCancellationRequested(() => abortController.abort()));
 		try {
-			return await this._invoke(params, abortController.signal);
+			const client = store.add(this._gitHubService.acquireRepositoryClient(abortController.signal));
+			return await this._invoke(params, abortController.signal, client.object);
 		} finally {
-			cancellationListener.dispose();
+			store.dispose();
 		}
 	}
 
-	private async _invoke(params: InvokeChangesetOperationParams, signal: AbortSignal): Promise<InvokeChangesetOperationResult> {
+	private async _invoke(params: InvokeChangesetOperationParams, signal: AbortSignal, client: IGitHubClient): Promise<InvokeChangesetOperationResult> {
 		const parsed = parseChangesetUri(params.channel);
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
@@ -81,11 +85,11 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 			);
 		}
 		this._logService.info(`[AgentHostPullRequestLifecycleOperationHandler] Invoking '${this._action}': session=${sessionUri}, pr=${status.url}, state=${status.state}, draft=${status.draft}, mergeReady=${status.mergeReady}, autoMergeEnabled=${status.autoMergeEnabled}`);
-		const ref = await this._resolveRef(status, signal);
+		const ref = await this._resolveRef(status, signal, client);
 
 		const startedAt = Date.now();
 		try {
-			const message = await this._runAction(sessionUri, ownerUri, ref, status, signal);
+			const message = await this._runAction(sessionUri, ownerUri, ref, status, signal, client);
 			await this._statusService.refresh(ownerUri);
 			return { message };
 		} catch (error) {
@@ -99,26 +103,26 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		}
 	}
 
-	private async _runAction(sessionUri: string, ownerUri: string, ref: PullRequestRef, status: IAgentHostPullRequestStatus, signal: AbortSignal): Promise<string> {
+	private async _runAction(sessionUri: string, ownerUri: string, ref: PullRequestRef, status: IAgentHostPullRequestStatus, signal: AbortSignal, client: IGitHubClient): Promise<string> {
 		switch (this._action) {
 			case 'mark-ready': {
-				await this._gitHubService.mutations.markReadyForReview(ref, { pullRequestId: this._requireNodeId(status) }, signal);
+				await client.mutations.markReadyForReview(ref, { pullRequestId: this._requireNodeId(status) }, signal);
 				this._logService.info(`[AgentHostPullRequestLifecycleOperationHandler] Marked pull request ready: session=${sessionUri}, pr=${status.url}`);
 				return localize('agentHost.changeset.pr.markedReady', "Pull request is ready for review.");
 			}
 			case 'enable-auto-merge': {
 				const method = this._requireMergeMethod(status.allowedMergeMethods);
-				await this._gitHubService.mutations.enableAutoMerge(ref, { pullRequestId: this._requireNodeId(status), method }, signal);
+				await client.mutations.enableAutoMerge(ref, { pullRequestId: this._requireNodeId(status), method }, signal);
 				this._logService.info(`[AgentHostPullRequestLifecycleOperationHandler] Enabled auto-merge: session=${sessionUri}, pr=${status.url}, method=${method}`);
 				return localize('agentHost.changeset.pr.autoMergeEnabled', "Auto-merge is enabled. GitHub merges the pull request once it is ready.");
 			}
 			case 'disable-auto-merge': {
-				await this._gitHubService.mutations.disableAutoMerge(ref, { pullRequestId: this._requireNodeId(status) }, signal);
+				await client.mutations.disableAutoMerge(ref, { pullRequestId: this._requireNodeId(status) }, signal);
 				this._logService.info(`[AgentHostPullRequestLifecycleOperationHandler] Disabled auto-merge: session=${sessionUri}, pr=${status.url}`);
 				return localize('agentHost.changeset.pr.autoMergeDisabled', "Auto-merge is disabled.");
 			}
 			case 'merge':
-				return await this._merge(sessionUri, ownerUri, ref, status, signal);
+				return await this._merge(sessionUri, ownerUri, ref, status, signal, client);
 		}
 	}
 
@@ -128,14 +132,14 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 	 * against, so a pull request that stopped being mergeable between the button
 	 * being rendered and clicked is rejected rather than force-merged.
 	 */
-	private async _merge(sessionUri: string, ownerUri: string, ref: PullRequestRef, status: IAgentHostPullRequestStatus, signal: AbortSignal): Promise<string> {
+	private async _merge(sessionUri: string, ownerUri: string, ref: PullRequestRef, status: IAgentHostPullRequestStatus, signal: AbortSignal, client: IGitHubClient): Promise<string> {
 		if (!status.headSha) {
 			throw new ProtocolError(
 				JsonRpcErrorCodes.InternalError,
 				localize('agentHost.changeset.pr.headShaMissing', "Could not determine the pull request head commit."),
 			);
 		}
-		const preparation = await this._gitHubService.mutations.prepareMerge(ref, status.headSha, signal);
+		const preparation = await client.mutations.prepareMerge(ref, status.headSha, signal);
 		// The user clicking the button is the authorization; the id only has to
 		// be stable for the lifetime of this single merge.
 		const authorization = { confirmed: true as const, authorizationId: generateUuid() };
@@ -143,13 +147,13 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		this._logService.debug(`[AgentHostPullRequestLifecycleOperationHandler] Merge preparation complete: session=${sessionUri}, pr=${status.url}, headSha=${status.headSha}, mergeQueueRequired=${mergeability?.mergeQueueRequired ?? 'unknown'}, allowedMergeMethods=${mergeability?.allowedMergeMethods.join('|') || 'none'}`);
 
 		if (mergeability?.mergeQueueRequired) {
-			const result = await this._gitHubService.mutations.enqueue(preparation, authorization, signal);
+			const result = await client.mutations.enqueue(preparation, authorization, signal);
 			this._logService.info(`[AgentHostPullRequestLifecycleOperationHandler] Pull request enqueued: session=${sessionUri}, pr=${status.url}, outcome=${result.outcome}`);
 			return localize('agentHost.changeset.pr.enqueued', "Pull request was added to the merge queue.");
 		}
 
 		const method = this._requireMergeMethod(mergeability?.allowedMergeMethods ?? []);
-		const result = await this._gitHubService.mutations.merge(preparation, { method, authorization }, signal);
+		const result = await client.mutations.merge(preparation, { method, authorization }, signal);
 		this._statusService.markPullRequestMerged(ownerUri, status.url);
 		this._logService.info(`[AgentHostPullRequestLifecycleOperationHandler] Pull request merged: session=${sessionUri}, pr=${status.url}, method=${method}, outcome=${result.outcome}`);
 		return localize('agentHost.changeset.pr.merged', "Pull request was merged.");
@@ -182,12 +186,12 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		return status.pullRequestId;
 	}
 
-	private async _resolveRef(status: IAgentHostPullRequestStatus, signal: AbortSignal): Promise<PullRequestRef> {
+	private async _resolveRef(status: IAgentHostPullRequestStatus, signal: AbortSignal, client: IGitHubClient): Promise<PullRequestRef> {
 		const parsed = parsePullRequestUrl(status.url);
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Not a pull request URL: ${status.url}`);
 		}
-		const credential = await this._gitHubService.credentials.getCredential(signal);
+		const credential = await client.credentials.getCredential(signal);
 		if (credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
 			throw new ProtocolError(
 				JsonRpcErrorCodes.InternalError,

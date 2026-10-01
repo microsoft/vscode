@@ -5866,10 +5866,9 @@ export function getPersistentProgressState(parts: readonly IChatRendererContent[
 		|| parts.some(part => part.kind === 'confirmation' && !part.isUsed)) {
 		return 'confirmation';
 	}
-	// The prompt is published empty and shrinks as servers authenticate, and only a mounted transcript
-	// row marks it used. Blocking on the flag alone kept saying "Authentication required" for prompts
-	// that were still filling in, or whose servers were authenticated while the row was not rendered.
-	if (parts.some(part => part.kind === 'mcpAuthenticationRequired' && !part.isUsed && part.servers.get().length > 0)
+	// MCP sign-in prompts stop describing the current activity once later content is rendered.
+	const lastPart = findLastMeaningfulPart(parts.filter(isParentFlowContent));
+	if ((lastPart?.kind === 'mcpAuthenticationRequired' && !lastPart.isUsed && lastPart.servers.get().length > 0)
 		|| parts.some(part => part.kind === 'toolInvocation' && part.presentation !== 'hidden' && part.state.get().type === IChatToolInvocation.StateKind.WaitingForAuthentication)) {
 		return 'authentication';
 	}

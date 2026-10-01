@@ -13,7 +13,7 @@ import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -655,6 +655,9 @@ suite('aiCustomizationListWidget', () => {
 				onWillExecuteCommand: Event.None,
 				onDidExecuteCommand: Event.None,
 			});
+			instaService.stub(ICustomizationMarketplaceService, {
+				sources: [],
+			});
 
 			// The widget reads items from the items model; stub it with empty
 			// per-section observables. This avoids needing to wire up the full
@@ -1027,7 +1030,7 @@ suite('aiCustomizationListWidget', () => {
 				groups,
 				rowCount,
 			}, {
-				groups: ['Workspace', 'User'],
+				groups: ['User', 'Workspace'],
 				rowCount: 6,
 			});
 		});

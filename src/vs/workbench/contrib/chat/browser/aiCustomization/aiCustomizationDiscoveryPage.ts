@@ -57,7 +57,7 @@ import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery,
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOrigin, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
-import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 
 const $ = DOM.$;
@@ -111,6 +111,7 @@ interface IInstalledDiscoveryItem {
 	readonly itemId?: string;
 	readonly removable?: boolean;
 	readonly mcpServerId?: string;
+	readonly mcpConnectorName?: string;
 	readonly disabled?: boolean;
 	readonly catalogResource?: ICustomizationMarketplaceResource;
 	readonly promptDetail?: IAICustomizationListItem;
@@ -344,6 +345,8 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		container.classList.add('customization-discovery-result-row');
 		const root = DOM.append(container, $('.customization-discovery-result-content'));
 		const primaryAction = createCustomizationCardPrimaryAction(root, '', 'customization-discovery-result-primary');
+		const templateDisposables = new DisposableStore();
+		trackCustomizationCardPrimaryActionFocus(primaryAction, root, templateDisposables);
 		const icon = DOM.append(primaryAction, $('.customization-discovery-result-icon'));
 		const identity = DOM.append(primaryAction, $('.customization-discovery-result-identity'));
 		const heading = DOM.append(identity, $('.customization-discovery-result-heading'));
@@ -364,7 +367,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			stats,
 			actions,
 			elementDisposables: new DisposableStore(),
-			templateDisposables: new DisposableStore(),
+			templateDisposables,
 		};
 	}
 
@@ -389,6 +392,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		const type = installed ? element.type : getCatalogType(element.resource);
 		const resource = installed ? element.catalogResource : element.resource;
 		const marketplaceState = installed && element.catalogResource ? this.getInstallState(element.catalogResource) : undefined;
+		const opensInstalled = installed && (!marketplaceState || marketplaceState.kind === 'installed');
 		const installationDetail = marketplaceState && marketplaceState.kind !== 'installed' ? getInstallationStateLabel(marketplaceState, isCopilotConnectorResource(resource)) : undefined;
 		const detail = [
 			type ? getTypeLabel(type) : !installed ? element.resource.mediaType : undefined,
@@ -410,28 +414,25 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		templateData.name.removeAttribute('rel');
 		templateData.detail.textContent = detail;
 		templateData.description.textContent = description;
-		const hasInstalledDetail = installed && !!(element.promptDetail || element.pluginDetail || element.mcpDetail);
-		templateData.primaryAction.setAttribute('aria-label', installed && (hasInstalledDetail || !element.catalogResource)
+		templateData.primaryAction.setAttribute('aria-label', opensInstalled
 			? localize('customizationDiscovery.openInstalled', "Open installed customization {0}", name)
 			: localize('customizationDiscovery.openDetails', "View details for {0}", name));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.description, { content: description }));
-		if (installed) {
+		const registerOpenListeners = (open: () => void) => {
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.root, DOM.EventType.CLICK, open));
 			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
 				event.stopPropagation();
-				if (element.promptDetail || element.pluginDetail || element.mcpDetail || !element.catalogResource) {
-					this.onOpenInstalled(element);
-				} else {
-					this.onOpenDetails(element.catalogResource);
-				}
+				open();
 			}));
+		};
+		if (element.kind === 'installed' && opensInstalled) {
+			registerOpenListeners(() => this.onOpenInstalled(element));
+		} else {
+			registerOpenListeners(() => this.onOpenDetails(element.kind === 'installed' ? element.catalogResource! : element.resource));
 		}
 
 		if (!installed) {
-			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
-				event.stopPropagation();
-				this.onOpenDetails(element.resource);
-			}));
 			if (element.resource.stars !== undefined) {
 				const starsLabel = localize('customizationDiscovery.stars', "{0} stars", element.resource.stars.toLocaleString());
 				templateData.stats.setAttribute('aria-label', starsLabel);
@@ -737,10 +738,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		));
 		this._register(this.resultList.onDidOpen(event => {
 			if (event.element?.kind === 'installed') {
-				if (event.element.promptDetail || event.element.pluginDetail || event.element.mcpDetail || !event.element.catalogResource) {
+				const resource = event.element.catalogResource;
+				if (!resource || this.getInstallState(resource).kind === 'installed') {
 					this.openInstalledItem(event.element);
 				} else {
-					this.openMarketplaceItem(event.element.catalogResource, 'search');
+					this.openMarketplaceItem(resource, 'search');
 				}
 			} else if (event.element?.kind === 'available') {
 				this.openMarketplaceItem(event.element.resource, 'search');
@@ -804,7 +806,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private updateSourceButton(): void {
 		const selectedSource = this.marketplaceSources.find(source => source.id === this.selectedSourceId);
-		const label = selectedSource ? selectedSource.displayName ?? selectedSource.id : localize('customizationDiscovery.allSources', "All sources");
+		const label = selectedSource ? selectedSource.displayName ?? selectedSource.id : localize('customizationDiscovery.allSources', "All Sources");
 		this.sourceButton.label = `${label} $(chevron-down)`;
 		this.sourceButton.setAriaLabel(localize('customizationDiscovery.sourceButtonAriaLabel', "Customization source: {0}", label));
 		this.sourceButton.element.removeAttribute('title');
@@ -815,7 +817,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const disposables = new DisposableStore();
 		const allSources = disposables.add(new Action(
 			'customizationDiscovery.source.all',
-			localize('customizationDiscovery.allSources', "All sources"),
+			localize('customizationDiscovery.allSources', "All Sources"),
 			undefined,
 			true,
 			() => this.selectSource(undefined),
@@ -867,8 +869,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private createAddButton(parent: HTMLElement): void {
 		const addButton = this._register(new Button(parent, { ...defaultButtonStyles, secondary: true, small: true, supportIcons: true }));
 		addButton.element.setAttribute('aria-haspopup', 'menu');
-		addButton.label = `${localize('customizationDiscovery.import', "Import")} $(chevron-down)`;
-		addButton.setAriaLabel(localize('customizationDiscovery.importLabel', "Import a customization"));
+		addButton.label = localize('customizationDiscovery.addCustomization', "Add Customization {0}", `$(${Codicon.chevronDown.id})`);
+		addButton.setAriaLabel(localize('customizationDiscovery.addCustomizationLabel', "Add a customization"));
+		addButton.element.setAttribute('aria-expanded', 'false');
 		this._register(addButton.onDidClick(() => {
 			const disposables = new DisposableStore();
 			const actions: IAction[] = [];
@@ -893,8 +896,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => addButton.element,
 				getActions: () => actions,
-				onHide: () => disposables.dispose(),
+				onHide: () => {
+					addButton.element.setAttribute('aria-expanded', 'false');
+					disposables.dispose();
+				},
 			});
+			addButton.element.setAttribute('aria-expanded', 'true');
 		}));
 	}
 
@@ -1425,6 +1432,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						type,
 						section: getSectionForCatalogType(type),
 						catalogResource: resource,
+						uri: state.target.kind === 'skill' || state.target.kind === 'plugin' ? state.target.uri : undefined,
+						mcpServerId: state.target.kind === 'mcp' ? state.target.id : undefined,
+						mcpConnectorName: state.target.kind === 'copilotConnector' ? state.target.name : undefined,
 					});
 				}
 			} else {
@@ -1568,13 +1578,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const card = DOM.append(parent, $('.customization-discovery-card'));
 		const resourceKey = getCustomizationMarketplaceResourceKey(item);
 		card.dataset.resourceKey = resourceKey;
+		const state = this.getInstallState(item);
 		const primaryAction = createCustomizationCardPrimaryAction(
 			card,
-			localize('customizationDiscovery.openDetails', "View details for {0}", item.displayName),
+			state.kind === 'installed'
+				? localize('customizationDiscovery.openInstalled', "Open installed customization {0}", item.displayName)
+				: localize('customizationDiscovery.openDetails', "View details for {0}", item.displayName),
 			'customization-discovery-card-primary',
 		);
 		this.browsePrimaryActions.set(resourceKey, primaryAction);
-		this.browseDisposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.CLICK, () => this.openMarketplaceItem(item, 'browse')));
+		this.browseDisposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.CLICK, () => this.openCatalogItem(item, 'browse')));
 		const icon = DOM.append(primaryAction, $('.customization-discovery-card-icon'));
 		const type = getCatalogType(item);
 		renderCustomizationMarketplaceIcon(
@@ -1598,7 +1611,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.browseDisposables.add(this.hoverService.setupDelayedHover(name, { content: item.displayName }));
 		this.browseDisposables.add(this.hoverService.setupDelayedHover(description, { content: item.description }));
 		const actions = DOM.append(card, $('.customization-discovery-card-actions'));
-		const state = this.getInstallState(item);
 		const setupUrl = state.kind === 'unavailable' ? state.setupUrl : undefined;
 		const installError = this.installErrors.get(getCustomizationMarketplaceResourceKey(item));
 		const cancellable = isCancellableConnectorOperation(item, state);
@@ -1856,10 +1868,29 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		});
 	}
 
+	private openCatalogItem(resource: ICustomizationMarketplaceResource, mode: ICustomizationMarketplaceOrigin['mode']): void {
+		const type = getCatalogType(resource);
+		const state = this.getInstallState(resource);
+		if (type && state.kind === 'installed' && this.callbacks.openInstalled) {
+			this.callbacks.openInstalled({
+				section: getSectionForCatalogType(type),
+				name: resource.displayName,
+				uri: state.target.kind === 'skill' || state.target.kind === 'plugin' ? state.target.uri : undefined,
+				mcpServerId: state.target.kind === 'mcp' ? state.target.id : undefined,
+				mcpConnectorName: state.target.kind === 'copilotConnector' ? state.target.name : undefined,
+			});
+			return;
+		}
+		this.openMarketplaceItem(resource, mode);
+	}
+
 	private openInstalledItem(item: IInstalledDiscoveryItem): void {
 		this.callbacks.openInstalled?.({
 			section: item.section,
+			name: item.name,
 			uri: item.uri,
+			mcpServerId: item.mcpServerId,
+			mcpConnectorName: item.mcpConnectorName,
 			promptDetail: item.promptDetail,
 			pluginDetail: item.pluginDetail,
 			mcpDetail: item.mcpDetail,
@@ -2003,7 +2034,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				: localize('customizationDiscovery.accessibleSearch', "Search: {0}", this.query.toString()),
 			this.selectedSourceId
 				? localize('customizationDiscovery.accessibleSource', "Source: {0}", this.getMarketplaceSourceLabel(this.selectedSourceId))
-				: localize('customizationDiscovery.accessibleAllSources', "Source: All sources"),
+				: localize('customizationDiscovery.accessibleAllSources', "Source: All Sources"),
 			this.loading ? this.getLoadingLabel() : undefined,
 			this.errorMessage,
 			this.sourceWarnings.getAccessibilityContent(),

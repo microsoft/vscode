@@ -137,6 +137,7 @@ function callBuild(
 		anonymous?: boolean;
 		showUnavailableFeatured?: boolean;
 		showFeatured?: boolean;
+		useGroupedModelPicker?: boolean;
 		languageModelsService?: ILanguageModelsService;
 		showAutoModel?: boolean;
 		restrictedMode?: boolean;
@@ -167,7 +168,7 @@ function callBuild(
 		languageModelsService: opts.languageModelsService ?? stubLanguageModelsService,
 		openerService: undefined,
 		presentation: {
-			useGroupedModelPicker: true,
+			useGroupedModelPicker: opts.useGroupedModelPicker ?? true,
 			showUnavailableFeatured: opts.showUnavailableFeatured ?? true,
 			showFeatured: opts.showFeatured ?? true,
 			showAutoModel: opts.showAutoModel ?? true,
@@ -862,6 +863,74 @@ suite('buildModelPickerItems', () => {
 			leading: [['Auto', undefined], ['HydraFusion', 'Research preview'], ['Gemini Flash', '20% discount']],
 			hydraFusionRows: 1,
 		});
+	});
+
+	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
+		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a routing choice`, () => {
+			const auto = createAutoModel();
+			const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+			const actions = getActionItems(callBuild([auto, hydraFusion], {
+				entitlement,
+				showUnavailableFeatured: false,
+				useGroupedModelPicker: false,
+			}));
+			assert.deepStrictEqual(actions.filter(action => action.label === 'HydraFusion' || action.label === 'Auto').map(action => [
+				action.label,
+				action.disabled ?? false,
+				action.description instanceof MarkdownString ? action.description.value : action.description,
+			]), [
+				['Auto', false, undefined],
+				['HydraFusion', true, '[Upgrade](command:workbench.action.chat.upgradePlan " ")'],
+			]);
+		});
+	}
+
+	test('Free plans show upgrade rather than update for a newer HydraFusion model', () => {
+		const auto = createAutoModel();
+		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+		const actions = getActionItems(callBuild([auto, hydraFusion], {
+			entitlement: ChatEntitlement.Free,
+			currentVSCodeVersion: '1.100.0',
+			controlModels: { 'hydrafusion': { label: 'HydraFusion', featured: true, exists: true, minVSCodeVersion: '99.0.0' } },
+		}));
+		const action = actions.find(action => action.label === 'HydraFusion');
+		assert.deepStrictEqual({
+			disabled: action?.disabled,
+			description: action?.description instanceof MarkdownString ? action.description.value : action?.description,
+		}, {
+			disabled: true,
+			description: '[Upgrade](command:workbench.action.chat.upgradePlan " ")',
+		});
+	});
+
+	test('Free plans retain a user-provided model with the HydraFusion model ID', () => {
+		const auto = createAutoModel();
+		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+		const userHydraFusion = createModel('hydrafusion', 'My HydraFusion', 'ollama');
+		const actions = getActionItems(callBuild([auto, hydraFusion, userHydraFusion], {
+			entitlement: ChatEntitlement.Free,
+			controlModels: { 'hydrafusion': { label: 'HydraFusion', featured: true, exists: true } },
+		}));
+		assert.deepStrictEqual(actions.filter(action => action.label?.includes('HydraFusion')).map(action => [
+			action.label,
+			action.disabled ?? false,
+			action.description instanceof MarkdownString ? action.description.value : action.description,
+		]), [
+			['HydraFusion', true, '[Upgrade](command:workbench.action.chat.upgradePlan " ")'],
+			['My HydraFusion', false, undefined],
+		]);
+	});
+
+	test('Free plans do not advertise HydraFusion when the current model pool cannot offer it', () => {
+		const claude = createModel('claude', 'Claude');
+		const controlModels = { 'hydrafusion': { label: 'HydraFusion', featured: false, exists: false } };
+		const hydraFusionRows = [false, true].map(useGroupedModelPicker => getActionItems(callBuild([claude], {
+			entitlement: ChatEntitlement.Free,
+			controlModels,
+			showUnavailableFeatured: false,
+			useGroupedModelPicker,
+		})).filter(action => action.label === 'HydraFusion').length);
+		assert.deepStrictEqual(hydraFusionRows, [0, 0]);
 	});
 
 	test('HydraFusion too new for this build loses its row under Auto and shows the update it needs', () => {

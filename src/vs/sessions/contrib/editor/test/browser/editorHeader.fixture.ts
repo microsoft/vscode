@@ -12,7 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize2 } from '../../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { renderEditorTabBarFixture } from '../../../../../workbench/test/browser/componentFixtures/editor/editorTabBar.fixture.js';
+import { renderEditorTabsFixture } from '../../../../../workbench/test/browser/componentFixtures/editor/tabs.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 
 const primaryMenu = MenuId.for('sessions.fixture.editorHeaderPrimary');
@@ -86,7 +86,7 @@ MenuRegistry.appendMenuItem(addTabMenu, {
 function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false, layoutActions = false, showTabs: 'multiple' | 'single' | 'none' = 'multiple', addTab = false, tabHeight: 'default' | 'compact' = 'default', headerWidth?: number, reserveHeaderSpace = false): void {
 	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
 
-	renderEditorTabBarFixture(ctx, {
+	renderEditorTabsFixture(ctx, {
 		modernUI: true,
 		partOptions: { showTabs, tabHeight },
 		breadcrumbs: breadcrumbs ? { filePath: 'on', icons: true } : undefined,
@@ -105,7 +105,7 @@ function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primar
 
 function renderConnectedCard(ctx: ComponentFixtureContext, secondTabActive = false): void {
 	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
-	renderEditorTabBarFixture(ctx, {
+	renderEditorTabsFixture(ctx, {
 		modernUI: true,
 		width: 358,
 		editors: [

@@ -56,6 +56,8 @@ export interface IChatDropdownPillOptions {
 	readonly singleEntry?: ChatPillSingleEntry;
 	/** Preferred dropdown side, with fallback when the available space is insufficient. */
 	readonly preferredAnchorPosition?: AnchorPosition;
+	/** Open expandable details on activation instead of running an entry's action. */
+	readonly openHoverOnSelect?: boolean;
 }
 
 /**
@@ -344,6 +346,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 					...((entry.toolbarActions?.length || entry.promotedAction) ? { toolbarActions: [...getChatPillEntryToolbarActions(entry)] } : {}),
 					ariaDescription: entry.ariaDescription,
 					hover: this._getDropdownHover(entry),
+					...(this._pillOptions.openHoverOnSelect ? { openSubmenuOnClick: true } : {}),
 					item: entry,
 				});
 			}

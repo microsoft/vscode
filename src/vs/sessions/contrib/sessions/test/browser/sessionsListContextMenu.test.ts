@@ -29,16 +29,18 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionGroup } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
-import { createListHarness, createSession, createTestSession } from './sessionsListTestUtils.js';
+import { createListHarness, createSession, createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
+import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
 	override readonly onDidShowContextMenu = Event.None;
@@ -47,33 +49,6 @@ class TestContextMenuService extends mock<IContextMenuService>() {
 
 	override showContextMenu(delegate: IContextMenuDelegate): void {
 		this.delegate = delegate;
-	}
-}
-
-class TestSessionGroupsService extends mock<ISessionGroupsService>() {
-	override readonly onDidChange = Event.None;
-
-	constructor(
-		private readonly groups: readonly ISessionGroup[],
-		private readonly membership: ReadonlyMap<string, string>,
-	) {
-		super();
-	}
-
-	override getGroups(): ISessionGroup[] {
-		return [...this.groups];
-	}
-
-	override getGroup(groupId: string): ISessionGroup | undefined {
-		return this.groups.find(group => group.id === groupId);
-	}
-
-	override getGroupOfSession(sessionId: string): string | undefined {
-		return this.membership.get(sessionId);
-	}
-
-	override getSessionIdsInGroup(groupId: string): string[] {
-		return [...this.membership].filter(([, id]) => id === groupId).map(([sessionId]) => sessionId);
 	}
 }
 
@@ -101,45 +76,61 @@ suite('Sessions list context menus', () => {
 	const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
 	const targetGroup: ISessionGroup = { id: 'target', name: 'Target', createdAt: 2 };
 
-	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActions: readonly { id: string; run: () => void }[] = [], showNavigationShortcuts = false) {
+	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActionsOrComparison: readonly { id: string; run: () => void }[] | boolean = [], showNavigationShortcuts = false, pinnedSessionIds: ReadonlySet<string> = new Set()) {
 		const contextMenuService = new TestContextMenuService();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		let menuDisposed = false;
-		const harness = createListHarness(disposables, sessions, instantiationService => {
-			instantiationService.stub(IContextKeyService, contextKeyService);
-			const commandService = instantiationService.get(ICommandService);
-			instantiationService.stub(IContextMenuService, contextMenuService);
-			instantiationService.stub(ISessionGroupsService, new TestSessionGroupsService(
-				[group, targetGroup],
-				grouped ? new Map(sessions.map(session => [session.sessionId, group.id])) : new Map(),
-			));
-			instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
-				override createMenu(id: MenuId, menuContextKeyService: IContextKeyService): IMenu {
-					const disposable = toDisposable(() => menuDisposed = true);
-					const extensionAction = new MenuItemAction({
-						id: 'extension.action',
-						title: 'Extension Action',
-						source: { id: 'test.extension', title: 'Test Extension' },
-					}, undefined, undefined, undefined, undefined, contextKeyService, commandService);
-					const testMenuActions = menuActions.map(action => new class extends MenuItemAction {
-						override run(): Promise<void> {
-							action.run();
-							return Promise.resolve();
-						}
-					}({
-						id: action.id,
-						title: 'Test Action',
-					}, undefined, undefined, undefined, undefined, contextKeyService, commandService));
-					return {
-						onDidChange: Event.None,
-						getActions: () => {
-							const actions = includeExtensionAction ? [...testMenuActions, extensionAction] : testMenuActions;
-							return actions.length ? [['navigation', actions]] : [];
-						},
-						dispose: () => disposable.dispose(),
-					};
-				}
-			});
+		const isComparison = typeof menuActionsOrComparison === 'boolean' ? menuActionsOrComparison : false;
+		const menuActions = typeof menuActionsOrComparison === 'boolean' ? [] : menuActionsOrComparison;
+		const comparisons: readonly ISessionComparison[] = isComparison ? [{
+			id: 'comparison',
+			groupId: group.id,
+			title: 'Comparison',
+			createdAt: 1,
+			workspace: URI.file('/workspace'),
+			prompt: 'Implement',
+			participants: sessions.map((session, index) => ({
+				id: `attempt-${index}`,
+				role: SessionComparisonParticipantRole.Attempt,
+				harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent' },
+				sessionResource: session.resource,
+			})),
+		}] : [];
+		const harness = createListHarness(disposables, sessions, {
+			groups: [group, targetGroup],
+			memberships: grouped ? new Map(sessions.map(session => [session.sessionId, group.id])) : new Map(),
+			comparisons,
+			pinnedSessionIds,
+		});
+		const commandService = harness.instantiationService.get(ICommandService);
+		harness.instantiationService.stub(IContextKeyService, contextKeyService);
+		harness.instantiationService.stub(IContextMenuService, contextMenuService);
+		harness.instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(id: MenuId, menuContextKeyService: IContextKeyService): IMenu {
+				const disposable = toDisposable(() => menuDisposed = true);
+				const extensionAction = new MenuItemAction({
+					id: 'extension.action',
+					title: 'Extension Action',
+					source: { id: 'test.extension', title: 'Test Extension' },
+				}, undefined, undefined, undefined, undefined, contextKeyService, commandService);
+				const testMenuActions = menuActions.map(action => new class extends MenuItemAction {
+					override run(): Promise<void> {
+						action.run();
+						return Promise.resolve();
+					}
+				}({
+					id: action.id,
+					title: 'Test Action',
+				}, undefined, undefined, undefined, undefined, contextKeyService, commandService));
+				return {
+					onDidChange: Event.None,
+					getActions: () => {
+						const actions = includeExtensionAction ? [...testMenuActions, extensionAction] : testMenuActions;
+						return actions.length ? [['navigation', actions]] : [];
+					},
+					dispose: () => disposable.dispose(),
+				};
+			}
 		});
 		const container = harness.createContainer();
 		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -156,7 +147,7 @@ suite('Sessions list context menus', () => {
 			onSessionOpen: () => { },
 		}));
 		list.layout(300, 400);
-		return { container, contextMenuService, list, managementService: harness.managementService, menuDisposed: () => menuDisposed };
+		return { container, contextMenuService, list, managementService: harness.managementService, commandService: harness.commandService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed };
 	}
 
 	test('empty area actions are transient non-disposable values', () => {
@@ -239,18 +230,28 @@ suite('Sessions list context menus', () => {
 		contextMenuService.delegate!.onHide?.(false);
 	});
 
-	test('navigation shortcuts and Sessions header have no context menus', () => {
-		const { container, contextMenuService } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
-		const customizationsRow = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
-			.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
+	test('New navigation shortcut runs the existing command and navigation rows have no context menus', async () => {
+		const { container, contextMenuService, commandService } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
+		const shortcutRows = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'));
+		const newRow = shortcutRows.find(element => element.querySelector('.session-section-label')?.textContent === 'New');
+		const customizationsRow = shortcutRows.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
 		const sessionsHeader = container.querySelector<HTMLElement>('.sessions-list-header');
+		assert.ok(newRow);
 		assert.ok(customizationsRow);
 		assert.ok(sessionsHeader);
 
+		selectRow(newRow);
+		await timeout(0);
 		dispatchContextMenu(customizationsRow);
 		dispatchContextMenu(sessionsHeader);
 
-		assert.strictEqual(contextMenuService.delegate, undefined);
+		assert.deepStrictEqual({
+			commands: (commandService as TestCommandService).calls,
+			contextMenu: contextMenuService.delegate,
+		}, {
+			commands: [{ commandId: NEW_SESSION_ACTION_ID, args: [undefined] }],
+			contextMenu: undefined,
+		});
 	});
 
 	test('session and chat rename context menu actions start inline editing', async () => {
@@ -270,6 +271,7 @@ suite('Sessions list context menus', () => {
 
 		const mainChat = upcastPartial<IChat>({
 			resource: URI.parse('test-chat:/main'),
+			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
 			interactivity: constObservable(ChatInteractivity.Full),
 			isArchived: constObservable(false),
@@ -332,6 +334,50 @@ suite('Sessions list context menus', () => {
 
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
 			ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
+			disposableIds: [],
+		});
+	});
+
+	test('comparison groups and participants hide membership mutation actions but allow idle deletion', async () => {
+		const session = createSession('Attempt').session;
+		const { container, contextMenuService, deletedGroupIds } = createList(true, true, SessionsGrouping.Date, [session], true);
+		const sessionRow = container.querySelector<HTMLElement>('.session-item');
+		const groupHeader = container.querySelector<HTMLElement>('.session-comparison-group');
+		assert.ok(sessionRow);
+		assert.ok(groupHeader);
+
+		dispatchContextMenu(sessionRow);
+		const sessionActions = snapshotActions(contextMenuService.delegate!.getActions());
+		contextMenuService.delegate!.onHide?.(false);
+		dispatchContextMenu(groupHeader);
+		const groupMenuActions = contextMenuService.delegate!.getActions();
+		const groupActions = snapshotActions(groupMenuActions);
+		await groupMenuActions.at(-1)?.run();
+
+		assert.deepStrictEqual({ sessionActions, groupActions, deletedGroupIds }, {
+			sessionActions: {
+				ids: ['extension.action'],
+				disposableIds: [],
+			},
+			groupActions: {
+				ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.deleteGroupAction'],
+				disposableIds: [],
+			},
+			deletedGroupIds: [group.id],
+		});
+	});
+
+	test('comparison groups with hidden input waits do not expose Delete Group', () => {
+		const completed = createTestSession('Completed attempt').session;
+		const waiting = createTestSession('Waiting attempt', { status: SessionStatus.NeedsInput }).session;
+		const { container, contextMenuService } = createList(true, false, SessionsGrouping.Date, [completed, waiting], true, false, new Set([waiting.sessionId]));
+		const groupHeader = container.querySelector<HTMLElement>('.session-comparison-group');
+		assert.ok(groupHeader);
+
+		dispatchContextMenu(groupHeader);
+
+		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
+			ids: ['sessions.createGroup'],
 			disposableIds: [],
 		});
 	});
@@ -416,7 +462,6 @@ suite('Sessions list context menus', () => {
 			toolbarLabels: ['Import', 'Mark as Done'],
 		});
 		contextMenuService.delegate!.onHide?.(false);
-
 		const importVisibility = [];
 		for (const variant of ['owned', 'unsupported', 'disabled', 'archived', 'external']) {
 			transaction(tx => {
@@ -431,6 +476,53 @@ suite('Sessions list context menus', () => {
 			importVisibility.push(!!updatedRow?.querySelector('[aria-label="Import"]'));
 		}
 		assert.deepStrictEqual(importVisibility, [false, false, false, false, true]);
+	});
+
+	test('Delete is enabled and executes for external sandbox sessions, including multi-selection', async () => {
+		const sandbox = createTestSession('Offline sandbox', { isExternal: true });
+		const second = createTestSession('Second sandbox', { isExternal: true });
+		for (const session of [sandbox, second]) {
+			session.capabilities.set({ ...session.capabilities.get(), supportsDelete: true }, undefined);
+		}
+		const harness = createListHarness(disposables, [sandbox.session, second.session]);
+		const { instantiationService, store, commandService, managementService } = harness;
+		const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm() { return { confirmed: true }; }
+		}());
+		const contextMenuService = new TestContextMenuService();
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer(400, 500);
+		const list = store.add(instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(500, 400);
+		await timeout(100);
+		const rows = [sandbox, second].map(session => {
+			const row = [...container.querySelectorAll<HTMLElement>('.session-item')]
+				.find(element => element.querySelector('.session-title')?.textContent === session.session.title.get());
+			assert.ok(row);
+			return row;
+		});
+		selectRow(rows[0]);
+		selectRow(rows[1], true);
+		dispatchContextMenu(rows[0]);
+		const action = contextMenuService.delegate!.getActions().find(action => action.id === 'sessionsViewPane.deleteSession');
+		assert.ok(action);
+		await action.run();
+		const call = commandService.calls.find(call => call.commandId === action.id)!;
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(call.commandId)!.handler, ...call.args);
+		assert.deepStrictEqual({
+			enabled: action.enabled,
+			deleted: managementService.deleted.map(session => session.sessionId).sort(),
+		}, { enabled: true, deleted: ['Offline sandbox', 'Second sandbox'] });
+		contextMenuService.delegate!.onHide?.(false);
+
 	});
 
 	test('workspace and custom-group headers mark all unfiltered unread sessions as read', async () => {

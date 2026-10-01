@@ -11,9 +11,19 @@ export type GitHubRequestKind = 'rest' | 'graphql' | 'download';
 export type GitHubTelemetrySource = 'workbench' | 'web' | 'agentHost' | 'sharedProcess' | 'other';
 
 export interface GitHubAccountHandle {
+	readonly kind?: 'authenticated';
 	readonly host: string;
 	readonly accountId: string;
 }
+
+/** One anonymous quota identity per API origin and engine-owned network executor. */
+export interface GitHubAnonymousAccount {
+	readonly kind: 'anonymous';
+	readonly host: string;
+	readonly origin: string;
+}
+
+export type GitHubRequestAccount = GitHubAccountHandle | GitHubAnonymousAccount;
 
 export type GitHubRequestPriority =
 	| 'mutationReconciliation'
@@ -46,12 +56,13 @@ export interface GitHubRequestOptions {
 
 export interface GitHubRequestContext {
 	readonly kind: GitHubRequestKind;
-	readonly account: GitHubAccountHandle;
+	readonly account: GitHubRequestAccount;
 	readonly caller: string;
 	readonly resource: string;
 	readonly priority: GitHubRequestPriority;
 	readonly deadline: number;
 	readonly signal: AbortSignal;
+	readonly owner?: object;
 }
 
 export interface GitHubGraphQLError {
@@ -112,10 +123,42 @@ export interface GitHubClientMetadata {
 }
 
 export interface GitHubServiceOptions {
-	readonly endpoint: IGitHubEndpointProvider;
-	readonly tokenProvider: IGitHubTokenProvider;
+	readonly credentialProvider?: IGitHubCredentialProvider;
 	readonly fetch?: GitHubFetch;
 	readonly telemetrySource?: GitHubTelemetrySource;
 	readonly clientMetadata?: GitHubClientMetadata;
 	readonly onDidChangeTelemetryLevel?: Event<TelemetryLevel>;
+}
+
+/** Identifies an authorization grant chosen by the hosting binding, never a raw token. */
+export interface GitHubAuthorizationContext {
+	readonly providerId: string;
+	readonly sessionId: string;
+	/** Opaque account provenance supplied by the binding; identity is still verified through GitHub. */
+	readonly accountId?: string;
+	readonly scopes: readonly string[];
+	readonly authorizationServer?: string;
+}
+
+export interface GitHubClientOptions {
+	readonly authorization: GitHubAuthorizationContext;
+	readonly apiBaseUri: string;
+	readonly graphQlUri: string;
+}
+
+/** Trusted API base for public reads; callers cannot override authentication or network execution. */
+export interface GitHubAnonymousClientOptions {
+	readonly apiBaseUri: string;
+}
+
+export interface GitHubCredentialChange {
+	readonly providerId: string;
+	readonly sessionIds?: readonly string[];
+}
+
+/** Implemented by the host's authentication binding; token access must be silent and context-specific. */
+export interface IGitHubCredentialProvider {
+	readonly onDidChange: Event<GitHubCredentialChange>;
+	getToken(context: GitHubAuthorizationContext, signal: AbortSignal): string | undefined | Promise<string | undefined>;
+	invalidateToken?(context: GitHubAuthorizationContext, token: string): void;
 }

@@ -502,6 +502,62 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
+	test('refreshes live sessions only when the active account connector authorization changes', async () => {
+		const fixture = createFixture([{ body: catalogResponse('connected') }]);
+		const unscoped = { ...fixture.initialSession, scopes: ['read:user'] };
+		fixture.setSessions([unscoped]);
+		await fixture.service.refresh(CancellationToken.None);
+
+		const renewedUnscoped = { ...unscoped, accessToken: 'renewed-unscoped-token' };
+		fixture.setSessions([renewedUnscoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, changed: [renewedUnscoped], removed: undefined } });
+		await timeout(0);
+
+		const afterUnscopedRenewal = fixture.reconciliations.length;
+		const upscoped = { ...unscoped, id: 'connector-authorized-session', scopes: [...unscoped.scopes, 'write:plugin_gateway_connections'] };
+		fixture.setSessions([renewedUnscoped, upscoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: [upscoped], changed: undefined, removed: undefined } });
+		await timeout(0);
+
+		const afterGain = fixture.reconciliations.length;
+		const renewed = { ...upscoped, accessToken: 'renewed-token' };
+		fixture.setSessions([renewedUnscoped, renewed]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, changed: [renewed], removed: undefined } });
+		await timeout(0);
+
+		const afterRenewal = fixture.reconciliations.length;
+		fixture.setSessions([renewedUnscoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, changed: undefined, removed: [renewed] } });
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterUnscopedRenewal, afterGain, afterRenewal, afterLoss: fixture.reconciliations.length }, {
+			afterUnscopedRenewal: 0,
+			afterGain: 1,
+			afterRenewal: 1,
+			afterLoss: 2,
+		});
+	});
+
+	test('refreshes live sessions when connector authorization arrives before catalog initialization', async () => {
+		const fixture = createFixture([]);
+		const unscoped = { ...fixture.initialSession, scopes: ['read:user'] };
+		const upscoped = { ...unscoped, id: 'connector-authorized-session', scopes: [...unscoped.scopes, 'write:plugin_gateway_connections'] };
+		const otherAccountScoped = { ...upscoped, id: 'other-account-session', account: { id: 'other-account', label: 'someone-else' } };
+		fixture.setSessions([unscoped, otherAccountScoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: [otherAccountScoped], changed: undefined, removed: undefined } });
+		await timeout(0);
+
+		const afterOtherAccount = fixture.reconciliations.length;
+		fixture.setSessions([unscoped, upscoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: [upscoped], changed: undefined, removed: undefined } });
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterOtherAccount, afterActiveAccount: fixture.reconciliations.length }, {
+			afterOtherAccount: 0,
+			afterActiveAccount: 1,
+		});
+	});
+
 	for (const outcome of ['cancelled', 'denied', 'wrong-account', 'missing-scope']) {
 		test(`authorization ${outcome} does not make connector mutations or switch the active account`, async () => {
 			const fixture = createFixture([{ body: catalogResponse('connected') }]);
