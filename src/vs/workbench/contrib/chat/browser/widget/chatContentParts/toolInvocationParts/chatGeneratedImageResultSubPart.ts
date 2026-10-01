@@ -13,6 +13,7 @@ import { ChatResponseResource } from '../../../../common/model/chatModel.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
 import { type IChatCodeBlockInfo } from '../../../chat.js';
+import { IChatImageRevealOrigin } from '../../../attachments/chatImageReveal.js';
 import { type IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatResourceGroupWidget } from '../chatResourceGroupWidget.js';
 import { type IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
@@ -108,6 +109,7 @@ export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPa
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		context: IChatContentPartRenderContext,
+		imageReveal: IChatImageRevealOrigin | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(toolInvocation);
@@ -118,7 +120,11 @@ export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPa
 		}
 
 		const parts = getGeneratedImageResultPartsFromContent(context.content, context.element.sessionResource);
-		const resourceGroup = this._register(instantiationService.createInstance(ChatResourceGroupWidget, parts, { showImageInHover: false, imagePresentation: 'inline' }));
+		const resourceGroup = this._register(instantiationService.createInstance(ChatResourceGroupWidget, parts, {
+			showImageInHover: false,
+			imagePresentation: 'inline',
+			imageReveal: toolInvocation.toolId === 'generate_image_mock' && parts.length === 1 ? imageReveal : undefined,
+		}));
 		this._register(resourceGroup.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		const gallery = dom.append(this.domNode, dom.$('.chat-generated-image-result', undefined, resourceGroup.domNode));
 		const hasMultipleGeneratedImages = getGeneratedImageResultCount(context.content) > 1;

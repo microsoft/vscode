@@ -42,11 +42,13 @@ suite('ChatResourceGroupWidget', () => {
 		});
 	});
 
-	function render(parts: IChatCollapsibleIODataPart[], inline = true): ChatResourceGroupWidget {
-		const widget = store.add(instantiationService.createInstance(ChatResourceGroupWidget, parts, inline ? { imagePresentation: 'inline', showImageInHover: false } : undefined));
-		const container = dom.append(mainWindow.document.body, dom.$(inline ? '.chat-generated-image-result' : 'div'));
+	function render(parts: IChatCollapsibleIODataPart[], inline = true, animateImageReveal = false): ChatResourceGroupWidget {
+		const host = dom.append(mainWindow.document.body, dom.$(animateImageReveal ? '.chat-image-generation-mock' : 'div'));
+		const container = dom.append(host, dom.$(inline ? '.chat-generated-image-result' : 'div'));
+		const imageReveal = animateImageReveal ? { container: host } : undefined;
+		const widget = store.add(instantiationService.createInstance(ChatResourceGroupWidget, parts, inline ? { imagePresentation: 'inline', showImageInHover: false, imageReveal } : undefined));
 		container.appendChild(widget.domNode);
-		store.add(toDisposable(() => container.remove()));
+		store.add(toDisposable(() => host.remove()));
 		return widget;
 	}
 
@@ -143,6 +145,43 @@ suite('ChatResourceGroupWidget', () => {
 			beforeReferenceLoads,
 			sameImages: [...widget.domNode.querySelectorAll('img')].every((image, index) => image === images[index]),
 		}, { beforeReferenceLoads: [false, true], sameImages: true });
+	});
+
+	test('the comet stays pending until referenced image bytes load', async () => {
+		const { content } = deferImageRead();
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png' }], true, true);
+		const container = widget.domNode.parentElement!;
+		container.classList.add('interactive-session');
+		container.style.setProperty('--vscode-strokeThickness', '1px');
+		container.style.setProperty('--chat-image-loading-width', '400px');
+		const reveal = widget.domNode.querySelector('.chat-image-reveal')!;
+		const image = reveal.querySelector<HTMLImageElement>('img')!;
+		const initial = { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, hasSource: !!image.getAttribute('src'), width: reveal.getBoundingClientRect().width };
+		await content.complete(decodeBase64(imageData));
+		await retry(async () => assert.ok(image.complete && image.naturalWidth > 0 && snapshot(widget).busy === 'false'), 10, 50);
+
+		assert.deepStrictEqual({
+			initial,
+			loaded: { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, sameImage: reveal.querySelector('img') === image },
+		}, {
+			initial: { pending: true, busy: 'true', hasSource: false, width: 400 },
+			loaded: { pending: false, busy: 'false', sameImage: true },
+		});
+	});
+
+	test('an image read failure removes the comet and keeps the error visible', async () => {
+		const { content } = deferImageRead();
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png' }], true, true);
+		await content.error(new Error('The generated image file is unavailable.'));
+		await retry(async () => assert.strictEqual(snapshot(widget).error, true), 10, 50);
+		const status = widget.domNode.querySelector<HTMLElement>('.chat-attached-context-image-status')!;
+
+		assert.deepStrictEqual({
+			error: snapshot(widget).error,
+			pending: widget.domNode.querySelectorAll('.chat-image-reveal.pending, .chat-image-generation-line').length,
+			effects: widget.domNode.querySelectorAll('.chat-image-reveal-trace, .chat-image-reveal-blur, .chat-image-reveal-scan').length,
+			visibleError: !!status.textContent && mainWindow.getComputedStyle(status).display !== 'none',
+		}, { error: true, pending: 0, effects: 0, visibleError: true });
 	});
 
 	test('a missing referenced image reports a genuine load failure with its details', async () => {

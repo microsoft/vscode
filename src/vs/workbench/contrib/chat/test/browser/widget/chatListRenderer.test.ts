@@ -2378,6 +2378,67 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	test('mock image generation keeps its prompt dropdown and hands the loader into the reveal', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+		const backendSession = URI.parse('remote-provider:/mock-image-session');
+		const toolCall: ToolCallRunningState = {
+			toolCallId: 'mock-image-reveal',
+			toolName: 'generate_image_mock',
+			displayName: 'Generate Image Mock',
+			invocationMessage: 'Generating image',
+			status: ToolCallStatus.Running,
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			toolInput: '{"prompt":"Draw a puppy"}',
+		};
+		const tool = toolCallStateToInvocation(toolCall, undefined, backendSession, 'remote');
+		model.acceptResponseProgress(request, tool);
+		renderer.renderElement(node, 0, template);
+		const loader = template.value.querySelector('.chat-image-generation-line');
+		const dropdown = template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title');
+		const running = {
+			hasDropdown: !!dropdown,
+			loaderBeforeDropdown: !!loader && !!dropdown && !!(loader.compareDocumentPosition(dropdown) & Node.DOCUMENT_POSITION_FOLLOWING),
+			toolIcons: template.value.querySelectorAll('.chat-tool-call-icon').length,
+		};
+		dropdown?.click();
+		tool.acceptProgress({ message: 'Generating image' });
+		const expanded = dropdown?.getAttribute('aria-expanded');
+		const sameLoader = template.value.querySelector('.chat-image-generation-line') === loader;
+
+		finalizeToolInvocation(tool, {
+			...toolCall,
+			status: ToolCallStatus.Completed,
+			success: true,
+			pastTenseMessage: 'Generated image',
+			content: [{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=', contentType: 'image/png' }],
+		}, backendSession, 'remote');
+		const hasReveal = !!template.value.querySelector('.chat-image-reveal');
+		request.response?.complete();
+		const restored = createPersistentProgressRenderer();
+		restored.model.acceptResponseProgress(restored.request, tool.toJSON());
+		restored.request.response?.complete();
+		restored.renderer.renderElement(restored.node, 0, restored.template);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			running,
+			expanded,
+			sameLoader,
+			hasReveal,
+			restoredHasReveal: !!restored.template.value.querySelector('.chat-image-reveal'),
+			restoredHasDropdown: !!restored.template.value.querySelector('.chat-confirmation-widget-title'),
+			restoredImages: restored.template.value.querySelectorAll('.chat-generated-image-result img').length,
+		}, {
+			running: { hasDropdown: true, loaderBeforeDropdown: true, toolIcons: 0 },
+			expanded: 'true',
+			sameLoader: true,
+			hasReveal: true,
+			restoredHasReveal: false,
+			restoredHasDropdown: true,
+			restoredImages: 1,
+		});
+	});
+
 	for (const persistentProgress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 		test(`image model attribution updates the running dropdown and survives history with progress ${persistentProgress}`, async () => {
 			const { instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ persistentProgress });
@@ -8185,6 +8246,7 @@ suite('ChatListRenderer', () => {
 						request.response?.complete();
 						renderer.renderElement(node, 0, template);
 						const gallery = template.value.querySelector('.chat-generated-image-result');
+						const disclosure = template.value.querySelector('.generated-image-tool-invocation .chat-confirmation-widget-title');
 						const finalMessage = [...template.value.querySelectorAll('.rendered-markdown p')].find(paragraph => paragraph.textContent === 'Done.');
 
 						assert.deepStrictEqual({
@@ -8201,6 +8263,7 @@ suite('ChatListRenderer', () => {
 							hasGallery: !!gallery,
 							galleryInsideSteps: !!gallery && !!template.completedResponseDisclosure?.contains(gallery),
 							galleryBeforeFinalMessage: !!gallery && !!finalMessage && !!(gallery.compareDocumentPosition(finalMessage) & Node.DOCUMENT_POSITION_FOLLOWING),
+							galleryBeforeDisclosure: !!gallery && !!disclosure && !!(gallery.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING),
 							generatedCollapses: shouldCollapseCompletedResponsePart(invocation),
 							restoredCollapses: shouldCollapseCompletedResponsePart(invocation.toJSON()),
 							finalCollapsedPreviews: template.value.querySelectorAll('.chat-collapsible-top-level-resource-group').length,
@@ -8214,11 +8277,12 @@ suite('ChatListRenderer', () => {
 							collapsedPreviews: 0,
 							finalStandalone: true,
 							toolDisclosures: 1,
-							headerToolIcons: 1,
-							toolIconGutters: 1,
+							headerToolIcons: toolId === 'generate_image_mock' ? 0 : 1,
+							toolIconGutters: toolId === 'generate_image_mock' ? 0 : 1,
 							hasGallery: true,
 							galleryInsideSteps: false,
 							galleryBeforeFinalMessage: true,
+							galleryBeforeDisclosure: toolId === 'generate_image_mock',
 							generatedCollapses: false,
 							restoredCollapses: false,
 							finalCollapsedPreviews: 0,

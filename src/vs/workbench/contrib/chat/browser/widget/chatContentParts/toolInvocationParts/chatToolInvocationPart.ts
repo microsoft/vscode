@@ -28,7 +28,7 @@ import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownPr
 import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatAutomationConfiguredResultSubPart } from './chatAutomationConfiguredResultSubPart.js';
-import { ChatGeneratedImageResultSubPart, getLastGeneratedImageToolCallId } from './chatGeneratedImageResultSubPart.js';
+import { ChatGeneratedImageResultSubPart, getGeneratedImageResultCount, getLastGeneratedImageToolCallId } from './chatGeneratedImageResultSubPart.js';
 import { ChatImageGenerationToolProgressPart } from './chatImageGenerationProgressPart.js';
 import { ChatSessionCreatedResultSubPart } from './chatSessionCreatedResultSubPart.js';
 import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
@@ -236,6 +236,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		const render = () => {
 			const wasGeneratingImage = this.subPart instanceof ChatImageGenerationToolProgressPart;
+			const imageReveal = this.subPart instanceof ChatImageGenerationToolProgressPart ? this.subPart.getRevealOrigin(this.domNode) : undefined;
 			const isGeneratingImage = isImageGenerationToolInProgress(toolInvocation);
 			this.imageGenerationProgressSuppressed = this.shouldSuppressImageGenerationProgress();
 			if (this.subPart instanceof ChatImageGenerationToolProgressPart && isGeneratingImage) {
@@ -247,6 +248,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			const error = hasToolInvocationError(toolInvocation);
 			this.domNode.classList.toggle('chat-tool-call-error', !!error);
 			this.renderedGeneratedImageResult = shouldRenderGeneratedImageResult(toolInvocation.toolSpecificData?.kind, IChatToolInvocation.isComplete(toolInvocation));
+			const isMockImage = toolInvocation.toolId === 'generate_image_mock' && !error
+				&& (isGeneratingImage || (this.renderedGeneratedImageResult && getGeneratedImageResultCount(context.content) === 1));
+			this.domNode.classList.toggle('chat-image-generation-mock', isMockImage);
 			this.renderedLastGeneratedImageToolCallId = getLastGeneratedImageToolCallId(context.content);
 			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden
 				|| (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation))) {
@@ -266,14 +270,19 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 			if (this.renderedGeneratedImageResult && isToolResultInputOutputDetails(resultDetails) && !resultDetails.isError) {
-				const imageResult = partStore.add(this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, toolInvocation, context));
-				this.subPart.domNode.appendChild(imageResult.domNode);
+				const imageResult = partStore.add(this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, toolInvocation, context, imageReveal));
+				if (isMockImage) {
+					this.subPart.domNode.prepend(imageResult.domNode);
+				} else {
+					this.subPart.domNode.appendChild(imageResult.domNode);
+				}
 				partStore.add(imageResult.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			}
 
+			const showToolIcon = !!toolIcon && !isMockImage;
 			this.domNode.classList.toggle('generated-image-tool-invocation', this.renderedGeneratedImageResult);
-			this.domNode.classList.toggle('chat-tool-call-with-icon', !!toolIcon);
-			if (toolIcon) {
+			this.domNode.classList.toggle('chat-tool-call-with-icon', showToolIcon);
+			if (toolIcon && showToolIcon) {
 				const message = IChatToolInvocation.isComplete(toolInvocation) ? toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage : undefined;
 				const icon = error ? Codicon.error : getToolInvocationIcon(toolInvocation.toolId, {
 					icon: toolInvocation.icon ?? (isImageGenerationToolInvocation(toolInvocation) ? Codicon.fileMedia : undefined),
@@ -285,6 +294,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				if (!toolIcon.parentElement) {
 					this.domNode.prepend(toolIcon);
 				}
+			} else {
+				toolIcon?.remove();
 			}
 
 			// Add class when displaying a confirmation widget
