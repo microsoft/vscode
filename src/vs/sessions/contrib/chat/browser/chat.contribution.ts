@@ -247,6 +247,7 @@ class CustomizeNewSessionWelcomeMessageAction extends Action2 {
 	override async run(accessor: ServicesAccessor, anchor?: unknown): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const commandService = accessor.get(ICommandService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		const namePick: IQuickPickItem = {
 			id: 'name',
@@ -263,15 +264,13 @@ class CustomizeNewSessionWelcomeMessageAction extends Action2 {
 			anchor,
 		});
 		if (pick === namePick) {
-			await this._setWelcomeName(accessor, anchor);
+			await this._setWelcomeName(quickInputService, configurationService, anchor);
 		} else if (pick === phrasesPick) {
 			await commandService.executeCommand('workbench.action.openSettings', NEW_SESSION_WELCOME_MESSAGES_SETTING);
 		}
 	}
 
-	private async _setWelcomeName(accessor: ServicesAccessor, anchor: unknown): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const quickInputService = accessor.get(IQuickInputService);
+	private async _setWelcomeName(quickInputService: IQuickInputService, configurationService: IConfigurationService, anchor: unknown): Promise<void> {
 		const configuredName = configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim();
 		const name = await quickInputService.input({
 			value: configuredName,
