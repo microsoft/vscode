@@ -21,13 +21,14 @@ import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFil
 import { TestInstantiationService } from '../../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
-import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentChatMigrationDeferred, AgentSession, IAgentDiscoveredChat } from '../../../common/agent.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
+import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
-import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType } from '../../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
@@ -57,6 +58,7 @@ interface ITestCodexAgent {
 	_activated: boolean;
 	_probeAccountAtStartup(): Promise<void>;
 	_restartChatDiscovery(): void;
+	_emitCodexChats(): Promise<boolean>;
 	_connectionGeneration: number;
 	_connection: {
 		kind: 'ready';
@@ -195,6 +197,61 @@ function createHarness(store: DisposableStore, sessionData = createSessionDataSe
 
 suite('Codex chat discovery', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const count of [0, 2]) {
+		test(`startup telemetry records ${count} processed Codex candidates without changing empty or duplicate emission`, async () => {
+			const store = disposables.add(new DisposableStore());
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 30));
+			const { internal, client, events } = createHarness(store, undefined, startupPerformance);
+			client.threads = Array.from({ length: count }, (_, i) => thread(`private-${i}`));
+			await internal._emitCodexChats();
+			await internal._emitCodexChats();
+			assert.deepStrictEqual({
+				emissions: events.map(chats => chats.length),
+				scans: client.listCalls,
+				first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => [
+					data?.provider, data?.since, data?.durationMs, data?.candidateSessionCount, data?.externalSessionCount, data?.filteredSessionCount, data?.failedSessionCount,
+				]),
+			}, { emissions: count ? [count] : [], scans: 2, first: [['codex', 'processStart', 30, count, count, undefined, undefined]] });
+		});
+	}
+
+	test('startup telemetry records a late empty Codex result independently of exhausted scans and provider replacement', async () => {
+		const store = disposables.add(new DisposableStore());
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 50));
+		const { internal, client } = createHarness(store, undefined, startupPerformance);
+		const results: boolean[] = [];
+		for (let i = 0; i < 4; i++) {
+			client.nextList = async () => { throw new Error('catalog unavailable'); };
+			results.push(await internal._emitCodexChats());
+		}
+		const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length;
+		client.threads = [];
+		results.push(await internal._emitCodexChats());
+		const replacement = createHarness(store, undefined, startupPerformance);
+		await replacement.internal._emitCodexChats();
+		assert.deepStrictEqual({
+			before,
+			results,
+			scans: telemetry.events.filter(event => event.data?.name === 'sessionDiscoveryScan').map(({ data }) => data?.outcome),
+			first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => [data?.durationMs, data?.candidateSessionCount]),
+		}, { before: 0, results: [false, false, false, false, true], scans: ['error', 'error', 'error'], first: [[50, 0]] });
+	});
+
+	test('startup telemetry does not replay Codex results first processed without consent', async () => {
+		const store = disposables.add(new DisposableStore());
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		telemetry.telemetryLevel = TelemetryLevel.NONE;
+		const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { internal, client, events } = createHarness(store, undefined, startupPerformance);
+		await internal._emitCodexChats();
+		telemetry.telemetryLevel = TelemetryLevel.USAGE;
+		client.threads = [thread('late')];
+		await internal._emitCodexChats();
+		assert.deepStrictEqual({ events: telemetry.events, batches: events.map(chats => chats.length) }, { events: [], batches: [1, 1] });
+	});
 
 	for (const [active, sdkAvailable] of [[false, false], [true, false], [true, true]]) {
 		test(`startup telemetry snapshots activation ${active} and SDK availability ${sdkAvailable} without additional work`, async () => {
@@ -539,23 +596,25 @@ suite('Codex chat discovery', () => {
 
 	test('ambient discovery stays cold and unavailable SDKs wait for explicit readiness', () => runWithFakedTimers({}, async () => {
 		const store = disposables.add(new DisposableStore());
-		const { agent, internal, client, downloader, filesystem, events } = createHarness(store);
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = store.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService()));
+		const { agent, internal, client, downloader, filesystem, events } = createHarness(store, undefined, startupPerformance);
 		try {
 			internal._activated = false;
 			await agent.startChatDiscovery();
 			await timeout(120_000);
-			const cold = { lists: client.listCalls, watches: filesystem.watches.size };
+			const cold = { lists: client.listCalls, watches: filesystem.watches.size, results: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length };
 			internal._activated = true;
 			downloader.resolvableWithoutDownload = false;
 			await agent.startChatDiscovery();
 			await timeout(120_000);
-			const unavailable = { lists: client.listCalls, watches: filesystem.watches.size };
+			const unavailable = { lists: client.listCalls, watches: filesystem.watches.size, results: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length };
 			downloader.resolvableWithoutDownload = true;
 			// The SDK setup channel invokes this after an explicit download.
 			internal._restartChatDiscovery();
 			await timeout(6000);
-			assert.deepStrictEqual({ cold, unavailable, events: events.length, downloads: downloader.progressInterests }, {
-				cold: { lists: 0, watches: 0 }, unavailable: { lists: 0, watches: 0 }, events: 1, downloads: [],
+			assert.deepStrictEqual({ cold, unavailable, events: events.length, downloads: downloader.progressInterests, results: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => data?.candidateSessionCount) }, {
+				cold: { lists: 0, watches: 0, results: 0 }, unavailable: { lists: 0, watches: 0, results: 0 }, events: 1, downloads: [], results: [1],
 			});
 		} finally {
 			store.dispose();
@@ -701,6 +760,65 @@ suite('Codex chat discovery', () => {
 				afterCreation: ['First message', 'Sent later in ChatGPT'], afterBurst: ['First message', 'Sent later in ChatGPT', 'Trailing external turn'],
 				unchanged: true, maxConcurrent: 1, stopped: true, lists: 1,
 			});
+		} finally {
+			store.dispose();
+		}
+	}));
+
+	test('observed history refresh preserves retained command output on changed turns', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const database = new TestSessionDatabase();
+		const output = `BEGIN\n${'x'.repeat(80_000)}\nEND\n`;
+		await database.createTurn('stored-turn');
+		await database.storeTerminalOutput('stored-turn', 'cmd-retained', VSBuffer.fromString(output).buffer);
+		const { agent, client, filesystem } = createHarness(store, createSessionDataService(database));
+		const turn = (answer: string, aggregatedOutput = output): CodexTurn => ({
+			id: 'one', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+			items: [
+				{ type: 'userMessage', id: 'one-user', clientId: null, content: [{ type: 'text', text: 'Run it', text_elements: [] }] },
+				{
+					type: 'commandExecution', id: 'cmd-retained', command: 'build', cwd: '/tmp',
+					processId: null, source: 'agent', status: 'completed', commandActions: [],
+					pluginId: null, scriptPath: null,
+					aggregatedOutput, exitCode: 0, durationMs: 5,
+				},
+				{ type: 'agentMessage', id: 'one-agent', text: answer, phase: 'final_answer', memoryCitation: null, delivery: null, questions: null },
+			],
+		});
+		const retainedContent = (turns: readonly import('../../../common/state/sessionState.js').Turn[]) => {
+			const part = turns[0]?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+			return part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined;
+		};
+		try {
+			await agent.startChatDiscovery();
+			const session = AgentSession.uri('codex', 'first');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			await agent.materializeChat(chat, { resource: session, configurationResource: session }, undefined);
+			client.turns = [turn('Working')];
+			const initial = await agent.chats.getMessages(chat, session);
+			const observed = agent as import('../../../common/agent.js').IAgent;
+			let refreshed: ReturnType<typeof retainedContent>;
+			if (observed.onDidChangeChatHistory) {
+				store.add(observed.onDidChangeChatHistory(event => refreshed = retainedContent(event.turns)));
+			}
+			const watch = observed.watchChatHistory && store.add(observed.watchChatHistory(chat));
+			client.turns = [turn('Done', '')];
+			filesystem.changeHomeFile('state_5.sqlite-wal');
+			await timeout(1500);
+
+			const preview = output.slice(0, 400);
+			const expected = [
+				{ type: ToolResultContentType.Text, text: preview },
+				{
+					type: ToolResultContentType.Terminal,
+					resource: buildNonPtyShellTerminalUri(session, session, chat, 'cmd-retained'),
+					title: 'Run shell command',
+					isPty: false,
+					result: { exitCode: 0, preview, truncated: true },
+				},
+			];
+			assert.deepStrictEqual({ initial: retainedContent(initial), refreshed }, { initial: expected, refreshed: expected });
+			watch?.dispose();
 		} finally {
 			store.dispose();
 		}

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import type { PermissionRequest } from '@github/copilot-sdk';
+import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
@@ -201,7 +202,7 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 	});
 
 	test('getToolMarkdownContent returns the task_complete summary when present', () => {
-		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:** All tests pass.');
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:**\n\nAll tests pass.');
 	});
 
 	test('getTaskCompleteMarkdown prefers the input summary over truncated tool output', () => {
@@ -210,10 +211,31 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 			withSummary: getTaskCompleteMarkdown({ summary: 'Completed the requested work.' }, truncatedOutput),
 			withoutSummary: getTaskCompleteMarkdown({}, 'Fallback summary.'),
 		}, {
-			withSummary: '\n\n**Task completed:** Completed the requested work.',
-			withoutSummary: '\n\n**Task completed:** Fallback summary.',
+			withSummary: '\n\n**Task completed:**\n\nCompleted the requested work.',
+			withoutSummary: '\n\n**Task completed:**\n\nFallback summary.',
 		});
 	});
+
+	const markdownCases: Array<[name: string, summary: string, expectedHtml: string]> = [
+		['headings', '## Summary\n\nAll tests pass.', '<h2>Summary</h2>\n<p>All tests pass.</p>\n'],
+		['setext headings', 'Summary\n-------', '<h2>Summary</h2>\n'],
+		['lists', '- Fixed the bug\n- Added tests', '<ul>\n<li>Fixed the bug</li>\n<li>Added tests</li>\n</ul>\n'],
+		['fenced code blocks', '```ts\nconst done = true;\n```', '<pre><code class="language-ts">const done = true;\n</code></pre>\n'],
+		['indented code blocks', '    const done = true;', '<pre><code>const done = true;\n</code></pre>\n'],
+		['block quotes', '> All tests pass.', '<blockquote>\n<p>All tests pass.</p>\n</blockquote>\n'],
+		['plain text', 'All tests pass.', '<p>All tests pass.</p>\n'],
+		['inline markdown', 'Updated **tests** and `code`.', '<p>Updated <strong>tests</strong> and <code>code</code>.</p>\n'],
+	];
+
+	for (const [name, summary, expectedHtml] of markdownCases) {
+		test(`getTaskCompleteMarkdown preserves ${name} after the completion label`, () => {
+			for (const parameters of [{ summary }, undefined]) {
+				const markdown = getTaskCompleteMarkdown(parameters, summary);
+				assert.ok(markdown);
+				assert.strictEqual(marked.parser(marked.lexer(markdown)), `<p><strong>Task completed:</strong></p>\n${expectedHtml}`);
+			}
+		});
+	}
 
 	test('getToolMarkdownContent returns undefined for empty, missing, or non-string summaries', () => {
 		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: '' }), undefined);

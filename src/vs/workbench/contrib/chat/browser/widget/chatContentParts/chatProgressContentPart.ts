@@ -423,6 +423,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 	private showDelayedProgressMessage: boolean;
 	private showingDelayedProgressMessage = false;
 	private showingUnresponsiveToolMessage = false;
+	private responseComplete = false;
 	private readonly contextElement: ChatTreeItem;
 	private readonly workingLogo: ChatWorkingProgressLogo | undefined;
 	private readonly delayedProgressMessageScheduler: RunOnceScheduler | undefined;
@@ -495,7 +496,9 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		if (isResponseVM(response)) {
 			const isComplete = observableFromEvent(this, response.model.onDidChange, () => response.isComplete || response.isCanceled);
 			this._register(autorun(reader => {
-				setVisibility(!isComplete.read(reader), this.domNode);
+				this.responseComplete = isComplete.read(reader);
+				setVisibility(!this.responseComplete, this.domNode);
+				this.updateActiveState();
 				this.updateImageGenerationMessageScheduler();
 			}));
 		}
@@ -543,9 +546,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			&& ((!!content && content.value !== previousExplicitContent?.value) || (this.imageGeneration && !previousImageGeneration))
 			&& this.workingConfigurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates);
 		if (this.workingLogo) {
-			this.domNode.classList.toggle('chat-working-progress-active', isActive);
-			this.workingLogo.setActive(isActive);
-			this.setShimmerActive(isActive);
+			this.updateActiveState();
 		}
 		this.updateMessage(resolvedContent);
 		if (shouldAnnounce) {
@@ -556,6 +557,16 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 				alert(message);
 			}
 		}
+	}
+
+	private updateActiveState(): void {
+		if (!this.workingLogo) {
+			return;
+		}
+		const active = this.isActive && !this.responseComplete;
+		this.domNode.classList.toggle('chat-working-progress-active', active);
+		this.workingLogo.setActive(active);
+		this.setShimmerActive(active);
 	}
 
 	private resolveWorkingContent(): IMarkdownString {

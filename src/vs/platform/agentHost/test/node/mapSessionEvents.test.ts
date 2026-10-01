@@ -575,7 +575,7 @@ suite('mapSessionEvents — history replay', () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Working on it.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
-			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: { summary: 'Done. All good.' } } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: { summary: '## Summary\n\nDone. All good.' } } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'Output too large to read at once (11.3 KB). Saved to: /tmp/task-complete.txt' } } },
 		];
 
@@ -584,7 +584,7 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(turns.length, 1);
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.Markdown, content: 'Working on it.' },
-			{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:** Done. All good.' },
+			{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:**\n\n## Summary\n\nDone. All good.' },
 		]);
 	});
 
@@ -952,7 +952,7 @@ suite('mapSessionEvents — history replay', () => {
 			state: TurnState.Complete,
 			parts: [
 				{ kind: ResponsePartKind.Markdown, content: 'All done.' },
-				{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:** Finished.' },
+				{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:**\n\nFinished.' },
 			],
 		}]);
 	});

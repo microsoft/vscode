@@ -16,6 +16,7 @@ import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { getAgentsPartCardContentSize } from '../../browser/parts/agentsPartCard.js';
 import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
+import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 
@@ -82,11 +83,11 @@ suite('Sessions - Agents Part Card', () => {
 		});
 	});
 
-	for (const singlePane of [false, true]) {
-		test(`keeps the expanded ${singlePane ? 'single-pane' : 'classic'} editor gutter and content size in sync`, () => {
+	for (const desktop of [false, true]) {
+		test(`keeps the expanded ${desktop ? 'desktop' : 'mobile'} editor gutter and content size in sync`, () => {
 			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.noauxiliarybar'));
 			store.add(toDisposable(() => workbench.remove()));
-			workbench.classList.toggle('dock-detail-panel', singlePane);
+			workbench.classList.toggle('dock-detail-panel', desktop);
 			workbench.style.width = '800px';
 			workbench.style.setProperty('--vscode-agents-layout-floatingPanelGap', '4px');
 			workbench.style.setProperty('--vscode-strokeThickness', '1px');
@@ -114,7 +115,7 @@ suite('Sessions - Agents Part Card', () => {
 				const part = {
 					layoutService: {
 						mainContainer: workbench,
-						isSinglePaneLayoutEnabled: singlePane,
+						agentWorkbenchLayout: desktop ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile,
 						isVisible: (partId: Parts) => partId === Parts.EDITOR_PART
 							|| (partId === Parts.SIDEBAR_PART && state.sidebar)
 							|| (partId === Parts.SESSIONS_PART && state.sessions),

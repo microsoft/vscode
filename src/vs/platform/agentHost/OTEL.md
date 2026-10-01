@@ -114,6 +114,7 @@ the deadline remain missing; the marker is not proof that a turn completed.
 | Host `timeToFirstProgress`, `timeToFirstSubstantiveProgress` | Turn start to existing first visible/substantive progress boundaries; absent if not observed |
 | Host `sendStageWorkingDirectoryMs`, `sendStageModelSelectionMs`, `sendStageAttachmentsMs`, `sendStageContributionsMs` | Elapsed time in each existing pre-send stage that ran; an interrupted open stage retains its partial duration |
 | Host `sendStageCheckpointMs` | **Residual critical-path wait** for the checkpoint after overlap with earlier preparation, not the entire checkpoint operation |
+| Host `providerStageQueueMs`, `providerStageClientMs`, `providerStageSnapshotMs`, `providerStageConfigMs`, `providerStageCreateMs`, `providerStageFinalizeMs`, `providerStagePersistMs`, `providerStageRefreshMs`, `providerStageTurnPrepareMs`, `providerStageModelResponseMs` | Sequential provider-marked stages between provider dispatch and first progress (chat queue wait, SDK client acquisition, customization snapshot, session config, SDK create/resume, post-create setup, session registration/persistence, live-session refresh, per-turn preparation, and SDK send until first progress). Only stages the provider ran are present; a turn ending before first progress retains its partial open stage. Copilot marks all of them; other providers currently mark none |
 | Host `hostRootTurnOrdinal`, `hostProcessAgeMs`, `titleGenerationStrategy` | Existing root ordinal and process age captured at turn start, and effective `activeAgent`, `utility`, or `deferred` strategy when observed |
 | Renderer `requestId` | Exact client request ID, duplicated as `turnId` for joins |
 | Renderer `outcome`, `sessionTurnKind`, `invocationKind` | Existing diagnostic classifications described below |
@@ -187,7 +188,11 @@ discarding them from outcome reporting. Missing historical fields remain unknown
 
 The host log separately records `[AgentHostTurnTiming]` JSON with `schemaVersion: 1`,
 `sessionId`, `chatId`, `turnId`, `provider`, `hostRootTurnOrdinal` (one-based, across providers)
-and `hostProcessAgeMs`, captured at turn start. The first strategy capture adds
+and `hostProcessAgeMs`, captured at turn start. At a dispatched turn's first
+progress, `[AgentHostFirstProgress]` JSON records `timeToFirstProgress`,
+`timeToProviderDispatch`, and the rounded host `sendStages` and provider
+`providerStages` durations observed so far, for attributing local latency
+without product telemetry. The first strategy capture adds
 an enriched marker with the same start values and `titleGenerationStrategy`
 (`activeAgent`, `utility`, or `deferred`). Merge compatible markers for one turn,
 retaining the known strategy rather than counting them as separate observations.
@@ -340,6 +345,17 @@ Claude honors these standard resource variables for traces, logs, and metrics wh
 
 The host emits a zero-duration `vscode.agent_host.session` anchor and passes its W3C `traceparent`/`tracestate` to native runtimes. Copilot reads the context through `CopilotClientOptions.onGetTraceContext`, Claude receives it in its session subprocess environment, and Codex receives it on session-scoped JSON-RPC request envelopes. Provider-native traces can therefore share one trace id while retaining their provider conversation attributes.
 
+Sessions created by Run Multiple Agents add bounded correlation attributes to this anchor:
+
+| Attribute | Description |
+|---|---|
+| `vscode.agent_host.comparison.id` | Hashed random comparison identifier, matching the correlation key in the VS Code comparison telemetry events. |
+| `vscode.agent_host.comparison.role` | `attempt`, `judge`, or `synthesis`. |
+| `vscode.agent_host.comparison.attempt_index` | Zero-based attempt ordinal; present only for attempts. |
+| `vscode.agent_host.comparison.attempt_count` | Number of implementation attempts in the comparison. |
+
+These attributes contain no prompt, title, path, model label, or tool content and do not require content capture. They are emitted only when Agent Host OTel is already enabled; comparisons do not enable or reconfigure OTel. Token consumption comes from the provider-native chat spans in the same trace (`gen_ai.usage.input_tokens` and `gen_ai.usage.output_tokens`) rather than VS Code telemetry.
+
 ## Session Title Metadata
 
 When content capture is enabled, the agent host emits a zero-duration `vscode.agent_host.session.title_changed` span whenever an authoritative Copilot, Claude, or Codex session title changes. This includes fallback, generated, refined, and manually renamed titles; assigning the same title again does not emit another span. Downstream consumers can use the latest span for a conversation to display its current title.
@@ -388,7 +404,7 @@ The workbench-side starter translates the settings above into the following env 
 
 Inside Agent Host, OTel activates when `COPILOT_OTEL_ENABLED` or `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` is truthy, or when an OTLP endpoint or file-exporter path is non-empty. This allows inherited environment configuration to enable OTel without a local VS Code setting.
 
-> **Activation timing.** Env vars are bound at agent host **spawn time**. Changing a setting while the agent host is already running has no effect until the host respawns — restart VS Code or reload the window if you change these settings mid-session.
+> **Activation timing.** Env vars are bound at agent host **spawn time**. When settled enterprise OTel policy changes after startup, VS Code automatically respawns the local agent host with the new policy. Temporary policy-refresh values and windows still resolving their initial account do not restart an existing host. Changes to personal settings still require a manual agent host or window restart.
 
 ## Local SQLite Span Store
 
@@ -475,4 +491,4 @@ This matches the path-handling rules of the official OpenTelemetry SDKs and ensu
 
 ## Spawn-Time Env Binding
 
-The agent host inherits its env vars at fork time. `IAgentHostOTelService` reads `process.env` once in its constructor and caches the resolved config. Changing a `chat.agentHost.otel.*` setting at runtime therefore has **no effect** on the currently-running agent host — the host must respawn (reload window / restart VS Code) to pick up the new value. This is the same model used by the rest of the agent host service surface.
+The agent host inherits its env vars at fork time. `IAgentHostOTelService` reads `process.env` once in its constructor and caches the resolved config. The renderer forwards enterprise-resolved OTel policy changes and account-policy readiness to the main process. The main process retains the existing host's policy during a pending refresh or another window's initial account resolution. A settled change, including policy withdrawal or fail-closed restrictions after a failed refresh, respawns the shared local agent host. Pending refreshes do not bypass the account-policy gate on AI functionality. A cold host can use provisional startup values until settled policy arrives. Personal `chat.agentHost.otel.*` setting changes do not trigger this automatic restart and require a manual agent host or window restart.

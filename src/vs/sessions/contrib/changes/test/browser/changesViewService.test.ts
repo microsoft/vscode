@@ -375,7 +375,7 @@ suite('ChangesViewService', () => {
 		]);
 	});
 
-	test('surfaces cached changes while the changeset recomputes', () => {
+	test('tracks changeset snapshot availability independently of the file count', () => {
 		const cachedChange = upcastPartial<ISessionFileChange>({
 			modifiedUri: URI.file('/repo/cached.ts'),
 		});
@@ -384,36 +384,36 @@ suite('ChangesViewService', () => {
 		const changeset = createChangeset([], { isLoadingChanges, changes });
 		const { service } = createHarness(createSession('cached', { changesets: [changeset] }));
 
-		const withCachedChanges = {
-			changesetLoading: service.activeSessionChangesetLoadingObs.get(),
-			sessionLoading: service.activeSessionLoadingObs.get(),
-			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
-		};
-		changes.set([], undefined);
-		const withoutCachedChanges = {
+		const beforeSnapshot = {
 			changesetLoading: service.activeSessionChangesetLoadingObs.get(),
 			sessionLoading: service.activeSessionLoadingObs.get(),
 			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
 		};
 		isLoadingChanges.set(false, undefined);
-		const afterRecompute = {
+		const populatedSnapshot = {
+			changesetLoading: service.activeSessionChangesetLoadingObs.get(),
+			sessionLoading: service.activeSessionLoadingObs.get(),
+			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
+		};
+		changes.set([], undefined);
+		const emptySnapshot = {
 			changesetLoading: service.activeSessionChangesetLoadingObs.get(),
 			sessionLoading: service.activeSessionLoadingObs.get(),
 			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
 		};
 
-		assert.deepStrictEqual({ withCachedChanges, withoutCachedChanges, afterRecompute }, {
-			withCachedChanges: {
-				changesetLoading: true,
-				sessionLoading: false,
-				changes: ['file:///repo/cached.ts'],
-			},
-			withoutCachedChanges: {
+		assert.deepStrictEqual({ beforeSnapshot, populatedSnapshot, emptySnapshot }, {
+			beforeSnapshot: {
 				changesetLoading: true,
 				sessionLoading: true,
 				changes: [],
 			},
-			afterRecompute: {
+			populatedSnapshot: {
+				changesetLoading: false,
+				sessionLoading: false,
+				changes: ['file:///repo/cached.ts'],
+			},
+			emptySnapshot: {
 				changesetLoading: false,
 				sessionLoading: false,
 				changes: [],
@@ -848,6 +848,44 @@ suite('ChangesViewService', () => {
 		}, {
 			changesets: undefined,
 			loading: true,
+		});
+	});
+
+	test('keeps the changeset loading while the next session catalogue is unpublished', () => {
+		const cachedChange = upcastPartial<ISessionFileChange>({
+			modifiedUri: URI.file('/repo/cached.ts'),
+		});
+		const firstChangeset = createChangeset([], {
+			changes: constObservable([cachedChange]),
+		});
+		const pendingChangesets = observableValue<readonly ISessionChangeset[] | undefined>('test.pendingChangesets', undefined);
+		const nextChat = upcastPartial<IChat>({
+			resource: URI.parse('test-chat:/next'),
+			workspace: constObservable(undefined),
+			changes: constObservable([]),
+			changesets: pendingChangesets,
+		});
+		const nextSession = createSession('next', {
+			activeChat: constObservable(nextChat),
+			mainChat: constObservable(nextChat),
+			chats: constObservable([nextChat]),
+		});
+		const { activeSession, service } = createHarness(createSession('first', { changesets: [firstChangeset] }));
+		const snapshot = () => ({
+			loading: service.activeSessionChangesetLoadingObs.get(),
+			changes: service.activeSessionChangesObs.get().map(change => change.modifiedUri?.toString()),
+		});
+
+		const beforeSwitch = snapshot();
+		activeSession.set(nextSession, undefined);
+		const unpublished = snapshot();
+		pendingChangesets.set([], undefined);
+		const authoritativeEmpty = snapshot();
+
+		assert.deepStrictEqual({ beforeSwitch, unpublished, authoritativeEmpty }, {
+			beforeSwitch: { loading: false, changes: ['file:///repo/cached.ts'] },
+			unpublished: { loading: true, changes: [] },
+			authoritativeEmpty: { loading: false, changes: [] },
 		});
 	});
 

@@ -140,9 +140,15 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 						continue;
 					}
 
-					const tree = await this._gitService.captureWorkingTreeAsTree(repositoryRootUri);
+					// The baseline lookup is independent of the capture, so overlap it.
+					const [tree, hasBaseline] = await Promise.all([
+						this._gitService.captureWorkingTreeAsTree(repositoryRootUri),
+						this.getBaselineCheckpoint(sessionUri, repositoryRootUri),
+					]);
 					if (tree) {
-						await this._ensureBaselineCheckpoint(sessionUri, repositoryRootUri, tree);
+						if (!hasBaseline) {
+							await this._ensureBaselineCheckpoint(sessionUri, repositoryRootUri, tree);
+						}
 						checkpoint.trees.set(repositoryRootUri.toString(), tree);
 					}
 				} catch (err) {

@@ -17,6 +17,8 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { Range } from '../../../../../editor/common/core/range.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -116,6 +118,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly height?: number;
 	readonly listHeight?: number;
 	readonly defaultElementHeight?: number;
+	/** Omit the auxiliary-bar ancestry when the caller supplies the owning workbench part. */
+	readonly useAuxiliaryBarWrapper?: boolean;
 	/** Total horizontal padding reserved when laying out response content and embedded editors. */
 	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
@@ -638,14 +642,18 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// Mirror the product DOM ancestry: the chat widget lives inside
 	// `.part.auxiliarybar > .content`, where auxiliaryBarPart.css recolors
 	// inline editors with `--vscode-sideBar-background` (used by the carousel).
-	const auxBar = dom.$('.part.auxiliarybar');
-	auxBar.style.width = '100%';
-	auxBar.style.height = '100%';
-	const auxContent = dom.$('.content');
-	auxContent.style.width = '100%';
-	auxContent.style.height = '100%';
-	auxBar.appendChild(auxContent);
-	container.appendChild(auxBar);
+	let chatContainer = container;
+	if (options.useAuxiliaryBarWrapper !== false) {
+		const auxBar = dom.$('.part.auxiliarybar');
+		auxBar.style.width = '100%';
+		auxBar.style.height = '100%';
+		const auxContent = dom.$('.content');
+		auxContent.style.width = '100%';
+		auxContent.style.height = '100%';
+		auxBar.appendChild(auxContent);
+		container.appendChild(auxBar);
+		chatContainer = auxContent;
+	}
 
 	const session = dom.$('.interactive-session');
 	session.style.setProperty('--vscode-chat-list-background', listBackground);
@@ -654,7 +662,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		session.classList.add(chatFloatingPersistentContentClass);
 		session.style.setProperty(chatPersistentContentHeightVariable, `${options.persistentContentHeight}px`);
 	}
-	auxContent.appendChild(session);
+	chatContainer.appendChild(session);
 
 	// Build the input part FIRST so the widget (with its inputPart) is registered
 	// in IChatWidgetService before the list widget renders. The renderer queries
@@ -1192,6 +1200,12 @@ interface IPersistentProgressScenarioOptions {
 
 async function renderPersistentProgressScenario(context: ComponentFixtureContext, messages: readonly IFixtureMessage[], options: IPersistentProgressScenarioOptions = {}): Promise<void> {
 	const { expectedText, progressAnimation = ChatProgressAnimation.Draw, productQuality = 'stable', reducedMotion = false, thinkingStyle = ThinkingDisplayMode.Collapsed } = options;
+	const reducedMotionEmitter = context.disposableStore.add(new Emitter<void>());
+	const accessibilityService = new class extends TestAccessibilityService {
+		override readonly onDidChangeReducedMotion = reducedMotionEmitter.event;
+		override isMotionReduced(): boolean { return reducedMotion; }
+	}();
+	context.disposableStore.add(context.onDidChangeEnableAnimations(() => reducedMotionEmitter.fire()));
 	let handle: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget(context, {
 		messages,
@@ -1208,6 +1222,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		width: options.width,
 		height: options.height ?? 560,
 		listHeight: options.listHeight ?? 340,
+		additionalServices: reg => reg.defineInstance(IAccessibilityService, accessibilityService),
 		onRendered: rendered => {
 			handle = rendered;
 			if (!options.activityUpdates || context.container.classList.contains('disable-animations')) {
@@ -1255,6 +1270,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	context.container.classList.toggle('monaco-reduce-motion', reducedMotion);
 
 	const targetWindow = dom.getWindow(context.container);
+	const initialDrawPathData = [...context.container.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d') ?? '');
 	const mcpStartup = messages.flatMap(message => message.assistant ?? []).find(part => part.kind === 'mcpStarting');
 	if (hasLocalMcpAutostart(messages)) {
 		await timeout(2600);
@@ -1488,8 +1504,26 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 			throw new Error('The terminal activity animation did not retain its original motion behavior');
 		}
 	}
-	if (logo.getAnimations({ subtree: true }).length !== (shouldAnimate && !noIcon ? 3 : 0)) {
-		throw new Error(`${progressAnimation} progress animation did not match reducedMotion=${reducedMotion}`);
+	if (logo.getAnimations({ subtree: true }).length !== 0) {
+		throw new Error(`${progressAnimation} progress must use requestAnimationFrame instead of CSS animations`);
+	}
+	const drawPaths = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')];
+	if (!noIcon && drawPaths.length !== 3) {
+		throw new Error(`${progressAnimation} progress did not render all Draw mask bands`);
+	}
+	const drawPathData = drawPaths.map(path => path.getAttribute('d') ?? '');
+	if (shouldAnimate && !noIcon && drawPathData.every((path, index) => path === initialDrawPathData[index])) {
+		throw new Error(`${progressAnimation} progress did not advance its Draw paths`);
+	}
+	if (!shouldAnimate && !noIcon) {
+		const face = logo.querySelector<HTMLElement>('.chat-working-logo-face');
+		const drawContainer = logo.querySelector<HTMLElement>('.chat-working-logo-draw-container');
+		if (!logo.classList.contains('chat-working-logo-draw-assembled')
+			|| !face || targetWindow.getComputedStyle(face).display === 'none'
+			|| !drawContainer || targetWindow.getComputedStyle(drawContainer).display !== 'none'
+			|| [...face.querySelectorAll('path')].some(path => path.hasAttribute('mask'))) {
+			throw new Error(`${progressAnimation} progress did not resolve to the unmasked assembled product mark`);
+		}
 	}
 	if ((targetWindow.getComputedStyle(textElement).animationName !== 'none') !== shouldAnimate) {
 		throw new Error(`Persistent progress text animation did not match reducedMotion=${reducedMotion}`);

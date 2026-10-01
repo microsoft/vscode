@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { constObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
@@ -34,7 +35,12 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
 
 	protected override _adapterOptions() {
-		return { ...super._adapterOptions(), preserveStatusWhenDisconnected: true };
+		return {
+			...super._adapterOptions(),
+			preserveStatusWhenDisconnected: true,
+			useSessionTitleForDefaultChat: true,
+			externalSessionState: () => constObservable(false),
+		};
 	}
 
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
