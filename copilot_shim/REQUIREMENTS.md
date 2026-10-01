@@ -904,7 +904,8 @@ release and sends a `HEAD` request for the MSI for the current architecture,
 within the timeout (default 5 seconds, at most 60 seconds). The timeout covers
 the whole check, including proxy discovery, so setup gets the local result even
 when the network hangs. It writes a `[probe]` section with `protocol`,
-`policy` (`allowed` or `disabled`), `cliFound`, `pwshFound`,
+`policy` (`allowed` or `disabled`), `cliFound`, `cliPath` (the first Copilot CLI
+found, which setup shows when it skips its page), `pwshFound`,
 `downloadAvailable`, `downloadSize`, and `reason`, and exits `0` when the file
 was written.
 
