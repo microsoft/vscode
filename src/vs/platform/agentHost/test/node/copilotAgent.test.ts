@@ -285,6 +285,7 @@ class TestAgentPluginManager implements IAgentPluginManager {
 
 	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
 	readonly hostPluginsPath = URI.joinPath(this.basePath, '.host');
+	trustHostPluginDirectory(): void { }
 
 	async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[], _progress?: (status: PluginCustomization) => void): Promise<ISyncedCustomization[]> {
 		return [];

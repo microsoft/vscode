@@ -10,6 +10,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
@@ -435,6 +436,30 @@ suite('Automation dialog creation', () => {
 				requests: [{ target: 'one', cancelled: true }, { target: 'two', cancelled: true }, { target: 'three', cancelled: false }],
 				selected: ['new'],
 				summary: '1 of 3 customizations · 1 outdated',
+			});
+		});
+
+		test('reloads on isolation changes and waits for a pending load before reporting the selection', async () => {
+			const requests: DeferredPromise<readonly IAutomationCustomizationChoice[] | undefined>[] = [];
+			const selection = disposables.add(new AutomationCustomizationSelection(
+				DOM.$('div'),
+				upcastPartial<IAutomationService>({
+					getCustomizationChoices: async () => {
+						const result = new DeferredPromise<readonly IAutomationCustomizationChoice[] | undefined>();
+						requests.push(result);
+						return result.p;
+					},
+				}),
+				upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+				new NullLogService(),
+			));
+			selection.updateTarget({ kind: 'workspace', folderUri: FOLDER, providerId: 'host', sessionTypeId: 'one', isolation: { kind: 'folder' } });
+			selection.updateTarget({ kind: 'workspace', folderUri: FOLDER, providerId: 'host', sessionTypeId: 'one', isolation: { kind: 'worktree', branch: 'main' } });
+			const beforeLoad = selection.getSelectedIds();
+			const waited = selection.waitForChoices(CancellationToken.None).then(() => selection.getSelectedIds());
+			void requests[1].complete([{ id: 'plugin', label: 'Plugin', selected: true, outdated: false }]);
+			assert.deepStrictEqual({ requests: requests.length, beforeLoad, afterLoad: await waited }, {
+				requests: 2, beforeLoad: undefined, afterLoad: ['plugin'],
 			});
 		});
 	});

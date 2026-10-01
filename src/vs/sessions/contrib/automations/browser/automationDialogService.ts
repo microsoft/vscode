@@ -132,6 +132,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let waitForAutomationSessionSync: (token: CancellationToken) => Promise<void> = async () => { };
 		let setSaving: (saving: boolean, committing?: boolean) => void = () => { };
 		let getCustomizationIds: () => readonly string[] | undefined = () => undefined;
+		let waitForCustomizationChoices: (token: CancellationToken) => Promise<void> = async () => { };
 		let progressBar: ProgressBar | undefined;
 		let dialogElement: HTMLElement | undefined;
 		let closeToolbar: HTMLElement | undefined;
@@ -239,6 +240,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			let shouldFocusError = false;
 			try {
 				await waitForAutomationSessionSync(cancellation.token);
+				await waitForCustomizationChoices(cancellation.token);
 				const sessionConfigurationCapture = await getSessionConfiguration(cancellation.token);
 				if (sessionConfigurationCapture.kind === 'failed') {
 					dialogTelemetry.captureFailed();
@@ -360,6 +362,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					waitForAutomationSessionSync = handle.waitForAutomationSessionSync;
 					setSaving = handle.setSaving;
 					getCustomizationIds = handle.getCustomizationIds;
+					waitForCustomizationChoices = handle.waitForCustomizationChoices;
 					showSaveError = handle.showSaveError;
 					focusSaveError = handle.focusSaveError;
 					getFocusableElements = handle.getFocusableElements;

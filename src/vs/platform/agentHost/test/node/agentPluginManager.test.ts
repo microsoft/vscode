@@ -111,25 +111,23 @@ suite('AgentPluginManager', () => {
 
 	suite('syncCustomizations', () => {
 
-		test('uses file plugins in place only for the automation active client outside host directories', async () => {
+		test('uses file plugins in place only when the host trusts their directory', async () => {
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 			const directory = URI.file('/local/bundle');
 			const ref = { ...makeRef('local', 'revision'), uri: directory.toString() };
 			await fileService.writeFile(URI.joinPath(directory, 'index.js'), VSBuffer.fromString('original'));
-			await fileService.writeFile(URI.joinPath(toAgentClientUri(directory, 'test-client'), 'index.js'), VSBuffer.fromString('client-served'));
-			const [inPlace] = await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [ref]);
-			const cacheExistsBeforeCopy = await fileService.exists(URI.joinPath(manager.basePath, 'cache.json'));
-			const [copied] = await manager.syncCustomizations('test-client', [ref]);
+			await fileService.writeFile(URI.joinPath(toAgentClientUri(directory, AUTOMATION_ACTIVE_CLIENT_ID), 'index.js'), VSBuffer.fromString('client-served'));
+			const [untrusted] = await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [ref]);
+			manager.trustHostPluginDirectory(directory);
+			const [trusted] = await manager.syncCustomizations('any-client', [ref]);
 			assert.deepStrictEqual({
-				inPlace: inPlace.pluginDir?.toString(),
-				inPlaceLoad: inPlace.customization.load,
-				cacheExistsBeforeCopy,
-				copied: copied.pluginDir?.toString() !== directory.toString(),
-				copiedLoad: copied.customization.load,
-				content: (await fileService.readFile(URI.joinPath(copied.pluginDir!, 'index.js'))).value.toString(),
+				untrustedCopied: untrusted.pluginDir?.toString() !== directory.toString(),
+				untrustedContent: (await fileService.readFile(URI.joinPath(untrusted.pluginDir!, 'index.js'))).value.toString(),
+				trusted: trusted.pluginDir?.toString(),
+				trustedLoad: trusted.customization.load,
 			}, {
-				inPlace: directory.toString(), inPlaceLoad: { kind: 'loaded' }, cacheExistsBeforeCopy: false,
-				copied: true, copiedLoad: { kind: 'loaded' }, content: 'client-served',
+				untrustedCopied: true, untrustedContent: 'client-served',
+				trusted: directory.toString(), trustedLoad: { kind: 'loaded' },
 			});
 		});
 

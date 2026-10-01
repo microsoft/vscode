@@ -248,6 +248,7 @@ interface IRenderFormHandle {
 	readonly waitForAutomationSessionSync: (token: CancellationToken) => Promise<void>;
 	readonly setSaving: (saving: boolean, committing?: boolean) => void;
 	readonly getCustomizationIds: () => readonly string[] | undefined;
+	readonly waitForCustomizationChoices: (token: CancellationToken) => Promise<void>;
 	readonly showTargetValidationError: (message: string | undefined) => void;
 	readonly showSaveError: (message: string | undefined) => void;
 	readonly focusSaveError: () => void;
@@ -1497,6 +1498,7 @@ export function renderForm(
 		getSessionConfiguration: token => automationSessionDraftSynchronizer.getSessionConfiguration(token),
 		getBranch: () => isolationModel.persistedBranch,
 		getCustomizationIds: () => customizationSelection?.getSelectedIds(),
+		waitForCustomizationChoices: async token => customizationSelection?.waitForChoices(token),
 		showTargetValidationError: message => {
 			const text = message ?? '';
 			if (targetError.textContent === text) {
@@ -1574,6 +1576,7 @@ export class AutomationCustomizationSelection extends Disposable {
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly toggles = new Map<string, boolean>();
 	private choices: readonly IAutomationCustomizationChoice[] | undefined;
+	private loading: Promise<void> = Promise.resolve();
 	private targetKey: string | undefined;
 	private expanded = false;
 
@@ -1611,12 +1614,19 @@ export class AutomationCustomizationSelection extends Disposable {
 		return this.choices?.filter(choice => this.toggles.get(choice.id) ?? choice.selected).map(choice => choice.id);
 	}
 
+	/** Waits for the choices of the current target to load, so a save never omits the selection. */
+	async waitForChoices(token: CancellationToken): Promise<void> {
+		await raceCancellationError(this.loading, token);
+	}
+
 	updateTarget(target: AutomationTarget | undefined): void {
 		const key = target ? JSON.stringify({
 			kind: target.kind,
 			providerId: target.providerId,
 			sessionTypeId: target.sessionTypeId,
 			folder: target.kind === 'workspace' ? getComparisonKey(target.folderUri) : undefined,
+			// Isolation changes count as a new target for the saved selection, as in the provider.
+			isolation: target.kind === 'workspace' ? target.isolation : undefined,
 		}) : undefined;
 		if (key === this.targetKey) {
 			return;
@@ -1640,7 +1650,7 @@ export class AutomationCustomizationSelection extends Disposable {
 		DOM.append(loading, $('span', undefined, localize('automation.customizations.loading', "Loading customizations…")));
 		const request = new CancellationTokenSource();
 		this.request.value = request;
-		void this.load(target, request);
+		this.loading = this.load(target, request);
 	}
 
 	private async load(target: AutomationTarget, request: CancellationTokenSource): Promise<void> {

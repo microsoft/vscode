@@ -1393,7 +1393,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	isLocalClient(clientId: string): boolean {
 		const record = this._clients.get(clientId);
 		return record?.state === 'active'
-			&& record.connections.some(connection => connection.telemetryContext.connectionKind === AgentHostClientConnectionKind.Local);
+			&& record.connections.some(connection => connection.telemetryConnectionActive && this._supportsCanvases(connection));
 	}
 
 	getConnectedClientTransportCounts(): ReadonlyMap<string, number> {

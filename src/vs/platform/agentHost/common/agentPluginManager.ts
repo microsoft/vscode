@@ -40,8 +40,15 @@ export interface IAgentPluginManager {
 	 */
 	readonly basePath: URI;
 
-	/** Immutable host-owned plugin directories. File URIs under this path, or synced for AUTOMATION_ACTIVE_CLIENT_ID, are used in place without cache entries. */
+	/** Immutable host-owned plugin directories. File URIs under this path are used in place without cache entries. */
 	readonly hostPluginsPath: URI;
+
+	/**
+	 * Marks a host `file:` plugin directory as trusted, so customizations with
+	 * exactly this URI are used in place regardless of which client syncs them.
+	 * Only host-side callers that resolved the path themselves may call this.
+	 */
+	trustHostPluginDirectory(uri: URI): void;
 
 	/**
 	 * Syncs a set of client-provided plugin customizations to local storage.

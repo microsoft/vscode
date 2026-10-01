@@ -282,13 +282,15 @@ suite('AgentHostAutomationService', () => {
 			changes: { session: { ...action.definition.session, customizations: [updatedRef] } },
 		}, 'local');
 		const updated = stateManager.getAutomationCatalogState()!.entries[0];
+		const [runSync] = await pluginManager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [{ ...updatedRef, clientId: AUTOMATION_ACTIVE_CLIENT_ID }]);
 		assert.deepStrictEqual({
 			createdUris: created?.map(copy => copy.uri),
 			updatedUris: updated.customizations?.map(copy => copy.uri),
 			refs: updated.definition.session.customizations,
 			copiesExist: await fileService.exists(URI.joinPath(pluginManager.hostPluginsPath, 'automations')),
+			runPluginDir: runSync.pluginDir?.toString(),
 		}, {
-			createdUris: [ref.uri], updatedUris: [ref.uri], refs: [updatedRef], copiesExist: false,
+			createdUris: [ref.uri], updatedUris: [ref.uri], refs: [updatedRef], copiesExist: false, runPluginDir: ref.uri,
 		});
 	});
 
