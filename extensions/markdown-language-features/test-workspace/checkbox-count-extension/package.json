@@ -10,7 +10,7 @@
   },
   "main": "./dist/extension.js",
   "scripts": {
-    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js && esbuild editor/main.ts --bundle --format=esm --splitting --outdir=editor/dist --entry-names=[name] --chunk-names=chunks/[name]-[hash]"
+    "build": "node init && esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=dist/extension.js && esbuild editor/main.ts --bundle --format=esm --splitting --outdir=editor/dist --entry-names=[name] --chunk-names=chunks/[name]-[hash]"
   },
   "activationEvents": [
     "onStartupFinished"
