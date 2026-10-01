@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -1666,6 +1666,15 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('prepareToolInvocation - auto approval behavior', () => {
+
+		test('should mark commands that contain a comment', async () => {
+			const results = [];
+			for (const command of ['echo hello', 'echo hello # it is safe']) {
+				const result = await executeToolTest({ command });
+				results.push(result?.toolSpecificData?.kind === 'terminal' ? result.toolSpecificData.commandLine.hasComment : undefined);
+			}
+			deepStrictEqual(results, [false, true]);
+		});
 
 		test('should auto-approve commands in allow list', async () => {
 			setAutoApprove({

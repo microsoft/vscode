@@ -40,6 +40,16 @@ suite('TreeSitterCommandParser', () => {
 		parser = store.add(instantiationService.createInstance(TreeSitterCommandParser));
 	});
 
+	test('hasComment', async () => {
+		deepStrictEqual(await Promise.all([
+			parser.hasComment(TreeSitterCommandParserLanguage.Bash, 'rm -rf src # generated, safe to delete'),
+			parser.hasComment(TreeSitterCommandParserLanguage.Bash, 'echo "# not a comment"'),
+			parser.hasComment(TreeSitterCommandParserLanguage.Bash, 'git log --format=#%h'),
+			parser.hasComment(TreeSitterCommandParserLanguage.PowerShell, 'Remove-Item src <# generated #>'),
+			parser.hasComment(TreeSitterCommandParserLanguage.PowerShell, `Write-Host '# not a comment'`),
+		]), [true, false, false, true, false]);
+	});
+
 	suite('extractSubCommands', () => {
 		suite('bash', () => {
 			async function t(commandLine: string, expectedCommands: string[]) {

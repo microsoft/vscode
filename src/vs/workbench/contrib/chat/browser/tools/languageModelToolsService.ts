@@ -1018,6 +1018,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return { autoConfirmed };
 		}
 
+		// A comment can mislead the classifier, so skip commented terminal commands without assessing them
+		if (preparedInvocation?.toolSpecificData?.kind === 'terminal' && preparedInvocation.toolSpecificData.commandLine.hasComment) {
+			const explanation = localize('autopilotRiskSkipComment', "The command contains a comment, which could mislead the risk assessment.");
+			this._logService.info(`[LanguageModelToolsService#invokeTool] Autopilot skipping terminal command with a comment`);
+			return { autoConfirmed: { type: ToolConfirmKind.Skipped }, skipExplanation: explanation };
+		}
+
 		try {
 			// ignoreEnablement: assess even when the risk-badge setting is off.
 			const assessment = await this._riskAssessmentService.assess(tool.data, dto.parameters, token, undefined, { ignoreEnablement: true });

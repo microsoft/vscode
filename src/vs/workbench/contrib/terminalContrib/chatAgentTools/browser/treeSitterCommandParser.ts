@@ -72,6 +72,10 @@ export class TreeSitterCommandParser extends Disposable {
 		return captures.map(e => e.node.text);
 	}
 
+	async hasComment(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<boolean> {
+		return (await this._queryTree(languageId, commandLine, '(comment) @comment')).length > 0;
+	}
+
 	async extractAutoApprovalSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<IAutoApprovalCommandParseResult> {
 		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshFlagEquals(commandLine) : commandLine;
 		const querySource = languageId === TreeSitterCommandParserLanguage.PowerShell

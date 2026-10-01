@@ -94,7 +94,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 
 		const promise = (async () => {
 			try {
-				const assessment = await this._invokeModel(tool, parameters, resolvedKind, token);
+				const assessment = await this._invokeModel(tool, normalizeRiskCacheParameters(parameters, resolvedKind), resolvedKind, token);
 				if (token.isCancellationRequested) {
 					return undefined;
 				}
@@ -166,7 +166,7 @@ function resolveRiskPromptKind(tool: IToolData, kind: ToolRiskPromptKind | undef
 
 /**
  * Compute the subset of tool parameters that are relevant to the risk
- * assessment, used as the cache key so re-invocations of the same tool call
+ * assessment, used as the prompt input and cache key so re-invocations of the same tool call
  * hit the cache even when model-generated descriptive fields differ.
  */
 function normalizeRiskCacheParameters(parameters: unknown, kind: ToolRiskPromptKind): unknown {
