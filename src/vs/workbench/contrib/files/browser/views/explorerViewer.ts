@@ -1134,8 +1134,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 					if (!inputBox.validate()) {
 						done(true, true);
 					}
-				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
 				}
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
