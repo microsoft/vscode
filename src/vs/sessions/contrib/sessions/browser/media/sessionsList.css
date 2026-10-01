@@ -897,6 +897,21 @@
 			white-space: nowrap;
 		}
 
+		.session-description {
+			flex: 0 1 auto;
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+
+			p {
+				margin: 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
+		}
+
 		.session-chat-separator,
 		.session-chat-time {
 			flex-shrink: 0;
