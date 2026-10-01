@@ -86,6 +86,20 @@ const ExperimentalSessionComposerLayout = ContextKeyExpr.and(
 	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true),
 	IsPhoneLayoutContext.negate(),
 )!;
+const experimentalComposerLayoutConfiguredOff = ContextKeyExpr.and(
+	ContextKeyExpr.notEquals(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, undefined),
+	ContextKeyExpr.equals(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, false),
+);
+const unifiedWorkspacePickerConfiguredOff = ContextKeyExpr.and(
+	ContextKeyExpr.notEquals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, undefined),
+	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, false),
+);
+const LegacySessionComposerLayout = ContextKeyExpr.or(
+	IsSessionsWindowContext.negate(),
+	experimentalComposerLayoutConfiguredOff,
+	unifiedWorkspacePickerConfiguredOff,
+	IsPhoneLayoutContext,
+)!;
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
 const AGENT_HOST_SESSION_CONFIG_PICKER_ID_PREFIX = 'sessions.agentHost.sessionConfigPicker';
@@ -1979,7 +1993,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2004,7 +2018,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2034,7 +2048,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2070,7 +2084,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeyExprs.isAgentHostSession,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
-					ExperimentalSessionComposerLayout.negate(),
+					LegacySessionComposerLayout,
 				),
 			}],
 		});
