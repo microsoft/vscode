@@ -24,7 +24,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { MarkdownString, Range, Uri } from '../../../../vscodeTypes';
 import { CurrentChangeInput } from '../../../prompts/node/feedback/currentChange';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { FeedbackGenerator, parseFeedbackResponse, parseReviewComments, sendReviewActionTelemetry } from '../feedbackGenerator';
+import { FeedbackGenerator, parseFeedbackResponse, parseReviewComments, sendReviewActionTelemetry, setReviewCommentsModelCall } from '../feedbackGenerator';
 
 suite('feedbackGenerator', () => {
 
@@ -1055,9 +1055,9 @@ multiple lines.
 		});
 
 		test.each([
-			[' TRUE ', [' TRUE ', ' TRUE ']],
-			[undefined, ['<absent>', '<absent>']],
-		] as const)('tags streamed and returned comments with the producing call\'s X-GitHub-Copilot-Request-Te (%j)', async (gitHubCopilotRequestTe, expected) => {
+			[' TRUE ', ' TRUE '],
+			[undefined, '<absent>'],
+		] as const)('associates streamed and returned comments with the call that produced them (X-GitHub-Copilot-Request-Te %j)', async (gitHubCopilotRequestTe, expected) => {
 			const uri = Uri.file('/test/file.ts');
 			const content = 'line 0\nline 1\nline 2\nline 3\nline 4';
 			const input = [createInput(uri, content, 'file.ts', {
@@ -1076,11 +1076,15 @@ multiple lines.
 
 			const result = await feedbackGenerator.generateComments(input, CancellationToken.None, { report: comments => reported.push(...comments) });
 
-			const valueOf = (comment: ReviewComment) => 'gitHubCopilotRequestTe' in comment ? comment.gitHubCopilotRequestTe : '<absent>';
-			assert.deepStrictEqual([
-				reported.map(valueOf)[0],
-				result.type === 'success' ? result.comments.map(valueOf)[0] : 'no-comments',
-			], expected);
+			// Streamed and returned comments are distinct objects from the same call, so an aggregate action over them is attributable.
+			const returned = result.type === 'success' ? result.comments : [];
+			const telemetryService = new MockTelemetryService();
+			sendReviewActionTelemetry([...reported, ...returned], reported.length + returned.length, 'discardAllComments', new MockLogService(), telemetryService, instantiationService);
+			const properties = telemetryService.ghEvents[0]?.properties;
+			assert.deepStrictEqual(
+				[reported.length > 0, returned.length > 0, properties && 'gitHubCopilotRequestTe' in properties ? properties.gitHubCopilotRequestTe : '<absent>'],
+				[true, true, expected],
+			);
 		});
 
 		test('handles selection input correctly', async () => {
@@ -1313,7 +1317,8 @@ multiple lines.
 		});
 
 		test('adds the comment\'s X-GitHub-Copilot-Request-Te only to the GitHub event', () => {
-			const comment = createTestReviewComment({ gitHubCopilotRequestTe: ' TRUE ' });
+			const comment = createTestReviewComment();
+			setReviewCommentsModelCall([comment], ' TRUE ');
 
 			sendReviewActionTelemetry(comment, 1, 'helpful', mockLogService, mockTelemetryService, mockInstantiationService);
 
@@ -1327,6 +1332,24 @@ multiple lines.
 				msft: ['<absent>'],
 				internal: ['<absent>'],
 			});
+		});
+
+		test('adds X-GitHub-Copilot-Request-Te to aggregate actions only when all comments came from the same model call', () => {
+			const sameCall = [createTestReviewComment(), createTestReviewComment()];
+			setReviewCommentsModelCall(sameCall, 'true');
+			// Equal values from different calls (e.g. split prompts) are still not attributable to one call.
+			const firstCall = createTestReviewComment();
+			const secondCall = createTestReviewComment();
+			setReviewCommentsModelCall([firstCall], 'true');
+			setReviewCommentsModelCall([secondCall], 'true');
+			const untagged = createTestReviewComment();
+
+			sendReviewActionTelemetry(sameCall, 2, 'discardAllComments', mockLogService, mockTelemetryService, mockInstantiationService);
+			sendReviewActionTelemetry([firstCall, secondCall], 2, 'discardAllComments', mockLogService, mockTelemetryService, mockInstantiationService);
+			sendReviewActionTelemetry([firstCall, untagged], 2, 'discardAllComments', mockLogService, mockTelemetryService, mockInstantiationService);
+
+			const valueOf = (properties: TelemetryEventProperties | undefined) => properties && 'gitHubCopilotRequestTe' in properties ? properties.gitHubCopilotRequestTe : '<absent>';
+			assert.deepStrictEqual(mockTelemetryService.ghEvents.map(e => valueOf(e.properties)), ['true', '<absent>', '<absent>']);
 		});
 
 		test('does not increment actionCount for vote actions', () => {

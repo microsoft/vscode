@@ -51,8 +51,6 @@ export interface ReviewComment {
 	actionCount: number;
 	skipSuggestion?: boolean;
 	suggestion?: ReviewSuggestion | Promise<ReviewSuggestion>;
-	/** Raw CAPI `X-GitHub-Copilot-Request-Te` value of the model call that produced this comment. Telemetry only. */
-	gitHubCopilotRequestTe?: string;
 }
 
 export interface IReviewService {
