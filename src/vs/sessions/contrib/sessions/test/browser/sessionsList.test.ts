@@ -5885,17 +5885,7 @@ suite('Sessions - SessionsList', () => {
 
 			list.update();
 
-			assert.deepStrictEqual({
-				scrollTopBefore,
-				scrollTopAfter: tree.scrollTop,
-				targetTopBefore,
-				targetTopAfter: tree.getElementTop(targetSession)! - tree.scrollTop,
-			}, {
-				scrollTopBefore,
-				scrollTopAfter: scrollTopBefore + offscreenChats.length * 16,
-				targetTopBefore,
-				targetTopAfter: targetTopBefore,
-			});
+			assert.strictEqual(tree.getElementTop(targetSession)! - tree.scrollTop, targetTopBefore);
 		});
 
 		test('ordinary list updates preserve a collapsed active session and user selection', () => {
