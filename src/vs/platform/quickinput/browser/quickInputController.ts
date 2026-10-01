@@ -662,6 +662,8 @@ export class QuickInputController extends Disposable {
 			input.placeholder = options.placeHolder;
 			input.password = !!options.password;
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
+			input.anchor = options.anchor;
+			input.anchorPosition = options.anchorPosition;
 			input.show();
 		});
 	}

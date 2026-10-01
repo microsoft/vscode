@@ -68,7 +68,8 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { getNewSessionWelcomePhrases, INewSessionWelcomeMessagesConfiguration } from '../common/welcomePhrases.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
@@ -87,7 +88,6 @@ const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 /** Persists whether the new-session options tray is expanded, so the choice is remembered across composers. */
 const SESSION_OPTIONS_EXPANDED_STORAGE_KEY = 'agentSessions.newSession.sessionOptionsExpanded';
 let sessionOptionsIdPool = 0;
-const NEW_SESSION_WELCOME_PHRASE_COUNT = 5;
 let nextNewSessionWelcomePhraseIndex = 0;
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
@@ -155,7 +155,7 @@ export class NewChatWidget extends Disposable {
 
 	private static _takeNextWelcomePhraseIndex(): number {
 		const index = nextNewSessionWelcomePhraseIndex;
-		nextNewSessionWelcomePhraseIndex = (nextNewSessionWelcomePhraseIndex + 1) % NEW_SESSION_WELCOME_PHRASE_COUNT;
+		nextNewSessionWelcomePhraseIndex = index + 1 < Number.MAX_SAFE_INTEGER ? index + 1 : 0;
 		return index;
 	}
 
@@ -545,6 +545,7 @@ export class NewChatWidget extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
 			telemetrySource: 'newSessionWelcome',
+			menuOptions: { arg: welcomeMessageActions },
 		}));
 		this._register(dom.addDisposableListener(welcomeMessage, dom.EventType.CONTEXT_MENU, event => {
 			event.preventDefault();
@@ -561,6 +562,10 @@ export class NewChatWidget extends Disposable {
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_NAME_SETTING)),
 		);
+		const configuredWelcomeMessagesChanged = observableSignalFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_MESSAGES_SETTING)),
+		);
 		this._register(autorun(reader => {
 			configuredWelcomeNameChanged.read(reader);
 			this._showWelcomePhrases.read(reader);
@@ -568,14 +573,19 @@ export class NewChatWidget extends Disposable {
 		}));
 		this._register(autorun(reader => {
 			configuredWelcomeNameChanged.read(reader);
+			configuredWelcomeMessagesChanged.read(reader);
 			const profileName = this._githubProfileName.read(reader);
 			const inputVisible = this.options.inputVisible?.read(reader) ?? true;
+			const phrases = getNewSessionWelcomePhrases(
+				this.configurationService.getValue<INewSessionWelcomeMessagesConfiguration | undefined>(NEW_SESSION_WELCOME_MESSAGES_SETTING),
+				this._getWelcomeName(profileName),
+			);
 			const phrase = this._updateWelcomeMessage(
 				welcomeMessage,
 				welcomeMessageTitle,
 				this._showWelcomePhrases.read(reader),
+				phrases,
 				this._welcomePhraseIndex,
-				this._getWelcomeName(profileName),
 			);
 			this._announceWelcomeMessage(phrase, inputVisible);
 		}));
@@ -861,34 +871,14 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	private _updateWelcomeMessage(container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined): string | undefined {
+	private _updateWelcomeMessage(container: HTMLElement, title: HTMLElement, visible: boolean, phrases: readonly string[], phraseIndex: number): string | undefined {
 		container.hidden = !visible;
-		if (!visible) {
+		if (!visible || phrases.length === 0) {
 			title.textContent = '';
 			return undefined;
 		}
 
-		const phrase = accountName
-			? [
-				localize('newSession.welcome.named.building', "What are we building, {0}?", accountName),
-				// allow-any-unicode-next-line
-				localize('newSession.welcome.named.move', "What’s the move, {0}?", accountName),
-				// allow-any-unicode-next-line
-				localize('newSession.welcome.named.cook', "Let’s cook, {0}", accountName),
-				localize('newSession.welcome.named.lockIn', "Time to lock in, {0}", accountName),
-				// allow-any-unicode-next-line
-				localize('newSession.welcome.named.ship', "Let’s ship something, {0}", accountName),
-			][phraseIndex]
-			: [
-				localize('newSession.welcome.building', "What are we building?"),
-				// allow-any-unicode-next-line
-				localize('newSession.welcome.move', "What’s the move?"),
-				// allow-any-unicode-next-line
-				localize('newSession.welcome.cook', "Let’s cook"),
-				localize('newSession.welcome.lockIn', "Time to lock in"),
-				// allow-any-unicode-next-line
-				localize('newSession.welcome.ship', "Let’s ship something"),
-			][phraseIndex];
+		const phrase = phrases[phraseIndex % phrases.length];
 		title.textContent = phrase;
 		return phrase;
 	}

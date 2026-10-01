@@ -82,7 +82,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
-				nameEditing: content.includes('Press Tab to reach Set Welcome Name'),
+				nameEditing: content.includes('Press Tab to reach Customize Welcome Message'),
 				announcementSetting: content.includes('set accessibility.verbosity.newSessionWelcome to false'),
 			};
 		});

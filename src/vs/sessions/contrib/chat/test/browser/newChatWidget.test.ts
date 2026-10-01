@@ -25,6 +25,7 @@ import { IStorageService, InMemoryStorageService } from '../../../../../platform
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING } from '../../common/constants.js';
+import { getNewSessionWelcomePhrases } from '../../common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -157,7 +158,7 @@ const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.protot
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const restoreAndPersistSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreAndPersistSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
-const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => string | undefined;
+const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phrases: readonly string[], phraseIndex: number) => string | undefined;
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
 const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
 const getFirstName = Reflect.get(NewChatWidget.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
@@ -1047,47 +1048,45 @@ suite('NewChatWidget', () => {
 	test('rotates welcome phrase indices across composers', () => {
 		assert.deepStrictEqual(
 			Array.from({ length: 6 }, () => takeNextWelcomePhraseIndex()),
-			[0, 1, 2, 3, 4, 0],
+			[0, 1, 2, 3, 4, 5],
 		);
 	});
 
 	test('renders and personalizes new session welcome phrases', () => {
-		const phrases = Array.from({ length: 5 }, (_, phraseIndex) => {
+		const render = (visible: boolean, phrases: readonly string[], phraseIndex: number) => {
 			const container = document.createElement('div');
 			const title = document.createElement('h2');
 			container.append(title);
-			updateWelcomeMessage(container, title, true, phraseIndex, undefined);
-			return container.textContent;
-		});
-		const namedPhrases = Array.from({ length: 5 }, (_, phraseIndex) => {
-			const container = document.createElement('div');
-			const title = document.createElement('h2');
-			container.append(title);
-			updateWelcomeMessage(container, title, true, phraseIndex, 'Megan');
-			return container.textContent;
-		});
-		const hiddenContainer = document.createElement('div');
-		const hiddenTitle = document.createElement('h2');
-		hiddenContainer.append(hiddenTitle);
-		updateWelcomeMessage(hiddenContainer, hiddenTitle, false, 0, 'Megan');
+			updateWelcomeMessage(container, title, visible, phrases, phraseIndex);
+			return { text: container.textContent, hidden: container.hidden };
+		};
+		const phrases = Array.from({ length: 5 }, (_, phraseIndex) => render(true, getNewSessionWelcomePhrases(undefined, undefined), phraseIndex).text);
+		const namedPhrases = Array.from({ length: 5 }, (_, phraseIndex) => render(true, getNewSessionWelcomePhrases(undefined, 'Megan'), phraseIndex).text);
 
-		assert.deepStrictEqual({ phrases, namedPhrases, hidden: hiddenContainer.hidden, hiddenText: hiddenContainer.textContent }, {
+		assert.deepStrictEqual({
+			phrases,
+			namedPhrases,
+			hidden: render(false, getNewSessionWelcomePhrases(undefined, 'Megan'), 0),
+			wrapped: render(true, ['One', 'Two'], 5).text,
+			empty: render(true, [], 0),
+		}, {
 			phrases: [
 				'What are we building?',
-				'What’s the move?',
-				'Let’s cook',
+				'What\u2019s the move?',
+				'Let\u2019s cook',
 				'Time to lock in',
-				'Let’s ship something',
+				'Let\u2019s ship something',
 			],
 			namedPhrases: [
 				'What are we building, Megan?',
-				'What’s the move, Megan?',
-				'Let’s cook, Megan',
+				'What\u2019s the move, Megan?',
+				'Let\u2019s cook, Megan',
 				'Time to lock in, Megan',
-				'Let’s ship something, Megan',
+				'Let\u2019s ship something, Megan',
 			],
-			hidden: true,
-			hiddenText: '',
+			hidden: { text: '', hidden: true },
+			wrapped: 'Two',
+			empty: { text: '', hidden: false },
 		});
 	});
 
