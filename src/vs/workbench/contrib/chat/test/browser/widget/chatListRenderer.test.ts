@@ -55,6 +55,7 @@ import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentP
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -96,6 +97,7 @@ import { IAgentHostCustomizationService } from '../../../browser/agentSessions/a
 import { ChatPlanReviewPart } from '../../../browser/widget/chatContentParts/chatPlanReviewPart.js';
 import { ITerminalChatService, ITerminalConfigurationService, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1637,6 +1639,7 @@ suite('ChatListRenderer', () => {
 			override hasCodeBlockRenderer() { return false; }
 		}());
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
@@ -2523,7 +2526,7 @@ suite('ChatListRenderer', () => {
 					toolId,
 					toolCallId: 'denied',
 					chatRequestId: request.id,
-				}, {}, ToolConfirmKind.Denied);
+				}, {}, { type: ToolConfirmKind.Denied });
 				model.acceptResponseProgress(request, restored ? denied.toJSON() : denied);
 				renderer.renderElement(node, 0, template);
 				const icon = template.value.querySelector<HTMLElement>('.progress-container > .codicon-error-compact');
