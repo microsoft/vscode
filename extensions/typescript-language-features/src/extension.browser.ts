@@ -14,6 +14,7 @@ import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } f
 import { registerAtaSupport } from './filesystems/ata';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { Logger } from './logging/logger';
+import { readLibMapFromBundle } from './languageFeatures/tsconfig/libMap.browser';
 import RemoteRepositories from './remoteRepositories.browser';
 import { API } from './tsServer/api';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
@@ -94,7 +95,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 	// context.subscriptions.push(task.register(lazyClientHost.map(x => x.serviceClient)));
 
 	import('./languageFeatures/tsconfig').then(module => {
-		context.subscriptions.push(module.register());
+		context.subscriptions.push(module.register(versionProvider, context.workspaceState, readLibMapFromBundle));
 	});
 
 	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {

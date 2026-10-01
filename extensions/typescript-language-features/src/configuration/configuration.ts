@@ -166,8 +166,17 @@ export function areServiceConfigurationsEqual(a: TypeScriptServiceConfiguration,
 	return objects.equals(a, b);
 }
 
+/** The part of the configuration that decides which TypeScript install is used. */
+export type TsdkConfiguration = Pick<TypeScriptServiceConfiguration, 'globalTsdk' | 'localTsdk'>;
+
 export interface ServiceConfigurationProvider {
 	loadFromWorkspace(): TypeScriptServiceConfiguration;
+
+	/**
+	 * Reads only the tsdk settings. Unlike {@link loadFromWorkspace} this never
+	 * touches the file system or spawns a process, so it is safe to call eagerly.
+	 */
+	loadTsdkFromWorkspace(): TsdkConfiguration;
 }
 
 const vscodeWatcherName = 'vscode';
@@ -176,12 +185,19 @@ type vscodeWatcherName = typeof vscodeWatcherName;
 
 export abstract class BaseServiceConfigurationProvider implements ServiceConfigurationProvider {
 
+	public loadTsdkFromWorkspace(): TsdkConfiguration {
+		const configuration = vscode.workspace.getConfiguration();
+		return {
+			globalTsdk: this.readGlobalTsdk(configuration),
+			localTsdk: this.readLocalTsdk(configuration),
+		};
+	}
+
 	public loadFromWorkspace(): TypeScriptServiceConfiguration {
 		const configuration = vscode.workspace.getConfiguration();
 		return {
 			locale: this.readLocale(),
-			globalTsdk: this.readGlobalTsdk(configuration),
-			localTsdk: this.readLocalTsdk(configuration),
+			...this.loadTsdkFromWorkspace(),
 			npmLocation: this.readNpmLocation(),
 			tsServerLogLevel: this.readTsServerLogLevel(),
 			tsServerPluginPaths: this.readTsServerPluginPaths(),
