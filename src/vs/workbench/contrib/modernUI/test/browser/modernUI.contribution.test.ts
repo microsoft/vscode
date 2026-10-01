@@ -2363,7 +2363,7 @@ suite('ModernUIContribution', () => {
 			const activeBottom = targetWindow.getComputedStyle(group.activeBottomBorder);
 			const selectedTop = targetWindow.getComputedStyle(group.selectedTopBorder);
 			return {
-				activeTop: [activeTop.display, targetWindow.getComputedStyle(group.activeFill).borderTopColor],
+				activeTop: [activeTop.display, targetWindow.getComputedStyle(group.activeFill).borderTopColor, activeTop.backgroundColor],
 				activeBottom: [activeBottom.display, activeBottom.backgroundColor],
 				selectedTop: [selectedTop.display, selectedTop.backgroundColor],
 			};
@@ -2374,16 +2374,76 @@ suite('ModernUIContribution', () => {
 			unfocusedGroup: borderStyles(unfocusedGroup),
 		}, {
 			activeGroup: {
-				activeTop: ['none', 'rgb(18, 52, 86)'],
+				activeTop: ['block', 'rgb(0, 0, 0)', 'rgb(18, 52, 86)'],
 				activeBottom: ['block', 'rgb(52, 86, 120)'],
 				selectedTop: ['block', 'rgb(86, 120, 154)'],
 			},
 			unfocusedGroup: {
-				activeTop: ['none', 'rgb(35, 69, 103)'],
+				activeTop: ['block', 'rgb(0, 0, 0)', 'rgb(35, 69, 103)'],
 				activeBottom: ['block', 'rgb(69, 103, 137)'],
 				selectedTop: ['block', 'rgb(86, 120, 154)'],
 			},
 		});
+	});
+
+	test('uses explicitly customized selected borders only when the active top border is absent', () => {
+		const root = appendElement(document.body, 'selected-border-fallback monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const style = document.createElement('style');
+		root.appendChild(style);
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const indicators = [true, false].map(active => {
+			const group = appendElement(content, `editor-group-container${active ? ' active' : ''}`);
+			const title = appendElement(group, 'title tabs');
+			const tabs = appendElement(appendElement(title, 'tabs-and-actions-container'), 'tabs-container');
+			const tab = appendElement(tabs, 'tab active selected multi-selected tab-border-top');
+			appendElement(tab, 'tab-fill');
+			return appendElement(tab, 'tab-border-top-container');
+		});
+		const cases: { colors: Record<string, string>; customizations: Record<string, string>; expected: string[] }[] = [
+			{ colors: {}, customizations: {}, expected: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'] },
+			{ colors: {}, customizations: { 'tab.selectedBorderTop': '#a3e635' }, expected: ['rgb(163, 230, 53)', 'rgb(163, 230, 53)'] },
+			{ colors: { 'tab.activeBorderTop': '#3994bc' }, customizations: { 'tab.selectedBorderTop': '#a3e635' }, expected: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'] },
+			{ colors: {}, customizations: { 'tab.selectedBorderTop': '#a3e635', 'tab.activeBorderTop': '#22d3ee', 'tab.unfocusedActiveBorderTop': '#c084fc' }, expected: ['rgb(34, 211, 238)', 'rgb(192, 132, 252)'] },
+			{ colors: {}, customizations: { 'tab.selectedBorderTop': '#a3e635', 'tab.activeBorderTop': '#00000000' }, expected: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'] },
+		];
+		const actual = cases.map(({ colors, customizations }) => {
+			const theme = ColorThemeData.createUnloadedTheme('vs-dark', colors);
+			theme.setCustomColors(customizations);
+			style.textContent = generateColorThemeCSS(theme, '.selected-border-fallback', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			return indicators.map(indicator => getWindow(indicator).getComputedStyle(indicator).backgroundColor);
+		});
+		assert.deepStrictEqual(actual, cases.map(testCase => testCase.expected));
+	});
+
+	test('preserves hover action customization on connected wrapped and separate pinned rows', () => {
+		const root = appendElement(document.body, 'upper-action-customization monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const style = document.createElement('style');
+		root.appendChild(style);
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const probes = [true, false].flatMap(active => {
+			const group = appendElement(content, `editor-group-container${active ? ' active' : ''}`);
+			return ['single', 'wrapped', 'pinned'].map(layout => {
+				const title = appendElement(group, `title tabs${layout === 'pinned' ? ' two-tab-bars' : ''}`);
+				const row = appendElement(title, `tabs-and-actions-container${layout === 'wrapped' ? ' wrapping' : ''}`);
+				const tabs = appendElement(row, 'tabs-container');
+				const tab = appendElement(tabs, `tab${layout === 'single' ? '' : ' connected-tab-upper-row'}`);
+				const probe = appendElement(tab, 'action-hover-probe');
+				probe.style.backgroundColor = `var(--modern-ui-editor-tab-action-${active ? '' : 'unfocused-'}hover-background)`;
+				return probe;
+			});
+		});
+		const actual = [false, true].map(customizeAction => {
+			const theme = ColorThemeData.createUnloadedTheme('vs-dark');
+			theme.setCustomColors({
+				[MODERN_EDITOR_TAB_HOVER_BACKGROUND]: '#7c2d12',
+				...(customizeAction ? { [MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND]: '#5a1f0c' } : {}),
+			});
+			style.textContent = generateColorThemeCSS(theme, '.upper-action-customization', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			return probes.map(probe => getWindow(probe).getComputedStyle(probe).backgroundColor);
+		});
+		assert.deepStrictEqual(actual, [Array(6).fill('rgb(124, 45, 18)'), Array(6).fill('rgb(90, 31, 12)')]);
 	});
 
 	test('uses separate connected strip and border colors without changing the editor group header', () => {
@@ -2800,7 +2860,10 @@ suite('ModernUIContribution', () => {
 					geometry: geometry(),
 					firstBorderLeftWidth: targetWindow.getComputedStyle(firstFill).borderLeftWidth,
 					cap: [targetWindow.getComputedStyle(fill).borderTopColor, targetWindow.getComputedStyle(fill).borderLeftColor],
-					shoulder: targetWindow.getComputedStyle(fill, '::after').borderLeftColor,
+					shoulders: [
+						[targetWindow.getComputedStyle(fill, '::before').borderRightColor, targetWindow.getComputedStyle(fill, '::before').borderBottomColor],
+						[targetWindow.getComputedStyle(fill, '::after').borderLeftColor, targetWindow.getComputedStyle(fill, '::after').borderBottomColor],
+					],
 					separator: targetWindow.getComputedStyle(row, '::after').backgroundColor,
 					frame: [frame.content, frame.borderLeftWidth, frame.borderBottomWidth, frame.borderTopWidth, highContrast ? frame.borderLeftColor : undefined, frame.borderRadius, frame.pointerEvents],
 					headerBackground: targetWindow.getComputedStyle(header).backgroundColor,
@@ -2808,7 +2871,7 @@ suite('ModernUIContribution', () => {
 					geometry: baseline,
 					firstBorderLeftWidth: '0px',
 					cap: ['rgba(0, 0, 0, 0)', border],
-					shoulder: border,
+					shoulders: [[border, border], [border, border]],
 					separator: border,
 					frame: highContrast ? ['""', '1px', '1px', '1px', border, '8px', 'none'] : ['none', '0px', '0px', '0px', undefined, '0px', 'auto'],
 					headerBackground: 'rgb(51, 51, 51)',
@@ -3019,6 +3082,7 @@ suite('ModernUIContribution', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
 		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size200', '20px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
 		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		root.style.setProperty('--vscode-strokeThickness', '1px');
@@ -3029,14 +3093,14 @@ suite('ModernUIContribution', () => {
 		const editor = appendElement(gridView, 'part editor');
 		const content = appendElement(editor, 'content');
 		const group = appendElement(content, 'editor-group-container active');
-		const singleTitle = appendElement(group, 'title tabs');
+		const singleTitle = appendElement(group, 'title tabs connected-tabs-labels');
 		const singleRow = appendElement(singleTitle, 'tabs-and-actions-container');
 		const singleTabs = appendElement(singleRow, 'tabs-container');
 		const inactiveSingleTab = appendElement(singleTabs, 'tab');
 		const inactiveSingleFill = appendElement(inactiveSingleTab, 'tab-fill');
 		const activeSingleTab = appendElement(singleTabs, 'tab active');
 		const activeSingleFill = appendElement(activeSingleTab, 'tab-fill');
-		const title = appendElement(group, 'title tabs');
+		const title = appendElement(group, 'title tabs connected-tabs-labels');
 		const row = appendElement(title, 'tabs-and-actions-container wrapping');
 		const tabs = appendElement(row, 'tabs-container');
 		const upperTab = appendElement(tabs, 'tab active connected-tab-upper-row connected-tab-top-row first-in-row');
@@ -3058,6 +3122,7 @@ suite('ModernUIContribution', () => {
 
 		assert.deepStrictEqual({
 			rowPaddingTop: targetWindow.getComputedStyle(row).paddingTop,
+			actionReservationMatches: targetWindow.getComputedStyle(upperTab).paddingRight === targetWindow.getComputedStyle(activeBottomTab).paddingRight,
 			separatorSlots: [targetWindow.getComputedStyle(singleTabs).paddingBottom, targetWindow.getComputedStyle(tabs).paddingBottom],
 			separatorOffsets: [targetWindow.getComputedStyle(singleRow, '::after').bottom, targetWindow.getComputedStyle(row, '::after').bottom],
 			topFrame: {
@@ -3076,6 +3141,7 @@ suite('ModernUIContribution', () => {
 			},
 		}, {
 			rowPaddingTop: '2px',
+			actionReservationMatches: true,
 			separatorSlots: ['1px', '1px'],
 			separatorOffsets: ['0px', '0px'],
 			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '6px', borderWidths: ['1px', '1px'] },

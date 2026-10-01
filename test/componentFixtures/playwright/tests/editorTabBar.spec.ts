@@ -52,29 +52,42 @@ test('Connected defaults do not surface the theme active-top accent', async ({ p
 			throw new Error('Expected an active connected tab fill');
 		}
 		const groupStyle = getComputedStyle(group);
+		const leftShoulder = getComputedStyle(activeFill, '::before');
 		return {
 			capTop: getComputedStyle(activeFill).borderTopColor,
 			structuralBoundary: groupStyle.getPropertyValue('--modern-ui-connected-tab-border').trim(),
 			themeActiveTop: getComputedStyle(group.closest('.monaco-workbench')!).getPropertyValue('--vscode-tab-activeBorderTop').trim(),
+			shoulder: {
+				bottom: leftShoulder.bottom,
+				height: leftShoulder.height,
+				radius: leftShoulder.borderBottomRightRadius,
+				color: leftShoulder.borderBottomColor,
+			},
 		};
 	});
 	expect(colors).toEqual({
 		capTop: 'rgb(42, 43, 44)',
 		structuralBoundary: '#2a2b2c',
 		themeActiveTop: '#3994bc',
+		shoulder: {
+			bottom: '0px',
+			height: '7px',
+			radius: '7px',
+			color: 'rgb(42, 43, 44)',
+		},
 	});
 });
 
 for (const [group, expected] of [
 	['ActiveGroup', {
-		activeTop: { indicator: 'none', color: 'rgb(34, 211, 238)' },
+		activeTop: { indicator: 'block', capColor: 'rgb(250, 204, 21)', accentColor: 'rgb(34, 211, 238)' },
 		activeBottom: { display: 'block', color: 'rgb(244, 63, 94)' },
 		activeSide: 'rgb(250, 204, 21)',
 		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)', height: 2, leftInset: 2, rightInset: 2 },
 		selectedBorder: 'rgba(0, 0, 0, 0)',
 	}],
 	['InactiveGroup', {
-		activeTop: { indicator: 'none', color: 'rgb(192, 132, 252)' },
+		activeTop: { indicator: 'block', capColor: 'rgb(250, 204, 21)', accentColor: 'rgb(192, 132, 252)' },
 		activeBottom: { display: 'block', color: 'rgb(251, 146, 60)' },
 		activeSide: 'rgb(250, 204, 21)',
 		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)', height: 2, leftInset: 2, rightInset: 2 },
@@ -102,7 +115,8 @@ for (const [group, expected] of [
 			return {
 				activeTop: {
 					indicator: getComputedStyle(activeTop).display,
-					color: getComputedStyle(activeFill).borderTopColor,
+					capColor: getComputedStyle(activeFill).borderTopColor,
+					accentColor: getComputedStyle(activeTop).backgroundColor,
 				},
 				activeBottom: style(activeBottom),
 				activeSide: getComputedStyle(activeFill).borderRightColor,
@@ -137,9 +151,9 @@ for (const [style, expected] of [
 		visibleDividers: Array(7).fill('rgb(255, 255, 255)'),
 	}],
 	['Connected', {
-		topIndicator: { display: 'none' },
+		topIndicator: { display: 'block', color: 'rgb(34, 211, 238)' },
 		bottomIndicator: { display: 'block', color: 'rgb(244, 63, 94)' },
-		fillTop: 'rgb(34, 211, 238)',
+		fillTop: 'rgb(250, 204, 21)',
 		fillBottom: 'rgba(0, 0, 0, 0)',
 		fillSide: 'rgb(250, 204, 21)',
 		inactiveBorder: 'rgba(0, 0, 0, 0)',
@@ -190,6 +204,50 @@ for (const [style, expected] of [
 		}
 	});
 }
+
+test('default and customized connected tabs share identical geometry', async ({ page }) => {
+	const readGeometry = async (fixture: string) => {
+		await openFixture(page, `editor/tabs/Colors/BorderOwnership/${fixture}/Dark`, '.tabs-container > .tab.active');
+		return page.locator('.tabs-container > .tab.active').evaluate(active => {
+			const fill = active.querySelector<HTMLElement>('.tab-fill');
+			const edge = active.querySelector<HTMLElement>('.tab-connected-edge');
+			const strip = active.closest<HTMLElement>('.tabs-and-actions-container');
+			if (!fill || !edge || !strip) {
+				throw new Error('Expected connected cap geometry');
+			}
+			const activeRect = active.getBoundingClientRect();
+			const fillRect = fill.getBoundingClientRect();
+			const edgeRect = edge.getBoundingClientRect();
+			const fillStyle = getComputedStyle(fill);
+			const leftShoulder = getComputedStyle(fill, '::before');
+			const rightShoulder = getComputedStyle(fill, '::after');
+			const leftMask = getComputedStyle(edge, '::before');
+			return {
+				fillInsets: [
+					fillRect.left - activeRect.left,
+					fillRect.top - activeRect.top,
+					activeRect.right - fillRect.right,
+					fillRect.bottom - activeRect.bottom,
+				],
+				edgeInsets: [
+					edgeRect.left - activeRect.left,
+					edgeRect.top - activeRect.top,
+					activeRect.right - edgeRect.right,
+					edgeRect.bottom - activeRect.bottom,
+				],
+				capRadius: [fillStyle.borderTopLeftRadius, fillStyle.borderTopRightRadius],
+				shoulders: [
+					[leftShoulder.bottom, leftShoulder.width, leftShoulder.height, leftShoulder.borderBottomRightRadius],
+					[rightShoulder.bottom, rightShoulder.width, rightShoulder.height, rightShoulder.borderBottomLeftRadius],
+				],
+				mask: [leftMask.bottom, leftMask.width, leftMask.height],
+				separator: [getComputedStyle(strip, '::after').bottom, getComputedStyle(strip, '::after').height],
+			};
+		});
+	};
+
+	expect(await readGeometry('Connected')).toEqual(await readGeometry('ConnectedDefault'));
+});
 
 for (const [theme, expected] of [
 	['DarkHighContrast', { activeTop: 'rgb(243, 133, 24)', accent: 'rgb(243, 133, 24)', tabBorder: 'rgb(111, 195, 223)' }],
@@ -280,6 +338,12 @@ test('wrapped upper connected tabs inset customized border accents', async ({ pa
 			throw new Error('Expected wrapped active tab border elements');
 		}
 		const bottomAccent = getComputedStyle(fill, '::after');
+		const fillStyle = getComputedStyle(fill);
+		const availableWidth = fill.getBoundingClientRect().width
+			- Number.parseFloat(fillStyle.borderLeftWidth)
+			- Number.parseFloat(fillStyle.borderRightWidth)
+			- Number.parseFloat(bottomAccent.left)
+			- Number.parseFloat(bottomAccent.right);
 		return {
 			topIndicator: getComputedStyle(top).display,
 			topColor: getComputedStyle(fill).borderTopColor,
@@ -289,6 +353,7 @@ test('wrapped upper connected tabs inset customized border accents', async ({ pa
 				left: bottomAccent.left,
 				right: bottomAccent.right,
 				height: bottomAccent.height,
+				spansAvailableWidth: Math.abs(Number.parseFloat(bottomAccent.width) - availableWidth) < 0.1,
 			},
 		};
 	});
@@ -301,6 +366,7 @@ test('wrapped upper connected tabs inset customized border accents', async ({ pa
 			left: '4px',
 			right: '4px',
 			height: '1px',
+			spansAvailableWidth: true,
 		},
 	});
 });
@@ -316,6 +382,12 @@ test('wrapped upper connected hover borders use focused and unfocused inset acce
 			throw new Error('Expected hovered wrapped tab border elements');
 		}
 		const accent = getComputedStyle(fill, '::after');
+		const fillStyle = getComputedStyle(fill);
+		const availableWidth = fill.getBoundingClientRect().width
+			- Number.parseFloat(fillStyle.borderLeftWidth)
+			- Number.parseFloat(fillStyle.borderRightWidth)
+			- Number.parseFloat(accent.left)
+			- Number.parseFloat(accent.right);
 		return {
 			fillBottom: getComputedStyle(fill).borderBottomColor,
 			indicator: getComputedStyle(bottom).display,
@@ -324,6 +396,7 @@ test('wrapped upper connected hover borders use focused and unfocused inset acce
 				left: accent.left,
 				right: accent.right,
 				height: accent.height,
+				spansAvailableWidth: Math.abs(Number.parseFloat(accent.width) - availableWidth) < 0.1,
 			},
 		};
 	});
@@ -335,6 +408,7 @@ test('wrapped upper connected hover borders use focused and unfocused inset acce
 			left: '4px',
 			right: '4px',
 			height: '1px',
+			spansAvailableWidth: true,
 		},
 	});
 	await page.locator('.editor-group-container').evaluate(group => group.classList.remove('active'));
@@ -346,6 +420,7 @@ test('wrapped upper connected hover borders use focused and unfocused inset acce
 			left: '4px',
 			right: '4px',
 			height: '1px',
+			spansAvailableWidth: true,
 		},
 	});
 });
@@ -438,6 +513,8 @@ for (const [fixture, expected] of [
 			const fillRect = fill.getBoundingClientRect();
 			const bodyRect = body.getBoundingClientRect();
 			const fillStyle = getComputedStyle(fill);
+			const leftShoulder = getComputedStyle(fill, '::before');
+			const rightShoulder = getComputedStyle(fill, '::after');
 			const visibleDividers = [...group.querySelectorAll<HTMLElement>('.tab-divider')]
 				.filter(element => getComputedStyle(element).display !== 'none')
 				.map(element => getComputedStyle(element).backgroundColor);
@@ -452,6 +529,10 @@ for (const [fixture, expected] of [
 				topAligned: editorRect.top === fillRect.top,
 				bodyOverlap: fillRect.bottom - bodyRect.top,
 				frameInsets: [bodyRect.left - editorRect.left, editorRect.right - bodyRect.right],
+				shoulderTangents: {
+					left: [leftShoulder.bottom, leftShoulder.height, leftShoulder.borderBottomRightRadius, leftShoulder.borderBottomColor],
+					right: [rightShoulder.bottom, rightShoulder.height, rightShoulder.borderBottomLeftRadius, rightShoulder.borderBottomColor],
+				},
 				visibleDividers,
 			};
 		});
@@ -462,10 +543,14 @@ for (const [fixture, expected] of [
 			capLeftWidth: expected.capLeftWidth,
 			capSide: 'rgb(34, 211, 238)',
 			separator: 'rgb(34, 211, 238)',
-			indicator: 'none',
+			indicator: 'block',
 			topAligned: true,
 			bodyOverlap: 1,
 			frameInsets: [1, 1],
+			shoulderTangents: {
+				left: ['0px', '7px', '7px', 'rgb(34, 211, 238)'],
+				right: ['0px', '7px', '7px', 'rgb(34, 211, 238)'],
+			},
 			visibleDividers: expected.dividers,
 		});
 	});
