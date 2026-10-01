@@ -37,6 +37,8 @@ import { IChatService, IChatUserActionEvent } from '../../../common/chatService/
 import { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, IChatViewModel } from '../../../common/model/chatViewModel.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 
 suite('Chat code-block action telemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -52,6 +54,16 @@ suite('Chat code-block action telemetry', () => {
 
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
+		const chatSessionsService = new MockChatSessionsService();
+		chatSessionsService.setContributions([
+			['agent-host-copilotcli', 'copilotcli'],
+			['agent-host-claude', 'claude'],
+			['agent-host-codex', 'codex'],
+			['remote-test-copilotcli', 'copilotcli'],
+			['remote-private-machine-codex-openai', 'codex-openai'],
+			['custom-agent-session', 'custom-provider'],
+		].map(([type, agentHostProviderId]) => ({ type, agentHostProviderId, name: type, displayName: type, description: '' })));
+		instantiationService.stub(IChatSessionsService, chatSessionsService);
 		accepted = [];
 		userActions = [];
 		clipboardWrites = [];
@@ -129,7 +141,10 @@ suite('Chat code-block action telemetry', () => {
 		['Copilot', URI.parse('agent-host-copilotcli:/session#chat'), 'agent-host-copilotcli:/session#chat', true, 'copilotcli'],
 		['Claude', URI.parse('agent-host-claude:/session#chat'), 'agent-host-claude:/session#chat', true, 'claude'],
 		['Codex', URI.parse('agent-host-codex:/session#chat'), 'agent-host-codex:/session#chat', true, 'codex'],
-		['remote', URI.parse('remote-test-copilotcli:/session#chat'), 'remote-test-copilotcli:/session#chat', true, 'copilotcli'],
+		['remote', URI.parse('remote-test-copilotcli:/session#chat'), 'session#chat', true, 'copilotcli'],
+		['hyphenated remote provider', URI.parse('remote-private-machine-codex-openai:/session#chat'), 'session#chat', true, 'codex-openai'],
+		['custom contribution', URI.parse('custom-agent-session:/session#chat'), 'custom-agent-session:/session#chat', false, 'custom-provider'],
+		['missing contribution', URI.parse('agent-host-unregistered:/session#chat'), 'agent-host-unregistered:/session#chat', true, 'unknown'],
 	] as const) {
 		test(`correlates all four code-block actions for ${name}`, async () => {
 			context = createContext(resource);

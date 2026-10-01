@@ -33,8 +33,9 @@ import { reviewEdits } from './reviewEdits.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService/chatService.js';
-import { getAgentHostProviderForTelemetry, isAgentHostSessionResource } from '../../common/chatSessionsService.js';
-import { chatSessionResourceToId, getChatSessionType } from '../../common/model/chatUri.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
@@ -165,6 +166,7 @@ export function registerChatCodeBlockActions() {
 			const clipboardService = accessor.get(IClipboardService);
 			const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
 			const chatService = accessor.get(IChatService);
+			const chatSessionsService = accessor.get(IChatSessionsService);
 			await clipboardService.writeText(context.code);
 
 			if (isResponseVM(context.element)) {
@@ -203,9 +205,9 @@ export function registerChatCodeBlockActions() {
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
 					sourceRequestId: requestId,
-					chatSessionId: chatSessionResourceToId(context.element.sessionResource),
+					chatSessionId: getChatSessionTelemetryContext(context.element.sessionResource).chatSessionId,
 					isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
-					provider: getAgentHostProviderForTelemetry(getChatSessionType(context.element.sessionResource)),
+					provider: getAgentHostProviderForTelemetry(getChatSessionType(context.element.sessionResource), chatSessionsService),
 				});
 			}
 		}
@@ -236,6 +238,7 @@ export function registerChatCodeBlockActions() {
 
 		const chatService = accessor.get(IChatService);
 		const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
 		const element = context.element;
 		const reportCopy = () => {
 			if (!isResponseVM(element)) {
@@ -276,9 +279,9 @@ export function registerChatCodeBlockActions() {
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
 				sourceRequestId: requestId,
-				chatSessionId: chatSessionResourceToId(element.sessionResource),
+				chatSessionId: getChatSessionTelemetryContext(element.sessionResource).chatSessionId,
 				isAgentHostSession: isAgentHostSessionResource(element.sessionResource),
-				provider: getAgentHostProviderForTelemetry(getChatSessionType(element.sessionResource)),
+				provider: getAgentHostProviderForTelemetry(getChatSessionType(element.sessionResource), chatSessionsService),
 			});
 		};
 
@@ -404,6 +407,7 @@ export function registerChatCodeBlockActions() {
 			const editorService = accessor.get(IEditorService);
 			const chatService = accessor.get(IChatService);
 			const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
+			const chatSessionsService = accessor.get(IChatSessionsService);
 
 			const editor = await editorService.openEditor({ contents: context.code, languageId: context.languageId, resource: undefined } satisfies IUntitledTextResourceEditorInput);
 
@@ -441,9 +445,9 @@ export function registerChatCodeBlockActions() {
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
 					sourceRequestId: requestId,
-					chatSessionId: chatSessionResourceToId(context.element.sessionResource),
+					chatSessionId: getChatSessionTelemetryContext(context.element.sessionResource).chatSessionId,
 					isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
-					provider: getAgentHostProviderForTelemetry(getChatSessionType(context.element.sessionResource)),
+					provider: getAgentHostProviderForTelemetry(getChatSessionType(context.element.sessionResource), chatSessionsService),
 				});
 			}
 		}

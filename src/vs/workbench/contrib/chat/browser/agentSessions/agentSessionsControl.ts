@@ -70,7 +70,7 @@ export interface IAgentSessionsControlOptions {
 }
 
 type AgentSessionOpenedClassification = {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session, such as copilotcli, claude, or codex.' };
 	owner: 'bpasero';
 	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider type of the opened agent session.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the opened agent session.' };
@@ -719,7 +719,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		this.telemetryService.publicLog2<AgentSessionOpenedEvent, AgentSessionOpenedClassification>('agentSessionOpened', {
-			provider: getAgentHostProviderForTelemetry(element.providerType),
+			provider: getAgentHostProviderForTelemetry(element.providerType, this.chatSessionsService),
 			providerType: element.providerType,
 			source: this.options.source
 		});

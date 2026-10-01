@@ -12,7 +12,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -427,12 +427,13 @@ export function isAgentHostSessionResource(resource: URI): boolean {
 	return isAgentHostTarget(resource.scheme);
 }
 
-/** Returns the Agent Host provider without the remote authority; omits non-Agent Host targets. */
-export function getAgentHostProviderForTelemetry(sessionType: string | undefined): string | undefined {
+/** Returns the registered agent implementation handling the session. */
+export function getAgentHostProviderForTelemetry(sessionType: string | undefined, chatSessionsService: IChatSessionsService): string | undefined {
 	if (!sessionType) {
 		return 'unknown';
 	}
-	return isAgentHostTarget(sessionType) ? parseAgentHostHarness(sessionType) || 'unknown' : undefined;
+	const provider = chatSessionsService.getChatSessionContribution(sessionType)?.agentHostProviderId;
+	return provider !== undefined ? provider || 'unknown' : (isAgentHostTarget(sessionType) ? 'unknown' : undefined);
 }
 
 /**

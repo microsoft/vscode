@@ -3069,7 +3069,7 @@ suite('ChatService', () => {
 	});
 
 	test('sendRequest redacts remote session type in provider invoked telemetry', async () => {
-		const sessionType = 'remote-test-copilot';
+		const sessionType = 'remote-private-machine.example-codex-openai';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const providerInvokedEvents: Record<string, unknown>[] = [];
 		instantiationService.stub(ITelemetryService, {
@@ -3087,6 +3087,7 @@ suite('ChatService', () => {
 			name: 'Remote Agent Host',
 			displayName: 'Remote Agent Host',
 			description: 'Remote Agent Host',
+			agentHostProviderId: 'codex-openai',
 		}]);
 		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
 			provideChatSessionContent: resource => Promise.resolve({
@@ -3120,6 +3121,7 @@ suite('ChatService', () => {
 		const secondResponse = await testService.sendRequest(sessionResource, 'second request', { agentId: sessionType });
 		ChatSendResult.assertSent(secondResponse);
 		await secondResponse.data.responseCompletePromise;
+		assert.ok(!JSON.stringify(providerInvokedEvents).includes('private-machine.example'));
 
 		assert.deepStrictEqual(providerInvokedEvents.map(event => ({
 			sessionType: event.sessionType,
@@ -3133,7 +3135,7 @@ suite('ChatService', () => {
 			settingLocalAgentEnabled: event.settingLocalAgentEnabled,
 			settingCopilotHarnessIntroductionMode: event.settingCopilotHarnessIntroductionMode,
 			hasRequestId: typeof event.requestId === 'string',
-		})), [{ sessionType: 'remote-agent-host', provider: 'copilot', isAgentHostSession: true, requestIndex: 0, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }, { sessionType: 'remote-agent-host', provider: 'copilot', isAgentHostSession: true, requestIndex: 1, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }]);
+		})), [{ sessionType: 'remote-agent-host', provider: 'codex-openai', isAgentHostSession: true, requestIndex: 0, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }, { sessionType: 'remote-agent-host', provider: 'codex-openai', isAgentHostSession: true, requestIndex: 1, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }]);
 	});
 
 	test('user action telemetry distinguishes agent host sessions from local sessions', () => {

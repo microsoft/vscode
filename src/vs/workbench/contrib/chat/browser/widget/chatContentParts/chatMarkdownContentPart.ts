@@ -392,7 +392,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							source: undefined,
 							sourceRequestId: undefined,
 							isAgentHostSession: isAgentHostSessionResource(element.sessionResource),
-							provider: getAgentHostProviderForTelemetry(getChatSessionType(element.sessionResource)),
+							provider: getAgentHostProviderForTelemetry(getChatSessionType(element.sessionResource), this.chatSessionsService),
 						})
 					};
 				}));

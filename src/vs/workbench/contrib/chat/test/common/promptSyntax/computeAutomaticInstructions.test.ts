@@ -52,6 +52,8 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { MockChatSessionsService } from '../mockChatSessionsService.js';
 
 suite('ComputeAutomaticInstructions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -69,6 +71,7 @@ suite('ComputeAutomaticInstructions', () => {
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
+		instaService.stub(IChatSessionsService, new MockChatSessionsService());
 		instaService.stub(ILogService, new NullLogService());
 
 		workspaceContextService = new TestContextService();

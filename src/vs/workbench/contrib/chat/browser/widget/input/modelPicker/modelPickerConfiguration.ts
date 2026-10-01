@@ -22,7 +22,7 @@ export interface IModelPickerConfigurationHost {
 	readonly getSelectedModel: () => ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly getConfigurationAccess: () => IModelConfigurationAccess;
 	readonly getChatSessionId: () => string | undefined;
-	readonly getChatSessionType?: () => string | undefined;
+	readonly getProvider?: () => string | undefined;
 	readonly isDisabled: () => boolean;
 	readonly shouldShowCacheBreakHint: () => boolean;
 	readonly getCacheBreakLearnMoreLink: () => IActionListHeaderLink | undefined;
@@ -100,7 +100,7 @@ export class ModelPickerConfiguration {
 			return;
 		}
 
-		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, trigger, model, this._host.getChatSessionId(), this._host.getChatSessionType?.());
+		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, trigger, model, this._host.getChatSessionId(), this._host.getProvider ? this._host.getProvider() : 'unknown');
 		const items = this._buildItems(telemetrySession);
 
 		const previouslyFocusedElement = dom.getActiveElement();

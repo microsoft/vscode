@@ -34,7 +34,7 @@ import { UserSelectedTools } from '../participants/chatAgents.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IAgentPlugin, IAgentPluginService } from '../plugins/agentPluginService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
-import { getAgentHostProviderForTelemetry } from '../chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../chatSessionsService.js';
 
 export interface InstructionsCollectionResult {
 	readonly telemetryEvent: InstructionsCollectionEvent;
@@ -48,7 +48,7 @@ export interface InstructionsCollectionResult {
 export let lastInstructionsCollectionResult: InstructionsCollectionResult | undefined;
 
 type InstructionsCollectionClassification = {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
+	provider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session, such as copilotcli, claude, or codex.' };
 	applyingInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instructions added via pattern matching.' };
 	referencedInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instructions added via references from other instruction files.' };
 	agentInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of agent instructions added (copilot-instructions.md and agents.md).' };
@@ -81,6 +81,7 @@ export class ComputeAutomaticInstructions {
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IPathService private readonly _pathService: IPathService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) {
 	}
 
@@ -133,9 +134,9 @@ export class ComputeAutomaticInstructions {
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {
 		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
-		this._telemetryService.publicLog2<InstructionsCollectionEvent & { provider: string | undefined }, InstructionsCollectionClassification>('instructionsCollected', {
+		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', {
 			...telemetryEvent,
-			provider: getAgentHostProviderForTelemetry(this._currentSessionType),
+			provider: getAgentHostProviderForTelemetry(this._currentSessionType, this._chatSessionsService),
 		});
 	}
 

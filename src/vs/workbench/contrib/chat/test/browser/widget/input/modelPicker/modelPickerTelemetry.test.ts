@@ -298,7 +298,7 @@ suite('ModelPickerTelemetry', () => {
 			setModel: () => { },
 			getModels: () => models,
 			getChatSessionId: () => 'session-1',
-			getChatSessionType: () => 'remote-private-machine-copilotcli',
+			getProvider: () => 'copilotcli',
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true, showManageModelsAction: false, showUnavailableFeatured: true,
 				showFeatured: true, showAutoModel: true, showModelIcon: false,
@@ -330,7 +330,7 @@ suite('ModelPickerTelemetry', () => {
 					getSelectedModel: () => picker.selectedModel,
 					getConfigurationAccess: () => configurationAccess,
 					getChatSessionId: () => 'session-1',
-					getChatSessionType: () => 'agent-host-copilotcli',
+					getProvider: () => 'copilotcli',
 					isDisabled: () => false,
 					shouldShowCacheBreakHint: () => false,
 					getCacheBreakLearnMoreLink: () => undefined,
@@ -708,27 +708,15 @@ suite('ModelPickerTelemetry', () => {
 		});
 	}
 
-	test('reports provider for every picker lifecycle event without using the model vendor', () => {
-		const results: { name: string; provider: unknown }[] = [];
-		for (const sessionType of ['agent-host-claude', 'local', undefined]) {
-			const session = new ModelPickerTelemetrySession(upcastPartial<ITelemetryService>({
-				publicLog2: (name: string, data?: IStringDictionary<unknown>) => { results.push({ name, provider: data?.provider }); },
-			}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', sessionType);
-			session.logModelChange(model, otherModel, 'session-1');
-			session.logConfigurationChange(model, 'tokens', 'contextSize', 264000, 1000000, Date.now());
-			session.logConfigurationChange(model, 'navigation', 'reasoningEffort', 'medium', 'high', Date.now());
-			session.close();
-		}
-		assert.deepStrictEqual(results, ['claude', undefined, 'unknown'].flatMap(provider =>
-			['chat.modelPickerOpened', 'chat.modelChange', 'chat.contextSizeChange', 'chat.thinkingEffortChange', 'chat.modelPickerClosed'].map(name => ({ name, provider }))));
-	});
-
 	test('reports the time from opening to each change and to the close, waiting for pending saves', async () => {
 		const logged: { name: string; durationMs: unknown; pickerSessionId: unknown }[] = [];
 		let now = 1000;
 		const session = new ModelPickerTelemetrySession(upcastPartial<ITelemetryService>({
-			publicLog2: (name: string, data?: IStringDictionary<unknown>) => { logged.push({ name, durationMs: data?.durationMs, pickerSessionId: data?.pickerSessionId }); },
-		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', 'agent-host-copilotcli', () => now);
+			publicLog2: (name: string, data?: IStringDictionary<unknown>) => {
+				assert.strictEqual(data?.provider, 'codex-openai');
+				logged.push({ name, durationMs: data?.durationMs, pickerSessionId: data?.pickerSessionId });
+			},
+		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', 'codex-openai', () => now);
 		now = 1250.4;
 		session.logModelChange(model, otherModel, 'session-1');
 		now = 2000;

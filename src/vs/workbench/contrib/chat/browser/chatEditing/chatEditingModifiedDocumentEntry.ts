@@ -31,6 +31,7 @@ import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextFileService, isTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
@@ -103,6 +104,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
 	) {
 		super(
 			resourceRef.object.textEditorModel.uri,
@@ -115,6 +117,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			undoRedoService,
 			instantiationService,
 			aiEditTelemetryService,
+			chatSessionsService,
 		);
 
 		this._docFileEditorModel = this._register(resourceRef).object;

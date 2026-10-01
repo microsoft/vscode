@@ -14,7 +14,7 @@ import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
 import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
-import { getAgentHostProviderForTelemetry, isAgentHostSessionResource } from '../chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../chatSessionsService.js';
 import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 type ChatSessionModeEvent = {
@@ -199,7 +199,7 @@ export type ChatProviderInvokedEvent = ChatSessionModeEvent & {
 };
 
 export type ChatProviderInvokedClassification = ChatSessionModeClassification & {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session, such as copilotcli, claude, or codex.' };
 	requestIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based index of the request within the chat session.' };
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time in milliseconds from invoking the provider to getting the first data.' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total time it took to run the provider\'s `provideResponseWithProgress`.' };
@@ -358,7 +358,8 @@ export class ChatRequestTelemetry {
 		settingCopilotHarnessIntroductionMode: string;
 	},
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) { }
 
 	complete({ timeToFirstProgress, totalTime, result, requestType, request, detectedAgent }: {
@@ -375,8 +376,10 @@ export class ChatRequestTelemetry {
 		}
 
 		this.isComplete = true;
+		const agentId = detectedAgent?.id ?? this.opts.agent.id;
+		const provider = getAgentHostProviderForTelemetry(getChatSessionType(this.opts.sessionResource), this.chatSessionsService);
 		this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
-			provider: getAgentHostProviderForTelemetry(getChatSessionType(this.opts.sessionResource)),
+			provider,
 			requestIndex: this.opts.requestIndex,
 			sessionTypeSelectionReason: this.opts.sessionTypeSelectionReason,
 			timeToFirstProgress,
@@ -384,10 +387,10 @@ export class ChatRequestTelemetry {
 			result,
 			requestType,
 			requestId: request.id,
-			agent: detectedAgent?.id ?? this.opts.agent.id,
+			agent: isRemoteAgentHostSessionType(agentId) ? 'remote-agent-host' : agentId,
 			agentExtensionId: detectedAgent?.extensionId.value ?? this.opts.agent.extensionId.value,
 			slashCommand: this.opts.agentSlashCommandPart ? this.opts.agentSlashCommandPart.command.name : this.opts.commandPart?.slashCommand.command,
-			chatSessionId: chatSessionResourceToId(this.opts.sessionResource),
+			chatSessionId: getChatSessionIdForTelemetry(this.opts.sessionResource),
 			enableCommandDetection: this.opts.enableCommandDetection,
 			isParticipantDetected: !!detectedAgent,
 			location: this.opts.location,
@@ -398,7 +401,7 @@ export class ChatRequestTelemetry {
 			permissionLevel: this.opts.options?.modeInfo?.kind === ChatModeKind.Ask ? undefined : this.opts.options?.modeInfo?.permissionLevel,
 			chatMode: this.opts.options?.modeInfo?.telemetryModeName ?? this.opts.options?.modeInfo?.telemetryModeId,
 			sessionType: getChatSessionTypeForTelemetry(this.opts.sessionResource),
-			harness: getHarnessForTelemetry(this.opts.sessionResource),
+			harness: isRemoteAgentHostSessionType(getChatSessionType(this.opts.sessionResource)) ? provider : undefined,
 			isAgentHostSession: getIsAgentHostSessionForTelemetry(this.opts.sessionResource),
 			isVirtualWorkspace: this.opts.isVirtualWorkspace,
 			settingDefaultToCopilotHarness: this.opts.settingDefaultToCopilotHarness,

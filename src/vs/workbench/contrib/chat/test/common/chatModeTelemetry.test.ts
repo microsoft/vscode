@@ -12,7 +12,6 @@ import { ChatMode, CustomChatMode } from '../../common/chatModes.js';
 import { reportChatModeChange } from '../../common/chatModeTelemetry.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { getAgentHostProviderForTelemetry } from '../../common/chatSessionsService.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: unknown }[] = [];
@@ -41,7 +40,7 @@ suite('ChatModeTelemetry', () => {
 			tools: ['read', 'search'],
 		});
 
-		reportChatModeChange(telemetryService, ChatMode.Agent, targetMode, 4, 'agent-host-claude');
+		reportChatModeChange(telemetryService, ChatMode.Agent, targetMode, 4, 'claude');
 
 		assert.deepStrictEqual(telemetryService.events, [{
 			name: 'chat.modeChange',
@@ -67,22 +66,4 @@ suite('ChatModeTelemetry', () => {
 		assert.deepStrictEqual(telemetryService.events, []);
 	});
 
-	test('provider attribution distinguishes missing context from non-Agent Host sessions', () => {
-		assert.deepStrictEqual([
-			'agent-host-copilotcli',
-			'agent-host-claude',
-			'agent-host-codex',
-			'remote-private-machine-name-copilotcli',
-			'remote-private-machine-name-claude',
-			'agent-host-',
-			'remote-private-machine-name-',
-			'local',
-			'copilotcli',
-			'copilot-cloud-agent',
-			undefined,
-		].map(getAgentHostProviderForTelemetry), [
-			'copilotcli', 'claude', 'codex', 'copilotcli', 'claude',
-			'unknown', 'unknown', undefined, undefined, undefined, 'unknown',
-		]);
-	});
 });

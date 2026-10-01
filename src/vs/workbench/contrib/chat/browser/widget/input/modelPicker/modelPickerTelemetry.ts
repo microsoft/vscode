@@ -8,7 +8,6 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { getTelemetryModelIdentifier, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
-import { getAgentHostProviderForTelemetry } from '../../../../common/chatSessionsService.js';
 
 /** How the user opened a model picker surface. */
 export type ModelPickerEntryPoint =
@@ -31,7 +30,7 @@ export interface IModelPickerOpenTrigger {
 }
 
 type ChatModelPickerOpenedClassification = {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider at picker open, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session at picker open, such as copilotcli, claude, or codex.' };
 	owner: 'lramos15';
 	comment: 'Reporting when a model picker surface is opened, to measure picker interactions from open to close';
 	pickerSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random id for this picker open, used to correlate the open, change, and close events of one interaction' };
@@ -51,7 +50,7 @@ type ChatModelPickerOpenedEvent = {
 };
 
 type ChatModelPickerClosedClassification = {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider at picker open, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session at picker open, such as copilotcli, claude, or codex.' };
 	owner: 'lramos15';
 	comment: 'Reporting when a model picker surface is closed, to measure how long picker interactions take. Changes made while it was open are reported by their own events with the same pickerSessionId.';
 	pickerSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the picker open this close belongs to' };
@@ -67,7 +66,7 @@ type ChatModelPickerClosedEvent = {
 };
 
 type ChatModelChangeClassification = {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider at picker open, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session at picker open, such as copilotcli, claude, or codex.' };
 	owner: 'lramos15';
 	comment: 'Reporting when the model picker is switched';
 	fromModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat model' };
@@ -91,7 +90,7 @@ type ChatModelChangeEvent = {
 };
 
 type ChatThinkingEffortChangeClassification = {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider at picker open, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session at picker open, such as copilotcli, claude, or codex.' };
 	owner: 'lramos15';
 	comment: 'Reporting when a model configuration value (e.g. thinking effort, or the Auto routing tier) is changed';
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the configuration was changed for' };
@@ -113,7 +112,7 @@ type ChatThinkingEffortChangeEvent = {
 };
 
 type ChatContextSizeChangeClassification = {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider at picker open, or unknown when unavailable. Omitted for non-Agent Host sessions.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session at picker open, such as copilotcli, claude, or codex.' };
 	owner: 'lramos15';
 	comment: 'Reporting when the context window size is changed';
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the context size was changed for' };
@@ -153,11 +152,11 @@ export class ModelPickerTelemetrySession {
 		trigger: IModelPickerOpenTrigger,
 		model: ILanguageModelChatMetadataAndIdentifier | undefined,
 		chatSessionId: string | undefined,
-		sessionType: string | undefined,
+		provider: string | undefined,
 		private readonly _now: () => number = () => Date.now(),
 	) {
 		this._openedAt = this._now();
-		this._provider = getAgentHostProviderForTelemetry(sessionType);
+		this._provider = provider;
 		this._telemetryService.publicLog2<ChatModelPickerOpenedEvent, ChatModelPickerOpenedClassification>('chat.modelPickerOpened', {
 			provider: this._provider,
 			pickerSessionId: this.id,
