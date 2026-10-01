@@ -235,12 +235,11 @@ where
 	let policy_disabled = runtime.copilot_cli_command_disabled();
 	let search_path = probe_search_path(runtime, options.scope);
 	let mut reasons = Vec::new();
-	let cli_found = find_cli(runtime, search_path.clone())
-		.unwrap_or_else(|error| {
-			reasons.push(format!("discovery: {error}"));
-			None
-		})
-		.is_some();
+	let cli = find_cli(runtime, search_path.clone()).unwrap_or_else(|error| {
+		reasons.push(format!("discovery: {error}"));
+		None
+	});
+	let cli_found = cli.is_some();
 	let windows_target = matches!(
 		target,
 		Some(HostTarget::WindowsX64 | HostTarget::WindowsArm64)
@@ -275,6 +274,12 @@ where
 			}),
 		),
 		("cliFound", flag(cli_found)),
+		// Setup shows where it found Copilot CLI when it skips its page.
+		(
+			"cliPath",
+			cli.map(|path| path.display().to_string())
+				.unwrap_or_default(),
+		),
 		("pwshFound", flag(power_shell)),
 		("downloadAvailable", flag(download_size.is_some())),
 		("downloadSize", download_size.unwrap_or(0).to_string()),

@@ -5,7 +5,7 @@
 //
 // Shim contract used by setup (all files are UTF-16LE INI files written atomically by the shim):
 //   copilot.exe --vscode-shim probe --scope user|machine [--no-network] --timeout-ms N --result-file <ini>
-//     [probe] protocol=1, policy=allowed|disabled, cliFound=0|1, downloadAvailable=0|1,
+//     [probe] protocol=1, policy=allowed|disabled, cliFound=0|1, cliPath=<path>, downloadAvailable=0|1,
 //             downloadSize=<bytes>, pwshFound=0|1, reason=<text>
 //   copilot.exe --vscode-shim install --non-interactive --consent=installer --progress-file <ini>
 //               --result-file <ini> --cancel-file <path> --running-mutex <name>
@@ -64,6 +64,7 @@ var
   CopilotProbeStartTick: Cardinal;
   CopilotProbePolicyDisabled: Boolean;
   CopilotProbeCliFound: Boolean;
+  CopilotProbeCliPath: String;
   CopilotProbeDownloadAvailable: Boolean;
   CopilotProbeDownloadSizeMB: Int64;
   CopilotProbePwshFound: Boolean;
@@ -509,11 +510,12 @@ begin
 
   CopilotProbePolicyDisabled := CompareText(GetIniString('probe', 'policy', 'allowed', ResultFile), 'disabled') = 0;
   CopilotProbeCliFound := GetIniBool('probe', 'cliFound', False, ResultFile);
+  CopilotProbeCliPath := GetIniString('probe', 'cliPath', '', ResultFile);
   CopilotProbeDownloadAvailable := GetIniBool('probe', 'downloadAvailable', False, ResultFile);
   CopilotProbeDownloadSizeMB := (StrToInt64Def(GetIniString('probe', 'downloadSize', '0', ResultFile), 0) + 524288) div 1048576;
   CopilotProbePwshFound := GetIniBool('probe', 'pwshFound', True, ResultFile);
   Log('Copilot: probe policyDisabled=' + BoolToStr(CopilotProbePolicyDisabled)
-    + ', cliFound=' + BoolToStr(CopilotProbeCliFound) + ', downloadAvailable=' + BoolToStr(CopilotProbeDownloadAvailable)
+    + ', cliFound=' + BoolToStr(CopilotProbeCliFound) + ', cliPath=' + CopilotProbeCliPath + ', downloadAvailable=' + BoolToStr(CopilotProbeDownloadAvailable)
     + ', downloadSizeMB=' + IntToStr(CopilotProbeDownloadSizeMB) + ', pwshFound=' + BoolToStr(CopilotProbePwshFound)
     + ', reason=' + GetIniString('probe', 'reason', '', ResultFile));
 end;
@@ -1137,7 +1139,12 @@ begin
   CopilotAppendMemoSection(Result, MemoGroupInfo, NewLine);
   CopilotAppendMemoSection(Result, MemoTasksInfo, NewLine);
   if CopilotPageKind <> CopilotPageNone then
-    CopilotAppendMemoSection(Result, CustomMessage('CopilotCliMemoHeading') + NewLine + Space + CopilotReadyMemoChoice(), NewLine);
+    CopilotAppendMemoSection(Result, CustomMessage('CopilotCliMemoHeading') + NewLine + Space + CopilotReadyMemoChoice(), NewLine)
+  else if CopilotProbeCompleted and CopilotProbeCliFound and (CopilotProbeCliPath <> '') and not CopilotProbePolicyDisabled
+    and not CopilotPolicyDisabled() then
+    // Setup skips its page because Copilot CLI is already installed; say where, so the missing page isn't a surprise.
+    CopilotAppendMemoSection(Result, CustomMessage('CopilotCliMemoHeading') + NewLine + Space
+      + FmtMessage(CustomMessage('CopilotCliMemoFound'), [CopilotProbeCliPath]), NewLine);
 end;
 
 <event('RegisterPreviousData')>
