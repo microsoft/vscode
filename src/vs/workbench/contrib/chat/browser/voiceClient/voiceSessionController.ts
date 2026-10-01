@@ -33,7 +33,7 @@ import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
-import { ChatSendResult, IChatConfirmation, IChatElicitationRequest, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
+import { ChatSendResult, ConfirmedReason, IChatConfirmation, IChatElicitationRequest, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
 import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -63,6 +63,8 @@ import {
 } from './voiceTelemetry.js';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
+
+const voiceAutoApprovalReason: ConfirmedReason = { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 
 export function isVoiceEntitled(chatEntitlementService: IChatEntitlementService): boolean {
 	return isProUser(chatEntitlementService.entitlement)
@@ -924,7 +926,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._autoApprovedSessions.add(s.resource.toString());
 					const model = this.chatService.getSession(s.resource);
 					if (model) {
-						this._autoApprovePendingTools(model);
+						this._autoApprovePendingTools(model, { type: ToolConfirmKind.UserAction });
 					}
 				}
 			},
@@ -996,7 +998,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								if (lastReq.response) {
 									for (const part of lastReq.response.response.value) {
 										if (part.kind === 'toolInvocation') {
-											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
+											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied, source: 'user' });
 										}
 									}
 								}
@@ -1042,7 +1044,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction });
 										},
 										deny: () => {
-											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
+											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied, source: 'user' });
 										},
 									});
 									break;
@@ -1433,7 +1435,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							if (pending && confirmationType === 'tool' && this._autoApprovedSessions.has(sessionId)) {
 								for (const part of lastReq.response.response.value) {
 									if (part.kind === 'toolInvocation') {
-										if (IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction })) {
+										if (IChatToolInvocation.confirmWith(part as IChatToolInvocation, voiceAutoApprovalReason)) {
 											needsRecheck = true;
 										}
 									}
@@ -7317,7 +7319,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	private _autoApprovePendingTools(model: IChatModel): void {
+	private _autoApprovePendingTools(model: IChatModel, reason: ConfirmedReason = voiceAutoApprovalReason): void {
 		for (const request of model.getRequests()) {
 			const response = request.response;
 			if (!response?.isPendingConfirmation.get() || getVoiceConfirmationType(response.response.value) !== 'tool') {
@@ -7325,7 +7327,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			for (const part of response.response.value) {
 				if (part.kind === 'toolInvocation') {
-					IChatToolInvocation.confirmWith(part, { type: ToolConfirmKind.UserAction });
+					IChatToolInvocation.confirmWith(part, reason);
 				}
 			}
 		}

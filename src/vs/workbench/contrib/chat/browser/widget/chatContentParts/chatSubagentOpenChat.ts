@@ -120,15 +120,16 @@ function asInlineSubagentDetailsContext(context: unknown): IInlineSubagentDetail
 }
 
 export function getSubagentEditorResource(context: IOpenSubagentChatContext): URI | undefined {
-	const parsed = parseChatUri(context.chatResource);
-	if (!parsed || !context.parentSessionResource) {
+	if (!context.parentSessionResource) {
 		return undefined;
 	}
 	try {
-		const parentSessionResource = URI.parse(context.parentSessionResource);
+		URI.parse(context.chatResource, true);
+		const parentSessionResource = URI.parse(context.parentSessionResource, true);
 		const query = new URLSearchParams(parentSessionResource.query);
 		query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, context.chatResource);
-		return parentSessionResource.with({ fragment: parsed.chatId, query: query.toString() });
+		// Preserve legacy editor identities without requiring hosts to use the local chat URI format.
+		return parentSessionResource.with({ fragment: parseChatUri(context.chatResource)?.chatId ?? context.chatResource, query: query.toString() });
 	} catch {
 		return undefined;
 	}

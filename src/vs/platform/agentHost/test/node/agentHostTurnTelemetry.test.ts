@@ -1757,6 +1757,34 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	});
 
+	test('attributes provider time between dispatch and first progress to the stages the provider marked', () => {
+		setupSession();
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn-provider', undefined, undefined, 'default', undefined, undefined);
+		const recorder = turnTracker.createProviderStageRecorder(defaultChatUri, 'turn-provider');
+		// Marks before dispatch belong to the host, not the provider.
+		recorder.mark('queue');
+		turnTracker.markSendDispatched(defaultChatUri, 'turn-provider');
+		recorder.mark('create');
+		recorder.mark('modelResponse');
+		turnTracker.markFirstProgress(defaultChatUri, 'turn-provider');
+		// Work after first progress is not part of time-to-first-progress.
+		recorder.mark('persist');
+		turnTracker.turnCompleted(defaultChatUri, 'turn-provider', 'success');
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			queue: data.providerStageQueueMs,
+			create: typeof data.providerStageCreateMs,
+			modelResponse: typeof data.providerStageModelResponseMs,
+			persist: data.providerStagePersistMs,
+		}, {
+			queue: undefined,
+			create: 'number',
+			modelResponse: 'number',
+			persist: undefined,
+		});
+	});
+
 	test('reports the latest per-turn billed nano-AIU from usage updates when available', () => {
 		setupSession();
 		startTurn('turn-1');

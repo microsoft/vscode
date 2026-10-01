@@ -30,7 +30,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../..
 import { StateType } from '../../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
@@ -95,6 +95,8 @@ suite('TabbedModelPicker', () => {
 		selectedModelId?: string;
 		pinnedModelIds?: string[];
 		controlModels?: IStringDictionary<IModelControlEntry>;
+		controlManifest?: IModelsControlManifest;
+		entitlement?: ChatEntitlement;
 		showUnavailable?: boolean;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
@@ -146,13 +148,19 @@ suite('TabbedModelPicker', () => {
 			getContainer: () => container, mainContainer: container, onDidChangeActiveContainer: Event.None,
 		}));
 		instantiationService.set(IStorageService, disposables.add(new InMemoryStorageService()));
-		instantiationService.set(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ entitlement: ChatEntitlement.Pro }));
+		let entitlement = options.entitlement ?? ChatEntitlement.Pro;
+		const entitlementChanged = disposables.add(new Emitter<void>());
+		instantiationService.set(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
+			get entitlement() { return entitlement; },
+			onDidChangeEntitlement: entitlementChanged.event,
+		}));
 		instantiationService.set(ILanguageModelsService, upcastPartial<ILanguageModelsService>({
 			getVendors: () => [
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'copilot', displayName: 'Copilot', isDefault: true }),
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'ollama', displayName: 'Ollama' }),
 			],
 			getLanguageModelGroups: () => [],
+			getModelsControlManifest: () => options.controlManifest ?? { free: {}, paid: {} },
 		}));
 		const changed = disposables.add(new Emitter<string>());
 		const values = new Map<string, IStringDictionary<unknown>>();
@@ -193,6 +201,10 @@ suite('TabbedModelPicker', () => {
 		picker.show(anchor, context, options.details, false, options.contextViewLayer);
 		return {
 			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges,
+			setEntitlement: (value: ChatEntitlement) => {
+				entitlement = value;
+				entitlementChanged.fire();
+			},
 			get hintDismissed() { return hintDismissed; },
 			get contextViewLayer() { return activeDelegate?.layer; },
 			get anchorPosition() { return activeDelegate?.anchorPosition; },
@@ -245,6 +257,13 @@ suite('TabbedModelPicker', () => {
 
 	function selectedModels(popup: HTMLElement): string[] {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-model[aria-checked="true"] .title'), title => title.textContent!);
+	}
+
+	/** The active list's rows, with separators prefixed by `--` and followed by their heading. */
+	function listRows(popup: HTMLElement): string[] {
+		return Array.from(popup.querySelectorAll('.chat-model-picker-tabbed .monaco-list-row'), row => row.classList.contains('separator')
+			? `--${row.textContent ?? ''}`
+			: row.querySelector('.title')?.textContent ?? '');
 	}
 
 	for (const initiallyAuto of [false, true]) {
@@ -656,6 +675,111 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
+		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a routing choice`, () => {
+			const auto = createAutoModel();
+			const hydra = createHydraFusionModel();
+			const result = createPicker({
+				models: [auto, hydra, ...models],
+				selectedModelId: auto.identifier,
+				entitlement,
+				showUnavailable: false,
+				controlModels: {},
+			});
+			result.picker.refresh([auto, hydra, ...models]);
+			const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
+			unavailableHydra.click();
+			assert.deepStrictEqual({
+				label: unavailableHydra.querySelector('.title')?.textContent,
+				upgrade: unavailableHydra.textContent?.includes('Upgrade'),
+				selected: selectedModels(result.popup),
+				selections: result.selections,
+			}, {
+				label: 'HydraFusion',
+				upgrade: true,
+				selected: ['Balance'],
+				selections: [],
+			});
+		});
+	}
+
+	test('Free plans remove the synthesized HydraFusion upgrade when the live model is removed', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: auto.identifier,
+			entitlement: ChatEntitlement.Free,
+			showUnavailable: false,
+			controlModels: {},
+		});
+		assert.ok(result.popup.querySelector('.chat-model-picker-unavailable'));
+		result.picker.refresh([auto, ...models]);
+		assert.strictEqual(result.popup.querySelector('.chat-model-picker-unavailable'), null);
+	});
+
+	test('resolving an open picker to Free replaces HydraFusion with an unavailable upgrade', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: auto.identifier,
+			entitlement: ChatEntitlement.Unknown,
+			showUnavailable: true,
+			controlModels: {
+				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
+			},
+			controlManifest: {
+				free: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+			},
+		});
+		const before = Array.from(result.popup.querySelectorAll('.chat-model-picker-routing-model .title'), element => element.textContent);
+		result.setEntitlement(ChatEntitlement.Free);
+		const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
+		assert.deepStrictEqual({
+			before,
+			label: unavailableHydra.querySelector('.title')?.textContent,
+			upgrade: unavailableHydra.textContent?.includes('Upgrade'),
+			selected: selectedModels(result.popup),
+			selections: result.selections,
+		}, {
+			before: ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion'],
+			label: 'HydraFusion',
+			upgrade: true,
+			selected: ['Balance'],
+			selections: [],
+		});
+	});
+
+	test('resolving an open picker to Free replaces a selected HydraFusion with Auto', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: hydra.identifier,
+			entitlement: ChatEntitlement.Unknown,
+			showUnavailable: true,
+			controlModels: {
+				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
+			},
+			controlManifest: {
+				free: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+			},
+		});
+		result.setEntitlement(ChatEntitlement.Free);
+		assert.deepStrictEqual({
+			upgrade: element(result.popup, '.chat-model-picker-unavailable').textContent?.includes('Upgrade'),
+			selected: selectedModels(result.popup),
+			selections: result.selections,
+		}, {
+			upgrade: true,
+			selected: ['Balance'],
+			selections: [auto.identifier],
+		});
+	});
+
 	test('Auto-only plans name the tab Auto without a switch and retain unavailable models and provider navigation', () => {
 		const result = createPicker({
 			models: [createAutoModel()],
@@ -673,6 +797,56 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ initial, emptyProvider: !!result.popup.querySelector('.tabbed-action-list-empty'), selections: result.selections }, {
 			initial: { tabs: ['Auto', 'Ollama'], switchHidden: true, selected: ['Balance'], unavailable: true },
 			emptyProvider: true,
+			selections: [],
+		});
+	});
+
+	test('Free and Student plans head the models that Auto-only access lacks as upgrades, beside the routing choices', () => {
+		const rows = [ChatEntitlement.Free, ChatEntitlement.EDU].map(entitlement => listRows(createPicker({
+			models: [createAutoModel()],
+			entitlement,
+			showUnavailable: true,
+			controlModels: { locked: { label: 'Locked Model', exists: false, featured: true } },
+		}).popup));
+		assert.deepStrictEqual(rows, Array(2).fill(['--Optimize for · 10% discount', 'Efficiency', 'Balance', 'Intelligence', '--Upgrade for More Models', 'Locked Model']));
+	});
+
+	test('Free and Student plans keep the Copilot tab for upgrades when Copilot relays no selectable model', () => {
+		const local = model('Local');
+		const result = Object.fromEntries([ChatEntitlement.Free, ChatEntitlement.EDU, ChatEntitlement.Pro].map(entitlement => {
+			const { popup, selections } = createPicker({
+				models: [{ ...local, identifier: 'ollama/local', metadata: { ...local.metadata, vendor: 'ollama' } }],
+				selectedModelId: createAutoModel().identifier,
+				entitlement,
+				showUnavailable: true,
+				controlModels: { locked: { label: 'Locked Model', exists: false, featured: true } },
+			});
+			const tabs = Array.from(popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label'));
+			const initialRows = listRows(popup);
+			element(popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
+			return [ChatEntitlement[entitlement], { tabs, initialRows, providerRows: listRows(popup), selections }];
+		}));
+		assert.deepStrictEqual(result, {
+			Free: { tabs: ['Copilot', 'Ollama'], initialRows: ['--Upgrade for More Models', 'Locked Model'], providerRows: ['Local'], selections: [] },
+			EDU: { tabs: ['Copilot', 'Ollama'], initialRows: ['--Upgrade for More Models', 'Locked Model'], providerRows: ['Local'], selections: [] },
+			Pro: { tabs: ['Ollama'], initialRows: ['Local'], providerRows: ['Local'], selections: [] },
+		});
+	});
+
+	test('HydraFusion alone stays grouped under the Auto tab without a switch', () => {
+		const hydra = createHydraFusionModel();
+		const { popup, selections } = createPicker({ models: [hydra], selectedModelId: hydra.identifier });
+		assert.deepStrictEqual({
+			tabs: Array.from(popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label')),
+			switchHidden: element(popup, '.tabbed-action-list-tab-toggle').hidden,
+			rows: listRows(popup),
+			selected: selectedModels(popup),
+			selections,
+		}, {
+			tabs: ['Auto'],
+			switchHidden: true,
+			rows: ['--Alternative routing', 'HydraFusion'],
+			selected: ['HydraFusion'],
 			selections: [],
 		});
 	});

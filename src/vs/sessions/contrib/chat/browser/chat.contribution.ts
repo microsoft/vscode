@@ -13,6 +13,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import product from '../../../../platform/product/common/product.js';
@@ -57,7 +58,7 @@ import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SE
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../common/constants.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
@@ -222,12 +223,12 @@ class FocusNewSessionHarnessPickerAction extends Action2 {
 
 registerAction2(FocusNewSessionHarnessPickerAction);
 
-class SetNewSessionWelcomeNameAction extends Action2 {
+class CustomizeNewSessionWelcomeMessageAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.sessions.setWelcomeName',
-			title: localize2('sessions.chat.setWelcomeName', "Set Welcome Name..."),
+			id: 'workbench.action.sessions.customizeWelcomeMessage',
+			title: localize2('sessions.chat.customizeWelcomeMessage', "Customize Welcome Message..."),
 			category: CHAT_CATEGORY,
 			icon: Codicon.edit,
 			precondition: IsSessionsWindowContext,
@@ -244,14 +245,39 @@ class SetNewSessionWelcomeNameAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
+	override async run(accessor: ServicesAccessor, anchor?: unknown): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
+		const commandService = accessor.get(ICommandService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const namePick: IQuickPickItem = {
+			id: 'name',
+			label: localize('sessions.chat.customizeWelcomeMessage.name', "Name"),
+			description: localize('sessions.chat.customizeWelcomeMessage.nameDescription', "Set the name used in welcome messages"),
+		};
+		const phrasesPick: IQuickPickItem = {
+			id: 'phrases',
+			label: localize('sessions.chat.customizeWelcomeMessage.phrases', "Phrases"),
+			description: localize('sessions.chat.customizeWelcomeMessage.phrasesDescription', "Add to or replace the welcome phrases"),
+		};
+		const pick = await quickInputService.pick([namePick, phrasesPick], {
+			placeHolder: localize('sessions.chat.customizeWelcomeMessage.placeholder', "Choose what to customize"),
+			anchor,
+		});
+		if (pick === namePick) {
+			await this._setWelcomeName(quickInputService, configurationService, anchor);
+		} else if (pick === phrasesPick) {
+			await commandService.executeCommand('workbench.action.openSettings', NEW_SESSION_WELCOME_MESSAGES_SETTING);
+		}
+	}
+
+	private async _setWelcomeName(quickInputService: IQuickInputService, configurationService: IConfigurationService, anchor: unknown): Promise<void> {
 		const configuredName = configurationService.getValue<string>(NEW_SESSION_WELCOME_NAME_SETTING).trim();
 		const name = await quickInputService.input({
 			value: configuredName,
 			prompt: localize('sessions.chat.setWelcomeName.prompt', "Enter the name to use in new-session welcome messages"),
 			placeHolder: localize('sessions.chat.setWelcomeName.placeholder', "Leave empty to use your GitHub first name when available"),
+			anchor,
 		});
 		if (name === undefined) {
 			return;
@@ -265,7 +291,31 @@ class SetNewSessionWelcomeNameAction extends Action2 {
 	}
 }
 
-registerAction2(SetNewSessionWelcomeNameAction);
+registerAction2(CustomizeNewSessionWelcomeMessageAction);
+
+class HideNewSessionWelcomeMessageAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.sessions.hideWelcomeMessage',
+			title: localize2('sessions.chat.hideWelcomeMessage', "Hide Welcome Message"),
+			category: CHAT_CATEGORY,
+			icon: Codicon.eyeClosed,
+			precondition: IsSessionsWindowContext,
+			menu: [{
+				id: Menus.NewSessionWelcomeContext,
+				group: 'navigation',
+				order: 1,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IConfigurationService).updateValue(NEW_SESSION_WELCOME_PHRASES_SETTING, false, ConfigurationTarget.USER);
+	}
+}
+
+registerAction2(HideNewSessionWelcomeMessageAction);
 
 class SetChatBackgroundAction extends Action2 {
 
@@ -606,6 +656,31 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.experimental.welcomeName', "Specifies the name used in new-session welcome messages. Leave empty to use the first name from your signed-in GitHub profile when available; otherwise, welcome messages omit the name."),
+			tags: ['experimental'],
+		},
+		[NEW_SESSION_WELCOME_MESSAGES_SETTING]: {
+			type: 'object',
+			default: {
+				mode: 'append',
+				phrases: []
+			},
+			properties: {
+				mode: {
+					type: 'string',
+					enum: ['replace', 'append'],
+					default: 'append',
+					description: localize('sessions.chat.experimental.welcomeMessages.mode', "'replace' uses only your phrases; 'append' adds your phrases to the defaults."),
+				},
+				phrases: {
+					type: 'array',
+					items: { type: 'string' },
+					default: [],
+					markdownDescription: localize('sessions.chat.experimental.welcomeMessages.phrases', "Welcome phrases shown above the new-session composer. Use `{name}` to position the welcome name, for example `Back at it, {name}`. When no name is known, `{name}` and its surrounding separator are removed."),
+				}
+			},
+			additionalProperties: false,
+			markdownDescription: localize('sessions.chat.experimental.welcomeMessages', "Customize the welcome phrases shown above the new-session composer. Use `\"mode\": \"replace\"` to use only your phrases, or `\"mode\": \"append\"` to add them to the defaults. Use `{name}` inside a phrase to position the welcome name."),
+			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 		},
 		[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING]: {

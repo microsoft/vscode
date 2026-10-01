@@ -82,7 +82,7 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(tabbed: boolean, selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel]) {
+	function createPicker(tabbed: boolean, selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
@@ -91,6 +91,8 @@ suite('ModelPickerTelemetry', () => {
 		const openedLinks: string[] = [];
 		const configurations = new Map<string, IStringDictionary<unknown>>();
 		const pinnedModelIds: string[] = [];
+		const delegateSelections: string[] = [];
+		const programmaticDelegateSelections: string[] = [];
 		let tabbedShows = 0;
 		const configurationAccess: IModelConfigurationAccess = {
 			getModelConfiguration: id => configurations.get(id),
@@ -118,6 +120,7 @@ suite('ModelPickerTelemetry', () => {
 		let searchModels: () => void = () => assert.fail('Tabbed picker has not opened');
 		let toggleAuto: () => void = () => assert.fail('Tabbed picker has not opened');
 		let hideFlatPicker = () => { };
+		let flatPickerHideCount = 0;
 		const hideTabbedPicker = () => {
 			visible = false;
 			detailsOptions = undefined;
@@ -178,7 +181,10 @@ suite('ModelPickerTelemetry', () => {
 				setItems(items, item => delegate.onSelect(item));
 				listOptions = options;
 				contextViewLayer = layer;
-				hideFlatPicker = () => delegate.onHide();
+				hideFlatPicker = () => {
+					flatPickerHideCount++;
+					delegate.onHide();
+				};
 			},
 			hide: () => hideFlatPicker(),
 			focusItemById: () => { },
@@ -249,6 +255,10 @@ suite('ModelPickerTelemetry', () => {
 				// Replace the random session id with its open order and check each duration
 				// is a real elapsed time, so events stay deterministic to compare.
 				const normalized: IStringDictionary<unknown> = { ...data };
+				if (name !== 'chat.modelPickerInteraction') {
+					assert.strictEqual(normalized.provider, 'copilotcli');
+					delete normalized.provider;
+				}
 				if (typeof normalized.pickerSessionId === 'string') {
 					if (!pickerSessionIds.includes(normalized.pickerSessionId)) {
 						pickerSessionIds.push(normalized.pickerSessionId);
@@ -278,8 +288,11 @@ suite('ModelPickerTelemetry', () => {
 			}
 		}());
 		instantiationService.stub(IProductService, { version: '1.100.0' });
-		const entitlementService = new TestChatEntitlementService();
-		entitlementService.entitlement = ChatEntitlement.Pro;
+		const entitlementChanged = store.add(new Emitter<void>());
+		const entitlementService = new class extends TestChatEntitlementService {
+			override readonly onDidChangeEntitlement = entitlementChanged.event;
+		}();
+		entitlementService.entitlement = entitlement;
 		instantiationService.stub(IChatEntitlementService, entitlementService);
 		instantiationService.stub(IUpdateService, { state: { type: StateType.Uninitialized } });
 		instantiationService.stub(IUriIdentityService, { extUri });
@@ -291,9 +304,11 @@ suite('ModelPickerTelemetry', () => {
 
 		const picker = store.add(instantiationService.createInstance(ModelPickerWidget, {
 			currentModel: constObservable(selectedModel),
-			setModel: () => { },
+			setModel: model => delegateSelections.push(model.identifier),
+			setModelProgrammatically: supportsProgrammaticSelection ? model => programmaticDelegateSelections.push(model.identifier) : undefined,
 			getModels: () => models,
 			getChatSessionId: () => 'session-1',
+			getProvider: () => 'copilotcli',
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true, showManageModelsAction: false, showUnavailableFeatured: true,
 				showFeatured: true, showAutoModel: true, showModelIcon: false,
@@ -304,10 +319,15 @@ suite('ModelPickerTelemetry', () => {
 		picker.show(container);
 
 		return {
-			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds,
+			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections,
 			get visible() { return visible; },
+			get flatPickerHideCount() { return flatPickerHideCount; },
 			get tabbedShows() { return tabbedShows; },
 			get contextViewLayer() { return contextViewLayer; },
+			setEntitlement: (entitlement: ChatEntitlement) => {
+				entitlementService.entitlement = entitlement;
+				entitlementChanged.fire();
+			},
 			selectItem: (label: string) => selectItem(label),
 			selectTab: (label: string) => selectTab(label),
 			pinItem: (label: string) => pinItem(label),
@@ -325,6 +345,7 @@ suite('ModelPickerTelemetry', () => {
 					getSelectedModel: () => picker.selectedModel,
 					getConfigurationAccess: () => configurationAccess,
 					getChatSessionId: () => 'session-1',
+					getProvider: () => 'copilotcli',
 					isDisabled: () => false,
 					shouldShowCacheBreakHint: () => false,
 					getCacheBreakLearnMoreLink: () => undefined,
@@ -333,6 +354,53 @@ suite('ModelPickerTelemetry', () => {
 			},
 		};
 	}
+
+	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
+		test(`${ChatEntitlement[entitlement]} entitlement replaces a persisted HydraFusion selection when the picker is constructed`, () => {
+			const hydraFusion = createModel('hydrafusion');
+			const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model], entitlement);
+			assert.deepStrictEqual({
+				selected: result.picker.selectedModel?.identifier,
+				delegateSelections: result.delegateSelections,
+				programmaticDelegateSelections: result.programmaticDelegateSelections,
+			}, {
+				selected: autoModel.identifier,
+				delegateSelections: [],
+				programmaticDelegateSelections: [autoModel.identifier],
+			});
+		});
+	}
+
+	test('Free entitlement falls back to setModel when the delegate has no programmatic selection', () => {
+		const hydraFusion = createModel('hydrafusion');
+		const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model], ChatEntitlement.Free, false);
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			delegateSelections: result.delegateSelections,
+			programmaticDelegateSelections: result.programmaticDelegateSelections,
+		}, {
+			selected: autoModel.identifier,
+			delegateSelections: [autoModel.identifier],
+			programmaticDelegateSelections: [],
+		});
+	});
+
+	test('legacy picker closes and replaces selected HydraFusion when entitlement resolves to Free', () => {
+		const hydraFusion = createModel('hydrafusion');
+		const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model]);
+		result.picker.render(result.container);
+		result.hide();
+		const hideCount = result.flatPickerHideCount;
+		result.picker.show(result.container);
+		result.setEntitlement(ChatEntitlement.Free);
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			closed: result.flatPickerHideCount - hideCount,
+		}, {
+			selected: autoModel.identifier,
+			closed: 1,
+		});
+	});
 
 	for (const tabbed of [false, true]) {
 		test(`forwards the requested context view layer to the ${tabbed ? 'tabbed' : 'flat'} picker`, () => {
@@ -721,8 +789,11 @@ suite('ModelPickerTelemetry', () => {
 		const logged: { name: string; durationMs: unknown; pickerSessionId: unknown }[] = [];
 		let now = 1000;
 		const session = new ModelPickerTelemetrySession(upcastPartial<ITelemetryService>({
-			publicLog2: (name: string, data?: IStringDictionary<unknown>) => { logged.push({ name, durationMs: data?.durationMs, pickerSessionId: data?.pickerSessionId }); },
-		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', () => now);
+			publicLog2: (name: string, data?: IStringDictionary<unknown>) => {
+				assert.strictEqual(data?.provider, 'codex-openai');
+				logged.push({ name, durationMs: data?.durationMs, pickerSessionId: data?.pickerSessionId });
+			},
+		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', 'codex-openai', () => now);
 		now = 1250.4;
 		session.logModelChange(model, otherModel, 'session-1');
 		now = 2000;

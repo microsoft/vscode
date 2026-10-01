@@ -173,8 +173,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		const source: IAgentHostClientConnectionSource = {
 			hasSeenClient: candidate => candidate === clientId,
 			isClientConnected: candidate => connected && candidate === clientId,
+			isLocalClient: () => false,
 			getConnectedClientTransportCounts: () => connected ? new Map([[clientId, 1]]) : new Map(),
 			requestWorkspaceTrust: async () => false,
+			requestMcpAuthentication: async () => false,
 		};
 		disposables.add(clientConnectionService.registerSource(source));
 		return value => connected = value;

@@ -738,6 +738,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
@@ -879,6 +880,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
@@ -962,6 +964,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],

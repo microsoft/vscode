@@ -30,7 +30,7 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
-import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
@@ -49,7 +49,7 @@ import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbe
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
 import { whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
-import { getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 
@@ -169,6 +169,7 @@ export class ModelPickerWidget extends Disposable {
 			getSelectedModel: () => this._selectedModel,
 			getConfigurationAccess: () => this._delegate.modelConfiguration ?? this._languageModelsService,
 			getChatSessionId: () => this._delegate.getChatSessionId?.(),
+			getProvider: () => this._delegate.getProvider ? this._delegate.getProvider() : 'unknown',
 			isDisabled: () => !!this._domNode?.classList.contains('disabled'),
 			shouldShowCacheBreakHint: () => this.shouldShowCacheBreakHint(/* excludeAutoModel */ false),
 			getCacheBreakLearnMoreLink: () => this.getCacheBreakLearnMoreLink(),
@@ -219,7 +220,12 @@ export class ModelPickerWidget extends Disposable {
 
 		// The setup-required state derives from entitlement / sentiment / anonymous
 		// access, so refresh the label when any of those change (e.g. after sign-in).
-		this._register(this._entitlementService.onDidChangeEntitlement(() => this._renderLabel()));
+		this._register(this._entitlementService.onDidChangeEntitlement(() => {
+			this.setSelectedModel(this._selectedModel);
+			if (!this._tabbedPicker.value?.isVisible && this._nameButton?.getAttribute('aria-expanded') === 'true') {
+				this._actionWidgetService.hide();
+			}
+		}));
 		this._register(this._entitlementService.onDidChangeSentiment(() => this._renderLabel()));
 		this._register(this._entitlementService.onDidChangeAnonymous(() => this._renderLabel()));
 
@@ -266,9 +272,30 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	setSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
-		this._selectedModel = model;
-		this._tabbedPicker.value?.setSelectedModel(model?.identifier);
+		const selectedModel = this._normalizeSelectedModel(model);
+		this._selectedModel = selectedModel;
+		this._tabbedPicker.value?.setSelectedModel(selectedModel?.identifier);
+		if (selectedModel && selectedModel !== model) {
+			if (this._delegate.setModelProgrammatically) {
+				this._delegate.setModelProgrammatically(selectedModel);
+			} else {
+				this._delegate.setModel(selectedModel);
+			}
+		}
 		this._renderLabel();
+	}
+
+	private _normalizeSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): ILanguageModelChatMetadataAndIdentifier | undefined {
+		if (!isHydraFusionUpgradeOnly(this._entitlementService.entitlement) ||
+			!model ||
+			!isHydraFusionModel(model) ||
+			isUserProvidedModel(model, this._languageModelsService)) {
+			return model;
+		}
+		const models = this._delegate.getModels();
+		return models.find(model => isAutoModel(model) && !isUserProvidedModel(model, this._languageModelsService))
+			?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
+			?? model;
 	}
 
 	setEnabled(enabled: boolean): void {
@@ -535,7 +562,7 @@ export class ModelPickerWidget extends Disposable {
 
 		const telemetrySession = telemetry instanceof ModelPickerTelemetrySession
 			? telemetry
-			: new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, telemetry, this._selectedModel, this._delegate.getChatSessionId?.());
+			: new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, telemetry, this._selectedModel, this._delegate.getChatSessionId?.(), this._delegate.getProvider ? this._delegate.getProvider() : 'unknown');
 
 		const onSelect = (model: ILanguageModelChatMetadataAndIdentifier) => {
 			telemetrySession.logModelChange(this._selectedModel, model, this._delegate.getChatSessionId?.());

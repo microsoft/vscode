@@ -5,7 +5,8 @@
 
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { Barrier, DeferredPromise, disposableTimeout, Limiter, ResourceQueue, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
+import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, ResourceQueue, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -78,7 +79,7 @@ import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, AgentHostCatalogListResult, type AgentHostCatalogListManyResult } from './agentHostCatalogListReader.js';
@@ -155,6 +156,8 @@ interface IBackgroundPassiveSessionMetadataWrite {
 	promise: Promise<void>;
 	pending: Map<string, IPassiveSessionMetadataUpdate>;
 }
+
+const PASSIVE_METADATA_SHUTDOWN_REPLAY_TIMEOUT_MS = 250;
 
 interface ISessionListComputation {
 	epoch: number;
@@ -639,6 +642,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _deferredCatalogMetadataOverrides = new Map<string, Record<string, string>>();
 	private readonly _backgroundCatalogStateWrites = new Map<string, IBackgroundCatalogStateWrite>();
 	private readonly _backgroundPassiveSessionMetadataWrites = new Map<string, IBackgroundPassiveSessionMetadataWrite>();
+	private readonly _pendingPassiveCatalogReplays = new Set<string>();
 	private readonly _peerChatCleanupRepairs = this._register(new DisposableMap<string>());
 	/** Serializes durable last-modified advances emitted by live session state. */
 	private _sessionModifiedTimeWrites: Promise<void> = Promise.resolve();
@@ -684,7 +688,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _disposingPeerChats = new Set<string>();
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
 	private readonly _chatHistoryRefreshes = this._register(new ThrottlerByKey<string>());
-	private readonly _chatHistoryWatches = this._register(new DisposableResourceMap());
+	private readonly _chatWatches = this._register(new DisposableResourceMap());
 	private readonly _pendingChatHistories = new Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
@@ -848,10 +852,11 @@ export class AgentService extends Disposable implements IAgentService {
 				const provider = this._providerService.resolveProvider(template.provider);
 				return provider !== undefined && provider.isReadyForAutomation?.(template.model, reader) !== false;
 			},
-			createSession: (template, run) => this.createSession({
+			createSession: (template, run, activeClient) => this.createSession({
 				provider: template.provider,
 				model: template.model,
 				agent: template.agent,
+				activeClient,
 				workingDirectories: template.workingDirectories?.map(resource => URI.parse(resource)),
 				config: template.config,
 				_meta: {
@@ -956,9 +961,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
-			for (const chat of this._chatHistoryWatches.keys()) {
+			for (const chat of this._chatWatches.keys()) {
 				if (parseRequiredSessionUriFromChatUri(chat) === session) {
-					this._chatHistoryWatches.deleteAndDispose(chat);
+					this._chatWatches.deleteAndDispose(chat);
 					this._pendingChatHistories.delete(chat.toString());
 				}
 			}
@@ -5054,7 +5059,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async disposeChat(session: URI, chat: URI): Promise<void> {
-		this._chatHistoryWatches.deleteAndDispose(chat);
+		this._chatWatches.deleteAndDispose(chat);
 		this._pendingChatHistories.delete(chat.toString());
 		const sessionKey = session.toString();
 		const chatKey = chat.toString();
@@ -5333,7 +5338,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
 		await this._restoreSessionInFlight.get(session.toString());
 		const previous = this._stateManager.getChatState(chat.toString());
-		const watch = this._chatHistoryWatches.get(chat);
+		const watch = this._chatWatches.get(chat);
 		if (!previous || this._store.isDisposed || this._providerService.getProviderForSession(session) !== provider || !this._subscriptions.hasSubscribers(chat)) {
 			return;
 		}
@@ -5347,7 +5352,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const refreshed = previous.turns.map(turn => byId.get(turn.id) ?? turn);
 		const existing = new Set(previous.turns.map(turn => turn.id));
 		refreshed.push(...turns.filter(turn => !existing.has(turn.id)));
-		if (!this._store.isDisposed && this._providerService.getProviderForSession(session) === provider && this._subscriptions.hasSubscribers(chat) && this._chatHistoryWatches.get(chat) === watch) {
+		if (!this._store.isDisposed && this._providerService.getProviderForSession(session) === provider && this._subscriptions.hasSubscribers(chat) && this._chatWatches.get(chat) === watch) {
 			const current = this._stateManager.getChatState(chat.toString());
 			if (current?.activeTurn) {
 				this._pendingChatHistories.set(chat.toString(), { provider, chat, turns: providerTurns });
@@ -6121,6 +6126,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// Remove all subagent sessions for this parent
 			this._sideEffects.removeSubagentSessions(session.toString());
 			this._stateManager.deleteSession(session.toString());
+			this._pendingPassiveCatalogReplays.delete(sessionKey);
 			this._externalReconciliationModifiedAt.delete(sessionKey);
 			// The durable marker is dropped with the registration itself; keep the
 			// mirror listing reads in step with it.
@@ -6346,7 +6352,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._sessionResidency.touch(resource);
 			void this._sessionResidency.reconcile();
-			this._watchChatHistory(resource);
+			this._watchChatUpdates(resource);
 			if (isAhpChatChannel(resourceStr)) {
 				await this._chatInputService.prepareChat(resource);
 				if (this._store.isDisposed || (isActive && !isActive())) {
@@ -6416,7 +6422,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// it cares about (e.g. uncommitted changeset → trigger refresh).
 		if (this._subscriptions.addSubscriber(resource, clientId)) {
 			this._changesetCoordinator.onFirstSubscriber(resource);
-			this._watchChatHistory(resource);
+			this._watchChatUpdates(resource);
 		}
 		this._sessionResidency.touch(resource);
 	}
@@ -6428,7 +6434,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._subscriptions.removeSubscriber(resource, clientId)) {
 			return;
 		}
-		this._chatHistoryWatches.deleteAndDispose(resource);
+		this._chatWatches.deleteAndDispose(resource);
 		this._pendingChatHistories.delete(resource.toString());
 		if (isAhpChatChannel(resource.toString())) {
 			this._chatInputService.clear(parseRequiredSessionUriFromChatUri(resource.toString()), resource.toString());
@@ -6443,14 +6449,23 @@ export class AgentService extends Disposable implements IAgentService {
 		void this._sessionResidency.reconcile();
 	}
 
-	private _watchChatHistory(chat: URI): void {
-		if (!isAhpChatChannel(chat.toString()) || !this._subscriptions.hasSubscribers(chat) || !this._stateManager.getChatState(chat.toString()) || this._chatHistoryWatches.has(chat)) {
+	private _watchChatUpdates(chat: URI): void {
+		if (!isAhpChatChannel(chat.toString()) || !this._subscriptions.hasSubscribers(chat) || !this._stateManager.getChatState(chat.toString()) || this._chatWatches.has(chat)) {
 			return;
 		}
 		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
-		const watch = this._providerService.getProviderForSession(session)?.watchChatHistory?.(chat);
-		if (watch) {
-			this._chatHistoryWatches.set(chat, watch);
+		const provider = this._providerService.getProviderForSession(session);
+		if (provider?.watchChatHistory || provider?.watchChatBackgroundWork) {
+			const watches = new DisposableStore();
+			this._chatWatches.set(chat, watches);
+			const history = provider.watchChatHistory?.(chat);
+			if (history) {
+				watches.add(history);
+			}
+			const backgroundWork = provider.watchChatBackgroundWork?.(chat, () => this._stateManager.getChatState(chat.toString())?.backgroundWork ?? []);
+			if (backgroundWork) {
+				watches.add(backgroundWork);
+			}
 		}
 	}
 
@@ -6715,14 +6730,28 @@ export class AgentService extends Disposable implements IAgentService {
 			const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
 				const sessionKey = session.toString();
 				const catalog = await this._orchestratorDatabase.getSessionV2(sessionKey);
+				const snapshot = await database.object.getCatalogSyncSnapshot();
+				const pending = snapshot?.state === 'pending'
+					&& snapshot.projectionVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION
+					&& (!catalog || (snapshot.sessionGeneration === catalog.sessionGeneration && snapshot.sourceRevision >= catalog.sourceRevision))
+					? snapshot : undefined;
 				let request: IAgentHostCatalogSyncRequest | undefined;
-				if (catalog) {
-					const decoded = decodeAgentHostCatalogPayload(catalog.payload);
-					if (decoded.ok) {
+				for (const candidate of [pending, catalog]) {
+					if (!candidate) {
+						continue;
+					}
+					// A failed central write must not be discarded by the next flag update.
+					const decoded = decodeAgentHostCatalogPayload(candidate.payload);
+					if (decoded.ok && (candidate !== pending
+						|| (decoded.value.payload === pending.payload && hashAgentHostCatalogPayload(pending.payload) === pending.payloadHash))) {
 						request = {
 							data: decoded.value.data,
 							legacyMetadata: {},
 						};
+						break;
+					}
+					if (candidate === pending) {
+						this._logService.warn(`[AgentService] Invalid pending catalog payload for ${sessionKey}; falling back to the central payload`);
 					}
 				}
 				if (!request) {
@@ -6750,13 +6779,49 @@ export class AgentService extends Disposable implements IAgentService {
 				return { data, legacyMetadata };
 			});
 			if (result.status === 'pending') {
+				this._pendingPassiveCatalogReplays.add(session.toString());
 				this._logService.warn(`[AgentService] Catalog synchronization for passive session metadata ${session.toString()} remains pending: ${result.reason}`);
+			} else {
+				this._pendingPassiveCatalogReplays.delete(session.toString());
 			}
 		} catch (error) {
 			if (requestUnavailable) {
 				return;
 			}
 			throw error;
+		}
+	}
+
+	private async _replayPendingPassiveSessionMetadata(): Promise<void> {
+		if (this._pendingPassiveCatalogReplays.size === 0) {
+			return;
+		}
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource());
+		try {
+			await raceTimeout((async () => {
+				for (const session of [...this._pendingPassiveCatalogReplays]) {
+					if (cancellation.token.isCancellationRequested) {
+						return;
+					}
+					try {
+						const outcome = await this._catalogSyncService.replayPending(URI.parse(session), cancellation.token);
+						if (!outcome || outcome.status === 'succeeded') {
+							this._pendingPassiveCatalogReplays.delete(session);
+						} else if (!cancellation.token.isCancellationRequested) {
+							this._logService.warn(`[AgentService] Passive metadata replay for ${session} remains pending during shutdown: ${outcome.reason}`);
+						}
+					} catch (error) {
+						this._logService.warn(`[AgentService] Failed to replay passive metadata for ${session} during shutdown`, error);
+					}
+				}
+			})(), PASSIVE_METADATA_SHUTDOWN_REPLAY_TIMEOUT_MS, () => {
+				cancellation.cancel();
+				this._logService.warn('[AgentService] Timed out replaying passive metadata during shutdown; retaining pending snapshots');
+			});
+		} finally {
+			cancellation.cancel();
+			store.dispose();
 		}
 	}
 
@@ -6782,7 +6847,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 
-			void this._dispatchAutomationAction(action).catch(error => {
+			void this._dispatchAutomationAction(action, clientId).catch(error => {
 				const message = toErrorMessage(error);
 				this._logService.error(`[AgentService] automation action failed: ${message}`);
 				this._stateManager.rejectClientAction(channel, action, origin, message);
@@ -6898,12 +6963,12 @@ export class AgentService extends Disposable implements IAgentService {
 		this._clientDispatchQueues.set(clientId, next);
 	}
 
-	private async _dispatchAutomationAction(action: ClientAutomationAction): Promise<void> {
+	private async _dispatchAutomationAction(action: ClientAutomationAction, clientId: string): Promise<void> {
 		switch (action.type) {
 			case ActionType.AutomationCreateRequested:
-				return this._automationService.handleCreate(action);
+				return this._automationService.handleCreate(action, clientId);
 			case ActionType.AutomationUpdateRequested:
-				return this._automationService.handleUpdate(action);
+				return this._automationService.handleUpdate(action, clientId);
 			case ActionType.AutomationRemoved:
 				return this._automationService.handleRemove(action);
 		}
@@ -9488,6 +9553,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		} finally {
 			await this.whenCatalogReconciliationIdle();
+			await this._replayPendingPassiveSessionMetadata();
 			await this._debugLogsCollector?.cleanup();
 			await this._orchestratorDatabase.close();
 			this._downloadProgressInterest.clear();

@@ -515,15 +515,18 @@ suite('Sessions - SessionsList', () => {
 			const headerInTreatment = container.querySelector('.sessions-list-header .test-sessions-header') !== null;
 			const customizationsSection = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
-			const customizationsLabel = customizationsSection?.querySelector('.session-section-label');
-			const migrationIndicator = customizationsSection?.querySelector('.session-section-migration-indicator');
-			const countBadge = customizationsSection?.querySelector('.session-section-count-badge .monaco-count-badge');
+			const customizationsIcon = customizationsSection?.querySelector<HTMLElement>('.session-section-icon');
 			const customizationsPresentation = {
-				countBadge: countBadge?.textContent,
-				countBadgeNextToLabel: countBadge?.parentElement?.previousElementSibling === customizationsLabel,
-				migrationIndicatorVisible: migrationIndicator?.classList.contains('visible'),
-				migrationIndicatorOutsideLabel: !!migrationIndicator && !customizationsLabel?.contains(migrationIndicator),
-				hasExtensionsIcon: customizationsSection?.querySelector('.session-section-icon')?.classList.contains('codicon-extensions'),
+				hasTotalCountBadge: customizationsSection?.querySelector('.monaco-count-badge') !== null,
+				hasMigrationIcon: customizationsIcon?.classList.contains('codicon-circle-filled'),
+				hasExtensionsIcon: customizationsIcon?.classList.contains('codicon-extensions'),
+				iconColor: customizationsIcon?.style.color,
+			};
+			customizationMigrationsAvailable.set(false, undefined);
+			const customizationsPresentationWithoutMigration = {
+				hasMigrationIcon: customizationsIcon?.classList.contains('codicon-circle-filled'),
+				hasExtensionsIcon: customizationsIcon?.classList.contains('codicon-extensions'),
+				iconColor: customizationsIcon?.style.color,
 			};
 			const customizationsActiveBeforeOpen = customizationsSection?.classList.contains('active');
 			const customizationsAriaCurrentBeforeOpen = customizationsSection?.closest('.monaco-list-row')?.getAttribute('aria-current');
@@ -558,6 +561,7 @@ suite('Sessions - SessionsList', () => {
 				shortcutCollapseStates,
 				headerInTreatment,
 				customizationsPresentation,
+				customizationsPresentationWithoutMigration,
 				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen],
 				customizationsAriaCurrent: [customizationsAriaCurrentBeforeOpen, customizationsAriaCurrentWhileOpen],
 				stableFindHeaderUnmoved: findWidgetContainer.parentElement === sessionsHeader,
@@ -581,11 +585,15 @@ suite('Sessions - SessionsList', () => {
 				],
 				headerInTreatment: true,
 				customizationsPresentation: {
-					countBadge: '7',
-					countBadgeNextToLabel: true,
-					migrationIndicatorVisible: true,
-					migrationIndicatorOutsideLabel: true,
+					hasTotalCountBadge: false,
+					hasMigrationIcon: true,
+					hasExtensionsIcon: false,
+					iconColor: 'var(--vscode-activityWarningBadge-background)',
+				},
+				customizationsPresentationWithoutMigration: {
+					hasMigrationIcon: false,
 					hasExtensionsIcon: true,
+					iconColor: '',
 				},
 				customizationsActive: [false, true],
 				customizationsAriaCurrent: [null, 'page'],
