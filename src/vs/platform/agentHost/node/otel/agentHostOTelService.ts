@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mkdir } from 'fs/promises';
+import { hostname, userInfo } from 'os';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { dirname, join } from '../../../../base/common/path.js';
 import type { TelemetryConfig } from '@github/copilot-sdk';
@@ -53,6 +54,7 @@ interface ResolvedConfig {
 	readonly sourceName: string | undefined;
 	/** Capture prompt/response content in spans. */
 	readonly captureContent: boolean | undefined;
+	readonly captureIdentity: boolean;
 	/** Parsed OTEL_EXPORTER_OTLP_HEADERS for outbound forwarding. */
 	readonly headers: Record<string, string> | undefined;
 	/** Effective OTLP protocol configured for the SDK runtime. */
@@ -114,6 +116,8 @@ function parseResourceAttributes(raw: string | undefined, serviceName: string | 
 	return attributes;
 }
 
+const identityAttributeKeys = new Set(['user.name', 'process.user.name', 'host.name']);
+
 export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 	const dbSpanExporter = isTruthy(env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED);
 	const otlpEndpoint = env.OTEL_EXPORTER_OTLP_ENDPOINT ?? env.COPILOT_OTEL_ENDPOINT;
@@ -133,6 +137,13 @@ export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 	if (protocol === 'grpc' || protocol === 'http/grpc') {
 		exporterType = 'otlp-grpc';
 	}
+	const captureIdentity = isTruthy(env.COPILOT_OTEL_CAPTURE_IDENTITY);
+	const resourceAttributes = parseResourceAttributes(env.OTEL_RESOURCE_ATTRIBUTES, env.OTEL_SERVICE_NAME);
+	if (!captureIdentity) {
+		for (const key of identityAttributeKeys) {
+			delete resourceAttributes[key];
+		}
+	}
 
 	return {
 		enabled,
@@ -144,9 +155,10 @@ export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 		captureContent: env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT === undefined
 			? undefined
 			: isTruthy(env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT),
+		captureIdentity,
 		headers: parseOtlpHeaders(env.OTEL_EXPORTER_OTLP_HEADERS),
 		otlpProtocol: protocol,
-		resourceAttributes: parseResourceAttributes(env.OTEL_RESOURCE_ATTRIBUTES, env.OTEL_SERVICE_NAME),
+		resourceAttributes,
 	};
 }
 
@@ -158,9 +170,12 @@ interface IOtlpAttribute {
 interface IOtlpSpan {
 	name?: string;
 	attributes?: IOtlpAttribute[];
+	events?: { attributes?: IOtlpAttribute[] }[];
+	links?: { attributes?: IOtlpAttribute[] }[];
 }
 
 interface IOtlpScopeSpans {
+	scope?: { attributes?: IOtlpAttribute[] };
 	spans?: IOtlpSpan[];
 }
 
@@ -195,8 +210,14 @@ function upsertResourceAttribute(attributes: IOtlpAttribute[], key: string, valu
 	}
 }
 
-/** Normalize Agent Host resource identity and suppress the Codex 0.142 auth polling span. */
-export function normalizeAgentHostOtlpBody(body: Buffer): INormalizedAgentHostOtlpBody {
+function stripIdentityAttributes(target: { attributes?: IOtlpAttribute[] }): void {
+	if (target.attributes) {
+		target.attributes = target.attributes.filter(attribute => !identityAttributeKeys.has(attribute.key ?? ''));
+	}
+}
+
+/** Apply the host's identity gate before persistence/fan-out and normalize provider resources. */
+export function normalizeAgentHostOtlpBody(body: Buffer, captureIdentity = false): INormalizedAgentHostOtlpBody {
 	const payload = JSON.parse(body.toString('utf8')) as IOtlpTracePayload;
 	let filteredSpanCount = 0;
 	for (const resourceSpan of payload.resourceSpans ?? []) {
@@ -204,7 +225,13 @@ export function normalizeAgentHostOtlpBody(body: Buffer): INormalizedAgentHostOt
 		const resourceAttributes = resource.attributes ??= [];
 		const isCodex = attributeValue(resourceAttributes, 'service.name') === CodexAuthPollingServiceName;
 		upsertResourceAttribute(resourceAttributes, 'service.namespace', AgentHostOTelServiceNamespace);
+		if (!captureIdentity) {
+			stripIdentityAttributes(resource);
+		}
 		for (const scopeSpans of resourceSpan.scopeSpans ?? []) {
+			if (!captureIdentity && scopeSpans.scope) {
+				stripIdentityAttributes(scopeSpans.scope);
+			}
 			const spans = scopeSpans.spans ?? [];
 			scopeSpans.spans = spans.filter(span => {
 				const shouldFilter = isCodex
@@ -212,6 +239,12 @@ export function normalizeAgentHostOtlpBody(body: Buffer): INormalizedAgentHostOt
 					&& attributeValue(span.attributes, 'code.module.name') === CodexAuthPollingModuleName;
 				if (shouldFilter) {
 					filteredSpanCount++;
+				}
+				if (!captureIdentity) {
+					stripIdentityAttributes(span);
+					for (const entry of [...span.events ?? [], ...span.links ?? []]) {
+						stripIdentityAttributes(entry);
+					}
 				}
 				return !shouldFilter;
 			});
@@ -225,6 +258,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _config: ResolvedConfig;
+	private readonly _hostResourceAttributes: Record<string, string>;
 	private readonly _spansDbPath: string;
 
 	private _receiver: ILocalOtlpHttpReceiver | undefined;
@@ -240,13 +274,31 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	private readonly _filteredSpanLogScheduler: RunOnceScheduler;
 
 	constructor(
-		private readonly _fetchFn: typeof globalThis.fetch | undefined,
+		private readonly _options: {
+			readonly fetchFn?: typeof globalThis.fetch;
+			readonly readOSUsername?: () => string;
+			readonly readHostname?: () => string;
+		} | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 	) {
 		super();
 		this._filteredSpanLogScheduler = this._register(new RunOnceScheduler(() => this._logFilteredCodexAuthSpans(), 60_000));
 		this._config = readAgentHostOTelEnv(process.env);
+		this._hostResourceAttributes = this._config.resourceAttributes;
+		if (this._config.enabled && this._config.captureIdentity) {
+			let username: string | undefined;
+			try {
+				username = this._options?.readOSUsername ? this._options.readOSUsername() : userInfo().username;
+			} catch {
+				this._logService.warn('[agentHost.otel] Could not detect the OS username; continuing without a detected process.user.name.');
+			}
+			this._hostResourceAttributes = {
+				...(username === undefined ? {} : { 'process.user.name': username }),
+				'host.name': (this._options?.readHostname ?? hostname)(),
+				...this._config.resourceAttributes,
+			};
+		}
 		this._spansDbPath = join(environmentService.userDataPath, SPANS_DB_SUBPATH);
 	}
 
@@ -278,7 +330,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			startTime: now,
 			endTime: now,
 			status: { code: SpanStatusCode.OK },
-			attributes: { ...this._config.resourceAttributes, ...attributes },
+			attributes: { ...this._hostResourceAttributes, ...attributes },
 			events: [],
 		});
 	}
@@ -300,7 +352,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			startTime: now,
 			endTime: now,
 			status: { code: SpanStatusCode.OK },
-			attributes: { ...this._config.resourceAttributes, ...attributes },
+			attributes: { ...this._hostResourceAttributes, ...attributes },
 			events: [],
 		});
 	}
@@ -379,7 +431,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			endTime: now,
 			status: { code: SpanStatusCode.OK },
 			attributes: {
-				...this._config.resourceAttributes,
+				...this._hostResourceAttributes,
 				[GenAiAttr.CONVERSATION_ID]: conversationId,
 				[AgentHostSessionUriAttribute]: sessionUri,
 				...(comparison ? {
@@ -449,7 +501,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			endTime: now,
 			status: { code: SpanStatusCode.OK },
 			attributes: {
-				...this._config.resourceAttributes,
+				...this._hostResourceAttributes,
 				[GenAiAttr.CONVERSATION_ID]: conversationId,
 				[AgentHostSessionTitleAttribute]: boundedTitle,
 				[AgentHostSessionUriAttribute]: sessionUri,
@@ -520,7 +572,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		const receiver = await startLocalOtlpHttpReceiver(
 			{
 				transformBody: body => {
-					const normalized = normalizeAgentHostOtlpBody(body);
+					const normalized = normalizeAgentHostOtlpBody(body, this._config.captureIdentity);
 					this._recordFilteredCodexAuthSpans(normalized.filteredSpanCount);
 					return normalized.body;
 				},
@@ -609,7 +661,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	}
 
 	private _encodeOtlpSpan(span: ICompletedSpanData): Buffer {
-		const resourceAttributeKeys = new Set(Object.keys(this._config.resourceAttributes));
+		const resourceAttributeKeys = new Set(Object.keys(this._hostResourceAttributes));
 		const attributes = Object.entries(span.attributes)
 			.filter(([key]) => !resourceAttributeKeys.has(key) || key === GenAiAttr.CONVERSATION_ID || key.startsWith('vscode.agent_host.'))
 			.map(([key, value]) => ({
@@ -619,7 +671,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 						: typeof value === 'boolean' ? { boolValue: value }
 							: { arrayValue: { values: value.map(item => ({ stringValue: item })) } },
 			}));
-		const resourceAttributes = Object.entries(this._config.resourceAttributes).map(([key, value]) => ({ key, value: { stringValue: value } }));
+		const resourceAttributes = Object.entries(this._hostResourceAttributes).map(([key, value]) => ({ key, value: { stringValue: value } }));
 		return Buffer.from(JSON.stringify({
 			resourceSpans: [{
 				...(resourceAttributes.length ? { resource: { attributes: resourceAttributes } } : {}),
@@ -652,7 +704,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 							headers: this._config.headers,
 						},
 						this._logService,
-						this._fetchFn,
+						this._options?.fetchFn,
 					));
 				} else if (this._config.otlpEndpoint) {
 					this._logService.warn('[agentHost.otel] DB trace fan-out is unavailable for OTLP/HTTP protobuf; traces remain in the local DB while provider logs and metrics export directly');

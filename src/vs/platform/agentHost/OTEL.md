@@ -452,7 +452,7 @@ src/vs/platform/otel/
 
 ## Settings → Env Var Translation
 
-`buildAgentHostOTelEnv()` ([common/agentService.ts](common/agentService.ts)) is the single translation point. The starter (`electronAgentHostStarter.ts` / `nodeAgentHostStarter.ts`) reads settings, calls `buildAgentHostOTelEnv(settings, parentEnv)`, and merges the result into the spawned process's environment. Parent-env values win over the local `chat.agentHost.otel.*` settings (developer override); **enterprise managed-policy values win over parent env**.
+`buildAgentHostOTelEnv()` ([common/agentService.ts](common/agentService.ts)) is the single translation point. The starter (`electronAgentHostStarter.ts` / `nodeAgentHostStarter.ts`) reads settings, calls `buildAgentHostOTelEnv(settings, parentEnv, policySettings, shellEnv)`, and merges the result into the spawned process's environment. Parent-process env values win over the local `chat.agentHost.otel.*` settings (developer override); **enterprise managed-policy values win over inherited env**. For identity capture, resolved login-shell env also wins over personal settings. Other OTel keys retain their existing precedence: shell-only values do not override the settings overlay.
 
 | Setting | Env var |
 |---|---|
@@ -460,16 +460,49 @@ src/vs/platform/otel/
 | `chat.agentHost.otel.exporterType` | `COPILOT_OTEL_EXPORTER_TYPE` |
 | `chat.agentHost.otel.otlpEndpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` (`COPILOT_OTEL_ENDPOINT` is also accepted when the standard variable is unset) |
 | `chat.agentHost.otel.captureContent` | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` |
+| `chat.agentHost.otel.captureIdentity` (hidden policy slot) | `COPILOT_OTEL_CAPTURE_IDENTITY` |
 | `chat.agentHost.otel.outfile` | `COPILOT_OTEL_FILE_EXPORTER_PATH` |
 | `chat.agentHost.otel.dbSpanExporter.enabled` | `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` |
 
 `OTEL_EXPORTER_OTLP_HEADERS` flows via env inheritance only. `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_SERVICE_NAME`, and `OTEL_RESOURCE_ATTRIBUTES` are not translated from the local `chat.agentHost.otel.*` settings, but **enterprise managed settings (policy)** can set them on the spawned host: the renderer forwards the resolved policy to the starter, and managed values win over inherited env.
 
-Starting in VS Code 1.140, the shared `CopilotOtelCaptureIdentity` policy registers the boolean managed leaf
-`telemetry.capture.identity` for the legacy Local extension's policy reference.
-Its hidden `chat.agentHost.otel.captureIdentity` delivery slot is not translated
-into environment variables: the native Copilot runtime owns managed identity
-enforcement. The content-capture shorthand does not enable identity. See the
+The shared `CopilotOtelCaptureIdentity` policy registers the boolean managed leaf
+`telemetry.capture.identity`. Its hidden `chat.agentHost.otel.captureIdentity`
+delivery slot now also governs the **host-owned** OTel pipeline. Explicit managed
+`true` and `false` override inherited `COPILOT_OTEL_CAPTURE_IDENTITY` and personal
+preferences. Without a managed value, environment wins over personal preferences;
+capture is off by default. Identity capture does not enable OTel or content capture.
+
+When OTel and identity capture are enabled, host-produced metadata uses
+`process.user.name` and `host.name` resource attributes. Explicit resource
+attributes override detected values. Failure to detect an OS username logs a
+warning and does not prevent hostname or explicitly configured identity capture.
+The host does not invent an authenticated `user.name` for its provider-neutral
+metadata; account attribution on native invocation spans belongs to the provider.
+
+When identity capture is off, `user.name`, `process.user.name`, and `host.name`
+are removed even from explicitly supplied resource attributes. The DB-mode
+loopback strips these keys from resources, instrumentation scopes, spans, events,
+and links **before** SQLite persistence and OTLP/file/console fan-out. When capture
+is allowed, provider-supplied identity is retained, not replaced with the host's
+detected identity. Console output remains a summary without these attributes.
+Unrelated attributes and content-capture behavior are unchanged.
+
+Settled identity-policy changes, including denial, re-enablement, and withdrawal,
+use the shared local host's automatic replacement described below. The new
+process re-resolves the effective value; withdrawal restores the environment or
+personal preference. The old process retains its startup configuration until
+replacement, including in-flight exports. Previously exported or persisted data
+cannot be recalled. Personal changes and standalone/remote host deployments
+without the desktop policy-restart path require an explicit restart.
+
+This is **not** enforcement of every native runtime's direct exports. Native
+Copilot resolves its own managed identity policy; the SDK `TelemetryConfig` has no
+identity override. Provider-native traces that bypass the loopback, and directly
+exported logs/metrics, remain governed by their runtime. No authenticated account
+or detected OS/host identity is injected into the SDK resource configuration.
+The shared policy also remains the legacy Local extension's policy reference;
+these are separate pipelines, not interchangeable setting aliases. See the
 [Local harness documentation](../../../../extensions/copilot/docs/monitoring/agent_monitoring.md#governed-identity-capture)
 for the extension-host implementation.
 
