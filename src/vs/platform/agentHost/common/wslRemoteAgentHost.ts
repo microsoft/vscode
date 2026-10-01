@@ -22,6 +22,9 @@ export const WSL_INSTALL_DOCS_URL = 'https://aka.ms/vscode-remote/wsl/install-ws
  */
 export const WSL_ADDRESS_PREFIX = 'wsl:';
 
+/** Controls whether opening a chat automatically starts its stopped WSL host. */
+export const WslAutoStartSettingId = 'chat.agentHost.wsl.autoStart';
+
 /**
  * A WSL distribution discovered via `wsl --list`. Only WSL 2 distros are
  * surfaced — WSL 1 lacks the kernel features needed to host the agent.
@@ -122,6 +125,7 @@ export interface IWSLRemoteAgentHostMainService {
 	readonly onDidReportConnectProgress: Event<IWSLConnectProgress>;
 
 	readonly onDidRelayMessage: Event<IRelayMessage>;
+	readonly onDidRelayActivity: Event<string /* connectionId */>;
 	readonly onDidRelayClose: Event<string /* connectionId */>;
 	relaySend(connectionId: string, message: string): Promise<void>;
 

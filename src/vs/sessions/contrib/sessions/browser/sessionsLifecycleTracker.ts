@@ -8,16 +8,24 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY as TOTAL_SESSIONS_KEY } from '../../../../workbench/contrib/chat/common/constants.js';
+import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
+import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 import { getPullRequestStatusFromIcon, PullRequestStatus } from '../../github/common/types.js';
+import { linkKey } from '../../../common/sessionLinks.js';
 import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
-/** Storage key for the cumulative number of times this client has been launched. */
-const APP_LAUNCH_COUNT_KEY = 'agentSessions.telemetry.summary.appLaunchCount';
+function getResolvedPullRequestStatus(pullRequest: IGitHubPullRequestRef): PullRequestStatus | undefined {
+	const state = pullRequest.liveState ?? pullRequest.state;
+	if (state !== 'open') {
+		return state;
+	}
+	return pullRequest.liveState !== undefined && getPullRequestStatusFromIcon(pullRequest.icon) === 'draft' ? 'draft' : state;
+}
+
 /** Storage key for the per-session lifecycle stats map (JSON encoded). Exported for tests. */
 export const SESSIONS_KEY = 'agentSessions.telemetry.summary.sessions';
-/** Storage key for the cumulative number of sessions started from the Agents window across all workspaces and providers. */
-export const TOTAL_SESSIONS_KEY = 'agentSessions.telemetry.totalSessions';
+export { TOTAL_SESSIONS_KEY };
 /** Storage key for the cumulative number of sessions started in each workspace (JSON encoded map of workspace URI -> count). */
 const WORKSPACE_SESSIONS_KEY = 'agentSessions.telemetry.workspaceSessions';
 /** Storage key for the cumulative number of sessions started for each sessions provider (JSON encoded map of providerId -> count). */
@@ -159,6 +167,16 @@ interface IStoredSessionStats {
 	// the fields existed still load; `buildSummary` defaults them.
 	pullRequestCount?: number;
 	pullRequestStatus?: PullRequestStatus;
+	// Artifact and reference counts are optional so rows persisted before these
+	// fields existed still load; `buildSummary` defaults them.
+	pullRequestArtifactMergedCount?: number;
+	pullRequestArtifactOpenCount?: number;
+	pullRequestArtifactDraftCount?: number;
+	pullRequestArtifactClosedCount?: number;
+	issueArtifactCount?: number;
+	otherArtifactCount?: number;
+	artifactCount?: number;
+	referenceCount?: number;
 }
 
 /**
@@ -215,6 +233,14 @@ export interface ISessionLifecycleSummary {
 	linesDeleted: number;
 	pullRequestCount: number;
 	pullRequestStatus: PullRequestStatus | undefined;
+	pullRequestArtifactMergedCount: number;
+	pullRequestArtifactOpenCount: number;
+	pullRequestArtifactDraftCount: number;
+	pullRequestArtifactClosedCount: number;
+	issueArtifactCount: number;
+	otherArtifactCount: number;
+	artifactCount: number;
+	referenceCount: number;
 	userSessionsTotal: number;
 	userSessionsInWorkspace: number;
 	userSessionsForProvider: number;
@@ -237,14 +263,16 @@ export class SessionsLifecycleTracker extends Disposable {
 
 	private readonly _appLaunchCount: number;
 	private readonly _stats: Map<string, IStoredSessionStats>;
+	private readonly _usage: AgentsWindowUsage;
 
-	constructor(private readonly _storageService: IStorageService) {
+	constructor(
+		private readonly _storageService: IStorageService,
+		appLaunchCount: number,
+	) {
 		super();
 
-		const previousAppLaunches = this._storageService.getNumber(APP_LAUNCH_COUNT_KEY, StorageScope.APPLICATION, 0);
-		this._appLaunchCount = previousAppLaunches + 1;
-		this._storageService.store(APP_LAUNCH_COUNT_KEY, this._appLaunchCount, StorageScope.APPLICATION, StorageTarget.MACHINE);
-
+		this._usage = new AgentsWindowUsage(_storageService);
+		this._appLaunchCount = appLaunchCount;
 		this._stats = this._load();
 	}
 
@@ -337,7 +365,7 @@ export class SessionsLifecycleTracker extends Disposable {
 		const providerId = getSessionsTelemetryProviderId(session.providerId);
 		const workspaceUri = session.workspace.get()?.uri.toString();
 
-		const userSessionsTotal = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) + 1;
+		const userSessionsTotal = this._usage.createdSessionCount + 1;
 		this._storageService.store(TOTAL_SESSIONS_KEY, userSessionsTotal, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 		const providerCounts = this._readProviderCounterMap();
@@ -405,7 +433,7 @@ export class SessionsLifecycleTracker extends Disposable {
 	}
 
 	private _readUserRequestCounters(providerId: string, workspaceUri: string | undefined): IUserRequestCounters {
-		const userSessionsTotal = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
+		const userSessionsTotal = this._usage.createdSessionCount;
 		const providerCounts = this._readProviderCounterMap();
 		const userSessionsForProvider = providerCounts[getSessionsTelemetryProviderId(providerId)] ?? 0;
 		let userSessionsInWorkspace = 0;
@@ -463,6 +491,7 @@ export class SessionsLifecycleTracker extends Disposable {
 		entry.isExternal = session.isExternal?.get() ?? entry.isExternal ?? false;
 		this._updateWorkspaceTopology(entry, session);
 		this._updatePullRequestState(entry, session);
+		this._updateArtifactCounts(entry, session);
 		this._updateChangesSummary(entry, session);
 	}
 
@@ -497,6 +526,74 @@ export class SessionsLifecycleTracker extends Disposable {
 		entry.pullRequestStatus = getPullRequestStatusFromIcon(gitHubInfo.pullRequest?.icon ?? pullRequests?.[0]?.icon);
 	}
 
+	private _updateArtifactCounts(entry: IStoredSessionStats, session: ISession): void {
+		const artifacts = session.artifacts?.get();
+		if (!artifacts) {
+			return;
+		}
+
+		const pullRequestStatuses = new Map<string, PullRequestStatus>();
+		for (const folder of session.workspace.get()?.folders ?? []) {
+			for (const pullRequest of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get())) {
+				const status = getResolvedPullRequestStatus(pullRequest);
+				if (status) {
+					pullRequestStatuses.set(linkKey(pullRequest.uri.toString()), status);
+				}
+			}
+		}
+
+		let pullRequestArtifactMergedCount = 0;
+		let pullRequestArtifactOpenCount = 0;
+		let pullRequestArtifactDraftCount = 0;
+		let pullRequestArtifactClosedCount = 0;
+		let issueArtifactCount = 0;
+		let otherArtifactCount = 0;
+		let artifactCount = 0;
+		let referenceCount = 0;
+
+		for (const artifact of artifacts) {
+			if (!artifact.isArtifact) {
+				referenceCount++;
+				continue;
+			}
+
+			artifactCount++;
+			if (artifact.kind === SessionArtifactKind.Issue) {
+				issueArtifactCount++;
+				continue;
+			}
+			if (artifact.kind !== SessionArtifactKind.PullRequest) {
+				otherArtifactCount++;
+				continue;
+			}
+
+			const status = artifact.link ? pullRequestStatuses.get(linkKey(artifact.link.toString())) : undefined;
+			switch (status) {
+				case 'merged':
+					pullRequestArtifactMergedCount++;
+					break;
+				case 'open':
+					pullRequestArtifactOpenCount++;
+					break;
+				case 'draft':
+					pullRequestArtifactDraftCount++;
+					break;
+				case 'closed':
+					pullRequestArtifactClosedCount++;
+					break;
+			}
+		}
+
+		entry.pullRequestArtifactMergedCount = pullRequestArtifactMergedCount;
+		entry.pullRequestArtifactOpenCount = pullRequestArtifactOpenCount;
+		entry.pullRequestArtifactDraftCount = pullRequestArtifactDraftCount;
+		entry.pullRequestArtifactClosedCount = pullRequestArtifactClosedCount;
+		entry.issueArtifactCount = issueArtifactCount;
+		entry.otherArtifactCount = otherArtifactCount;
+		entry.artifactCount = artifactCount;
+		entry.referenceCount = referenceCount;
+	}
+
 	private _updateChangesSummary(entry: IStoredSessionStats, session: ISession): void {
 		const summary = session.changesSummary?.get();
 		if (summary) {
@@ -508,7 +605,7 @@ export class SessionsLifecycleTracker extends Disposable {
 		let files = 0;
 		let additions = 0;
 		let deletions = 0;
-		for (const change of session.changes.get()) {
+		for (const change of session.mainChat.get().changes.get()) {
 			files++;
 			additions += change.insertions;
 			deletions += change.deletions;
@@ -630,6 +727,14 @@ function createEntry(session: ISession, appLaunchCount: number): IStoredSessionS
 		linesDeleted: 0,
 		pullRequestCount: 0,
 		pullRequestStatus: undefined,
+		pullRequestArtifactMergedCount: 0,
+		pullRequestArtifactOpenCount: 0,
+		pullRequestArtifactDraftCount: 0,
+		pullRequestArtifactClosedCount: 0,
+		issueArtifactCount: 0,
+		otherArtifactCount: 0,
+		artifactCount: 0,
+		referenceCount: 0,
 	};
 }
 
@@ -685,6 +790,14 @@ function buildSummary(sessionId: string, entry: IStoredSessionStats, reason: Ses
 		linesDeleted: entry.linesDeleted,
 		pullRequestCount: entry.pullRequestCount ?? 0,
 		pullRequestStatus: entry.pullRequestStatus,
+		pullRequestArtifactMergedCount: entry.pullRequestArtifactMergedCount ?? 0,
+		pullRequestArtifactOpenCount: entry.pullRequestArtifactOpenCount ?? 0,
+		pullRequestArtifactDraftCount: entry.pullRequestArtifactDraftCount ?? 0,
+		pullRequestArtifactClosedCount: entry.pullRequestArtifactClosedCount ?? 0,
+		issueArtifactCount: entry.issueArtifactCount ?? 0,
+		otherArtifactCount: entry.otherArtifactCount ?? 0,
+		artifactCount: entry.artifactCount ?? 0,
+		referenceCount: entry.referenceCount ?? 0,
 		userSessionsTotal: requestCounters.userSessionsTotal,
 		userSessionsInWorkspace: requestCounters.userSessionsInWorkspace,
 		userSessionsForProvider: requestCounters.userSessionsForProvider,

@@ -8,7 +8,9 @@ import { appendEscapedMarkdownInlineCode } from '../../../base/common/htmlConten
 import { structuralEquals } from '../../../base/common/equals.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { GitHubActor, PullRequestCheck, PullRequestChecks, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
+import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
+import type { URI as ProtocolURI } from './state/sessionState.js';
 
 export const AgentMergeConfigKey = {
 	Enabled: 'agentMerge.enabled',
@@ -105,6 +107,7 @@ export interface AgentMergeInjectedConfiguration {
 export interface AgentMergeSessionState {
 	readonly enabled: boolean;
 	readonly overrides?: AgentMergeSessionOverrides;
+	readonly chat?: ProtocolURI;
 	readonly target?: AgentMergeTarget;
 	readonly injectedConfiguration?: AgentMergeInjectedConfiguration;
 	readonly lastPromptFingerprint?: string;
@@ -132,6 +135,21 @@ export interface AgentMergeControllerState {
 	readonly repeatedPromptCount?: number;
 	readonly totalPromptCount?: number;
 	readonly repairBaseCommit?: string;
+}
+
+/** The user-owned Agent Merge settings of one folder: whether it runs, its overrides, and the chat that turned it on. */
+export interface AgentMergeFolderSessionState {
+	readonly enabled: boolean;
+	readonly overrides?: AgentMergeSessionOverrides;
+	readonly chat?: ProtocolURI;
+}
+
+/** The host-owned Agent Merge lifecycle state of one folder. */
+export type AgentMergeFolderControllerState = Omit<AgentMergeControllerState, 'injectedConfiguration'>;
+
+/** A folder's complete Agent Merge state, with the session-wide elevated configuration. */
+export interface AgentMergeFolderState extends AgentMergeFolderSessionState, AgentMergeFolderControllerState {
+	readonly injectedConfiguration?: AgentMergeInjectedConfiguration;
 }
 
 export type AgentMergeRequiredChecks =
@@ -260,59 +278,214 @@ export interface AgentMergeDisableReason {
 export const agentMergeDisableReasons = {
 	sessionArchived: (): AgentMergeDisableReason => ({
 		log: 'the session was archived',
-		notice: localize('agentMerge.disabled.sessionArchived', "Agent Merge was turned off because this session was archived."),
+		notice: localize('agentMerge.disabled.sessionArchived', "Agent Merge was disabled because this session was archived."),
 	}),
 	branchChanged: (from: string, to: string): AgentMergeDisableReason => ({
 		log: `branch changed from ${from} to ${to}`,
 		notice: localize(
 			'agentMerge.disabled.branchChanged',
-			"Agent Merge was turned off because the checked-out branch changed from {0} to {1}.",
+			"Agent Merge was disabled because the checked-out branch changed from {0} to {1}. To resume, check out the branch you want to monitor and enable Agent Merge again.",
 			appendEscapedMarkdownInlineCode(from),
 			appendEscapedMarkdownInlineCode(to)
 		),
 	}),
-	branchChangedWhileRefreshing: (): AgentMergeDisableReason => ({
-		log: 'the checked-out branch changed while pull request state was refreshing',
-		notice: localize('agentMerge.disabled.branchChangedWhileRefreshing', "Agent Merge was turned off because the checked-out branch changed while its pull request state was refreshing."),
+	branchUnavailable: (expected: string): AgentMergeDisableReason => ({
+		log: `the checked-out branch could not be confirmed while refreshing pull request state; expected ${expected}`,
+		notice: localize('agentMerge.disabled.branchUnavailable', "Agent Merge was disabled because it could not confirm that {0} is still checked out. To resume, check out the branch you want to monitor and enable Agent Merge again.", appendEscapedMarkdownInlineCode(expected)),
 	}),
 	differentPullRequest: (): AgentMergeDisableReason => ({
 		log: 'the session became associated with a different pull request',
-		notice: localize('agentMerge.disabled.differentPullRequest', "Agent Merge was turned off because this session became associated with a different pull request."),
+		notice: localize('agentMerge.disabled.differentPullRequest', "Agent Merge was disabled because this session became associated with a different pull request."),
 	}),
 	invalidPullRequestUrl: (): AgentMergeDisableReason => ({
 		log: 'the associated pull request URL is invalid',
-		notice: localize('agentMerge.disabled.invalidPullRequestUrl', "Agent Merge was turned off because the associated pull request URL is invalid."),
+		notice: localize('agentMerge.disabled.invalidPullRequestUrl', "Agent Merge was disabled because the associated pull request URL is invalid."),
 	}),
 	differentGitHubHost: (): AgentMergeDisableReason => ({
 		log: 'the bound pull request belongs to a different GitHub host than the signed-in account',
-		notice: localize('agentMerge.disabled.differentGitHubHost', "Agent Merge was turned off because its pull request belongs to a different GitHub host than the signed-in account."),
+		notice: localize('agentMerge.disabled.differentGitHubHost', "Agent Merge was disabled because its pull request belongs to a different GitHub host than the signed-in account."),
 	}),
 	indeterminate: (minutes: number, reason: string): AgentMergeDisableReason => ({
 		log: `the pull request state could not be evaluated for ${minutes} minutes: ${reason}`,
-		notice: localize('agentMerge.disabled.indeterminate', "Agent Merge was turned off because its pull request state could not be evaluated for {0} minutes.", minutes),
+		notice: localize('agentMerge.disabled.indeterminate', "Agent Merge was disabled because its pull request state could not be evaluated for {0} minutes.", minutes),
 	}),
 	pullRequestClosed: (): AgentMergeDisableReason => ({
-		log: 'the pull request is closed or merged',
-		notice: localize('agentMerge.disabled.pullRequestClosed', "Agent Merge was turned off because its pull request is closed or merged."),
+		log: 'the pull request was closed without merging',
+		notice: localize('agentMerge.disabled.pullRequestClosed', "Agent Merge was disabled because its pull request was closed without merging."),
+	}),
+	pullRequestAlreadyMerged: (pullRequestNumber: number, pullRequestUrl: string): AgentMergeDisableReason => ({
+		log: 'the pull request was already merged',
+		notice: localize('agentMerge.disabled.pullRequestAlreadyMerged', "Pull request [#{0}]({1}) was merged. Agent Merge is now disabled.", pullRequestNumber, pullRequestUrl),
+	}),
+	folderWithoutChat: (): AgentMergeDisableReason => ({
+		log: 'no chat of the session works in the folder any more',
+		notice: localize('agentMerge.disabled.folderWithoutChat', "Agent Merge was disabled for a folder because no chat in this session works in it any more."),
 	}),
 	repairBudgetExhausted: (): AgentMergeDisableReason => ({
 		log: 'the same pull request blockers remained after repeated repair attempts',
-		notice: localize('agentMerge.disabled.repairBudgetExhausted', "Agent Merge was turned off because the same pull request blockers remained after repeated repair attempts."),
+		notice: localize('agentMerge.disabled.repairBudgetExhausted', "Agent Merge was disabled because the same pull request blockers remained after repeated repair attempts."),
 	}),
-	pullRequestMerged: (): AgentMergeDisableReason => ({
+	pullRequestMerged: (pullRequestNumber: number, pullRequestUrl: string): AgentMergeDisableReason => ({
 		log: 'the pull request was merged',
-		notice: localize('agentMerge.disabled.pullRequestMerged', "Agent Merge merged its pull request and turned itself off."),
+		notice: localize('agentMerge.pullRequestMerged', "Agent Merge merged pull request [#{0}]({1}).", pullRequestNumber, pullRequestUrl),
 	}),
 } as const;
 
 /** The transcript notice shown once Agent Merge starts watching a branch. */
-export function agentMergeEnabledNotice(branchName: string): string {
-	return localize('agentMerge.notice.enabled', "Agent Merge is on and watching {0}.", appendEscapedMarkdownInlineCode(branchName));
+export function agentMergeEnabledNotice(target: Pick<AgentMergeTarget, 'branchName' | 'pullRequestUrl'>, configuration: AgentMergeConfiguration): string {
+	const lines = [
+		localize('agentMerge.notice.enabled.summary', "Agent Merge is enabled for {0}. {1}", appendEscapedMarkdownInlineCode(target.branchName), agentMergeMergeBehaviorSummary(configuration.mergePullRequest)),
+		target.pullRequestUrl
+			? localize('agentMerge.notice.enabled.withPullRequest', "It is monitoring the pull request for this branch.")
+			: localize('agentMerge.notice.enabled', "It will wait for a pull request on this branch, then monitor it."),
+	];
+	if (configuration.addressReviews) {
+		lines.push(localize('agentMerge.notice.enabled.addressReviews', "It will ask the agent to address new pull request review comments."));
+	}
+	if (configuration.fixCI) {
+		lines.push(localize('agentMerge.notice.enabled.fixCI', "It will ask the agent to fix failing CI checks."));
+	}
+	if (configuration.resolveConflicts) {
+		lines.push(localize('agentMerge.notice.enabled.resolveConflicts', "It will ask the agent to resolve merge conflicts and update the branch when it falls behind."));
+	}
+	if (!configuration.addressReviews && !configuration.fixCI && !configuration.resolveConflicts) {
+		lines.push(localize('agentMerge.notice.enabled.noRepairs', "It will monitor the pull request but will not ask the agent to repair blockers."));
+	}
+	if (configuration.addressReviews) {
+		lines.push(configuration.replyAttribution
+			? localize('agentMerge.notice.enabled.replyAttribution', "Replies it posts will identify Agent Merge as the source.")
+			: localize('agentMerge.notice.enabled.noReplyAttribution', "Replies it posts will not identify Agent Merge as the source."));
+	}
+	lines.push(
+		configuration.addressReviews
+			? localize('agentMerge.notice.enabled.waiting', "After each update, it will wait for new CI results and review comments.")
+			: localize('agentMerge.notice.enabled.waitingForCI', "After each update, it will wait for new CI results."),
+		agentMergeMergeBehaviorNotice(configuration.mergePullRequest),
+	);
+	if (configuration.mergePullRequest !== 'never') {
+		lines.push(agentMergeMergeMethodNotice(configuration.mergeMethod));
+	}
+	return [lines[0], '', ...lines.slice(1).map(line => `- ${line}`)].join('\n');
 }
 
-/** The transcript notice shown when the user, rather than the controller, turns Agent Merge off. */
+/**
+ * Whether a configuration change was made for one session alone, or to the
+ * defaults every session follows.
+ */
+export type AgentMergeConfigurationChangeScope = 'session' | 'global';
+
+/**
+ * The transcript notice shown when effective Agent Merge behavior changes. The
+ * scope is named up front because the same change reads very differently
+ * depending on whether it was made for this session or for all of them.
+ */
+export function agentMergeConfigurationChangedNotice(previous: AgentMergeConfiguration, current: AgentMergeConfiguration, scope: AgentMergeConfigurationChangeScope): string | undefined {
+	const changes: string[] = [];
+	if (previous.addressReviews !== current.addressReviews) {
+		changes.push(current.addressReviews
+			? localize('agentMerge.notice.configuration.addressReviews.enabled', "It will now address new pull request review comments.")
+			: localize('agentMerge.notice.configuration.addressReviews.disabled', "It will no longer address new pull request review comments or wait for them before merging."));
+	}
+	if (previous.fixCI !== current.fixCI) {
+		changes.push(current.fixCI
+			? localize('agentMerge.notice.configuration.fixCI.enabled', "It will now fix failing CI checks.")
+			: localize('agentMerge.notice.configuration.fixCI.disabled', "It will no longer fix failing CI checks."));
+	}
+	if (previous.resolveConflicts !== current.resolveConflicts) {
+		changes.push(current.resolveConflicts
+			? localize('agentMerge.notice.configuration.resolveConflicts.enabled', "It will now resolve merge conflicts and update the branch when it falls behind.")
+			: localize('agentMerge.notice.configuration.resolveConflicts.disabled', "It will no longer resolve merge conflicts or update a behind branch."));
+	}
+	if (previous.mergePullRequest !== current.mergePullRequest) {
+		changes.push(agentMergeMergeBehaviorChangedNotice(current.mergePullRequest));
+	}
+	if (current.mergePullRequest !== 'never'
+		&& (previous.mergeMethod !== current.mergeMethod || previous.mergePullRequest === 'never')) {
+		changes.push(agentMergeMergeMethodChangedNotice(current.mergeMethod));
+	}
+	if (previous.replyAttribution !== current.replyAttribution && current.addressReviews) {
+		changes.push(current.replyAttribution
+			? localize('agentMerge.notice.configuration.replyAttribution.enabled', "Replies it posts will now identify Agent Merge as the source.")
+			: localize('agentMerge.notice.configuration.replyAttribution.disabled', "Replies it posts will no longer identify Agent Merge as the source."));
+	}
+	return changes.length > 0
+		? [agentMergeConfigurationChangedHeading(scope, current.mergePullRequest), '', ...changes.map(change => `- ${change}`)].join('\n')
+		: undefined;
+}
+
+function agentMergeConfigurationChangedHeading(scope: AgentMergeConfigurationChangeScope, mergePullRequest: AgentMergeMergePullRequest): string {
+	const summary = agentMergeMergeBehaviorSummary(mergePullRequest);
+	switch (scope) {
+		case 'session':
+			return localize('agentMerge.notice.configuration.changed.session', "Agent Merge settings changed for this session. {0}", summary);
+		case 'global':
+			return localize('agentMerge.notice.configuration.changed.global', "Agent Merge default settings changed for all sessions. For this session: {0}", summary);
+	}
+}
+
+/** Keeps the effective merge policy visible in collapsed notices and tool results. */
+export function agentMergeMergeBehaviorSummary(mergePullRequest: AgentMergeMergePullRequest): string {
+	switch (mergePullRequest) {
+		case 'always':
+			return localize('agentMerge.summary.merge.always', "Automatic merge is on.");
+		case 'ifUnchanged':
+			return localize('agentMerge.summary.merge.ifUnchanged', "Automatic merge is on only while unchanged.");
+		case 'never':
+			return localize('agentMerge.summary.merge.never', "Monitoring only; automatic merge is off.");
+	}
+}
+
+function agentMergeMergeBehaviorNotice(mergePullRequest: AgentMergeMergePullRequest): string {
+	switch (mergePullRequest) {
+		case 'always':
+			return localize('agentMerge.notice.merge.always', "When the pull request is ready, Agent Merge will merge it automatically.");
+		case 'ifUnchanged':
+			return localize('agentMerge.notice.merge.ifUnchanged', "When the pull request is ready, Agent Merge will merge it automatically only if it has not made changes.");
+		case 'never':
+			return localize('agentMerge.notice.merge.never', "It will not merge the pull request automatically and will keep monitoring it.");
+	}
+}
+
+function agentMergeMergeMethodChangedNotice(mergeMethod: AgentMergeMethod): string {
+	switch (mergeMethod) {
+		case 'auto':
+			return localize('agentMerge.notice.configuration.mergeMethod.auto', "It will now choose an available merge method automatically.");
+		case 'squash':
+			return localize('agentMerge.notice.configuration.mergeMethod.squash', "It will now squash-merge the pull request.");
+		case 'merge':
+			return localize('agentMerge.notice.configuration.mergeMethod.merge', "It will now create a merge commit.");
+		case 'rebase':
+			return localize('agentMerge.notice.configuration.mergeMethod.rebase', "It will now rebase and merge the pull request.");
+	}
+}
+
+function agentMergeMergeMethodNotice(mergeMethod: AgentMergeMethod): string {
+	switch (mergeMethod) {
+		case 'auto':
+			return localize('agentMerge.notice.mergeMethod.auto', "It will choose an available merge method automatically.");
+		case 'squash':
+			return localize('agentMerge.notice.mergeMethod.squash', "It will squash-merge the pull request.");
+		case 'merge':
+			return localize('agentMerge.notice.mergeMethod.merge', "It will create a merge commit.");
+		case 'rebase':
+			return localize('agentMerge.notice.mergeMethod.rebase', "It will rebase and merge the pull request.");
+	}
+}
+
+function agentMergeMergeBehaviorChangedNotice(mergePullRequest: AgentMergeMergePullRequest): string {
+	switch (mergePullRequest) {
+		case 'always':
+			return localize('agentMerge.notice.configuration.merge.always', "It will now merge the pull request automatically when it is ready.");
+		case 'ifUnchanged':
+			return localize('agentMerge.notice.configuration.merge.ifUnchanged', "It will now merge the pull request when it is ready, but only if Agent Merge has not made changes.");
+		case 'never':
+			return localize('agentMerge.notice.configuration.merge.never', "It will no longer merge the pull request automatically.");
+	}
+}
+
+/** The transcript notice shown when the user, rather than the controller, disables Agent Merge. */
 export function agentMergeDisabledNotice(): string {
-	return localize('agentMerge.notice.disabled', "Agent Merge was turned off for this session.");
+	return localize('agentMerge.notice.disabled', "Agent Merge was disabled for this session.");
 }
 
 /**
@@ -320,10 +493,24 @@ export function agentMergeDisabledNotice(): string {
  * because its own repair work changed the pull request.
  */
 export function agentMergeMergePullRequestDemotedNotice(): string {
-	return localize('agentMerge.notice.mergeDemoted', "Agent Merge changed this pull request, so automatic merging was turned off for this session. Review the changes, then turn it back on if you want it merged automatically.");
+	return localize('agentMerge.notice.mergeDemoted', "Agent Merge changed this pull request, so automatic merging was disabled for this session. Review the changes, then enable it again if you want it merged automatically.");
 }
 
-export function readAgentMergeSessionState(values: Record<string, unknown> | undefined): AgentMergeSessionState | undefined {
+export function readAgentMergeSessionState(values: Record<string, unknown> | undefined, sessionFolderKey?: string): AgentMergeSessionState | undefined {
+	if (sessionFolderKey !== undefined) {
+		const folderState = readAgentMergeFolderState(values, sessionFolderKey, sessionFolderKey);
+		if (folderState) {
+			const { chat, ...state } = folderState;
+			return state;
+		}
+	}
+	// Compatibility for callers that only have a single session-folder entry.
+	const legacy = values?.[SessionConfigKey.AgentMerge];
+	const firstFolderState = isRecord(legacy) && legacy.enabled === true ? undefined : readFirstAgentMergeFolderState(values);
+	if (firstFolderState) {
+		const { chat, ...state } = firstFolderState;
+		return state;
+	}
 	const value = values?.[SessionConfigKey.AgentMerge];
 	if (!isRecord(value) || typeof value.enabled !== 'boolean') {
 		return undefined;
@@ -331,7 +518,7 @@ export function readAgentMergeSessionState(values: Record<string, unknown> | und
 	const controller = isRecord(values?.[SessionConfigKey.AgentMergeController]) ? values[SessionConfigKey.AgentMergeController] : {};
 	const overrides = readOverrides(value.overrides);
 	const target = readTarget(controller.target);
-	const injectedConfiguration = readInjectedConfiguration(controller.injectedConfiguration);
+	const injectedConfiguration = readAgentMergeInjectedConfiguration(values);
 	return {
 		enabled: value.enabled,
 		...(overrides ? { overrides } : {}),
@@ -345,6 +532,171 @@ export function readAgentMergeSessionState(values: Record<string, unknown> | und
 	};
 }
 
+/** Reads the session-wide elevated configuration, falling back to where earlier versions stored it. */
+export function readAgentMergeInjectedConfiguration(values: Record<string, unknown> | undefined): AgentMergeInjectedConfiguration | undefined {
+	return readInjectedConfiguration(values?.[SessionConfigKey.AgentMergeInjectedConfiguration])
+		?? readInjectedConfiguration(isRecord(values?.[SessionConfigKey.AgentMergeController]) ? values[SessionConfigKey.AgentMergeController].injectedConfiguration : undefined);
+}
+
+/**
+ * Reads the Agent Merge state of each folder, keyed by working-directory key.
+ * Settings written by earlier versions describe the session folder
+ * (`sessionFolderKey`), and take precedence while they are present.
+ */
+export function readAgentMergeFolderStates(values: Record<string, unknown> | undefined, sessionFolderKey: string | undefined): ReadonlyMap<string, AgentMergeFolderState> {
+	const result = new Map<string, AgentMergeFolderState>();
+	const injectedConfiguration = readAgentMergeInjectedConfiguration(values);
+	const folderValues = readRecordMap(values?.[SessionConfigKey.AgentMergeFolders]);
+	const controllerValues = readRecordMap(values?.[SessionConfigKey.AgentMergeControllerFolders]);
+	for (const [folderKey, value] of folderValues) {
+		const client = readFolderClientState(value);
+		if (!client) {
+			continue;
+		}
+		result.set(folderKey, {
+			...client,
+			...readFolderControllerState(controllerValues.get(folderKey)),
+			...(injectedConfiguration ? { injectedConfiguration } : {}),
+		});
+	}
+	if (sessionFolderKey !== undefined) {
+		const legacy = readLegacyAgentMergeSessionState(values, injectedConfiguration);
+		if (legacy) {
+			result.set(sessionFolderKey, {
+				...result.get(sessionFolderKey),
+				...legacy,
+			});
+		}
+	}
+	return result;
+}
+
+/** Reads the Agent Merge state of one folder; see {@link readAgentMergeFolderStates}. */
+export function readAgentMergeFolderState(values: Record<string, unknown> | undefined, folderKey: string | undefined, sessionFolderKey: string | undefined): AgentMergeFolderState | undefined {
+	if (folderKey === undefined) {
+		return readLegacyAgentMergeSessionState(values, readAgentMergeInjectedConfiguration(values));
+	}
+	return readAgentMergeFolderStates(values, sessionFolderKey).get(folderKey);
+}
+
+/** Whether Agent Merge is on for any folder of a session. */
+export function isAnyAgentMergeEnabled(values: Record<string, unknown> | undefined, sessionFolderKey: string | undefined): boolean {
+	for (const state of readAgentMergeFolderStates(values, sessionFolderKey).values()) {
+		if (state.enabled) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Returns the session config patch that replaces one folder's Agent Merge
+ * state (or removes it when `state` is `undefined`). Writing the session folder
+ * also clears the settings of earlier versions.
+ */
+export function withAgentMergeFolderState(values: Record<string, unknown> | undefined, folderKey: string, sessionFolderKey: string | undefined, state: AgentMergeFolderState | undefined): Record<string, unknown> {
+	const folderValues = new Map(readRecordMap(values?.[SessionConfigKey.AgentMergeFolders]));
+	const controllerValues = new Map(readRecordMap(values?.[SessionConfigKey.AgentMergeControllerFolders]));
+	if (state) {
+		folderValues.set(folderKey, {
+			enabled: state.enabled,
+			...(state.overrides ? { overrides: state.overrides } : {}),
+			...(state.chat ? { chat: state.chat } : {}),
+		});
+		const controller = toAgentMergeFolderControllerState(state);
+		if (Object.keys(controller).length > 0) {
+			controllerValues.set(folderKey, controller);
+		} else {
+			controllerValues.delete(folderKey);
+		}
+	} else {
+		folderValues.delete(folderKey);
+		controllerValues.delete(folderKey);
+	}
+	// Earlier versions kept the elevated configuration in the session folder's
+	// lifecycle state, which is cleared below, so it moves to its own key.
+	const injectedConfiguration = state?.injectedConfiguration
+		?? (folderKey === sessionFolderKey && values?.[SessionConfigKey.AgentMergeInjectedConfiguration] === undefined ? readAgentMergeInjectedConfiguration(values) : undefined);
+	return {
+		[SessionConfigKey.AgentMergeFolders]: Object.fromEntries(folderValues),
+		[SessionConfigKey.AgentMergeControllerFolders]: Object.fromEntries(controllerValues),
+		...(injectedConfiguration ? { [SessionConfigKey.AgentMergeInjectedConfiguration]: injectedConfiguration } : {}),
+		...(folderKey === sessionFolderKey ? {
+			[SessionConfigKey.AgentMerge]: undefined,
+			[SessionConfigKey.AgentMergeController]: undefined,
+		} : {}),
+	};
+}
+
+/**
+ * Returns the session config patch that replaces only the host-owned lifecycle
+ * state of one folder (or clears it when `controller` is `undefined`). The
+ * folder's user-owned settings are rewritten from `values` as they are, so a
+ * lifecycle update computed from an older read never reverts them.
+ */
+export function withAgentMergeFolderControllerState(values: Record<string, unknown> | undefined, folderKey: string, sessionFolderKey: string | undefined, controller: AgentMergeFolderControllerState | undefined): Record<string, unknown> {
+	const current = readAgentMergeFolderState(values, folderKey, sessionFolderKey);
+	if (!current) {
+		const controllerValues = new Map(readRecordMap(values?.[SessionConfigKey.AgentMergeControllerFolders]));
+		controllerValues.delete(folderKey);
+		return { [SessionConfigKey.AgentMergeControllerFolders]: Object.fromEntries(controllerValues) };
+	}
+	return withAgentMergeFolderState(values, folderKey, sessionFolderKey, {
+		enabled: current.enabled,
+		...(current.overrides ? { overrides: current.overrides } : {}),
+		...(current.chat ? { chat: current.chat } : {}),
+		...(controller ? toAgentMergeFolderControllerState(controller) : {}),
+	});
+}
+
+/**
+ * Applies a client's write of the per-folder settings on top of the current
+ * ones, entry by entry. A client sends only the folders it changes, so the
+ * other folders' settings, including changes the host made meanwhile, stay as
+ * they are. A client sends each folder's working directory, as it cannot
+ * derive the host's keys, so keys are derived here. An entry for a folder
+ * that is not one of the session's is dropped, and so is a `chat` that is not
+ * one of the session's chats.
+ */
+export function mergeClientAgentMergeFolders(values: Record<string, unknown> | undefined, clientFolders: unknown, isSessionFolder: (folderKey: string) => boolean, isSessionChat: (chat: ProtocolURI) => boolean): Record<string, unknown> {
+	const merged = new Map<string, unknown>(readRecordMap(values?.[SessionConfigKey.AgentMergeFolders]));
+	for (const [workingDirectory, entry] of readRecordMap(clientFolders)) {
+		const state = readFolderClientState(entry);
+		const folderKey = getWorkingDirectoryKey(workingDirectory);
+		if (!state || !isSessionFolder(folderKey)) {
+			continue;
+		}
+		const { chat, ...settings } = state;
+		merged.set(folderKey, { ...settings, ...(chat && isSessionChat(chat) ? { chat } : {}) });
+	}
+	return Object.fromEntries(merged);
+}
+
+/** Returns `values` with the per-folder Agent Merge maps keyed by `toKey` of each key. */
+export function rekeyAgentMergeFolders(values: Record<string, unknown> | undefined, toKey: (key: string) => string): Record<string, unknown> | undefined {
+	if (!values) {
+		return values;
+	}
+	const rekey = (value: unknown) => Object.fromEntries([...readRecordMap(value)].map(([key, entry]) => [toKey(key), entry]));
+	return {
+		...values,
+		[SessionConfigKey.AgentMergeFolders]: rekey(values[SessionConfigKey.AgentMergeFolders]),
+		[SessionConfigKey.AgentMergeControllerFolders]: rekey(values[SessionConfigKey.AgentMergeControllerFolders]),
+	};
+}
+
+/** Whether a folder has host-owned lifecycle state, such as a captured target or repair counters. */
+export function hasAgentMergeFolderControllerState(state: AgentMergeFolderState): boolean {
+	return Object.keys(toAgentMergeFolderControllerState(state)).length > 0;
+}
+
+/** Returns the session config patch that sets or clears the session-wide elevated configuration. */
+export function withAgentMergeInjectedConfiguration(injectedConfiguration: AgentMergeInjectedConfiguration | undefined): Record<string, unknown> {
+	return {
+		[SessionConfigKey.AgentMergeInjectedConfiguration]: injectedConfiguration ?? undefined,
+	};
+}
+
 /**
  * Returns session config values with Agent Merge injected overrides removed,
  * so callers can read the user's own picker selections while merge is active.
@@ -353,9 +705,8 @@ export function getNonMergeSessionConfigValues(values: Readonly<Record<string, u
 	if (!values) {
 		return {};
 	}
-	const agentMerge = readAgentMergeSessionState(values as Record<string, unknown>);
-	const injected = agentMerge?.injectedConfiguration;
-	if (!agentMerge?.enabled || !injected) {
+	const injected = readAgentMergeInjectedConfiguration(values as Record<string, unknown>);
+	if (!injected) {
 		return values;
 	}
 	const restored = { ...values };
@@ -375,6 +726,106 @@ export function getNonMergeSessionConfigValues(values: Readonly<Record<string, u
 		}
 	}
 	return restored;
+}
+
+function readFirstAgentMergeFolderState(values: Record<string, unknown> | undefined): AgentMergeFolderState | undefined {
+	const injectedConfiguration = readAgentMergeInjectedConfiguration(values);
+	const folderValues = readRecordMap(values?.[SessionConfigKey.AgentMergeFolders]);
+	const controllerValues = readRecordMap(values?.[SessionConfigKey.AgentMergeControllerFolders]);
+	for (const [folderKey, value] of folderValues) {
+		const client = readFolderClientState(value);
+		if (client?.enabled) {
+			return {
+				...client,
+				...readFolderControllerState(controllerValues.get(folderKey)),
+				...(injectedConfiguration ? { injectedConfiguration } : {}),
+			};
+		}
+	}
+	for (const [folderKey, value] of folderValues) {
+		const client = readFolderClientState(value);
+		if (client) {
+			return {
+				...client,
+				...readFolderControllerState(controllerValues.get(folderKey)),
+				...(injectedConfiguration ? { injectedConfiguration } : {}),
+			};
+		}
+	}
+	return undefined;
+}
+
+function readLegacyAgentMergeSessionState(values: Record<string, unknown> | undefined, injectedConfiguration: AgentMergeInjectedConfiguration | undefined): AgentMergeFolderState | undefined {
+	const value = values?.[SessionConfigKey.AgentMerge];
+	if (!isRecord(value) || typeof value.enabled !== 'boolean') {
+		return undefined;
+	}
+	const controller = isRecord(values?.[SessionConfigKey.AgentMergeController]) ? values[SessionConfigKey.AgentMergeController] : {};
+	const overrides = readOverrides(value.overrides);
+	const target = readTarget(controller.target);
+	return {
+		enabled: value.enabled,
+		...(overrides ? { overrides } : {}),
+		...(typeof value.chat === 'string' ? { chat: value.chat } : {}),
+		...(target ? { target } : {}),
+		...(injectedConfiguration ? { injectedConfiguration } : {}),
+		...(typeof controller.lastPromptFingerprint === 'string' ? { lastPromptFingerprint: controller.lastPromptFingerprint } : {}),
+		...(typeof controller.lastPromptAt === 'string' ? { lastPromptAt: controller.lastPromptAt } : {}),
+		...(typeof controller.repeatedPromptCount === 'number' && Number.isInteger(controller.repeatedPromptCount) && controller.repeatedPromptCount >= 0 ? { repeatedPromptCount: controller.repeatedPromptCount } : {}),
+		...(typeof controller.totalPromptCount === 'number' && Number.isInteger(controller.totalPromptCount) && controller.totalPromptCount >= 0 ? { totalPromptCount: controller.totalPromptCount } : {}),
+		...(typeof controller.repairBaseCommit === 'string' ? { repairBaseCommit: controller.repairBaseCommit } : {}),
+	};
+}
+
+function readRecordMap(value: unknown): ReadonlyMap<string, Record<string, unknown>> {
+	if (!isRecord(value)) {
+		return new Map();
+	}
+	const result = new Map<string, Record<string, unknown>>();
+	for (const [key, entry] of Object.entries(value)) {
+		if (isRecord(entry)) {
+			result.set(key, entry);
+		}
+	}
+	return result;
+}
+
+function readFolderClientState(value: unknown): AgentMergeFolderSessionState | undefined {
+	if (!isRecord(value) || typeof value.enabled !== 'boolean') {
+		return undefined;
+	}
+	const overrides = readOverrides(value.overrides);
+	return {
+		enabled: value.enabled,
+		...(overrides ? { overrides } : {}),
+		...(typeof value.chat === 'string' ? { chat: value.chat } : {}),
+	};
+}
+
+function readFolderControllerState(value: unknown): AgentMergeFolderControllerState {
+	if (!isRecord(value)) {
+		return {};
+	}
+	const target = readTarget(value.target);
+	return {
+		...(target ? { target } : {}),
+		...(typeof value.lastPromptFingerprint === 'string' ? { lastPromptFingerprint: value.lastPromptFingerprint } : {}),
+		...(typeof value.lastPromptAt === 'string' ? { lastPromptAt: value.lastPromptAt } : {}),
+		...(typeof value.repeatedPromptCount === 'number' && Number.isInteger(value.repeatedPromptCount) && value.repeatedPromptCount >= 0 ? { repeatedPromptCount: value.repeatedPromptCount } : {}),
+		...(typeof value.totalPromptCount === 'number' && Number.isInteger(value.totalPromptCount) && value.totalPromptCount >= 0 ? { totalPromptCount: value.totalPromptCount } : {}),
+		...(typeof value.repairBaseCommit === 'string' ? { repairBaseCommit: value.repairBaseCommit } : {}),
+	};
+}
+
+function toAgentMergeFolderControllerState(state: AgentMergeFolderControllerState): AgentMergeFolderControllerState {
+	return {
+		...(state.target ? { target: state.target } : {}),
+		...(state.lastPromptFingerprint ? { lastPromptFingerprint: state.lastPromptFingerprint } : {}),
+		...(state.lastPromptAt ? { lastPromptAt: state.lastPromptAt } : {}),
+		...(state.repeatedPromptCount !== undefined ? { repeatedPromptCount: state.repeatedPromptCount } : {}),
+		...(state.totalPromptCount !== undefined ? { totalPromptCount: state.totalPromptCount } : {}),
+		...(state.repairBaseCommit ? { repairBaseCommit: state.repairBaseCommit } : {}),
+	};
 }
 
 export function isAgentMergeFeedbackAuthor(actor: GitHubActor | undefined): boolean {
@@ -496,7 +947,7 @@ class FeedbackBudget {
 	}
 }
 
-export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration: AgentMergeConfiguration, commentWatermark: string): AgentMergeGateResult {
+export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration: AgentMergeConfiguration, commentWatermark: string, deferredCheckIds?: ReadonlySet<string>): AgentMergeGateResult {
 	const core = snapshot.core;
 	if (core.status !== 'ready' || !core.complete || !core.value) {
 		return { kind: 'indeterminate', reason: 'Pull request core state is incomplete', cause: 'core:incomplete' };
@@ -514,24 +965,16 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 		return { kind: 'indeterminate', reason: checks.reason, cause: `checks:${checks.reason}` };
 	}
 
-	const reviewThreads = snapshot.reviewThreads.value!
-		.filter(thread => !thread.isResolved && thread.comments.some(comment => isAgentMergeFeedbackAuthor(comment.author)));
-	const latestReviews = latestReviewsByAuthor(snapshot.submittedReviews.value!);
-	const changesRequested = latestReviews.filter(review => review.state.toUpperCase() === 'CHANGES_REQUESTED' && isAgentMergeFeedbackAuthor(review.author));
-	const watermark = Date.parse(commentWatermark);
-	const newComments = snapshot.topLevelComments.value!.filter(comment =>
-		isAgentMergeFeedbackAuthor(comment.author)
-		&& comment.createdAt !== undefined
-		&& Date.parse(comment.createdAt) > watermark
-	);
+	const { reviewThreads, changesRequested, newComments } = getAgentMergeFeedback(snapshot, commentWatermark);
 	const mergeability = snapshot.mergeability.value!;
 	const behind = mergeability.mergeStateStatus?.toUpperCase() === 'BEHIND';
 	const conflicting = mergeability.mergeable === 'CONFLICTING';
+	const actionableFailedChecks = checks.failed.filter(check => !deferredCheckIds?.has(check.id));
 	const actions: AgentMergeRepairAction[] = [];
 	if (configuration.addressReviews && (reviewThreads.length > 0 || changesRequested.length > 0 || newComments.length > 0)) {
 		actions.push('addressReviews');
 	}
-	if (configuration.fixCI && checks.failed.length > 0) {
+	if (configuration.fixCI && actionableFailedChecks.length > 0) {
 		actions.push('fixCI');
 	}
 	if (configuration.resolveConflicts && (behind || conflicting)) {
@@ -560,12 +1003,16 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 		newComments: newComments
 			.slice(-maximumNewComments)
 			.map(comment => budget.take(comment.author?.login, comment.body)),
-		failedChecks: checks.failed.slice(0, maximumFailedChecks).map(check => check.name),
+		failedChecks: actionableFailedChecks.slice(0, maximumFailedChecks).map(check => check.name),
 		behind,
 		conflicting,
 		commentWatermark: newComments.reduce((latest, comment) => comment.createdAt && comment.createdAt > latest ? comment.createdAt : latest, commentWatermark),
 	};
-	const fingerprint = JSON.stringify({ actions, context });
+	const fingerprint = JSON.stringify({
+		actions,
+		context,
+		...(actionableFailedChecks.length > 0 ? { failedCheckIds: actionableFailedChecks.map(check => check.id) } : {}),
+	});
 	if (actions.length > 0) {
 		return { kind: 'prompt', actions, fingerprint, context };
 	}
@@ -583,7 +1030,7 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 	if (configuration.mergePullRequest !== 'never' && mergeReady) {
 		return { kind: 'merge', fingerprint };
 	}
-	return { kind: 'noWork', waitingOnChecks: checks.pending, fingerprint };
+	return { kind: 'noWork', waitingOnChecks: checks.pending || checks.failed.length > actionableFailedChecks.length, fingerprint };
 }
 
 function isCompleteFragment(snapshot: PullRequestSnapshot, fragment: 'topLevelComments' | 'submittedReviews' | 'reviewThreads'): boolean {
@@ -646,6 +1093,49 @@ function latestReviewsByAuthor(reviews: PullRequestSnapshot['submittedReviews'][
 		}
 	}
 	return [...latest.values()];
+}
+
+function getAgentMergeFeedback(snapshot: PullRequestSnapshot, commentWatermark: string) {
+	const reviewThreads = snapshot.reviewThreads.value!
+		.filter(thread => !thread.isResolved && thread.comments.some(comment => isAgentMergeFeedbackAuthor(comment.author)));
+	const latestReviews = latestReviewsByAuthor(snapshot.submittedReviews.value!);
+	const changesRequested = latestReviews.filter(review => review.state.toUpperCase() === 'CHANGES_REQUESTED' && isAgentMergeFeedbackAuthor(review.author));
+	const watermark = Date.parse(commentWatermark);
+	const newComments = snapshot.topLevelComments.value!.filter(comment =>
+		isAgentMergeFeedbackAuthor(comment.author)
+		&& comment.createdAt !== undefined
+		&& Date.parse(comment.createdAt) > watermark
+	);
+	return { reviewThreads, changesRequested, newComments };
+}
+
+/**
+ * Returns whether a draft pull request has no pending or failed required checks
+ * and no actionable review feedback, or `undefined` while that state is incomplete.
+ */
+export function isAgentMergePullRequestReadyForReview(snapshot: PullRequestSnapshot, commentWatermark: string): boolean | undefined {
+	const core = snapshot.core;
+	if (core.status !== 'ready' || !core.complete || !core.value || core.value.state !== 'open' || !core.value.draft) {
+		return undefined;
+	}
+	for (const fragment of conversationFragments) {
+		if (!isCompleteFragment(snapshot, fragment)) {
+			return undefined;
+		}
+	}
+	if (!isCompleteHeadFragment(snapshot, 'checks', core.value.headSha)) {
+		return undefined;
+	}
+	const checks = classifyAgentMergeRequiredChecks(snapshot.checks.value!);
+	if (checks.kind === 'indeterminate') {
+		return undefined;
+	}
+	const { reviewThreads, changesRequested, newComments } = getAgentMergeFeedback(snapshot, commentWatermark);
+	return checks.failed.length === 0
+		&& !checks.pending
+		&& reviewThreads.length === 0
+		&& changesRequested.length === 0
+		&& newComments.length === 0;
 }
 
 export function classifyAgentMergeRequiredChecks(checks: PullRequestChecks): AgentMergeRequiredChecks {

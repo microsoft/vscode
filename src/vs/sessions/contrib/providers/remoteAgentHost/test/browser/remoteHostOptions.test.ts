@@ -4,25 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IProgressService, IProgressOptions, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
+import { IInputOptions, IQuickInputService, IQuickPick, IQuickPickItem, QuickInputHideReason } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
+import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import {
 	buildRemoteHostOptionItems,
 	changeRemoteAgentHostLocationPreference,
 	getStatusHover,
 	getStatusLabel,
 	hasUpgradeReconnectStarted,
+	removeRemoteHost,
+	showRemoteHostOptions,
 	supportsRemoteAgentHostLocationPreference,
 	usesSSHConfigFile,
 } from '../../browser/remoteHostOptions.js';
 
 suite('remoteHostOptions', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const hasRemove of [false, true]) {
+		test(`host removal ${hasRemove ? 'uses permanent removal instead of temporary disconnect' : 'preserves the legacy disconnect fallback'}`, async () => {
+			const calls: string[] = [];
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override readonly remove = hasRemove ? async () => { calls.push('remove'); } : undefined;
+				override async disconnect(): Promise<void> { calls.push('disconnect'); }
+			}();
+			await removeRemoteHost(provider, new class extends mock<IRemoteAgentHostService>() { }(), new TestConfigurationService());
+			assert.deepStrictEqual(calls, [hasRemove ? 'remove' : 'disconnect']);
+		});
+	}
 
 	test('getStatusLabel covers every connection status variant', () => {
 		assert.ok(getStatusLabel(RemoteAgentHostConnectionStatus.connected).length > 0);
@@ -91,6 +116,15 @@ suite('remoteHostOptions', () => {
 	});
 
 	suite('buildRemoteHostOptionItems', () => {
+		test('offers Rename for connected and disconnected hosts on desktop and web', () => {
+			for (const isWebPlatform of [false, true]) {
+				for (const isConnected of [false, true]) {
+					const items = buildRemoteHostOptionItems({ address: 'tunnel:my-host', isConnected, isWebPlatform });
+					assert.deepStrictEqual(items.filter(item => item.id === 'rename'), [{ label: '$(edit) Rename...', id: 'rename' }]);
+				}
+			}
+		});
+
 		test('desktop: includes the location preference item for a supported SSH preference key', () => {
 			const items = buildRemoteHostOptionItems({ address: 'localhost:4321', preferenceKey: 'ssh:my-host-alias', isConnected: true, isWebPlatform: false });
 			assert.ok(items.some(item => item.id === 'locationPreference'));
@@ -151,6 +185,84 @@ suite('remoteHostOptions', () => {
 				credentialSSH: ['settings'],
 				webSocket: ['settings'],
 				tunnel: ['settings'],
+			});
+		});
+	});
+
+	suite('rename remote host', () => {
+		function createRenameHarness(input: string | undefined, fail = false) {
+			const instantiationService = store.add(new TestInstantiationService());
+			const accept = store.add(new Emitter<void>());
+			const hide = store.add(new Emitter<void>());
+			const inputs: IInputOptions[] = [];
+			const saved: { address: string; name: string | undefined }[] = [];
+			const errors: string[] = [];
+			instantiationService.stub(IQuickInputService, {
+				createQuickPick: <T extends IQuickPickItem>() => new class extends mock<IQuickPick<T>>() {
+					override items: readonly T[] = [];
+					override get selectedItems(): readonly T[] { return this.items.filter(item => item.id === 'rename'); }
+					override readonly onDidTriggerButton = Event.None;
+					override readonly onDidAccept = Event.map(accept.event, () => ({ inBackground: false }));
+					override readonly onDidHide = Event.map(hide.event, () => ({ reason: QuickInputHideReason.Gesture }));
+					override show(): void { accept.fire(); }
+					override hide(): void { hide.fire(); }
+					override dispose(): void { }
+				}(),
+				input: async options => {
+					if (options) {
+						inputs.push(options);
+					}
+					return input;
+				},
+			});
+			instantiationService.stub(IRemoteAgentHostService, {
+				setDisplayName: (address, name) => {
+					if (fail) {
+						throw new Error('Storage unavailable');
+					}
+					saved.push({ address, name });
+				},
+			});
+			instantiationService.stub(IClipboardService, {});
+			instantiationService.stub(IPreferencesService, {});
+			instantiationService.stub(IProductService, {});
+			instantiationService.stub(IDialogService, {});
+			instantiationService.stub(INotificationService, { error: message => { errors.push(String(message)); } });
+			instantiationService.stub(IProgressService, {});
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(ISSHRemoteAgentHostService, {});
+			instantiationService.stub(IEditorService, {});
+			instantiationService.stub(IRemoteAgentHostLocationPreferenceService, {});
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override readonly remoteAddress = 'tunnel:my-host';
+				override readonly label = 'Original Host';
+			}();
+			return { run: () => instantiationService.invokeFunction(showRemoteHostOptions, provider), inputs, saved, errors };
+		}
+
+		for (const input of ['New Name', '', undefined]) {
+			test(input === undefined ? 'cancelling leaves the name unchanged' : input === '' ? 'an empty name restores the default' : 'accepting saves the client-local name', async () => {
+				const harness = createRenameHarness(input);
+				await harness.run();
+
+				assert.deepStrictEqual({
+					input: harness.inputs.map(options => ({ value: options.value, selection: options.valueSelection })),
+					saved: harness.saved,
+					errors: harness.errors,
+				}, {
+					input: [{ value: 'Original Host', selection: [0, 'Original Host'.length] }],
+					saved: input === undefined ? [] : [{ address: 'tunnel:my-host', name: input }],
+					errors: [],
+				});
+			});
+		}
+
+		test('reports a persistence failure', async () => {
+			const harness = createRenameHarness('New Name', true);
+			await harness.run();
+			assert.deepStrictEqual({ saved: harness.saved, errors: harness.errors }, {
+				saved: [],
+				errors: ['Failed to rename Original Host: Storage unavailable'],
 			});
 		});
 	});

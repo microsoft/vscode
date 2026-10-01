@@ -15,8 +15,8 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, customizationId, CustomizationType, ResponsePartKind, ROOT_STATE_URI, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
-import { createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -34,6 +34,8 @@ interface IPluginSessionOptions {
 	readonly hookExitCode?: number;
 	readonly hookStdout?: string;
 	readonly pluginName?: string;
+	readonly publisher?: TestProtocolClient;
+	readonly clientId?: string;
 }
 
 export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
@@ -172,8 +174,13 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			},
 		}));
 		const pluginUri = URI.file(plugin).toString();
-		const clientId = `mcp-plugin-${prefix}-${config.provider}`;
-		const sessionUri = await createRealSession(context.client, config, clientId, createdSessions, URI.file(workspace));
+		const clientId = options.clientId ?? `mcp-plugin-${prefix}-${config.provider}`;
+		const sessionCreatorClientId = options.publisher ? `mcp-plugin-observer-${prefix}-${config.provider}` : clientId;
+		const sessionUri = await createRealSession(context.client, config, sessionCreatorClientId, createdSessions, URI.file(workspace));
+		const publisher = options.publisher ?? context.client;
+		if (publisher !== context.client) {
+			await publisher.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		}
 		const customization: ClientPluginCustomization = {
 			type: CustomizationType.Plugin,
 			id: customizationId(pluginUri),
@@ -182,7 +189,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			nonce: '1',
 			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 		};
-		context.client.dispatch({
+		publisher.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,
 			action: {
@@ -216,11 +223,27 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 		return server;
 	}
 
+	async function materializeDefaultChatWithReadyMcpServer(sessionUri: string, pluginUri: string, turnId: string): Promise<void> {
+		const initialized = await driveTurnToCompletion(context.client, sessionUri, turnId, 'Reply exactly "MCP_READY". Do not call tools.', 2);
+		assert.strictEqual(initialized.responseText.trim(), 'MCP_READY');
+		await retry(async () => assert.strictEqual((await mcpServerState(sessionUri, pluginUri)).state.kind, McpServerStatus.Ready), 100, 300);
+	}
+
 	function toolResultTexts(sessionUri: string, turnId: string): readonly string[] {
 		return context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
 			.filter(({ envelope, action }) => envelope.channel === buildDefaultChatUri(sessionUri) && action.turnId === turnId)
 			.map(({ action }) => textFromContent(action.result.content ?? []));
+	}
+
+	function assertProbeToolSucceeded(sessionUri: string, turnId: string): void {
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId,
+			toolNames: ['customization_probe_server-customization_probe'],
+			expected: [/MCP_PLUGIN_RESULT/],
+			success: true,
+		});
 	}
 
 	async function waitForHook(hookLog: string | undefined, hookType: NonNullable<IPluginSessionOptions['hookType']>): Promise<string> {
@@ -233,6 +256,10 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			const content = readFileSync(hookLog, 'utf8');
 			if (!content.includes(`${hookType}:`)) {
 				throw new Error(`${hookType} hook has not recorded input`);
+			}
+			const invocationCount = content.split('\n').filter(line => line.startsWith(`${hookType}:`)).length;
+			if (invocationCount !== 1) {
+				throw new Error(`${hookType} hook ran ${invocationCount} times`);
 			}
 			return content;
 		}, 100, 100);
@@ -316,9 +343,47 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 		}, 100, 100);
 	});
 
+	providerHostOnlyTest(context, 'unsubscribing an active client removes its provider customization', async function () {
+		const clientId = `mcp-plugin-unsubscribe-${config.provider}`;
+		const publisher = await context.connectClient();
+		try {
+			await publisher.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId,
+			});
+			const { sessionUri, pluginUri } = await createPluginSession('unsubscribe', { publisher, clientId });
+			const plugin = await pluginState(sessionUri, pluginUri);
+			context.client.clearReceived();
+
+			publisher.notify('unsubscribe', { channel: sessionUri });
+			await publisher.call('ping', { channel: ROOT_STATE_URI });
+			await context.client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.SessionActiveClientRemoved)) {
+					return false;
+				}
+				const envelope = getActionEnvelope(n);
+				return envelope.channel === sessionUri
+					&& (envelope.action as { readonly clientId: string }).clientId === clientId;
+			}, 30_000);
+			await retry(async () => {
+				const result = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+				const state = result.snapshot!.state as SessionState;
+				if (state.activeClients.some(client => client.clientId === clientId)) {
+					throw new Error('Active client has not been removed');
+				}
+				if (state.customizations?.some(customization => customization.id === plugin.id)) {
+					throw new Error('Plugin customization has not been removed');
+				}
+			}, 100, 100);
+		} finally {
+			publisher.close();
+		}
+	});
+
 	const modelBackedEnabled = config.provider === 'copilotcli';
 	if (modelBackedEnabled) {
-		// Copilot plugin hooks do not execute on Windows, although the same plugin's skill and MCP server work.
+		// The SDK-owned runtime does not invoke hook callbacks on Windows.
 		const pluginHookTest = context.isWindows ? test.skip : test;
 
 		// The skill executes when named explicitly, but the completions command currently returns no item for it.
@@ -419,9 +484,12 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-pre-tool', { hookType: 'PreToolUse' });
 			await pluginState(sessionUri, pluginUri);
-			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-pre-tool', 'Call customization_probe exactly once, then reply with only its exact result.', 2);
+			await materializeDefaultChatWithReadyMcpServer(sessionUri, pluginUri, 'turn-hook-pre-tool-ready');
+			const turnId = 'turn-hook-pre-tool';
+			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 			const hookContent = await waitForHook(hookLog, 'PreToolUse');
 
+			assertProbeToolSucceeded(sessionUri, turnId);
 			assert.ok(hookContent.includes('customization_probe'));
 		});
 
@@ -429,9 +497,12 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-post-tool', { hookType: 'PostToolUse' });
 			await pluginState(sessionUri, pluginUri);
-			await driveTurnToCompletion(context.client, sessionUri, 'turn-hook-post-tool', 'Call customization_probe exactly once, then reply with only its exact result.', 2);
+			await materializeDefaultChatWithReadyMcpServer(sessionUri, pluginUri, 'turn-hook-post-tool-ready');
+			const turnId = 'turn-hook-post-tool';
+			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 			const hookContent = await waitForHook(hookLog, 'PostToolUse');
 
+			assertProbeToolSucceeded(sessionUri, turnId);
 			assert.ok(hookContent.includes('MCP_PLUGIN_RESULT'));
 		});
 
@@ -460,10 +531,12 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-non-json', { hookType: 'PostToolUse', hookStdout: 'not-json' });
 			await pluginState(sessionUri, pluginUri);
+			await materializeDefaultChatWithReadyMcpServer(sessionUri, pluginUri, 'turn-hook-non-json-ready');
 			const turnId = 'turn-hook-non-json';
 			const result = await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call customization_probe exactly once, then reply with only its exact result.', 2);
 
 			await waitForHook(hookLog, 'PostToolUse');
+			assertProbeToolSucceeded(sessionUri, turnId);
 			assert.ok(result.responseText.includes('MCP_PLUGIN_RESULT'));
 		});
 

@@ -28,16 +28,13 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 		super();
 		this._register(layoutService.onDidChangePartVisibility(event => {
 			if (event.partId === Parts.EDITOR_PART) {
-				this._onDidChangeLabel.fire();
 				this._onDidChangeCapabilities.fire();
 			}
 		}));
 	}
 
-	override get resource(): URI | undefined {
-		// TODO: Multi-root sessions need a workspace-level breadcrumb that exposes every root.
-		const workspaceFolderResource = this._workspace?.folders[0]?.workingDirectory;
-		return this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) ? workspaceFolderResource : undefined;
+	override get resource(): undefined {
+		return undefined;
 	}
 
 	get workspace(): ISessionWorkspace | undefined {

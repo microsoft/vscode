@@ -9,45 +9,78 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILinkPresentation, ILinkPresentationProvider, ILinkPresentationService, ILinkPresentationStatus, ILinkPresentationWatcher, LinkPresentationKind } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IGitHubService } from '../../../../platform/github/common/githubService.js';
+import { IGitHubClient } from '../../../../platform/github/common/githubService.js';
+import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
 import { GitHubHydratableResourceRef, GitHubIssue, GitHubIssueRef, GitHubRepository } from '../../../../platform/github/common/githubQueryService.js';
 import { FragmentState, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../platform/github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTransport.js';
 import { GitHubAccountHandle, GitHubRequestErrorKind } from '../../../../platform/github/common/githubTypes.js';
+import { GitHubLinkTarget, parseGitHubLinkTarget } from '../../../../platform/github/common/githubUrls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, NeverShowAgainScope, Severity } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
 const githubRepositoryProviderId = 'workbench.github.repositoryLinkPresentation';
 const githubIssueProviderId = 'workbench.github.issueLinkPresentation';
 const githubPullRequestProviderId = 'workbench.github.pullRequestLinkPresentation';
 
-type GitHubLinkTarget =
-	| { readonly kind: 'repository'; readonly owner: string; readonly repo: string }
-	| { readonly kind: 'issue'; readonly owner: string; readonly repo: string; readonly number: number }
-	| { readonly kind: 'pullRequest'; readonly owner: string; readonly repo: string; readonly number: number };
-
 export class GitHubLinkPresentationContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.githubLinkPresentations';
 
 	private readonly _registrations = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _authenticationNotification = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _provider: GitHubLinkPresentationProvider;
 
 	constructor(
-		@IGitHubService gitHubService: IGitHubService,
+		@IWorkbenchGitHubService gitHubService: IWorkbenchGitHubService,
 		@ILinkPresentationService private readonly _linkPresentationService: ILinkPresentationService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ILogService logService: ILogService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
-		this._provider = this._register(new GitHubLinkPresentationProvider(gitHubService, logService));
-		this._register(_defaultAccountService.onDidChangeDefaultAccount(() => this._registerProviders()));
+		this._provider = this._register(new GitHubLinkPresentationProvider(gitHubService, logService, () => this._showAuthenticationRequiredNotification()));
+		this._register(_defaultAccountService.onDidChangeDefaultAccount(() => {
+			this._authenticationNotification.clear();
+			this._registerProviders();
+		}));
 		this._registerProviders();
+	}
+
+	private _showAuthenticationRequiredNotification(): void {
+		if (this._authenticationNotification.value) {
+			return;
+		}
+
+		const handleDisposables = new DisposableStore();
+		const handle = this._notificationService.prompt(
+			Severity.Info,
+			localize('github.authenticationRequired', "Sign in to GitHub to load pull request status and other GitHub link details."),
+			[{
+				label: localize('github.authenticationRequired.signIn', "Sign In"),
+				run: async () => {
+					await this._defaultAccountService.signIn({ additionalScopes: ['repo'] });
+				},
+			}],
+			{
+				sticky: true,
+				neverShowAgain: {
+					id: 'github.linkPresentation.authenticationRequired',
+					isSecondary: true,
+					scope: NeverShowAgainScope.PROFILE,
+				},
+			},
+		);
+		handleDisposables.add(handle.onDidClose(() => this._authenticationNotification.clear()));
+		handleDisposables.add({ dispose: () => handle.close() });
+		this._authenticationNotification.value = handleDisposables;
 	}
 
 	private _registerProviders(): void {
 		this._registrations.clear();
-		const authority = URI.parse(this._defaultAccountService.resolveGitHubUrl('')).authority;
+		const gitHubUrl = this._defaultAccountService.resolveGitHubUrl('');
+		const authority = gitHubUrl ? URI.parse(gitHubUrl).authority : undefined;
 		if (!authority) {
 			return;
 		}
@@ -80,11 +113,12 @@ class GitHubLinkPresentationProvider extends Disposable implements ILinkPresenta
 	private readonly _hydrator: GitHubLinkPresentationHydrator;
 
 	constructor(
-		private readonly _gitHubService: IGitHubService,
+		private readonly _gitHubService: IWorkbenchGitHubService,
 		private readonly _logService: ILogService,
+		private readonly _onAuthenticationRequired: () => void,
 	) {
 		super();
-		this._hydrator = this._register(new GitHubLinkPresentationHydrator(_gitHubService, _logService));
+		this._hydrator = this._register(new GitHubLinkPresentationHydrator(_logService));
 	}
 
 	createLinkPresentationWatcher(resource: URI): ILinkPresentationWatcher {
@@ -92,7 +126,7 @@ class GitHubLinkPresentationProvider extends Disposable implements ILinkPresenta
 		if (!target) {
 			throw new Error(`Unsupported GitHub link presentation resource: ${resource.toString(true)}`);
 		}
-		return new GitHubLinkPresentationWatcher(target, this._gitHubService, this._hydrator, this._logService);
+		return new GitHubLinkPresentationWatcher(target, this._gitHubService, this._hydrator, this._logService, this._onAuthenticationRequired);
 	}
 }
 
@@ -100,6 +134,7 @@ class GitHubLinkPresentationHydrator extends Disposable {
 
 	private readonly _controller = new AbortController();
 	private _pending: {
+		readonly client: IGitHubClient;
 		readonly resource: GitHubHydratableResourceRef;
 		readonly resolve: () => void;
 		readonly reject: (error: unknown) => void;
@@ -107,21 +142,20 @@ class GitHubLinkPresentationHydrator extends Disposable {
 	private _scheduled = false;
 
 	constructor(
-		private readonly _gitHubService: IGitHubService,
 		private readonly _logService: ILogService,
 	) {
 		super();
 		this._register(toDisposable(() => this._controller.abort()));
 	}
 
-	hydrate(target: GitHubLinkTarget, account: GitHubAccountHandle): Promise<void> {
+	hydrate(target: GitHubLinkTarget, account: GitHubAccountHandle, client: IGitHubClient): Promise<void> {
 		if (target.kind === 'pullRequest') {
 			return Promise.resolve();
 		}
 		const resource: GitHubHydratableResourceRef = target.kind === 'repository'
 			? { kind: 'repository', ref: { ...account, owner: target.owner, repo: target.repo } }
 			: { kind: 'issue', ref: { ...account, owner: target.owner, repo: target.repo, number: target.number } };
-		const promise = new Promise<void>((resolve, reject) => this._pending.push({ resource, resolve, reject }));
+		const promise = new Promise<void>((resolve, reject) => this._pending.push({ client, resource, resolve, reject }));
 		if (!this._scheduled) {
 			this._scheduled = true;
 			queueMicrotask(() => void this._flush());
@@ -137,9 +171,9 @@ class GitHubLinkPresentationHydrator extends Disposable {
 			return;
 		}
 
-		const groups = new Map<string, typeof pending>();
+		const groups = new Map<IGitHubClient, typeof pending>();
 		for (const item of pending) {
-			const key = `${item.resource.ref.host.toLowerCase()}\x00${item.resource.ref.accountId}`;
+			const key = item.client;
 			const group = groups.get(key);
 			if (group) {
 				group.push(item);
@@ -154,7 +188,7 @@ class GitHubLinkPresentationHydrator extends Disposable {
 				item.resource,
 			])).values()];
 			try {
-				await this._gitHubService.query.hydrateResources(resources, this._controller.signal);
+				await group[0].client.query.hydrateResources(resources, this._controller.signal);
 				this._logService.trace(`[GitHubLinkPresentation] Hydrated ${resources.length} resource(s) in one request`);
 				for (const item of group) {
 					item.resolve();
@@ -186,12 +220,13 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 
 	constructor(
 		private readonly _target: GitHubLinkTarget,
-		private readonly _gitHubService: IGitHubService,
+		private readonly _gitHubService: IWorkbenchGitHubService,
 		private readonly _hydrator: GitHubLinkPresentationHydrator,
 		private readonly _logService: ILogService,
+		private readonly _onAuthenticationRequired: () => void,
 	) {
 		super();
-		this._register(_gitHubService.credentials.onDidInvalidate(() => this._initialize()));
+		this._register(_gitHubService.onDidChangeDefaultClient(() => this._initialize()));
 		this._initialize();
 	}
 
@@ -202,53 +237,60 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 		const controller = new AbortController();
 		store.add(toDisposable(() => controller.abort()));
 		this._activeSubscription.value = store;
+		this._presentation.set(undefined, undefined);
 
 		void this._initializeSubscription(target, generation, controller, store);
 	}
 
 	private async _initializeSubscription(target: GitHubLinkTarget, generation: number, controller: AbortController, store: DisposableStore): Promise<void> {
 		try {
-			const credential = await this._gitHubService.credentials.getCredential(controller.signal);
+			const reference = await this._gitHubService.acquireDefaultAccountClient(controller.signal);
+			if (store.isDisposed) {
+				reference.dispose();
+				return;
+			}
+			const client = store.add(reference).object;
+			const credential = await client.credentials.getCredential(controller.signal);
 			if (controller.signal.aborted || generation !== this._generation) {
 				return;
 			}
 			const account = credential.account;
-			void this._hydrator.hydrate(target, account).catch(error => {
+			void this._hydrator.hydrate(target, account, client).catch(error => {
 				this._logService.trace(`[GitHubLinkPresentation] Bulk hydration failed for ${formatTarget(target)}; falling back to resource fetch`, error);
 			});
 			switch (target.kind) {
 				case 'repository': {
-					const subscription = store.add(this._gitHubService.query.subscribeRepository({
+					const subscription = store.add(client.query.subscribeRepository({
 						...account,
 						owner: target.owner,
 						repo: target.repo,
 					}, { priority: 'visible' }));
-					store.add(autorun(reader => this._presentation.set(
-						repositoryPresentation(target, subscription.resource.state.read(reader)),
-						undefined,
-					)));
+					store.add(autorun(reader => {
+						const state = subscription.resource.state.read(reader);
+						this._setPresentation(repositoryPresentation(target, state), state.status === 'error' ? state.error : undefined);
+					}));
 					break;
 				}
 				case 'issue': {
 					const ref: GitHubIssueRef = { ...account, owner: target.owner, repo: target.repo, number: target.number };
-					const subscription = store.add(this._gitHubService.query.subscribeIssue(ref, { priority: 'visible' }));
-					store.add(autorun(reader => this._presentation.set(
-						issuePresentation(target, subscription.resource.state.read(reader)),
-						undefined,
-					)));
+					const subscription = store.add(client.query.subscribeIssue(ref, { priority: 'visible' }));
+					store.add(autorun(reader => {
+						const state = subscription.resource.state.read(reader);
+						this._setPresentation(issuePresentation(target, state), state.status === 'error' ? state.error : undefined);
+					}));
 					break;
 				}
 				case 'pullRequest': {
 					const ref: PullRequestRef = { ...account, owner: target.owner, repo: target.repo, number: target.number };
-					const subscription = store.add(this._gitHubService.pullRequests.subscribePullRequest(ref, {
+					const subscription = store.add(client.pullRequests.subscribePullRequest(ref, {
 						priority: 'visible',
 						core: true,
 						checks: { includeOptional: true },
 					}));
-					store.add(autorun(reader => this._presentation.set(
-						pullRequestPresentation(target, subscription.resource.snapshot.read(reader)),
-						undefined,
-					)));
+					store.add(autorun(reader => {
+						const snapshot = subscription.resource.snapshot.read(reader);
+						this._setPresentation(pullRequestPresentation(target, snapshot), snapshot.core.status === 'error' ? snapshot.core.error : undefined);
+					}));
 					break;
 				}
 			}
@@ -257,8 +299,22 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 				return;
 			}
 			this._logService.trace(`[GitHubLinkPresentation] Failed to resolve ${formatTarget(this._target)}`, error);
-			this._presentation.set(failurePresentation(this._target.kind, error instanceof GitHubRequestError ? error.kind : undefined), undefined);
+			const errorKind = error instanceof GitHubRequestError ? error.kind : undefined;
+			this._setPresentation(failurePresentation(this._target.kind, errorKind), {
+				kind: errorKind ?? 'unknown',
+				message: error instanceof Error ? error.message : String(error),
+			});
 		}
+	}
+
+	private _setPresentation(presentation: ILinkPresentation | undefined, error: { readonly kind: GitHubRequestErrorKind; readonly message: string } | undefined): void {
+		if (error) {
+			this._logService.warn(`[GitHubLinkPresentation] ${formatTarget(this._target)} failed with '${error.kind}': ${error.message}`);
+		}
+		if (error?.kind === 'authentication') {
+			this._onAuthenticationRequired();
+		}
+		this._presentation.set(presentation, undefined);
 	}
 }
 
@@ -376,30 +432,6 @@ function failurePresentation(kind: LinkPresentationKind, errorKind: GitHubReques
 		tooltip: localize('github.failure.tooltip', "GitHub could not load this resource: {0}", label),
 		ariaLabel: localize('github.failure.ariaLabel', "GitHub {0} lookup failed: {1}", kind, label),
 	};
-}
-
-function parseGitHubLinkTarget(resource: URI): GitHubLinkTarget | undefined {
-	if (resource.scheme !== 'https') {
-		return undefined;
-	}
-	const segments = resource.path.split('/').filter(Boolean);
-	if (segments.length === 2) {
-		return { kind: 'repository', owner: segments[0], repo: segments[1] };
-	}
-	if (segments.length !== 4) {
-		return undefined;
-	}
-	const number = Number(segments[3]);
-	if (!Number.isSafeInteger(number) || number <= 0) {
-		return undefined;
-	}
-	if (segments[2] === 'issues') {
-		return { kind: 'issue', owner: segments[0], repo: segments[1], number };
-	}
-	if (segments[2] === 'pull') {
-		return { kind: 'pullRequest', owner: segments[0], repo: segments[1], number };
-	}
-	return undefined;
 }
 
 function formatTarget(target: GitHubLinkTarget): string {

@@ -5,7 +5,7 @@
 
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
-import { IBrowserViewCertificateError } from '../common/browserView.js';
+import { IBrowserViewCertificateError, isInMemoryStorageScope } from '../common/browserView.js';
 import type { BrowserSession } from './browserSession.js';
 
 /** Key used to store trusted certificate data in the application storage. */
@@ -201,8 +201,8 @@ export class BrowserSessionTrust implements IBrowserSessionTrust {
 	 * first call; subsequent calls are no-ops.
 	 */
 	connectStorage(storage: IApplicationStorageMainService): void {
-		if (this._storage) {
-			return; // already connected
+		if (this._storage || isInMemoryStorageScope(this._session.storageScope)) {
+			return;
 		}
 		this._storage = storage;
 		this.readStorage();

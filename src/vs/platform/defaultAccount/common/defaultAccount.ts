@@ -38,6 +38,8 @@ export interface IManagedSettingsCompatibilityError {
 
 export interface IDefaultAccountRefreshOptions {
 	readonly forceRefresh?: boolean;
+	/** Refreshes entitlement data even when its cache is fresh. */
+	readonly refreshEntitlements?: boolean;
 	/** Allows an explicit user action to retry managed settings after a failed attempt. */
 	readonly retryManagedSettings?: boolean;
 }
@@ -61,13 +63,10 @@ export interface IDefaultAccountProvider {
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 
 	/**
-	 * Resolves a GitHub URL path to a full URL, using the GitHub Enterprise
-	 * base URL when the user is authenticated via a GHE provider, or
-	 * `https://github.com` otherwise.
-	 *
-	 * @param path The path portion of the URL (e.g. `settings/copilot/features`).
+	 * Resolves a GitHub path against the selected session's enterprise server, or `https://github.com` for a non-enterprise provider.
+	 * Returns `undefined` when enterprise authentication is selected but the session's server is unavailable.
 	 */
-	resolveGitHubUrl(path: string): string;
+	resolveGitHubUrl(path: string): string | undefined;
 
 	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
 	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
@@ -101,13 +100,10 @@ export interface IDefaultAccountService {
 	signOut(): Promise<void>;
 
 	/**
-	 * Resolves a GitHub URL path to a full URL, using the GitHub Enterprise
-	 * base URL when the user is authenticated via a GHE provider, or
-	 * `https://github.com` otherwise.
-	 *
-	 * @param path The path portion of the URL (e.g. `settings/copilot/features`).
+	 * Resolves a GitHub path against the selected session's enterprise server, or `https://github.com` for a non-enterprise provider.
+	 * Returns `undefined` when enterprise authentication is selected but the session's server is unavailable.
 	 */
-	resolveGitHubUrl(path: string): string;
+	resolveGitHubUrl(path: string): string | undefined;
 }
 
 export { MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED };

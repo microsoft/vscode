@@ -39,11 +39,13 @@ import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/
 import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact, isStringVariableEntry, OmittedState, resolveChatContextIcon } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImageUtils.js';
-import { createImageHoverContent, openPastedTextArtifact } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgets.js';
+import { openPastedTextArtifact } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgets.js';
+import { createChatImageHoverContent } from '../../../../workbench/browser/chatImagePreview.js';
 import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX } from '../common/newChatContextIds.js';
+import type { IWorkspacePickerContextAction } from './sessionWorkspacePicker.js';
 
 /**
  * The attachment surface of the composer, as seen by its input plumbing
@@ -59,6 +61,7 @@ export interface INewChatAttachments {
 }
 
 const GITHUB_CONTEXT_ID_PREFIX = 'github-context:';
+type IContextQuickPickItem = IQuickPickItem & { readonly contextAction?: IWorkspacePickerContextAction };
 
 /**
  * Manages context attachments for the sessions new-chat widget.
@@ -175,7 +178,7 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 				if (imageData) {
 					// Swap the generic icon for a thumbnail once the shared helper
 					// has decoded one, matching the workbench attachment pill.
-					const preview = createImageHoverContent(resource, entry.name, imageData, entry.id, undefined, undefined, (url, isThumbnail) => {
+					const preview = createChatImageHoverContent(resource, entry.name, imageData, entry.id, undefined, undefined, (url, isThumbnail) => {
 						if (isThumbnail) {
 							icon.replaceWith(dom.$('img.sessions-chat-attachment-image', { src: url, alt: '' }));
 						}
@@ -257,25 +260,25 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 
 	// --- Picker ---
 
-	showPicker(folderUri?: URI): void {
-		const picker = this.quickInputService.createQuickPick<IQuickPickItem>({ useSeparators: true });
+	isPickerVisibleAt(anchor: HTMLElement): boolean {
+		return this.quickInputService.currentQuickInput?.anchor === anchor;
+	}
+
+	showPicker(folderUri?: URI, contextActions: readonly IWorkspacePickerContextAction[] = [], anchor?: HTMLElement): void {
+		if (anchor && this.isPickerVisibleAt(anchor)) {
+			void this.quickInputService.cancel();
+			return;
+		}
+
+		const picker = this.quickInputService.createQuickPick<IContextQuickPickItem>({ useSeparators: true });
 		const disposables = new DisposableStore();
 		picker.placeholder = localize('chatContext.attach.placeholder', "Attach as context...");
 		picker.matchOnDescription = true;
 		picker.sortByLabel = false;
+		picker.anchor = anchor;
+		picker.anchorPosition = anchor ? 'below' : undefined;
 
-		const staticPicks: (IQuickPickItem | IQuickPickSeparator)[] = [
-			{
-				label: localize('files', "Files..."),
-				iconClass: ThemeIcon.asClassName(Codicon.file),
-				id: 'sessions.filesAndFolders',
-			},
-			{
-				label: localize('imageFromClipboard', "Image from Clipboard"),
-				iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
-				id: 'sessions.imageFromClipboard',
-			},
-		];
+		const staticPicks = this._getStaticPicks(contextActions);
 
 		picker.items = staticPicks;
 		picker.show();
@@ -330,19 +333,45 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 
 			picker.hide();
 
-			if (selected.id === 'sessions.filesAndFolders') {
-				await this._handleFileDialog();
-			} else if (selected.id === 'sessions.imageFromClipboard') {
-				await this._handleClipboardImage();
-			} else if (selected.id) {
-				await this._attachFileUri(URI.parse(selected.id), selected.label);
-			}
+			await this.quickInputService.withQuickInputAnchor(anchor, anchor ? 'below' : undefined, async () => {
+				if (selected.contextAction) {
+					await selected.contextAction.run();
+				} else if (selected.id === 'sessions.filesAndFolders') {
+					await this._handleFileDialog();
+				} else if (selected.id === 'sessions.imageFromClipboard') {
+					await this._handleClipboardImage();
+				} else if (selected.id) {
+					await this._attachFileUri(URI.parse(selected.id), selected.label);
+				}
+			});
 		}));
 
 		disposables.add(picker.onDidHide(() => {
 			picker.dispose();
 			disposables.dispose();
 		}));
+	}
+
+	private _getStaticPicks(contextActions: readonly IWorkspacePickerContextAction[]): (IContextQuickPickItem | IQuickPickSeparator)[] {
+		return [
+			{
+				label: localize('files', "Files..."),
+				iconClass: ThemeIcon.asClassName(Codicon.file),
+				id: 'sessions.filesAndFolders',
+			},
+			{
+				label: localize('imageFromClipboard', "Image from Clipboard"),
+				iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
+				id: 'sessions.imageFromClipboard',
+			},
+			...(contextActions.length > 0 ? [{ type: 'separator' as const }] : []),
+			...contextActions.map(action => ({
+				label: action.label,
+				description: action.description,
+				iconClass: ThemeIcon.asClassName(action.icon),
+				contextAction: action,
+			})),
+		];
 	}
 
 	private async _collectFilePicks(rootUri: URI, filePattern?: string, token?: CancellationToken): Promise<IQuickPickItem[]> {

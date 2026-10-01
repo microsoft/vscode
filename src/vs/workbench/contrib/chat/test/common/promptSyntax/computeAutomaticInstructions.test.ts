@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
@@ -801,6 +802,47 @@ suite('ComputeAutomaticInstructions', () => {
 
 			assert.ok(paths.includes(mainUri.path), 'Should include main instruction');
 			assert.ok(paths.includes(referencedUri.path), 'Should include referenced instruction');
+		});
+
+		test('should resolve user home references', async () => {
+			const rootFolderUri = URI.file('/user-home-reference-test');
+			const referencedUri = URI.file('/home/user/referenced.instructions.md');
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: '/user-home-reference-test/.github/instructions/main.instructions.md',
+					contents: [
+						'---',
+						'description: \'Main instructions\'',
+						'applyTo: "**/*.ts"',
+						'---',
+						'Main instructions #file:~/referenced.instructions.md',
+					]
+				},
+				{
+					path: referencedUri.path,
+					contents: [
+						'---',
+						'description: \'Referenced instructions\'',
+						'---',
+						'Referenced content',
+					]
+				},
+			]);
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, localSessionType);
+			const variables = new ChatRequestVariableSet();
+			variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const paths = variables.asArray()
+				.filter(v => isPromptFileVariableEntry(v))
+				.map(v => isPromptFileVariableEntry(v) ? v.value.path : undefined);
+
+			assert.ok(paths.includes(referencedUri.path), 'Should include instruction referenced from the user home');
 		});
 
 		test('should not add non-workspace references', async () => {
@@ -2147,9 +2189,9 @@ suite('ComputeAutomaticInstructions', () => {
 				onCancellationRequested: Event.None
 			};
 
-			// Should handle cancellation gracefully
-			await contextComputer.collect(variables, cancelledToken);
-			assert.ok(true, 'Should handle cancellation without errors');
+			// Cancellation surfaces as an error rather than an empty result, so it
+			// can never be mistaken for "no instructions" and cached.
+			await assert.rejects(contextComputer.collect(variables, cancelledToken), CancellationError);
 		});
 	});
 

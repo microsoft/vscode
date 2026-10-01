@@ -64,6 +64,19 @@ const NUMBER_KEYS = [
 ] as const satisfies readonly (keyof IAgentModelPricingMeta)[];
 
 /**
+ * Flat-dotted `_meta` key the Copilot agent host publishes a model's capability category under.
+ *
+ * A host that derives its model list from the Copilot SDK namespaces its metadata by producer
+ * rather than using the flat {@link IAgentModelPricingMeta} key names, so the category arrives
+ * under this key instead of `category`. Read as a fallback so sandbox models still show a
+ * capability category in the picker hover; the flat key wins when both are present.
+ *
+ * Only the category is mapped: such a host surfaces no billing information at all, so there is no
+ * multiplier or cost to recover.
+ */
+const COPILOT_MODEL_PICKER_CATEGORY_META_KEY = 'copilot.modelPickerCategory';
+
+/**
  * Reads the well-known {@link IAgentModelPricingMeta} keys from a model's open `_meta` bag, ignoring any unrelated
  * provider-specific keys and values of the wrong type. Returns an object containing only the keys that were present
  * with a valid value.
@@ -85,6 +98,8 @@ export function readAgentModelPricingMeta(model: IAgentModelInfo | SessionModelI
 	}
 	if (typeof meta.category === 'string') {
 		result.category = meta.category;
+	} else if (typeof meta[COPILOT_MODEL_PICKER_CATEGORY_META_KEY] === 'string') {
+		result.category = meta[COPILOT_MODEL_PICKER_CATEGORY_META_KEY];
 	}
 	const rawPromo = meta.promo;
 	if (rawPromo && typeof rawPromo === 'object' && !Array.isArray(rawPromo)) {

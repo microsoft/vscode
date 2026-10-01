@@ -122,6 +122,102 @@ export interface CreateChatParams extends BaseParams {
 	workingDirectories?: URI[];
 }
 
+// ─── moveChat ────────────────────────────────────────────────────────────────
+
+/**
+ * Destination kind for an atomic chat move.
+ *
+ * @category Commands
+ * @nonexhaustive
+ */
+export const enum ChatMoveDestinationKind {
+	/** Move the source chat subtree into an existing session. */
+	Session = 'session',
+	/** Move the source chat subtree into a newly allocated session. */
+	NewSession = 'newSession',
+}
+
+/** Moves a chat within or into an existing session. */
+export interface ChatMoveToSessionDestination {
+	/** Discriminant */
+	kind: ChatMoveDestinationKind.Session;
+	/** Destination session URI. */
+	session: URI;
+	/**
+	 * Chat after which to place the requested chat.
+	 *
+	 * The anchor MUST be a different chat in the destination session. When
+	 * omitted, the requested chat is placed at the beginning of the catalog.
+	 */
+	after?: URI;
+}
+
+/** Moves a top-level chat subtree into a newly allocated session. */
+export interface ChatMoveToNewSessionDestination {
+	/** Discriminant */
+	kind: ChatMoveDestinationKind.NewSession;
+}
+
+/** Identifies the destination of an atomic chat move. */
+export type ChatMoveDestination =
+	| ChatMoveToSessionDestination
+	| ChatMoveToNewSessionDestination;
+
+/**
+ * Atomically moves a host-authorized chat within or between sessions.
+ *
+ * The source is the chat named by `channel`. When a `session` destination is
+ * the source's current session, only the requested entry is repositioned in
+ * that session's public chat catalog. When it names another session, the host
+ * transfers the requested chat and its complete host-managed descendant
+ * hierarchy. The optional `after` anchor positions the requested chat in the
+ * destination catalog; when omitted, the requested chat is placed first.
+ *
+ * A `newSession` destination allocates a session, transfers the complete
+ * hierarchy, and makes the requested chat that session's non-movable default
+ * chat. The host owns descendant relationships; AHP does not expose them as
+ * chat state.
+ *
+ * Clients MUST only request a move when the source chat advertises
+ * `movable: true` in its `ChatState` or `ChatSummary`. This is structural
+ * eligibility, not a guarantee that request-specific validation will succeed.
+ *
+ * The host MUST validate the complete operation before committing it and MAY
+ * reject unsupported destinations or transient source conditions. At minimum,
+ * the source MUST exist and advertise `movable: true`; the destination and
+ * optional anchor MUST resolve; and the source MUST NOT anchor itself.
+ * Rejection leaves ownership, catalog order, chat state, and root summaries
+ * unchanged.
+ *
+ * On success every moved chat keeps its URI, state, and immutable
+ * `ChatOrigin`. The host commits ownership and catalog order before publishing
+ * `session/chatRemoved`, `session/chatAdded`, `session/chatsReordered`, and
+ * root summary updates as applicable. Session and root snapshots are the
+ * durable recovery path after reconnect or an uncertain response.
+ *
+ * @category Commands
+ * @method moveChat
+ * @direction Client → Server
+ * @messageType Request
+ * @version 1
+ */
+export interface MoveChatParams extends BaseParams {
+	/** Source chat URI. */
+	channel: URI;
+	/** Atomic move destination. */
+	destination: ChatMoveDestination;
+}
+
+/**
+ * Result of an atomic chat move.
+ *
+ * @category Commands
+ */
+export interface MoveChatResult {
+	/** Authoritative owning session URI after the move. */
+	session: URI;
+}
+
 // ─── disposeChat ─────────────────────────────────────────────────────────────
 
 /**

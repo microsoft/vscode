@@ -37,7 +37,8 @@ import { formatUriForFileWidget } from '../common/toolUtils';
 import { getImageMimeType } from './imageToolUtils';
 import { assertFileNotContentExcluded, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
 import { IGrepResultService } from './grepResultService';
-import { IRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
+import { IRegionContextProviderService, type PathInfo, type RegionResult } from '../../../platform/languageContextProvider/common/regionContextProvider';
+import { Disposable } from '../../../util/vs/base/common/lifecycle';
 
 export const getReadFileV2Description = (orig: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation => ({
 	name: ToolName.ReadFile,
@@ -117,10 +118,107 @@ const getParamRanges = (params: ReadFileParams, snapshot: NotebookDocumentSnapsh
 	return { start, end, truncated };
 };
 
-export class ReadFileTool implements ICopilotTool<ReadFileParams> {
+type ReadAdjustment = {
+	adjustedStartLine: number;
+	adjustedEndLine: number;
+};
+
+type ReadAdjustmentsByStartLine = Map<number, ReadAdjustment>;
+
+type ReadAdjustmentsForEndLine = {
+	earliestAdjustedEndLine: number;
+	adjustmentsByStartLine: ReadAdjustmentsByStartLine;
+};
+
+type ReadAdjustmentsByEndLine = Map<number, ReadAdjustmentsForEndLine>;
+type ReadAdjustmentsByFile = Map<string, ReadAdjustmentsByEndLine>;
+type ReadAdjustmentsBySession = Map<string, ReadAdjustmentsByFile>;
+
+class ReadAdjustmentCache {
+	private readonly adjustmentsBySession: ReadAdjustmentsBySession = new Map();
+
+	reserve(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number): ReadAdjustment | undefined {
+		const sessionKey = sessionResource.toString();
+		let adjustmentsByFile = this.adjustmentsBySession.get(sessionKey);
+		if (adjustmentsByFile === undefined) {
+			adjustmentsByFile = new Map();
+			this.adjustmentsBySession.set(sessionKey, adjustmentsByFile);
+		}
+
+		const fileKey = uri.toString();
+		let adjustmentsByEndLine = adjustmentsByFile.get(fileKey);
+		if (adjustmentsByEndLine === undefined) {
+			adjustmentsByEndLine = new Map();
+			adjustmentsByFile.set(fileKey, adjustmentsByEndLine);
+		}
+
+		let adjustmentsForEndLine = adjustmentsByEndLine.get(endLine);
+		if (adjustmentsForEndLine === undefined) {
+			adjustmentsForEndLine = { earliestAdjustedEndLine: endLine, adjustmentsByStartLine: new Map() };
+			adjustmentsByEndLine.set(endLine, adjustmentsForEndLine);
+		}
+
+		if (adjustmentsForEndLine.adjustmentsByStartLine.has(startLine)) {
+			return undefined;
+		}
+
+		// The entry identity prevents an evicted invocation from modifying a replacement reservation.
+		const reservation = { adjustedStartLine: startLine, adjustedEndLine: endLine };
+		adjustmentsForEndLine.adjustmentsByStartLine.set(startLine, reservation);
+		return reservation;
+	}
+
+	complete(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number, reservation: ReadAdjustment, adjustedStartLine: number, adjustedEndLine: number): void {
+		const adjustmentsForEndLine = this.adjustmentsBySession
+			.get(sessionResource.toString())
+			?.get(uri.toString())
+			?.get(endLine);
+		if (adjustmentsForEndLine?.adjustmentsByStartLine.get(startLine) === reservation) {
+			adjustmentsForEndLine.earliestAdjustedEndLine = Math.min(adjustmentsForEndLine.earliestAdjustedEndLine, adjustedEndLine);
+			adjustmentsForEndLine.adjustmentsByStartLine.set(startLine, { adjustedStartLine, adjustedEndLine });
+		}
+	}
+
+	cancel(sessionResource: vscode.Uri, uri: URI, startLine: number, endLine: number, reservation: ReadAdjustment): void {
+		const sessionKey = sessionResource.toString();
+		const adjustmentsByFile = this.adjustmentsBySession.get(sessionKey);
+		const fileKey = uri.toString();
+		const adjustmentsByEndLine = adjustmentsByFile?.get(fileKey);
+		const adjustmentsForEndLine = adjustmentsByEndLine?.get(endLine);
+		if (adjustmentsForEndLine === undefined || adjustmentsForEndLine.adjustmentsByStartLine.get(startLine) !== reservation) {
+			return;
+		}
+
+		adjustmentsForEndLine.adjustmentsByStartLine.delete(startLine);
+		if (adjustmentsForEndLine.adjustmentsByStartLine.size === 0) {
+			adjustmentsByEndLine?.delete(endLine);
+		}
+		if (adjustmentsByEndLine?.size === 0) {
+			adjustmentsByFile?.delete(fileKey);
+		}
+		if (adjustmentsByFile?.size === 0) {
+			this.adjustmentsBySession.delete(sessionKey);
+		}
+	}
+
+	getContinuousStart(sessionResource: vscode.Uri, uri: URI, startLine: number): number | undefined {
+		const adjustmentsForEndLine = this.adjustmentsBySession
+			.get(sessionResource.toString())
+			?.get(uri.toString())
+			?.get(startLine - 1);
+		return adjustmentsForEndLine === undefined ? undefined : adjustmentsForEndLine.earliestAdjustedEndLine + 1;
+	}
+
+	clearSession(sessionResource: vscode.Uri): void {
+		this.adjustmentsBySession.delete(sessionResource.toString());
+	}
+}
+
+export class ReadFileTool extends Disposable implements ICopilotTool<ReadFileParams> {
 	public static toolName = ToolName.ReadFile;
 	public static readonly nonDeferred = true;
 	private _promptContext: IBuildPromptContext | undefined;
+	private readonly readAdjustmentCache = new ReadAdjustmentCache();
 
 	constructor(
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
@@ -137,7 +235,12 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		@IExtensionsService private readonly extensionsService: IExtensionsService,
 		@IGrepResultService private readonly grepResultService: IGrepResultService,
 		@IRegionContextProviderService private readonly regionContextProvider: IRegionContextProviderService
-	) { }
+	) {
+		super();
+		this._register(grepResultService.onDidRemoveSession(sessionUri => {
+			this.readAdjustmentCache.clearSession(sessionUri);
+		}));
+	}
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ReadFileParams>, token: vscode.CancellationToken) {
 		let ranges: IParamRanges | undefined;
@@ -185,38 +288,72 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 			const documentSnapshot = await this.getSnapshot(uri);
 			ranges = getParamRanges(options.input, documentSnapshot);
 			const languageId = documentSnapshot.languageId;
-			if (options.chatRequestId !== undefined && uri.scheme === 'file' && (languageId === 'typescript' || languageId === 'javascript')) {
+			const doRealLineAdjustment = this.configurationService.getExperimentBasedConfig(ConfigKey.ReadFileToolAllowLineAdjustments, this.experimentationService);
+			if (options.chatSessionResource !== undefined && options.chatRequestId !== undefined && uri.scheme === 'file' && (languageId === 'typescript' || languageId === 'javascript')) {
 				const startLine = ranges.start - 1;
 				const endLine = ranges.end - 1;
+				let continuousReadStartLine: number | undefined = undefined;
+				let adjustedStartLine: number | undefined = undefined;
+				let adjustedEndLine: number | undefined = undefined;
+				let adjustmentReservation: ReadAdjustment | undefined;
 				try {
-					const grepResultMatches = this.grepResultService.getGrepResult(options.chatRequestId, uri, startLine, endLine);
-					if (grepResultMatches !== undefined && grepResultMatches.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
-						const regions = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine});
-						if (regions !== undefined && regions.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
-							this.sendAdjustedRegionTelemetry(options, startLine, endLine, regions[0].range.start, regions[0].range.end);
-							// const saving = (ranges.end - ranges.start) - (regions[0].range.end - regions[0].range.start);
-							// this.logService.info(`Saving ${saving} lines reading ${documentSnapshot.uri.fsPath}. Requests [${ranges.start}-${ranges.end}], Grep matches: [${grepResultMatches.map(m => m.start.line + 1).join(',')}], region [${regions[0].range.start + 1}-${regions[0].range.end + 1}]`);
+					continuousReadStartLine = this.readAdjustmentCache.getContinuousStart(options.chatSessionResource, uri, startLine);
+					if (continuousReadStartLine !== undefined && continuousReadStartLine >= 0 && continuousReadStartLine < startLine) {
+						adjustedStartLine = continuousReadStartLine;
+						this.sendContinuousRegionTelemetry(options, startLine - continuousReadStartLine, documentSnapshot);
+					} else {
+						const grepResultMatches = this.grepResultService.getGrepResult(options.chatSessionResource, uri, startLine, endLine);
+						if (grepResultMatches !== undefined && grepResultMatches.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
+							adjustmentReservation = this.readAdjustmentCache.reserve(options.chatSessionResource, uri, startLine, endLine);
+							if (adjustmentReservation !== undefined) {
+								const regionResult: RegionResult | undefined = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine });
+								const adjustedRange = regionResult?.regions[0]?.range;
+								if (regionResult !== undefined && adjustedRange !== undefined && documentSnapshot.version === documentSnapshot.document.version) {
+									const pathInfo = regionResult.paths;
+									// For telemetry purpose send the adjusted region information
+									const continuousLines = continuousReadStartLine !== undefined ? startLine - continuousReadStartLine : 0;
+									this.sendAdjustedRegionTelemetry(options, startLine, endLine, adjustedRange.start, adjustedRange.end, pathInfo, continuousLines, documentSnapshot);
+									if (adjustedRange.end >= startLine && adjustedRange.end < endLine) {
+										adjustedEndLine = adjustedRange.end;
+									}
+								} else {
+									if (documentSnapshot.version === documentSnapshot.document.version) {
+										this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrepRegions', documentSnapshot);
+									} else {
+										this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'documentVersionChanged', documentSnapshot);
+									}
+								}
+							} else {
+								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'reReadSameRange', documentSnapshot);
+							}
 						} else {
 							if (documentSnapshot.version === documentSnapshot.document.version) {
-								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrepRegions');
-								// this.logService.info(`No regions found for grep result match in file ${documentSnapshot.uri.fsPath} at lines [${grepResultMatches.map(m => m.start.line + 1).join(',')}]`);
+								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrep', documentSnapshot);
+								// this.logService.info(`No grep result match found for requestId ${options.chatRequestId}`);
 							} else {
-								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'documentVersionChanged');
+								this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'documentVersionChanged', documentSnapshot);
 								// this.logService.info(`Document version changed for requestId ${options.chatRequestId}`);
 							}
 						}
-					} else {
-						if (documentSnapshot.version === documentSnapshot.document.version) {
-							this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'noGrep');
-							// this.logService.info(`No grep result match found for requestId ${options.chatRequestId}`);
-						} else {
-							this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'documentVersionChanged');
-							// this.logService.info(`Document version changed for requestId ${options.chatRequestId}`);
-						}
 					}
 				} catch (err) {
-					this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'exception');
+					this.sendAdjustingFailedTelemetry(options, startLine, endLine, 'exception', documentSnapshot);
 					// this.logService.error(`Error processing grep result for requestId ${options.chatRequestId}: ${err}`);
+				} finally {
+					if (adjustmentReservation !== undefined) {
+						if (adjustedStartLine !== undefined || adjustedEndLine !== undefined) {
+							this.readAdjustmentCache.complete(options.chatSessionResource, uri, startLine, endLine, adjustmentReservation, adjustedStartLine ?? startLine, adjustedEndLine ?? endLine);
+						} else {
+							this.readAdjustmentCache.cancel(options.chatSessionResource, uri, startLine, endLine, adjustmentReservation);
+						}
+					}
+					if (doRealLineAdjustment) {
+						ranges = {
+							start: adjustedStartLine !== undefined ? adjustedStartLine + 1 : ranges.start,
+							end: adjustedEndLine !== undefined ? adjustedEndLine + 1 : ranges.end,
+							truncated: ranges.truncated,
+						};
+					}
 				}
 			}
 
@@ -388,6 +525,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		const skillInfo = extensionSkillInfo || (uri && this.customInstructionsService.getSkillInfo(uri));
 		const fileType = skillInfo ? 'skill' : '';
 		const nameField = extensionSkillInfo ? extensionSkillInfo.skillName : skillInfo ? getCachedSha256Hash(skillInfo.skillName) : '';
+		const languageId = documentSnapshot?.languageId;
 
 		/* __GDPR__
 			"readFileToolInvoked" : {
@@ -402,7 +540,8 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				"isV2": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the tool is a v2 version" },
 				"isEntireFile": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the entire file was read with v2 params" },
 				"fileType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The type of file being read" },
-				"nameField": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the agent customization. Plain text for extension sources, otherwise hashed." }
+				"nameField": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the agent customization. Plain text for extension sources, otherwise hashed." },
+				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The language ID of the document snapshot" }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('readFileToolInvoked',
@@ -414,6 +553,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				isEntireFile: isParamsV2(options.input) && options.input.offset === undefined && options.input.limit === undefined ? 'true' : 'false',
 				fileType,
 				nameField,
+				languageId,
 				model,
 			},
 			{
@@ -430,7 +570,11 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 		}
 	}
 
-	private async sendAdjustedRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, originalStart: number, originalEnd: number, adjustedStart: number, adjustedEnd: number) {
+	private sendAdjustedRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, originalStart: number, originalEnd: number, adjustedStart: number, adjustedEnd: number, pathInfo: PathInfo, continuousLines: number, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
+		const languageId = documentSnapshot.languageId;
+		const smallestPath: string = JSON.stringify(pathInfo.smallest);
+		const largestPath: string | undefined = pathInfo?.largest ? JSON.stringify(pathInfo.largest) : undefined;
+
 		/* __GDPR__
 			"readFileRegionAdjusted" : {
 				"owner": "dbaeumer",
@@ -439,36 +583,69 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				"originalLines": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The number of original lines of the requested region", "isMeasurement": true },
 				"adjustedLines": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The number of lines after the requested region has been adjusted", "isMeasurement": true },
 				"deltaStart": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The difference between the original start line and the adjusted start line", "isMeasurement": true },
-				"deltaEnd": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The difference between the original end line and the adjusted end line", "isMeasurement": true }
+				"deltaEnd": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The difference between the original end line and the adjusted end line", "isMeasurement": true },
+				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The language ID of the document snapshot" },
+				"smallestPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The smallest path in the region context" },
+				"largestPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The largest path in the region context" },
+				"continuousLines": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The number of continuous lines from the last adjusted read operation included in this read", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('readFileRegionAdjusted',
 			{
 				requestId: options.chatRequestId,
+				languageId,
+				smallestPath,
+				largestPath
 			},
 			{
 				originalLines: originalEnd - originalStart + 1,
 				adjustedLines: adjustedEnd - adjustedStart + 1,
 				deltaStart: adjustedStart - originalStart,
 				deltaEnd: originalEnd - adjustedEnd,
+				continuousLines,
 			}
 		);
 	}
 
-	private async sendAdjustingFailedTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, startLine: number, endLine: number, reason: 'noGrep' | 'noGrepRegions' | 'documentVersionChanged' | 'exception') {
+	private sendContinuousRegionTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, deltaStart: number, documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
+		const languageId = documentSnapshot.languageId;
+
+		/* __GDPR__
+			"readFileRegionContinuous" : {
+				"owner": "dbaeumer",
+				"comment": "Information about a continuous read region adjustment",
+				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the current request turn." },
+				"deltaStart": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The difference between the original start line and the adjusted start line", "isMeasurement": true },
+				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The language ID of the document snapshot" }
+			}
+		*/
+		this.telemetryService.sendMSFTTelemetryEvent('readFileRegionContinuous',
+			{
+				requestId: options.chatRequestId,
+				languageId,
+			},
+			{
+				deltaStart: deltaStart,
+			}
+		);
+	}
+
+	private sendAdjustingFailedTelemetry(options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, startLine: number, endLine: number, reason: 'noGrep' | 'noGrepRegions' | 'documentVersionChanged' | 'reReadSameRange' | 'exception', documentSnapshot: TextDocumentSnapshot | NotebookDocumentSnapshot) {
 		/* __GDPR__
 			"readFileRegionAdjustingFailed" : {
 				"owner": "dbaeumer",
 				"comment": "Information about the failure to adjust the requested region to read",
 				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the current request turn." },
 				"lines": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The number of line to read", "isMeasurement": true },
-				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The reason why adjusting the requested region failed" }
+				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The reason why adjusting the requested region failed" },
+				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The language ID of the document snapshot" }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('readFileRegionAdjustingFailed',
 			{
 				requestId: options.chatRequestId,
 				reason,
+				languageId: documentSnapshot.languageId,
 			}, {
 				lines: endLine - startLine + 1
 			}

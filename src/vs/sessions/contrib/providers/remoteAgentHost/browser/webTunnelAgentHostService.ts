@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
@@ -22,6 +23,8 @@ import {
 	isTunnelNotFoundError,
 	type ICachedTunnel,
 	type ITunnelInfo,
+	type ITunnelDiscoveryOptions,
+	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
 } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -32,8 +35,13 @@ import type { IDiscoveredTunnel, ITunnelConnection, ITunnelDiscoveryProvider } f
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/browser/environmentService.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { TunnelAgentHostStorage } from './tunnelAgentHostStorage.js';
+import { traceConnectionOperation } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 
 const LOG_PREFIX = '[WebTunnelAgentHost]';
+
+function browserConnectionContext(): string {
+	return `online=${mainWindow.navigator.onLine}, visibility=${mainWindow.document.visibilityState}`;
+}
 
 class WebTunnelConnectionFactory extends Disposable implements IRemoteAgentHostConnectionFactory {
 	readonly kind = RemoteAgentHostEntryType.Tunnel;
@@ -98,6 +106,10 @@ class WebTunnelConnectionFactory extends Disposable implements IRemoteAgentHostC
 		return this._createConnection(entry, connectOptions);
 	}
 
+	getPendingConnectionInitiation(entry: IRemoteAgentHostEntry): boolean | undefined {
+		return this._stagedUserInitiated.get(getEntryAddress(entry));
+	}
+
 	private _entryForTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'clusterId' | 'name'>, authProvider?: 'github' | 'microsoft'): IRemoteAgentHostEntry {
 		return {
 			name: tunnel.name,
@@ -158,7 +170,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 
 	// Discovery
 
-	async listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]> {
+	async listTunnels(options?: ITunnelDiscoveryOptions): Promise<ITunnelInfo[]> {
 		if (!this._discoveryProvider) {
 			return [];
 		}
@@ -169,7 +181,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 
 		try {
 			// The embedder acquires tokens internally via its own auth flow
-			const discovered = await this._discoveryProvider.listTunnels();
+			const discovered = await traceConnectionOperation(options?.onDiagnostic, 'discovery.embedder', () => this._discoveryProvider!.listTunnels());
 			const results: ITunnelInfo[] = [];
 			let droppedByProtocolVersion = 0;
 			let withoutIds = 0;
@@ -196,8 +208,8 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			);
 			return results;
 		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to list tunnels`, err);
-			return [];
+			this._logService.error(`${LOG_PREFIX} Failed to list tunnels (${browserConnectionContext()})`, err);
+			throw err;
 		}
 	}
 
@@ -235,7 +247,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		await this._remoteAgentHostService.waitForConnection(address);
 	}
 
-	private async _createConnection(entry: IRemoteAgentHostEntry, _options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
+	private async _createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
 		if (entry.connection.type !== RemoteAgentHostEntryType.Tunnel) {
 			throw new Error(`Tunnel factory cannot create a ${entry.connection.type} connection.`);
 		}
@@ -246,10 +258,12 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 
 		const { tunnelId, clusterId } = entry.connection;
 		const address = getEntryAddress(entry);
-		this._logService.info(`${LOG_PREFIX} Connecting to tunnel '${entry.name}' (${tunnelId})`);
+		const connectStartedAt = Date.now();
+		this._logService.info(`${LOG_PREFIX} Connecting to tunnel '${entry.name}' (${tunnelId}); ${browserConnectionContext()}`);
 		let connection: ITunnelConnection;
 		try {
-			connection = await discoveryProvider.connect(tunnelId, clusterId);
+			connection = await traceConnectionOperation(options.onDiagnostic, 'tunnel.embedder', () => discoveryProvider.connect(tunnelId, clusterId));
+			this._logService.info(`${LOG_PREFIX} Connected to tunnel '${entry.name}' (${tunnelId}) in ${Date.now() - connectStartedAt}ms; ${browserConnectionContext()}`);
 		} catch (error) {
 			if (isTunnelNotFoundError(error)) {
 				throw new NonReconnectableTransportError(error.message);
@@ -261,7 +275,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		const establish = async (): Promise<IEstablishedTransport> => {
 			if (useSeedConnection) {
 				useSeedConnection = false;
-				return { transport: new TunnelConnectionTransport(connection, this._logService) };
+				return { transport: new TunnelConnectionTransport(connection, address, this._logService) };
 			}
 
 			const reconnectProvider = this._discoveryProvider;
@@ -270,10 +284,13 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			}
 
 			try {
-				const reconnected = await reconnectProvider.connect(tunnelId, clusterId);
+				const reconnectStartedAt = Date.now();
+				this._logService.info(`${LOG_PREFIX} Re-establishing tunnel '${entry.name}' (${tunnelId}); ${browserConnectionContext()}`);
+				const reconnected = await traceConnectionOperation(options.onDiagnostic, 'tunnel.embedder', () => reconnectProvider.connect(tunnelId, clusterId));
 				try {
+					this._logService.info(`${LOG_PREFIX} Re-established tunnel '${entry.name}' (${tunnelId}) in ${Date.now() - reconnectStartedAt}ms; ${browserConnectionContext()}`);
 					return {
-						transport: new TunnelConnectionTransport(reconnected, this._logService),
+						transport: new TunnelConnectionTransport(reconnected, address, this._logService),
 						close: async () => reconnected.close(),
 					};
 				} catch (error) {
@@ -356,6 +373,10 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		return this._storage.isTunnelDismissed(tunnelId);
 	}
 
+	getTunnelVisibility(): ITunnelVisibility {
+		return this._storage.getTunnelVisibility();
+	}
+
 	dismissTunnel(tunnelId: string): void {
 		this._storage.dismissTunnel(tunnelId);
 	}
@@ -394,13 +415,18 @@ class TunnelConnectionTransport extends Disposable implements IProtocolTransport
 	readonly onClose = this._onClose.event;
 
 	private _malformedFrames = 0;
+	private readonly _connectedAt = Date.now();
+	private _lastMessageAt = this._connectedAt;
+	private _closeRequested = false;
 
 	constructor(
 		private readonly _connection: ITunnelConnection,
+		private readonly _address: string,
 		private readonly _logService: ILogService,
 	) {
 		super();
 		this._register(_connection.onMessage((data: string) => {
+			this._lastMessageAt = Date.now();
 			let message: ProtocolMessage;
 			try {
 				message = JSON.parse(data) as ProtocolMessage;
@@ -417,6 +443,7 @@ class TunnelConnectionTransport extends Disposable implements IProtocolTransport
 					this._logService.warn(
 						'[TunnelConnectionTransport] Malformed frame threshold exceeded; forcing tunnel close.'
 					);
+					this._closeRequested = true;
 					this._connection.close();
 				}
 				return;
@@ -424,6 +451,10 @@ class TunnelConnectionTransport extends Disposable implements IProtocolTransport
 			this._onMessage.fire(message);
 		}));
 		this._register(_connection.onClose(() => {
+			const now = Date.now();
+			this._logService.warn(
+				`${LOG_PREFIX} Tunnel transport closed for ${this._address}; connectedForMs=${now - this._connectedAt}, sinceLastMessageMs=${now - this._lastMessageAt}, closeRequested=${this._closeRequested}, ${browserConnectionContext()}`
+			);
 			this._onClose.fire();
 		}));
 	}
@@ -433,6 +464,7 @@ class TunnelConnectionTransport extends Disposable implements IProtocolTransport
 	}
 
 	override dispose(): void {
+		this._closeRequested = true;
 		this._connection.close();
 		super.dispose();
 	}

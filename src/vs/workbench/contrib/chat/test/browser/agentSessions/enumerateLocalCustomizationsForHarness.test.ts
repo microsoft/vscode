@@ -16,8 +16,8 @@ import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 
-function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): IPromptPath {
-	return { uri, type, storage } as IPromptPath;
+function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage, sessionTypes?: readonly string[]): IPromptPath {
+	return { uri, type, storage, sessionTypes } as IPromptPath;
 }
 
 function makePromptsService(
@@ -82,6 +82,37 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		]);
 	});
 
+	test('matches logical harness types for local and remote agent-host resource schemes', async () => {
+		const copilotSkill = URI.file('/extension/skills/copilot/SKILL.md');
+		const claudeSkill = URI.file('/extension/skills/claude/SKILL.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.skill}/${PromptsStorage.extension}`, [
+				makePromptPath(copilotSkill, PromptsType.skill, PromptsStorage.extension, [SessionType.CopilotCLI]),
+				makePromptPath(claudeSkill, PromptsType.skill, PromptsStorage.extension, ['claude']),
+			]],
+		]));
+
+		const sessionTypes = [
+			SessionType.CopilotCLI,
+			SessionType.AgentHostCopilot,
+			'remote-devbox-copilotcli',
+			'agent-host-claude',
+			'remote-devbox-claude',
+		];
+		const results = await Promise.all(sessionTypes.map(async sessionType =>
+			(await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), sessionType, CancellationToken.None, undefined))
+				.map(item => item.uri.toString())
+		));
+
+		assert.deepStrictEqual(results, [
+			[copilotSkill.toString()],
+			[copilotSkill.toString()],
+			[copilotSkill.toString()],
+			[claudeSkill.toString()],
+			[claudeSkill.toString()],
+		]);
+	});
+
 	test('marks built-in skills disabled when the sync provider says so', async () => {
 		const builtin = URI.file('/builtin/create-pr/SKILL.md');
 		const promptsService = makePromptsService(new Map([
@@ -93,6 +124,28 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 
 		assert.strictEqual(result.length, 1);
 		assert.strictEqual(result[0].disabled, true);
+	});
+
+	test('honors user enablement only for built-in skills', async () => {
+		const builtinSkill = URI.file('/builtin/create-pr/SKILL.md');
+		const extensionAgent = URI.file('/extension/agents/reviewer.agent.md');
+		const promptsService = makePromptsService(
+			new Map([
+				[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [makePromptPath(builtinSkill, PromptsType.skill, PromptsStorage.builtIn)]],
+				[`${PromptsType.agent}/${PromptsStorage.extension}`, [makePromptPath(extensionAgent, PromptsType.agent, PromptsStorage.extension)]],
+			]),
+			new Map([
+				[PromptsType.skill, new ResourceSet([builtinSkill])],
+				[PromptsType.agent, new ResourceSet([extensionAgent])],
+			]),
+		);
+
+		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined);
+
+		assert.deepStrictEqual(result.map(item => ({ uri: item.uri.toString(), disabled: item.disabled })), [
+			{ uri: extensionAgent.toString(), disabled: false },
+			{ uri: builtinSkill.toString(), disabled: true },
+		]);
 	});
 
 	test('includes all user prompt types only when user storage is enabled', async () => {
@@ -145,54 +198,6 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		assert.deepStrictEqual(result.map(item => ({ uri: item.uri.toString(), disabled: item.disabled })), [
 			{ uri: enabled.toString(), disabled: false },
 			{ uri: disabled.toString(), disabled: true },
-		]);
-	});
-
-	test('marks built-in skills disabled when the user disabled them in the Customizations UI', async () => {
-		// The Enable/Disable actions write to `IPromptsService`, not to the
-		// per-harness sync provider. Both stores must be honored, otherwise a
-		// disabled built-in skill would still be synced to the agent host.
-		const disabledSkill = URI.file('/builtin/create-pr/SKILL.md');
-		const enabledSkill = URI.file('/builtin/merge/SKILL.md');
-		const promptsService = makePromptsService(
-			new Map([
-				[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [
-					makePromptPath(disabledSkill, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage),
-					makePromptPath(enabledSkill, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage),
-				]],
-			]),
-			new Map([[PromptsType.skill, new ResourceSet([disabledSkill])]]),
-		);
-
-		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined);
-
-		assert.deepStrictEqual(result.map(item => ({ uri: item.uri.toString(), disabled: item.disabled })), [
-			{ uri: disabledSkill.toString(), disabled: true },
-			{ uri: enabledSkill.toString(), disabled: false },
-		]);
-	});
-
-	test('does not honor the user-disabled store for prompt types the Customizations UI cannot re-enable', async () => {
-		// `getDisabledPromptFiles(agent)` is also written by the chat view agent
-		// picker ("hidden from agent picker"). The Customizations UI registers
-		// Enable/Disable only for built-in skills, so it has no way to bring a
-		// hidden agent back. Dropping it from the bundle would remove it from the
-		// Agents-window list too, stranding it permanently — so the wire must
-		// ignore that store here and leave the agent enabled.
-		const hiddenAgent = URI.file('/extension/agents/reviewer.agent.md');
-		const promptsService = makePromptsService(
-			new Map([
-				[`${PromptsType.agent}/${PromptsStorage.extension}`, [
-					makePromptPath(hiddenAgent, PromptsType.agent, PromptsStorage.extension),
-				]],
-			]),
-			new Map([[PromptsType.agent, new ResourceSet([hiddenAgent])]]),
-		);
-
-		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined);
-
-		assert.deepStrictEqual(result.map(item => ({ uri: item.uri.toString(), disabled: item.disabled })), [
-			{ uri: hiddenAgent.toString(), disabled: false },
 		]);
 	});
 

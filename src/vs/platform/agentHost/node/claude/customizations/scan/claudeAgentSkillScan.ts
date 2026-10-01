@@ -46,7 +46,7 @@ function collectByName<T extends INamedPluginResource>(into: Map<string, T>, ite
  * {@link detectPluginFormat}) so it holds for Claude / Open Plugins /
  * Copilot layouts and regardless of whether the plugin is enabled.
  */
-async function excludeNativePluginSkills(skills: readonly INamedPluginResource[], fileService: IFileService): Promise<INamedPluginResource[]> {
+async function excludeNativePluginSkills<T extends INamedPluginResource>(skills: readonly T[], fileService: IFileService): Promise<T[]> {
 	const isPluginDir = await Promise.all(skills.map(async skill => {
 		const dir = dirname(skill.uri);
 		const format = await detectPluginFormat(dir, fileService);

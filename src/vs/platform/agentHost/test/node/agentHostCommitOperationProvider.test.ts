@@ -65,6 +65,14 @@ suite('AgentHostCommitOperationContribution', () => {
 		assert.deepStrictEqual(operations?.map(op => op.id), []);
 	});
 
+	test('advertises commit for a new session without uncommitted changes', () => {
+		const provider = createContribution('worktree');
+
+		const operations = provider.getOperations({ sessionKey, changesetUri: uncommittedChangesetUri, changesetKind: ChangesetKind.Uncommitted, gitState: { ...gitStateWithUncommittedChanges, uncommittedChanges: 0 } });
+
+		assert.deepStrictEqual(operations?.map(op => op.id), ['commit']);
+	});
+
 	test('advertises commit on every folder session changeset when there are uncommitted changes', () => {
 		const provider = createContribution('folder');
 

@@ -196,6 +196,12 @@ export class BaseTelemetryService implements ITelemetryService {
 			...Object.fromEntries(props),
 			...this._sharedProperties
 		};
+		// Mark the queried-feature name trusted so the telemetry cleaner does not redact the
+		// `/vscode/`-scoped key as a `user-file-path`.
+		const queriedFeature = properties['ABExp.queriedFeature'];
+		if (typeof queriedFeature === 'string') {
+			properties['ABExp.queriedFeature'] = new TelemetryTrustedValue(queriedFeature);
+		}
 		this._microsoftTelemetrySender.sendInternalTelemetryEvent(eventName, properties);
 		this._microsoftTelemetrySender.sendTelemetryEvent(eventName, properties);
 	}

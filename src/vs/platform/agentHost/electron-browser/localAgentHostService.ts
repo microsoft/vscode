@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
-import { Emitter, Event } from '../../../base/common/event.js';
+import { Emitter, Event, Relay } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { mark } from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -31,6 +32,8 @@ import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceS
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
+import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	type AgentHostDebugLogsArtifactKind,
@@ -43,12 +46,16 @@ import {
 	IAgentCreateSessionConfig,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
+	type IAgentHostCanvases,
 	IAgentHostManagementService,
 	IAgentHostManagedSettingsDiagnostics,
 	IAgentHostNetworkDiagnosticsInfo,
 	IAgentHostNetworkFetchResult,
+	type IAgentHostOTelSettings,
+	type IAgentHostOTelPolicyReadiness,
 	IAgentHostService,
 	IAgentHostSocketInfo,
+	IAgentPluginUninstallRequest,
 	IAgentResolveSessionConfigParams,
 	IAgentSessionConfigCompletionsParams,
 	IAgentSessionMetadata,
@@ -146,6 +153,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	readonly clientId = generateUuid();
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
+	get canvases(): IAgentHostCanvases | undefined { return this._protocolClient?.canvases; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
@@ -156,12 +164,22 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private _didConnectInitially = false;
 	private _didStartInitialSessionList = false;
 	private _didCompleteInitialSessionList = false;
+	private _lastForwardedOTelPolicy: IAgentHostOTelSettings | undefined;
+	private _lastForwardedOTelPolicyReady: boolean | undefined;
 	private _startupTelemetry: AgentHostStartupTelemetry | undefined;
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
 	readonly onAgentHostExit = this._onAgentHostExit.event;
 	private readonly _onAgentHostStart = this._register(new Emitter<void>());
 	readonly onAgentHostStart = this._onAgentHostStart.event;
+
+	// Consumers can subscribe before prewarming creates the protocol client.
+	private readonly _onDidAction = this._register(new Relay<ActionEnvelope>());
+	readonly onDidAction = this._onDidAction.event;
+	private readonly _onDidNotification = this._register(new Relay<INotification>());
+	readonly onDidNotification = this._onDidNotification.event;
+	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -176,6 +194,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	constructor(
 		private readonly _clientInfo: Implementation,
+		private readonly _otelPolicyReadiness: IAgentHostOTelPolicyReadiness,
+		private readonly _sendOTelPolicy: (policy: IAgentHostOTelSettings, ready: boolean) => void = (policy, ready) => ipcRenderer.send(AgentHostOTelPolicyIpcChannel, policy, ready),
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -186,6 +206,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
 			? this._register(this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
+				logId: this.clientId,
 				connectionId: this.clientId,
 				transport: 'local',
 			}))
@@ -201,6 +222,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		};
 		ipcRenderer.on(AgentHostWillRestartIpcChannel, onWillRestart);
 		this._register(toDisposable(() => ipcRenderer.removeListener(AgentHostWillRestartIpcChannel, onWillRestart)));
+		this._register(this._configurationService.onDidChangeConfiguration(() => this._forwardOTelPolicy()));
+		this._register(this._otelPolicyReadiness.onDidChange(() => this._forwardOTelPolicy()));
 	}
 
 	startAgentHost(): void {
@@ -219,6 +242,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				() => this._createTransport(),
 				{ clientId: this.clientId, clientInfo: this._clientInfo },
 			));
+			this._onDidAction.input = this._protocolClient.onDidAction;
+			this._onDidNotification.input = this._protocolClient.onDidNotification;
+			this._onMcpNotification.input = this._protocolClient.onMcpNotification;
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
 			this._register(this._protocolClient.onDidFatalClose(() => {
 				if (!this._didConnectInitially) {
@@ -293,7 +319,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	private _forwardOTelPolicy(): void {
-		ipcRenderer.send(AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings(this._configurationService));
+		const policy = readAgentHostOTelPolicySettings(this._configurationService);
+		const ready = this._otelPolicyReadiness.isReady();
+		if (equals(this._lastForwardedOTelPolicy, policy) && this._lastForwardedOTelPolicyReady === ready) {
+			return;
+		}
+		this._lastForwardedOTelPolicy = policy;
+		this._lastForwardedOTelPolicyReady = ready;
+		this._sendOTelPolicy(policy, ready);
 	}
 
 	private _handleConnectionState(state: AgentHostClientState): void {
@@ -347,18 +380,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	get rootState(): IAgentSubscription<RootState> {
 		return this._protocolClient?.rootState ?? this._noopRootState;
-	}
-
-	get onDidAction(): Event<ActionEnvelope> {
-		return this._protocolClient?.onDidAction ?? Event.None;
-	}
-
-	get onDidNotification(): Event<INotification> {
-		return this._protocolClient?.onDidNotification ?? Event.None;
-	}
-
-	get onMcpNotification(): Event<IMcpNotification> {
-		return this._protocolClient?.onMcpNotification ?? Event.None;
 	}
 
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
@@ -424,6 +445,29 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().createDetachedWorktree(session, prompt);
 	}
 
+	async reportFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void> {
+		await this._protocolClient?.reportFirstResponse(diagnostic);
+	}
+
+	refreshSubscription(resource: URI): Promise<void> {
+		return this._requireClient().refreshSubscription(resource);
+	}
+
+	async reportUserInteraction(timing: IChatUserInteractionTiming): Promise<void> {
+		if (!this._protocolClient) {
+			throw new Error('Agent Host is not connected; user interaction telemetry was not exported');
+		}
+		await this._protocolClient.reportUserInteraction(timing);
+	}
+
+	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		return this._requireClient().removeSessionArtifact(session, artifactId);
+	}
+
+	importSession(session: URI): Promise<void> {
+		return this._requireClient().importSession(session);
+	}
+
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
 		return this._getManagementService().setDetachedWorktreeArchived(handle, archived);
 	}
@@ -438,6 +482,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
+	}
+
+	refreshCopilotConnectorSessions(): Promise<void> {
+		return this._getManagementService().refreshCopilotConnectorSessions();
+	}
+
+	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
+		return this._getManagementService().uninstallPlugin(provider, request);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

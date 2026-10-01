@@ -7,10 +7,11 @@ import {
 	GitHubFragmentError,
 	PullRequestComment,
 	PullRequestInlineComment,
+	PullRequestMergeMethod,
 	PullRequestRef,
 	PullRequestSnapshot,
 } from './githubPullRequestService.js';
-import { GitHubRepositoryRef } from './githubQueryService.js';
+import { GitHubPullRequestLookup, GitHubRepositoryRef } from './githubQueryService.js';
 
 export type GitHubMutationOutcome = 'succeeded' | 'reconciled' | 'indeterminate';
 
@@ -31,16 +32,13 @@ export interface CreatePullRequestOptions {
 	readonly draft: boolean;
 }
 
-export interface CreatedPullRequest {
-	readonly ref: PullRequestRef;
-	readonly id?: string;
-	readonly url: string;
-	readonly createdAt?: string;
+export interface CreatedPullRequest extends GitHubPullRequestLookup {
+	readonly title: string;
 }
 
 export interface EnablePullRequestAutoMergeOptions {
 	readonly pullRequestId: string;
-	readonly method: 'MERGE' | 'SQUASH' | 'REBASE';
+	readonly method: PullRequestMergeMethod;
 }
 
 export interface PullRequestNodeOptions {
@@ -74,6 +72,8 @@ export interface GitHubWorkflowRun {
 	readonly conclusion?: string;
 	readonly headSha: string;
 	readonly runAttempt: number;
+	/** Whether REST supplied a positive safe-integer attempt, independently of the compatibility fallback. */
+	readonly runAttemptKnown?: boolean;
 	readonly url?: string;
 	readonly createdAt?: string;
 	readonly updatedAt?: string;
@@ -83,8 +83,16 @@ export interface GitHubWorkflowJob {
 	readonly id: string;
 	readonly runId: string;
 	readonly name: string;
+	readonly headSha?: string;
+	readonly runAttempt?: number;
 	readonly status?: string;
 	readonly conclusion?: string;
+	readonly steps?: readonly {
+		readonly number: number;
+		readonly name: string;
+		readonly status?: string;
+		readonly conclusion?: string;
+	}[];
 	readonly checkRunId?: string;
 	readonly url?: string;
 	readonly startedAt?: string;
@@ -102,8 +110,13 @@ export interface GitHubCheckAnnotation {
 }
 
 export interface GitHubWorkflowLog {
+	/** Redacted whole log, or only a complete-line captured prefix when truncated. */
 	readonly text: string;
+	/** True when the download exceeded the byte limit; the text is not an EOF tail. */
 	readonly truncated: boolean;
+	/** Captured bytes before decoding, incomplete-line removal, and redaction. */
+	readonly bytesRead?: number;
+	readonly maximumBytes?: number;
 }
 
 export interface GitHubWorkflowRerunOptions extends PullRequestOperation {
@@ -131,7 +144,7 @@ export interface PullRequestMergeAuthorization {
 }
 
 export interface PullRequestMergeOptions {
-	readonly method: 'MERGE' | 'SQUASH' | 'REBASE';
+	readonly method: PullRequestMergeMethod;
 	readonly title?: string;
 	readonly message?: string;
 	readonly authorization: PullRequestMergeAuthorization;
@@ -158,7 +171,7 @@ export interface PullRequestMutationApi {
 	resolveThread(ref: PullRequestRef, threadId: string, signal: AbortSignal): Promise<void>;
 	replyAndResolveThread(ref: PullRequestRef, options: PullRequestReplyAndResolveOptions, signal: AbortSignal): Promise<PullRequestReplyAndResolveResult>;
 	listWorkflowRuns(ref: PullRequestRef, headSha: string, signal: AbortSignal): Promise<readonly GitHubWorkflowRun[]>;
-	listWorkflowJobs(ref: PullRequestRef, runId: string, signal: AbortSignal): Promise<readonly GitHubWorkflowJob[]>;
+	listWorkflowJobs(ref: PullRequestRef, runId: string, signal: AbortSignal, runAttempt?: number): Promise<readonly GitHubWorkflowJob[]>;
 	listCheckAnnotations(ref: PullRequestRef, checkRunId: string, signal: AbortSignal): Promise<readonly GitHubCheckAnnotation[]>;
 	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, signal: AbortSignal): Promise<GitHubWorkflowLog>;
 	rerunWorkflow(ref: PullRequestRef, options: GitHubWorkflowRerunOptions, signal: AbortSignal): Promise<PullRequestMutationResult<GitHubWorkflowRun>>;

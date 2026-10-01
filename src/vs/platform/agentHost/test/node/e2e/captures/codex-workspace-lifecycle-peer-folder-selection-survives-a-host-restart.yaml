@@ -1,0 +1,74 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember DIRECTORY_MEMORY. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember DIRECTORY_MEMORY. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''restored.txt'', require(''fs'').readFileSync(''marker.txt''))"`. Use the shell''s existing working directory: omit workdir, cwd, and all directory overrides from the tool arguments; do not prefix the command with cd or replace relative paths. Then reply exactly "done".'
+    response:
+      content:
+        - type: text
+          text: Running that exact command now in the current shell directory.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: node -e "require('fs').writeFileSync('restored.txt', require('fs').readFileSync('marker.txt'))"
+            login: true
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember DIRECTORY_MEMORY. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: 'Run exactly this shell command, with no modifications: `node -e "require(''fs'').writeFileSync(''restored.txt'', require(''fs'').readFileSync(''marker.txt''))"`. Use the shell''s existing working directory: omit workdir, cwd, and all directory overrides from the tool arguments; do not prefix the command with cd or replace relative paths. Then reply exactly "done".'
+        - role: assistant
+          content: Running that exact command now in the current shell directory.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "require('fs').writeFileSync('restored.txt', require('fs').readFileSync('marker.txt'))"
+                login: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: bfd297
+                Wall time: 0.1271 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+    response:
+      content: done
+      stopReason: end_turn

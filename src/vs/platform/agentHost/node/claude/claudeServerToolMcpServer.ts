@@ -72,7 +72,8 @@ export async function buildServerToolMcpServer(
 				const message = error instanceof Error ? error.message : String(error);
 				return { content: [{ type: 'text' as const, text: message }], isError: true };
 			}
-		}
+		},
+		def.deferLoading === undefined ? undefined : { alwaysLoad: !def.deferLoading },
 	)));
 	return sdk.createSdkMcpServer({ name: CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, tools });
 }

@@ -5,6 +5,7 @@
 
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import {
@@ -40,8 +41,9 @@ import {
 	PullRequestSnapshot,
 	PullRequestSubscription,
 } from './githubPullRequestService.js';
-import { IGitHubEndpointProvider } from './githubTypes.js';
+import { GitHubRequestTimeoutError, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
+import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, optionalObjectProperty, requiredId, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { IPullRequestResources } from './pullRequestResourceService.js';
@@ -64,7 +66,7 @@ interface IUnconfirmedRerun {
 const operationMarkerPrefix = '<!-- vscode-agent-host-operation:';
 const operationIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const maximumPaginationPages = 100;
-const maximumWorkflowLogBytes = 2 * 1024 * 1024;
+const maximumWorkflowLogBytes = 16 * 1024 * 1024;
 const workflowLogTimeout = 30_000;
 const mergePreparationLifetime = 5 * 60_000;
 
@@ -135,8 +137,9 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		signal: AbortSignal,
 	): Promise<CreatedPullRequest> {
 		return this._serializeRepository(ref, 'createPullRequest', async () => {
-			const created = await this._withCredential(ref, signal, async (credential, combinedSignal) => {
+			const created = await this._withCredential<CreatedPullRequest>(ref, signal, async (credential, combinedSignal) => {
 				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+					caller: 'github.mutations',
 					method: 'POST',
 					url: this._restUrl(ref, 'pulls'),
 					body: {
@@ -150,11 +153,14 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				}, combinedSignal);
 				const value = asObject(response.data, 'GitHub create pull request response was malformed');
 				const number = requiredNumber(value, 'number');
+				const state = stringProperty(value, 'state');
 				return {
 					ref: { ...ref, number },
 					id: idProperty(value, 'node_id'),
 					url: requiredString(value, 'html_url'),
+					title: options.title,
 					createdAt: stringProperty(value, 'created_at'),
+					...(state === 'open' || state === 'closed' ? { state } : {}),
 				};
 			});
 			return created;
@@ -176,6 +182,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 					{ pullRequestId: options.pullRequestId, mergeMethod: options.method },
 					combinedSignal,
 					'mutation',
+					{ caller: 'github.mutations' },
 				);
 				throwGraphQLErrors(response.errors);
 			});
@@ -260,12 +267,16 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		});
 	}
 
-	listWorkflowJobs(ref: PullRequestRef, runId: string, signal: AbortSignal): Promise<readonly GitHubWorkflowJob[]> {
+	listWorkflowJobs(ref: PullRequestRef, runId: string, signal: AbortSignal, runAttempt?: number): Promise<readonly GitHubWorkflowJob[]> {
 		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
+			if (runAttempt !== undefined && (!Number.isSafeInteger(runAttempt) || runAttempt < 1)) {
+				throw new GitHubRequestError('GitHub workflow run attempt must be a positive integer', 'validation');
+			}
+			const attemptPath = runAttempt === undefined ? '' : `/attempts/${runAttempt}`;
 			const values = await this._fetchRestArray(
 				ref,
 				credential,
-				`actions/runs/${encodeURIComponent(runId)}/jobs?per_page=100`,
+				`actions/runs/${encodeURIComponent(runId)}${attemptPath}/jobs?per_page=100`,
 				combinedSignal,
 				'jobs',
 			);
@@ -288,14 +299,19 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, signal: AbortSignal): Promise<GitHubWorkflowLog> {
 		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
 			const response = await this._transport.download(credential.account, credential.token, {
+				caller: 'github.mutations',
 				url: this._restUrl(ref, `actions/jobs/${encodeURIComponent(jobId)}/logs`),
 				maximumBytes: maximumWorkflowLogBytes,
 				timeout: workflowLogTimeout,
 				priority: 'interactive',
 			}, combinedSignal);
+			// Drop partial secrets before applying redaction to the entire captured log.
+			const text = response.truncated ? response.text.slice(0, response.text.lastIndexOf('\n') + 1) : response.text;
 			return {
-				text: redactWorkflowLog(response.text),
+				text: redactWorkflowLog(text),
 				truncated: response.truncated,
+				bytesRead: response.bytesRead,
+				maximumBytes: maximumWorkflowLogBytes,
 			};
 		});
 	}
@@ -325,6 +341,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			try {
 				await this._withCredential(ref, signal, async (credential, combinedSignal) => {
 					await this._transport.rest(credential.account, credential.token, {
+						caller: 'github.mutations',
 						method: 'POST',
 						url: this._restUrl(
 							ref,
@@ -361,6 +378,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			}
 			await this._withCredential(ref, signal, async (credential, combinedSignal) => {
 				await this._transport.rest(credential.account, credential.token, {
+					caller: 'github.mutations',
 					method: 'PUT',
 					url: this._restUrl(ref, `pulls/${ref.number}/update-branch`),
 					body: { expected_head_sha: options.expectedHeadSha },
@@ -453,6 +471,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				try {
 					const result = await this._withCredential(preparation.ref, signal, async (credential, combinedSignal) => {
 						const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+							caller: 'github.mutations',
 							method: 'PUT',
 							url: this._restUrl(preparation.ref, `pulls/${preparation.ref.number}/merge`),
 							body: {
@@ -630,6 +649,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	private _postComment(ref: PullRequestRef, body: string, signal: AbortSignal): Promise<PullRequestComment> {
 		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.mutations',
 				method: 'POST',
 				url: this._restUrl(ref, `issues/${ref.number}/comments`),
 				body: { body },
@@ -649,6 +669,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ threadId, body },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 			return toGraphQLComment(objectAt(response.data, 'addPullRequestReviewThreadReply', 'comment'));
@@ -665,6 +686,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ threadId },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 			const thread = objectAt(response.data, 'resolveReviewThread', 'thread');
@@ -719,6 +741,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	private async _getWorkflowRun(ref: PullRequestRef, runId: string, signal: AbortSignal): Promise<GitHubWorkflowRun> {
 		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.mutations',
 				method: 'GET',
 				url: this._restUrl(ref, `actions/runs/${encodeURIComponent(runId)}`),
 				etag: false,
@@ -752,6 +775,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ pullRequestId, expectedHeadOid },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 			return requiredString(objectAt(response.data, 'enqueuePullRequest', 'mergeQueueEntry'), 'id');
@@ -769,6 +793,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		let url: string | undefined = this._restUrl(ref, route);
 		for (let page = 0; url && page < maximumPaginationPages; page++) {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.mutations',
 				method: 'GET',
 				url,
 				etag: true,
@@ -804,6 +829,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				{ pullRequestId: options.pullRequestId },
 				combinedSignal,
 				'mutation',
+				{ caller: 'github.mutations' },
 			);
 			throwGraphQLErrors(response.errors);
 		});
@@ -987,7 +1013,11 @@ function rerunProvenAbsent(run: GitHubWorkflowRun, expectedRunAttempt: number): 
 }
 
 function isAmbiguousMutationError(error: unknown): boolean {
-	return error instanceof GitHubRequestError && (error.kind === 'network' || error.kind === 'server');
+	return error instanceof GitHubRequestError && (
+		error.kind === 'network' || error.kind === 'server'
+		|| error.kind === 'timeout' && (!(error instanceof GitHubRequestTimeoutError) || error.requestDispatched)
+		|| error.kind === 'responseTooLarge' && (error.statusCode === undefined || error.statusCode < 400 || error.statusCode >= 500)
+	);
 }
 
 function sameAccount(
@@ -1035,6 +1065,7 @@ function toGraphQLComment(value: unknown): PullRequestInlineComment {
 
 function toWorkflowRun(value: unknown): GitHubWorkflowRun {
 	const item = asObject(value, 'GitHub workflow run was malformed');
+	const runAttempt = numberProperty(item, 'run_attempt');
 	return {
 		id: requiredId(item, 'id'),
 		name: requiredString(item, 'name'),
@@ -1042,7 +1073,8 @@ function toWorkflowRun(value: unknown): GitHubWorkflowRun {
 		status: normalizedEnumProperty(item, 'status'),
 		conclusion: normalizedEnumProperty(item, 'conclusion'),
 		headSha: requiredString(item, 'head_sha'),
-		runAttempt: numberProperty(item, 'run_attempt') ?? 1,
+		runAttempt: runAttempt ?? 1,
+		runAttemptKnown: runAttempt !== undefined && Number.isSafeInteger(runAttempt) && runAttempt > 0,
 		url: stringProperty(item, 'html_url'),
 		createdAt: stringProperty(item, 'created_at'),
 		updatedAt: stringProperty(item, 'updated_at'),
@@ -1051,13 +1083,25 @@ function toWorkflowRun(value: unknown): GitHubWorkflowRun {
 
 function toWorkflowJob(value: unknown, runId: string): GitHubWorkflowJob {
 	const item = asObject(value, 'GitHub workflow job was malformed');
+	const steps = Reflect.get(item, 'steps');
 	return {
 		id: requiredId(item, 'id'),
 		runId,
 		name: requiredString(item, 'name'),
+		headSha: stringProperty(item, 'head_sha'),
+		runAttempt: numberProperty(item, 'run_attempt'),
 		status: normalizedEnumProperty(item, 'status'),
 		conclusion: normalizedEnumProperty(item, 'conclusion'),
-		checkRunId: idProperty(item, 'check_run_id'),
+		steps: steps === undefined || steps === null ? undefined : asArray(steps, 'GitHub workflow job steps were malformed').map(value => {
+			const step = asObject(value, 'GitHub workflow job step was malformed');
+			return {
+				number: requiredNumber(step, 'number'),
+				name: requiredString(step, 'name'),
+				status: normalizedEnumProperty(step, 'status'),
+				conclusion: normalizedEnumProperty(step, 'conclusion'),
+			};
+		}),
+		checkRunId: idProperty(item, 'check_run_id') ?? /\/check-runs\/(?<id>\d+)(?:[?#]|$)/.exec(stringProperty(item, 'check_run_url') ?? '')?.groups?.id,
 		url: stringProperty(item, 'html_url'),
 		startedAt: stringProperty(item, 'started_at'),
 		completedAt: stringProperty(item, 'completed_at'),
@@ -1089,12 +1133,22 @@ function toMergeResult(value: unknown): { readonly sha?: string; readonly messag
 }
 
 function redactWorkflowLog(value: string): string {
-	const masks = [...value.matchAll(/::add-mask::(?<secret>[^\r\n]+)/g)]
-		.map(match => match.groups?.secret)
-		.filter((secret): secret is string => Boolean(secret));
+	const masks = new Set<string>();
+	let maskCharacters = 0;
+	for (const match of value.matchAll(/::add-mask::(?<secret>[^\r\n]+)/g)) {
+		const secret = match.groups!.secret;
+		if (!masks.has(secret)) {
+			masks.add(secret);
+			maskCharacters += secret.length;
+			if (masks.size > 128 || maskCharacters > 64 * 1024 || masks.size * value.length > 512 * 1024 * 1024) {
+				throw new GitHubRequestError('GitHub workflow log exceeded redaction safety limits', 'validation');
+			}
+		}
+	}
 	let redacted = value.replace(/::add-mask::[^\r\n]+/g, '::add-mask::***');
-	for (const secret of masks) {
-		redacted = redacted.split(secret).join('***');
+	if (masks.size > 0) {
+		const pattern = [...masks].sort((left, right) => right.length - left.length).map(escapeRegExpCharacters).join('|');
+		redacted = redacted.replace(new RegExp(pattern, 'g'), '***');
 	}
 	return redacted
 		.replace(/\b(?:github_pat_|gh[pousr]_)[A-Za-z0-9_]{16,}\b/g, '***')
@@ -1149,105 +1203,6 @@ function toFragmentError(error: unknown): GitHubFragmentError {
 		return { message: error.message, kind: error.kind, statusCode: error.statusCode };
 	}
 	return { message: error instanceof Error ? error.message : String(error), kind: 'unknown' };
-}
-
-function nextLink(link: string | undefined): string | undefined {
-	if (!link) {
-		return undefined;
-	}
-	for (const part of link.split(',')) {
-		const match = /^\s*<(?<url>[^>]+)>\s*;\s*rel="(?<rel>[^"]+)"/.exec(part);
-		if (match?.groups?.rel.split(/\s+/).includes('next')) {
-			return match.groups.url;
-		}
-	}
-	return undefined;
-}
-
-function objectAt(value: unknown, ...path: readonly string[]): object {
-	let current = asObject(value, 'GitHub response was malformed');
-	for (const part of path) {
-		current = asObject(Reflect.get(current, part), `GitHub response property ${part} was malformed`);
-	}
-	return current;
-}
-
-function asObject(value: unknown, message: string): object {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		throw new GitHubRequestError(message, 'malformedResponse');
-	}
-	return value;
-}
-
-function asArray(value: unknown, message: string): readonly unknown[] {
-	if (!Array.isArray(value)) {
-		throw new GitHubRequestError(message, 'malformedResponse');
-	}
-	return value;
-}
-
-function arrayProperty(value: object, key: string): readonly unknown[] {
-	return asArray(Reflect.get(value, key), `GitHub response property ${key} was not an array`);
-}
-
-function optionalObjectProperty(value: object, key: string): object | undefined {
-	const property = Reflect.get(value, key);
-	return property === null || property === undefined ? undefined : asObject(property, `GitHub response property ${key} was malformed`);
-}
-
-function requiredString(value: object, key: string): string {
-	const property = stringProperty(value, key);
-	if (property === undefined) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not a string`, 'malformedResponse');
-	}
-	return property;
-}
-
-function stringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' ? property : undefined;
-}
-
-function nullableStringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return property === null ? undefined : typeof property === 'string' ? property : undefined;
-}
-
-function normalizedEnumProperty(value: object, key: string): string | undefined {
-	return nullableStringProperty(value, key)?.toUpperCase();
-}
-
-function numberProperty(value: object, key: string): number | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'number' && Number.isFinite(property) ? property : undefined;
-}
-
-function booleanProperty(value: object, key: string): boolean | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'boolean' ? property : undefined;
-}
-
-function idProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' || typeof property === 'number' ? String(property) : undefined;
-}
-
-function requiredId(value: object, ...keys: readonly string[]): string {
-	for (const key of keys) {
-		const id = idProperty(value, key);
-		if (id) {
-			return id;
-		}
-	}
-	throw new GitHubRequestError(`GitHub response did not contain ${keys.join(' or ')}`, 'malformedResponse');
-}
-
-function requiredNumber(value: object, key: string): number {
-	const property = numberProperty(value, key);
-	if (property === undefined) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not a number`, 'malformedResponse');
-	}
-	return property;
 }
 
 function toActor(value: object | undefined): { readonly id?: string; readonly login: string } | undefined {

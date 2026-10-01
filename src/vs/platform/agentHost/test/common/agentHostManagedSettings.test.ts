@@ -110,6 +110,38 @@ suite('AgentHostManagedSettings', () => {
 		});
 	});
 
+	test('canonicalizes IPv6 denied domains the same way as the network filter', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
+				defaultValue: [],
+				policyValue: ['[::1]', '::ffff:127.0.0.1', 'https://[2001:0db8:0:0:0:0:0:1]:8443/path'],
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain([::1])', 'Domain([::ffff:7f00:1])', 'Domain([2001:db8::1])'],
+		});
+	});
+
+	test('canonicalizes alternative IPv4 denied domains the same way as the network filter', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
+				defaultValue: [],
+				policyValue: ['127.1', '0300.0250.01.01', '0xa9fea9fe'],
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain(127.0.0.1)', 'Domain(192.168.1.1)', 'Domain(169.254.169.254)'],
+		});
+	});
+
 	test('denies configured domains while the network filter is on', () => {
 		const configurationService = createConfigurationService({
 			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },

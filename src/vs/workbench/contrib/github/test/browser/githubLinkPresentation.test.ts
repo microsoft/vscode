@@ -4,23 +4,61 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILinkPresentationProvider, ILinkPresentationProviderRegistration, ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IGitHubService } from '../../../../../platform/github/common/githubService.js';
+import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { GitHubIssue, GitHubRepository } from '../../../../../platform/github/common/githubQueryService.js';
-import { FragmentState, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
+import { FragmentState, PullRequestCore, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTransport.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService, NeverShowAgainScope, NoOpNotification, Severity } from '../../../../../platform/notification/common/notification.js';
 import { GitHubLinkPresentationContribution } from '../../browser/githubLinkPresentation.contribution.js';
 
 suite('GitHub link presentations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('releases a client acquired after its watcher is disposed', async () => {
+		let released = 0;
+		let credentialCalls = 0;
+		const release = store.add(toDisposable(() => released++));
+		const client = new class extends mock<IGitHubClient>() {
+			override readonly credentials = new class extends mock<IGitHubClient['credentials']>() {
+				override async getCredential(signal: AbortSignal): Promise<never> {
+					credentialCalls++;
+					signal.throwIfAborted();
+					throw new Error('Unexpected credential lookup');
+				}
+			}();
+		}();
+		const service = new class extends mock<IWorkbenchGitHubService>() {
+			override readonly onDidChangeDefaultClient = Event.None;
+			override async acquireDefaultAccountClient() {
+				return { object: client, dispose: () => release.dispose() };
+			}
+		}();
+		const links = new TestLinkPresentationService();
+		store.add(new GitHubLinkPresentationContribution(
+			service, links,
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override resolveGitHubUrl(path: string) { return `https://github.com/${path}`; }
+			}(),
+			new NullLogService(), new TestNotificationService(),
+		));
+		const watcher = store.add(links.createWatcher(URI.parse('https://github.com/owner/repo/issues/1')));
+		watcher.dispose();
+		await timeout(0);
+		assert.deepStrictEqual({ released, credentialCalls }, { released: 1, credentialCalls: 0 });
+	});
 
 	test('maps shared GitHub resources to accessible link presentations', async () => {
 		const linkPresentationService = new TestLinkPresentationService();
@@ -35,6 +73,7 @@ suite('GitHub link presentations', () => {
 				}
 			}(),
 			new NullLogService(),
+			new TestNotificationService(),
 		));
 
 		const resources = [
@@ -92,6 +131,7 @@ suite('GitHub link presentations', () => {
 				}
 			}(),
 			new NullLogService(),
+			new TestNotificationService(),
 		));
 
 		const before = linkPresentationService.hasProvider(URI.parse('https://github.com/microsoft/vscode/issues/1'));
@@ -108,7 +148,139 @@ suite('GitHub link presentations', () => {
 			newAuthority: true,
 		});
 	});
+
+	test('removes link presentations when the enterprise URL becomes unavailable', () => {
+		const linkPresentationService = new TestLinkPresentationService();
+		const onDidChangeDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
+		let baseUrl: string | undefined = 'https://github.example.com/';
+		store.add(new GitHubLinkPresentationContribution(
+			createGitHubService(() => { }),
+			linkPresentationService,
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = onDidChangeDefaultAccount.event;
+				override resolveGitHubUrl(path: string): string | undefined {
+					return baseUrl ? `${baseUrl}${path}` : undefined;
+				}
+			}(),
+			new NullLogService(),
+			new TestNotificationService(),
+		));
+
+		const enterpriseResource = URI.parse('https://github.example.com/microsoft/vscode/issues/1');
+		const before = linkPresentationService.hasProvider(enterpriseResource);
+		baseUrl = undefined;
+		onDidChangeDefaultAccount.fire(null);
+
+		assert.deepStrictEqual({
+			before,
+			enterprise: linkPresentationService.hasProvider(enterpriseResource),
+			public: linkPresentationService.hasProvider(URI.parse('https://github.com/microsoft/vscode/issues/1')),
+		}, {
+			before: true,
+			enterprise: false,
+			public: false,
+		});
+	});
+
+	test('prompts once to sign in when authentication is required', async () => {
+		const linkPresentationService = new TestLinkPresentationService();
+		const notificationService = new TestNotificationService();
+		let signInOptions: Parameters<IDefaultAccountService['signIn']>[0];
+		store.add(new GitHubLinkPresentationContribution(
+			createGitHubService(
+				() => { },
+				async () => { throw new GitHubRequestError('GitHub authentication is required', 'authentication'); },
+			),
+			linkPresentationService,
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override resolveGitHubUrl(path: string): string {
+					return `https://github.com/${path}`;
+				}
+				override async signIn(options?: Parameters<IDefaultAccountService['signIn']>[0]): Promise<IDefaultAccount | null> {
+					signInOptions = options;
+					return null;
+				}
+			}(),
+			new NullLogService(),
+			notificationService,
+		));
+
+		store.add(linkPresentationService.createWatcher(URI.parse('https://github.com/microsoft/vscode/issues/7')));
+		store.add(linkPresentationService.createWatcher(URI.parse('https://github.com/microsoft/vscode/pull/8')));
+		await notificationService.whenPrompted.p;
+		await notificationService.prompts[0].choices[0].run();
+
+		assert.deepStrictEqual({
+			prompts: notificationService.prompts.map(prompt => ({
+				severity: prompt.severity,
+				message: prompt.message,
+				labels: prompt.choices.map(choice => choice.label),
+				sticky: prompt.options?.sticky,
+				neverShowAgain: prompt.options?.neverShowAgain,
+			})),
+			signInOptions,
+		}, {
+			prompts: [{
+				severity: Severity.Info,
+				message: 'Sign in to GitHub to load pull request status and other GitHub link details.',
+				labels: ['Sign In'],
+				sticky: true,
+				neverShowAgain: {
+					id: 'github.linkPresentation.authenticationRequired',
+					isSecondary: true,
+					scope: NeverShowAgainScope.PROFILE,
+				},
+			}],
+			signInOptions: { additionalScopes: ['repo'] },
+		});
+	});
+
+	test('prompts to sign in when a pull request subscription reports an authentication error', async () => {
+		const linkPresentationService = new TestLinkPresentationService();
+		const notificationService = new TestNotificationService();
+		store.add(new GitHubLinkPresentationContribution(
+			createGitHubService(
+				() => { },
+				undefined,
+				{ status: 'error', complete: false, error: { message: 'GitHub authentication is required', kind: 'authentication' } },
+			),
+			linkPresentationService,
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override resolveGitHubUrl(path: string): string {
+					return `https://github.com/${path}`;
+				}
+			}(),
+			new NullLogService(),
+			notificationService,
+		));
+
+		store.add(linkPresentationService.createWatcher(URI.parse('https://github.com/microsoft/vscode/pull/8')));
+		await notificationService.whenPrompted.p;
+
+		assert.deepStrictEqual(notificationService.prompts.map(prompt => prompt.message), [
+			'Sign in to GitHub to load pull request status and other GitHub link details.',
+		]);
+	});
 });
+
+class TestNotificationService extends mock<INotificationService>() {
+
+	readonly whenPrompted = new DeferredPromise<void>();
+	readonly prompts: {
+		readonly severity: Severity;
+		readonly message: string;
+		readonly choices: Parameters<INotificationService['prompt']>[2];
+		readonly options: Parameters<INotificationService['prompt']>[3];
+	}[] = [];
+
+	override prompt(...[severity, message, choices, options]: Parameters<INotificationService['prompt']>): NoOpNotification {
+		this.prompts.push({ severity, message, choices, options });
+		void this.whenPrompted.complete();
+		return new NoOpNotification();
+	}
+}
 
 class TestLinkPresentationService extends mock<ILinkPresentationService>() {
 
@@ -141,14 +313,23 @@ class TestLinkPresentationService extends mock<ILinkPresentationService>() {
 	}
 }
 
-function createGitHubService(onHydrate: (resources: Parameters<IGitHubService['query']['hydrateResources']>[0]) => void): IGitHubService {
+function createGitHubService(
+	onHydrate: (resources: Parameters<IGitHubClient['query']['hydrateResources']>[0]) => void,
+	getCredential: IGitHubClient['credentials']['getCredential'] = async () => ({
+		account: { host: 'api.github.com', accountId: '1' },
+		token: 'token',
+		generation: 1,
+		signal: new AbortController().signal,
+	}),
+	pullRequestCore?: FragmentState<PullRequestCore>,
+): IWorkbenchGitHubService {
 	const ready = <T>(value: T): FragmentState<T> => ({ value, status: 'ready', complete: true });
 	const missing: FragmentState<never> = { status: 'missing', complete: false };
 	const pullRequestSnapshot: PullRequestSnapshot = {
 		ref: { host: 'api.github.com', accountId: '1', owner: 'microsoft', repo: 'vscode', number: 8 },
 		generation: 1,
 		headGeneration: 1,
-		core: ready({
+		core: pullRequestCore ?? ready({
 			repositoryNameWithOwner: 'microsoft/vscode',
 			number: 8,
 			title: 'Pull request title',
@@ -186,23 +367,18 @@ function createGitHubService(onHydrate: (resources: Parameters<IGitHubService['q
 		participants: missing,
 	};
 
-	return new class extends mock<IGitHubService>() {
+	const client = new class extends mock<IGitHubClient>() {
 		override readonly credentials = {
 			onDidInvalidate: Event.None,
-			getCredential: async () => ({
-				account: { host: 'api.github.com', accountId: '1' },
-				token: 'token',
-				generation: 1,
-				signal: new AbortController().signal,
-			}),
+			getCredential,
 			resolveCredential: async () => { throw new Error('Not implemented'); },
 			handleRequestError: () => { },
 		};
-		override readonly query = new class extends mock<IGitHubService['query']>() {
-			override async hydrateResources(resources: Parameters<IGitHubService['query']['hydrateResources']>[0]): Promise<void> {
+		override readonly query = new class extends mock<IGitHubClient['query']>() {
+			override async hydrateResources(resources: Parameters<IGitHubClient['query']['hydrateResources']>[0]): Promise<void> {
 				onHydrate(resources);
 			}
-			override subscribeRepository(ref: Parameters<IGitHubService['query']['subscribeRepository']>[0]) {
+			override subscribeRepository(ref: Parameters<IGitHubClient['query']['subscribeRepository']>[0]) {
 				return {
 					resource: {
 						ref,
@@ -225,7 +401,7 @@ function createGitHubService(onHydrate: (resources: Parameters<IGitHubService['q
 					dispose: () => { },
 				};
 			}
-			override subscribeIssue(ref: Parameters<IGitHubService['query']['subscribeIssue']>[0]) {
+			override subscribeIssue(ref: Parameters<IGitHubClient['query']['subscribeIssue']>[0]) {
 				return {
 					resource: {
 						ref,
@@ -249,7 +425,7 @@ function createGitHubService(onHydrate: (resources: Parameters<IGitHubService['q
 				};
 			}
 		}();
-		override readonly pullRequests = new class extends mock<IGitHubService['pullRequests']>() {
+		override readonly pullRequests = new class extends mock<IGitHubClient['pullRequests']>() {
 			override subscribePullRequest() {
 				return {
 					resource: {
@@ -262,5 +438,9 @@ function createGitHubService(onHydrate: (resources: Parameters<IGitHubService['q
 				};
 			}
 		}();
+	}();
+	return new class extends mock<IWorkbenchGitHubService>() {
+		override readonly onDidChangeDefaultClient = Event.None;
+		override async acquireDefaultAccountClient() { return new ImmortalReference(client); }
 	}();
 }

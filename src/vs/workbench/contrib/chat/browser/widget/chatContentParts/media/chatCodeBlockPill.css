@@ -12,6 +12,10 @@
 	margin-bottom: 14px;
 }
 
+.chat-codeblock-pill-container > .chat-tool-call-icon {
+	display: none;
+}
+
 .chat-codeblock-pill-container {
 	display: flex;
 	align-items: center;
@@ -54,6 +58,8 @@
 	}
 
 	.chat-codeblock-pill-widget {
+		display: inline-flex;
+		align-items: center;
 		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 		border-radius: 4px;
 		text-wrap: nowrap;
@@ -89,11 +95,12 @@
 		}
 
 		.icon {
+			display: inline-flex;
+			align-items: center;
 			vertical-align: middle;
 			line-height: 1em;
 			overflow: hidden;
 			font-size: 90%;
-			top: 1px;
 		}
 
 		.icon-label {
@@ -104,6 +111,9 @@
 		}
 
 		.icon::before {
+			--file-icon-mask-position: center;
+			--file-icon-mask-size: contain;
+
 			display: inline-block;
 			line-height: 100%;
 			overflow: hidden;
@@ -111,7 +121,6 @@
 			background-position: center;
 			background-repeat: no-repeat;
 			font-size: 100% !important;
-			margin-bottom: 1px;
 		}
 
 		span.label-detail {
