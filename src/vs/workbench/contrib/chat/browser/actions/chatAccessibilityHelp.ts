@@ -25,6 +25,7 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../agentSessions/agentSessions.j
 import { IChatWidgetService, isIChatResourceViewContext } from '../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../chatEditing/chatEditingActions.js';
 import { getModePickerAccessibilityHelp } from '../agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { getBackgroundShellsPillAccessibilityHelp } from '../sessionBackgroundShellsControl.js';
 
 export class PanelChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 107;
@@ -115,6 +116,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 				content.push(localize('chat.sessionStatusPillsCompact', "When space is limited, session status pills collapse to icons one at a time from right to left. Their full labels remain available to screen readers and in tooltips. Labels return as space becomes available. If the icons still do not fit, the row scrolls horizontally; use the arrow keys to reach every pill."));
 			}
 			content.push(localize('chat.sessionActivityPills', "Subagents and Customizations are available in both the Agents Window and editor window, and are hidden by default. Enable them from the session status toolbar context menu. Subagents lists the current chat's direct subagents, grouped into in-progress and completed chats. Activate an entry to open its chat. Subagent Options lets you show all subagents or only those in progress, remembered across windows. Customizations lists the agents, skills, instructions, hooks, prompts, MCP servers, and plugins used by the current chat. Activate an entry to reveal it in the Customizations editor."));
+			content.push(getBackgroundShellsPillAccessibilityHelp());
 		}
 		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
 		content.push(localize('chat.inputBlocked', 'When another Codex app is using a conversation, a banner above the input explains how to release it. You can keep editing your draft, but sending is disabled. Quit the app holding the conversation, such as ChatGPT, or exit the Codex CLI session. Use Tab to focus Retry in the banner, then press Enter or Space to check again. Retry does not send your draft.'));
