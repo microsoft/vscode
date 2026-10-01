@@ -109,7 +109,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/56b9ac7ce8ad6692c3269e73900a765e59c5705d6dc93d35b3134cf9ff571cde)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionExperimentalComposerBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/cca872ef63086a8a6f365be67574a9a2e5d54e3043a7819c48dda092e3d8fb7e)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/4f0b09dfc389d483439ce7f080d2dc2ed98fcf938589908ccbf6195e24930874)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/bd4b7314d7d4e2bb7f1765f25901efdb6d4b6d08f6acc5766f95d597d87ea968)
