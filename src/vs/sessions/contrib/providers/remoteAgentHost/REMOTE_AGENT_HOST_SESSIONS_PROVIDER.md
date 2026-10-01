@@ -35,6 +35,8 @@ Copilot agents may share a logical session type with local and cloud Copilot pro
 
 Never use the logical session type where host-specific routing is required. Resource schemes and provider IDs are created through the shared Agent Host identifier helpers rather than hand-built strings.
 
+Provider-owned session resolution policies retain the remote address for the provider's lifetime, independently of the live connection catalog. Client log discovery uses that identity to find address-keyed transcripts and forwarded logs after disconnection removes the connection.
+
 The remote Agent Host service owns client-local display-name overrides in machine-local application storage, keyed by normalized connection address. Overrides take precedence over configured or discovered names in provider and resource labels without changing connection details or routing identities; clearing an override restores the current default name.
 
 In the Editor Window, a chat session contribution's `sessionListGroup` selects its provider filter without changing its controller, resource scheme, or content-provider routing. Disconnected discovery supplies activity, not authoritative read/archive flags or proof that the host is available.

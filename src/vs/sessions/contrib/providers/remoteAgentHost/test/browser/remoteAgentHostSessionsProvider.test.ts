@@ -27,7 +27,7 @@ import { SessionArtifactType, withSessionArtifacts } from '../../../../../../pla
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -55,7 +55,7 @@ import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
-import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { IObservable, autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
@@ -575,6 +575,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(policies, [{
 			authority: agentHostAuthority('sandbox.example'),
 			policy: {
+				connectionAddress: 'sandbox.example',
 				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 				defaultChangesetKind: ChangesetKind.Session,
 			},
@@ -3427,6 +3428,79 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 			project: session.workspace.get()?.label,
 		};
 	}
+
+	for (const ctor of [CloudSandboxSessionsProvider, RemoteAgentHostSessionsProvider]) {
+		test(`${ctor.name} default chat title after metadata and catalog hydration`, () => {
+			const provider = createProvider(disposables, connection, {
+				ctor,
+				noConnection: true,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			});
+			const defaultChat = URI.parse('ahp-chat:/conversation/primary');
+			const peerChat = URI.parse(buildChatUri(backendResource, 'peer'));
+			provider.seedSessions([{
+				...metadata,
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'main' },
+					{ chat: peerChat, kind: 'peer', summary: 'Review' },
+				],
+			}]);
+			const session = provider.getSessions()[0];
+			assert.ok(session instanceof AgentHostSessionAdapter);
+			session.updateDiscoveryMetadata(metadata);
+			const titles = () => ({
+				session: session.title.get(),
+				chats: session.chats.get().map(chat => chat.title.get()),
+			});
+			const afterMetadata = titles();
+			const state: SessionState = {
+				provider: 'copilot',
+				title: 'Original task',
+				status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				defaultChat: defaultChat.toString(),
+				chats: [createChatState({
+					resource: defaultChat.toString(),
+					title: 'main',
+					status: ProtocolSessionStatus.Idle,
+					modifiedAt: new Date(2000).toISOString(),
+				})],
+			};
+			session.applyChatCatalog(state);
+			const afterCatalog = titles();
+			session.updateDiscoveryMetadata({ summary: 'Updated task', modifiedTime: 4000 });
+			const afterDiscovery = titles();
+			const usesSessionTitle = ctor === CloudSandboxSessionsProvider;
+
+			assert.deepStrictEqual({ afterMetadata, afterCatalog, afterDiscovery }, {
+				afterMetadata: { session: 'Original task', chats: [usesSessionTitle ? 'Original task' : 'main', 'Review'] },
+				afterCatalog: { session: 'Original task', chats: [usesSessionTitle ? 'Original task' : 'main'] },
+				afterDiscovery: { session: 'Updated task', chats: [usesSessionTitle ? 'Updated task' : 'main'] },
+			});
+		});
+	}
+
+	test('renaming the cloud default chat updates the session title', async () => {
+		const provider = createSandboxProvider();
+		seed(provider);
+		connection.addSession({ ...metadata, session: backendResource });
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+
+		await provider.renameChat(session.sessionId, session.mainChat.get().resource, 'Renamed task');
+
+		assert.deepStrictEqual({
+			sessionTitle: session.title.get(),
+			chatTitle: session.mainChat.get().title.get(),
+			actions: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+		}, {
+			sessionTitle: 'Renamed task',
+			chatTitle: 'Renamed task',
+			actions: [{ channel: backendResource.toString(), action: { type: ActionType.SessionTitleChanged, title: 'Renamed task' } }],
+		});
+	});
 
 	test('discovery refreshes a provisional session without publishing or replacing it', () => {
 		const provider = createSandboxProvider();

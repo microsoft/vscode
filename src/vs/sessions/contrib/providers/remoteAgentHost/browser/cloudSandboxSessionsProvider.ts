@@ -38,6 +38,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return {
 			...super._adapterOptions(),
 			preserveStatusWhenDisconnected: true,
+			useSessionTitleForDefaultChat: true,
 			externalSessionState: () => constObservable(false),
 		};
 	}

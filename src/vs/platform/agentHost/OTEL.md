@@ -114,6 +114,7 @@ the deadline remain missing; the marker is not proof that a turn completed.
 | Host `timeToFirstProgress`, `timeToFirstSubstantiveProgress` | Turn start to existing first visible/substantive progress boundaries; absent if not observed |
 | Host `sendStageWorkingDirectoryMs`, `sendStageModelSelectionMs`, `sendStageAttachmentsMs`, `sendStageContributionsMs` | Elapsed time in each existing pre-send stage that ran; an interrupted open stage retains its partial duration |
 | Host `sendStageCheckpointMs` | **Residual critical-path wait** for the checkpoint after overlap with earlier preparation, not the entire checkpoint operation |
+| Host `providerStageQueueMs`, `providerStageClientMs`, `providerStageSnapshotMs`, `providerStageConfigMs`, `providerStageCreateMs`, `providerStageFinalizeMs`, `providerStagePersistMs`, `providerStageRefreshMs`, `providerStageTurnPrepareMs`, `providerStageModelResponseMs` | Sequential provider-marked stages between provider dispatch and first progress (chat queue wait, SDK client acquisition, customization snapshot, session config, SDK create/resume, post-create setup, session registration/persistence, live-session refresh, per-turn preparation, and SDK send until first progress). Only stages the provider ran are present; a turn ending before first progress retains its partial open stage. Copilot marks all of them; other providers currently mark none |
 | Host `hostRootTurnOrdinal`, `hostProcessAgeMs`, `titleGenerationStrategy` | Existing root ordinal and process age captured at turn start, and effective `activeAgent`, `utility`, or `deferred` strategy when observed |
 | Renderer `requestId` | Exact client request ID, duplicated as `turnId` for joins |
 | Renderer `outcome`, `sessionTurnKind`, `invocationKind` | Existing diagnostic classifications described below |
@@ -187,7 +188,11 @@ discarding them from outcome reporting. Missing historical fields remain unknown
 
 The host log separately records `[AgentHostTurnTiming]` JSON with `schemaVersion: 1`,
 `sessionId`, `chatId`, `turnId`, `provider`, `hostRootTurnOrdinal` (one-based, across providers)
-and `hostProcessAgeMs`, captured at turn start. The first strategy capture adds
+and `hostProcessAgeMs`, captured at turn start. At a dispatched turn's first
+progress, `[AgentHostFirstProgress]` JSON records `timeToFirstProgress`,
+`timeToProviderDispatch`, and the rounded host `sendStages` and provider
+`providerStages` durations observed so far, for attributing local latency
+without product telemetry. The first strategy capture adds
 an enriched marker with the same start values and `titleGenerationStrategy`
 (`activeAgent`, `utility`, or `deferred`). Merge compatible markers for one turn,
 retaining the known strategy rather than counting them as separate observations.

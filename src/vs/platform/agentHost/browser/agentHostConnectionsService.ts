@@ -178,6 +178,7 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		const backendProvider = alias?.ui === provider ? alias.backend : provider;
 		return {
 			connectionAuthority: authority,
+			...(policy?.connectionAddress !== undefined ? { connectionAddress: policy.connectionAddress } : {}),
 			backendSession: AgentSession.uri(backendProvider, rawSessionId),
 			defaultChangesetKind: policy?.defaultChangesetKind,
 		};

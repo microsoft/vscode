@@ -22,7 +22,7 @@ import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleController.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostProviderSendStage, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codex/codexAccountTelemetry.js';
 
@@ -242,6 +242,16 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 	sendStageContributionsMs: number | undefined;
 	sendStageCheckpointMs: number | undefined;
 	timeToProviderDispatch: number | undefined;
+	providerStageQueueMs?: number;
+	providerStageClientMs?: number;
+	providerStageSnapshotMs?: number;
+	providerStageConfigMs?: number;
+	providerStageCreateMs?: number;
+	providerStageFinalizeMs?: number;
+	providerStagePersistMs?: number;
+	providerStageRefreshMs?: number;
+	providerStageTurnPrepareMs?: number;
+	providerStageModelResponseMs?: number;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | TelemetryTrustedValue<string> | undefined;
@@ -286,6 +296,16 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	sendStageContributionsMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent running outgoing-turn chat contributions before dispatching the turn.' };
 	sendStageCheckpointMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent still waiting on the turn-start checkpoint before dispatching the turn, after it overlapped the earlier pre-send stages.' };
 	timeToProviderDispatch: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start until the message was handed to the provider, covering all host pre-send stages.' };
+	providerStageQueueMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider waited behind earlier operations on the same chat, before first progress.' };
+	providerStageClientMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent acquiring or starting its SDK client, before first progress.' };
+	providerStageSnapshotMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent resolving customization, agent and MCP state for a session launch.' };
+	providerStageConfigMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent building the session configuration.' };
+	providerStageCreateMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider SDK create or resume session call took.' };
+	providerStageFinalizeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent on post-create session setup.' };
+	providerStagePersistMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent registering and persisting a newly launched session.' };
+	providerStageRefreshMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent refreshing a live session whose configuration changed.' };
+	providerStageTurnPrepareMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider spent on per-turn preparation before the SDK send.' };
+	providerStageModelResponseMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from the provider SDK send until first visible progress, or until the turn ended without progress.' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trusted provider model identifier selected at turn start, or a generic value for BYOK and unknown models.' };
@@ -373,6 +393,8 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	sendStageDurationsMs?: ReadonlyMap<AgentHostTurnSendStage, number>;
 	/** Elapsed time from turn start to provider dispatch, in milliseconds. */
 	sendDispatchedMs?: number;
+	/** Elapsed time of each provider stage between dispatch and first progress, in milliseconds. */
+	providerStageDurationsMs?: ReadonlyMap<AgentHostProviderSendStage, number>;
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | undefined;
@@ -956,6 +978,41 @@ export interface IAgentHostStalledToolCallCompletedReport extends IAgentHostTurn
 	timeAfterStallMs: number;
 }
 
+interface IProviderStageMeasurements {
+	providerStageQueueMs?: number;
+	providerStageClientMs?: number;
+	providerStageSnapshotMs?: number;
+	providerStageConfigMs?: number;
+	providerStageCreateMs?: number;
+	providerStageFinalizeMs?: number;
+	providerStagePersistMs?: number;
+	providerStageRefreshMs?: number;
+	providerStageTurnPrepareMs?: number;
+	providerStageModelResponseMs?: number;
+}
+
+const providerStageMeasurementKeys: { readonly [K in AgentHostProviderSendStage]: keyof IProviderStageMeasurements } = {
+	queue: 'providerStageQueueMs',
+	client: 'providerStageClientMs',
+	snapshot: 'providerStageSnapshotMs',
+	config: 'providerStageConfigMs',
+	create: 'providerStageCreateMs',
+	finalize: 'providerStageFinalizeMs',
+	persist: 'providerStagePersistMs',
+	refresh: 'providerStageRefreshMs',
+	turnPrepare: 'providerStageTurnPrepareMs',
+	modelResponse: 'providerStageModelResponseMs',
+};
+
+/** Projects observed provider stages to measurements, omitting stages that never ran. */
+function toProviderStageMeasurements(durations: ReadonlyMap<AgentHostProviderSendStage, number> | undefined): IProviderStageMeasurements {
+	const result: IProviderStageMeasurements = {};
+	for (const [stage, ms] of durations ?? []) {
+		result[providerStageMeasurementKeys[stage]] = ms;
+	}
+	return result;
+}
+
 export function toTelemetryModel(model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined): 'byokModel' | 'unknown' | TelemetryTrustedValue<string> | undefined {
 	if (model === undefined) {
 		return undefined;
@@ -1403,6 +1460,7 @@ export class AgentHostTelemetryReporter {
 		const chatSessionId = getTelemetryChatSessionId(report.session);
 		const isSubagent = isSubagentChatUri(report.session) || isSubagentSession(session);
 		const model = toTelemetryModel(report.model, report.modelTelemetryKind);
+		const providerStages = toProviderStageMeasurements(report.providerStageDurationsMs);
 		this._otelService?.emitTurnTiming({
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
@@ -1419,6 +1477,7 @@ export class AgentHostTelemetryReporter {
 			sendStageAttachmentsMs: report.sendStageDurationsMs?.get('attachments'),
 			sendStageContributionsMs: report.sendStageDurationsMs?.get('contributions'),
 			sendStageCheckpointMs: report.sendStageDurationsMs?.get('checkpoint'),
+			...providerStages,
 			hostRootTurnOrdinal: report.hostRootTurnOrdinal,
 			hostProcessAgeMs: report.hostProcessAgeMs,
 			titleGenerationStrategy: report.titleGenerationStrategy,
@@ -1450,6 +1509,7 @@ export class AgentHostTelemetryReporter {
 			sendStageContributionsMs: report.sendStageDurationsMs?.get('contributions'),
 			sendStageCheckpointMs: report.sendStageDurationsMs?.get('checkpoint'),
 			timeToProviderDispatch: report.sendDispatchedMs,
+			...providerStages,
 			totalTime: report.totalTime,
 			result: report.result,
 			model,
