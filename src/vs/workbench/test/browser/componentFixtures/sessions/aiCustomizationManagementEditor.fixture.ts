@@ -1793,6 +1793,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
 			'Featured cards must place source metadata beside the name and the description on the next line.',
 		);
+		const browsePrimaryAction = featuredCard?.querySelector<HTMLElement>(':scope > .customization-discovery-card-primary');
+		assert(
+			!featuredCard || !browsePrimaryAction
+			|| Math.abs(featuredCard.getBoundingClientRect().width - browsePrimaryAction.getBoundingClientRect().width) <= 1
+			&& Math.abs(featuredCard.getBoundingClientRect().height - browsePrimaryAction.getBoundingClientRect().height) <= 1,
+			'The Discover card primary action must cover the entire card behind its independent action.',
+		);
+		const cardIcon = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-icon');
+		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must use the compact marketplace icon size.');
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
 		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
@@ -1918,21 +1927,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}
 			availablePrimaryAction.blur();
 		}
-		const browseCard = ctx.container.querySelector<HTMLElement>('.customization-discovery-card');
-		const browsePrimaryAction = browseCard?.querySelector<HTMLElement>(':scope > .customization-discovery-card-primary');
-		assert(
-			!browseCard || !browsePrimaryAction
-			|| Math.abs(browseCard.getBoundingClientRect().width - browsePrimaryAction.getBoundingClientRect().width) <= 1
-			&& Math.abs(browseCard.getBoundingClientRect().height - browsePrimaryAction.getBoundingClientRect().height) <= 1,
-			'The Discover card primary action must cover the entire card behind its independent action.',
-		);
-		const cardIcon = ctx.container.querySelector<HTMLElement>('.customization-discovery-card-icon');
 		const resultIcon = availableRows[0]?.querySelector<HTMLElement>('.customization-discovery-result-icon');
-		assert(
-			(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40)
-				&& (!resultIcon || resultIcon.offsetWidth === 40 && resultIcon.offsetHeight === 40),
-			'Discover card and result icons must use the compact marketplace size.',
-		);
+		assert(!resultIcon || resultIcon.offsetWidth === 40 && resultIcon.offsetHeight === 40, 'Discover results must use the compact marketplace icon size.');
 		if (options.selectDiscoveryResult) {
 			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
 			const selectedRow = resultRows[resultRows.length - 1];

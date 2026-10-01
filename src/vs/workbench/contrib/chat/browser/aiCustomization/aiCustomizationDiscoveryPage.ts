@@ -418,7 +418,10 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.description, { content: description }));
 		const registerOpenListeners = (open: () => void) => {
-			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, open));
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
+				event.stopPropagation();
+				open();
+			}));
 		};
 		if (element.kind === 'installed') {
 			registerOpenListeners(() => {
