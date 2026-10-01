@@ -1483,6 +1483,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 				this.renderAttachedContext();
 			},
+			setModelProgrammatically: (model: ILanguageModelChatMetadataAndIdentifier) => {
+				this._applyProgrammaticLanguageModel(model);
+				if (!this.options.suppressModelPersistence) {
+					storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
+				}
+				this.renderAttachedContext();
+			},
 			getModels: () => this.getModels(),
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
