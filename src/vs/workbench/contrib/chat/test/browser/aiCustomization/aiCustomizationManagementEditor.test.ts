@@ -2775,7 +2775,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('keeps the unified sidebar entry reachable when all workspace migrations are skipped', () => {
+	test('shows the unified sidebar entry only while actionable migrations remain', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
@@ -2783,13 +2783,15 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationShortcutButton = document.createElement('button');
 		editor.migrationShortcutCount = document.createElement('span');
 		editor.layoutSidebar = () => { };
+		const states: (string | null)[][] = [];
+		editor.updateSidebarMigrationShortcut();
+		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
 		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.McpServers, [{
 			type: CustomizationMigrationType.McpServers, id: 'server', name: 'server',
 			storage: PromptsStorage.local,
 			sourceUri: URI.file('/workspace/.vscode/mcp.json'), targetUri: URI.file('/workspace/.mcp.json'),
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 		}]);
-		const states: (string | null)[][] = [];
 		for (const skipped of [false, true, false]) {
 			editor.migrationWorkspaceSkipped = skipped;
 			editor.updateSidebarMigrationShortcut();
@@ -2798,7 +2800,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.harnessService.activeHarness.set('local', undefined);
 		editor.updateSidebarMigrationShortcut();
 		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
-		assert.deepStrictEqual(states, [['', '1'], ['', ''], ['', '1'], ['none', '1']]);
+		assert.deepStrictEqual(states, [['none', ''], ['', '1'], ['none', ''], ['', '1'], ['none', '1']]);
 		editor.editorPreviewDisposables.dispose();
 	});
 
