@@ -1489,6 +1489,67 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(calls, ['second', 'first', 'third']);
 	});
 
+	test('model text is expanded before other contributions without changing stored display text', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const message: Message = { text: '/compact', origin: { kind: MessageKind.User }, _meta: { 'copilot.modelText': 'Explain compact without executing it' } };
+		const result = await contributions.service.outgoingTurn({ ...outgoingTurn('expanded'), message });
+		const command = await contributions.service.outgoingTurn({
+			...outgoingTurn('command'),
+			message: { ...message, _meta: { ...message._meta, 'copilot.command': { name: 'compact', focus: 'keep auth' } } },
+		});
+		assert.deepStrictEqual({
+			display: message.text,
+			expanded: result.message.text,
+			meta: result.message._meta,
+			command: command.message.text,
+		}, {
+			display: '/compact',
+			expanded: 'Explain compact without executing it',
+			meta: message._meta,
+			command: '/compact keep auth',
+		});
+	});
+
+	test('restores model-text display metadata before an interrupted turn finishes', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildDefaultChatUri(contributions.session);
+		const message: Message = { text: 'display', origin: { kind: MessageKind.User }, _meta: { 'copilot.modelText': 'expanded', opaque: true } };
+		await contributions.service.outgoingTurn({ session: contributions.session, chat, turnId: 'native-turn', message });
+		await contributions.database.setTurnEventId('native-turn', 'sdk-event');
+		const [restored] = await contributions.service.hydrateTurns({ session: contributions.session, chat }, [{
+			...hydrationTurn('sdk-event'), message: { text: 'expanded', origin: { kind: MessageKind.User } },
+		}]);
+		assert.deepStrictEqual(restored.message, message);
+	});
+
+	test('expanded steering display metadata is persisted when the provider starts its turn', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildDefaultChatUri(contributions.session);
+		const message: Message = { text: 'display steering', origin: { kind: MessageKind.User }, _meta: { 'copilot.modelText': 'expanded steering', opaque: false } };
+		contributions.service.didDispatchAction(dispatchedAction(chat, contributions.session, {
+			type: ActionType.ChatTurnStarted, turnId: 'steering-turn', queuedMessageId: 'pending-steering',
+			startedAt: '2026-09-30T12:00:00.000Z', message,
+		}));
+		await contributions.database.setTurnEventId('steering-turn', 'sdk-steering-event');
+		const [restored] = await contributions.service.hydrateTurns({ session: contributions.session, chat }, [{
+			...hydrationTurn('sdk-steering-event'), message: { text: 'expanded steering', origin: { kind: MessageKind.User } },
+		}]);
+		assert.deepStrictEqual(restored.message, message);
+	});
+
+	test('a corrupt display record does not discard valid restored messages', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const chat = buildDefaultChatUri(contributions.session);
+		const message: Message = { text: 'display', origin: { kind: MessageKind.User }, _meta: { 'copilot.modelText': 'expanded' } };
+		await contributions.service.outgoingTurn({ session: contributions.session, chat, turnId: 'valid', message });
+		await contributions.database.setMetadata('modelText.display.corrupt', 'not-json');
+		const restored = await contributions.service.hydrateTurns({ session: contributions.session, chat }, [
+			{ ...hydrationTurn('valid'), message: { text: 'expanded', origin: { kind: MessageKind.User } } },
+			hydrationTurn('corrupt'),
+		]);
+		assert.deepStrictEqual(restored.map(turn => turn.message.text), ['display', 'corrupt']);
+	});
+
 	test('runs built-in turn-end contributions in the original sequence', () => {
 		const observed: string[] = [];
 		const contributions = createBuiltInContributions(disposables, observed);

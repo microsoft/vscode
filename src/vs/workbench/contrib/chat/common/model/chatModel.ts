@@ -139,6 +139,7 @@ export function getRestoredChatRequestSource(request: Pick<IChatRequestModel, 'r
 }
 
 export interface IChatRequestModel {
+	readonly agentHostMetadata?: Record<string, unknown>;
 	readonly id: string;
 	readonly timestamp: number;
 	readonly requestTimestamp: number | undefined;
@@ -411,6 +412,7 @@ export interface IChatRequestModeInstructions {
 }
 
 export interface IChatRequestModelParameters {
+	agentHostMetadata?: Record<string, unknown>;
 	session: ChatModel;
 	message: IParsedChatRequest;
 	variableData: IChatRequestVariableData;
@@ -439,6 +441,7 @@ export interface IChatRequestModelParameters {
 }
 
 export class ChatRequestModel implements IChatRequestModel {
+	public readonly agentHostMetadata?: Record<string, unknown>;
 	public readonly id: string;
 	public response: ChatResponseModel | undefined;
 	public shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
@@ -515,6 +518,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 
 	constructor(params: IChatRequestModelParameters) {
+		this.agentHostMetadata = params.agentHostMetadata;
 		this._session = params.session;
 		this.message = params.message;
 		this._variableData = params.variableData;
@@ -1793,6 +1797,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			&& currentUsage.copilotCredits === usage.copilotCredits
 			&& currentUsage.sessionCopilotCredits === usage.sessionCopilotCredits
 			&& equals(currentUsage.promptTokenDetails, usage.promptTokenDetails)
+			&& equals(currentUsage.contextUsage, usage.contextUsage)
+			&& equals(currentUsage.latestModelCall, usage.latestModelCall)
 			&& equals(currentUsage.modelTotals, usage.modelTotals);
 	}
 
@@ -1929,11 +1935,13 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			completionTokens: this.completionTokenCount,
 			outputBuffer: this.usage?.outputBuffer,
 			promptTokenDetails: this.usage?.promptTokenDetails,
+			...(this.usage?.latestModelCall ? { latestModelCall: this.usage.latestModelCall } : {}),
+			...(this.usage?.contextUsage ? { contextUsage: this.usage.contextUsage } : {}),
 			copilotCredits: this.usage?.copilotCredits,
 			modelTotals: this.usage?.modelTotals,
 			sessionCopilotCredits: this.usage?.sessionCopilotCredits,
 			elapsedMs: this.elapsedMs ?? (this.completedAt ? Math.max(0, this.completedAt - this.confirmationAdjustedTimestamp.get()) : undefined),
-		} satisfies WithDefinedProps<Omit<ISerializableChatResponseData, 'timestamp'>>;
+		} satisfies WithDefinedProps<Omit<ISerializableChatResponseData, 'timestamp' | 'latestModelCall' | 'contextUsage'>> & Pick<ISerializableChatResponseData, 'latestModelCall' | 'contextUsage'>;
 	}
 }
 
@@ -2036,6 +2044,8 @@ interface ISerializableChatResponseData {
 	completionTokens?: number;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
+	latestModelCall?: IChatUsage['latestModelCall'];
+	contextUsage?: IChatUsage['contextUsage'];
 	copilotCredits?: number;
 	modelTotals?: readonly IChatUsageModelTotal[];
 	sessionCopilotCredits?: number;
@@ -2045,6 +2055,7 @@ interface ISerializableChatResponseData {
 export type SerializedChatResponsePart = IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatThinkingPart | IChatProgressResponseContentSerialized | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart;
 
 export interface ISerializableChatRequestData extends ISerializableChatResponseData {
+	agentHostMetadata?: Record<string, unknown>;
 	requestId: string;
 	message: string | IParsedChatRequest; // string => old format
 	/** Is really like "prompt data". This is the message in the format in which the agent gets it + variable values. */
@@ -3131,6 +3142,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			timestamp: requestTimestamp,
 			fallbackTimestamp: this._timestamp,
 			restoredId: raw.requestId,
+			agentHostMetadata: raw.agentHostMetadata,
 			confirmation: raw.confirmation,
 			editedFileEvents: raw.editedFileEvents,
 			modelId: raw.modelId,
@@ -3198,6 +3210,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					completionTokens: raw.completionTokens ?? 0,
 					outputBuffer: raw.outputBuffer,
 					promptTokenDetails: raw.promptTokenDetails,
+					latestModelCall: raw.latestModelCall,
+					contextUsage: raw.contextUsage,
 					copilotCredits: raw.copilotCredits,
 					modelTotals: raw.modelTotals,
 					sessionCopilotCredits: raw.sessionCopilotCredits,
@@ -3351,6 +3365,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		isRequestHiddenFromTranscript?: boolean,
 		requestSource?: ChatRequestSource,
 		modelConfiguration?: IStringDictionary<unknown>,
+		agentHostMetadata?: Record<string, unknown>,
 	): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
@@ -3374,6 +3389,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			isCompleteAddedRequest,
 			modelId,
 			modelConfiguration,
+			agentHostMetadata,
 			editedFileEvents: editedFileEvents.length ? editedFileEvents : undefined,
 			userSelectedTools,
 			isSystemInitiated,
@@ -3542,6 +3558,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					editedFileEvents: r.editedFileEvents,
 					modelId: r.modelId,
 					modelConfiguration: r.modelConfiguration,
+					...(r.agentHostMetadata ? { agentHostMetadata: r.agentHostMetadata } : {}),
 					modeInfo: r.modeInfo,
 					isSystemInitiated: r.isSystemInitiated || undefined,
 					...(r.requestSource !== undefined ? { requestSource: r.requestSource } : {}),

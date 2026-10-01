@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
@@ -49,6 +50,7 @@ import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
+import { readAgentModelText } from '../../common/meta/agentMessageMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
@@ -63,7 +65,7 @@ import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
@@ -1616,13 +1618,14 @@ export class CopilotAgentSession extends Disposable {
 		}
 		let substringMatch: [string, IPendingSteering] | undefined;
 		for (const [id, pending] of this._pendingSteeringFlips) {
-			if (pending.pendingMessage.message.text === content) {
+			const prompt = readAgentModelText(pending.pendingMessage.message) ?? pending.pendingMessage.message.text;
+			if (prompt === content || pending.pendingMessage.message.text === content) {
 				this._pendingSteeringFlips.delete(id);
 				return pending;
 			}
-			if (pending.pendingMessage.message.text.length > 0
-				&& content.includes(pending.pendingMessage.message.text)
-				&& (!substringMatch || pending.pendingMessage.message.text.length > substringMatch[1].pendingMessage.message.text.length)) {
+			if (prompt.length > 0
+				&& content.includes(prompt)
+				&& (!substringMatch || prompt.length > (readAgentModelText(substringMatch[1].pendingMessage.message) ?? substringMatch[1].pendingMessage.message.text).length)) {
 				substringMatch = [id, pending];
 			}
 		}
@@ -3799,9 +3802,10 @@ export class CopilotAgentSession extends Disposable {
 			// prompt as a `<reminder>` block instead: the runtime forwards it to the model, and the host's
 			// `stripPromptScaffolding` removes it from the displayed message (#331154).
 			const snapshotReminder = this._snapshotReadonlyReminder(steeringMessage.message.attachments);
+			const modelText = readAgentModelText(steeringMessage.message) ?? steeringMessage.message.text;
 			const steeringPrompt = snapshotReminder
-				? `${steeringMessage.message.text}\n\n<reminder>\n${snapshotReminder}\n</reminder>`
-				: steeringMessage.message.text;
+				? `${modelText}\n\n<reminder>\n${snapshotReminder}\n</reminder>`
+				: modelText;
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 			const execution = await this._executeSdkOperation(
 				() => this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({

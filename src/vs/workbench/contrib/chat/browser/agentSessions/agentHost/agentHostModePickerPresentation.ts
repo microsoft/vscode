@@ -15,7 +15,7 @@ import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
-import { KNOWN_AUTO_APPROVE_VALUES } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { getSessionApprovalBinding, getSessionModeBinding } from '../../../../../../platform/agentHost/common/sessionConfigBindings.js';
 import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
@@ -171,20 +171,18 @@ export function renderModePickerTrigger(
 }
 
 export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema): boolean {
-	return schema.type === 'string'
-		&& Array.isArray(schema.enum)
-		&& schema.enum.includes('default')
-		&& schema.enum.every(value => typeof value === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(value));
+	return !!getSessionApprovalBinding({ type: 'object', properties: { autoApprove: schema } });
 }
 
 export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): boolean {
-	return schema.type === 'string' && Array.isArray(schema.enum) && schema.enum.includes('interactive');
+	return !!getSessionModeBinding({ type: 'object', properties: { mode: schema } });
 }
 
 export function shouldCombineModeAndPermissions(enabled: boolean, isCopilot: boolean, modeSchema: SessionConfigPropertySchema | undefined, permissionSchema: SessionConfigPropertySchema | undefined): boolean {
 	return enabled && isCopilot
 		&& !!modeSchema && !modeSchema.readOnly && !modeSchema.enumDynamic && isWellKnownModeSchema(modeSchema)
-		&& !!permissionSchema && !permissionSchema.readOnly && !permissionSchema.enumDynamic && isWellKnownAutoApproveSchema(permissionSchema);
+		&& !!permissionSchema && !permissionSchema.readOnly && !permissionSchema.enumDynamic
+		&& !!getSessionApprovalBinding({ type: 'object', properties: { [permissionSchema.enum?.includes('manual') ? 'approvalMode' : 'autoApprove']: permissionSchema } });
 }
 
 export function renderModePickerPermissions(trigger: HTMLElement, permissions: IModePickerPermissions): void {

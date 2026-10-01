@@ -9220,6 +9220,16 @@ suite('CopilotAgentSession', () => {
 
 	suite('sendSteering', () => {
 
+		test('uses model text while retaining the steering display message', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			const message = { text: 'display', origin: { kind: MessageKind.User }, _meta: { 'copilot.modelText': 'expanded steering' } };
+			await session.sendSteering({ id: 'expanded', message });
+			assert.deepStrictEqual({ sends: mockSession.sendRequests, display: message.text }, {
+				sends: [{ prompt: 'expanded steering', attachments: undefined, mode: 'immediate' }],
+				display: 'display',
+			});
+		});
+
 		test('forwards attachments to the SDK', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			const imageUri = URI.file('/session/attachments/pasted-image.png');

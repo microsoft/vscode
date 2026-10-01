@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
 import { getErrorCode, getErrorMessage } from '../../../base/common/errors.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -36,42 +37,7 @@ import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.j
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
-import {
-	buildSubagentChatUri,
-	createErrorResponsePart,
-	getErrorResponsePart,
-	getToolFileEdits,
-	getInlineToolInput,
-	isAhpChatChannel,
-	buildDefaultChatUri,
-	isSubagentChatUri,
-	mergeLogicalTurnUsage,
-	MessageAttachmentKind,
-	MessageKind,
-	parseRequiredSessionUriFromChatUri,
-	PendingMessageKind,
-	ResponsePartKind,
-	readUsageInfoMeta,
-	ROOT_STATE_URI,
-	SessionLifecycle,
-	CustomizationType,
-	ToolCallStatus,
-	ToolCallConfirmationReason,
-	ToolResultContentType,
-	type ErrorInfo,
-	type ISessionWithDefaultChat,
-	type Message,
-	type MessageAttachment,
-	type URI as ProtocolURI,
-	type ResponsePart,
-	type ToolCallResult,
-	type ToolResultContent,
-	type Turn,
-	type UsageInfo,
-	type Customization,
-	type McpServerCustomization,
-	type PluginCustomization
-} from '../common/state/sessionState.js';
+import { buildSubagentChatUri, createErrorResponsePart, getErrorResponsePart, getToolFileEdits, getInlineToolInput, isAhpChatChannel, buildDefaultChatUri, isSubagentChatUri, mergeLogicalTurnUsage, MessageAttachmentKind, MessageKind, parseRequiredSessionUriFromChatUri, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, CustomizationType, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, type ErrorInfo, type ISessionWithDefaultChat, type Message, type MessageAttachment, type URI as ProtocolURI, type ResponsePart, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type Customization, type McpServerCustomization, type PluginCustomization } from '../common/state/sessionState.js';
 import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';

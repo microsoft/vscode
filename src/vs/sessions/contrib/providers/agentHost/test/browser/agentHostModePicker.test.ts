@@ -60,8 +60,8 @@ suite('AgentHostModePicker', () => {
 			schema: {
 				type: 'object',
 				properties: {
-					mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], enumLabels: ['Interactive', 'Plan', 'Autopilot'] },
-					autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove'] },
+					mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], enumLabels: ['Interactive', 'Plan', 'Autopilot'], sessionMutable: true },
+					autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
 					[SessionConfigKey.SandboxEnabled]: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
 				},
 			},
@@ -79,6 +79,7 @@ suite('AgentHostModePicker', () => {
 			override readonly id = 'local-agent-host';
 			override readonly onDidChangeSessionConfig = configChanged.event;
 			override getSessionConfig() { return config; }
+			override getCreateSessionConfig() { return undefined; }
 			override getSessionSandboxPolicy() { return publishSandboxPolicy ? { enabled: managedSandboxEnforced.get() } : undefined; }
 			override isDevContainerRequested() { return devContainer.get(); }
 			override isSessionConfigResolving() { return resolving; }

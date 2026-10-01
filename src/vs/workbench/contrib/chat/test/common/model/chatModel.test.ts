@@ -237,6 +237,37 @@ suite('ChatModel', () => {
 		assert.ok(model.timestamp > 0);
 	});
 
+	test('preserves Agent Host message metadata and latest-call detail across serialization', () => {
+		const metadata = { 'copilot.modelText': 'expanded', opaque: { value: true } };
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'display', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, metadata);
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2, latestModelCall: { cost: 0.5 }, contextUsage: { currentTokens: 5, tokenLimit: 100 } });
+		const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value: model.toJSON(), serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const [roundTrip] = restored.getRequests();
+		assert.deepStrictEqual({
+			metadata: roundTrip.agentHostMetadata,
+			latest: roundTrip.response?.usage?.latestModelCall,
+			context: roundTrip.response?.usage?.contextUsage,
+			cost: roundTrip.response?.usage?.copilotCredits,
+		}, { metadata, latest: { cost: 0.5 }, context: { currentTokens: 5, tokenLimit: 100 }, cost: undefined });
+	});
+
+	test('context occupancy and latest-call changes notify the response model when token counts stay unchanged', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'display', parts: [] }, { variables: [] }, 0);
+		assert.ok(request.response);
+		let updates = 0;
+		testDisposables.add(request.response.onDidChange(() => updates++));
+		const usage = { kind: 'usage' as const, promptTokens: 90, completionTokens: 10 };
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 200, tokenLimit: 1_000 }, latestModelCall: { duration: 12 } });
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 250, tokenLimit: 1_000 }, latestModelCall: { duration: 12 } });
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 250, tokenLimit: 1_000 }, latestModelCall: { duration: 15 } });
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 250, tokenLimit: 1_000 }, latestModelCall: { duration: 15 } });
+		assert.deepStrictEqual({ updates, context: request.response.usage?.contextUsage, latest: request.response.usage?.latestModelCall }, {
+			updates: 3, context: { currentTokens: 250, tokenLimit: 1_000 }, latest: { duration: 15 },
+		});
+	});
+
 	test('removeRequest', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 

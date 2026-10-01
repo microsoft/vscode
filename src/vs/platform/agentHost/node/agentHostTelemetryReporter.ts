@@ -12,7 +12,7 @@ import { AgentSession, type AgentSubagentTaskModelSource, type AgentTurnProvider
 import { isReasoningEffortLevel } from '../common/reasoningEffort.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
-import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
+import { readAgentErrorTelemetryMeta } from '../common/meta/errorMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 import { MessageKind, type ErrorInfo, type Message, type SessionInputRequestKind, type ToolDefinition } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';

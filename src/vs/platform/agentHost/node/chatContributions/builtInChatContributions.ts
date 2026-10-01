@@ -14,6 +14,7 @@ import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/che
 import { ExternalSessionAdoptionContribution } from './externalSessionAdoption/externalSessionAdoptionContribution.js';
 import { GitHubReferencesContribution } from './githubReferences/githubReferencesContribution.js';
 import { LocalCommandContribution } from './localCommand/localCommandContribution.js';
+import { ModelTextContribution } from './modelText/modelTextContribution.js';
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
 import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
@@ -36,6 +37,7 @@ export function registerBuiltInChatContributions(
 ): IDisposable {
 	const registrations = new DisposableStore();
 	registrations.add(contributions.registerContribution(LocalCommandContribution));
+	registrations.add(contributions.registerContribution(ModelTextContribution));
 	registrations.add(contributions.registerContribution(ExternalSessionAdoptionContribution));
 	registrations.add(contributions.registerContribution(TurnAdmissionContribution));
 	registrations.add(contributions.registerContribution(ChatInputContribution));

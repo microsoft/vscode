@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -272,6 +273,29 @@ suite('ChatService', () => {
 
 		assert.strictEqual(await captured.p, true);
 	});
+
+	for (const preserveRequestId of [false, true]) {
+		test(`ordinary resend retains Agent Host metadata with preserveRequestId=${preserveRequestId}`, async () => {
+			const invoke = spy(chatAgentService, 'invokeAgent');
+			testDisposables.add(toDisposable(() => invoke.restore()));
+			const service = createChatService();
+			const model = testDisposables.add(startSessionModel(service)).object;
+			const metadata = { 'copilot.modelText': 'expanded prompt', 'copilot.command': { name: 'compact' }, 'copilot.visibility': 'internal', opaque: false };
+			const sent = await service.sendRequest(model.sessionResource, 'display prompt', { metadata });
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+			const original = model.getRequests()[0];
+			await service.resendRequest(original, undefined, preserveRequestId);
+			const resent = model.getRequests()[0];
+			const retained = resent.agentHostMetadata;
+			await service.resendRequest(resent, { metadata: {} }, preserveRequestId);
+			assert.deepStrictEqual({
+				sent: invoke.getCalls().map(call => call.args[1].metadata),
+				retained,
+				sameId: resent.id === original.id,
+			}, { sent: [metadata, metadata, {}], retained: metadata, sameId: preserveRequestId });
+		});
+	}
 
 	test('acceptance counts submissions once, not rejections, system messages, retries or queue drains', async () => {
 		const service = createChatService();

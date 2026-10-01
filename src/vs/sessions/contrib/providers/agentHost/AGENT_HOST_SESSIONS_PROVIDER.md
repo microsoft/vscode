@@ -30,6 +30,8 @@ Agent Host providers implement `IAgentHostSessionsProvider`, which extends `ISes
 
 Consumers use the extended type guard rather than matching provider IDs. Provider-neutral features continue to depend on `ISessionsProvider`.
 
+Session configuration is discovered before client defaults are sent. The existing approval and repository controls select one validated schema binding and retain its original property names and enum values for completions, draft creation, and runtime changes. A published VS Code key selects the VS Code convention even when malformed, in which case the property uses generic UI rather than falling through to another host's convention. Copilot `approvalMode` is a requested preference; its read-only `effectiveApprovalMode` and `availableApprovalModes` report the effective posture and selectable choices, without granting tool permissions in the client. Copilot `target` maps workspace/worktree presentation, `baseBranch` selects the base branch, and `branch` names the new branch. Unsupported defaults, read-only reports, and non-mutable runtime properties are not client writes.
+
 ## Dev Container handoff
 
 The desktop-only Dev Container target is local draft state rather than host-declared session configuration. Before the first request, the local provider starts or reuses the container Agent Host, trusts the mapped workspace only after the source folder passes trust, and replaces the local draft with an equivalent draft owned by the dynamic remote provider. Compatible configuration, model, and custom-agent selections transfer to the replacement.

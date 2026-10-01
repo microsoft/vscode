@@ -121,6 +121,22 @@ export class TestSessionDatabase implements ISessionDatabase {
 		return Object.fromEntries(Object.keys(obj).map(key => [key, this._metadata.get(key)])) as { [K in keyof T]: string | undefined };
 	}
 
+	async getTurnMetadata(prefix: string): Promise<Map<string, string>> {
+		const result = new Map<string, string>();
+		for (const [key, value] of this._metadata) {
+			if (!key.startsWith(prefix)) {
+				continue;
+			}
+			const id = key.slice(prefix.length);
+			result.set(id, value);
+			const eventId = this._turnEventIds.get(id);
+			if (eventId) {
+				result.set(eventId, value);
+			}
+		}
+		return result;
+	}
+
 	async setMetadata(key: string, value: string): Promise<void> {
 		this.setMetadataCalls.push({ key, value });
 		this._metadata.set(key, value);

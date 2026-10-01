@@ -87,8 +87,7 @@ export function getModelConfigChoices(
 }
 
 /**
- * The first property of a model's configuration schema belonging to `group` that
- * offers a choice, with the user's value or the schema default.
+ * Selects a property by explicit alias precedence, then schema order for unknown keys.
  */
 export function getModelConfigProperty(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
@@ -100,11 +99,17 @@ export function getModelConfigProperty(
 		return undefined;
 	}
 	const currentConfig = configurationAccess.getModelConfiguration(model.identifier) ?? {};
-	for (const [key, schema] of Object.entries(properties)) {
+	const aliases = group === MODEL_CONFIG_GROUP_EFFORT
+		? ['tier', 'autoTier', 'thinkingLevel', 'reasoningEffort']
+		: group === MODEL_CONFIG_GROUP_CONTEXT ? ['contextSize', 'contextTier'] : [];
+	const alias = aliases.find(key => Object.hasOwn(properties, key) && properties[key].group === group);
+	const keys = alias ? [alias] : Object.keys(properties);
+	for (const key of keys) {
+		const schema = properties[key];
 		if (schema.group !== group || !schema.enum?.length) {
 			continue;
 		}
-		return { key, value: currentConfig[key] ?? schema.default, schema };
+		return { key, value: Object.hasOwn(currentConfig, key) ? currentConfig[key] : schema.default, schema };
 	}
 	return undefined;
 }

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
+import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -14,10 +16,11 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, getTurnError, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, parseChatUri, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, readMessageSystemInitiatedLabel, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, getTurnError, MessageKind, parseChatUri, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { readToolCallMeta, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -737,13 +740,14 @@ function formatTurnModelName(model: ITurnResponseModel, billedModelId: string | 
 	return model.name;
 }
 
-export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayNameResolver?: (rawModelId: string) => string | undefined): IChatUsage | undefined {
+export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayNameResolver?: (rawModelId: string) => string | undefined, contextUsage?: IAgentContextUsage): IChatUsage | undefined {
 	// Shared with the host's restore path, so "this turn has usage worth
 	// showing" cannot drift between the two.
-	if (!hasReportedUsage(usage)) {
+	if (!hasReportedUsage(usage) && !contextUsage) {
 		return undefined;
 	}
-	const turnTokenTotals = readUsageInfoMeta(usage).turnTokenTotals;
+	const metadata = readUsageInfoMeta(usage);
+	const turnTokenTotals = metadata.turnTokenTotals;
 	return {
 		kind: 'usage',
 		promptTokens: usage?.inputTokens ?? 0,
@@ -755,6 +759,8 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayN
 			...total,
 			model: modelDisplayNameResolver?.(total.model) ?? total.model,
 		})),
+		...(metadata.latestModelCall ? { latestModelCall: metadata.latestModelCall } : {}),
+		...(contextUsage ? { contextUsage: { currentTokens: contextUsage.currentTokens, tokenLimit: contextUsage.tokenLimit } } : {}),
 	};
 }
 
@@ -1041,7 +1047,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * Requests preserve the selected model. Response details use the actual model, except for Fusion's workflow label.
  * The `lookup` callback supplies the session-level fallback for missing model metadata.
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme, errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme, errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -1061,6 +1067,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			id: turn.id,
 			type: 'request',
 			prompt: turn.message.text,
+			...(readAgentMessageRoundTripMetadata(turn.message) ? { metadata: readAgentMessageRoundTripMetadata(turn.message) } : {}),
 			participant: participantId,
 			modelId,
 			...(turn.message.model?.config ? { modelConfiguration: turn.message.model.config } : {}),
@@ -1087,7 +1094,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			parts.push(autoModeResolution);
 		}
 
-		const usage = usageInfoToChatUsage(turn.usage, lookup?.toModelDisplayName);
+		const usage = usageInfoToChatUsage(turn.usage, lookup?.toModelDisplayName, turn === turns.at(-1) ? contextUsage : undefined);
 		if (usage) {
 			const actualModelId = lookup?.toActualModelId(rawModelId);
 			if (actualModelId) {
@@ -1351,12 +1358,14 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			};
 		}
 		if (attachment.selection) {
+			const detail = readAttachmentDetail(attachment);
 			return {
 				kind: 'file',
 				id,
 				name,
 				value: { uri, range: textRangeToIRange(attachment.selection.range) },
 				_meta,
+				...(detail?.text !== undefined ? { modelDescription: detail.text } : {}),
 			};
 		}
 		return { kind: 'file', id, name, value: uri, _meta };
@@ -1438,12 +1447,15 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	if (pasteEntry) {
 		return pasteEntry;
 	}
+	const detail = readAttachmentDetail(attachment);
+	const reference = detail?.url && URL.canParse(detail.url) && ['http:', 'https:'].includes(new URL(detail.url).protocol) ? URI.parse(detail.url) : undefined;
 	return {
 		kind: 'generic',
 		id: generateUuid(),
 		name: attachment.label,
-		value: modelRepresentation || attachment.label,
+		value: reference ?? (modelRepresentation || attachment.label),
 		_meta: attachment._meta,
+		...(detail?.text !== undefined ? { modelDescription: detail.text } : {}),
 	};
 }
 
@@ -1600,6 +1612,33 @@ function terminalOutputsEqual(a: IChatTerminalToolInvocationData['terminalComman
 	return a?.text === b?.text
 		&& a?.truncated === b?.truncated
 		&& a?.fullOutputPreview === b?.fullOutputPreview;
+}
+
+export function appendToolOutput(invocation: ChatToolInvocation, call: ToolCallState, chunk: IAgentToolOutputChunk): void {
+	const terminal = invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData : undefined;
+	if (chunk.isPty || terminal) {
+		invocation.toolSpecificData = {
+			...terminal,
+			kind: 'terminal',
+			commandLine: terminal?.commandLine ?? { original: '' },
+			language: terminal?.language ?? 'shellscript',
+			editable: false,
+			isPty: terminal?.isPty ?? false,
+			terminalCommandOutput: { text: (terminal?.terminalCommandOutput?.text ?? '') + chunk.output },
+		};
+	} else {
+		const details = invocation.toolSpecificData?.kind === 'simpleToolInvocation' ? invocation.toolSpecificData : undefined;
+		const input = invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData : undefined;
+		if (invocation.toolSpecificData && !details && (!input || input.mcpAppData)) {
+			return;
+		}
+		invocation.toolSpecificData = {
+			kind: 'simpleToolInvocation',
+			input: details?.input ?? (call.status === ToolCallStatus.Streaming ? '' : getInlineToolInput(call.toolInput) ?? ''),
+			output: (details?.output ?? '') + chunk.output,
+		};
+	}
+	invocation.notifyToolSpecificDataChanged();
 }
 
 function stripLegacyTerminalExitMarkers(text: string): string {

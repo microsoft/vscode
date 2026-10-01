@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../../../common/meta/agentMessageMeta.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -19,7 +20,7 @@ import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition, type IAgentSystemNotificationMeta, type IAgentWorkspaceTransitionRecord, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, chatStorageUri, isDefaultChatUri, MessageKind, parseChatUri, readSessionWorkspaceless, ResponsePartKind, SessionStatus, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, withSessionHasWorkspaceTransitions, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, chatStorageUri, isDefaultChatUri, MessageKind, parseChatUri, readSessionWorkspaceless, ResponsePartKind, SessionStatus, withSessionHasWorkspaceTransitions, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';

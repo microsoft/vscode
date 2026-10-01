@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IIncomingRequest, type IncomingRequestDisposition } from '../../../common/agentHostChatContributionsService.js';
 import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../localCommands/localChatCommand.js';
+import { readAgentHostCommand, readAgentModelText } from '../../../common/meta/agentMessageMeta.js';
 
 /**
  * Generic, agent-agnostic host commands (`/rename`, `!command`, …) are intercepted here and handled by the local-command dispatcher rather than forwarded to the agent SDK.
@@ -26,6 +27,9 @@ export class LocalCommandContribution extends Disposable implements IAgentHostCh
 	}
 
 	onIncomingRequest(request: IIncomingRequest): IncomingRequestDisposition | undefined {
+		if (readAgentModelText(request.message) !== undefined || readAgentHostCommand(request.message) !== undefined) {
+			return undefined;
+		}
 		const handled = this._localCommands.tryHandle({
 			turnChannel: request.turnChannel,
 			turnId: request.turnId,
