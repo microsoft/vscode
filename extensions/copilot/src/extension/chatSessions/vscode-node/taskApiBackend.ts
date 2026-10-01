@@ -48,29 +48,29 @@ const TASK_SESSION_POLL_TIMEOUT_MS = 60_000;
  * `copilot-developer`; the monolith uses `copilot-swe-agent` for the same agent. Tasks owned by
  * any other surface — `copilot-developer-cli` (Copilot CLI), `vscode-chat` (VS Code) or
  * `jetbrains-chat` (JetBrains) — are local clients mirrored into Mission Control and must not
- * appear in the cloud sessions list. See github-ui `agent-helpers.ts` (`isCopilotCodingAgent`) and
- * `agent-profile.ts`.
+ * appear in the cloud sessions list. Sandboxes and local AHP environments can share a cloud
+ * slug, so their environment metadata must also be checked.
  */
 const CLOUD_CODING_AGENT_SLUGS: ReadonlySet<string> = new Set(['copilot-developer', 'copilot-swe-agent']);
 
 /**
- * The owning agent integration of a task. Mirrors CMC's internal `TaskCollaborator`
- * (`agent_collaborators`), which first-party CAPI tokens receive but `@vscode/copilot-api`'s
- * `AgentTask` does not yet model. Only `slug` is needed to identify the client surface.
+ * CMC task-list environment metadata, not yet modeled by `@vscode/copilot-api`'s `AgentTask`.
  */
-interface TaskAgentCollaborator {
-	readonly slug?: string;
+interface TaskWithEnvironment extends AgentTask {
+	readonly current_environment?: { readonly kind?: string } | null;
 }
 
 /**
- * Whether a task is owned by the Copilot cloud coding agent rather than a local client surface
- * (Copilot CLI / VS Code / JetBrains). The owning surface is identified by the agent integration
- * slug on the task's `agent_collaborators`; tasks without a recognized cloud slug are treated as
- * non-cloud and excluded from the cloud sessions list.
+ * Whether a task belongs in the cloud coding agent list rather than a sandbox/AHP provider or
+ * local client surface. Missing environment metadata preserves compatibility with older tasks;
+ * a recognized cloud agent slug is still required.
  */
-export function isCloudCodingAgentTask(task: AgentTask): boolean {
-	const collaborators = (task as AgentTask & { readonly agent_collaborators?: readonly TaskAgentCollaborator[] }).agent_collaborators;
-	return collaborators?.some(c => typeof c.slug === 'string' && CLOUD_CODING_AGENT_SLUGS.has(c.slug)) ?? false;
+export function isCloudCodingAgentTask(task: TaskWithEnvironment): boolean {
+	const environmentKind = task.current_environment?.kind;
+	if (environmentKind === 'managed-sandbox' || environmentKind === 'user-local' || task.compute?.provider === 'sandboxes') {
+		return false;
+	}
+	return task.agent_collaborators?.some(c => typeof c.slug === 'string' && CLOUD_CODING_AGENT_SLUGS.has(c.slug)) ?? false;
 }
 
 function findPullArtifact(task: AgentTask): (AgentTaskArtifact & { data: AgentTaskGitHubResourceData }) | undefined {

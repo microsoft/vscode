@@ -156,6 +156,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		const provider = store.add(this._instantiationService.createInstance(CloudSandboxSessionListController, address, this._workspaceRepositories,
 			(rawId, token) => this._deleteSandboxSession(address, [rawId], id => provider.removeDeletedSession(id), token)));
 		store.add(this._connectionsService.registerSessionResolutionPolicy(agentHostAuthority(address), {
+			connectionAddress: address,
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 			defaultChangesetKind: ChangesetKind.Session,
 		}));

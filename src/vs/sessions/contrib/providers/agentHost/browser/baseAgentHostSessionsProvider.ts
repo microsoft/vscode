@@ -806,8 +806,10 @@ export interface IAgentHostAdapterOptions {
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
 	/** Keeps reported activity separate from connection availability for remotely discoverable sessions. */
 	readonly preserveStatusWhenDisconnected?: boolean;
-	/** Overrides host provenance when a provider tracks external sessions locally. */
+	/** Overrides the host's external-session classification. */
 	readonly externalSessionState?: (resource: URI, store: DisposableStore) => IObservable<boolean>;
+	/** Uses the session title for the main conversation instead of the host's default chat label. */
+	readonly useSessionTitleForDefaultChat?: boolean;
 }
 
 /**
@@ -1522,7 +1524,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			resource: this.resource,
 			createdAt: this.createdAt,
 			workspace: defaultChatWorkspace,
-			title: derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
+			title: this._options.useSessionTitleForDefaultChat ? this.title : derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
 			updatedAt: this._withChatDetails(this._defaultChatUpdatedAt),
 			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus),
 			changes: defaultChatChanges,
@@ -3755,7 +3757,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState'>;
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
@@ -5877,6 +5879,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sessionUri = cached.backendUri;
 		const chatId = chatUri.fragment;
+		if (!chatId && this._adapterOptions().useSessionTitleForDefaultChat) {
+			return this.renameSession(sessionId, title);
+		}
 		const action = { type: ActionType.SessionTitleChanged as const, title };
 		if (chatId) {
 			// Additional peer chat: rename only that chat by dispatching on its

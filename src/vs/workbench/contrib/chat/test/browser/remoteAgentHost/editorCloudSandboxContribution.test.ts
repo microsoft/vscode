@@ -19,6 +19,7 @@ import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../
 import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -293,7 +294,16 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const policies: string[] = [];
 	instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
 		override registerSessionResolutionPolicy(connectionAuthority: string, policy: IAgentHostSessionResolutionPolicy) {
-			assert.deepStrictEqual(policy.sessionSchemeAlias, { ui: 'copilot', backend: 'ahp-session' });
+			assert.ok(policy.connectionAddress);
+			assert.deepStrictEqual({
+				connectionAuthority: agentHostAuthority(policy.connectionAddress),
+				sessionSchemeAlias: policy.sessionSchemeAlias,
+				defaultChangesetKind: policy.defaultChangesetKind,
+			}, {
+				connectionAuthority,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				defaultChangesetKind: ChangesetKind.Session,
+			});
 			policies.push(connectionAuthority);
 			return toDisposable(() => policies.splice(policies.indexOf(connectionAuthority), 1));
 		}
