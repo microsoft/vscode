@@ -25,7 +25,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
@@ -2388,18 +2388,23 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 		return;
 	}
 	try {
+		let patch: IUpdateAutomationOptions = { enabled };
 		if (enabled && isAutomationAfterDateExpired(automation.disableConditions)) {
 			const confirmation = await dialogService.confirm({
 				type: 'warning',
-				message: localize('automationExpiredFinalDate', "The final date for this automation has passed."),
-				detail: localize('automationExpiredFinalDateDetail', "The host will disable scheduling immediately. Use Remove end date in the More menu, or ask in chat to change the final date before re-enabling scheduled runs."),
-				primaryButton: localize('automationEnableAnyway', "Enable Anyway"),
+				message: localize('automationExpired', "This automation has expired"),
+				detail: localize('automationExpiredDetail', "The expiration date has passed for this automation. Ask in chat to change the date, or remove it to reenable it."),
+				primaryButton: localize('automationRemoveExpirationAndEnable', "Remove expiration and enable"),
 			});
 			if (!confirmation.confirmed) {
 				return;
 			}
+			patch = {
+				enabled,
+				disableConditions: automation.disableConditions?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterDate) ?? [],
+			};
 		}
-		const result = await automationService.updateAutomationIfUnchanged(automation.id, { enabled }, automation, () => {
+		const result = await automationService.updateAutomationIfUnchanged(automation.id, patch, automation, () => {
 			if (!automationsEnabled()) {
 				throw new Error(enabled
 					? localize('automationsDisabledBeforeEnable', "Automations were disabled before the automation could be enabled.")

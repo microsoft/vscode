@@ -2271,7 +2271,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('Enable warns before sending an expired final date and respects cancellation', async () => {
+	test('Enable confirms removal of an expired end date and respects cancellation', async () => {
 		const { automationService, dialogService, instantiationService } = setup();
 		const source = automation({
 			enabled: false,
@@ -2283,18 +2283,28 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			message: dialogService.confirmations[0].message,
 			detail: dialogService.confirmations[0].detail,
+			primaryButton: dialogService.confirmations[0].primaryButton,
 			updates: automationService.guardedUpdateCalls,
 		}, {
-			message: 'The final date for this automation has passed.',
-			detail: 'The host will disable scheduling immediately. Use Remove end date in the More menu, or ask in chat to change the final date before re-enabling scheduled runs.',
+			message: 'This automation has expired',
+			detail: 'The expiration date has passed for this automation. Ask in chat to change the date, or remove it to reenable it.',
+			primaryButton: 'Remove expiration and enable',
 			updates: [],
 		});
 		dialogService.confirmResult = { confirmed: true };
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
-		assert.deepStrictEqual(automationService.guardedUpdateCalls, [{ id: source.id, patch: { enabled: true }, expected: source }]);
+		assert.deepStrictEqual({
+			updates: automationService.guardedUpdateCalls,
+			enabled: automationService.getAutomation(source.id)?.enabled,
+			conditions: automationService.getAutomation(source.id)?.disableConditions,
+		}, {
+			updates: [{ id: source.id, patch: { enabled: true, disableConditions: [] }, expected: source }],
+			enabled: true,
+			conditions: [],
+		});
 	});
 
-	test('Enable announces the authoritative disabled state after an expired-date update', async () => {
+	test('removing expiration preserves host-owned caps and announces the authoritative state', async () => {
 		const { automationService, dialogService, instantiationService } = setup();
 		const ariaHost = document.createElement('div');
 		document.body.appendChild(ariaHost);
@@ -2302,17 +2312,49 @@ suite('AutomationsCardsWidget', () => {
 		setARIAContainer(ariaHost);
 		const source = automation({
 			enabled: false,
-			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
+			disableConditions: [
+				{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 },
+				{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' },
+			],
 		});
 		automationService.setAutomations([source]);
-		automationService.updateResult = { kind: 'updated', automation: source };
+		const retainedConditions = [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }] as const;
+		automationService.updateResult = { kind: 'updated', automation: { ...source, disableConditions: retainedConditions } };
 		dialogService.confirmResult = { confirmed: true };
 		const command = CommandsRegistry.getCommand('sessions.automations.enable')!;
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
 		assert.deepStrictEqual({
 			status: ariaHost.textContent,
 			enabled: automationService.getAutomation(source.id)?.enabled,
-		}, { status: `Automation ${source.name} remains disabled.`, enabled: false });
+			updates: automationService.guardedUpdateCalls,
+		}, {
+			status: `Automation ${source.name} remains disabled.`, enabled: false,
+			updates: [{ id: source.id, patch: { enabled: true, disableConditions: retainedConditions }, expected: source }],
+		});
+	});
+
+	test('removing expiration and enabling rejects stale state without changing the automation', async () => {
+		const { automationService, dialogService, instantiationService } = setup();
+		const source = automation({
+			enabled: false,
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
+		});
+		const current = { ...source, prompt: 'Updated by another client' };
+		automationService.setAutomations([current]);
+		automationService.updateResult = { kind: 'conflict', current };
+		dialogService.confirmResult = { confirmed: true };
+		const command = CommandsRegistry.getCommand('sessions.automations.enable')!;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		assert.deepStrictEqual({
+			automation: automationService.getAutomation(source.id),
+			errors: dialogService.errors,
+		}, {
+			automation: current,
+			errors: [{
+				message: 'Failed to enable automation.',
+				detail: 'This automation changed before it could be enabled. Try again.',
+			}],
+		});
 	});
 
 	test('Remove Limits visibility follows saved conditions, feature enablement and update capability', () => {
