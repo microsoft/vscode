@@ -637,7 +637,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const header = this.header = DOM.append(content, $('.customization-discovery-header'));
 		const titleRow = DOM.append(header, $('.customization-discovery-title-row'));
 		const title = DOM.append(titleRow, $('h2.customization-discovery-title'));
-		title.textContent = localize('customizationDiscovery.title', "Discover customizations");
+		title.textContent = localize('customizationDiscovery.title', "Discover Customizations");
 		this.createAddButton(titleRow);
 		this.titleDescription = DOM.append(header, $('p.customization-discovery-description'));
 		this.updateDescription();
@@ -810,7 +810,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private updateSourceButton(): void {
 		const selectedSource = this.marketplaceSources.find(source => source.id === this.selectedSourceId);
-		const label = selectedSource ? selectedSource.displayName ?? selectedSource.id : localize('customizationDiscovery.allSources', "All sources");
+		const label = selectedSource ? selectedSource.displayName ?? selectedSource.id : localize('customizationDiscovery.allSources', "All Sources");
 		this.sourceButton.label = `${label} $(chevron-down)`;
 		this.sourceButton.setAriaLabel(localize('customizationDiscovery.sourceButtonAriaLabel', "Customization source: {0}", label));
 		this.sourceButton.element.removeAttribute('title');
@@ -821,7 +821,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const disposables = new DisposableStore();
 		const allSources = disposables.add(new Action(
 			'customizationDiscovery.source.all',
-			localize('customizationDiscovery.allSources', "All sources"),
+			localize('customizationDiscovery.allSources', "All Sources"),
 			undefined,
 			true,
 			() => this.selectSource(undefined),
@@ -2008,13 +2008,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return type && this.matchesType(type) && !hasInstallationTarget(this.getInstallState(item));
 		});
 		return [
-			localize('customizationDiscovery.title', "Discover customizations"),
+			localize('customizationDiscovery.title', "Discover Customizations"),
 			this.query.isEmpty()
 				? localize('customizationDiscovery.accessibleBrowse', "Browse mode.")
 				: localize('customizationDiscovery.accessibleSearch', "Search: {0}", this.query.toString()),
 			this.selectedSourceId
 				? localize('customizationDiscovery.accessibleSource', "Source: {0}", this.getMarketplaceSourceLabel(this.selectedSourceId))
-				: localize('customizationDiscovery.accessibleAllSources', "Source: All sources"),
+				: localize('customizationDiscovery.accessibleAllSources', "Source: All Sources"),
 			this.loading ? this.getLoadingLabel() : undefined,
 			this.errorMessage,
 			this.sourceWarnings.getAccessibilityContent(),

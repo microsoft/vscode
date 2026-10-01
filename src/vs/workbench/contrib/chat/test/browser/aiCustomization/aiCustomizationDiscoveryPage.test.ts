@@ -324,20 +324,27 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	}
 
-	test('menu buttons use the shared small button style and show chevrons', () => {
+	test('title and menu buttons use title casing', () => {
 		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Agents]);
+		const title = fixture.container.querySelector<HTMLElement>('.customization-discovery-title');
 		const addCustomizationButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 		const sourceButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-source .monaco-button');
 
-		assert.deepStrictEqual([addCustomizationButton, sourceButton].map(button => ({
-			label: button?.textContent,
-			small: button?.classList.contains('small'),
-			hasChevron: button?.querySelector('.codicon-chevron-down') !== null,
-			hasPopup: button?.getAttribute('aria-haspopup'),
-		})), [
-			{ label: 'Add Customization', small: true, hasChevron: true, hasPopup: 'menu' },
-			{ label: 'All sources', small: true, hasChevron: true, hasPopup: 'menu' },
-		]);
+		assert.deepStrictEqual({
+			title: title?.textContent,
+			buttons: [addCustomizationButton, sourceButton].map(button => ({
+				label: button?.textContent,
+				small: button?.classList.contains('small'),
+				hasChevron: button?.querySelector('.codicon-chevron-down') !== null,
+				hasPopup: button?.getAttribute('aria-haspopup'),
+			})),
+		}, {
+			title: 'Discover Customizations',
+			buttons: [
+				{ label: 'Add Customization', small: true, hasChevron: true, hasPopup: 'menu' },
+				{ label: 'All Sources', small: true, hasChevron: true, hasPopup: 'menu' },
+			],
+		});
 	});
 
 	test('announces loading only after the scheduled catalog search starts', async () => {
@@ -1427,10 +1434,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			disabledSelectable: fixture.getSourceActions().some(action => action.id === 'customizationDiscovery.source.copilotConnectors'),
 			content: fixture.page.getAccessibilityContent().match(/^(?:connector|public|stale)-mail$/gm),
 		}, {
-			labels: ['All sources', 'GitHub Feed', 'Copilot Connectors', 'Configured Plugin Marketplaces', 'Configure Marketplaces'],
+			labels: ['All Sources', 'GitHub Feed', 'Copilot Connectors', 'Configured Plugin Marketplaces', 'Configure Marketplaces'],
 			selected: { label: 'Copilot Connectors', cancelled: true, content: ['connector-mail'] },
 			selections: [undefined, ['copilotConnectors'], undefined],
-			finalLabel: 'All sources',
+			finalLabel: 'All Sources',
 			disabledSelectable: false,
 			content: ['public-mail'],
 		});
@@ -1478,7 +1485,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			content: fixture.page.getAccessibilityContent().match(/^(?:all|connector)-(?:featured|search)$/gm),
 		}, {
 			browseMode: true,
-			source: 'All sources',
+			source: 'All Sources',
 			content: ['all-featured'],
 		});
 	});
