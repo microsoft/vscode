@@ -36,6 +36,8 @@ const MAX_STRUCTURE_LENGTH = 2000;
  * directories as fit the budget, so it normally finishes well before the send.
  */
 const SNAPSHOT_WAIT_MS = 1000;
+/** Largest `commondir` file read when checking for a linked worktree's admin directory; it holds a single path. */
+const MAX_COMMONDIR_SIZE = 4096;
 /** Folder names never expanded, mirroring the classic Copilot Chat workspace structure. Hidden entries are always skipped. */
 const EXCLUDED_FOLDERS = new Set(['node_modules', 'bower_components', 'out', 'dist', '__pycache__', 'venv', 'pods']);
 /** File names never listed, mirroring the classic Copilot Chat workspace structure. */
@@ -511,8 +513,8 @@ async function isGitAdministrativeDirectory(fileService: IFileService, directory
 	if (!gitdir?.isFile || !commondir?.isFile) {
 		return false;
 	}
-	// A linked worktree's admin directory names its shared repository in `commondir`.
-	const common = (await fileService.readFile(URI.joinPath(directory, 'commondir')).then(content => content.value.toString(), () => '')).trim();
+	// A linked worktree's admin directory names its shared repository in `commondir`: one short path, the only file content read here.
+	const common = (await fileService.readFile(URI.joinPath(directory, 'commondir'), { limits: { size: MAX_COMMONDIR_SIZE } }).then(content => content.value.toString(), () => '')).trim();
 	if (!common) {
 		return false;
 	}
