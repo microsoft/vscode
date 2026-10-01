@@ -2104,6 +2104,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
 			tab.classList.toggle('connected-tab-top-row', connected && topTabBar && tab.offsetTop === top);
 		});
+		this.parent.classList.toggle('connected-tabs-wrapping', connected && tabsWrapMultiLine);
 		if (!tabsWrapMultiLine) {
 			this.doLayoutTabsNonWrapping(options);
 		} else {
@@ -2378,6 +2379,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tabsContainer.classList.remove('disable-sticky-tabs');
 		}
 		assertReturnsDefined(this.stickyTabsBackground).style.width = `${stickyTabsWidth}px`;
+		this.connectedTabOverflowEdge?.classList.toggle('connected-tab-adjacent-sticky', stickyTabsWidth > 0);
 
 		this.clearConnectedTabClipping();
 		const activeTabFill = activeTab?.firstElementChild;

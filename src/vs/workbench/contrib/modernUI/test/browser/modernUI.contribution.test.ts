@@ -2511,7 +2511,7 @@ suite('ModernUIContribution', () => {
 		}
 	});
 
-	test('removes wrapped upper-row gutters while preserving separate pinned-row pills', () => {
+	test('preserves upper-row pill gutters for wrapped and pinned rows', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
 		store.add(toDisposable(() => root.remove()));
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-cornerRadius-small: 4px; --vscode-strokeThickness: 1px;';
@@ -2529,7 +2529,11 @@ suite('ModernUIContribution', () => {
 			for (const rowEnd of ['', 'last-in-row', 'connected-tab-right-edge']) {
 				tab.className = `tab active connected-tab-upper-row ${rowEnd}`;
 				const style = getWindow(fill).getComputedStyle(fill);
-				assert.deepStrictEqual([style.left, style.right], pinnedRow ? ['2px', '2px'] : ['0px', '0px'], `pinned row: ${pinnedRow}, row end: ${rowEnd}`);
+				assert.deepStrictEqual(
+					[style.left, style.right],
+					pinnedRow ? ['2px', '2px'] : ['2px', rowEnd === 'last-in-row' ? '2px' : '1px'],
+					`pinned row: ${pinnedRow}, row end: ${rowEnd}`
+				);
 			}
 		}
 	});
@@ -2848,7 +2852,9 @@ suite('ModernUIContribution', () => {
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
 		root.style.setProperty('--vscode-spacing-size40', '4px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-focusBorder', '#ffaa00');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
@@ -2890,19 +2896,20 @@ suite('ModernUIContribution', () => {
 			firstTab: ['none', '""'],
 			middleTab: {
 				shoulders: ['""', '""'],
-				capRadii: ['5px', '5px'],
+				capRadii: ['7px', '7px'],
 				backgroundClip: 'padding-box',
-				radii: ['5px', '5px'],
-				sizes: [['5px', '5px'], ['5px', '5px']],
+				radii: ['7px', '7px'],
+				sizes: [['7px', '7px'], ['7px', '7px']],
 			},
 		});
 	});
 
-	test('uses direct strip geometry for both connected and upper wrapped rows', () => {
+	test('shares connected geometry between single-row and bottom wrapped tabs', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
 		root.style.setProperty('--vscode-spacing-size20', '2px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		root.style.setProperty('--vscode-strokeThickness', '1px');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
@@ -2910,6 +2917,13 @@ suite('ModernUIContribution', () => {
 		const editor = appendElement(root, 'part editor');
 		const content = appendElement(editor, 'content');
 		const group = appendElement(content, 'editor-group-container active');
+		const singleTitle = appendElement(group, 'title tabs');
+		const singleRow = appendElement(singleTitle, 'tabs-and-actions-container');
+		const singleTabs = appendElement(singleRow, 'tabs-container');
+		const inactiveSingleTab = appendElement(singleTabs, 'tab');
+		const inactiveSingleFill = appendElement(inactiveSingleTab, 'tab-fill');
+		const activeSingleTab = appendElement(singleTabs, 'tab active');
+		const activeSingleFill = appendElement(activeSingleTab, 'tab-fill');
 		const title = appendElement(group, 'title tabs');
 		const row = appendElement(title, 'tabs-and-actions-container wrapping');
 		const tabs = appendElement(row, 'tabs-container');
@@ -2932,19 +2946,36 @@ suite('ModernUIContribution', () => {
 
 		assert.deepStrictEqual({
 			rowPaddingTop: targetWindow.getComputedStyle(row).paddingTop,
+			separatorSlots: [targetWindow.getComputedStyle(singleTabs).paddingBottom, targetWindow.getComputedStyle(tabs).paddingBottom],
+			separatorOffsets: [targetWindow.getComputedStyle(singleRow, '::after').bottom, targetWindow.getComputedStyle(row, '::after').bottom],
 			topFrame: {
 				borderColors: [targetWindow.getComputedStyle(upperFill).borderTopColor, targetWindow.getComputedStyle(upperFill).borderLeftColor],
 				borderTopLeftRadius: targetWindow.getComputedStyle(upperFill).borderTopLeftRadius,
+				borderWidths: [targetWindow.getComputedStyle(upperFill).borderTopWidth, targetWindow.getComputedStyle(upperFill).borderLeftWidth],
 			},
 			upper: geometry(upperTab, upperFill),
-			inactiveBottom: geometry(inactiveBottomTab, inactiveBottomFill),
-			activeBottom: geometry(activeBottomTab, activeBottomFill),
+			inactive: {
+				single: geometry(inactiveSingleTab, inactiveSingleFill),
+				wrappedBottom: geometry(inactiveBottomTab, inactiveBottomFill),
+			},
+			active: {
+				single: geometry(activeSingleTab, activeSingleFill),
+				wrappedBottom: geometry(activeBottomTab, activeBottomFill),
+			},
 		}, {
-			rowPaddingTop: '0px',
-			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '0px' },
-			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-2px', '-2px'], fillInlineStart: '0px' },
-			inactiveBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
-			activeBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'], fillInlineStart: '0px' },
+			rowPaddingTop: '2px',
+			separatorSlots: ['1px', '1px'],
+			separatorOffsets: ['0px', '0px'],
+			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '6px', borderWidths: ['1px', '1px'] },
+			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-2px', '-2px'], fillInlineStart: '2px' },
+			inactive: {
+				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
+				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
+			},
+			active: {
+				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'], fillInlineStart: '0px' },
+				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'], fillInlineStart: '0px' },
+			},
 		});
 	});
 
@@ -3037,16 +3068,18 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('extends the connected sticky mask to the strip separator', () => {
+	test('extends the connected sticky mask through its owned strip separator', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
 		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--modern-ui-connected-tab-border', '#123456');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
 		const editor = appendElement(root, 'part editor');
 		const content = appendElement(editor, 'content');
 		const group = appendElement(content, 'editor-group-container active');
+		group.style.setProperty('--modern-ui-connected-tab-border', '#123456');
 		const title = appendElement(group, 'title tabs');
 		const tabsAndActions = appendElement(title, 'tabs-and-actions-container');
 		const scrollable = appendElement(tabsAndActions, 'monaco-scrollable-element');
@@ -3064,11 +3097,13 @@ suite('ModernUIContribution', () => {
 			bottom: stickyStyle.bottom,
 			height: stickyBounds.height,
 			separatorHeight: scrollableBounds.bottom - stickyBounds.bottom,
+			borderBottomWidth: stickyStyle.borderBottomWidth,
 		}, {
 			top: '0px',
-			bottom: '1px',
-			height: 32,
-			separatorHeight: 1,
+			bottom: '0px',
+			height: 33,
+			separatorHeight: 0,
+			borderBottomWidth: '1px',
 		});
 	});
 

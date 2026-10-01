@@ -839,7 +839,49 @@ function renderWrappedConnectedCloseActionHover(activeTabIndex: number): (ctx: C
 	});
 }
 
+function renderPinnedActionComparison(editorTabStyle: ModernUIEditorTabStyle, layout: 'inline' | 'wrapped' | 'separate', tabActionLocation: 'left' | 'right' = 'right'): (ctx: ComponentFixtureContext) => void {
+	const wrapped = layout === 'wrapped';
+	const editors = (wrapped ? manyEditorSpecs().slice(0, 10) : defaultEditorSpecs().slice(0, 3)).map((spec, index, all) => ({
+		...spec,
+		sticky: index === 0,
+		pinned: true,
+		dirty: false,
+		active: index === (wrapped ? all.length - 1 : 1),
+	}));
+	return render(true, {
+		editorTabStyle,
+		width: 820,
+		editors,
+		partOptions: {
+			editorActionsLocation: 'hidden',
+			pinnedTabsOnSeparateRow: layout === 'separate',
+			pinnedTabSizing: 'normal',
+			tabActionLocation,
+			tabActionUnpinVisibility: true,
+			tabSizing: wrapped ? 'fixed' : 'fit',
+			tabSizingFixedMinWidth: 120,
+			tabSizingFixedMaxWidth: 120,
+			wrapTabs: wrapped,
+		},
+		forcedHoverTabAction: 0,
+	});
+}
+
+const pinnedActionExpectedVisualDescriptions = [
+	'The hovered Unpin action and the active tab Close action use equal 20px targets with matching outer-edge and vertical clearance inside their tab fills.',
+	'Pinning changes the action glyph and persistence, not the action target or edge clearance. This remains true for inline, wrapped, and separate pinned rows.',
+];
+
 const connectedSurfaceThemes: readonly ComponentFixtureAdditionalTheme[] = ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast', 'abyss', 'monokai', 'quietLight', 'solarizedDark', 'solarizedLight'];
+const pinnedActionThemes: readonly ComponentFixtureAdditionalTheme[] = ['darkHighContrast', 'lightHighContrast'];
+
+function definePinnedActionFixture(editorTabStyle: ModernUIEditorTabStyle, layout: 'inline' | 'wrapped' | 'separate', tabActionLocation: 'left' | 'right' = 'right') {
+	return defineComponentFixture({
+		render: renderPinnedActionComparison(editorTabStyle, layout, tabActionLocation),
+		additionalThemes: pinnedActionThemes,
+		expectedVisualDescriptions: pinnedActionExpectedVisualDescriptions,
+	});
+}
 
 export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 	FileIconThemes: defineThemedFixtureGroup({
@@ -885,6 +927,16 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			],
 		}),
 	}),
+	PinnedActions: defineThemedFixtureGroup({
+		ConnectedInline: definePinnedActionFixture(ModernUIEditorTabStyle.Connected, 'inline'),
+		ConnectedWrapped: definePinnedActionFixture(ModernUIEditorTabStyle.Connected, 'wrapped'),
+		ConnectedSeparateRow: definePinnedActionFixture(ModernUIEditorTabStyle.Connected, 'separate'),
+		ConnectedActionLeft: definePinnedActionFixture(ModernUIEditorTabStyle.Connected, 'inline', 'left'),
+		PillInline: definePinnedActionFixture(ModernUIEditorTabStyle.Pill, 'inline'),
+		PillWrapped: definePinnedActionFixture(ModernUIEditorTabStyle.Pill, 'wrapped'),
+		PillSeparateRow: definePinnedActionFixture(ModernUIEditorTabStyle.Pill, 'separate'),
+		PillActionLeft: definePinnedActionFixture(ModernUIEditorTabStyle.Pill, 'inline', 'left'),
+	}),
 	ConnectedSurface: defineThemedFixtureGroup({
 		MinimumIdentity: defineComponentFixture({
 			render: renderConnectedSurface(3, undefined, undefined, {
@@ -900,7 +952,7 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 				width: 380,
 				partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 30, tabSizingFixedMaxWidth: 30, editorActionsLocation: 'hidden' },
 			}),
-			expectedVisualDescriptions: ['Hover reveals the inactive close without covering its ellipsized basename or extension.'],
+			expectedVisualDescriptions: ['Hover reveals the inactive close without covering its ellipsized basename or extension. The first tab follows the editor frame’s large upper-left radius, including in both high-contrast themes.'],
 		}),
 		SingleTab: defineComponentFixture({
 			render: renderConnectedSurface(0, undefined, undefined, {
@@ -942,12 +994,23 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		UpperWrappedPills: defineComponentFixture({
 			render: renderWrappedConnectedSurface(0),
 			additionalThemes: connectedSurfaceThemes,
-			expectedVisualDescriptions: ['The active tab in the upper wrapped row is a rounded pill with no shoulders, using the same background as the document well, including behind its close action. Only tabs in the bottom row can connect to the document.'],
+			expectedVisualDescriptions: ['The active tab in the upper wrapped row is a rounded pill with no shoulders, using the same background as the document well, including behind its close action. Its 2px top inset matches the outer inline gutter and inter-row spacing. Only tabs in the bottom row can connect to the document.'],
+		}),
+		UpperWrappedSelectedAndHover: defineComponentFixture({
+			render: renderWrappedConnectedSurface(1, 0),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: [
+				'The selected and hovered upper-row pills have the same outer footprint and a 4px visible background gap, composed from a 2px outer gap plus one transparent border stroke on each pill.',
+				'In high contrast, the leftmost hovered pill remains inset from the editor frame and follows its rounded upper-left corner without painting beyond it.',
+			],
 		}),
 		BottomWrappedConnected: defineComponentFixture({
 			render: renderWrappedConnectedSurface(9),
 			additionalThemes: connectedSurfaceThemes,
-			expectedVisualDescriptions: ['The selected tab in the bottom wrapped row connects directly to the document well with curved shoulders and no bottom gap, just like a single row. The adjacent inactive tab also reaches the well boundary. Upper-row tabs retain separate rounded pills.'],
+			expectedVisualDescriptions: [
+				'The selected tab in the bottom wrapped row inherits the single-row connected-tab fill, shoulder, and edge geometry. Only upper wrapped rows use pill-specific styling.',
+				'The row-owned separator starts immediately after the bottom tab edge, so it meets the selected shoulders at their tangent instead of crossing through their curved stroke.',
+			],
 		}),
 		UpperWrappedCloseActionHovered: defineComponentFixture({
 			render: renderWrappedConnectedCloseActionHover(0),
@@ -955,7 +1018,10 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		}),
 		BottomWrappedCloseActionHovered: defineComponentFixture({
 			render: renderWrappedConnectedCloseActionHover(9),
-			expectedVisualDescriptions: ['The bottom-row connected tab close action hover background has even inset spacing on every side and remains separated from the terminal shoulder.'],
+			expectedVisualDescriptions: [
+				'The bottom-row connected tab close action hover background has even inset spacing on every side and remains separated from the terminal shoulder.',
+				'In standard themes, the well separator stops cleanly at the selected tab instead of tracing visible arcs around its shoulders.',
+			],
 		}),
 		UpperWrappedHover: defineComponentFixture({
 			render: renderWrappedConnectedSurface(9, 1),
@@ -977,7 +1043,7 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 				],
 			}),
 			additionalThemes: connectedSurfaceThemes,
-			expectedVisualDescriptions: ['The active pinned tab in the separate upper strip remains a rounded pill with the document well background, not a disconnected tab-shaped well.'],
+			expectedVisualDescriptions: ['The active pinned tab in the separate upper strip uses the full 32px tab height, matching the connected row while retaining rounded pill geometry.'],
 		}),
 		InactiveGroup: defineComponentFixture({
 			render: renderConnectedSurface(1, undefined, undefined, { active: false }),
@@ -1011,12 +1077,12 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 				width: 250,
 				activeTabClipping: 'left',
 			}),
-			expectedVisualDescriptions: ['Compact sticky tabs fully occlude the scrolling active tab and its connected gutter. The strip separator remains continuous beneath the sticky region.'],
+			expectedVisualDescriptions: ['Compact sticky tabs fully occlude the scrolling active tab and its connected gutter with a clean separator. The adjacent clipped active cap has a rounded top-left edge without a vertical seam or content leaking beneath the sticky icons.'],
 		}),
 		ClippedLeft: defineComponentFixture({
 			render: render(true, { editors: manyEditorSpecs(), width: 360, activeTabClipping: 'left' }),
 			additionalThemes: connectedSurfaceThemes,
-			expectedVisualDescriptions: ['The partially scrolled active tab closes its stationary outside stroke with a straight left edge. Its top stroke, left edge and strip separator remain continuous without exposing clipped tab content.'],
+			expectedVisualDescriptions: ['The partially scrolled active tab closes its stationary outside stroke with a rounded upper-left cap. Its top stroke, left edge and strip separator remain continuous without exposing clipped tab content.'],
 		}),
 		ClippedRight: defineComponentFixture({
 			render: render(true, { editors: manyEditorSpecs(5), width: 248, activeTabClipping: 'right' }),

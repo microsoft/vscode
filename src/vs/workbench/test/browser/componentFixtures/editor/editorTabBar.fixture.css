@@ -5,6 +5,11 @@
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab.fixture-hover:not(.selected):not(.active) > .tab-fill {
 	background-color: var(--modern-ui-editor-tab-hover-background);
+	border-bottom-color: var(--modern-ui-editor-tab-hover-border);
+}
+
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor .tabs-container > .tab.fixture-hover:not(.active):not(.selected) > .tab-fill {
+	border: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.fixture-hover:not(.active):not(.dirty):not(.sticky):not(:focus-within) > .tab-actions .action-label {
@@ -22,6 +27,11 @@
 
 .monaco-workbench .monaco-action-bar:not(.vertical) .action-label.fixture-action-hover:not(.disabled) {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor .action-label.fixture-action-hover:not(.disabled) {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.fixture-hover:not(.close-action-off) > .tab-actions {
