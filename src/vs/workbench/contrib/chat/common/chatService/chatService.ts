@@ -859,13 +859,17 @@ export const enum ToolConfirmKind {
 	Skipped
 }
 
+/** Explicit origin of a denial or skip; absence does not identify an actor. */
+export type ToolConfirmationSource = 'user' | 'hook' | 'riskAssessment';
+
+export type ToolDeniedReason = { type: ToolConfirmKind.Denied | ToolConfirmKind.Skipped; source?: ToolConfirmationSource };
+
 export type ConfirmedReason =
-	| { type: ToolConfirmKind.Denied; isUserAction?: boolean }
+	| ToolDeniedReason
 	| { type: ToolConfirmKind.ConfirmationNotNeeded; reason?: string | IMarkdownString }
 	| { type: ToolConfirmKind.Setting; id: string }
 	| { type: ToolConfirmKind.LmServicePerTool; scope: 'session' | 'workspace' | 'profile' }
-	| { type: ToolConfirmKind.UserAction; selectedButton?: string; selectedButtonKind?: ConfirmationOptionKind }
-	| { type: ToolConfirmKind.Skipped; isUserAction?: boolean };
+	| { type: ToolConfirmKind.UserAction; selectedButton?: string; selectedButtonKind?: ConfirmationOptionKind };
 
 /**
  * Active-only controls for a tool call executing on another connected client.
@@ -972,8 +976,7 @@ export namespace IChatToolInvocation {
 	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase, IChatToolInvocationPostStreamState {
 		type: StateKind.Cancelled;
 		reason: ToolConfirmKind.Denied | ToolConfirmKind.Skipped;
-		/** Set only when a user explicitly answers the tool confirmation. */
-		isUserAction?: boolean;
+		source?: ToolConfirmationSource;
 		/** Optional message explaining why the tool was cancelled (e.g., from hook denial) */
 		reasonMessage?: string | IMarkdownString;
 	}
@@ -1000,7 +1003,7 @@ export namespace IChatToolInvocation {
 			return undefined; // don't know yet
 		}
 		if (state.type === StateKind.Cancelled) {
-			return { type: state.reason, ...(state.isUserAction !== undefined ? { isUserAction: state.isUserAction } : {}) };
+			return { type: state.reason, ...(state.source !== undefined ? { source: state.source } : {}) };
 		}
 
 		return state.confirmed;
@@ -1038,7 +1041,7 @@ export namespace IChatToolInvocation {
 			return state.postConfirmed || { type: ToolConfirmKind.ConfirmationNotNeeded };
 		}
 		if (state.type === StateKind.Cancelled) {
-			return { type: state.reason, ...(state.isUserAction !== undefined ? { isUserAction: state.isUserAction } : {}) };
+			return { type: state.reason, ...(state.source !== undefined ? { source: state.source } : {}) };
 		}
 
 		return undefined;

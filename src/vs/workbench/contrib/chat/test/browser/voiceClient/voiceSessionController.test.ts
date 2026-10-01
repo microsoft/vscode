@@ -2779,8 +2779,8 @@ suite('VoiceSessionController', () => {
 
 		assert.deepStrictEqual(confirmed, [
 			{ toolCallId: 'manual', reason: { type: ToolConfirmKind.UserAction } },
-			{ toolCallId: 'manual-reject', reason: { type: ToolConfirmKind.Denied, isUserAction: true } },
-			{ toolCallId: 'fallback-reject', reason: { type: ToolConfirmKind.Denied, isUserAction: true } },
+			{ toolCallId: 'manual-reject', reason: { type: ToolConfirmKind.Denied, source: 'user' } },
+			{ toolCallId: 'fallback-reject', reason: { type: ToolConfirmKind.Denied, source: 'user' } },
 			{ toolCallId: 'approve-all', reason: { type: ToolConfirmKind.UserAction } },
 			{ toolCallId: 'automatic-sweep', reason: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' } },
 			{ toolCallId: 'automatic-observer', reason: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' } },

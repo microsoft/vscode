@@ -520,7 +520,15 @@ function confirmedReasonToDecisionSource(reason: ConfirmedReason, cancellationTo
 			return 'host_policy';
 		case ToolConfirmKind.Denied:
 		case ToolConfirmKind.Skipped:
-			return reason.isUserAction === true ? 'human_response' : cancellationToken.isCancellationRequested ? 'unattended_fallback' : undefined;
+			switch (reason.source) {
+				case 'user':
+					return 'human_response';
+				case 'hook':
+				case 'riskAssessment':
+					return 'host_policy';
+				default:
+					return cancellationToken.isCancellationRequested ? 'unattended_fallback' : undefined;
+			}
 	}
 }
 
@@ -4654,7 +4662,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					toolCallId,
 					approved: false,
 					reason: ToolCallCancellationReason.Denied,
-					_meta: toAgentPermissionResponseMeta({ decisionSource: confirmedReasonToDecisionSource({ type: state.reason, isUserAction: state.isUserAction }, opts.cancellationToken) }),
+					_meta: toAgentPermissionResponseMeta({ decisionSource: confirmedReasonToDecisionSource({ type: state.reason, source: state.source }, opts.cancellationToken) }),
 				});
 			}
 		}));
@@ -4670,7 +4678,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				: tc.status === ToolCallStatus.Completed && !tc.success && tc.error?.code === 'cancelled'
 					? { reason: ToolConfirmKind.Skipped, reasonMessage: tc.error.message } as const
 					: undefined;
-			if (cancellation && !invocation.cancelFromStreaming(cancellation.reason, cancellation.reasonMessage)) {
+			if (cancellation && !invocation.cancelFromStreaming({ type: cancellation.reason }, cancellation.reasonMessage)) {
 				IChatToolInvocation.confirmWith(invocation, { type: cancellation.reason });
 			}
 			if ((tc.status === ToolCallStatus.Cancelled || tc.status === ToolCallStatus.Completed)

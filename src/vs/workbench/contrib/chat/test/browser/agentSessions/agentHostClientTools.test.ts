@@ -2050,8 +2050,10 @@ suite('AgentHostClientTools', () => {
 		test('attributes explicit client decisions and preserves current tool metadata for approval and denial', async () => {
 			const cases: { reason: ConfirmedReason; approved: boolean; decisionSource?: string }[] = [
 				{ reason: { type: ToolConfirmKind.UserAction }, approved: true, decisionSource: 'human_response' },
-				{ reason: { type: ToolConfirmKind.Denied, isUserAction: true }, approved: false, decisionSource: 'human_response' },
-				{ reason: { type: ToolConfirmKind.Skipped, isUserAction: true }, approved: false, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.Denied, source: 'user' }, approved: false, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.Skipped, source: 'user' }, approved: false, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.Denied, source: 'hook' }, approved: false, decisionSource: 'host_policy' },
+				{ reason: { type: ToolConfirmKind.Skipped, source: 'riskAssessment' }, approved: false, decisionSource: 'host_policy' },
 				{ reason: { type: ToolConfirmKind.UserAction, selectedButton: 'skip', selectedButtonKind: ConfirmationOptionKind.Deny }, approved: false, decisionSource: 'human_response' },
 				{ reason: { type: ToolConfirmKind.Setting, id: 'setting' }, approved: true, decisionSource: 'host_policy' },
 				{ reason: { type: ToolConfirmKind.ConfirmationNotNeeded }, approved: true, decisionSource: 'host_policy' },
@@ -2098,7 +2100,9 @@ suite('AgentHostClientTools', () => {
 			const cases: { reason: ConfirmedReason; approved: boolean; confirmed?: ToolCallConfirmationReason; decisionSource?: string }[] = [
 				{ reason: { type: ToolConfirmKind.UserAction }, approved: true, confirmed: ToolCallConfirmationReason.UserAction, decisionSource: 'human_response' },
 				{ reason: { type: ToolConfirmKind.UserAction, selectedButton: 'skip', selectedButtonKind: ConfirmationOptionKind.Deny }, approved: false, decisionSource: 'human_response' },
-				{ reason: { type: ToolConfirmKind.Skipped, isUserAction: true }, approved: false, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.Skipped, source: 'user' }, approved: false, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.Denied, source: 'hook' }, approved: false, decisionSource: 'host_policy' },
+				{ reason: { type: ToolConfirmKind.Skipped, source: 'riskAssessment' }, approved: false, decisionSource: 'host_policy' },
 				{ reason: { type: ToolConfirmKind.Denied }, approved: false },
 				{ reason: { type: ToolConfirmKind.Setting, id: 'setting' }, approved: true, confirmed: ToolCallConfirmationReason.Setting, decisionSource: 'host_policy' },
 				{ reason: { type: ToolConfirmKind.ConfirmationNotNeeded }, approved: true, confirmed: ToolCallConfirmationReason.NotNeeded, decisionSource: 'host_policy' },

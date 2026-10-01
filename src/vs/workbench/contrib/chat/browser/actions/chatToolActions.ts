@@ -122,7 +122,7 @@ class SkipToolConfirmation extends ToolConfirmationAction {
 	}
 
 	protected override getReason(): ConfirmedReason {
-		return { type: ToolConfirmKind.Skipped, isUserAction: true };
+		return { type: ToolConfirmKind.Skipped, source: 'user' };
 	}
 }
 

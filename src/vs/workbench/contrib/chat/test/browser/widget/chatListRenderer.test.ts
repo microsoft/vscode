@@ -2523,7 +2523,7 @@ suite('ChatListRenderer', () => {
 					toolId,
 					toolCallId: 'denied',
 					chatRequestId: request.id,
-				}, {}, ToolConfirmKind.Denied);
+				}, {}, { type: ToolConfirmKind.Denied });
 				model.acceptResponseProgress(request, restored ? denied.toJSON() : denied);
 				renderer.renderElement(node, 0, template);
 				const icon = template.value.querySelector<HTMLElement>('.progress-container > .codicon-error-compact');

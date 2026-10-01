@@ -413,13 +413,13 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 		tool.state.set({
 			type: IChatToolInvocation.StateKind.Cancelled,
 			reason: ToolConfirmKind.Denied,
-			isUserAction: true,
+			source: 'user',
 			parameters: {},
 		}, undefined);
 		assert.deepStrictEqual({ result, repeated, confirmations }, {
 			result: { ok: true },
 			repeated: { ok: false, reason: 'stale_pending' },
-			confirmations: [{ type: ToolConfirmKind.Denied, isUserAction: true }],
+			confirmations: [{ type: ToolConfirmKind.Denied, source: 'user' }],
 		});
 	});
 

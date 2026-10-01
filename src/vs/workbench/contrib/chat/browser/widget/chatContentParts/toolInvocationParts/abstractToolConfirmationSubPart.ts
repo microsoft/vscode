@@ -221,7 +221,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 					label: localize('skip', "Skip"),
 					tooltip: skipTooltip,
 					data: () => {
-						this.confirmWith(toolInvocation, { type: ToolConfirmKind.Skipped, isUserAction: true });
+						this.confirmWith(toolInvocation, { type: ToolConfirmKind.Skipped, source: 'user' });
 					},
 					isSecondary: true,
 				}

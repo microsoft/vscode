@@ -998,7 +998,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								if (lastReq.response) {
 									for (const part of lastReq.response.response.value) {
 										if (part.kind === 'toolInvocation') {
-											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied, isUserAction: true });
+											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied, source: 'user' });
 										}
 									}
 								}
@@ -1044,7 +1044,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction });
 										},
 										deny: () => {
-											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied, isUserAction: true });
+											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied, source: 'user' });
 										},
 									});
 									break;
