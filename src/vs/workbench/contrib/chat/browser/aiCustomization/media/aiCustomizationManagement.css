@@ -898,7 +898,7 @@ per-word capitalization does not survive translation. */
 }
 
 .middle-ellipsis-path-label .middle-ellipsis-path-prefix {
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
