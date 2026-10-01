@@ -7,11 +7,14 @@ import * as assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
-import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
-import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
-import { ChatOriginKind } from '../../common/state/protocol/state.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
+import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
+import { parseSessionArtifacts, SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
+import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -21,12 +24,15 @@ const session = URI.parse('agenthost:catalog-source');
 const chat = 'agenthost-chat:catalog-source/default';
 const liveArtifact = { id: 'live-artifact', type: SessionArtifactType.Website, label: 'Live artifact', isArtifact: true, link: 'https://example.com/live' };
 const persistedArtifact = { id: 'persisted-artifact', type: SessionArtifactType.Issue, label: 'Persisted artifact', isArtifact: true, link: 'https://example.com/persisted' };
+const liveScopedArtifact = { ...liveArtifact, chat };
+const persistedScopedArtifact = { ...persistedArtifact, chat };
 const liveCreationReference = { session: 'agenthost:live-creator', chat: 'agenthost-chat:live-creator/default', turnId: 'live-turn' } as const;
 const persistedCreationReference = { session: 'agenthost:persisted-creator', chat: 'agenthost-chat:persisted-creator/default', turnId: 'persisted-turn' } as const;
 const liveGit = { branchName: 'live-branch', outgoingChanges: 2 };
 const persistedGit = { branchName: 'persisted-branch', outgoingChanges: 5 };
 const liveGitHub = { owner: 'live-owner', repo: 'live-repo' };
 const persistedGitHub = { owner: 'persisted-owner', repo: 'persisted-repo' };
+const liveFolderKey = getWorkingDirectoryKey('file:///live');
 const liveSourceControl = { merge: { commit: 'live-commit' }, latestOutcome: SessionSourceControlOutcome.Merge };
 const persistedSourceControl = { latestOutcome: SessionSourceControlOutcome.PullRequest };
 
@@ -35,7 +41,7 @@ function sourceState(): ICatalogSourceState {
 	meta = withSessionFolderPickerDecision(meta, { hidden: false });
 	meta = withSessionArtifacts(meta, [liveArtifact]);
 	meta = withSessionCreationReference(meta, liveCreationReference);
-	meta = withSessionGitHubState(meta, liveGitHub);
+	meta = withSessionGitHubState(meta, 'file:///live', liveGitHub);
 	meta = withSessionGitState(meta, liveGit);
 	meta = withSessionSourceControlState(meta, liveSourceControl);
 	meta = withSessionWorkspaceless(meta, true);
@@ -53,6 +59,7 @@ function sourceState(): ICatalogSourceState {
 			kind: 'default',
 			title: 'Live chat',
 			origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
+			interactivity: ChatInteractivity.ReadOnly,
 		}],
 	};
 }
@@ -84,6 +91,7 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 	const resolver = new AgentHostCatalogSourceResolver({
 		isUnpersistedChatBacking: () => unpersistedBacking,
 		worktreeProjectFromRepositoryRoot: root => root ? { uri: URI.parse(root), displayName: 'Persisted worktree' } : undefined,
+		reportMalformedArtifacts: () => { },
 	});
 	return {
 		buildCatalogSyncRequest: (session, state, overrides, preferPersisted, _database, fallbacks) => resolver.buildCatalogSyncRequest(
@@ -105,16 +113,99 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('restores artifacts for multiple chats from the shared session metadata key', async () => {
+		const peer = 'agenthost-chat:catalog-source/peer';
+		const peerArtifact = { ...persistedArtifact, id: 'peer-artifact', chat: peer };
+		const result = await createResolver({
+			[SESSION_ARTIFACTS_KEY]: JSON.stringify([liveScopedArtifact, peerArtifact]),
+		}).buildCatalogSyncRequest(session, {
+			...sourceState(),
+			chats: [...sourceState().chats, { uri: peer, kind: 'peer' }],
+		}, {}, true);
+
+		assert.deepStrictEqual(result.data._meta?.[SESSION_META_ARTIFACTS_KEY], [
+			liveScopedArtifact,
+			peerArtifact,
+		]);
+		assert.deepStrictEqual(parseSessionArtifacts(result.legacyMetadata[SESSION_ARTIFACTS_KEY]).artifacts, [liveScopedArtifact, peerArtifact]);
+		assert.ok(encodeAgentHostCatalogPayload(result.data).ok);
+	});
+
+	test('migrates legacy artifacts into the shared session collection with default chat provenance', async () => {
+		const result = await createResolver({
+			[SESSION_ARTIFACTS_KEY]: JSON.stringify([persistedArtifact]),
+		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+
+		assert.deepStrictEqual({
+			artifacts: result.data._meta?.[SESSION_META_ARTIFACTS_KEY],
+			persistedArtifacts: JSON.parse(result.legacyMetadata[SESSION_ARTIFACTS_KEY]),
+		}, {
+			artifacts: [{ ...persistedArtifact, chat }],
+			persistedArtifacts: [{ ...persistedArtifact, chat }],
+		});
+	});
+
+	test('does not persist temporary input restrictions as read-only chats', async () => {
+		const state = sourceState();
+		const peer = `${chat}/peer`;
+		const meta = withChatInputState({ _meta: state.meta }, chat, { kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'Locked' } });
+		const result = await createResolver({}).buildCatalogSyncRequest(session, {
+			...state,
+			meta,
+			chats: [...state.chats.map(chat => ({ ...chat, archived: true })), { uri: peer, kind: 'peer', interactivity: ChatInteractivity.ReadOnly }],
+		}, {}, false);
+		assert.deepStrictEqual({
+			interactivity: result.data.chats.map(chat => chat.interactivity),
+			archived: result.data.chats.map(chat => chat.archived),
+			input: readChatInputState(result.data, chat),
+		}, { interactivity: [ChatInteractivity.Full, ChatInteractivity.ReadOnly], archived: [true, undefined], input: undefined });
+	});
+
+	test('projects remote origins from live and persisted state without losing exact chat or depth', async () => {
+		const live = { session: 'remote-host-copilotcli:/parent', chat: 'remote-host-copilotcli:/parent#peer', depth: 2 };
+		const persisted = { session: 'agent-host-copilotcli:/origin', chat: 'agent-host-copilotcli:/origin#original', depth: 3 };
+		const state = sourceState();
+		const resolver = createResolver({ [REMOTE_SESSION_ORIGIN_METADATA_KEY]: JSON.stringify(persisted) });
+		const results = await Promise.all([false, true].map(preferPersisted => resolver.buildCatalogSyncRequest(
+			session, { ...state, meta: withRemoteSessionOrigin(state.meta, live) }, {}, preferPersisted,
+		)));
+		assert.deepStrictEqual(results.map(result => ({
+			origin: readRemoteSessionOrigin(result.data),
+			persisted: result.legacyMetadata[REMOTE_SESSION_ORIGIN_METADATA_KEY],
+		})), [live, persisted].map(origin => ({ origin, persisted: JSON.stringify(origin) })));
+	});
+
+	test('round-trips persisted folder-scoped Git state through the catalog payload', async () => {
+		const scopeId = 'folder-scope';
+		const gitState = { branchName: 'feature', baseBranchName: 'main' };
+		const result = await createResolver({
+			[META_GIT_DATA_STATE]: JSON.stringify({ [scopeId]: gitState }),
+		}).buildCatalogSyncRequest(session, { ...sourceState(), meta: undefined }, {}, true);
+		const encoded = encodeAgentHostCatalogPayload(result.data);
+
+		assert.deepStrictEqual({
+			catalog: result.data._meta?.[SESSION_META_GIT_DATA_KEY],
+			legacy: result.legacyMetadata[META_GIT_DATA_STATE],
+			encoded: encoded.ok,
+		}, {
+			catalog: { [scopeId]: gitState },
+			legacy: JSON.stringify({ [scopeId]: gitState }),
+			encoded: true,
+		});
+	});
+
 	test('consumes the provided database reference and propagates metadata read failures', async () => {
 		const absent = new AgentHostCatalogSourceResolver({
 			isUnpersistedChatBacking: () => false,
 			worktreeProjectFromRepositoryRoot: () => undefined,
+			reportMalformedArtifacts: () => { },
 		});
 
 		const result = await absent.buildCatalogSyncRequest(session, sourceState(), {}, true, undefined);
 		const failing = new AgentHostCatalogSourceResolver({
 			isUnpersistedChatBacking: () => false,
 			worktreeProjectFromRepositoryRoot: () => undefined,
+			reportMalformedArtifacts: () => { },
 		});
 
 		await assert.rejects(
@@ -136,6 +227,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 			summary: 'Persisted chat',
 			titleSource: 'agent',
 			origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
+			interactivity: ChatInteractivity.ReadOnly,
 		}]);
 	});
 
@@ -147,6 +239,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 				uri: peer,
 				kind: 'peer',
 				origin: { kind: ChatOriginKind.User },
+				archived: true,
 				inheritedTurnId: 'inherited-turn',
 			}],
 		}, {}, true, undefined);
@@ -158,6 +251,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 			summary: undefined,
 			titleSource: 'auto',
 			origin: { kind: ChatOriginKind.User },
+			archived: true,
 			inheritedTurnId: 'inherited-turn',
 		}]);
 	});
@@ -221,11 +315,12 @@ suite('AgentHostCatalogSourceResolver', () => {
 
 		assert.deepStrictEqual({
 			devContainerWorktree: result.data._meta?.[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY],
-			gitHub: result.data._meta?.[SESSION_META_GITHUB_KEY],
+			gitHubData: result.data._meta?.[SESSION_META_GITHUB_DATA_KEY],
 			persistedDevContainerWorktree: result.legacyMetadata[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY],
 		}, {
 			devContainerWorktree,
-			gitHub,
+			// The original single-folder state is migrated to the session folder.
+			gitHubData: { [liveFolderKey]: gitHub },
 			persistedDevContainerWorktree: JSON.stringify(devContainerWorktree),
 		});
 	});
@@ -288,10 +383,10 @@ suite('AgentHostCatalogSourceResolver', () => {
 				_meta: {
 					[SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///live.code-workspace' },
 					[SESSION_META_FOLDER_PICKER_KEY]: { hidden: false },
-					[SESSION_META_GITHUB_KEY]: liveGitHub,
+					[SESSION_META_GITHUB_DATA_KEY]: { [liveFolderKey]: liveGitHub },
 					[SESSION_META_GIT_KEY]: liveGit,
 					[SESSION_META_SOURCE_CONTROL_KEY]: liveSourceControl,
-					[SESSION_META_ARTIFACTS_KEY]: [liveArtifact],
+					[SESSION_META_ARTIFACTS_KEY]: [liveScopedArtifact],
 					[SESSION_META_CREATED_BY_SESSION_KEY]: liveCreationReference,
 					[SESSION_META_WORKSPACELESS_KEY]: true,
 					[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
@@ -305,6 +400,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 					summary: 'Override chat',
 					titleSource: 'agent',
 					origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
+					interactivity: ChatInteractivity.ReadOnly,
 				}],
 			},
 			legacyMetadata: {
@@ -314,13 +410,13 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[AH_META_IS_ARCHIVED_DB_KEY]: '',
 				[SESSION_META_MULTI_ROOT_KEY]: JSON.stringify({ workspaceFile: 'file:///live.code-workspace' }),
 				[SESSION_META_FOLDER_PICKER_KEY]: JSON.stringify({ hidden: false }),
-				[SESSION_ARTIFACTS_KEY]: JSON.stringify([liveArtifact]),
+				[SESSION_ARTIFACTS_KEY]: JSON.stringify([liveScopedArtifact]),
 				[AH_META_CREATED_BY_SESSION_DB_KEY]: JSON.stringify(liveCreationReference),
 				[AH_META_WORKSPACELESS_DB_KEY]: 'true',
 				[CHAT_BACKING_METADATA_KEY]: 'agenthost-chat:owner/peer',
 				[WORKTREE_META_REPOSITORY_ROOT]: 'file:///persisted-worktree',
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
-				[META_GITHUB_STATE]: JSON.stringify(liveGitHub),
+				[META_GITHUB_DATA_STATE]: JSON.stringify({ [liveFolderKey]: liveGitHub }),
 				[META_SOURCE_CONTROL_STATE]: JSON.stringify(liveSourceControl),
 				[META_GIT_STATE]: JSON.stringify(liveGit),
 				[META_CHANGES_SUMMARY]: JSON.stringify({ additions: 1, deletions: 2, files: 3 }),
@@ -344,10 +440,10 @@ suite('AgentHostCatalogSourceResolver', () => {
 				_meta: {
 					[SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///persisted.code-workspace' },
 					[SESSION_META_FOLDER_PICKER_KEY]: { hidden: true, primary: 'file:///persisted' },
-					[SESSION_META_GITHUB_KEY]: persistedGitHub,
+					[SESSION_META_GITHUB_DATA_KEY]: { [liveFolderKey]: persistedGitHub },
 					[SESSION_META_GIT_KEY]: liveGit,
 					[SESSION_META_SOURCE_CONTROL_KEY]: { merge: undefined, ...persistedSourceControl },
-					[SESSION_META_ARTIFACTS_KEY]: [persistedArtifact],
+					[SESSION_META_ARTIFACTS_KEY]: [persistedScopedArtifact],
 					[SESSION_META_CREATED_BY_SESSION_KEY]: persistedCreationReference,
 					[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
 					[SESSION_META_EHCLI_ADOPTED_KEY]: true,
@@ -360,6 +456,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 					summary: 'Persisted chat',
 					titleSource: 'agent',
 					origin: { kind: ChatOriginKind.Fork, chat: 'agenthost-chat:source/default', turnId: 'turn-1' },
+					interactivity: ChatInteractivity.ReadOnly,
 				}],
 			},
 			legacyMetadata: {
@@ -367,18 +464,32 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
 				[SESSION_META_MULTI_ROOT_KEY]: JSON.stringify({ workspaceFile: 'file:///persisted.code-workspace' }),
 				[SESSION_META_FOLDER_PICKER_KEY]: JSON.stringify({ hidden: true, primary: 'file:///persisted' }),
-				[SESSION_ARTIFACTS_KEY]: JSON.stringify([persistedArtifact]),
+				[SESSION_ARTIFACTS_KEY]: JSON.stringify([persistedScopedArtifact]),
 				[AH_META_CREATED_BY_SESSION_DB_KEY]: JSON.stringify(persistedCreationReference),
 				[AH_META_WORKSPACELESS_DB_KEY]: 'false',
 				[CHAT_BACKING_METADATA_KEY]: 'agenthost-chat:owner/peer',
 				[WORKTREE_META_REPOSITORY_ROOT]: 'file:///persisted-worktree',
 				[SESSION_CUSTOM_TITLE_KEY]: 'Persisted title',
 				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
-				[META_GITHUB_STATE]: JSON.stringify(persistedGitHub),
+				[META_GITHUB_DATA_STATE]: JSON.stringify({ [liveFolderKey]: persistedGitHub }),
 				[META_SOURCE_CONTROL_STATE]: JSON.stringify(persistedSourceControl),
 				[META_GIT_STATE]: JSON.stringify(liveGit),
 				[META_CHANGES_SUMMARY]: JSON.stringify({ additions: 10, deletions: 20, files: 30 }),
 			},
+		});
+	});
+
+	test('ignores an empty legacy GitHub tombstone when preferring persisted metadata', async () => {
+		const result = await createResolver({
+			[META_GITHUB_STATE]: '',
+		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+
+		assert.deepStrictEqual({
+			githubData: result.data._meta?.[SESSION_META_GITHUB_DATA_KEY],
+			legacyGitHub: result.legacyMetadata[META_GITHUB_STATE],
+		}, {
+			githubData: { [liveFolderKey]: liveGitHub },
+			legacyGitHub: undefined,
 		});
 	});
 

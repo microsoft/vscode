@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -11,8 +11,12 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { AgentTurnProviderSessionState } from '../../common/agent.js';
+import { copilotFusionEventTypes, isProvisionalFusionConversationEvent, type CopilotFusionEvent } from './copilotFusionProgress.js';
 
 export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
+
+/** Conversation events emitted by a provisional (not yet committed) Fusion phase. */
+export type CopilotProvisionalFusionEvent = SessionEventPayload<'tool.execution_start'> | SessionEventPayload<'tool.execution_complete'> | SessionEventPayload<'assistant.message'>;
 
 export interface ICopilotModelCallFinishedEvent {
 	readonly id: string;
@@ -27,6 +31,12 @@ export interface ICopilotModelCallFinishedEvent {
 	};
 }
 
+/** BYOK provider connections and models registered on an SDK session. */
+export interface ICopilotByokSessionConfig {
+	providers?: NamedProviderConfig[];
+	models?: ProviderModelConfig[];
+}
+
 /**
  * Thin wrapper around {@link CopilotSession} that exposes each SDK event as a
  * proper VS Code `Event<T>`. All subscriptions and the underlying SDK session
@@ -39,6 +49,13 @@ export class CopilotSessionWrapper extends Disposable {
 	readonly onUnhandledEvent = this._onUnhandledEvent.event;
 	private readonly _onModelCallFinished = this._register(new Emitter<ICopilotModelCallFinishedEvent>());
 	readonly onModelCallFinished = this._onModelCallFinished.event;
+	private readonly _onProvisionalFusionEvent = this._register(new Emitter<CopilotProvisionalFusionEvent>());
+	/**
+	 * Conversation from provisional Fusion phases. These never reach the typed
+	 * events because the phase output is not yet part of the parent transcript;
+	 * the session decides what to show live and what waits for the commit.
+	 */
+	readonly onProvisionalFusionEvent = this._onProvisionalFusionEvent.event;
 	private readonly _shutdown = new DeferredPromise<void>();
 	private _disconnectPromise: Promise<void> | undefined;
 	private _disconnectRpcState: 'notStarted' | 'pending' | 'completed' | 'failed' = 'notStarted';
@@ -48,11 +65,20 @@ export class CopilotSessionWrapper extends Disposable {
 
 	constructor(
 		readonly session: CopilotSession,
+		readonly canvasRuntimeEnabled: boolean,
+		/** BYOK providers and models the SDK session was launched with. */
+		readonly launchByokConfig: ICopilotByokSessionConfig,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._logService.info(this._lifecycleLogMessage('attached'));
 		const unsubscribeAll = session.on(event => {
+			if (isProvisionalFusionConversationEvent(event)) {
+				if (event.type === 'tool.execution_start' || event.type === 'tool.execution_complete' || event.type === 'assistant.message') {
+					this._onProvisionalFusionEvent.fire(event);
+				}
+				return;
+			}
 			if (event.type === 'session.shutdown') {
 				void this._shutdown.complete();
 				this._logService.info(this._lifecycleLogMessage(`shutdown received (${event.data.shutdownType})`));
@@ -137,6 +163,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onMessageDelta: Event<SessionEventPayload<'assistant.message_delta'>> | undefined;
 	get onMessageDelta(): Event<SessionEventPayload<'assistant.message_delta'>> {
 		return this._onMessageDelta ??= this._sdkEvent('assistant.message_delta');
+	}
+
+	private _onFusionEvent: Event<CopilotFusionEvent> | undefined;
+	get onFusionEvent(): Event<CopilotFusionEvent> {
+		return this._onFusionEvent ??= Event.any(...copilotFusionEventTypes.map(type => this._sdkEvent(type)));
 	}
 
 	private _onMessage: Event<SessionEventPayload<'assistant.message'>> | undefined;
@@ -389,6 +420,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onMcpServerStatusChanged ??= this._sdkEvent('session.mcp_server_status_changed');
 	}
 
+	private _onMcpOAuthCompleted: Event<SessionEventPayload<'mcp.oauth_completed'>> | undefined;
+	get onMcpOAuthCompleted(): Event<SessionEventPayload<'mcp.oauth_completed'>> {
+		return this._onMcpOAuthCompleted ??= this._sdkEvent('mcp.oauth_completed');
+	}
+
 	private _onToolsUpdated: Event<SessionEventPayload<'session.tools_updated'>> | undefined;
 	get onToolsUpdated(): Event<SessionEventPayload<'session.tools_updated'>> {
 		return this._onToolsUpdated ??= this._sdkEvent('session.tools_updated');
@@ -397,6 +433,31 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onBackgroundTasksChanged: Event<SessionEventPayload<'session.background_tasks_changed'>> | undefined;
 	get onBackgroundTasksChanged(): Event<SessionEventPayload<'session.background_tasks_changed'>> {
 		return this._onBackgroundTasksChanged ??= this._sdkEvent('session.background_tasks_changed');
+	}
+
+	private _onExtensionsLoaded: Event<SessionEventPayload<'session.extensions_loaded'>> | undefined;
+	get onExtensionsLoaded(): Event<SessionEventPayload<'session.extensions_loaded'>> {
+		return this._onExtensionsLoaded ??= this._sdkEvent('session.extensions_loaded');
+	}
+
+	private _onCanvasRegistryChanged: Event<SessionEventPayload<'session.canvas.registry_changed'>> | undefined;
+	get onCanvasRegistryChanged(): Event<SessionEventPayload<'session.canvas.registry_changed'>> {
+		return this._onCanvasRegistryChanged ??= this._sdkEvent('session.canvas.registry_changed');
+	}
+
+	private _onCanvasOpened: Event<SessionEventPayload<'session.canvas.opened'>> | undefined;
+	get onCanvasOpened(): Event<SessionEventPayload<'session.canvas.opened'>> {
+		return this._onCanvasOpened ??= this._sdkEvent('session.canvas.opened');
+	}
+
+	private _onCanvasClosed: Event<SessionEventPayload<'session.canvas.closed'>> | undefined;
+	get onCanvasClosed(): Event<SessionEventPayload<'session.canvas.closed'>> {
+		return this._onCanvasClosed ??= this._sdkEvent('session.canvas.closed');
+	}
+
+	private _onCanvasUnavailable: Event<SessionEventPayload<'session.canvas.unavailable'>> | undefined;
+	get onCanvasUnavailable(): Event<SessionEventPayload<'session.canvas.unavailable'>> {
+		return this._onCanvasUnavailable ??= this._sdkEvent('session.canvas.unavailable');
 	}
 
 	private _onCommandsChanged: Event<SessionEventPayload<'commands.changed'>> | undefined;
@@ -409,7 +470,11 @@ export class CopilotSessionWrapper extends Disposable {
 			onDidAddFirstListener: () => this._handledEventTypes.add(eventType),
 			onDidRemoveLastListener: () => this._handledEventTypes.delete(eventType),
 		}));
-		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => emitter.fire(data));
+		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => {
+			if (!isProvisionalFusionConversationEvent(data)) {
+				emitter.fire(data);
+			}
+		});
 		this._register(toDisposable(unsubscribe));
 		return emitter.event;
 	}

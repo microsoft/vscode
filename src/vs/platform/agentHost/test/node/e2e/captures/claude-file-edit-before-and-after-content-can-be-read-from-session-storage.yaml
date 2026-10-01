@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -16,7 +16,7 @@ exchanges:
             file_path: ${workdir}/stored-edit.txt
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -36,14 +36,13 @@ exchanges:
       content:
         - type: tool_use
           id: toolcall_1
-          name: Edit
+          name: Write
           input:
             file_path: ${workdir}/stored-edit.txt
-            old_string: BEFORE_STORED_VALUE
-            new_string: AFTER_STORED_VALUE
+            content: AFTER_STORED_VALUE
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -62,12 +61,10 @@ exchanges:
         - role: assistant
           content:
             - type: tool_use
-              name: Edit
+              name: Write
               input:
-                replace_all: false
                 file_path: ${workdir}/stored-edit.txt
-                old_string: BEFORE_STORED_VALUE
-                new_string: AFTER_STORED_VALUE
+                content: AFTER_STORED_VALUE
         - role: user
           content:
             - type: tool_result

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mkdir } from 'fs/promises';
+import { hostname, userInfo } from 'os';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { dirname, join } from '../../../../base/common/path.js';
 import type { TelemetryConfig } from '@github/copilot-sdk';
@@ -18,13 +19,17 @@ import {
 	ConsoleForwarder,
 	FileForwarder,
 	OtlpHttpForwarder,
+	resolveOtlpTracesEndpoint,
 	type IOutboundForwarder,
 } from '../../../otel/node/otlp/outboundForwarder.js';
 import { GenAiAttr } from '../../../otel/common/genAiAttributes.js';
 import { ICompletedSpanData, SpanStatusCode } from '../../../otel/common/spanData.js';
+import { chatUserInteractionAttributes, ChatUserInteractionSpanName, IChatUserInteractionTiming } from '../../../otel/common/chatUserInteraction.js';
 import { OTelSqliteStore } from '../../../otel/node/sqlite/otelSqliteStore.js';
 import { AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
-import { AgentHostOTelServiceName, AgentHostOTelServiceNamespace, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
+import { AgentHostComparisonAttemptCountAttribute, AgentHostComparisonAttemptIndexAttribute, AgentHostComparisonIdAttribute, AgentHostComparisonRoleAttribute, AgentHostOTelServiceName, AgentHostOTelServiceNamespace, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
+import { IAgentSessionComparisonMetadata } from '../../common/state/sessionState.js';
+import { AgentHostFirstResponseSpanName, AgentHostTurnTimingSpanName, agentHostTimingAttributes, type IAgentHostFirstResponseDiagnostic, type IAgentHostTurnTimingDiagnostic } from '../../common/otel/agentHostTiming.js';
 
 /** Sub-path under the user data directory where the span DB lives. */
 const SPANS_DB_SUBPATH = AgentHostOTelSpansDbSubPath;
@@ -49,6 +54,7 @@ interface ResolvedConfig {
 	readonly sourceName: string | undefined;
 	/** Capture prompt/response content in spans. */
 	readonly captureContent: boolean | undefined;
+	readonly captureIdentity: boolean;
 	/** Parsed OTEL_EXPORTER_OTLP_HEADERS for outbound forwarding. */
 	readonly headers: Record<string, string> | undefined;
 	/** Effective OTLP protocol configured for the SDK runtime. */
@@ -110,6 +116,8 @@ function parseResourceAttributes(raw: string | undefined, serviceName: string | 
 	return attributes;
 }
 
+const identityAttributeKeys = new Set(['user.name', 'process.user.name', 'host.name']);
+
 export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 	const dbSpanExporter = isTruthy(env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED);
 	const otlpEndpoint = env.OTEL_EXPORTER_OTLP_ENDPOINT ?? env.COPILOT_OTEL_ENDPOINT;
@@ -129,6 +137,13 @@ export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 	if (protocol === 'grpc' || protocol === 'http/grpc') {
 		exporterType = 'otlp-grpc';
 	}
+	const captureIdentity = isTruthy(env.COPILOT_OTEL_CAPTURE_IDENTITY);
+	const resourceAttributes = parseResourceAttributes(env.OTEL_RESOURCE_ATTRIBUTES, env.OTEL_SERVICE_NAME);
+	if (!captureIdentity) {
+		for (const key of identityAttributeKeys) {
+			delete resourceAttributes[key];
+		}
+	}
 
 	return {
 		enabled,
@@ -140,9 +155,10 @@ export function readAgentHostOTelEnv(env: NodeJS.ProcessEnv): ResolvedConfig {
 		captureContent: env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT === undefined
 			? undefined
 			: isTruthy(env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT),
+		captureIdentity,
 		headers: parseOtlpHeaders(env.OTEL_EXPORTER_OTLP_HEADERS),
 		otlpProtocol: protocol,
-		resourceAttributes: parseResourceAttributes(env.OTEL_RESOURCE_ATTRIBUTES, env.OTEL_SERVICE_NAME),
+		resourceAttributes,
 	};
 }
 
@@ -154,9 +170,12 @@ interface IOtlpAttribute {
 interface IOtlpSpan {
 	name?: string;
 	attributes?: IOtlpAttribute[];
+	events?: { attributes?: IOtlpAttribute[] }[];
+	links?: { attributes?: IOtlpAttribute[] }[];
 }
 
 interface IOtlpScopeSpans {
+	scope?: { attributes?: IOtlpAttribute[] };
 	spans?: IOtlpSpan[];
 }
 
@@ -191,8 +210,14 @@ function upsertResourceAttribute(attributes: IOtlpAttribute[], key: string, valu
 	}
 }
 
-/** Normalize Agent Host resource identity and suppress the Codex 0.142 auth polling span. */
-export function normalizeAgentHostOtlpBody(body: Buffer): INormalizedAgentHostOtlpBody {
+function stripIdentityAttributes(target: { attributes?: IOtlpAttribute[] }): void {
+	if (target.attributes) {
+		target.attributes = target.attributes.filter(attribute => !identityAttributeKeys.has(attribute.key ?? ''));
+	}
+}
+
+/** Apply the host's identity gate before persistence/fan-out and normalize provider resources. */
+export function normalizeAgentHostOtlpBody(body: Buffer, captureIdentity = false): INormalizedAgentHostOtlpBody {
 	const payload = JSON.parse(body.toString('utf8')) as IOtlpTracePayload;
 	let filteredSpanCount = 0;
 	for (const resourceSpan of payload.resourceSpans ?? []) {
@@ -200,7 +225,13 @@ export function normalizeAgentHostOtlpBody(body: Buffer): INormalizedAgentHostOt
 		const resourceAttributes = resource.attributes ??= [];
 		const isCodex = attributeValue(resourceAttributes, 'service.name') === CodexAuthPollingServiceName;
 		upsertResourceAttribute(resourceAttributes, 'service.namespace', AgentHostOTelServiceNamespace);
+		if (!captureIdentity) {
+			stripIdentityAttributes(resource);
+		}
 		for (const scopeSpans of resourceSpan.scopeSpans ?? []) {
+			if (!captureIdentity && scopeSpans.scope) {
+				stripIdentityAttributes(scopeSpans.scope);
+			}
 			const spans = scopeSpans.spans ?? [];
 			scopeSpans.spans = spans.filter(span => {
 				const shouldFilter = isCodex
@@ -208,6 +239,12 @@ export function normalizeAgentHostOtlpBody(body: Buffer): INormalizedAgentHostOt
 					&& attributeValue(span.attributes, 'code.module.name') === CodexAuthPollingModuleName;
 				if (shouldFilter) {
 					filteredSpanCount++;
+				}
+				if (!captureIdentity) {
+					stripIdentityAttributes(span);
+					for (const entry of [...span.events ?? [], ...span.links ?? []]) {
+						stripIdentityAttributes(entry);
+					}
 				}
 				return !shouldFilter;
 			});
@@ -221,6 +258,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _config: ResolvedConfig;
+	private readonly _hostResourceAttributes: Record<string, string>;
 	private readonly _spansDbPath: string;
 
 	private _receiver: ILocalOtlpHttpReceiver | undefined;
@@ -229,20 +267,100 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	private _startPromise: Promise<void> | undefined;
 	private _metadataExportQueue = Promise.resolve();
 	private readonly _sessionContexts = new Map<string, IAgentHostTraceContext>();
+	private readonly _sessionComparisons = new Map<string, IAgentSessionComparisonMetadata>();
 	private _currentTraceContext: IAgentHostTraceContext | undefined;
 	private _pendingFilteredCodexAuthSpans = 0;
 	private _totalFilteredCodexAuthSpans = 0;
 	private readonly _filteredSpanLogScheduler: RunOnceScheduler;
 
 	constructor(
-		private readonly _fetchFn: typeof globalThis.fetch | undefined,
+		private readonly _options: {
+			readonly fetchFn?: typeof globalThis.fetch;
+			readonly readOSUsername?: () => string;
+			readonly readHostname?: () => string;
+		} | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 	) {
 		super();
 		this._filteredSpanLogScheduler = this._register(new RunOnceScheduler(() => this._logFilteredCodexAuthSpans(), 60_000));
 		this._config = readAgentHostOTelEnv(process.env);
+		this._hostResourceAttributes = this._config.resourceAttributes;
+		if (this._config.enabled && this._config.captureIdentity) {
+			let username: string | undefined;
+			try {
+				username = this._options?.readOSUsername ? this._options.readOSUsername() : userInfo().username;
+			} catch {
+				this._logService.warn('[agentHost.otel] Could not detect the OS username; continuing without a detected process.user.name.');
+			}
+			let host: string | undefined;
+			try {
+				host = (this._options?.readHostname ?? hostname)();
+			} catch {
+				this._logService.warn('[agentHost.otel] Could not detect the hostname; continuing without a detected host.name.');
+			}
+			this._hostResourceAttributes = {
+				...(username === undefined ? {} : { 'process.user.name': username }),
+				...(host === undefined ? {} : { 'host.name': host }),
+				...this._config.resourceAttributes,
+			};
+		}
 		this._spansDbPath = join(environmentService.userDataPath, SPANS_DB_SUBPATH);
+	}
+
+	get diagnosticsEnabled(): boolean {
+		const hasDestination = this._config.exporterType === 'console'
+			|| (this._config.exporterType === 'file' && !!this._config.filePath)
+			|| (this._config.exporterType === 'otlp-http' && !!this._config.otlpEndpoint);
+		return this._config.enabled && (this._config.dbSpanExporter || (hasDestination && this._canForwardSyntheticSpan()));
+	}
+
+	emitTurnTiming(diagnostic: IAgentHostTurnTimingDiagnostic): void {
+		this._emitTimingDiagnostic(AgentHostTurnTimingSpanName, diagnostic, 'host');
+	}
+
+	emitFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): void {
+		this._emitTimingDiagnostic(AgentHostFirstResponseSpanName, diagnostic, 'renderer');
+	}
+
+	emitUserInteraction(timing: IChatUserInteractionTiming): void {
+		if (!this.diagnosticsEnabled || this._store.isDisposed) {
+			return;
+		}
+		const attributes = chatUserInteractionAttributes(timing);
+		const now = Date.now();
+		this._queueSyntheticSpan({
+			name: ChatUserInteractionSpanName,
+			traceId: generateUuid().replaceAll('-', ''),
+			spanId: generateUuid().replaceAll('-', '').slice(0, 16),
+			startTime: now,
+			endTime: now,
+			status: { code: SpanStatusCode.OK },
+			attributes: { ...this._hostResourceAttributes, ...attributes },
+			events: [],
+		});
+	}
+
+	private _emitTimingDiagnostic(name: string, diagnostic: IAgentHostTurnTimingDiagnostic | IAgentHostFirstResponseDiagnostic, source: 'host' | 'renderer'): void {
+		if (!this.diagnosticsEnabled || this._store.isDisposed) {
+			return;
+		}
+		const attributes = agentHostTimingAttributes(diagnostic, source);
+		if (!attributes) {
+			this._logService.warn('[agentHost.otel] skipped timing diagnostic with invalid join identifiers');
+			return;
+		}
+		const now = Date.now();
+		this._queueSyntheticSpan({
+			name,
+			traceId: generateUuid().replaceAll('-', ''),
+			spanId: generateUuid().replaceAll('-', '').slice(0, 16),
+			startTime: now,
+			endTime: now,
+			status: { code: SpanStatusCode.OK },
+			attributes: { ...this._hostResourceAttributes, ...attributes },
+			events: [],
+		});
 	}
 
 	async getSdkTelemetryConfig(): Promise<TelemetryConfig | undefined> {
@@ -278,15 +396,19 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			protocol,
 			...(this._config.headers ? { headers: this._config.headers } : {}),
 		} as const : undefined;
+		const traces = external && {
+			...external,
+			endpoint: protocol === 'grpc' ? external.endpoint : resolveOtlpTracesEndpoint(external.endpoint),
+		};
 		const resourceAttributes = { ...this._config.resourceAttributes };
 		delete resourceAttributes['service.name'];
 		resourceAttributes['service.namespace'] = AgentHostOTelServiceNamespace;
 		if (!this._config.dbSpanExporter) {
-			return { traces: external, external, captureContent: this._config.captureContent === true, resourceAttributes };
+			return { traces, external, captureContent: this._config.captureContent === true, resourceAttributes };
 		}
 		await this._ensureStarted();
 		return {
-			traces: this._receiver ? { endpoint: `${this._receiver.baseUrl}/v1/traces`, protocol: 'http/json' } : external,
+			traces: this._receiver ? { endpoint: `${this._receiver.baseUrl}/v1/traces`, protocol: 'http/json' } : traces,
 			external,
 			captureContent: this._config.captureContent === true,
 			resourceAttributes,
@@ -306,6 +428,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		const context: IAgentHostTraceContext = { traceId, spanId, traceparent: `00-${traceId}-${spanId}-01` };
 		this._sessionContexts.set(sessionUri, context);
 		const now = Date.now();
+		const comparison = this._sessionComparisons.get(sessionUri);
 		this._queueSyntheticSpan({
 			name: AgentHostSessionSpanName,
 			traceId,
@@ -314,17 +437,33 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			endTime: now,
 			status: { code: SpanStatusCode.OK },
 			attributes: {
-				...this._config.resourceAttributes,
+				...this._hostResourceAttributes,
 				[GenAiAttr.CONVERSATION_ID]: conversationId,
 				[AgentHostSessionUriAttribute]: sessionUri,
+				...(comparison ? {
+					[AgentHostComparisonIdAttribute]: comparison.id,
+					[AgentHostComparisonRoleAttribute]: comparison.role,
+					[AgentHostComparisonAttemptCountAttribute]: comparison.attemptCount,
+					...(comparison.attemptIndex !== undefined ? { [AgentHostComparisonAttemptIndexAttribute]: comparison.attemptIndex } : {}),
+				} : {}),
+				'vscode.agent_host.timingSchemaVersion': 1,
 			},
 			events: [],
 		});
 		return context;
 	}
 
+	setSessionComparisonMetadata(sessionUri: string, comparison: IAgentSessionComparisonMetadata | undefined): void {
+		if (comparison) {
+			this._sessionComparisons.set(sessionUri, comparison);
+		} else {
+			this._sessionComparisons.delete(sessionUri);
+		}
+	}
+
 	releaseSessionTraceContext(sessionUri: string): void {
 		this._sessionContexts.delete(sessionUri);
+		this._sessionComparisons.delete(sessionUri);
 	}
 
 	withTraceContext<T>(context: IAgentHostTraceContext | undefined, fn: () => T): T {
@@ -368,7 +507,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			endTime: now,
 			status: { code: SpanStatusCode.OK },
 			attributes: {
-				...this._config.resourceAttributes,
+				...this._hostResourceAttributes,
 				[GenAiAttr.CONVERSATION_ID]: conversationId,
 				[AgentHostSessionTitleAttribute]: boundedTitle,
 				[AgentHostSessionUriAttribute]: sessionUri,
@@ -439,7 +578,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		const receiver = await startLocalOtlpHttpReceiver(
 			{
 				transformBody: body => {
-					const normalized = normalizeAgentHostOtlpBody(body);
+					const normalized = normalizeAgentHostOtlpBody(body, this._config.captureIdentity);
 					this._recordFilteredCodexAuthSpans(normalized.filteredSpanCount);
 					return normalized.body;
 				},
@@ -478,6 +617,9 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	}
 
 	private async _emitSyntheticSpan(span: ICompletedSpanData): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
 		if (this._config.dbSpanExporter) {
 			await this._ensureStarted();
 		} else if (!this._forwarder) {
@@ -490,7 +632,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		try {
 			this._spanStore?.insertSpan(span);
 		} catch (err) {
-			this._logService.warn('[agentHost.otel] failed to persist session title span', err);
+			this._logService.warn('[agentHost.otel] failed to persist metadata span', err);
 		}
 		const result = { spans: [span], rejected: 0, errors: [] };
 		this._forwarder?.forwardSpans?.(result);
@@ -525,7 +667,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	}
 
 	private _encodeOtlpSpan(span: ICompletedSpanData): Buffer {
-		const resourceAttributeKeys = new Set(Object.keys(this._config.resourceAttributes));
+		const resourceAttributeKeys = new Set(Object.keys(this._hostResourceAttributes));
 		const attributes = Object.entries(span.attributes)
 			.filter(([key]) => !resourceAttributeKeys.has(key) || key === GenAiAttr.CONVERSATION_ID || key.startsWith('vscode.agent_host.'))
 			.map(([key, value]) => ({
@@ -535,7 +677,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 						: typeof value === 'boolean' ? { boolValue: value }
 							: { arrayValue: { values: value.map(item => ({ stringValue: item })) } },
 			}));
-		const resourceAttributes = Object.entries(this._config.resourceAttributes).map(([key, value]) => ({ key, value: { stringValue: value } }));
+		const resourceAttributes = Object.entries(this._hostResourceAttributes).map(([key, value]) => ({ key, value: { stringValue: value } }));
 		return Buffer.from(JSON.stringify({
 			resourceSpans: [{
 				...(resourceAttributes.length ? { resource: { attributes: resourceAttributes } } : {}),
@@ -568,7 +710,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 							headers: this._config.headers,
 						},
 						this._logService,
-						this._fetchFn,
+						this._options?.fetchFn,
 					));
 				} else if (this._config.otlpEndpoint) {
 					this._logService.warn('[agentHost.otel] DB trace fan-out is unavailable for OTLP/HTTP protobuf; traces remain in the local DB while provider logs and metrics export directly');

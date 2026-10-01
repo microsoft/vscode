@@ -802,7 +802,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 		allOptions.systemMessage = systemMessage;
 		allOptions.sessionCapabilities = new Set(['plan-mode', 'memory', 'cli-documentation', 'ask-user', 'interactive-mode', 'system-notifications']);
-		if (options.reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
+		if (options.reasoningEffort) {
 			allOptions.reasoningEffort = options.reasoningEffort;
 		}
 		if (options.contextTier) {

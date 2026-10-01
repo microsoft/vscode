@@ -1,0 +1,57 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.customization-marketplace-source-warnings {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	margin-top: var(--vscode-spacing-size120);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.customization-marketplace-source-warnings[hidden] {
+	display: none;
+}
+
+.customization-marketplace-source-warning,
+.customization-marketplace-source-signin {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.customization-marketplace-source-warning > .codicon {
+	flex-shrink: 0;
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.customization-marketplace-source-signin {
+	flex-wrap: wrap;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+}
+
+.customization-marketplace-source-signin > .customization-marketplace-source-message {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.customization-marketplace-source-message {
+	flex: 1;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.customization-marketplace-source-warning > .monaco-button,
+.customization-marketplace-source-signin > .monaco-button {
+	width: auto;
+	flex-shrink: 0;
+}
+
+.customization-marketplace-source-warning-help {
+	color: var(--vscode-descriptionForeground);
+}

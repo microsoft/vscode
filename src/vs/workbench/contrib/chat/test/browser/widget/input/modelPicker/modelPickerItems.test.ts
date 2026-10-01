@@ -137,6 +137,7 @@ function callBuild(
 		anonymous?: boolean;
 		showUnavailableFeatured?: boolean;
 		showFeatured?: boolean;
+		useGroupedModelPicker?: boolean;
 		languageModelsService?: ILanguageModelsService;
 		showAutoModel?: boolean;
 		restrictedMode?: boolean;
@@ -167,7 +168,7 @@ function callBuild(
 		languageModelsService: opts.languageModelsService ?? stubLanguageModelsService,
 		openerService: undefined,
 		presentation: {
-			useGroupedModelPicker: true,
+			useGroupedModelPicker: opts.useGroupedModelPicker ?? true,
 			showUnavailableFeatured: opts.showUnavailableFeatured ?? true,
 			showFeatured: opts.showFeatured ?? true,
 			showAutoModel: opts.showAutoModel ?? true,
@@ -847,6 +848,102 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[1].label, 'Gemini Flash');
 	});
 
+	test('HydraFusion is listed once, right below Auto and above offers, with its research preview tag', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const promoModel = createModel('gemini-flash', 'Gemini Flash');
+		promoModel.metadata = { ...promoModel.metadata, promo: { id: 'test-promo-hydra', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Limited time offer' } } as ILanguageModelChatMetadata;
+		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+		hydraFusion.metadata = { ...hydraFusion.metadata, detail: 'Research preview' };
+		const actions = getActionItems(callBuild([modelA, promoModel, hydraFusion, auto], { recentModelIds: [hydraFusion.identifier] }));
+		assert.deepStrictEqual({
+			leading: actions.slice(0, 3).map(action => [action.label, action.item?.description]),
+			hydraFusionRows: actions.filter(action => action.label === 'HydraFusion').length,
+		}, {
+			leading: [['Auto', undefined], ['HydraFusion', 'Research preview'], ['Gemini Flash', '20% discount']],
+			hydraFusionRows: 1,
+		});
+	});
+
+	test('Free plans show HydraFusion as an unavailable upgrade instead of a routing choice', () => {
+		const auto = createAutoModel();
+		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+		const actions = getActionItems(callBuild([auto, hydraFusion], {
+			entitlement: ChatEntitlement.Free,
+			showUnavailableFeatured: false,
+			useGroupedModelPicker: false,
+		}));
+		assert.deepStrictEqual(actions.filter(action => action.label === 'HydraFusion' || action.label === 'Auto').map(action => [
+			action.label,
+			action.disabled ?? false,
+			action.description instanceof MarkdownString ? action.description.value : action.description,
+		]), [
+			['Auto', false, undefined],
+			['HydraFusion', true, '[Upgrade](command:workbench.action.chat.upgradePlan " ")'],
+		]);
+	});
+
+	test('Free plans show upgrade rather than update for a newer HydraFusion model', () => {
+		const auto = createAutoModel();
+		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+		const actions = getActionItems(callBuild([auto, hydraFusion], {
+			entitlement: ChatEntitlement.Free,
+			currentVSCodeVersion: '1.100.0',
+			controlModels: { 'hydrafusion': { label: 'HydraFusion', featured: true, exists: true, minVSCodeVersion: '99.0.0' } },
+		}));
+		const action = actions.find(action => action.label === 'HydraFusion');
+		assert.deepStrictEqual({
+			disabled: action?.disabled,
+			description: action?.description instanceof MarkdownString ? action.description.value : action?.description,
+		}, {
+			disabled: true,
+			description: '[Upgrade](command:workbench.action.chat.upgradePlan " ")',
+		});
+	});
+
+	test('Free plans retain a user-provided model with the HydraFusion model ID', () => {
+		const auto = createAutoModel();
+		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+		const userHydraFusion = createModel('hydrafusion', 'My HydraFusion', 'ollama');
+		const actions = getActionItems(callBuild([auto, hydraFusion, userHydraFusion], {
+			entitlement: ChatEntitlement.Free,
+			controlModels: { 'hydrafusion': { label: 'HydraFusion', featured: true, exists: true } },
+		}));
+		assert.deepStrictEqual(actions.filter(action => action.label?.includes('HydraFusion')).map(action => [
+			action.label,
+			action.disabled ?? false,
+			action.description instanceof MarkdownString ? action.description.value : action.description,
+		]), [
+			['HydraFusion', true, '[Upgrade](command:workbench.action.chat.upgradePlan " ")'],
+			['My HydraFusion', false, undefined],
+		]);
+	});
+
+	test('Free plans do not advertise HydraFusion when the current model pool cannot offer it', () => {
+		const claude = createModel('claude', 'Claude');
+		const controlModels = { 'hydrafusion': { label: 'HydraFusion', featured: false, exists: false } };
+		const hydraFusionRows = [false, true].map(useGroupedModelPicker => getActionItems(callBuild([claude], {
+			entitlement: ChatEntitlement.Free,
+			controlModels,
+			showUnavailableFeatured: false,
+			useGroupedModelPicker,
+		})).filter(action => action.label === 'HydraFusion').length);
+		assert.deepStrictEqual(hydraFusionRows, [0, 0]);
+	});
+
+	test('HydraFusion too new for this build loses its row under Auto and shows the update it needs', () => {
+		const auto = createAutoModel();
+		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+		const actions = getActionItems(callBuild([auto, hydraFusion], {
+			currentVSCodeVersion: '1.100.0',
+			controlModels: { 'hydrafusion': { label: 'HydraFusion', featured: true, exists: true, minVSCodeVersion: '99.0.0' } },
+		}));
+		assert.deepStrictEqual(actions.filter(action => action.label === 'HydraFusion' || action.label === 'Auto').map(action => [action.label, action.disabled ?? false, action.description]), [
+			['Auto', false, undefined],
+			['HydraFusion', true, 'Update VS Code'],
+		]);
+	});
+
 	test('promo model shows discount in description', () => {
 		const auto = createAutoModel();
 		const promoModel = createModel('gemini-flash', 'Gemini Flash');
@@ -1178,6 +1275,24 @@ suite('buildModelPickerItems', () => {
 		const description = adminItem.description;
 		assert.ok(description instanceof MarkdownString);
 		assert.ok(description.value.includes('https://aka.ms/github-copilot-settings'));
+	});
+
+	test('admin unavailable model keeps plain text when the settings URL is unavailable', () => {
+		const items = callBuild([createAutoModel()], {
+			recentModelIds: ['missing-model'],
+			controlModels: { 'missing-model': { label: 'Missing Model' } as IModelControlEntry },
+			manageSettingsUrl: undefined,
+			entitlementService: createStubEntitlementService({ entitlement: ChatEntitlement.Business }),
+		});
+		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
+
+		assert.deepStrictEqual({
+			disabled: adminItem?.disabled,
+			description: adminItem?.description,
+		}, {
+			disabled: true,
+			description: 'Contact your admin',
+		});
 	});
 
 	test('unavailable models keep indentation with blank icon', () => {

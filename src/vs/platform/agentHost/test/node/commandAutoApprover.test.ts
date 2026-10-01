@@ -81,6 +81,7 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('git status'),
 				approver.shouldAutoApprove('git log --oneline'),
 				approver.shouldAutoApprove('git diff HEAD'),
+				approver.shouldAutoApprove('git diff --output-indicator-new=+ HEAD'),
 				approver.shouldAutoApprove('git show HEAD'),
 				approver.shouldAutoApprove('git show --format=%B HEAD'),
 				approver.shouldAutoApprove('git --no-pager show HEAD'),
@@ -89,6 +90,7 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('git ls-files'),
 				approver.shouldAutoApprove('git branch'),
 			], [
+				'approved',
 				'approved',
 				'approved',
 				'approved',
@@ -108,12 +110,26 @@ suite('CommandAutoApprover', () => {
 				approver.shouldAutoApprove('git branch -D main'),
 				approver.shouldAutoApprove('git branch --delete main'),
 				approver.shouldAutoApprove('git log --output=/tmp/out'),
+				approver.shouldAutoApprove('git diff --output=changes.diff HEAD'),
+				approver.shouldAutoApprove('git diff --output changes.diff HEAD'),
+				approver.shouldAutoApprove('git diff --stat --output=changes.diff HEAD'),
+				approver.shouldAutoApprove('git --no-pager diff --output=changes.diff HEAD'),
+				approver.shouldAutoApprove('git -C repo diff --output changes.diff HEAD'),
+				approver.shouldAutoApprove('git diff --out\\put=changes.diff HEAD'),
+				approver.shouldAutoApprove('git diff --out"put"=changes.diff HEAD'),
 				approver.shouldAutoApprove('git show --output=message.txt HEAD'),
 				approver.shouldAutoApprove('git show --output message.txt HEAD'),
 				approver.shouldAutoApprove('git show --format=%B --output=message.txt HEAD'),
 				approver.shouldAutoApprove('git --no-pager show --output=message.txt HEAD'),
 				approver.shouldAutoApprove('git -C repo show --output message.txt HEAD'),
 			], [
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
+				'denied',
 				'denied',
 				'denied',
 				'denied',
@@ -580,6 +596,30 @@ suite('CommandAutoApprover', () => {
 			seen.length = 0;
 			assert.strictEqual(approver.shouldAutoApprove('echo hi > /dev/null 2>&1', opts), 'approved');
 			assert.deepStrictEqual(seen, []);
+		});
+
+		test('checks the destination of combined stdout and stderr redirects', () => {
+			const destinations: string[] = [];
+			const opts = {
+				isWriteDestApproved: (dest: string) => {
+					destinations.push(dest);
+					return !dest.startsWith('/');
+				},
+			};
+			assert.deepStrictEqual({
+				results: [
+					approver.shouldAutoApprove('echo hi >& /outside/file', opts),
+					approver.shouldAutoApprove('echo hi >&/outside/file', opts),
+					approver.shouldAutoApprove('echo hi 1>& /outside/file', opts),
+					approver.shouldAutoApprove('echo hi >& "/outside/file"', opts),
+					approver.shouldAutoApprove('echo hi >& out.txt', opts),
+					approver.shouldAutoApprove('echo hi 2>&1', opts),
+				],
+				destinations,
+			}, {
+				results: ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'approved', 'approved'],
+				destinations: ['/outside/file', '/outside/file', '/outside/file', '/outside/file', 'out.txt'],
+			});
 		});
 
 		test('requires confirmation for redirect pathname globs', () => {

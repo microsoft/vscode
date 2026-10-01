@@ -67,7 +67,7 @@ export interface ISessionModelSelection {
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<ISessionModelSelectionState>;
 	readonly modelConfiguration?: IModelConfigurationAccess;
-	selectModel(modelIdentifier: string): boolean;
+	selectModel(modelIdentifier: string, isUserAction?: boolean): boolean;
 }
 
 /**
@@ -123,6 +123,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		super();
 		this.modelConfiguration = options.modelConfiguration ? {
 			getModelConfiguration: modelId => this._modelConfigurationAccess?.getModelConfiguration(modelId),
+			getModelConfigurationSchema: modelId => this._modelConfigurationAccess?.getModelConfigurationSchema?.(modelId),
 			setModelConfiguration: async (modelId, values) => {
 				await this._modelConfigurationAccess?.setModelConfiguration(modelId, values);
 			},
@@ -166,7 +167,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		}));
 	}
 
-	selectModel(modelIdentifier: string): boolean {
+	selectModel(modelIdentifier: string, isUserAction = true): boolean {
 		const session = this._session.get();
 		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
 		if (!session || !provider) {
@@ -196,10 +197,15 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const storageKey = getSelectedModelStorageKey(ChatAgentLocation.Chat, snapshot.modelTarget);
 		const conversation = this._conversation();
 		try {
-			this._controller.applySelection(model, () => {
-				provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.Chosen);
+			if (isUserAction) {
+				this._controller.applySelection(model, () => {
+					provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.Chosen);
+					storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
+				}, true, true);
+			} else {
+				this._controller.applyProgrammaticSelection(model);
 				storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
-			}, true, true);
+			}
 		} catch (error) {
 			this._diagnostics.report('provider-selection-failed', {
 				requestedModel: modelIdentifier,

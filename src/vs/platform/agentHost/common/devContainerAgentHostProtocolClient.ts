@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationError } from '../../../base/common/errors.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectResultValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, type IAgentHostExtensionCommandMap } from './agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectResultValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, type IAgentHostExtensionCommandMap } from './agentHostExtensionProtocol.js';
 import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput } from './devContainerAgentHost.js';
 import type { IRelayMessage } from './relayTransport.js';
 
@@ -16,6 +16,8 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage = this._onDidRelayMessage.event;
+	/** Messages arrive whole inside parent notifications, so partial progress can't be attributed to a container. */
+	readonly onDidRelayActivity: Event<string> = Event.None;
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose = this._onDidRelayClose.event;
 	private readonly _onDidCloseConnection = this._register(new Emitter<string>());
@@ -65,6 +67,22 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 		if (this._connections.delete(connectionId)) {
 			await this._request(DevContainerDisconnectExtensionMethod, { connectionId });
 		}
+	}
+
+	async stopContainer(workspaceFolder: string): Promise<boolean> {
+		const result = await this._request(DevContainerStopExtensionMethod, { workspaceFolder });
+		if (typeof result !== 'boolean') {
+			throw new Error('Invalid Dev Container stop response');
+		}
+		return result;
+	}
+
+	async removeContainer(workspaceFolder: string): Promise<boolean> {
+		const result = await this._request(DevContainerRemoveExtensionMethod, { workspaceFolder });
+		if (typeof result !== 'boolean') {
+			throw new Error('Invalid Dev Container remove response');
+		}
+		return result;
 	}
 
 	async relaySend(connectionId: string, data: string): Promise<void> {

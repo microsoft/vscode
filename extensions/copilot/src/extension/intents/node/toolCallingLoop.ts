@@ -24,6 +24,8 @@ import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networ
 import { nanoAiuToCredits, OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
 import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeResponseModel, resolveWorkspaceOTelMetadata, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
+import { agentIdentityAttributes } from '../../../platform/otel/common/otelIdentity';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -417,6 +419,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		@IFileSystemService private readonly _fileSystemService: IFileSystemService,
 		@IOTelService protected readonly _otelService: IOTelService,
 		@IGitService private readonly _gitService: IGitService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 	) {
 		super();
 	}
@@ -1272,6 +1275,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				kind: SpanKind.INTERNAL,
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.INVOKE_AGENT,
+					...agentIdentityAttributes(this._otelService.config, this._authenticationService),
 					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 					[GenAiAttr.AGENT_NAME]: agentName,
 					[GenAiAttr.CONVERSATION_ID]: this.options.conversation.sessionId,
@@ -1905,6 +1909,15 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			topLevelTurnId: this.options.request.parentRequestId ?? this.turn.id,
 			summarizedAtRoundId,
 			finishedCb: async (text, index, delta) => {
+				if (delta.retryReason) {
+					// The fetcher is starting a new attempt of this round. Discard the
+					// abandoned attempt's state before recording or executing its retry.
+					toolCalls.length = 0;
+					thinkingItem = undefined;
+					statefulMarker = undefined;
+					phase = undefined;
+					compaction = undefined;
+				}
 				fetchStreamSource?.update(text, delta);
 				if (delta.copilotToolCalls) {
 					toolCalls.push(...delta.copilotToolCalls.map((call): IToolCall => ({

@@ -11,9 +11,10 @@ import { join } from '../../../../../../base/common/path.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { deriveGitHubEndpoints } from '../../../../../github/common/githubEndpoints.js';
 import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey } from '../../../../common/agentHostSchema.js';
-import { deriveGitHubEndpoints, gitHubCopilotResource } from '../../../../common/githubEndpoints.js';
+import { gitHubCopilotResource } from '../../../../common/githubEndpoints.js';
 import { CompletionItemKind, type CompletionsResult, type InitializeResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams } from '../../../../common/state/sessionActions.js';
@@ -137,7 +138,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 			completionTriggerCharacters: result.completionTriggerCharacters,
 			terminalCommandPrefix: result.terminalCommandPrefix,
 		}, {
-			completionTriggerCharacters: ['@', '#', '/'],
+			completionTriggerCharacters: ['@', '#', '/', ' '],
 			terminalCommandPrefix: '!',
 		});
 	});
@@ -700,11 +701,13 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		assert.deepStrictEqual({
 			isolation: resolved.values.isolation,
 			branchIsDynamic: resolved.schema.properties.branch.enumDynamic,
-			completions: completions.items,
+			branchCount: completions.items.length,
+			matchingBranches: completions.items.filter(item => item.value === 'feature/coverage-target'),
 		}, {
 			isolation: 'worktree',
 			branchIsDynamic: true,
-			completions: [{
+			branchCount: 2,
+			matchingBranches: [{
 				value: 'feature/coverage-target',
 				label: 'feature/coverage-target',
 			}],
@@ -727,7 +730,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		assert.deepStrictEqual(result.items, []);
 	});
 
-	conformanceTest(context, 'branch completion queries are case insensitive', async function () {
+	conformanceTest(context, 'branch completions return all local branches regardless of query', async function () {
 		const workspace = createWorkspace('ahp-branch-completion-case-');
 		initTestGitRepo(workspace);
 		execSync('git commit --allow-empty -m "initial"', { cwd: workspace });
@@ -736,7 +739,15 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 
 		const result = await getBranchCompletions(URI.file(workspace).toString(), 'feature/mixed');
 
-		assert.deepStrictEqual(result.items, [{ value: 'Feature/MixedCase', label: 'Feature/MixedCase' }]);
+		const unfiltered = await getBranchCompletions(URI.file(workspace).toString());
+
+		assert.deepStrictEqual({
+			containsBranch: result.items.some(item => item.value === 'Feature/MixedCase'),
+			sameAsUnfiltered: result.items,
+		}, {
+			containsBranch: true,
+			sameAsUnfiltered: unfiltered.items,
+		});
 	});
 
 	conformanceTest(context, 'branch completions prioritize the current branch', async function () {
@@ -772,7 +783,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		assert.deepStrictEqual(result.items.slice(0, 2).map(item => item.value), ['current-target', 'main']);
 	});
 
-	conformanceTest(context, 'branch completions are capped at twenty-five items', async function () {
+	conformanceTest(context, 'branch completions return more than twenty-five items', async function () {
 		const workspace = createWorkspace('ahp-branch-completion-limit-');
 		initTestGitRepo(workspace);
 		execSync('git commit --allow-empty -m "initial"', { cwd: workspace });
@@ -783,10 +794,10 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 
 		const result = await getBranchCompletions(URI.file(workspace).toString());
 
-		assert.strictEqual(result.items.length, 25);
+		assert.strictEqual(result.items.length, 31);
 	});
 
-	conformanceTest(context, 'branch completions return an empty result when no branch matches', async function () {
+	conformanceTest(context, 'branch completions ignore unmatched search text', async function () {
 		const workspace = createWorkspace('ahp-branch-completion-no-match-');
 		initTestGitRepo(workspace);
 		execSync('git commit --allow-empty -m "initial"', { cwd: workspace });
@@ -794,8 +805,8 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		await createSession('branch-completion-no-match', workspace);
 
 		const result = await getBranchCompletions(URI.file(workspace).toString(), 'missing-branch');
-
-		assert.deepStrictEqual(result.items, []);
+		const unfiltered = await getBranchCompletions(URI.file(workspace).toString());
+		assert.deepStrictEqual(result.items, unfiltered.items);
 	});
 
 	conformanceTest(context, 'detached HEAD branch completions still return local branches', async function () {
@@ -809,7 +820,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 
 		const result = await getBranchCompletions(URI.file(workspace).toString(), 'available');
 
-		assert.deepStrictEqual(result.items.map(item => item.value).sort(), ['available-one', 'available-two']);
+		assert.deepStrictEqual(result.items.map(item => item.value).filter(name => name.startsWith('available')).sort(), ['available-one', 'available-two']);
 	});
 
 }

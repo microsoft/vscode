@@ -1,18 +1,37 @@
 parameters:
-  - name: VSCODE_RUN_ELECTRON_TESTS
+  - name: VSCODE_TEST_IDS
+    type: object
+    default: []
+  - name: VSCODE_COMPILE_TEST_SUITES
     type: boolean
-  - name: VSCODE_RUN_BROWSER_TESTS
-    type: boolean
-  - name: VSCODE_RUN_REMOTE_TESTS
-    type: boolean
+    default: false
 
+# Each test task records a checkpoint once it passes, and retries of the job
+# skip the test tasks that already passed in an earlier attempt of the same run.
 steps:
+  - template: ../../common/restore-test-checkpoints.yml@self
+
+  - ${{ if eq(parameters.VSCODE_COMPILE_TEST_SUITES, true) }}:
+    - script: |
+        set -e
+        npm run compile --prefix test/smoke
+        npm run compile --prefix test/integration/browser
+      displayName: Compile test suites (non-OSS)
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
   - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Download Electron and Playwright
     retryCountOnTaskFailure: 3
+
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
+    - script: npm run gulp node
+      env:
+        AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+      displayName: Download Node.js
+      retryCountOnTaskFailure: 3
 
   - script: |
       set -e
@@ -26,27 +45,41 @@ steps:
       stat $ELECTRON_ROOT/chrome-sandbox
     displayName: Change setuid helper binary permission
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
-    - script: ./scripts/test.sh --build --tfs "Unit Tests"
-      env:
-        VSCODE_SKIP_PRELAUNCH: '1'
-      displayName: 🧪 Run unit tests (Electron)
-      timeoutInMinutes: 15
-    - script: |
-        set -e
-        mkdir -p .build/crashes
-        npm run test-node -- --build
-      env:
-        NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
-      displayName: 🧪 Run unit tests (node.js)
-      timeoutInMinutes: 15
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-electron') }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: unit-electron
+        testStep:
+          script: ./scripts/test.sh --build --tfs "Unit Tests"
+          env:
+            VSCODE_SKIP_PRELAUNCH: '1'
+          displayName: 🧪 Run unit tests (Electron)
+          timeoutInMinutes: 30
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
-    - script: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
-      env:
-        DEBUG: "*browser*"
-      displayName: 🧪 Run unit tests (Browser, Chromium)
-      timeoutInMinutes: 15
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-node') }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: unit-node
+        testStep:
+          script: |
+            set -e
+            mkdir -p .build/crashes
+            npm run test-node -- --build
+          env:
+            NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
+          displayName: 🧪 Run unit tests (node.js)
+          timeoutInMinutes: 30
+
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-browser-chromium') }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: unit-browser-chromium
+        testStep:
+          script: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
+          env:
+            DEBUG: "*browser*"
+          displayName: 🧪 Run unit tests (Browser, Chromium)
+          timeoutInMinutes: 30
 
   - script: |
       set -e
@@ -71,67 +104,62 @@ steps:
         compile-extension:vscode-test-resolver
     displayName: Build integration tests
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
-    - script: |
-        # Figure out the full absolute path of the product we just built
-        # including the remote server and configure the integration tests
-        # to run with these builds instead of running out of sources.
-        set -e
-        APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-        APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
-        INTEGRATION_TEST_APP_NAME="$APP_NAME" \
-        INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
-        ./scripts/test-integration.sh --build --tfs "Integration Tests"
-      env:
-        VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
-        VSCODE_SKIP_PRELAUNCH: '1'
-      displayName: 🧪 Run integration tests (Electron)
-      timeoutInMinutes: 20
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron') }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: integration-electron
+        testStep:
+          script: |
+            # Figure out the full absolute path of the product we just built
+            # including the remote server and configure the integration tests
+            # to run with these builds instead of running out of sources.
+            set -e
+            APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+            APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
+            INTEGRATION_TEST_APP_NAME="$APP_NAME" \
+            INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
+            ./scripts/test-integration.sh --build --tfs "Integration Tests"
+          env:
+            VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
+            VSCODE_SKIP_PRELAUNCH: '1'
+          displayName: 🧪 Run integration tests (Electron)
+          timeoutInMinutes: 30
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
-    - script: ./scripts/test-web-integration.sh --browser chromium
-      env:
-        VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
-      displayName: 🧪 Run integration tests (Browser, Chromium)
-      timeoutInMinutes: 20
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-chromium') }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: integration-browser-chromium
+        testStep:
+          script: ./scripts/test-web-integration.sh --browser chromium
+          env:
+            VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
+          displayName: 🧪 Run integration tests (Browser, Chromium)
+          timeoutInMinutes: 30
 
-  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
-    - script: |
-        set -e
-        APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-        APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
-        INTEGRATION_TEST_APP_NAME="$APP_NAME" \
-        INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
-        ./scripts/test-remote-integration.sh
-      env:
-        VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
-        VSCODE_SKIP_PRELAUNCH: '1'
-      displayName: 🧪 Run integration tests (Remote)
-      timeoutInMinutes: 20
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote') }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: integration-remote
+        testStep:
+          script: |
+            set -e
+            APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+            APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
+            INTEGRATION_TEST_APP_NAME="$APP_NAME" \
+            INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
+            ./scripts/test-remote-integration.sh
+          env:
+            VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
+            VSCODE_SKIP_PRELAUNCH: '1'
+          displayName: 🧪 Run integration tests (Remote)
+          timeoutInMinutes: 30
 
-  - script: |
-      set -e
-      df -h
-      # Break down what is occupying the small OS root disk (`/`). The `-x` flag
-      # keeps `du` on the root filesystem so it does not descend into the large
-      # `/mnt` work volume. This identifies the directory that fills `/` and
-      # crashes the agent worker with "No space left on device".
-      echo "--- top consumers on / ---"
-      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under \$HOME ---"
-      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under /tmp ---"
-      du -xhd1 /tmp 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under /var ---"
-      du -xhd1 /var 2>/dev/null | sort -rh | head -30 || true
-      ps -ef
-      cat /proc/sys/fs/inotify/max_user_watches
-      lsof | wc -l
+  - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh before "$(Agent.TempDirectory)"
     displayName: Diagnostics before smoke test run (disk space, processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron') }}:
     - script: |
         set -e
         sudo mkdir /etc/vscode
@@ -139,19 +167,24 @@ steps:
         sudo chown "$(id -u):$(id -g)" /etc/vscode
       name: policyFixture
       displayName: Set up native policy smoke fixture
+      condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'))
 
-    - script: |
-        set -e
-        npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
-      env:
-        VSCODE_SMOKE_TEST_POLICY: '1'
-        # Keep the smoke test data dir (user-data, extensions, workspace and the
-        # Copilot CLI session state under `os.tmpdir()`) on the large work volume
-        # instead of the small OS root disk (`/tmp`), which has filled up and
-        # crashed the agent worker with "No space left on device".
-        TMPDIR: $(Agent.TempDirectory)
-      timeoutInMinutes: 20
-      displayName: 🧪 Run smoke tests (Electron)
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: smoke-electron
+        testStep:
+          script: |
+            set -e
+            npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
+          env:
+            VSCODE_SMOKE_TEST_POLICY: '1'
+            # Keep the smoke test data dir (user-data, extensions, workspace and the
+            # Copilot CLI session state under `os.tmpdir()`) on the large work volume
+            # instead of the small OS root disk (`/tmp`), which has filled up and
+            # crashed the agent worker with "No space left on device".
+            TMPDIR: $(Agent.TempDirectory)
+          timeoutInMinutes: 30
+          displayName: 🧪 Run smoke tests (Electron)
 
     - script: |
         set -e
@@ -160,51 +193,51 @@ steps:
       displayName: Clean up native policy smoke fixture
       condition: and(always(), eq(variables['policyFixture.created'], 'true'))
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
-    - script: npm run smoketest-no-compile -- --web --tracing --headless
-      env:
-        VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
-        TMPDIR: $(Agent.TempDirectory)
-      timeoutInMinutes: 20
-      displayName: 🧪 Run smoke tests (Browser, Chromium)
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium') }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: smoke-browser-chromium
+        testStep:
+          script: npm run smoketest-no-compile -- --web --tracing --headless
+          env:
+            VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
+            TMPDIR: $(Agent.TempDirectory)
+          timeoutInMinutes: 30
+          displayName: 🧪 Run smoke tests (Browser, Chromium)
 
-  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
-    - script: |
-        set -e
-        APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-        VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
-        npm run smoketest-no-compile -- --tracing --remote --build "$APP_PATH"
-      env:
-        TMPDIR: $(Agent.TempDirectory)
-      timeoutInMinutes: 20
-      displayName: 🧪 Run smoke tests (Remote)
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote') }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: smoke-remote
+        testStep:
+          script: |
+            set -e
+            APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+            VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
+            npm run smoketest-no-compile -- --tracing --remote --build "$APP_PATH"
+          env:
+            TMPDIR: $(Agent.TempDirectory)
+          timeoutInMinutes: 30
+          displayName: 🧪 Run smoke tests (Remote)
 
-  - script: |
-      set -e
-      df -h
-      # Same root-disk breakdown as the "before" step so the delta attributable to
-      # the smoke run itself is visible, plus the smoke test data dirs explicitly.
-      echo "--- top consumers on / ---"
-      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
-      echo "--- top consumers under \$HOME ---"
-      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
-      echo "--- smoke test data dirs ---"
-      du -sh "$(Agent.TempDirectory)"/vscsmoke-* /tmp/vscsmoke-* 2>/dev/null || true
-      ps -ef
-      cat /proc/sys/fs/inotify/max_user_watches
-      lsof | wc -l
+  - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh after "$(Agent.TempDirectory)"
     displayName: Diagnostics after smoke test run (disk space, processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
     - template: ../../copilot/test-integration-steps.yml@self
       parameters:
         OS: linux
+
+  - script: node build/azure-pipelines/common/testCheckpoint.ts collect-results
+    displayName: Check test output availability
+    condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results
     inputs:
       testResultsFiles: "*-results.xml"
       searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
-    condition: succeededOrFailed()
+    # All test tasks may have been skipped in a retry of the job
+    condition: and(succeededOrFailed(), eq(variables['TEST_CHECKPOINT_RESULTS_AVAILABLE'], 'true'))

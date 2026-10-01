@@ -7,14 +7,16 @@ import { toAction } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
-import { IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { buildModelToProviderGroupMap, createModelAction, createModelItem, createPinAction, createUnavailableModelItem, getProviderGroupForModel, getProviderGroupKey, getUnavailableReason, isVersionAtLeast, ProviderGroupKey } from './modelPickerItemPrimitives.js';
+import { IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isUserProvidedModel } from '../../../../common/languageModels.js';
+import { buildModelToProviderGroupMap, createModelAction, createModelItem, createPinAction, createUnavailableModelItem, getProviderGroupForModel, getProviderGroupKey, getUnavailableReason, isVersionAtLeast, ProviderGroupKey, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
-import { isAutoModel } from './modelPickerPresentation.js';
+import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 
 export const ModelPickerSection = {
 	Other: 'other',
@@ -133,13 +135,27 @@ export function buildFlatModelItems(options: IBuildModelPickerItemsOptions): IAc
 	if (options.models.length === 0 && options.presentation.showAutoModel) {
 		items.push(createSyntheticAutoItem());
 	}
-	const autoModel = options.models.find(isAutoModel);
-	if (autoModel) {
-		const { action, ariaDescription } = createModelAction(autoModel, options.selectedModelId, options.actions.onSelect);
-		items.push(createModelItem(action, autoModel, options.openerService, undefined, options.presentation.isUBB, ariaDescription));
+	const leadingModels = [
+		options.models.find(isAutoModel),
+		options.models.find(model => isHydraFusionModel(model) && !isUserProvidedModel(model, options.languageModelsService)),
+	].filter(isDefined);
+	for (const model of leadingModels) {
+		const { action, ariaDescription } = createModelAction(model, options.selectedModelId, options.actions.onSelect);
+		items.push(createModelItem(action, model, options.openerService, undefined, options.presentation.isUBB, ariaDescription));
+	}
+	const unavailableHydraFusion = options.controlModels[COPILOT_HYDRA_FUSION_MODEL_ID];
+	if (options.chatEntitlementService.entitlement === ChatEntitlement.Free && unavailableHydraFusion && !unavailableHydraFusion.exists) {
+		items.push(createUnavailableModelItem(
+			COPILOT_HYDRA_FUSION_MODEL_ID,
+			unavailableHydraFusion,
+			'upgrade',
+			options.manageSettingsUrl,
+			options.updateStateType,
+			options.chatEntitlementService,
+		));
 	}
 	const sortedModels = options.models
-		.filter(model => model !== autoModel)
+		.filter(model => !leadingModels.includes(model))
 		.sort((left, right) => left.metadata.vendor.localeCompare(right.metadata.vendor) || left.metadata.name.localeCompare(right.metadata.name));
 	for (const model of sortedModels) {
 		const { action, ariaDescription } = createModelAction(model, options.selectedModelId, options.actions.onSelect);
@@ -162,7 +178,9 @@ interface IGroupedContext {
 function createGroupedContext(options: IBuildModelPickerItemsOptions): IGroupedContext {
 	const modelToGroup = buildModelToProviderGroupMap(options.languageModelsService);
 	const allModels = new Map(options.models.map(model => [model.identifier, model]));
-	const modelsByMetadataId = new Map(options.models.map(model => [model.metadata.id, model]));
+	const modelsByMetadataId = new Map(options.models
+		.filter(model => !isUserProvidedModel(model, options.languageModelsService))
+		.map(model => [model.metadata.id, model]));
 	const placed = new Set<string>();
 	return {
 		options,
@@ -191,6 +209,16 @@ function appendLeadingModels(context: IGroupedContext): ILanguageModelChatMetada
 		context.markPlaced(autoModel.identifier);
 		const { action, ariaDescription } = createModelAction(autoModel, options.selectedModelId, options.actions.onSelect);
 		items.push(createModelItem(action, autoModel, options.openerService, undefined, options.presentation.isUBB, ariaDescription));
+	}
+	// A build too old for HydraFusion leaves it to the sections below, which show the update it needs.
+	const hydraFusionModel = options.models.find(model =>
+		isHydraFusionModel(model) &&
+		!isUserProvidedModel(model, options.languageModelsService) &&
+		!requiresNewerVSCode(model, options.controlModels, options.currentVSCodeVersion));
+	if (hydraFusionModel) {
+		context.markPlaced(hydraFusionModel.identifier);
+		const { action, ariaDescription } = createModelAction(hydraFusionModel, options.selectedModelId, options.actions.onSelect);
+		items.push(createModelItem(action, hydraFusionModel, options.openerService, undefined, options.presentation.isUBB, ariaDescription));
 	}
 	for (const model of options.models) {
 		if (!context.placed.has(model.identifier) && ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)) {
@@ -276,9 +304,11 @@ function appendPromotedModels(context: IGroupedContext, autoModel: ILanguageMode
 				continue;
 			}
 			const model = context.resolveModel(entryId);
+			const showUnavailable = options.presentation.showUnavailableFeatured ||
+				(options.chatEntitlementService.entitlement === ChatEntitlement.Free && entryId === COPILOT_HYDRA_FUSION_MODEL_ID);
 			if (model && !context.placed.has(model.identifier)) {
 				if (entry.minVSCodeVersion && !isVersionAtLeast(options.currentVSCodeVersion, entry.minVSCodeVersion)) {
-					if (options.presentation.showUnavailableFeatured) {
+					if (showUnavailable) {
 						context.markPlaced(model.identifier);
 						promoted.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
 					}
@@ -286,7 +316,7 @@ function appendPromotedModels(context: IGroupedContext, autoModel: ILanguageMode
 					context.markPlaced(model.identifier);
 					promoted.push({ kind: 'available', model });
 				}
-			} else if (!model && !entry.exists && options.presentation.showUnavailableFeatured) {
+			} else if (!model && !entry.exists && showUnavailable) {
 				context.markPlaced(entryId);
 				promoted.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry, options.chatEntitlementService, options.currentVSCodeVersion) });
 			}

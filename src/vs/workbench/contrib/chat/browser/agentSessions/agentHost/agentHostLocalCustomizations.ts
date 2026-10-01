@@ -7,11 +7,12 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -71,6 +72,9 @@ export interface ILocalCustomizationFile {
  * (to render disable affordances) and the agent host wire (to compute the
  * `customizations` set published via `activeClientSet`).
  *
+ * Non-default configured agent, skill, and instruction locations are adapted
+ * into client customizations; default locations remain host-discovered.
+ *
  * Built-in skills bundled with the Agents app (only present when the
  * sessions-aware prompts service is in play) are also enumerated so that
  * `/create-pr`, `/merge`, etc. are available to every agent host without
@@ -86,10 +90,14 @@ export async function enumerateLocalCustomizationsForHarness(
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
 	const seenUris = new ResourceSet();
-	const storageSources = options?.includeUserStorage
+	const harnessSessionType = parseAgentHostHarness(sessionType) ?? sessionType;
+	const fullySyncedStorageSources = options?.includeUserStorage
 		? [PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES]
 		: SYNCABLE_STORAGE_SOURCES;
 	for (const type of SYNCABLE_PROMPT_TYPES) {
+		const storageSources = type === PromptsType.prompt
+			? fullySyncedStorageSources
+			: [PromptsStorage.local, PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES];
 		const userDisabled = promptsService.getDisabledPromptFiles(type);
 		const lists = await Promise.all(
 			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
@@ -98,7 +106,12 @@ export async function enumerateLocalCustomizationsForHarness(
 			const source = storageSources[i];
 			const userToggleable = isUserToggleableCustomization(type, source);
 			for (const file of lists[i]) {
-				if (matchesSessionType(file.sessionTypes, sessionType) && !seenUris.has(file.uri)) {
+				if (!fullySyncedStorageSources.includes(source)
+					&& file.source !== PromptFileSource.ConfigWorkspace
+					&& file.source !== PromptFileSource.ConfigPersonal) {
+					continue;
+				}
+				if (matchesSessionType(file.sessionTypes, harnessSessionType) && !seenUris.has(file.uri)) {
 					seenUris.add(file.uri);
 					result.push({
 						uri: file.uri,
@@ -181,22 +194,11 @@ export async function resolveLocalCustomAgents(
 }
 
 /**
- * Enumerates MCP servers configured directly in VS Code — i.e. those that
- * are not contributed by an agent plugin — so they can be bundled into the
- * synthetic synced plugin. Plugin-sourced servers are excluded because they
- * are already synced via their owning plugin's customization ref. Servers whose
- * launch cannot be expressed declaratively are skipped.
- *
- * Workspace-discovered servers are also excluded by default: the agent host
- * discovers workspace `.mcp.json` itself, so syncing them would duplicate. The
- * exception is `.vscode/mcp.json`, which the agent host does not discover
- * (despite what the SDK's `enableConfigDiscovery` docs imply) — those are
- * synced, but only when their config can be resolved without requiring user
- * interaction. For agent-host providers with their own GitHub MCP server, the
- * Copilot Chat extension's duplicate provider is excluded.
+ * Collects declaratively forwardable MCP servers, excluding plugin-sourced servers, duplicate built-ins, and workspace-discovered servers other than resolvable `.vscode/mcp.json` entries.
+ * Copilot-home `mcp-config.json` (`COPILOT_HOME`, otherwise `~/.copilot`) is runtime-discovered only by the window's own Copilot host on the same machine.
  */
-export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[]): Promise<ISyncableMcpServer[]> {
-	const resolved = await resolveMcpServersForAgentHostDelivery(mcpService.servers.get(), configurationResolverService, sessionType, workingDirectories);
+export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[], windowRemoteAuthority: string | null): Promise<ISyncableMcpServer[]> {
+	const resolved = await resolveMcpServersForAgentHostDelivery(mcpService.servers.get(), configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
 	return resolved.flatMap(({ server, definition, delivery, projectedConfiguration }) => {
 		if (delivery !== AgentHostMcpServerDelivery.ClientForwarded || !definition || !projectedConfiguration) {
 			return [];
@@ -233,6 +235,7 @@ export async function resolveCustomizationRefs(
 	sessionType: string,
 	options: ILocalCustomizationSyncOptions | undefined,
 	workingDirectories: readonly URI[] = [],
+	windowRemoteAuthority: string | null = null,
 ): Promise<ClientPluginCustomization[]> {
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 	const enabled = enumerated.filter(e => !e.disabled);
@@ -303,7 +306,7 @@ export async function resolveCustomizationRefs(
 	}
 
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
-	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories);
+	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
 	if (looseFiles.length > 0 || mcpServers.length > 0) {
 		refs.push(bundler.bundle(looseFiles, mcpServers).then(r => r?.ref));
 	}

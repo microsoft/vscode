@@ -14,6 +14,8 @@ export const OTEL_SETTING_DEFAULTS = {
 	protocol: '',
 	otlpEndpoint: DEFAULT_OTLP_ENDPOINT,
 	captureContent: false,
+	// Unlike false, null preserves the distinction between omission and a managed denial.
+	captureIdentity: null,
 	serviceName: '',
 	resourceAttributes: {},
 	headers: {},
@@ -26,9 +28,18 @@ type OTelSettingKey = keyof typeof OTEL_SETTING_DEFAULTS;
 type OTelDefaultValues = Record<OTelSettingKey, unknown>;
 const settingKeys = Object.keys(OTEL_SETTING_DEFAULTS) as OTelSettingKey[];
 const policySettingKeys = [
-	'enabled', 'exporterType', 'protocol', 'otlpEndpoint', 'captureContent',
+	'enabled', 'exporterType', 'protocol', 'otlpEndpoint', 'captureContent', 'captureIdentity',
 	'serviceName', 'resourceAttributes', 'headers', 'outfile',
 ] as const;
+
+function normalizePolicyDefaultValue(key: OTelSettingKey, value: unknown): unknown {
+	// The shared CopilotOtelEndpoint policy is owned by the core Agent Host setting,
+	// whose unconfigured policy slot defaults to ''. The extension API exposes that
+	// slot through this extension setting's policyReference, even when no telemetry
+	// policy exists. Treat it as this setting's schema default so unrelated managed
+	// settings do not look like an enterprise OTel block.
+	return key === 'otlpEndpoint' && value === '' ? OTEL_SETTING_DEFAULTS.otlpEndpoint : value;
+}
 
 export interface IOTelSettingsReader {
 	get<T>(key: string): T | undefined;
@@ -55,6 +66,7 @@ export function snapshotOTelEnv(env: Record<string, string | undefined>): Record
 	const keys = [
 		'COPILOT_OTEL_ENABLED', 'COPILOT_OTEL_ENDPOINT', 'COPILOT_OTEL_PROTOCOL',
 		'COPILOT_OTEL_FILE_EXPORTER_PATH', 'COPILOT_OTEL_CAPTURE_CONTENT',
+		'COPILOT_OTEL_CAPTURE_IDENTITY',
 		'COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS', 'COPILOT_OTEL_LOG_LEVEL',
 		'COPILOT_OTEL_HTTP_INSTRUMENTATION', 'OTEL_EXPORTER_OTLP_ENDPOINT',
 		'OTEL_EXPORTER_OTLP_PROTOCOL', 'OTEL_EXPORTER_OTLP_HEADERS',
@@ -71,7 +83,7 @@ export function resolveOTelConfigFromSettings(
 ): IResolvedOTelConfig {
 	const defaultValues: OTelDefaultValues = { ...OTEL_SETTING_DEFAULTS };
 	for (const key of settingKeys) {
-		defaultValues[key] = deepClone(settings.inspect(key)?.defaultValue);
+		defaultValues[key] = deepClone(normalizePolicyDefaultValue(key, settings.inspect(key)?.defaultValue));
 	}
 	// For these application-scoped settings, inspect().defaultValue contains policy
 	// when present, otherwise the schema default. Once policy is recognizable, use
@@ -88,12 +100,16 @@ export function resolveOTelConfigFromSettings(
 		settingExporterType: read<OTelExporterType>('exporterType'),
 		settingOtlpEndpoint: read<string>('otlpEndpoint'),
 		settingCaptureContent: read<boolean>('captureContent'),
+		// Omission is not a denial, even when another enterprise OTel field is present.
+		settingCaptureIdentity: settings.get<boolean | null>('captureIdentity') ?? undefined,
+		policyCaptureIdentity: typeof defaultValues.captureIdentity === 'boolean' ? defaultValues.captureIdentity : undefined,
 		settingMaxAttributeSizeChars: read<number>('maxAttributeSizeChars'),
 		settingOutfile: read<string>('outfile') || undefined,
 		settingDbSpanExporter: read<boolean>('dbSpanExporter.enabled'),
 		settingProtocol: read<string>('protocol') || undefined,
 		settingServiceName: read<string>('serviceName') || undefined,
 		settingResourceAttributes: read<Record<string, string>>('resourceAttributes'),
+		policyResourceAttributes: hasEnterpriseSettings ? read<Record<string, string>>('resourceAttributes') : undefined,
 		settingHeaders: read<Record<string, string>>('headers'),
 		extensionVersion,
 		sessionId,

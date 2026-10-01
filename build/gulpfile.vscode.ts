@@ -35,6 +35,7 @@ import globCallback from 'glob';
 import rceditCallback from 'rcedit';
 import { spawnTsgo } from './lib/tsgo.ts';
 import { runEsbuildTranspile, runEsbuildBundle, getBootstrapEntryPointsForTarget } from './lib/esbuild.ts';
+import { generateNodeCompileCache, shouldGenerateNodeCompileCache } from './lib/nodeCompileCache.ts';
 
 
 const glob = promisify(globCallback);
@@ -115,19 +116,13 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
-// foundry-local-sdk (on-device chat dictation) ships a prebuilt N-API addon
-// (`foundry_local_napi.node`) inside its tarball, and its native core libraries
-// are fetched per-RID into `foundry-local-core/<platform>-<arch>/` at install
-// time. The addon requires a newer glibc than VS Code's minimum supported Linux
-// distros, so we deliberately do NOT ship any of this native payload: it is
-// downloaded on demand at runtime, only on supported platforms, into a per-user
-// cache (see `src/vs/platform/localTranscription/node/foundryLocalRuntime.ts`).
-// Exclude every prebuilt addon and core library from the package here.
+// foundry-local-sdk (on-device chat dictation) loads its N-API addons and shared
+// libraries from the per-user runtime cache. Exclude the package's native files,
+// which may require a newer glibc than VS Code's supported maximum.
 function getFoundryLocalExcludeFilter(): string[] {
 	return [
 		'**',
 		'!**/foundry-local-sdk/prebuilds/**',
-		'!**/foundry-local-sdk/foundry-local-core/**',
 	];
 }
 
@@ -555,6 +550,17 @@ function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinati
 	};
 }
 
+function generateNodeCompileCacheTask(platform: string, destinationFolderName: string) {
+	const outputDirectory = path.join(path.dirname(root), destinationFolderName);
+
+	return () => generateNodeCompileCache(
+		platform,
+		outputDirectory,
+		util.getVersionedResourcesFolder(platform, commit!),
+		product
+	);
+}
+
 const buildRoot = path.dirname(root);
 
 const BUILD_TARGETS = [
@@ -585,6 +591,9 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 		if (platform === 'win32') {
 			packageTasks.push(patchWin32DependenciesTask(destinationFolderName));
+		}
+		if (shouldGenerateNodeCompileCache(platform, arch, product)) {
+			packageTasks.push(generateNodeCompileCacheTask(platform, destinationFolderName));
 		}
 
 		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));

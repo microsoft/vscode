@@ -17,10 +17,17 @@ export type CopilotSlashCommandOutput =
 
 /** Host-side behavior attached to a resolved command, separate from SDK catalog metadata. */
 export interface ICopilotSlashCommandHandler {
+	/** Returning undefined delegates invocation to the SDK runtime command. */
+	readonly invoke?: (input: string) => Promise<CopilotSlashCommandResult | undefined>;
+	/** Activity shown when invocation remains pending long enough to need progress feedback. */
+	readonly getProgressMessage?: (input: string) => string | undefined;
+	readonly showProgressImmediately?: (input: string) => boolean;
 	/** Returning undefined preserves the SDK command name and raw input. */
 	readonly getInvocation?: (input: string) => CopilotSlashCommandInvocation | undefined;
 	/** Returning undefined preserves the SDK result's existing rendering and lifecycle. */
 	readonly getOutput?: (input: string, result: CopilotSlashCommandResult) => CopilotSlashCommandOutput | undefined | Promise<CopilotSlashCommandOutput | undefined>;
+	/** Returning undefined preserves the SDK invocation error. */
+	readonly getErrorOutput?: (input: string, error: Error) => CopilotSlashCommandOutput | undefined | Promise<CopilotSlashCommandOutput | undefined>;
 }
 
 export type ResolvedCopilotSlashCommand = RuntimeSlashCommandInfo & ICopilotSlashCommandHandler;

@@ -16,10 +16,10 @@ import { agentsPanelBorder } from '../../common/theme.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
-import { Direction, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, ISerializedGrid } from '../../../base/browser/ui/grid/grid.js';
 import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, isHTMLElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -34,15 +34,20 @@ import { IProgressIndicator } from '../../../platform/progress/common/progress.j
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
+import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
+import { ISessionGridSlot, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
+import { SessionGridLayout } from './sessionGridLayout.js';
 
 interface IGridSlot {
+	readonly id: string;
 	readonly view: SessionView;
 	readonly disposables: DisposableStore;
 	/** Session currently bound to this slot, or `undefined` for the new-session placeholder. */
 	boundSessionId: string | undefined;
+	session?: IActiveSession;
 }
 
 type CodiconConfettiActivationEvent = {};
@@ -64,20 +69,16 @@ export class SessionsPart extends Part {
 	static readonly BORDER_WIDTH = 1;
 
 	/** Internal grid that hosts the part's session views. */
-	protected _gridWidget: SerializableGrid<SessionView> | undefined;
+	protected _gridWidget: SessionGridLayout | undefined;
+	private _gridRequest: SessionGridRequest | undefined;
+	private readonly _onDidInteractWithGrid = this._register(new Emitter<void>());
+	readonly onDidInteractWithGrid = this._onDidInteractWithGrid.event;
 
 	/** Lazily-created progress bar shown at the top of the content area. */
 	private _progressBar: ProgressBar | undefined;
 	private _progressIndicator: IProgressIndicator | undefined;
 
-	/**
-	 * Session views mounted in the grid, in display order (left-to-right). Slots
-	 * are reused across reconciliations: only the slot count changes with the
-	 * number of visible sessions; each slot is rebound to its session by position
-	 * via {@link SessionView.openSession}. There is always at least one slot — a
-	 * new-session placeholder (`boundSessionId === undefined`) when no sessions
-	 * are visible.
-	 */
+	/** Stable model slots in depth-first grid order, including the empty composer. */
 	private readonly _slots: IGridSlot[] = [];
 
 	private readonly _onDidFocusSession = this._register(new Emitter<string | undefined>());
@@ -165,14 +166,21 @@ export class SessionsPart extends Part {
 
 		// Seed the grid with a placeholder slot so SerializableGrid always has
 		// at least one leaf. Rebound to a session when visible sessions appear.
-		const placeholder = this._createSlot();
-		this._gridWidget = this._register(new SerializableGrid(placeholder.view, { styles: { separatorBorder: this._gridSeparatorBorder } }));
+		const placeholder = this._createSlot('initial');
+		this._gridWidget = this._register(new SessionGridLayout());
+		this._gridWidget.style({ separatorBorder: this._gridSeparatorBorder });
+		this._gridWidget.reconcile([{ id: placeholder.id, view: placeholder.view }], placeholder.id);
 		this._slots.push(placeholder);
 		contentArea.appendChild(this._gridWidget.element);
 
 		// Propagate the grid's maximized-view state to each session view so the
 		// per-view toolbars can render the maximize action in its toggled state.
-		this._register(this._gridWidget.onDidChangeViewMaximized(() => this._updateMaximizedState()));
+		this._register(this._gridWidget.onDidChangeMaximized(() => this._updateMaximizedState()));
+		this._register(addDisposableListener(this._gridWidget.element, EventType.POINTER_DOWN, event => {
+			if (isHTMLElement(event.target) && event.target.closest('.monaco-sash')) {
+				this._onDidInteractWithGrid.fire();
+			}
+		}));
 
 		// Drop target for receiving sessions dragged from the sessions list.
 		const dropDelegate: ISessionDropTargetDelegate = {
@@ -203,13 +211,7 @@ export class SessionsPart extends Part {
 		return undefined;
 	}
 
-	/**
-	 * Reconcile the grid with the desired set of visible sessions. Reuses the
-	 * existing {@link SessionView} slots, growing or shrinking the pool only when
-	 * the number of visible sessions changes, and rebinds each slot to its
-	 * session by position via {@link SessionView.openSession}.
-	 */
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void {
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, gridSlots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
 		if (!this._gridWidget) {
 			return;
 		}
@@ -217,31 +219,18 @@ export class SessionsPart extends Part {
 		// Rebinding or disposing the old slot must not publish an intermediate active-view state.
 		this._activeViewPickerVisibility.clear();
 
-		// Always keep at least one slot (a placeholder when no sessions are visible).
-		const desiredCount = Math.max(visible.length, 1);
-
-		// Grow the pool by appending new slots to the right.
-		while (this._slots.length < desiredCount) {
-			const slot = this._createSlot();
-			const reference = this._slots[this._slots.length - 1].view;
-			this._gridWidget.addView(slot.view, Sizing.Distribute, reference, Direction.Right);
-			this._slots.push(slot);
-		}
-
-		// Shrink the pool by removing trailing slots (always leaves at least one).
-		while (this._slots.length > desiredCount) {
-			const slot = this._slots.pop()!;
-			this._gridWidget.removeView(slot.view, Sizing.Distribute);
-			slot.disposables.dispose();
-		}
-
-		// Rebind each slot to its session by position (or to undefined placeholder).
-		for (let i = 0; i < this._slots.length; i++) {
-			const slot = this._slots[i];
-			const session = visible[i];
+		const sessions = visible.length ? visible : [undefined];
+		const oldSlots = new Map(this._slots.map(slot => [slot.id, slot]));
+		const next = sessions.map((session, index) => {
+			const id = gridSlots?.[index].id ?? session?.sessionId ?? 'initial';
+			const slot = oldSlots.get(id) ?? this._createSlot(id);
+			oldSlots.delete(id);
 			slot.boundSessionId = session?.sessionId;
+			slot.session = session;
 			slot.view.openSession(session, {});
-		}
+			return slot;
+		});
+		this._slots.splice(0, this._slots.length, ...next);
 
 		// Mark the active session's element for styling/focus indication.
 		const activeId = active?.sessionId;
@@ -253,14 +242,22 @@ export class SessionsPart extends Part {
 			slot.view.setActive(isActive);
 		}
 
-		// Exit the grid's maximized state when the active session lands in a
-		// different slot than the maximized one. Opening a session into the
-		// currently-maximized slot preserves the maximized state.
-		if (this._gridWidget.hasMaximizedView()) {
-			const maximizedSlot = this._slots.find(s => this._gridWidget!.isViewMaximized(s.view));
-			if (maximizedSlot && maximizedSlot.boundSessionId !== activeId) {
-				this._gridWidget.exitMaximizedView();
+		this._gridWidget.reconcile(next.map((slot, index) => ({ id: slot.id, view: slot.view, placement: gridSlots?.[index].placement })), activeSlot?.id ?? next[0].id);
+		for (const slot of oldSlots.values()) {
+			slot.disposables.dispose();
+		}
+		if (request && request !== this._gridRequest) {
+			this._gridRequest = request;
+			if (request.type === 'arrange') {
+				this._gridWidget.arrange();
+			} else {
+				this._gridWidget.restore(request.grid);
 			}
+		}
+		this._updateMaximizedState();
+		if (this._lastLayout) {
+			const { width, height, top, left } = this._lastLayout;
+			this.layout(width, height, top, left);
 		}
 
 		this._updateContextKeys(visible);
@@ -283,7 +280,7 @@ export class SessionsPart extends Part {
 			return;
 		}
 		for (const slot of this._slots) {
-			slot.view.setMaximized(this._gridWidget.isViewMaximized(slot.view));
+			slot.view.setMaximized(this._gridWidget.maximized === slot.id);
 		}
 	}
 
@@ -303,15 +300,44 @@ export class SessionsPart extends Part {
 		if (!slot) {
 			return undefined;
 		}
-		if (this._gridWidget.isViewMaximized(slot.view)) {
-			this._gridWidget.exitMaximizedView();
-			return false;
-		} else if (this._slots.filter(s => s.boundSessionId !== undefined).length >= 2) {
-			this._gridWidget.maximizeView(slot.view);
+		const maximized = this._gridWidget.toggleMaximized(slot.id);
+		if (maximized !== undefined) {
+			this._onDidInteractWithGrid.fire();
 			slot.view.focus();
-			return true;
+		}
+		return maximized;
+	}
+
+	getGridLayout(): ISerializedGrid | undefined { return this._gridWidget?.serialize(); }
+
+	getNeighborSession(sessionId: string | undefined, direction: Direction): IActiveSession | null | undefined {
+		const slot = this._slots.find(slot => slot.boundSessionId === sessionId);
+		const neighbor = slot && this._gridWidget?.neighbor(slot.id, direction);
+		const target = this._slots.find(slot => slot.id === neighbor);
+		return target ? target.session ?? null : undefined;
+	}
+
+	getSessionPlacement(sessionId: string): { sessionId: string | undefined; direction: Direction } | undefined {
+		const slot = this._slots.find(slot => slot.boundSessionId === sessionId);
+		if (slot) {
+			const placement = this._gridWidget?.placement(slot.id);
+			const reference = this._slots.find(slot => slot.id === placement?.reference);
+			if (reference && placement) {
+				return { sessionId: reference.boundSessionId, direction: placement.direction };
+			}
 		}
 		return undefined;
+	}
+
+	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void {
+		const slot = this._slots.find(slot => slot.boundSessionId === sessionId);
+		const size = slot && this._gridWidget?.getSize(slot.id);
+		if (slot && size) {
+			this._onDidInteractWithGrid.fire();
+			const horizontal = direction === Direction.Left || direction === Direction.Right;
+			const delta = direction === Direction.Left || direction === Direction.Up ? -amount : amount;
+			this._gridWidget?.resize(slot.id, size.width + (horizontal ? delta : 0), size.height + (horizontal ? 0 : delta));
+		}
 	}
 
 	/**
@@ -354,7 +380,8 @@ export class SessionsPart extends Part {
 		}
 		const containerRect = this._gridWidget.element.getBoundingClientRect();
 		const viewRect = view.element.getBoundingClientRect();
-		const isFullyVisible = viewRect.left >= containerRect.left - 1 && viewRect.right <= containerRect.right + 1;
+		const isFullyVisible = viewRect.left >= containerRect.left - 1 && viewRect.right <= containerRect.right + 1
+			&& viewRect.top >= containerRect.top - 1 && viewRect.bottom <= containerRect.bottom + 1;
 		if (!isFullyVisible) {
 			view.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 		}
@@ -382,14 +409,14 @@ export class SessionsPart extends Part {
 		return this._progressIndicator;
 	}
 
-	private _createSlot(): IGridSlot {
+	private _createSlot(id: string): IGridSlot {
 		const disposables = new DisposableStore();
 		const view = disposables.add(this.instantiationService.createInstance(SessionView));
 		view.setPartVisible(this._sessionViewsVisible);
-		const slot: IGridSlot = { view, disposables, boundSessionId: undefined };
+		const slot: IGridSlot = { id, view, disposables, boundSessionId: undefined };
 		// Pointer-down also activates non-focusable chrome and the empty new-session slot.
 		const fireFocus = () => {
-			this._restoreSessionOnActivation(view);
+			this._restoreSessionOnActivation(slot);
 			this._onDidFocusSession.fire(slot.boundSessionId);
 		};
 		disposables.add(addDisposableListener(view.element, EventType.FOCUS_IN, fireFocus, true));
@@ -397,19 +424,16 @@ export class SessionsPart extends Part {
 		return slot;
 	}
 
-	private _restoreSessionOnActivation(view: SessionView): void {
+	private _restoreSessionOnActivation(slot: IGridSlot): void {
 		if (!this._gridWidget) {
 			return;
 		}
 
-		const viewSize = this._gridWidget.getViewSize(view);
-		if (viewSize.width === view.minimumWidth) {
-			this._gridWidget.expandView(view);
-		}
+		this._gridWidget.expand(slot.id);
 	}
 
 	private get _gridSeparatorBorder(): Color {
-		return this.theme.getColor(agentsPanelBorder) || this.theme.getColor(contrastBorder) || Color.transparent;
+		return this.theme.getColor(contrastBorder) || this.theme.getColor(agentsPanelBorder)?.transparent(0.5) || Color.transparent;
 	}
 
 	override updateStyles(): void {
@@ -455,13 +479,19 @@ export class SessionsPart extends Part {
 
 		this._lastLayout = { width, height, top, left };
 
-		const cardSize = getAgentsPartCardContentSize(width, height, this.agentWorkbenchLayoutService.isEditorPaneVisible());
+		const cardSize = getAgentsPartCardContentSize(
+			width,
+			height,
+			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
+			this.layoutService.isVisible(Parts.SIDEBAR_PART),
+			isPhoneLayout(this.layoutService)
+		);
 
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);
 
 		// Layout the internal grid widget within the content area.
-		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left);
+		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left, isPhoneLayout(this.layoutService));
 
 		// Store the full grid-allocated dimensions so that Part.relayout() works correctly.
 		super.layout(width, height, top, left);

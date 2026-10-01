@@ -932,6 +932,44 @@ suite('PromptsService', () => {
 			sinon.restore();
 		});
 
+		const getPluginAgentPreToolUseHooks = async (pluginUri: URI, format: PluginFormat, hookProperties: readonly string[]) => {
+			const workspaceUri = URI.file('/workspace');
+			const agentUri = URI.joinPath(pluginUri, 'agents', 'reviewer.md');
+			workspaceContextService.setWorkspace(testWorkspace(workspaceUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			await mockFiles(fileService, [{
+				path: agentUri.path,
+				contents: [
+					'---',
+					'name: reviewer',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					...hookProperties.map(property => `      ${property}`),
+					'      env:',
+					'        EXISTING: "value"',
+					'---',
+				],
+			}]);
+
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				format,
+				label: 'test-plugin',
+				enablement: observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */),
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue('testPluginSkills', []),
+				agents: observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', [{ uri: agentUri, name: 'reviewer' }]),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServers', []),
+				automations: observableValue('testPluginAutomations', []),
+			};
+			testPluginsObservable.set([plugin], undefined);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			return { hooks: agents[0]?.hooks?.[HookType.PreToolUse], workspaceUri };
+		};
 
 		test('reads agent files with bounded concurrency', async () => {
 			const rootFolder = '/custom-agents-concurrency';
@@ -1043,6 +1081,91 @@ suite('PromptsService', () => {
 				agents.map(agent => agent.name).sort(),
 				['agent1', 'agent2'],
 			);
+		});
+
+		test('resolves CLAUDE_PLUGIN_ROOT in hooks from Claude plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/claude-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.Claude,
+				['command: "${CLAUDE_PLUGIN_ROOT}/scripts/pre-tool.sh"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `${pluginUri.fsPath}/scripts/pre-tool.sh`,
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					CLAUDE_PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves and quotes PLUGIN_ROOT aliases in hooks from Open Plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/open plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.OpenPlugin,
+				[
+					'bash: "${PLUGIN_ROOT}/scripts/pre-tool.sh"',
+					'powershell: "${PLUGIN_ROOT}/scripts/pre-tool.ps1"',
+				],
+			);
+			const quotedScript = (name: string) => `'${pluginUri.fsPath}/scripts/${name}'`;
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				windows: quotedScript('pre-tool.ps1'),
+				linux: quotedScript('pre-tool.sh'),
+				osx: quotedScript('pre-tool.sh'),
+				windowsSource: 'powershell',
+				linuxSource: 'bash',
+				osxSource: 'bash',
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves PLUGIN_ROOT in hooks from Copilot plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/copilot-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.Copilot,
+				['command: "echo ${PLUGIN_ROOT}"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `echo ${pluginUri.fsPath}`,
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves PLUGIN_ROOT in hooks from Agent Plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/agent-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.AgentPlugin,
+				['command: "echo ${PLUGIN_ROOT}"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `echo ${pluginUri.fsPath}`,
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
 		});
 
 
@@ -2079,6 +2202,37 @@ suite('PromptsService', () => {
 				],
 			});
 		});
+
+		test('does not cache canceled prompt discovery', async () => {
+			const rootFolder = '/prompts-discovery-cancellation';
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/prompts/workspace-prompt.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Workspace prompt.\'',
+						'---',
+						'I am a workspace prompt.',
+					]
+				},
+			]);
+
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			cancellationTokenSource.cancel();
+
+			await assert.rejects(service.listPromptFiles(PromptsType.prompt, cancellationTokenSource.token), CancellationError);
+
+			const prompts = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+			assert.deepStrictEqual(
+				prompts.map(prompt => basename(prompt.uri)),
+				['workspace-prompt.prompt.md'],
+			);
+		});
 	});
 
 	suite('listPromptFiles - instructions', () => {
@@ -2634,7 +2788,12 @@ suite('PromptsService', () => {
 			const errorSpy = sinon.spy(logService, 'error');
 
 			try {
-				await service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token);
+				// Cancellation must surface as an error rather than an empty result,
+				// otherwise it gets cached as "no prompt files".
+				await assert.rejects(
+					service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token),
+					CancellationError,
+				);
 
 				assert.deepStrictEqual({
 					secondProviderCalled,
@@ -2646,6 +2805,40 @@ suite('PromptsService', () => {
 			} finally {
 				errorSpy.restore();
 			}
+		});
+
+		test('does not cache a partial result when a provider swallows cancellation', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			// Block standalone files so the provider is the only cancellation source.
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+			fireConfigChange(testConfigService, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
+
+			const agentUri = URI.parse('file://extensions/my-extension/provided.agent.md');
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			let providerCalls = 0;
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					providerCalls++;
+					if (providerCalls === 1) {
+						// Cancel without throwing, the way the provider loop bails out.
+						cancellationTokenSource.cancel();
+						return [];
+					}
+					return [{ uri: agentUri }];
+				}
+			}));
+
+			await assert.rejects(service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token), CancellationError);
+
+			const files = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+
+			assert.deepStrictEqual(
+				files.map(file => file.uri.toString()),
+				[agentUri.toString()],
+			);
 		});
 
 		test('Contributed agent file that does not exist should not crash', async () => {

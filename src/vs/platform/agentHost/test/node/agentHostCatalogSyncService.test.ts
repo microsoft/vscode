@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -416,6 +418,174 @@ suite('AgentHostCatalogSyncService', () => {
 			title: 'one',
 		});
 	});
+
+	test('targeted replay recovers a pending payload when there is no central row', async () => {
+		const { local, central, service } = await createHarness();
+		central.upsertError = new Error('central unavailable');
+		await service.synchronize(session, { data: data('pending'), legacyMetadata: { customTitle: 'pending' } });
+		central.upsertError = undefined;
+
+		const result = await service.replayPending(session, CancellationToken.None);
+		const catalog = await central.getSessionV2(session.toString());
+
+		assert.deepStrictEqual({
+			result,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+			title: catalog && summaryOf(catalog.payload),
+		}, {
+			result: { session: session.toString(), status: 'succeeded', reason: 'pendingReplayed', sourceRevision: 0 },
+			receipt: 'acknowledged',
+			title: 'pending',
+		});
+	});
+
+	test('targeted replay skips already acknowledged snapshots without reading the central catalog', async () => {
+		const { central, service } = await createHarness();
+		await service.synchronize(session, { data: data('one'), legacyMetadata: {} });
+		central.calls.length = 0;
+
+		const result = await service.replayPending(session, CancellationToken.None);
+
+		assert.deepStrictEqual({ result, calls: central.calls }, { result: undefined, calls: [] });
+	});
+
+	test('targeted replay respects a session deletion fence', async () => {
+		const { local, central, service } = await createHarness();
+		central.upsertError = new Error('central unavailable');
+		await service.synchronize(session, { data: data('pending'), legacyMetadata: {} });
+		const fence = store.add(service.beginSessionDeletion(session));
+		await fence.whenDrained;
+		central.calls.length = 0;
+
+		const result = await service.replayPending(session, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			result,
+			calls: central.calls,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			result: undefined,
+			calls: [],
+			receipt: 'pending',
+		});
+	});
+
+	test('targeted replay cancelled while queued performs no central writes', async () => {
+		const { local, central, service } = await createHarness();
+		central.upsertError = new Error('central unavailable');
+		await service.synchronize(session, { data: data('pending'), legacyMetadata: {} });
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const blocker = service.runExclusive(session, async () => {
+			started.complete();
+			await release.p;
+		});
+		await started.p;
+		central.calls.length = 0;
+		const cancellation = store.add(new CancellationTokenSource());
+		const replay = service.replayPending(session, cancellation.token);
+		cancellation.cancel();
+		release.complete();
+		await blocker;
+
+		assert.deepStrictEqual({
+			result: await replay,
+			calls: central.calls,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			result: undefined,
+			calls: [],
+			receipt: 'pending',
+		});
+	});
+
+	test('a targeted replay queued during a real catalog close retains its pending snapshot', async () => {
+		const upsertQueued = new DeferredPromise<void>();
+		class ClosingCatalogDatabase extends AgentHostDatabase {
+			failUpsert = true;
+
+			override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+				if (this.failUpsert) {
+					throw new Error('central unavailable');
+				}
+				const result = super.upsertSessionV2(envelope, expectedSessionGeneration);
+				upsertQueued.complete();
+				return result;
+			}
+		}
+		const local = new TestSessionDatabase();
+		const central = store.add(new ClosingCatalogDatabase(':memory:'));
+		await central.registerSessionV2(session.toString(), {
+			provider: 'copilotcli',
+			startTime: 1,
+			source: 'explicit',
+		}, { checkTombstone: false });
+		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, new NullLogService());
+		await service.synchronize(session, { data: data('pending'), legacyMetadata: {} });
+		central.failUpsert = false;
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const transactionSequencer = (central as unknown as {
+			_transactionSequencer: { queue<T>(operation: () => Promise<T>): Promise<T> };
+		})._transactionSequencer;
+		const blocker = transactionSequencer.queue(async () => {
+			started.complete();
+			await release.p;
+		});
+		await started.p;
+		const replay = service.replayPending(session, CancellationToken.None);
+		try {
+			await upsertQueued.p;
+			await central.close();
+		} finally {
+			release.complete();
+		}
+		await blocker;
+
+		assert.deepStrictEqual({
+			result: await replay,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			result: { session: session.toString(), status: 'pending', reason: 'upsertFailed', sourceRevision: 0 },
+			receipt: 'pending',
+		});
+	});
+
+	for (const stage of ['catalog read', 'tombstone read', 'central upsert']) {
+		test(`targeted replay stops when cancelled during ${stage}`, async () => {
+			const { local, central, service } = await createHarness();
+			central.upsertError = new Error('central unavailable');
+			await service.synchronize(session, { data: data('pending'), legacyMetadata: {} });
+			central.upsertError = undefined;
+			const cancellation = store.add(new CancellationTokenSource());
+			if (stage === 'catalog read') {
+				central.getSessionV2 = async () => {
+					cancellation.cancel();
+					return undefined;
+				};
+			} else if (stage === 'tombstone read') {
+				central.isSessionTombstoned = async () => {
+					cancellation.cancel();
+					return false;
+				};
+			} else {
+				central.upsertSessionV2 = async () => {
+					cancellation.cancel();
+					return 'applied';
+				};
+			}
+
+			const result = await service.replayPending(session, cancellation.token);
+
+			assert.deepStrictEqual({
+				result,
+				receipt: (await local.getCatalogSyncSnapshot())?.state,
+			}, {
+				result: { session: session.toString(), status: 'retry', reason: 'cancelled' },
+				receipt: 'pending',
+			});
+		});
+	}
 
 	test('replays an acknowledged exact receipt without rewriting sessions_v2', async () => {
 		const { local, central, service } = await createHarness();

@@ -5,6 +5,7 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -70,6 +71,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
+	instantiationService.stub(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
@@ -383,7 +385,7 @@ suite('CodexAgent model refresh', () => {
 		await agent.startChatDiscovery();
 		const discoveriesBeforeActivation = requests.filter(method => method === 'thread/list').length;
 		agent['_activate']();
-		await agent['_codexChatDiscovery'];
+		await agent.startChatDiscovery();
 
 		assert.deepStrictEqual({
 			discoveriesBeforeActivation,
@@ -520,7 +522,7 @@ suite('CodexAgent model refresh', () => {
 						await releaseRateLimit.p;
 						return {
 							rateLimits: {
-								primary: null,
+								primary: { usedPercent: 12, windowDurationMins: 300, resetsAt: 100 },
 								secondary: { usedPercent: 1, windowDurationMins: 7 * 24 * 60, resetsAt: 123 },
 							},
 							rateLimitsByLimitId: null,
@@ -563,6 +565,10 @@ suite('CodexAgent model refresh', () => {
 				profileImage,
 				requiresOpenaiAuth: true,
 				rateLimit: { usedPercent: 1, windowDurationMins: 7 * 24 * 60, resetsAt: 123 },
+				rateLimits: [
+					{ usedPercent: 1, windowDurationMins: 7 * 24 * 60, resetsAt: 123 },
+					{ usedPercent: 12, windowDurationMins: 300, resetsAt: 100 },
+				],
 				authUrl: undefined,
 				authUrlNonce: undefined,
 			},
@@ -619,6 +625,7 @@ suite('CodexAgent model refresh', () => {
 				profileImage: undefined,
 				requiresOpenaiAuth: true,
 				rateLimit: undefined,
+				rateLimits: undefined,
 				authUrl: undefined,
 				authUrlNonce: undefined,
 			},
@@ -663,7 +670,7 @@ suite('CodexAgent model refresh', () => {
 			account: readCodexAccountInfo(ctx.stateManager.rootState),
 		}, {
 			connectionRequests: 0,
-			account: { status: 'unknown', email: undefined, planType: undefined, profileImage: undefined, requiresOpenaiAuth: undefined, rateLimit: undefined, authUrl: undefined, authUrlNonce: undefined },
+			account: { status: 'unknown', email: undefined, planType: undefined, profileImage: undefined, requiresOpenaiAuth: undefined, rateLimit: undefined, rateLimits: undefined, authUrl: undefined, authUrlNonce: undefined },
 		});
 	});
 
@@ -719,7 +726,7 @@ suite('CodexAgent model refresh', () => {
 		}, {
 			requests: ['account/read', 'account/login/start', 'account/read', 'account/rateLimits/read', 'getAuthStatus'],
 			disposed: ['client', 'proxy', 'child'],
-			account: { status: 'signedIn', email: 'person@example.com', planType: 'plus', profileImage: undefined, requiresOpenaiAuth: true, rateLimit: undefined, authUrl: undefined, authUrlNonce: undefined },
+			account: { status: 'signedIn', email: 'person@example.com', planType: 'plus', profileImage: undefined, requiresOpenaiAuth: true, rateLimit: undefined, rateLimits: [], authUrl: undefined, authUrlNonce: undefined },
 			connection: 'idle',
 		});
 	});
@@ -770,6 +777,7 @@ suite('CodexAgent model refresh', () => {
 				profileImage: undefined,
 				requiresOpenaiAuth: true,
 				rateLimit: undefined,
+				rateLimits: undefined,
 				authUrl: undefined,
 				authUrlNonce: undefined,
 			},
@@ -1436,7 +1444,7 @@ suite('CodexAgent model refresh', () => {
 		};
 		agent['_connection'] = staleConnection as never;
 
-		const listing = agent['_listCodexChats']();
+		const listing = agent['_listCodexChats']('discovery');
 		await listStarted.p;
 		agent['_connection'] = createChatGPTConnection() as never;
 		await releaseList.complete();
@@ -1470,7 +1478,7 @@ suite('CodexAgent model refresh', () => {
 		const first = agent['_refreshAccountRateLimits'](client, 'person@example.com');
 		const second = agent['_refreshAccountRateLimits'](client, 'person@example.com');
 		resolveSecond({
-			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
+			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 }, secondary: { usedPercent: 42, windowDurationMins: 10080, resetsAt: 300 }, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
 			accountId: null,
@@ -1479,7 +1487,7 @@ suite('CodexAgent model refresh', () => {
 		await second;
 		const latestObservedAt = agent['_openAIAccountRateLimitUpdatedAt'];
 		resolveFirst({
-			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 90, windowDurationMins: 300, resetsAt: 100 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
+			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 90, windowDurationMins: 300, resetsAt: 100 }, secondary: { usedPercent: 42, windowDurationMins: 10080, resetsAt: 300 }, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
 			accountId: null,
@@ -1489,10 +1497,15 @@ suite('CodexAgent model refresh', () => {
 
 		assert.deepStrictEqual({
 			rateLimit: agent['_openAIAccountRateLimit'],
+			rateLimits: agent['_openAIAccountRateLimits'],
 			hasObservationTime: Number.isFinite(latestObservedAt),
 			observedAt: agent['_openAIAccountRateLimitUpdatedAt'],
 		}, {
-			rateLimit: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 },
+			rateLimit: { usedPercent: 42, windowDurationMins: 10080, resetsAt: 300 },
+			rateLimits: [
+				{ usedPercent: 42, windowDurationMins: 10080, resetsAt: 300 },
+				{ usedPercent: 20, windowDurationMins: 300, resetsAt: 200 },
+			],
 			hasObservationTime: true,
 			observedAt: latestObservedAt,
 		});
@@ -1507,12 +1520,14 @@ suite('CodexAgent model refresh', () => {
 			const agent = createAgent(disposables, async () => []);
 			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'person@example.com' });
 			agent['_openAIAccountRateLimit'] = { usedPercent: 90, windowDurationMins: 7 * 24 * 60 };
+			agent['_openAIAccountRateLimits'] = [agent['_openAIAccountRateLimit'], { usedPercent: 20, windowDurationMins: 300 }];
 			agent['_openAIAccountRateLimitUpdatedAt'] = Date.now();
 
 			agent['_setOpenAIAccountState'](state);
 
-			assert.deepStrictEqual({ rateLimit: agent['_openAIAccountRateLimit'], observedAt: agent['_openAIAccountRateLimitUpdatedAt'] }, {
+			assert.deepStrictEqual({ rateLimit: agent['_openAIAccountRateLimit'], rateLimits: agent['_openAIAccountRateLimits'], observedAt: agent['_openAIAccountRateLimitUpdatedAt'] }, {
 				rateLimit: undefined,
+				rateLimits: undefined,
 				observedAt: undefined,
 			});
 		});

@@ -7,15 +7,15 @@ import * as nls from '../../../nls.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
-import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue, thirdPartyAgentEnabledValue } from '../../policy/common/copilotManagedSettings.js';
+import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, managedSettingValue, thirdPartyAgentEnabledValue } from '../../policy/common/copilotManagedSettings.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
+	AgentHostAgentOrchestrationLimitsSettingId,
 	AgentHostAutoAttachPullRequestsSettingId,
 	AgentHostByokModelsEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
-	AgentHostActiveAgentTitleGenerationSettingId,
-	AgentHostDeferredTitleGenerationSettingId,
+	AgentHostMcpToolRoutingEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostClaudeMultiRootEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
@@ -26,6 +26,7 @@ import {
 	AgentHostCopilotMultiRootEnabledSettingId,
 	AgentHostMarkdownPlanRichLinksEnabledSettingId,
 	AgentHostOTelCaptureContentSettingId,
+	AgentHostOTelCaptureIdentitySettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
 	AgentHostOTelEnabledSettingId,
 	AgentHostOTelExporterTypeSettingId,
@@ -37,15 +38,15 @@ import {
 	AgentHostSystemProxyEnabledSettingId,
 } from './agentService.js';
 import {
-	AgentHostClaudeMultiRootEnabledConfigKey,
-	AgentHostActiveAgentTitleGenerationConfigKey,
-	AgentHostDeferredTitleGenerationConfigKey,
+	AgentHostAgentOrchestrationLimitsConfigKey,
 	AgentHostAutoAttachPullRequestsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
-	AgentHostGitHubMcpServerEnabledConfigKey,
+	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
 	AgentHostCopilotMultiRootEnabledConfigKey,
+	AgentHostGitHubMcpServerEnabledConfigKey,
+	AgentHostMcpToolRoutingEnabledConfigKey,
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostSystemProxyEnabledConfigKey,
 } from './agentHostSchema.js';
@@ -184,23 +185,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.ReplyAttribution },
 		},
-		[AgentHostActiveAgentTitleGenerationSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.experimental.activeAgentTitleGeneration', "When enabled, the active agent names new sessions and chats using rename tools. When disabled, a utility model generates titles immediately. Deferred title generation takes precedence. Changes apply to new sessions; existing sessions and their chats retain their strategy."),
-			default: product.quality !== 'stable',
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostActiveAgentTitleGenerationConfigKey },
-		},
-		[AgentHostDeferredTitleGenerationSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.experimental.deferredTitleGeneration', "Seed titles immediately and refine them in the background if the first response turn completes successfully, without asking the active agent to name chats. Explicit rename tools remain available. Overrides active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
-			agentHost: { key: AgentHostDeferredTitleGenerationConfigKey },
-		},
 		...artifactToolsConfigurationProperties,
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',
@@ -220,6 +204,19 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostMarkdownPlanRichLinksEnabledConfigKey },
 		},
+		[AgentHostAgentOrchestrationLimitsSettingId]: {
+			type: 'string',
+			enum: ['on', 'off'],
+			enumDescriptions: [
+				nls.localize('chat.agentHost.agentOrchestrationLimits.on', "Enforce the limits."),
+				nls.localize('chat.agentHost.agentOrchestrationLimits.off', "Do not enforce the limits."),
+			],
+			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls process-wide limits on sessions and chats created, messages sent, and recursive session spawning by Agent Host session tools. Confirmation requirements and input validation are unchanged."),
+			default: 'on',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			agentHost: { key: AgentHostAgentOrchestrationLimitsConfigKey },
+		},
 		[AgentHostSystemProxyEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.systemProxy.enabled', "When enabled, Copilot sessions automatically discover and use the operating system's proxy configuration when no proxy environment variable is set."),
@@ -235,6 +232,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostGitHubMcpServerEnabledConfigKey },
+		},
+		[AgentHostMcpToolRoutingEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Newly created sessions pick up changes to this setting."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			agentHost: { key: AgentHostMcpToolRoutingEnabledConfigKey },
 		},
 		[AgentHostCopilotMultiRootEnabledSettingId]: {
 			type: 'boolean',
@@ -463,6 +467,28 @@ configurationRegistry.registerConfiguration({
 					description: {
 						key: 'chat.agentHost.otel.captureContent.policy',
 						value: nls.localize('chat.agentHost.otel.captureContent.policy', "Controls whether Copilot OpenTelemetry export captures prompt, response, and tool content."),
+					}
+				},
+			},
+		},
+		// Shared with the Local extension; native runtimes resolve their own policy.
+		[AgentHostOTelCaptureIdentitySettingId]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			policy: {
+				name: 'CopilotOtelCaptureIdentity',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.140',
+				value: managedSettingValue(COPILOT_OTEL_CAPTURE_IDENTITY_KEY),
+				managedSettings: {
+					[COPILOT_OTEL_CAPTURE_IDENTITY_KEY]: { type: 'boolean' },
+				},
+				localization: {
+					description: {
+						key: 'chat.agentHost.otel.captureIdentity.policy',
+						value: nls.localize('chat.agentHost.otel.captureIdentity.policy', "Controls whether Copilot OpenTelemetry captures the authenticated account name, operating system username, and machine hostname. Independent of content capture."),
 					}
 				},
 			},

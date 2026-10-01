@@ -8,6 +8,7 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import type { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, Separator, SubmenuAction, toAction, type IAction, type IActionRunner } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../base/common/layout.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import type { ThemeIcon } from '../../../../base/common/themables.js';
@@ -131,13 +132,23 @@ export class StandardChatInputPillSources extends Disposable {
 				return;
 			}
 			const action = this._register(new Action(`chatInputPills.${kind}`, getSessionChatPillLabel(kind)));
-			const pillSource = createChatSectionPillSource(kind, action, source.sections, source.icon ? { ...options, icon: source.icon } : options, resourceLabels, instantiationService);
+			const pillSource = createChatSectionPillSource(kind, action, source.sections, {
+				...options,
+				...(source.icon ? { icon: source.icon } : {}),
+				preferredAnchorPosition: AnchorPosition.ABOVE,
+			}, resourceLabels, instantiationService);
 			sources.push({
 				...pillSource,
 				hasData: source.hasData ?? pillSource.hasData,
 				isVisible: pillSource.hasData,
 				getContextMenuActions: () => source.getContextMenuActions?.() ?? [],
-				getContextMenuPrimaryActions: () => source.getContextMenuPrimaryActions?.() ?? [],
+				getContextMenuPrimaryActions: () => {
+					if (source.getContextMenuPrimaryActions) {
+						return source.getContextMenuPrimaryActions();
+					}
+					const entries = getChatPillEntries(source.sections.get());
+					return entries.length === 1 && entries[0].promotedAction ? [entries[0].promotedAction] : [];
+				},
 			});
 		};
 		addSections(SessionChatPillKind.PullRequests, data.pullRequests, sessionPullRequestsPillOptions);
@@ -193,13 +204,13 @@ export class ChatInputPills extends Disposable {
 			context: _options.context,
 		};
 		this._pills = this._register(instantiationService.createInstance(ChatPillsWidget, model, {
-			ariaLabel: _options.ariaLabel,
+			ariaLabel: _options.ariaLabel ?? localize('chatInputPills.ariaLabel', "Session status"),
 			actionRunner: _options.actionRunner,
 			allowContextMenu: true,
 		}));
 		this._pills.element.classList.add('show-file-icons');
 		this._row.content.appendChild(this._pills.element);
-		this._row.observe(this._pills.element);
+		this._row.observe(this._pills.element, () => this._pills.getPillElements());
 		this._register(this._pills.onDidRemoveFocusedPill(() => this._row.restoreFocus(() => this._pills.getPillElements(), _options.focusFallback)));
 		this.onDidChange = Event.any(this._row.onDidChangeLayout, this._pills.onDidChangePills);
 
@@ -281,7 +292,35 @@ export class ChatInputPills extends Disposable {
 
 	private _getVisibilityActions(kindsWithData: ReadonlySet<SessionChatPillKind>, targetKind?: SessionChatPillKind) {
 		const menu = getSessionChatPillMenu(kindsWithData, this._visibility.readHiddenKinds(undefined), targetKind, this._options.offeredKinds);
-		const restoreFocus = () => this._row.restoreFocus(() => this._pills.getPillElements(), this._options.focusFallback);
+		const restoreFocus = () => this._row.restoreFocus(() => {
+			const pills = this._pills.getPillElements();
+			const target = targetKind ? pills.find(pill => this._getTargetKind(pill) === targetKind) : undefined;
+			return target ? [target] : pills;
+		}, this._options.focusFallback);
+		const withFocusRestoration = (action: IAction): IAction => {
+			if (action instanceof Separator) {
+				return action;
+			}
+			if (action instanceof SubmenuAction) {
+				return new SubmenuAction(action.id, action.label, action.actions.map(withFocusRestoration), action.class);
+			}
+			return toAction({
+				id: action.id,
+				label: action.label,
+				enabled: action.enabled,
+				checked: action.checked,
+				class: action.class,
+				tooltip: action.tooltip,
+				run: async () => {
+					try {
+						await action.run();
+					} finally {
+						// Filtering or removing an entry can detach the context menu's anchor.
+						restoreFocus();
+					}
+				},
+			});
+		};
 		const toggleAction = (entry: ISessionChatPillMenuEntry) => toAction({
 			id: `chatInputPills.toggle.${entry.kind}`,
 			label: entry.label,
@@ -292,34 +331,30 @@ export class ChatInputPills extends Disposable {
 			},
 		});
 		const targetActions: IAction[] = [];
-		const pullRequestActions: IAction[] = [];
-		if (targetKind) {
-			for (const source of this._options.sources.get()) {
-				if (source.kind === targetKind && this._options.offeredKinds.includes(targetKind)) {
-					// A primary action can remove the entry the menu was opened from,
-					// taking its pill with it, so focus has to be placed again once the
-					// action settles instead of being left on the detached anchor.
-					const primaryActions = (source.getContextMenuPrimaryActions?.() ?? []).map(action => toAction({
-						id: action.id,
-						label: action.label,
-						enabled: action.enabled,
-						checked: action.checked,
-						class: action.class,
-						tooltip: action.tooltip,
-						run: async () => {
-							try {
-								await action.run();
-							} finally {
-								restoreFocus();
-							}
-						},
-					}));
-					(source.kind === SessionChatPillKind.PullRequests ? pullRequestActions : targetActions).push(...primaryActions);
-				}
+		const optionsActions: IAction[] = [];
+		for (const source of this._options.sources.get()) {
+			if (!source.kind || !this._options.offeredKinds.includes(source.kind)) {
+				continue;
 			}
-			if (targetActions.length) {
-				targetActions.push(new Separator());
+			const allEntriesFilteredOut = kindsWithData.has(source.kind) && source.isVisible?.get() === false;
+			if (targetKind ? source.kind !== targetKind && !allEntriesFilteredOut : !kindsWithData.has(source.kind)) {
+				continue;
 			}
+			const actions = source.getContextMenuActions?.() ?? [];
+			const primaryActions = source.kind === targetKind ? source.getContextMenuPrimaryActions?.() ?? [] : [];
+			(actions.length ? optionsActions : targetActions).push(...primaryActions.map(withFocusRestoration));
+			if (actions.length) {
+				optionsActions.push(new SubmenuAction(
+					`chatInputPills.options.${source.kind}`,
+					source.kind === SessionChatPillKind.Subagents
+						? localize('chatInputPills.subagentOptions', "Subagent Options")
+						: localize('chatInputPills.options', "{0} Options", getSessionChatPillLabel(source.kind)),
+					actions.map(withFocusRestoration),
+				));
+			}
+		}
+		if (targetActions.length) {
+			targetActions.push(new Separator());
 		}
 		if (menu.hide) {
 			const hide = menu.hide;
@@ -332,24 +367,7 @@ export class ChatInputPills extends Disposable {
 				},
 			}));
 		}
-		for (const source of this._options.sources.get()) {
-			const allPullRequestsFilteredOut = source.kind === SessionChatPillKind.PullRequests
-				&& kindsWithData.has(source.kind) && source.isVisible?.get() === false;
-			if (!source.kind || !this._options.offeredKinds.includes(source.kind)
-				|| (targetKind ? source.kind !== targetKind && !allPullRequestsFilteredOut : !kindsWithData.has(source.kind))) {
-				continue;
-			}
-			const actions = source.getContextMenuActions?.();
-			if (actions?.length) {
-				const options = source.kind === SessionChatPillKind.PullRequests ? pullRequestActions : targetActions;
-				options.push(new SubmenuAction(
-					`chatInputPills.options.${source.kind}`,
-					localize('chatInputPills.options', "{0} Options", getSessionChatPillLabel(source.kind)),
-					actions,
-				));
-			}
-		}
-		return Separator.join(targetActions, pullRequestActions, menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
+		return Separator.join(targetActions, optionsActions, menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
 	}
 }
 

@@ -242,6 +242,16 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 
 		return filters;
 	}
+
+	/** Maps the core-available Copilot filters to new TAS userParams without forwarding legacy headers. */
+	getAssignmentsFilters(): Map<string, string | null> {
+		return new Map([
+			['github_core_copilotsku', this.getFilterValue(ExtensionsFilter.CopilotSku)],
+			['github_core_issn', this.getFilterValue(ExtensionsFilter.CopilotIsSn)],
+			['github_core_isfcv1', this.getFilterValue(ExtensionsFilter.CopilotIsFcv1)],
+			['vscode_core_copilotchatextensionversion', this.getFilterValue(ExtensionsFilter.CopilotChatExtensionVersion)],
+		]);
+	}
 }
 
 /**

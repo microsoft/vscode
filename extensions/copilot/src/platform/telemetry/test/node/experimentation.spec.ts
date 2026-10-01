@@ -848,9 +848,9 @@ describe('ExP Service scoped treatment resolution', () => {
 		const delegate = service.delegates[0];
 
 		// The new assignments endpoint returns the key with a `/vscode/` scope prefix only.
-		delegate.setTreatment('/vscode/config.chat.copilot.subagentModelGuidance.enabled', true);
+		delegate.setTreatment('/vscode/config.test.scopedTreatment', true);
 
-		expect(service.getTreatmentVariable<boolean>('config.chat.copilot.subagentModelGuidance.enabled')).toBe(true);
+		expect(service.getTreatmentVariable<boolean>('config.test.scopedTreatment')).toBe(true);
 
 		service.dispose();
 	});

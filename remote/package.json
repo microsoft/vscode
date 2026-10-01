@@ -4,10 +4,10 @@
   "private": true,
   "dependencies": {
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.15-unstable.35393089353.gfc44743",
+    "@github/copilot-sdk": "1.0.16",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
-    "@microsoft/mxc-sdk": "0.8.0",
+    "@microsoft/mxc-sdk": "0.9.0",
     "@parcel/watcher": "^2.5.6",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
@@ -22,7 +22,7 @@
     "@vscode/tree-sitter-wasm": "^0.3.1",
     "@vscode/vscode-languagedetection": "1.0.23",
     "@vscode/windows-process-tree": "^0.8.0",
-    "@vscode/windows-registry": "^1.2.0",
+    "@vscode/windows-registry": "^1.3.0",
     "@xterm/addon-clipboard": "^0.3.0-beta.303",
     "@xterm/addon-image": "^0.10.0-beta.301",
     "@xterm/addon-ligatures": "^0.11.0-beta.301",
@@ -71,12 +71,12 @@
     "@vscode/fs-copyfile@2.0.0": true,
     "@vscode/native-watchdog@1.4.6": true,
     "@vscode/spdlog@0.15.8": true,
-    "@vscode/windows-registry@1.2.0": true,
+    "@vscode/windows-registry@1.3.0": true,
     "ssh2": false,
     "@vscode/sqlite3@5.1.12-vscode": true,
     "cpu-features": false,
     "@vscode/windows-ca-certs@0.3.4": true,
     "@vscode/windows-process-tree@0.8.0": true
   },
-  "copilotRuntimeVersion": "1.0.85-unstable.r35379093703.g3514c9a"
+  "copilotRuntimeVersion": "1.0.90"
 }

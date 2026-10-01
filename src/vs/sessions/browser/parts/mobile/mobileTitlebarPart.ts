@@ -214,7 +214,7 @@ export class MobileTitlebarPart extends Disposable {
 			this.sessionTitleElement.textContent = title || localize('mobileTopBar.newSession', "New Session");
 		}));
 
-		// Keep the changes pill in sync with the active session's changes.
+		// Keep the changes pill in sync with the active chat's changes.
 		// Hidden when there are no changes (counts are zero and list is empty).
 		const isNewChatRef = { value: !!IsNewChatSessionContext.getValue(contextKeyService) };
 		const renderChangesPill = () => {
@@ -247,7 +247,7 @@ export class MobileTitlebarPart extends Disposable {
 		};
 		this._register(autorun(reader => {
 			const session = this.sessionsService.activeSession.read(reader);
-			this.latestChanges = session?.changes.read(reader) ?? [];
+			this.latestChanges = session?.activeChat.read(reader).changes.read(reader) ?? [];
 			renderChangesPill();
 		}));
 

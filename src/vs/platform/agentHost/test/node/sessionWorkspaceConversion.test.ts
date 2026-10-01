@@ -64,6 +64,7 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 			}),
 			worktreeBranchPrefixProperty: undefined,
 			worktreeIncludeFilesProperty: undefined,
+			worktreeSymlinkFoldersProperty: undefined,
 			worktreeBranchTrackProperty: undefined,
 			worktreeCreateNewBranchProperty: undefined,
 			isolationValue: 'worktree',
@@ -72,7 +73,7 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 		};
 	}
 
-	override async resolveOnFirstSend(request: IResolveWorkingDirectoryRequest): Promise<URI> {
+	override async resolveForWorkspaceConversion(request: IResolveWorkingDirectoryRequest): Promise<URI> {
 		this.requests.push(request);
 		await request.onWillCreate?.({
 			repositoryRoot: this.repository,
@@ -407,6 +408,7 @@ suite('SessionWorkspaceConversionService', () => {
 					severity: undefined,
 					workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
 					workspaceName: 'project',
+					fusionStatus: undefined,
 				},
 			}],
 			outcomeKindsAtContinuation: [[AgentSystemNotificationKind.WorkspaceTransition]],
@@ -554,6 +556,7 @@ suite('SessionWorkspaceConversionService', () => {
 						severity: undefined,
 						workspaceKind: AgentSystemNotificationWorkspaceKind.Folder,
 						workspaceName: 'project',
+						fusionStatus: undefined,
 					},
 				}, {
 					kind: ResponsePartKind.Markdown,
@@ -734,6 +737,7 @@ suite('SessionWorkspaceConversionService', () => {
 					severity: undefined,
 					workspaceKind: AgentSystemNotificationWorkspaceKind.Worktree,
 					workspaceName: 'project',
+					fusionStatus: undefined,
 				},
 			}],
 			continuationText: `The current session is now attached to ${worktreeIsolation.worktree.fsPath} in an isolated worktree. Continue the user's original task in this workspace. Do not request another session or workspace conversion.`,

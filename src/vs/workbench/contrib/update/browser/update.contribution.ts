@@ -26,6 +26,8 @@ import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { URI } from '../../../../base/common/uri.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ReleaseNotesAccessibilityHelp } from './releaseNotesAccessibilityHelp.js';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
@@ -37,6 +39,8 @@ workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePha
 workbench.registerWorkbenchContribution(PostUpdateWidgetContribution, LifecyclePhase.Restored);
 
 // Release notes
+
+AccessibleViewRegistry.register(new ReleaseNotesAccessibilityHelp());
 
 export class ShowReleaseNotesAction extends Action2 {
 

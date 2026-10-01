@@ -29,7 +29,7 @@ import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/t
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
@@ -184,6 +184,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly supportsToolCalls: boolean;
 	public readonly supportsVision: boolean;
 	public readonly supportsPrediction: boolean;
+	public readonly supportsThinkingContentInHistory: boolean;
 	public readonly supportsAdaptiveThinking?: boolean;
 	public readonly minThinkingBudget?: number;
 	public readonly maxThinkingBudget?: number;
@@ -244,6 +245,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.supportsToolCalls = !!modelMetadata.capabilities.supports.tool_calls;
 		this.supportsVision = !!modelMetadata.capabilities.supports.vision;
 		this.supportsPrediction = !!modelMetadata.capabilities.supports.prediction;
+		this.supportsThinkingContentInHistory = capabilityOverride?.thinkingInHistory ?? modelSupportsThinkingContentInHistory(this);
 		this.supportsAdaptiveThinking = modelMetadata.capabilities.supports.adaptive_thinking;
 		this.minThinkingBudget = modelMetadata.capabilities.supports.min_thinking_budget;
 		this.maxThinkingBudget = modelMetadata.capabilities.supports.max_thinking_budget;
@@ -482,18 +484,6 @@ export class ChatEndpoint implements IChatEndpoint {
 				} else {
 					this._logService.warn(`[reasoningEffort] Dropping reasoning effort '${candidateEffort}' for model '${this.model}' — not in server-declared levels [${declaredLevels.join(', ')}].`);
 				}
-			}
-		}
-
-		// Force low reasoning effort for Gemini 3 models when the experiment is
-		// enabled, unless the user has already selected an explicit effort above.
-		if (body.reasoning_effort === undefined && this.family.toLowerCase().includes('gemini-3')) {
-			const lowReasoningEnabled = this._configurationService.getExperimentBasedConfig(
-				ConfigKey.EnableGemini3LowReasoningEffort,
-				this._expService
-			);
-			if (lowReasoningEnabled) {
-				body.reasoning_effort = 'low';
 			}
 		}
 

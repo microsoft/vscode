@@ -10,7 +10,7 @@ import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape 
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { Disposable, ProgressLocation } from './extHostTypes.js';
 import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
-import { IAuthenticationGetSessionsOptions, IAuthenticationProviderSessionOptions, INTERNAL_AUTH_PROVIDER_PREFIX, isAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
+import { getAuthenticationSessionRequestKey, IAuthenticationGetSessionsOptions, IAuthenticationProviderSessionOptions, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -46,6 +46,12 @@ interface ProviderWithMetadata {
  */
 export function reviveAccountIcon<T extends { readonly icon?: vscode.Uri | UriComponents }>(account: T): T & { readonly icon?: vscode.Uri } {
 	return { ...account, icon: URI.revive(account.icon) };
+}
+
+function getInteractiveOptionsForRequestKey(options: boolean | vscode.AuthenticationGetSessionPresentationOptions | undefined) {
+	return typeof options === 'object'
+		? { detail: options.detail, learnMore: options.learnMore?.toString() }
+		: options;
 }
 
 export class ExtHostAuthentication implements ExtHostAuthenticationShape {
@@ -96,45 +102,23 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
-		const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
-		// TODO: pull this out into a utility function somewhere
-		const optionsStr = keys
-			.map(key => {
-				switch (key) {
-					case 'account':
-						return `${key}:${options.account?.id}`;
-					case 'createIfNone':
-					case 'forceNewSession': {
-						const value = typeof options[key] === 'boolean'
-							? `${options[key]}`
-							: `'${options[key]?.detail}/${options[key]?.learnMore?.toString()}'`;
-						return `${key}:${value}`;
-					}
-					case 'authorizationServer':
-						return `${key}:${options.authorizationServer?.toString(true)}`;
-					default:
-						return `${key}:${!!options[key]}`;
-				}
-			})
-			.sort()
-			.join(', ');
-
-		let singlerKey: string;
-		if (isAuthenticationWwwAuthenticateRequest(scopesOrRequest)) {
-			const challenge = scopesOrRequest as vscode.AuthenticationWwwAuthenticateRequest;
-			const challengeStr = challenge.wwwAuthenticate;
-			const scopesStr = challenge.fallbackScopes ? [...challenge.fallbackScopes].sort().join(' ') : '';
-			singlerKey = `${extensionId} ${providerId} challenge:${challengeStr} ${scopesStr} ${optionsStr}`;
-		} else {
-			const sortedScopes = [...scopesOrRequest].sort().join(' ');
-			singlerKey = `${extensionId} ${providerId} ${sortedScopes} ${optionsStr}`;
-		}
+		const singlerKey = JSON.stringify([extensionId, providerId, getAuthenticationSessionRequestKey(scopesOrRequest, {
+			...options,
+			account: options.account && { id: options.account.id, label: options.account.label },
+			authorizationServer: URI.revive(options.authorizationServer),
+			createIfNone: getInteractiveOptionsForRequestKey(options.createIfNone),
+			forceNewSession: getInteractiveOptionsForRequestKey(options.forceNewSession)
+		})]);
 
 		return await this._getSessionTaskSingler.getOrCreate(singlerKey, async () => {
 			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
 			const session = await this._proxy.$getSession(providerId, scopesOrRequest, extensionId, extensionName, options);
-			return session && { ...session, account: reviveAccountIcon(session.account) };
+			return session && {
+				...session,
+				account: reviveAccountIcon(session.account),
+				authorizationServer: URI.revive(session.authorizationServer)
+			};
 		});
 	}
 
@@ -145,32 +129,43 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	}
 
 	registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
+		const disposables = new DisposableStore();
+		// Capture changes before queueing, but forward them only after the main thread acknowledges registration.
+		const bufferedSessionChanges = Event.buffer<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>(
+			listener => provider.onDidChangeSessions(listener), 'authentication provider registration', false, [], disposables);
+		const providerData: ProviderWithMetadata = { label, provider, disposable: disposables, options: options ?? { supportsMultipleAccounts: false } };
 		// register
 		void this._providerOperations.queue(id, async () => {
 			// This use to be synchronous, but that wasn't an accurate representation because the main thread
 			// may have unregistered the provider in the meantime. I don't see how this could really be done
 			// synchronously, so we just say first one wins.
 			if (this._authenticationProviders.get(id)) {
+				disposables.dispose();
 				this._logService.error(`An authentication provider with id '${id}' is already registered. The existing provider will not be replaced.`);
 				return;
 			}
-			const listener = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(id, e));
-			this._authenticationProviders.set(id, { label, provider, disposable: listener, options: options ?? { supportsMultipleAccounts: false } });
-			await this._proxy.$registerAuthenticationProvider({
-				id,
-				label,
-				supportsMultipleAccounts: options?.supportsMultipleAccounts ?? false,
-				supportedAuthorizationServers: options?.supportedAuthorizationServers,
-				supportsChallenges: options?.supportsChallenges
-			});
+			this._authenticationProviders.set(id, providerData);
+			try {
+				await this._proxy.$registerAuthenticationProvider({
+					id,
+					label,
+					supportsMultipleAccounts: options?.supportsMultipleAccounts ?? false,
+					supportedAuthorizationServers: options?.supportedAuthorizationServers,
+					supportsChallenges: options?.supportsChallenges
+				});
+				disposables.add(bufferedSessionChanges(e => this._proxy.$sendDidChangeSessions(id, e)));
+			} catch (error) {
+				disposables.dispose();
+				this._authenticationProviders.delete(id);
+				this._logService.error(`Failed to register authentication provider '${id}'.`, error);
+			}
 		});
 
 		// unregister
 		return new Disposable(() => {
 			void this._providerOperations.queue(id, async () => {
-				const providerData = this._authenticationProviders.get(id);
-				if (providerData) {
-					providerData.disposable?.dispose();
+				if (this._authenticationProviders.get(id) === providerData) {
+					disposables.dispose();
 					this._authenticationProviders.delete(id);
 					await this._proxy.$unregisterAuthenticationProvider(id);
 				}
