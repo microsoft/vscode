@@ -13,13 +13,14 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { type IChatPillEntry, type IChatPillSection } from '../../../../workbench/browser/chatPills.js';
-import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { ISessionChatCustomization, ISessionFolder, SessionCustomizationKind, type IChat } from '../../../services/sessions/common/session.js';
-import type { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
+import { ISessionChatCustomization, SessionCustomizationKind } from '../common/sessionChatCustomizations.js';
 
-/** Action id of the customizations pill. */
-export const SESSION_CUSTOMIZATIONS_PILL_ID = 'sessions.chatPills.customizations';
+interface ICustomizationFolder {
+	readonly name: string;
+	readonly workingDirectory: URI;
+}
 
 const customizationIcons: ReadonlyMap<SessionCustomizationKind, ThemeIcon> = new Map([
 	[SessionCustomizationKind.Agent, Codicon.robot],
@@ -56,7 +57,7 @@ const sectionOrder: readonly { readonly kind: SessionCustomizationKind; readonly
 /** Builds the dropdown sections, preserving the order customizations appeared in. */
 export function buildSessionCustomizationSections(
 	customizations: readonly ISessionChatCustomization[],
-	sessionFolders: readonly ISessionFolder[],
+	sessionFolders: readonly ICustomizationFolder[],
 	reveal: (customization: ISessionChatCustomization) => void,
 ): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionCustomizationKind, IChatPillEntry[]>();
@@ -88,7 +89,7 @@ export function buildSessionCustomizationSections(
  * The path shown beside a customization: relative to the session folder holding
  * it (prefixed with the folder name when the session spans several), else absolute.
  */
-function getCustomizationPath(uri: URI, sessionFolders: readonly ISessionFolder[]): string {
+function getCustomizationPath(uri: URI, sessionFolders: readonly ICustomizationFolder[]): string {
 	for (const folder of sessionFolders) {
 		if (!isEqualOrParent(uri, folder.workingDirectory)) {
 			continue;
@@ -110,16 +111,14 @@ export class SessionCustomizations extends Disposable {
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 
 	constructor(
-		chat: IObservable<IChat | undefined>,
-		session: IObservable<IActiveSession | undefined>,
+		customizations: IObservable<readonly ISessionChatCustomization[]>,
+		sessionFolders: IObservable<readonly ICustomizationFolder[]>,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
 		this.sections = derivedOpts({ owner: this, equalsFn: sectionsEqual }, reader => {
-			const customizations = chat.read(reader)?.customizations?.read(reader) ?? [];
-			const sessionFolders = session.read(reader)?.workspace.read(reader)?.folders ?? [];
-			return buildSessionCustomizationSections(customizations, sessionFolders, customization => this._reveal(customization));
+			return buildSessionCustomizationSections(customizations.read(reader), sessionFolders.read(reader), customization => this._reveal(customization));
 		});
 	}
 

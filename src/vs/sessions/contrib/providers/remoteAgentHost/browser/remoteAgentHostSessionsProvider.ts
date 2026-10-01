@@ -84,6 +84,11 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional hook to permanently remove the host from its provider inventory. */
 	readonly removeOnDemand?: () => Promise<void>;
+	/** Optional owner-managed deletion for selected raw session IDs, working without a host connection. */
+	readonly deleteSessionsOnDemand?: {
+		ownsSession(sessionId: string): boolean;
+		deleteSessions(sessionIds: readonly string[]): Promise<void>;
+	};
 	/** Optional progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	readonly showConnectionLog?: () => Promise<void>;
@@ -215,6 +220,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _removeOnDemand: (() => Promise<void>) | undefined;
+	private readonly _deleteSessionsOnDemand: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'];
 	private readonly _sessionSchemeAlias: IAgentHostSessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
@@ -288,12 +294,14 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._connectOnDemand = config.connectOnDemand;
 		this._disconnectOnDemand = config.disconnectOnDemand;
 		this._removeOnDemand = config.removeOnDemand;
+		this._deleteSessionsOnDemand = config.deleteSessionsOnDemand;
 		this._sessionSchemeAlias = config.sessionSchemeAlias;
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
 		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
+			connectionAddress: config.address,
 			sessionSchemeAlias: this._sessionSchemeAlias,
 			defaultChangesetKind: this._defaultChangesetKind,
 		}));
@@ -565,8 +573,21 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	override async deleteSessions(sessionIds: readonly string[]): Promise<void> {
-		const hadSessions = sessionIds.some(sessionId => this._hasSession(sessionId));
-		const detachedWorktrees = sessionIds.filter(sessionId => this._hasSession(sessionId)).map(sessionId => ({
+		const ownerRawIds: string[] = [];
+		const hostSessionIds: string[] = [];
+		for (const sessionId of sessionIds) {
+			const rawId = this._rawIdFromChatId(sessionId);
+			if (rawId && this._deleteSessionsOnDemand?.ownsSession(rawId)) {
+				if (!this._sessionCache.has(rawId)) {
+					throw new Error(localize('remoteAgentHost.deleteSessionNotFound', "Session not found."));
+				}
+				ownerRawIds.push(rawId);
+			} else {
+				hostSessionIds.push(sessionId);
+			}
+		}
+		const hadSessions = hostSessionIds.some(sessionId => this._hasSession(sessionId));
+		const detachedWorktrees = hostSessionIds.filter(sessionId => this._hasSession(sessionId)).map(sessionId => ({
 			sessionId,
 			handle: this._getDetachedWorktreeHandle(sessionId),
 		})).filter((entry): entry is { sessionId: string; handle: string } => !!entry.handle);
@@ -575,7 +596,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			if (hadSessions && this._devContainerLifecycle) {
 				await this._ensureDevContainerConnection();
 			}
-			await super.deleteSessions(sessionIds);
+			await super.deleteSessions(hostSessionIds);
 		} catch (error) {
 			deleteError = error;
 		}
@@ -606,6 +627,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 		if (worktreeError) {
 			throw worktreeError;
+		}
+		if (ownerRawIds.length > 0) {
+			// Owner deletion can disconnect the host, so finish its AHP deletions first.
+			await this._deleteSessionsOnDemand?.deleteSessions(ownerRawIds);
 		}
 	}
 

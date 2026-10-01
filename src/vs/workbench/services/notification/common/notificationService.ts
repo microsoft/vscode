@@ -252,7 +252,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		}
 	}
 
-	prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
+	prompt(severity: Severity, message: NotificationMessage, choices: IPromptChoice[], options?: IPromptOptions): INotificationHandle {
 
 		// Handle neverShowAgain option accordingly
 		if (options?.neverShowAgain) {
@@ -309,7 +309,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 		// Show notification with actions
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		const handle = this.notify({ severity, message, actions, sticky: options?.sticky, priority: options?.priority });
+		const handle = this.notify({ severity, message, actions, sticky: options?.sticky, priority: options?.priority, legacyExtensionLinkParsing: options?.legacyExtensionLinkParsing });
 
 		Event.once(handle.onDidClose)(() => {
 

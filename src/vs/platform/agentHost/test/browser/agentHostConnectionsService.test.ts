@@ -17,7 +17,8 @@ import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../common/agentHostConnectionsS
 import type { IAgentConnection, IAgentHostService } from '../../common/agentService.js';
 import { ChangesetKind } from '../../common/changesetUri.js';
 import type { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
-import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../common/agentHostUri.js';
+import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 
 /** A connection stand-in identified by a `marker` so equality checks read clearly. */
 function fakeConnection(marker: string, operatingSystem = 'linux'): IAgentConnection {
@@ -234,6 +235,44 @@ suite('AgentHostConnectionsService', () => {
 				defaultChangesetKind: ChangesetKind.Session,
 			},
 			resolution: undefined,
+		});
+	});
+
+	test('retains provider-owned connection identity after the connection catalog entry is removed', () => {
+		const address = 'cloudsandbox:env-1';
+		const authority = agentHostAuthority(address);
+		const connection = fakeConnection('cloud-host');
+		const connections = [info(address, 'Cloud')];
+		const byAddress = new Map([[address, connection]]);
+		const { service } = createService(connections, byAddress);
+		const registration = store.add(service.registerSessionResolutionPolicy(authority, {
+			connectionAddress: address,
+			sessionSchemeAlias: { ui: 'copilot', backend: 'host-session-v2' },
+		}));
+		const resource = URI.from({ scheme: remoteAgentHostSessionTypeId(authority, 'copilot'), path: '/session-1' });
+		assert.strictEqual(service.resolveSessionResource(resource)?.connection, connection);
+		connections.length = 0;
+		byAddress.clear();
+
+		const identity = service.resolveSessionResourceIdentity(resource);
+		const resolution = service.resolveSessionResource(resource);
+		registration.dispose();
+		assert.deepStrictEqual({
+			identity: identity && {
+				connectionAddress: identity.connectionAddress,
+				connectionAuthority: identity.connectionAuthority,
+				backendSession: identity.backendSession.toString(),
+			},
+			resolution,
+			identityAfterProviderRemoval: service.resolveSessionResourceIdentity(resource),
+		}, {
+			identity: {
+				connectionAddress: address,
+				connectionAuthority: authority,
+				backendSession: 'host-session-v2:/session-1',
+			},
+			resolution: undefined,
+			identityAfterProviderRemoval: undefined,
 		});
 	});
 });

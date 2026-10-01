@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { GitHubAccountHandle } from './githubTypes.js';
+import { GitHubRequestAccount } from './githubTypes.js';
 import { GitHubRequestQueue } from './githubRequestQueue.js';
 import { IGitHubScheduler, schedulerDelay } from './githubScheduler.js';
 
@@ -33,11 +33,11 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		super();
 	}
 
-	getState(account: GitHubAccountHandle, resource: string): GitHubRateLimitState | undefined {
+	getState(account: GitHubRequestAccount, resource: string): GitHubRateLimitState | undefined {
 		return this._states.get(this._key(account, resource));
 	}
 
-	getDelay(account: GitHubAccountHandle, resource: string): number {
+	getDelay(account: GitHubRequestAccount, resource: string): number {
 		const accountKey = GitHubRequestQueue.accountKey(account);
 		const state = this._states.get(this._key(account, resource));
 		const resourceBlockedUntil = state?.blockedUntil ?? (state?.remaining === 0 ? state.resetAt : undefined);
@@ -48,7 +48,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		return blockedUntil === undefined ? 0 : Math.max(0, blockedUntil - this._scheduler.now());
 	}
 
-	preserveCooldown(account: GitHubAccountHandle, resource: string, delay: number): void {
+	preserveCooldown(account: GitHubRequestAccount, resource: string, delay: number): void {
 		if (delay <= 0) {
 			return;
 		}
@@ -58,14 +58,14 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		this.releaseAccount(account);
 	}
 
-	async wait(account: GitHubAccountHandle, resource: string, signal: AbortSignal): Promise<void> {
+	async wait(account: GitHubRequestAccount, resource: string, signal: AbortSignal): Promise<void> {
 		const delay = this.getDelay(account, resource);
 		if (delay > 0) {
 			await schedulerDelay(this._scheduler, delay, signal);
 		}
 	}
 
-	updateFromResponse(account: GitHubAccountHandle, response: Response, responseBody?: string, fallbackResource = 'core'): void {
+	updateFromResponse(account: GitHubRequestAccount, response: Response, responseBody?: string, fallbackResource = 'core'): void {
 		const resource = response.headers.get('x-ratelimit-resource') ?? fallbackResource;
 		const key = this._key(account, resource);
 		const previous = this._states.get(key);
@@ -111,7 +111,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		});
 	}
 
-	updateFromGraphQL(account: GitHubAccountHandle, rateLimit: { readonly limit?: number; readonly remaining?: number; readonly used?: number; readonly resetAt?: string } | undefined): void {
+	updateFromGraphQL(account: GitHubRequestAccount, rateLimit: { readonly limit?: number; readonly remaining?: number; readonly used?: number; readonly resetAt?: string } | undefined): void {
 		if (!rateLimit) {
 			return;
 		}
@@ -128,7 +128,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		});
 	}
 
-	markGraphQLRateLimited(account: GitHubAccountHandle): void {
+	markGraphQLRateLimited(account: GitHubRequestAccount): void {
 		const key = this._key(account, 'graphql');
 		const previous = this._states.get(key);
 		const now = this._scheduler.now();
@@ -143,12 +143,12 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		});
 	}
 
-	clearAccount(account: GitHubAccountHandle): void {
+	clearAccount(account: GitHubRequestAccount): void {
 		this._clearAccount(GitHubRequestQueue.accountKey(account));
 		this._scheduleCleanup();
 	}
 
-	retainAccount(account: GitHubAccountHandle, owner?: object): void {
+	retainAccount(account: GitHubRequestAccount, owner?: object): void {
 		const accountKey = GitHubRequestQueue.accountKey(account);
 		if (owner) {
 			let owners = this._accountOwners.get(accountKey);
@@ -164,7 +164,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 	}
 
 	/** Drops unused quota data once all server-required cooldowns for the account have elapsed. */
-	releaseAccount(account: GitHubAccountHandle, owner?: object): void {
+	releaseAccount(account: GitHubRequestAccount, owner?: object): void {
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -230,7 +230,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		super.dispose();
 	}
 
-	private _key(account: GitHubAccountHandle, resource: string): string {
+	private _key(account: GitHubRequestAccount, resource: string): string {
 		return `${GitHubRequestQueue.accountKey(account)}\x00${resource}`;
 	}
 }

@@ -136,7 +136,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b143a14c0a785fd33a98619f34607323a542186bbaef728e4cacef566686d013)
 
 #### sessions/sessionsList/SessionsList_ArchivedNestedChat/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/92c46cbbe837912246fdc758bd09b81b2de2e5f15d97b2b606df1b5f4c7afb8a)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/cd4aaf5692563c82f5e57ba63f66d6a53f21a175326fab3a5792bd6e1b27bc0f)
 
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Accent/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/94f7cde512c7f36230bb9c28a00da607606deae120aaadaec21cb3f897d75665)
@@ -172,7 +172,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/7b250c7f38c05f8bb820f8617ff7fdd39c209002aa2d6af41ab8644e809f43e6)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChatPrimaryAction/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/cbee88e0a4fe22e22c4b14427462ef16783b67cf13aa693b2d4c8edc81cfa1e3)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/bcd08646aed6646420511b3f1f1e6514f55c448867fd43b99652ddb2c90cd1ef)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChats/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/215206e89ccd65cf37d6b31d6e31e4393b510bec1f0c0001be9dd624f7b5a299)
@@ -211,7 +211,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/2786fba1b7f0b41a26e238ea678ef381bd004d977f16abcb600239e142d1488e)
 
 #### workbench/statusBar/statusBar/CompactDensity/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/b8d16bfa494f5199f0f12641dbeb4cd46253302adee8420b6377a8f80c8418cc)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a867ed66fc28256d67e6be33b41650ee2d79aaf227678110a7f12f49515761fa)
 
 #### workbench/statusBar/statusBar/DefaultDensity/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0868da3910e76f140c77881af39dfc566aca0dd1222f075937c7be1f02d2adf2)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f9131d58b7b5f051a5ed88c7f2bebbdedda45a5144a441fe73e87bcbdafeef2e)
