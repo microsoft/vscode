@@ -1375,7 +1375,7 @@ suite('ActionListWidget', () => {
 		});
 	});
 
-	test('does not add right margin to action toolbars', () => {
+	test('keeps detail toolbar clear of the scrollbar without right margin', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
 				{ ...action('plain'), toolbarActions: [toAction({ id: 'plain-toolbar', label: 'Plain Toolbar', run: () => { } })] },
@@ -1394,12 +1394,14 @@ suite('ActionListWidget', () => {
 		const detailRow = rows[1];
 		const detail = detailRow.querySelector<HTMLElement>('.detail')!;
 		const toolbar = detailRow.querySelector<HTMLElement>('.action-list-item-toolbar')!;
+		const verticalScrollbar = widget.domNode.querySelector<HTMLElement>('.scrollbar.vertical')!;
 		const initial = {
 			rowHeight: detailRow.getBoundingClientRect().height,
 			detailTop: detail.getBoundingClientRect().top,
 			toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
 			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
 			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
+			clearsScrollbar: detailRow.getBoundingClientRect().right - toolbar.getBoundingClientRect().right >= verticalScrollbar.getBoundingClientRect().width,
 		};
 		detailRow.classList.add('focused');
 		const focused = {
@@ -1437,6 +1439,7 @@ suite('ActionListWidget', () => {
 				toolbarDisplay: 'flex',
 				toolbarVisibility: 'visible',
 				toolbarMarginRight: '0px',
+				clearsScrollbar: true,
 			},
 		});
 	});

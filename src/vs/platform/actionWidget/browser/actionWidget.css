@@ -345,7 +345,7 @@
 .action-widget .monaco-list .monaco-list-row.action.has-detail {
 	flex-wrap: wrap;
 	align-content: center;
-	padding-right: 6px;
+	padding-right: var(--vscode-spacing-size120, 12px);
 
 	.title {
 		line-height: 14px;
