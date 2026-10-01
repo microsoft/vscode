@@ -514,7 +514,7 @@ suite('RemoteSessionMessageRouter', () => {
 		assert.deepStrictEqual(second.references, 0);
 	});
 
-	test('messages queue FIFO behind active and already pending messages without awaiting responses', async () => {
+	test('messages from different chats queue FIFO behind active and already pending messages without awaiting responses', async () => {
 		const { router, first, sessions } = setup();
 		const channel = buildDefaultChatUri(backendSession);
 		const state = first.chatStates.get(channel)!;
@@ -526,12 +526,76 @@ suite('RemoteSessionMessageRouter', () => {
 			type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'existing',
 			message: { text: 'Existing', origin: { kind: MessageKind.User } },
 		}));
-		const results = await Promise.all(['One', 'Two'].map(message => router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message }, message, CancellationToken.None)));
+		const sources = [sessions[0].resource, sessions[0].chats.get()[1].resource];
+		const results = await Promise.all(['One', 'Two'].map((message, index) => router.send(sources[index], { session: sessions[1].resource.toString(), message }, message, CancellationToken.None)));
 		assert.deepStrictEqual({
 			status: results.map(result => result.status),
 			queue: state.verifiedValue!.queuedMessages?.map(pending => pending.message.text),
 			active: state.verifiedValue!.activeTurn?.id,
 		}, { status: ['queued', 'queued'], queue: ['Existing', 'One', 'Two'], active: 'busy' });
+	});
+
+	test('a follow-up from the same chat replaces its undelivered message in place', async () => {
+		const { router, first, sessions } = setup();
+		const channel = buildDefaultChatUri(backendSession);
+		const state = first.chatStates.get(channel)!;
+		state.set(chatReducer(state.verifiedValue!, {
+			type: ActionType.ChatTurnStarted, turnId: 'busy', startedAt: new Date(0).toISOString(),
+			message: { text: 'Busy', origin: { kind: MessageKind.User }, model: { id: 'claude-opus-5.5' } },
+		}));
+		const target = sessions[1].resource.toString();
+		const send = (source: URI, message: string) => router.send(source, { session: target, message }, message, CancellationToken.None);
+		const results = [await send(sessions[0].resource, 'Status: started'), await send(sessions[0].chats.get()[1].resource, 'From a peer chat')];
+		results.push(await send(sessions[0].resource, 'Status: done, tests pass'));
+		const queued = state.verifiedValue!.queuedMessages ?? [];
+		assert.deepStrictEqual({
+			results: results.map(result => ({ status: result.status, replacedMessage: result.replacedMessage })),
+			dispatchedIds: first.dispatched.map(entry => entry.action.id === queued[0].id),
+			queue: queued.map(pending => ({ text: pending.message.text, model: pending.message.model, origin: pending.message.origin })),
+			started: first.started,
+		}, {
+			results: [
+				{ status: 'queued', replacedMessage: undefined },
+				{ status: 'queued', replacedMessage: undefined },
+				{ status: 'replaced', replacedMessage: 'Status: started' },
+			],
+			dispatchedIds: [true, false, true],
+			queue: [
+				{ text: 'Status: done, tests pass', model: undefined, origin: { kind: MessageKind.Agent } },
+				{ text: 'From a peer chat', model: undefined, origin: { kind: MessageKind.Agent } },
+			],
+			started: [],
+		});
+	});
+
+	test('a replacement that reaches the host after its message started is queued as a new message', async () => {
+		const { router, first, sessions } = setup();
+		const channel = buildDefaultChatUri(backendSession);
+		const state = first.chatStates.get(channel)!;
+		state.set(chatReducer(state.verifiedValue!, {
+			type: ActionType.ChatTurnStarted, turnId: 'busy', startedAt: new Date(0).toISOString(),
+			message: { text: 'Busy', origin: { kind: MessageKind.User } },
+		}));
+		const target = sessions[1].resource.toString();
+		await router.send(sessions[0].resource, { session: target, message: 'Draft plan' }, 'first', CancellationToken.None);
+		// The busy turn finishes and the host starts the earlier message before the replacement arrives.
+		first.afterDispatch = () => {
+			first.afterDispatch = undefined;
+			state.set(chatReducer(state.verifiedValue!, { type: ActionType.ChatTurnComplete, turnId: 'busy', duration: 0 }));
+			first.drain(channel);
+		};
+		const result = await router.send(sessions[0].resource, { session: target, message: 'Final plan' }, 'second', CancellationToken.None);
+		assert.deepStrictEqual({
+			status: result.status,
+			replacedMessage: result.replacedMessage,
+			started: first.started,
+			queue: state.verifiedValue!.queuedMessages?.map(pending => pending.message.text),
+		}, {
+			status: 'queued',
+			replacedMessage: undefined,
+			started: ['Draft plan'],
+			queue: ['Final plan'],
+		});
 	});
 
 	test('steering without an active turn still queues instead of bypassing pending input', async () => {
@@ -942,18 +1006,19 @@ suite('RemoteSessionMessageRouter', () => {
 		});
 	});
 
-	test('tool guidance explains exact origins, queueing, target permissions and uncertain delivery', () => {
+	test('tool guidance explains exact origins, queueing, replacement, target permissions and uncertain delivery', () => {
 		const { tool } = setup();
 		const description = tool.getToolData().modelDescription;
 		assert.deepStrictEqual({
 			exactOrigin: description.includes('exact originating chat'),
 			savedOrigin: description.includes('session "origin"'),
 			fifo: description.includes('FIFO queue'),
+			replaces: description.includes('sending again replaces that message, so write one complete message that reflects the current state'),
 			permissions: description.includes('target chat\'s existing permissions'),
 			noResponse: description.includes('never a response'),
 			uncertain: description.includes('Do not retry uncertain delivery'),
 			agentHostSource: description.includes('Requires an Agent Host originating chat'),
-		}, { exactOrigin: true, savedOrigin: true, fifo: true, permissions: true, noResponse: true, uncertain: true, agentHostSource: true });
+		}, { exactOrigin: true, savedOrigin: true, fifo: true, replaces: true, permissions: true, noResponse: true, uncertain: true, agentHostSource: true });
 	});
 
 	test('messaging rejects unsupported sources before confirmation without requiring a visible chat widget', async () => {
@@ -976,7 +1041,7 @@ suite('RemoteSessionMessageRouter', () => {
 		assert.deepStrictEqual({
 			requestsReply: description.includes('When assigning work, request a reply'),
 			noImplicitForwarding: description.includes('final answers are not forwarded'),
-			honestDelivery: description.includes('Only claim delivery after "sent" or "queued"'),
+			honestDelivery: description.includes('Only claim delivery after "sent", "queued", or "replaced"'),
 			noAcknowledgementLoop: description.includes('Do not retry uncertain delivery or acknowledge messages with no new task or question'),
 			yield: description.includes('Continue independent work or end your turn'),
 			noSleep: description.includes('do not sleep or poll'),

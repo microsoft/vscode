@@ -29,7 +29,7 @@ export class SendRemoteMessageTool implements IToolImpl {
 			toolReferenceName: SendRemoteMessageToolReferenceName,
 			displayName: localize('remoteMessage.displayName', "Send Remote Message"),
 			userDescription: localize('remoteMessage.description', "Send a message to a session on a connected agent host"),
-			modelDescription: 'Send a message to a known remote session/chat, or reply to the exact originating chat with session "origin". Use send_message for ordinary same-host messaging. Requires an Agent Host originating chat and a target connected to this Agents window. Starts an agent-authored turn with the target chat\'s existing permissions/configuration, or joins its FIFO queue. Returns delivery status, never a response. When assigning work, request a reply; final answers are not forwarded. Normal approval applies. Only claim delivery after "sent" or "queued"; report failures here. Do not retry uncertain delivery or acknowledge messages with no new task or question. Continue independent work or end your turn; do not sleep or poll for replies.',
+			modelDescription: 'Send a message to a known remote session/chat, or reply to the exact originating chat with session "origin". Use send_message for ordinary same-host messaging. Requires an Agent Host originating chat and a target connected to this Agents window. Starts an agent-authored turn with the target chat\'s existing permissions/configuration, or joins its FIFO queue. While the target has not started a message you sent it, sending again replaces that message, so write one complete message that reflects the current state, not just what changed; a "replaced" result includes the text it replaced. Returns delivery status, never a response. When assigning work, request a reply; final answers are not forwarded. Normal approval applies. Only claim delivery after "sent", "queued", or "replaced"; report failures here. Do not retry uncertain delivery or acknowledge messages with no new task or question. Continue independent work or end your turn; do not sleep or poll for replies.',
 			source: ToolDataSource.Internal,
 			icon: Codicon.send,
 			when: remoteSessionToolsWhen,
@@ -55,7 +55,7 @@ export class SendRemoteMessageTool implements IToolImpl {
 		}
 		assertRemoteSessionCaller(context.chatSessionResource);
 		const target = await this.router.prepareTarget(context.chatSessionResource, options.session, token);
-		const message = new MarkdownString().appendText(localize('remoteMessage.confirmation', "Send this message to {0} on {1}? It will use the target chat's existing permissions and queue behind any active or pending turns.", target.chat, target.host.label));
+		const message = new MarkdownString().appendText(localize('remoteMessage.confirmation', "Send this message to {0} on {1}? It will use the target chat's existing permissions and queue behind any active or pending turns, replacing any message from this chat that the target has not started yet.", target.chat, target.host.label));
 		message.appendText(`\n\n${options.message}`);
 		return {
 			invocationMessage: localize('remoteMessage.invocation', "Sending a remote message"),
@@ -76,9 +76,11 @@ export class SendRemoteMessageTool implements IToolImpl {
 		const result = await this.router.send(invocation.context.sessionResource, options, invocation.callId, token);
 		return {
 			content: [{ kind: 'text', value: JSON.stringify(result) }],
-			toolResultMessage: result.status === 'queued'
-				? localize('remoteMessage.queued', "Queued a message on {0}", result.host.label)
-				: localize('remoteMessage.sent', "Sent a message on {0}", result.host.label),
+			toolResultMessage: result.status === 'replaced'
+				? localize('remoteMessage.replaced', "Updated a queued message on {0}", result.host.label)
+				: result.status === 'queued'
+					? localize('remoteMessage.queued', "Queued a message on {0}", result.host.label)
+					: localize('remoteMessage.sent', "Sent a message on {0}", result.host.label),
 		};
 	}
 }

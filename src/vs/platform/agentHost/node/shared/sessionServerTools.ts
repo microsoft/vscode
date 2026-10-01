@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasKey, type Mutable } from '../../../../base/common/types.js';
+import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { findUndeliveredDelegatedMessage, replaceDelegatedMessage, toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type ChatState, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -1258,41 +1258,13 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 }
 
 /**
- * Finds the queued message {@link sourceChat} sent that the target chat has not
- * started yet. A follow-up from {@link sourceChat} replaces it, so the target
- * only ever holds one current message from each sender.
- */
-function findUndeliveredMessageFrom(queuedMessages: readonly PendingMessage[] | undefined, sourceChat: string): PendingMessage | undefined {
-	return queuedMessages?.findLast(queued => {
-		const delegation = readAgentMessageDelegationMeta(queued.message);
-		return delegation !== undefined && hasKey(delegation, { sourceSession: true }) && delegation.sourceChat === sourceChat;
-	});
-}
-
-/**
- * The model a queued message will run with: the latest selection carried by a
- * message ahead of it, falling back to the model the chat's draft holds.
- * Recording it on the queued message lets clients show and edit the message
- * with the chat's model instead of a default, so delivering it never switches
- * models (which would invalidate the prompt cache).
- */
-function getQueuedMessageModel(state: ChatState, queuedMessageId?: string): ModelSelection | undefined {
-	const queued = state.queuedMessages ?? [];
-	const end = queued.findIndex(pending => pending.id === queuedMessageId);
-	const ahead = [
-		...state.turns.map(turn => turn.message),
-		state.activeTurn?.message,
-		...queued.slice(0, end === -1 ? undefined : end).map(pending => pending.message),
-	];
-	return ahead.findLast(message => message?.model)?.model ?? state.draft?.model;
-}
-
-/**
  * Sends a message to an existing session/chat, starting a new turn there or
  * queuing it behind the target chat's active or pending messages. While the
  * target has not started a message this chat sent earlier, a follow-up replaces
  * that message rather than queuing another turn, so the sender keeps one
  * complete, up-to-date message there.
+ * Agent-sent messages carry no model, so each runs on whatever model the target
+ * chat is using when it starts and never switches it.
  * Refuses to target {@link currentChannel} (the chat channel the tool runs on)
  * to avoid a session trivially messaging itself in a loop.
  */
@@ -1312,32 +1284,21 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 	const targetState = stateManager?.getChatState(chat.toString());
 	if (stateManager && targetState && (targetState.activeTurn || targetState.steeringMessage || targetState.queuedMessages?.length)) {
 		const delegationMeta = delegation ? toAgentMessageDelegationMeta(delegation) : undefined;
-		const undelivered = sourceChat ? findUndeliveredMessageFrom(targetState.queuedMessages, sourceChat.toString()) : undefined;
+		const undelivered = sourceChat ? findUndeliveredDelegatedMessage(targetState.queuedMessages, sourceChat.toString()) : undefined;
 		if (undelivered) {
 			// Read and replace in one synchronous step so this never races the queue
 			// drain: the message is either still queued here or already started.
-			const model = undelivered.message.model ?? getQueuedMessageModel(targetState, undelivered.id);
-			// Attachment ranges point into the replaced text, so keep the attachments but drop their ranges.
-			const attachments = undelivered.message.attachments?.map(attachment => attachment.range ? { ...attachment, range: undefined } : attachment);
 			stateManager.dispatchServerAction(chat.toString(), {
 				type: ActionType.ChatPendingMessageSet,
 				kind: PendingMessageKind.Queued,
 				id: undelivered.id,
-				message: {
-					...undelivered.message,
-					text: message,
-					...(model ? { model } : {}),
-					...(attachments ? { attachments } : {}),
-					_meta: { ...undelivered.message._meta, ...delegationMeta },
-				},
+				message: replaceDelegatedMessage(undelivered.message, message, delegationMeta),
 			});
 			return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), { replaced: undelivered.message.text });
 		}
-		const model = getQueuedMessageModel(targetState);
 		const queuedMessage: Message = {
 			text: message,
 			origin: { kind: MessageKind.Agent },
-			...(model ? { model } : {}),
 			...(delegationMeta ? { _meta: delegationMeta } : {}),
 		};
 		stateManager.dispatchServerAction(chat.toString(), {
@@ -1521,7 +1482,7 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 		};
 	});
 
-	const undelivered = sourceChat ? findUndeliveredMessageFrom(snapshot.queuedMessages, sourceChat) : undefined;
+	const undelivered = sourceChat ? findUndeliveredDelegatedMessage(snapshot.queuedMessages, sourceChat) : undefined;
 	const payload: ISerializedSessionContext = {
 		session: session.toString(),
 		openLink: buildOpenSessionLinkUri(session, chatId),

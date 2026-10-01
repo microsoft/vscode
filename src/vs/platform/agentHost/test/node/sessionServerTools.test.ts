@@ -2283,7 +2283,7 @@ suite('SessionServerTools', () => {
 				'Message queued (agent-host-session://copilot/s2).',
 				'Message replaced this chat\'s undelivered queued message (agent-host-session://copilot/s2). Replaced message:\nfirst, see notes',
 			],
-			firstModel: sessionModel,
+			firstModel: undefined,
 			activeTurn: 'active-turn',
 			queuedMessages: [
 				{
@@ -2302,7 +2302,7 @@ suite('SessionServerTools', () => {
 					isFirst: false,
 					text: 'from another chat',
 					origin: { kind: MessageKind.Agent },
-					model: sessionModel,
+					model: undefined,
 					attachments: undefined,
 					delegation: {
 						sourceSession: 'copilot:/s3',
@@ -2316,7 +2316,7 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
-	test('send_message queues a new message with the chat\'s current model once the earlier one has started', async () => {
+	test('send_message queues a new message without pinning a model once the earlier one has started', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const targetSession = 'copilot:/s2';
@@ -2333,9 +2333,8 @@ suite('SessionServerTools', () => {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'active-turn',
 			startedAt: new Date(0).toISOString(),
-			message: { text: 'running', origin: { kind: MessageKind.Agent } },
+			message: { text: 'running', origin: { kind: MessageKind.User }, model: { id: 'gpt-5.6-sol' } },
 		});
-		stateManager.dispatchServerAction(targetChat, { type: ActionType.ChatDraftChanged, draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'gpt-5.6-sol' } } });
 		const group = createSessionServerToolGroup(createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)],
 		}));
@@ -2351,7 +2350,7 @@ suite('SessionServerTools', () => {
 			message: first.message,
 			queuedMessageId: first.id,
 		});
-		// The running turn's model wins over a different one picked in the draft since.
+		// A model picked in the draft since must not be pinned onto agent messages either.
 		stateManager.dispatchServerAction(targetChat, { type: ActionType.ChatDraftChanged, draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet-5' } } });
 		const secondResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: targetSession, message: 'second' });
 
@@ -2365,8 +2364,8 @@ suite('SessionServerTools', () => {
 				'Message queued (agent-host-session://copilot/s2).',
 				'Message queued (agent-host-session://copilot/s2).',
 			],
-			activeTurn: { text: 'first', model: { id: 'gpt-5.6-sol' } },
-			queuedMessages: [{ text: 'second', model: { id: 'gpt-5.6-sol' } }],
+			activeTurn: { text: 'first', model: undefined },
+			queuedMessages: [{ text: 'second', model: undefined }],
 		});
 		store.dispose();
 	});
