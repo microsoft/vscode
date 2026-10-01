@@ -22,8 +22,11 @@ import { FinishedCallback, getCopilotServiceRequestId } from '../../../../platfo
 import { FetcherId, IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
+import { GitHubCopilotAttr } from '../../../../platform/otel/common/genAiAttributes';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
+import { CapturingOTelService } from '../../../../platform/otel/common/test/capturingOTelService';
+import { AutoChatEndpoint } from '../../../../platform/endpoint/node/autoChatEndpoint';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
@@ -156,6 +159,74 @@ describe('ChatMLFetcherImpl Response API telemetry', () => {
 			const messagesJson = JSON.parse(props.messagesJson);
 			expect(messagesJson.length).toBe(0);
 		}
+	});
+});
+
+describe('ChatMLFetcherImpl OTel chat span', () => {
+	let disposables: DisposableStore;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+	});
+
+	afterEach(() => {
+		disposables.dispose();
+	});
+
+	async function fetchAndCaptureChatSpan(endpoint: IChatEndpoint) {
+		const mockFetcherService = new MockFetcherService();
+		const telemetryService = new SpyingTelemetryService();
+		const otelService = new CapturingOTelService();
+		const fetcher = new ChatMLFetcherImpl(
+			mockFetcherService as unknown as IFetcherService,
+			telemetryService,
+			new NullRequestLogger(),
+			new TestLogService(),
+			new TestAuthenticationService() as unknown as IAuthenticationService,
+			createMockInteractionService(),
+			createMockChatQuotaService(),
+			new TestCAPIClientService() as unknown as ICAPIClientService,
+			createMockConversationOptions(),
+			new InMemoryConfigurationService(new DefaultsOnlyConfigurationService()),
+			new NullExperimentationService(),
+			createMockPowerService(),
+			new InstantiationServiceBuilder([
+				[IFetcherService, mockFetcherService as unknown as IFetcherService],
+				[ITelemetryService, telemetryService],
+				[ICAPIClientService, new TestCAPIClientService() as unknown as ICAPIClientService],
+			]).seal() as unknown as IInstantiationService,
+			new NullChatWebSocketManager(),
+			otelService,
+		);
+		mockFetcherService.queueResponse(createSuccessResponse('Hello!'));
+		const cts = disposables.add(new CancellationTokenSource());
+		await fetcher.fetchMany({
+			debugName: 'test-otel-auto-mode',
+			messages: [{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }] }],
+			endpoint,
+			location: ChatLocation.Panel,
+			requestOptions: {},
+			finishedCb: undefined,
+		}, cts.token);
+		return otelService.findSpans('chat')[0];
+	}
+
+	it('sets github.copilot.auto_mode only when the endpoint came from Auto model selection', async () => {
+		// Only the `AutoChatEndpoint` identity changes: own properties shadow the
+		// prototype's `modelMetadata`-backed getters.
+		const autoEndpoint: IChatEndpoint = Object.create(AutoChatEndpoint.prototype, {
+			...Object.getOwnPropertyDescriptors(createResponseApiEndpoint()),
+			apiType: { value: 'responses' },
+			degradationReason: { value: undefined },
+		});
+
+		const autoSpan = await fetchAndCaptureChatSpan(autoEndpoint);
+		const pinnedSpan = await fetchAndCaptureChatSpan(createResponseApiEndpoint());
+
+		expect({
+			auto: autoSpan?.attributes[GitHubCopilotAttr.AUTO_MODE],
+			pinned: pinnedSpan?.attributes[GitHubCopilotAttr.AUTO_MODE],
+		}).toEqual({ auto: true, pinned: undefined });
 	});
 });
 

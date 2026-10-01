@@ -12,6 +12,7 @@ import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse, getE
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEditSurvivalTrackerService } from '../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -223,6 +224,7 @@ class InlineChatToolCalling {
 					[GenAiAttr.AGENT_NAME]: 'Inline Chat',
 					[GenAiAttr.CONVERSATION_ID]: conversation.sessionId,
 					[GenAiAttr.REQUEST_MODEL]: endpoint.model,
+					...(isAutoModel(endpoint) === 1 ? { [GitHubCopilotAttr.AUTO_MODE]: true } : {}),
 					[CopilotChatAttr.SESSION_ID]: conversation.sessionId,
 					[CopilotChatAttr.INTENT]: this._intent.id,
 					[CopilotChatAttr.LOCATION]: ChatLocation.toStringShorter(ChatLocation.Editor),

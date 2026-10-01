@@ -17,7 +17,7 @@ import { IGitService } from '../../../../platform/git/common/gitService';
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, resolveWorkspaceOTelMetadata, SpanKind, SpanStatusCode, TraceContext, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, IOTelService, ISpanHandle, resolveWorkspaceOTelMetadata, SpanKind, SpanStatusCode, TraceContext, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
@@ -309,6 +309,11 @@ function getMissionControlModeCommand(content: string): MissionControlMode | und
 	} catch {
 	}
 	return undefined;
+}
+
+/** Whether the Copilot CLI session model is the Auto pseudo-model. */
+function isCopilotCLIAutoModel(modelId: string | undefined): boolean {
+	return modelId?.toLowerCase() === 'auto';
 }
 
 function isMissionControlCommandSource(source: SendOptions['source'] | undefined): boolean {
@@ -1105,6 +1110,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 					...(modelId ? { [GenAiAttr.REQUEST_MODEL]: modelId } : {}),
+					...(isCopilotCLIAutoModel(modelId) ? { [GitHubCopilotAttr.AUTO_MODE]: true } : {}),
 					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel, this._otelService.config.maxAttributeSizeChars),
 					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
@@ -1760,7 +1766,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// where the model calls happen inside the SDK and never produce JS spans. Skip when the bridge
 			// is installed (a future SDK with its own JS provider), since it forwards the native chat spans.
 			if (!this._bridgeProcessor) {
-				this._injectModelTurnSpans(modelTurnUsages, assistantMessageChunks.join(''), this._lastResponseModelId ?? modelId, invokeAgentTraceContext);
+				this._injectModelTurnSpans(modelTurnUsages, assistantMessageChunks.join(''), this._lastResponseModelId ?? modelId, isCopilotCLIAutoModel(modelId), invokeAgentTraceContext);
 			}
 
 			// End any synthesized tool spans that never received a completion event (e.g. on abort)
@@ -3032,11 +3038,11 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	 * produce JS spans, so without this the model turns, token metrics, and agent response would all be
 	 * missing from the debug logs.
 	 */
-	private _injectModelTurnSpans(turns: readonly IModelTurnUsage[], responseText: string, fallbackModelId: string | undefined, rootTraceContext: TraceContext | undefined): void {
+	private _injectModelTurnSpans(turns: readonly IModelTurnUsage[], responseText: string, fallbackModelId: string | undefined, autoMode: boolean, rootTraceContext: TraceContext | undefined): void {
 		if (turns.length === 0) {
 			// No usage events were reported — still surface the response if we have one.
 			if (responseText) {
-				this._emitChatSpan({}, responseText, fallbackModelId, rootTraceContext);
+				this._emitChatSpan({}, responseText, fallbackModelId, autoMode, rootTraceContext);
 			}
 			return;
 		}
@@ -3050,7 +3056,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			}
 		}
 		for (let i = 0; i < turns.length; i++) {
-			this._emitChatSpan(turns[i], i === responseTurnIndex ? responseText : '', fallbackModelId, rootTraceContext);
+			this._emitChatSpan(turns[i], i === responseTurnIndex ? responseText : '', fallbackModelId, autoMode, rootTraceContext);
 		}
 	}
 
@@ -3058,7 +3064,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	 * Emits a single synthesized `chat` span for one model turn. Token usage attributes are set only when
 	 * present, and the assistant response (`OUTPUT_MESSAGES`) is attached only to the turn that produced it.
 	 */
-	private _emitChatSpan(turn: IModelTurnUsage, responseText: string, fallbackModelId: string | undefined, rootTraceContext: TraceContext | undefined): void {
+	private _emitChatSpan(turn: IModelTurnUsage, responseText: string, fallbackModelId: string | undefined, autoMode: boolean, rootTraceContext: TraceContext | undefined): void {
 		const model = turn.model ?? fallbackModelId;
 		const chatSpan = this._otelService.startSpan(model ? `chat ${model}` : 'chat', {
 			kind: SpanKind.CLIENT,
@@ -3069,6 +3075,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				[CopilotChatAttr.SESSION_ID]: this.sessionId,
 				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 				...(model ? { [GenAiAttr.REQUEST_MODEL]: model } : {}),
+				...(autoMode ? { [GitHubCopilotAttr.AUTO_MODE]: true } : {}),
 				...(typeof turn.inputTokens === 'number' ? { [GenAiAttr.USAGE_INPUT_TOKENS]: turn.inputTokens } : {}),
 				...(typeof turn.outputTokens === 'number' ? { [GenAiAttr.USAGE_OUTPUT_TOKENS]: turn.outputTokens } : {}),
 				...(typeof turn.cacheReadTokens === 'number' ? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: turn.cacheReadTokens } : {}),
