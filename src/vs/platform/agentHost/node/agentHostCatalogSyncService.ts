@@ -6,11 +6,12 @@
 import { generateUuid } from '../../../base/common/uuid.js';
 import { URI } from '../../../base/common/uri.js';
 import { SequencerByKey } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { type IDisposable, type IReference } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDataService, ISessionDatabase } from '../common/sessionDataService.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, encodeAgentHostCatalogPayload, IAgentHostCatalogEncodedPayload } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, IAgentHostCatalogEncodedPayload } from './agentHostCatalogProjection.js';
 import type { AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
 
 const INITIAL_SOURCE_REVISION = 0;
@@ -26,6 +27,12 @@ export type AgentHostCatalogDatabaseReference = IReference<ISessionDatabase>;
 export type AgentHostCatalogSyncResult =
 	| { readonly status: 'acknowledged'; readonly sourceRevision: number }
 	| { readonly status: 'pending'; readonly sourceRevision: number; readonly reason: AgentHostDatabaseSessionV2UpsertResult | 'upsertFailed' | 'acknowledgementSuperseded' };
+
+export type AgentHostCatalogPendingReplayOutcome =
+	| { readonly session: string; readonly status: 'succeeded'; readonly reason: 'pendingReplayed'; readonly sourceRevision: number }
+	| { readonly session: string; readonly status: 'pending'; readonly reason: 'upsertFailed'; readonly sourceRevision: number }
+	| { readonly session: string; readonly status: 'retry'; readonly reason: 'missingCatalog' | 'staleIncarnation' | 'superseded' | 'tombstoned' | 'cancelled' }
+	| { readonly session: string; readonly status: 'failed'; readonly reason: 'malformedPayload' | 'payloadMismatch' | 'centralApplyFailed' | 'acknowledgementSuperseded'; readonly error?: string };
 
 /** A synchronously-established deletion fence whose drain includes previously queued synchronization. */
 export interface IAgentHostCatalogDeletionFence extends IDisposable {
@@ -66,6 +73,86 @@ export async function catalogLegacyMetadataMatches(
 	return Object.entries(legacyMetadata).every(([key, value]) => persistedMetadata[key] === value);
 }
 
+/** Replays a durable snapshot without resolving provider metadata or changing its generation or revision. */
+export async function replayPendingCatalogSnapshot(
+	catalogDatabase: IAgentHostDatabase,
+	session: URI,
+	snapshot: ISessionCatalogSyncPendingSnapshot,
+	acknowledge: (acknowledgement: ISessionCatalogSyncAcknowledgement) => Promise<boolean>,
+	token: CancellationToken,
+): Promise<AgentHostCatalogPendingReplayOutcome> {
+	const sessionKey = session.toString();
+	const cancelled = { session: sessionKey, status: 'retry', reason: 'cancelled' } as const;
+	if (token.isCancellationRequested) {
+		return cancelled;
+	}
+	const decoded = decodeAgentHostCatalogPayload(snapshot.payload);
+	if (!decoded.ok || snapshot.projectionVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+		return { session: sessionKey, status: 'failed', reason: 'malformedPayload', error: decoded.ok ? 'Unsupported payload version' : decoded.error };
+	}
+	if (decoded.value.payload !== snapshot.payload || hashAgentHostCatalogPayload(snapshot.payload) !== snapshot.payloadHash) {
+		return { session: sessionKey, status: 'failed', reason: 'payloadMismatch', error: 'Pending payload is not canonical or its hash does not match' };
+	}
+	let central = await catalogDatabase.getSessionV2(sessionKey);
+	if (token.isCancellationRequested) {
+		return cancelled;
+	}
+	if (central && central.sessionGeneration !== snapshot.sessionGeneration) {
+		return { session: sessionKey, status: 'retry', reason: 'staleIncarnation' };
+	}
+	const tombstoned = await catalogDatabase.isSessionTombstoned(sessionKey);
+	if (token.isCancellationRequested) {
+		return cancelled;
+	}
+	if (tombstoned) {
+		return { session: sessionKey, status: 'retry', reason: 'tombstoned' };
+	}
+	central = await catalogDatabase.getSessionV2(sessionKey);
+	if (token.isCancellationRequested) {
+		return cancelled;
+	}
+	if (central && central.sessionGeneration !== snapshot.sessionGeneration) {
+		return { session: sessionKey, status: 'retry', reason: 'staleIncarnation' };
+	}
+
+	let applyResult: AgentHostDatabaseSessionV2UpsertResult;
+	try {
+		applyResult = await catalogDatabase.upsertSessionV2({
+			session: sessionKey,
+			sessionGeneration: snapshot.sessionGeneration,
+			sourceRevision: snapshot.sourceRevision,
+			payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			payloadHash: snapshot.payloadHash,
+			verified: true,
+			payload: snapshot.payload,
+		}, central?.sessionGeneration);
+	} catch (error) {
+		return { session: sessionKey, status: 'pending', reason: 'upsertFailed', sourceRevision: snapshot.sourceRevision };
+	}
+	if (token.isCancellationRequested) {
+		return cancelled;
+	}
+	if (applyResult === 'tombstoned') {
+		return { session: sessionKey, status: 'retry', reason: 'tombstoned' };
+	}
+	if (applyResult === 'generationMismatch') {
+		return { session: sessionKey, status: 'retry', reason: 'staleIncarnation' };
+	}
+	if (applyResult === 'missingSession') {
+		return { session: sessionKey, status: 'retry', reason: 'missingCatalog' };
+	}
+	if (applyResult === 'stale' || applyResult === 'conflict') {
+		return { session: sessionKey, status: 'retry', reason: 'superseded' };
+	}
+	if (applyResult !== 'applied' && applyResult !== 'replayed') {
+		return { session: sessionKey, status: 'failed', reason: 'centralApplyFailed', error: applyResult };
+	}
+	if (!await acknowledge(snapshot)) {
+		return { session: sessionKey, status: 'failed', reason: 'acknowledgementSuperseded' };
+	}
+	return { session: sessionKey, status: 'succeeded', reason: 'pendingReplayed', sourceRevision: snapshot.sourceRevision };
+}
+
 export class AgentHostCatalogSyncService {
 
 	private readonly _sequencer = new SequencerByKey<string>();
@@ -79,6 +166,24 @@ export class AgentHostCatalogSyncService {
 
 	isSessionDeletionFenced(session: URI): boolean {
 		return this._deletionFences.has(session.toString());
+	}
+
+	/** Makes one provider-independent replay attempt, serialized with ordinary writes and deletion. */
+	replayPending(session: URI, token: CancellationToken): Promise<AgentHostCatalogPendingReplayOutcome | undefined> {
+		if (token.isCancellationRequested || this.isSessionDeletionFenced(session)) {
+			return Promise.resolve(undefined);
+		}
+		return this.runMigrationExclusive(session, async database => {
+			if (!database || token.isCancellationRequested) {
+				return undefined;
+			}
+			const snapshot = await database.object.getCatalogSyncSnapshot();
+			if (token.isCancellationRequested || snapshot?.state !== 'pending') {
+				return undefined;
+			}
+			return replayPendingCatalogSnapshot(this._catalogDatabase, session, snapshot,
+				acknowledgement => database.object.acknowledgeCatalogSyncSnapshot(acknowledgement), token);
+		});
 	}
 
 	/** Prevents new synchronization and returns a shared per-session queue drain. */

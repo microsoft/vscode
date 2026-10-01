@@ -116,6 +116,9 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key controlling the GitHub MCP server in agent-host sessions. */
 export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
 
+/** Configuration key enabling cached MCP tool routing and relevance-based authentication prompts. */
+export const AgentHostMcpToolRoutingEnabledSettingId = 'chat.agentHost.experimental.mcpToolRouting';
+
 /** Configuration key enabling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
 
@@ -370,6 +373,8 @@ export const AgentHostOTelOtlpProtocolSettingId = 'chat.agentHost.otel.otlpProto
 export const AgentHostOTelOtlpEndpointSettingId = 'chat.agentHost.otel.otlpEndpoint';
 /** Whether to include prompt/response content in span attributes (privacy-sensitive). */
 export const AgentHostOTelCaptureContentSettingId = 'chat.agentHost.otel.captureContent';
+/** Policy delivery slot for identity capture in the host-owned OTel pipeline. */
+export const AgentHostOTelCaptureIdentitySettingId = 'chat.agentHost.otel.captureIdentity';
 /** Output path when `exporterType` is `file`. */
 export const AgentHostOTelOutfileSettingId = 'chat.agentHost.otel.outfile';
 /** Policy-only delivery slot for the enterprise-managed OTel `service.name` (no user UI). */
@@ -406,6 +411,7 @@ export const AgentHostOTelEnvVars = Object.freeze({
 	OtlpMetricsProtocol: 'OTEL_EXPORTER_OTLP_METRICS_PROTOCOL',
 	OtlpHeaders: 'OTEL_EXPORTER_OTLP_HEADERS',
 	CaptureContent: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
+	CaptureIdentity: 'COPILOT_OTEL_CAPTURE_IDENTITY',
 	FilePath: 'COPILOT_OTEL_FILE_EXPORTER_PATH',
 	SourceName: 'COPILOT_OTEL_SOURCE_NAME',
 	ServiceName: 'OTEL_SERVICE_NAME',
@@ -423,6 +429,7 @@ export interface IAgentHostOTelSettings {
 	readonly otlpProtocol?: string;
 	readonly otlpEndpoint?: string;
 	readonly captureContent?: boolean;
+	readonly captureIdentity?: boolean;
 	readonly outfile?: string;
 	readonly serviceName?: string;
 	readonly resourceAttributes?: Record<string, string>;
@@ -468,6 +475,7 @@ export function readAgentHostOTelPolicySettings(configurationService: IConfigura
 		otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
 		otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
 		captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
+		captureIdentity: policyValue<boolean>(AgentHostOTelCaptureIdentitySettingId),
 		outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
 		serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
 		resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
@@ -507,6 +515,7 @@ export function sanitizeAgentHostOTelPolicySettings(raw: unknown): IAgentHostOTe
 		otlpProtocol: asString(record.otlpProtocol),
 		otlpEndpoint: asString(record.otlpEndpoint),
 		captureContent: asBoolean(record.captureContent),
+		captureIdentity: asBoolean(record.captureIdentity),
 		outfile: asString(record.outfile),
 		serviceName: asString(record.serviceName),
 		resourceAttributes: asStringRecord(record.resourceAttributes),
@@ -567,11 +576,14 @@ function serializeResourceAttributes(attributes: Record<string, string> | undefi
  *
  * Only sets a key when the underlying setting was explicitly configured — empty
  * string / undefined settings are dropped so they don't shadow inherited env.
+ * Resolved shell env participates only in identity capture; other keys retain
+ * their existing process-env/settings precedence.
  */
 export function buildAgentHostOTelEnv(
 	settings: IAgentHostOTelSettings,
 	inheritedEnv: Readonly<Record<string, string | undefined>>,
 	policySettings: IAgentHostOTelSettings = {},
+	shellEnv: Readonly<Record<string, string | undefined>> = {},
 ): Record<string, string> {
 	const out: Record<string, string> = {};
 	const setIfMissing = (key: string, value: string | undefined): void => {
@@ -597,6 +609,9 @@ export function buildAgentHostOTelEnv(
 	setIfMissing(AgentHostOTelEnvVars.FilePath, settings.outfile);
 	if (settings.captureContent !== undefined) {
 		setIfMissing(AgentHostOTelEnvVars.CaptureContent, settings.captureContent ? 'true' : 'false');
+	}
+	if (settings.captureIdentity !== undefined && shellEnv[AgentHostOTelEnvVars.CaptureIdentity] === undefined) {
+		setIfMissing(AgentHostOTelEnvVars.CaptureIdentity, settings.captureIdentity ? 'true' : 'false');
 	}
 	if (settings.dbSpanExporterEnabled) {
 		setIfMissing(AgentHostOTelEnvVars.DbSpanExporterEnabled, 'true');
@@ -630,6 +645,9 @@ export function buildAgentHostOTelEnv(
 	}
 	if (policySettings.captureContent !== undefined) {
 		setPolicy(AgentHostOTelEnvVars.CaptureContent, policySettings.captureContent ? 'true' : 'false');
+	}
+	if (policySettings.captureIdentity !== undefined) {
+		setPolicy(AgentHostOTelEnvVars.CaptureIdentity, policySettings.captureIdentity ? 'true' : 'false');
 	}
 	if (policySettings.serviceName !== undefined && policySettings.serviceName !== '') {
 		setPolicy(AgentHostOTelEnvVars.ServiceName, policySettings.serviceName);

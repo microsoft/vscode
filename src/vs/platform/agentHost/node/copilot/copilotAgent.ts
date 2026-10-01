@@ -142,16 +142,13 @@ function setCopilotBuiltinGitHubMcpEnvironment(env: Record<string, string | unde
 	}
 }
 
-/**
- * Forces tgrep indexed search past the runtime's repository-size threshold. The runtime also
- * disables tgrep whenever `USE_BUILTIN_RIPGREP=false`, so enabling drops VS Code's override and
- * lets the runtime use its bundled ripgrep and tgrep.
- */
+/** Keeps tgrep disabled in control, or permits the SDK's size-gated feature flag in treatment. */
 function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, enabled: boolean): void {
 	deleteEnvironmentVariable(env, 'USE_TGREP');
 	if (enabled) {
 		deleteEnvironmentVariable(env, 'USE_BUILTIN_RIPGREP');
-		env['USE_TGREP'] = 'true';
+	} else {
+		env['USE_TGREP'] = 'false';
 	}
 }
 
@@ -1046,6 +1043,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					const chat = URI.parse(buildDefaultChatUri(session));
 					return this.getChatCustomizations(chat, { configurationResource: session, resource: chat });
 				},
+				getPluginMarketplaces: sessionId => this._listPluginMarketplaces(sessionId),
+				getPluginMarketplacePlugins: sessionId => this._listPluginMarketplacePlugins(sessionId),
+				getInstalledPlugins: sessionId => this._listInstalledPlugins(sessionId),
 				getSessionConfigState: (sessionId) => this._getSessionConfigState(sessionId),
 			},
 			RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS,
@@ -2659,7 +2659,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			setCopilotTgrepEnvironment(env, startupConfig.tgrep);
 			if (startupConfig.tgrep) {
-				this._logService.info('[Copilot] Set CLI env: USE_TGREP=true (tgrep indexed search forced on)');
+				this._logService.info('[Copilot] Enabled repository-size-gated tgrep indexed search');
 			}
 
 			// Keep the SDK wrapper and native module paired within the bundled platform
@@ -3668,6 +3668,49 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return session.getRuntimeSlashCommands(options) ?? [];
 		}
 		return this._slashCommandProvider.getSlashCommands(options);
+	}
+
+	private async _listPluginMarketplaces(sessionId: string) {
+		const session = this._findSessionChat(AgentSession.uri(this.id, sessionId));
+		if (session) {
+			return session.listPluginMarketplaces();
+		}
+		const client = await this._ensureClient();
+		return (await client.rpc.plugins.marketplaces.list()).marketplaces;
+	}
+
+	private async _listInstalledPlugins(sessionId: string) {
+		const session = this._findSessionChat(AgentSession.uri(this.id, sessionId));
+		if (session) {
+			return session.listInstalledPlugins();
+		}
+		const client = await this._ensureClient();
+		return (await client.rpc.plugins.list()).plugins;
+	}
+
+	private async _listPluginMarketplacePlugins(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string }[]> {
+		const session = this._findSessionChat(AgentSession.uri(this.id, sessionId));
+		if (session) {
+			return session.listPluginMarketplacePlugins();
+		}
+		const client = await this._ensureClient();
+		const marketplaces = (await client.rpc.plugins.marketplaces.list()).marketplaces
+			.filter(marketplace => marketplace.available !== false);
+		const catalogs = await Promise.all(marketplaces.map(async marketplace => {
+			try {
+				return {
+					marketplace: marketplace.name,
+					plugins: (await client.rpc.plugins.marketplaces.browse({ name: marketplace.name })).plugins,
+				};
+			} catch (error) {
+				this._logService.warn(`[Copilot] Failed to browse plugin marketplace '${marketplace.name}' for completions: ${getErrorMessage(error)}`);
+				return { marketplace: marketplace.name, plugins: [] };
+			}
+		}));
+		return catalogs.flatMap(catalog => catalog.plugins.map(plugin => ({
+			name: plugin.name,
+			marketplace: catalog.marketplace,
+		})));
 	}
 
 	/**
