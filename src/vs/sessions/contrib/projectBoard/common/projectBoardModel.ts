@@ -68,6 +68,17 @@ export class ProjectBoardModel {
 	private sessionPlacements: Map<ISession, IProjectBoardPlacement | undefined> | undefined;
 	private readonly parents = new Map<string, IProjectBoardCard>();
 	private readonly children = new Map<string, readonly IProjectBoardCard[]>();
+	private filter: ((card: IProjectBoardCard) => boolean) | undefined;
+
+	setFilter(filter: ((card: IProjectBoardCard) => boolean) | undefined): void {
+		this.filter = filter;
+	}
+
+	matchesFilter(card: IProjectBoardCard, showArchived: boolean, filter = this.filter): boolean {
+		return !filter || filter(card) || (this.showSessionList
+			? this._cards.some(sibling => sibling.session === card.session && (showArchived || !sibling.archived) && filter(sibling))
+			: this.getChildCards(card.id, showArchived, filter).length > 0);
+	}
 
 	get rows(): readonly IProjectBoardAxis[] { return this._rows; }
 	get columns(): readonly IProjectBoardAxis[] { return this._columns; }
@@ -260,9 +271,9 @@ export class ProjectBoardModel {
 			? parent : undefined;
 	}
 
-	getChildCards(parentId: string, showArchived = false): readonly IProjectBoardCard[] {
+	getChildCards(parentId: string, showArchived = false, filter = this.filter): readonly IProjectBoardCard[] {
 		return this.sortCards((this.children.get(parentId) ?? []).filter(card =>
-			(showArchived || !card.archived) && this.getParentCard(card.id, showArchived)?.id === parentId
+			(showArchived || !card.archived) && this.getParentCard(card.id, showArchived)?.id === parentId && this.matchesFilter(card, showArchived, filter)
 		));
 	}
 
@@ -318,22 +329,22 @@ export class ProjectBoardModel {
 		this.sessionPlacements = undefined;
 	}
 
-	getUnassignedCards(showArchived = false): readonly IProjectBoardCard[] {
+	getUnassignedCards(showArchived = false, filter = this.filter): readonly IProjectBoardCard[] {
 		if (!this.autoIncludeSessions) {
 			return [];
 		}
-		return this.getPresentationCards(showArchived).filter(card => !this.getCardPlacement(card));
+		return this.getPresentationCards(showArchived, filter).filter(card => !this.getCardPlacement(card));
 	}
 
-	getCards(rowId: string, columnId: string, showArchived = false): readonly IProjectBoardCard[] {
-		return this.getPresentationCards(showArchived).filter(card => {
+	getCards(rowId: string, columnId: string, showArchived = false, filter = this.filter): readonly IProjectBoardCard[] {
+		return this.getPresentationCards(showArchived, filter).filter(card => {
 			const placement = this.getCardPlacement(card);
 			return placement?.rowId === rowId && placement.columnId === columnId;
 		});
 	}
 
-	private getPresentationCards(showArchived: boolean): readonly IProjectBoardCard[] {
-		const cards = this.sortCards(this._cards.filter(card => showArchived || !card.archived));
+	private getPresentationCards(showArchived: boolean, filter = this.filter): readonly IProjectBoardCard[] {
+		const cards = this.sortCards(this._cards.filter(card => (showArchived || !card.archived) && this.matchesFilter(card, showArchived, filter)));
 		if (!this.showSessionList) {
 			return cards.filter(card => !this.getParentCard(card.id, showArchived));
 		}

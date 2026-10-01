@@ -52,6 +52,74 @@ suite('ProjectBoardModel', () => {
 		assert.deepStrictEqual(model.getUnassignedCards().map(card => card.title), ['first']);
 	});
 
+	test('filter retains ancestor context, respects archives and preserves cards and placements', () => {
+		const first = createChat('parent', ChatInteractivity.Full);
+		const second = createChat('matching', ChatInteractivity.Full);
+		const session = createSession(first, second);
+		const model = new ProjectBoardModel();
+		model.updateSessions([session]);
+		const cards = model.cards;
+		model.moveCard(cards[0].id, { rowId: 'general', columnId: 'p0' });
+		model.setFilter(card => card.title === 'matching');
+		assert.deepStrictEqual(model.getCards('general', 'p0').map(card => card.title), ['parent']);
+		assert.deepStrictEqual(model.getChildCards(cards[0].id).map(card => card.title), ['matching']);
+		second.isArchived.set(true, undefined);
+		model.updateSessions([session]);
+		assert.deepStrictEqual(model.getCards('general', 'p0'), []);
+		assert.deepStrictEqual(model.getCards('general', 'p0', true).map(card => card.title), ['parent']);
+		model.setFilter(undefined);
+		assert.strictEqual(model.cards.length, 2);
+		assert.deepStrictEqual(model.getPlacement(cards[1].id), { rowId: 'general', columnId: 'p0' });
+		assert.strictEqual(first.isRead.get(), false);
+		assert.strictEqual(second.isRead.get(), false);
+	});
+
+	test('projection filter overrides preserve the stored filter across child, cell and session-list views', () => {
+		const parent = createChat('parent', ChatInteractivity.Full);
+		const child = createChat('child', ChatInteractivity.Full);
+		const other = createChat('other', ChatInteractivity.Full);
+		const model = new ProjectBoardModel();
+		model.updateSessions([createSession(parent, child), createSession(other)]);
+		const parentCard = model.cards.find(card => card.title === 'parent')!;
+		model.moveCard(parentCard.id, { rowId: 'general', columnId: 'p0' });
+		model.setFilter(card => card.title === 'other');
+		const all = () => true;
+
+		assert.deepStrictEqual(model.getCards('general', 'p0'), []);
+		assert.deepStrictEqual(model.getCards('general', 'p0', false, all).map(card => card.title), ['parent']);
+		assert.deepStrictEqual(model.getChildCards(parentCard.id, false, all).map(card => card.title), ['child']);
+		assert.deepStrictEqual(model.getChildCards(parentCard.id), []);
+		assert.deepStrictEqual(model.getUnassignedCards(false, () => false), []);
+		assert.deepStrictEqual(model.getUnassignedCards().map(card => card.title), ['other']);
+		model.updateConfiguration({
+			version: 1, rows: [{ id: 'general', label: 'General' }], columns: [{ id: 'p0', label: 'P0' }],
+			placements: [{ cardId: parentCard.id, rowId: 'general', columnId: 'p0' }], autoIncludeSessions: true,
+			display: { showSessionList: true, showStateDuration: true, showCredits: true },
+		});
+		assert.strictEqual(model.getCards('general', 'p0', false, card => card.title === 'child').length, 1);
+		assert.deepStrictEqual(model.getCards('general', 'p0'), []);
+		assert.strictEqual(model.cards.length, 3);
+		assert.strictEqual(child.isRead.get(), false);
+	});
+
+	test('session list matches the owning session through a matching eligible child', () => {
+		const first = createChat('parent', ChatInteractivity.Full);
+		const second = createChat('matching', ChatInteractivity.Full);
+		const session = createSession(first, second);
+		const model = new ProjectBoardModel();
+		model.updateConfiguration({
+			version: 1, rows: [{ id: 'general', label: 'General' }], columns: [{ id: 'p0', label: 'P0' }],
+			placements: [], autoIncludeSessions: true, display: { showSessionList: true, showStateDuration: true, showCredits: true },
+		});
+		model.updateSessions([session]);
+		model.setFilter(card => card.title === 'matching');
+		assert.deepStrictEqual(model.getUnassignedCards().map(card => card.session), [session]);
+		second.isArchived.set(true, undefined);
+		model.updateSessions([session]);
+		assert.strictEqual(model.getUnassignedCards().length, 0);
+		assert.strictEqual(model.getUnassignedCards(true).length, 1);
+	});
+
 	test('shows explicitly placed parents and their children when sessions are not auto-included', () => {
 		const first = createChat('first', ChatInteractivity.Full);
 		const second = createChat('second', ChatInteractivity.Full);

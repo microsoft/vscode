@@ -147,7 +147,7 @@ suite('Project Board Agents routing', () => {
 			id: KANBAN_CUSTOM_VIEW_ID,
 			hasConstructor: true,
 			actions: { style: 'buttonBar', menuId: Menus.CustomViewKanban },
-			primaryActionId: KANBAN_NEW_SESSION_COMMAND_ID,
+			primaryActionId: undefined,
 			horizontalScrolling: true,
 			supportsAuxiliaryBar: true,
 		});
@@ -178,8 +178,6 @@ suite('Project Board Agents routing', () => {
 			actions: [
 				{ id: KANBAN_ADD_ROW_COMMAND_ID, group: 'navigation', order: 1 },
 				{ id: KANBAN_ADD_COLUMN_COMMAND_ID, group: 'navigation', order: 2 },
-				{ id: KANBAN_TOGGLE_ARCHIVED_COMMAND_ID, group: 'navigation', order: 3 },
-				{ id: KANBAN_NEW_SESSION_COMMAND_ID, group: 'navigation', order: 4 },
 			],
 			settings: {
 				menu: Menus.CustomViewKanbanSettings,
@@ -192,6 +190,7 @@ suite('Project Board Agents routing', () => {
 				KANBAN_DELETE_BOARD_COMMAND_ID,
 				KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID,
 				'projectBoard.settings.openChatInSidePanel',
+				KANBAN_TOGGLE_ARCHIVED_COMMAND_ID,
 				'projectBoard.settings.autoIncludeSessions',
 				'projectBoard.settings.sessionList',
 				'projectBoard.settings.stateDuration',
