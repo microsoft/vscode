@@ -1890,10 +1890,49 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		if (availableRows[0] && availablePrimaryAction) {
 			availablePrimaryAction.focus();
 			const targetWindow = DOM.getWindow(availableRows[0]);
-			assert(targetWindow.getComputedStyle(availableRows[0]).outlineStyle === 'solid', 'Focused Discover results must outline the entire item, including its actions.');
-			assert(targetWindow.getComputedStyle(availablePrimaryAction).outlineStyle === 'none', 'Focused Discover results must not retain an inner primary-action outline.');
+			const rowBounds = availableRows[0].getBoundingClientRect();
+			const primaryActionBounds = availablePrimaryAction.getBoundingClientRect();
+			assert(targetWindow.getComputedStyle(availablePrimaryAction).outlineStyle === 'solid', 'Focused Discover results must outline the entire item.');
+			assert(targetWindow.getComputedStyle(availablePrimaryAction).borderRadius !== '0px', 'Focused Discover results must retain rounded corners for both pointer and keyboard focus.');
+			assert(
+				Math.abs(primaryActionBounds.left - rowBounds.left) <= 1
+				&& Math.abs(primaryActionBounds.top - rowBounds.top) <= 1
+				&& Math.abs(primaryActionBounds.right - rowBounds.right) <= 1
+				&& Math.abs(primaryActionBounds.bottom - rowBounds.bottom) <= 1,
+				'The Discover result primary action must cover the entire item behind its independent actions.',
+			);
+			const resultAction = availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button');
+			if (resultAction) {
+				const actionBounds = resultAction.getBoundingClientRect();
+				const primaryActionPoints = [
+					[actionBounds.left + actionBounds.width / 2, rowBounds.top + 1],
+					[actionBounds.left + actionBounds.width / 2, rowBounds.bottom - 1],
+					[actionBounds.left - 1, actionBounds.top + actionBounds.height / 2],
+					[actionBounds.right + 1, actionBounds.top + actionBounds.height / 2],
+				] as const;
+				assert(
+					primaryActionPoints.every(([x, y]) => targetWindow.document.elementFromPoint(x, y) === availablePrimaryAction)
+					&& resultAction.contains(targetWindow.document.elementFromPoint(actionBounds.left + actionBounds.width / 2, actionBounds.top + actionBounds.height / 2)),
+					'The Discover result must keep the primary action clickable around an independently clickable item action.',
+				);
+			}
 			availablePrimaryAction.blur();
 		}
+		const browseCard = ctx.container.querySelector<HTMLElement>('.customization-discovery-card');
+		const browsePrimaryAction = browseCard?.querySelector<HTMLElement>(':scope > .customization-discovery-card-primary');
+		assert(
+			!browseCard || !browsePrimaryAction
+			|| Math.abs(browseCard.getBoundingClientRect().width - browsePrimaryAction.getBoundingClientRect().width) <= 1
+			&& Math.abs(browseCard.getBoundingClientRect().height - browsePrimaryAction.getBoundingClientRect().height) <= 1,
+			'The Discover card primary action must cover the entire card behind its independent action.',
+		);
+		const cardIcon = ctx.container.querySelector<HTMLElement>('.customization-discovery-card-icon');
+		const resultIcon = availableRows[0]?.querySelector<HTMLElement>('.customization-discovery-result-icon');
+		assert(
+			(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40)
+				&& (!resultIcon || resultIcon.offsetWidth === 40 && resultIcon.offsetHeight === 40),
+			'Discover card and result icons must use the compact marketplace size.',
+		);
 		if (options.selectDiscoveryResult) {
 			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
 			const selectedRow = resultRows[resultRows.length - 1];
