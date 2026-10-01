@@ -92,6 +92,10 @@ export function isExperimentalRunningSessionComposerLayoutEnabled(configurationS
 	return isExperimentalSessionComposerLayoutEnabled(configurationService) && !isPhoneLayout(layoutService);
 }
 
+export function shouldRenderRunningSessionSecondaryToolbar(usesExperimentalComposerLayout: boolean): boolean {
+	return !usesExperimentalComposerLayout;
+}
+
 /**
  * Whether a chat input keydown should move focus to the status pills above it. Matches an
  * unmodified Shift+Tab, mirroring the accessibility-help guidance for reaching those pills.
@@ -327,6 +331,7 @@ export class ChatView extends AbstractChatView {
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
+				renderSecondaryToolbar: shouldRenderRunningSessionSecondaryToolbar(initiallyUsesExperimentalComposerLayout),
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
 				transcriptTabIndex: -1,

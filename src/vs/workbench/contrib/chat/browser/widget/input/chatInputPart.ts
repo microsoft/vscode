@@ -276,6 +276,7 @@ export interface IChatInputPartOptions {
 	renderFollowups: boolean;
 	renderStyle?: 'compact';
 	renderInputToolbarBelowInput: boolean;
+	renderSecondaryToolbar?: boolean;
 	menus: {
 		executeToolbar: MenuId;
 		telemetrySource: string;
@@ -3928,7 +3929,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const gap = Number.parseFloat(dom.getWindow(responsivePickerContainer).getComputedStyle(responsivePickerContainer).columnGap) || 0;
 			return Math.max(0, laneWidth - genericChipsContainer.getBoundingClientRect().width - gap);
 		};
-		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, responsivePickerContainer, MenuId.ChatInputSecondary, {
+		if (this.options.renderSecondaryToolbar !== false) {
+			this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, responsivePickerContainer, MenuId.ChatInputSecondary, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -4061,21 +4063,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 				return undefined;
 			}
-		}));
-		this.secondaryToolbar.getElement().classList.add('chat-secondary-input-toolbar');
-		this.secondaryToolbar.context = { widget } satisfies IChatExecuteActionContext;
+			}));
+			this.secondaryToolbar.getElement().classList.add('chat-secondary-input-toolbar');
+			this.secondaryToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		}
 		dom.append(responsivePickerContainer, genericChipsContainer);
-		this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
-			// Update container reference for the pickers when the secondary toolbar hosts one.
-			// Only assign when found so we don't overwrite a valid primary container reference
-			// for session types whose pickers live in the primary toolbar (e.g. cloud).
-			const toolbarElement = this.secondaryToolbar.getElement();
-			// eslint-disable-next-line no-restricted-syntax
-			const container = toolbarElement.querySelector('.chat-sessionPicker-container');
-			if (dom.isHTMLElement(container)) {
-				this.chatSessionPickerContainer = container;
-			}
-		}));
+		if (this.options.renderSecondaryToolbar !== false) {
+			this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
+				// Update container reference for the pickers when the secondary toolbar hosts one.
+				// Only assign when found so we don't overwrite a valid primary container reference
+				// for session types whose pickers live in the primary toolbar (e.g. cloud).
+				const toolbarElement = this.secondaryToolbar.getElement();
+				// eslint-disable-next-line no-restricted-syntax
+				const container = toolbarElement.querySelector('.chat-sessionPicker-container');
+				if (dom.isHTMLElement(container)) {
+					this.chatSessionPickerContainer = container;
+				}
+			}));
+		}
 
 		// Extension-contributed status indicators; non-responsive so items don't collapse.
 		this.statusToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.statusToolbarContainer, MenuId.ChatInputStatus, {
@@ -4094,22 +4099,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			relayout: () => this.inputActionsToolbar.relayout(),
 		}));
 
-		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.secondaryPicker', responsivePickerContainer, {
-			getItems: () => [
-				...getToolbarPickerResponsiveItems(this.secondaryToolbar, secondaryPickerCompactStates),
-				...genericChipsLane.getCompactableElements()
-					.map(element => ({
-						element,
-						isCompact: () => element.classList.contains('compact-picker'),
-						setCompact: (compact: boolean) => element.classList.toggle('compact-picker', compact),
-					})),
-			],
-			hasOverflow: () => this.secondaryToolbar.hasOverflow(),
-			relayout: () => this.secondaryToolbar.relayout(),
-		}));
+		if (this.options.renderSecondaryToolbar !== false) {
+			this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.secondaryPicker', responsivePickerContainer, {
+				getItems: () => [
+					...getToolbarPickerResponsiveItems(this.secondaryToolbar, secondaryPickerCompactStates),
+					...genericChipsLane.getCompactableElements()
+						.map(element => ({
+							element,
+							isCompact: () => element.classList.contains('compact-picker'),
+							setCompact: (compact: boolean) => element.classList.toggle('compact-picker', compact),
+						})),
+				],
+				hasOverflow: () => this.secondaryToolbar.hasOverflow(),
+				relayout: () => this.secondaryToolbar.relayout(),
+			}));
+		}
 
 		this._inputPickerResponsiveLayout.layout();
-		this._secondaryPickerResponsiveLayout.layout();
+		this._secondaryPickerResponsiveLayout?.layout();
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		let createdInputModel: ITextModel | undefined;
