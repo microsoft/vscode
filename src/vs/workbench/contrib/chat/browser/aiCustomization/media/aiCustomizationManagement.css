@@ -833,6 +833,14 @@ per-word capitalization does not survive translation. */
 	min-width: 0;
 }
 
+.mcp-server-item .mcp-server-secondary-line > .mcp-server-compatibility-message:is(.partially-supported, .unsupported) {
+	flex-shrink: 0;
+}
+
+.mcp-server-item .mcp-server-secondary-line > .mcp-server-source-path {
+	flex-shrink: 1;
+}
+
 .ai-customization-list-item .item-type-icon {
 	display: none;
 }
@@ -2706,8 +2714,8 @@ per-word capitalization does not survive translation. */
 	vertical-align: text-bottom;
 }
 
-.mcp-server-item .mcp-server-secondary-line.has-source .mcp-server-compatibility-message::before {
-	content: "· ";
+.mcp-server-item .mcp-server-secondary-line.has-source .mcp-server-compatibility-message::after {
+	content: " ·";
 	color: var(--vscode-descriptionForeground);
 }
 
