@@ -7830,6 +7830,7 @@ suite('ChatListRenderer', () => {
 						request.response?.complete();
 						renderer.renderElement(node, 0, template);
 						const gallery = template.value.querySelector('.chat-generated-image-result');
+						const disclosure = template.value.querySelector('.generated-image-tool-invocation .chat-confirmation-widget-title');
 						const finalMessage = [...template.value.querySelectorAll('.rendered-markdown p')].find(paragraph => paragraph.textContent === 'Done.');
 
 						assert.deepStrictEqual({
@@ -7845,6 +7846,7 @@ suite('ChatListRenderer', () => {
 							hasGallery: !!gallery,
 							galleryInsideSteps: !!gallery && !!template.completedResponseDisclosure?.contains(gallery),
 							galleryBeforeFinalMessage: !!gallery && !!finalMessage && !!(gallery.compareDocumentPosition(finalMessage) & Node.DOCUMENT_POSITION_FOLLOWING),
+							galleryBeforeDisclosure: !!gallery && !!disclosure && !!(gallery.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING),
 							generatedCollapses: shouldCollapseCompletedResponsePart(invocation),
 							restoredCollapses: shouldCollapseCompletedResponsePart(invocation.toJSON()),
 							finalCollapsedPreviews: template.value.querySelectorAll('.chat-collapsible-top-level-resource-group').length,
@@ -7857,11 +7859,12 @@ suite('ChatListRenderer', () => {
 							collapsedPreviews: 0,
 							finalStandalone: true,
 							toolDisclosures: 1,
-							headerToolIcons: 1,
-							toolIconGutters: 1,
+							headerToolIcons: toolId === 'generate_image_mock' ? 0 : 1,
+							toolIconGutters: toolId === 'generate_image_mock' ? 0 : 1,
 							hasGallery: true,
 							galleryInsideSteps: false,
 							galleryBeforeFinalMessage: true,
+							galleryBeforeDisclosure: toolId === 'generate_image_mock',
 							generatedCollapses: false,
 							restoredCollapses: false,
 							finalCollapsedPreviews: 0,

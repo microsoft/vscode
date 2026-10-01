@@ -28,7 +28,7 @@ import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownPr
 import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatAutomationConfiguredResultSubPart } from './chatAutomationConfiguredResultSubPart.js';
-import { ChatGeneratedImageResultSubPart, getLastGeneratedImageToolCallId } from './chatGeneratedImageResultSubPart.js';
+import { ChatGeneratedImageResultSubPart, getGeneratedImageResultCount, getLastGeneratedImageToolCallId } from './chatGeneratedImageResultSubPart.js';
 import { ChatImageGenerationProgressPart } from './chatImageGenerationProgressPart.js';
 import { ChatSessionCreatedResultSubPart } from './chatSessionCreatedResultSubPart.js';
 import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
@@ -236,12 +236,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		const render = () => {
 			const wasGeneratingImage = this.subPart instanceof ChatImageGenerationProgressPart;
+			const imageReveal = this.subPart instanceof ChatImageGenerationProgressPart ? this.subPart.getRevealOrigin(this.domNode) : undefined;
 			const isGeneratingImage = isImageGenerationToolInProgress(toolInvocation);
 			partStore.clear();
 			this.subPart = undefined;
 			const error = hasToolInvocationError(toolInvocation);
 			this.domNode.classList.toggle('chat-tool-call-error', !!error);
 			this.renderedGeneratedImageResult = shouldRenderGeneratedImageResult(toolInvocation.toolSpecificData?.kind, IChatToolInvocation.isComplete(toolInvocation));
+			const isMockImage = toolInvocation.toolId === 'generate_image_mock' && !error
+				&& (isGeneratingImage || (this.renderedGeneratedImageResult && getGeneratedImageResultCount(context.content) === 1));
+			this.domNode.classList.toggle('chat-image-generation-mock', isMockImage);
 			this.renderedLastGeneratedImageToolCallId = getLastGeneratedImageToolCallId(context.content);
 			this.imageGenerationProgressSuppressed = this.shouldSuppressImageGenerationProgress();
 			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden
@@ -267,12 +271,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 			if (this.renderedGeneratedImageResult && isToolResultInputOutputDetails(resultDetails) && !resultDetails.isError) {
-				const imageResult = partStore.add(this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, toolInvocation, context));
-				this.subPart.domNode.appendChild(imageResult.domNode);
+				const imageResult = partStore.add(this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, toolInvocation, context, imageReveal));
+				if (isMockImage) {
+					this.subPart.domNode.prepend(imageResult.domNode);
+				} else {
+					this.subPart.domNode.appendChild(imageResult.domNode);
+				}
 				partStore.add(imageResult.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			}
 
-			const showToolIcon = !!toolIcon && !(this.subPart instanceof ChatImageGenerationProgressPart);
+			const showToolIcon = !!toolIcon && !(this.subPart instanceof ChatImageGenerationProgressPart) && !isMockImage;
 			this.domNode.classList.toggle('generated-image-tool-invocation', this.renderedGeneratedImageResult);
 			this.domNode.classList.toggle('chat-tool-call-with-icon', showToolIcon);
 			if (toolIcon && showToolIcon) {

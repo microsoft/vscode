@@ -16,6 +16,7 @@ import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../.
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
+import { IChatImageRevealOrigin } from '../../attachments/chatImageReveal.js';
 
 export interface IChatAttachmentsContentPartOptions {
 	readonly variables: readonly IChatRequestVariableEntry[];
@@ -27,6 +28,7 @@ export interface IChatAttachmentsContentPartOptions {
 	readonly showImageInHover?: boolean;
 	/** Render original images directly instead of preparing attachment thumbnails. */
 	readonly imagePresentation?: 'thumbnail' | 'inline';
+	readonly imageReveal?: IChatImageRevealOrigin;
 }
 
 export class ChatAttachmentsContentPart extends Disposable {
@@ -43,6 +45,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private readonly limit?: number;
 	private readonly showImageInHover: boolean;
 	private readonly imagePresentation: IChatAttachmentsContentPartOptions['imagePresentation'];
+	private readonly imageReveal: IChatImageRevealOrigin | undefined;
 	public readonly domNode: HTMLElement | undefined;
 
 	public contextMenuHandler?: (attachment: IChatRequestVariableEntry, event: MouseEvent) => void;
@@ -61,6 +64,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		this.limit = options.limit;
 		this.showImageInHover = options.showImageInHover ?? true;
 		this.imagePresentation = options.imagePresentation;
+		this.imageReveal = options.imageReveal;
 		this.domNode = options.domNode ?? dom.$('.chat-attached-context');
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
@@ -234,7 +238,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 			const renderedAttachment = isAttachmentPartialOrOmitted || this.currentModelDoesNotSupportImages()
 				? { ...attachment, omittedState: OmittedState.Full }
 				: attachment;
-			widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, renderedAttachment, this.getCurrentLanguageModel(), { shouldFocusClearButton: false, supportsDeletion: false, showImageInHover: this.showImageInHover, imagePresentation: this.imagePresentation }, container, this._contextResourceLabels);
+			widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, renderedAttachment, this.getCurrentLanguageModel(), { shouldFocusClearButton: false, supportsDeletion: false, showImageInHover: this.showImageInHover, imagePresentation: this.imagePresentation, imageReveal: this.imageReveal }, container, this._contextResourceLabels);
 		} else if (isPromptFileVariableEntry(attachment)) {
 			if (attachment.automaticallyAdded) {
 				return; // Skip automatically added prompt files

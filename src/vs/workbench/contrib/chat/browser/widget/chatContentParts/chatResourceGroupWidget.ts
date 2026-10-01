@@ -28,6 +28,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../../files/browser/fileConstants.js';
 import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../../../common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { IChatImageRevealOrigin } from '../../attachments/chatImageReveal.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
 
@@ -54,7 +55,7 @@ export class ChatResourceGroupWidget extends Disposable {
 
 	constructor(
 		parts: IChatCollapsibleIODataPart[],
-		private readonly _options: { showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline' } | undefined,
+		private readonly _options: { showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline'; imageReveal?: IChatImageRevealOrigin } | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IFileService private readonly _fileService: IFileService,
@@ -124,6 +125,7 @@ export class ChatResourceGroupWidget extends Disposable {
 				domNode: undefined,
 				showImageInHover: this._options?.showImageInHover,
 				imagePresentation: this._options?.imagePresentation,
+				imageReveal: this._options?.imageReveal,
 			}
 		));
 

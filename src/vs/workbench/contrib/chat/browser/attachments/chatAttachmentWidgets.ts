@@ -81,6 +81,7 @@ import { IChatResponseResourceFileSystemProvider } from '../../common/widget/cha
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
 import { createChatImageHoverContent } from '../../../../browser/chatImagePreview.js';
+import { ChatImageReveal, IChatImageRevealOrigin } from './chatImageReveal.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -493,7 +494,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		resource: URI | undefined,
 		attachment: IChatRequestVariableEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean; showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline' },
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean; showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline'; imageReveal?: IChatImageRevealOrigin },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
@@ -501,7 +502,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
@@ -546,7 +547,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
 
 		if (options.imagePresentation === 'inline' && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded && (!currentLanguageModel || modelSupportsVision(currentLanguageModel))) {
-			this._register(this.renderInlineImage(resource, attachment.name, fullName, imageData, ariaLabel));
+			this._register(this.renderInlineImage(resource, attachment.name, fullName, imageData, ariaLabel, options.imageReveal));
 		} else {
 			const imageElements = this._register(new MutableDisposable<IDisposable>());
 			const renderImageElements = (buffer: Uint8Array) => {
@@ -579,11 +580,16 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 	}
 
-	private renderInlineImage(resource: URI | undefined, name: string, fullName: string, imageData: Uint8Array | undefined, ariaLabel: string): IDisposable {
+	private renderInlineImage(resource: URI | undefined, name: string, fullName: string, imageData: Uint8Array | undefined, ariaLabel: string, imageReveal: IChatImageRevealOrigin | undefined): IDisposable {
 		const store = new DisposableStore();
 		const image = dom.$<HTMLImageElement>('img.chat-attached-context-pill-image', { alt: '' });
 		const status = dom.$('span.chat-attached-context-image-status', undefined, localize('chat.loadingImage', "Loading image..."));
-		const preview = dom.append(this.element, dom.$('.chat-attached-context-pill', undefined, image, status));
+		const imageContainer = imageReveal ? dom.$('div', undefined, image) : image;
+		const preview = dom.append(this.element, dom.$('.chat-attached-context-pill', undefined, imageContainer, status));
+		const reveal = imageReveal ? store.add(this.instantiationService.createInstance(ChatImageReveal, imageContainer, image, imageReveal)) : undefined;
+		if (reveal) {
+			dom.hide(status);
+		}
 		const hover = dom.$('.chat-attached-context-hover', { 'aria-label': ariaLabel }, dom.$('.chat-attached-context-url', undefined, fullName));
 		const imageUrl = store.add(new MutableDisposable<IDisposable>());
 		dom.hide(image);
@@ -605,12 +611,15 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			this.element.ariaLabel = this.appendDeletionHint(message);
 			status.textContent = message;
 			hover.textContent = detail ? localize('chat.imagePreviewLoadErrorDetails', "{0}\n{1}", message, detail) : message;
+			reveal?.dispose();
+			dom.show(status);
 			dom.hide(image);
 		};
-		store.add(dom.addDisposableListener(image, dom.EventType.LOAD, () => {
+		store.add(dom.addDisposableListener(image, dom.EventType.LOAD, event => {
 			this.element.setAttribute('aria-busy', 'false');
 			status.remove();
 			dom.show(image);
+			reveal?.reveal(event.timeStamp);
 		}));
 		store.add(dom.addDisposableListener(image, dom.EventType.ERROR, () => showError()));
 
