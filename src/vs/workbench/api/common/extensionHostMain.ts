@@ -72,6 +72,8 @@ export abstract class ErrorHandler {
 		// PART 1
 		// set the prepareStackTrace-handle and use it as a side-effect to associate errors
 		// with extensions - this works by looking up callsites in the extension path index
+		// Preserve Node's formatter: formatting call sites ourselves bypasses its source maps.
+		const defaultPrepareStackTrace = Error.prepareStackTrace as ((error: Error, stackTrace: errors.V8CallSite[]) => string) | undefined;
 		function prepareStackTraceAndFindExtension(error: Error, stackTrace: errors.V8CallSite[]) {
 			if (extensionErrors.has(error)) {
 				return extensionErrors.get(error)!.stack;
@@ -86,7 +88,10 @@ export abstract class ErrorHandler {
 					extension = extensionsMap.findSubstr(URI.file(fileName));
 				}
 			}
-			const result = `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
+			const sourceMapsEnabled = (globalThis as { process?: { sourceMapsEnabled?: boolean } }).process?.sourceMapsEnabled === true;
+			const result = sourceMapsEnabled && defaultPrepareStackTrace
+				? defaultPrepareStackTrace(error, stackTrace)
+				: `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
 			extensionErrors.set(error, { extensionIdentifier: extension?.identifier, stack: result });
 			return result;
 		}
