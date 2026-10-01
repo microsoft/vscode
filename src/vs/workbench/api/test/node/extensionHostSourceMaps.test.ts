@@ -52,8 +52,13 @@ suite('Extension host native source maps', () => {
 
 			const mode = process.argv[2];
 			setSourceMapsSupport(mode !== 'off');
-			if (mode === 'custom-before') {
-				Error.prepareStackTrace = () => 'custom-before';
+			if (mode === 'custom-before' || mode === 'skip-fallback') {
+				Error.prepareStackTrace = function () {
+					if (mode === 'custom-before' && this !== Error) {
+						throw new Error('Unexpected formatter receiver');
+					}
+					return mode;
+				};
 			}
 			const fixture = require('./fixture.cjs');
 			const expectedStack = fixture.createError().stack.split('\\n').slice(0, 2).join('\\n');
@@ -93,14 +98,28 @@ suite('Extension host native source maps', () => {
 			]);
 			await ErrorHandler.installFullHandler({ get(id) { return services.get(id); } });
 			if (mode === 'custom-after') {
-				Error.prepareStackTrace = () => 'custom-after';
+				Error.prepareStackTrace = function () {
+					if (this !== Error) {
+						throw new Error('Unexpected formatter receiver');
+					}
+					return mode;
+				};
 			} else if (mode === 'disable-after') {
 				setSourceMapsSupport(false);
 			}
 			const error = fixture.createError();
+			let fallbackFormattingCalls = 0;
+			if (mode === 'skip-fallback') {
+				// Invoke the real host handler with a frame whose fallback rendering
+				// can be counted, while the installed formatter supplies the output.
+				Error.prepareStackTrace.call(Error, error, [{
+					getFileName() { return fixturePath; },
+					toString() { fallbackFormattingCalls++; return 'generated frame'; }
+				}]);
+			}
 			const stack = error.stack;
 			onUnexpectedError(error);
-			process.stdout.write(JSON.stringify({ stack, expectedStack, attributionLookups, runtimeErrors, telemetryErrors }));
+			process.stdout.write(JSON.stringify({ stack, expectedStack, attributionLookups, runtimeErrors, telemetryErrors, fallbackFormattingCalls }));
 		`);
 	});
 
@@ -127,6 +146,7 @@ suite('Extension host native source maps', () => {
 		attributionLookups: number;
 		runtimeErrors: { extension: string; stack: string }[];
 		telemetryErrors: string[];
+		fallbackFormattingCalls: number;
 	}
 
 	async function runHandler(mode: string): Promise<HandlerResult> {
@@ -167,8 +187,14 @@ suite('Extension host native source maps', () => {
 		assertAttribution(result);
 	});
 
+	test('does not build fallback stack text when a formatter is available', async () => {
+		const result = await runHandler('skip-fallback');
+		assert.deepStrictEqual({ stack: result.stack, fallbackCalls: result.fallbackFormattingCalls }, { stack: 'skip-fallback', fallbackCalls: 0 });
+		assertAttribution(result);
+	});
+
 	for (const mode of ['custom-before', 'custom-after']) {
-		test(`preserves a custom formatter installed ${mode === 'custom-before' ? 'before' : 'after'} the host handler`, async () => {
+		test(`preserves a custom formatter and its Error receiver when installed ${mode === 'custom-before' ? 'before' : 'after'} the host handler`, async () => {
 			const result = await runHandler(mode);
 			assert.strictEqual(result.stack, mode);
 			assertAttribution(result);

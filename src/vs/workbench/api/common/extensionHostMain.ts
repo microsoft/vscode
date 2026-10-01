@@ -73,28 +73,30 @@ export abstract class ErrorHandler {
 		// set the prepareStackTrace-handle and use it as a side-effect to associate errors
 		// with extensions - this works by looking up callsites in the extension path index
 		// Preserve Node's formatter: formatting call sites ourselves bypasses its source maps.
-		const defaultPrepareStackTrace = Error.prepareStackTrace as ((error: Error, stackTrace: errors.V8CallSite[]) => string) | undefined;
-		function prepareStackTraceAndFindExtension(error: Error, stackTrace: errors.V8CallSite[]) {
+		const defaultPrepareStackTrace = Error.prepareStackTrace;
+		const prepareStackTraceAndFindExtension: typeof Error.prepareStackTrace = (error, stackTrace) => {
 			if (extensionErrors.has(error)) {
 				return extensionErrors.get(error)!.stack;
 			}
+			const formatter = globalThis.process?.sourceMapsEnabled ? defaultPrepareStackTrace : undefined;
 			let stackTraceMessage = '';
 			let extension: IExtensionDescription | undefined;
 			let fileName: string | null;
 			for (const call of stackTrace) {
-				stackTraceMessage += `\n\tat ${call.toString()}`;
+				if (!formatter) {
+					stackTraceMessage += `\n\tat ${call.toString()}`;
+				}
 				fileName = call.getFileName();
 				if (!extension && fileName) {
 					extension = extensionsMap.findSubstr(URI.file(fileName));
 				}
 			}
-			const sourceMapsEnabled = (globalThis as { process?: { sourceMapsEnabled?: boolean } }).process?.sourceMapsEnabled === true;
-			const result = sourceMapsEnabled && defaultPrepareStackTrace
-				? defaultPrepareStackTrace(error, stackTrace)
+			const result = formatter
+				? formatter.call(Error, error, stackTrace)
 				: `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
 			extensionErrors.set(error, { extensionIdentifier: extension?.identifier, stack: result });
 			return result;
-		}
+		};
 
 		const _wasWrapped = Symbol('prepareStackTrace wrapped');
 		let _prepareStackTrace = prepareStackTraceAndFindExtension;
