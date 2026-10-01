@@ -17,7 +17,7 @@ import { getTextPart } from '../../chat/common/globalStringUtils';
 import { CHAT_MODEL, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
-import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
+import { FinishedCallback, getRequestId, gitHubCopilotRequestTeProperty, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
 import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride, PENDING_DEPRECATION_CODE } from '../../networking/common/networking';
 import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
@@ -94,7 +94,8 @@ export async function defaultChatResponseProcessor(
 		const loggedReason = solution.reason ?? 'client-trimmed';
 		const dataToSendToTelemetry = telemetryData.extendedBy({
 			completionChoiceFinishReason: loggedReason,
-			headerRequestId: solution.requestId.headerRequestId
+			headerRequestId: solution.requestId.headerRequestId,
+			...gitHubCopilotRequestTeProperty(solution.requestId.gitHubCopilotRequestTe),
 		});
 		telemetryService.sendGHTelemetryEvent('completion.finishReason', dataToSendToTelemetry.properties, dataToSendToTelemetry.measurements);
 		return prepareChatCompletionForReturn(telemetryService, logService, solution, telemetryData);
@@ -119,7 +120,7 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 		const messageText = getTextPart(message.content);
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const { serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
+		const { serverExperiments, copilotServiceRequestId, gitHubCopilotRequestTe } = getRequestId(response.headers);
 
 
 		const completion: ChatCompletion = {
@@ -131,7 +132,7 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 			message: message,
 			usage: jsonResponse.usage,
 			tokens: [], // This is used for repetition detection so not super important to be accurate
-			requestId: { headerRequestId: requestId, gitHubRequestId: ghRequestId, copilotServiceRequestId, completionId: jsonResponse.id, created: jsonResponse.created, deploymentId: '', serverExperiments },
+			requestId: { headerRequestId: requestId, gitHubRequestId: ghRequestId, copilotServiceRequestId, completionId: jsonResponse.id, created: jsonResponse.created, deploymentId: '', serverExperiments, ...gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe) },
 			telemetryData: telemetryData
 		};
 		const functionCall: ICopilotToolCall[] = [];

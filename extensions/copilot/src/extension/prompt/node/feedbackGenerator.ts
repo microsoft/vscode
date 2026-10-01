@@ -13,6 +13,7 @@ import { EditSurvivalReporter, EditSurvivalResult } from '../../../platform/edit
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { ReviewComment, ReviewRequest } from '../../../platform/review/common/reviewService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { isNotebookCellOrNotebookChatInput } from '../../../util/common/notebooks';
@@ -106,10 +107,13 @@ export class FeedbackGenerator {
 		const requestStartTime = Date.now();
 		const results = await Promise.all(prompts.map(async prompt => {
 			let receivedComments: ReviewComment[] = [];
+			const reportedComments: ReviewComment[] = [];
 			const finishedCb = progress ? async (text: string) => {
 				const comments = parseReviewComments(request, filteredInput, text, true);
 				if (comments.length > receivedComments.length) {
-					progress.report(comments.slice(receivedComments.length));
+					const newComments = comments.slice(receivedComments.length);
+					reportedComments.push(...newComments);
+					progress.report(newComments);
 					receivedComments = comments;
 				}
 				return undefined;
@@ -131,6 +135,12 @@ export class FeedbackGenerator {
 				);
 
 			const comments = fetchResult.type === 'success' ? parseReviewComments(request, filteredInput, fetchResult.value, false) : [];
+			// Comments are streamed before the response object exists, so attach the producing call's value afterwards.
+			if (fetchResult.gitHubCopilotRequestTe !== undefined) {
+				for (const comment of [...reportedComments, ...comments]) {
+					comment.gitHubCopilotRequestTe = fetchResult.gitHubCopilotRequestTe;
+				}
+			}
 
 			if (progress && comments && comments.length > receivedComments.length) {
 				progress.report(comments.slice(receivedComments.length));
@@ -299,6 +309,7 @@ export function sendReviewActionTelemetry(reviewCommentOrComments: ReviewComment
 		source: reviewComment.request.source,
 		messageId: reviewComment.request.messageId,
 		userAction,
+		...gitHubCopilotRequestTeProperty(reviewComment.gitHubCopilotRequestTe),
 	};
 
 	const commentType = knownKinds.has(reviewComment.kind) ? reviewComment.kind : 'unknown';
@@ -329,6 +340,7 @@ export function sendReviewActionTelemetry(reviewCommentOrComments: ReviewComment
 			"review.comment.vote" : {
 				"owner": "chrmarti",
 				"comment": "Metadata about votes on review comments",
+				"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header from the model call that produced the review comment, logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 				"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Which backend generated the comment." },
 				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the current request turn." },
 				"documentType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "What kind of document (e.g., text or notebook)." },
@@ -355,6 +367,7 @@ export function sendReviewActionTelemetry(reviewCommentOrComments: ReviewComment
 			"review.comment.action" : {
 				"owner": "chrmarti",
 				"comment": "Metadata about actions on review comments",
+				"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header from the model call that produced the review comment, logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 				"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Which backend generated the comment." },
 				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the current request turn." },
 				"documentType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "What kind of document (e.g., text or notebook)." },

@@ -347,7 +347,8 @@ class InlineChatToolCalling {
 				telemetry.sendTelemetry(
 					lastResponse.requestId, lastResponse.type, responseText,
 					lastInteractionOutcome,
-					result.toolCalls
+					result.toolCalls,
+					lastResponse.gitHubCopilotRequestTe
 				);
 
 				toolCallRounds.push(ToolCallRound.create({

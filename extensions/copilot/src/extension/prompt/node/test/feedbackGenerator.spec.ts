@@ -1054,6 +1054,35 @@ multiple lines.
 			assert.ok(reportedComments.length > 0);
 		});
 
+		test.each([
+			[' TRUE ', [' TRUE ', ' TRUE ']],
+			[undefined, ['<absent>', '<absent>']],
+		] as const)('tags streamed and returned comments with the producing call\'s X-GitHub-Copilot-Request-Te (%j)', async (gitHubCopilotRequestTe, expected) => {
+			const uri = Uri.file('/test/file.ts');
+			const content = 'line 0\nline 1\nline 2\nline 3\nline 4';
+			const input = [createInput(uri, content, 'file.ts', {
+				hunks: [{ range: new Range(0, 0, 4, 6), text: content }]
+			})];
+			mockEndpointProvider.mockEndpoint.setResponse({
+				type: ChatFetchResponseType.Success,
+				value: '1. Line 2 in `file.ts`, bug, high severity: This is a bug.\n\n',
+				requestId: 'test-request-id',
+				serverRequestId: undefined,
+				usage: undefined,
+				resolvedModel: 'gpt-4.1-test',
+				...(gitHubCopilotRequestTe === undefined ? {} : { gitHubCopilotRequestTe }),
+			});
+			const reported: ReviewComment[] = [];
+
+			const result = await feedbackGenerator.generateComments(input, CancellationToken.None, { report: comments => reported.push(...comments) });
+
+			const valueOf = (comment: ReviewComment) => 'gitHubCopilotRequestTe' in comment ? comment.gitHubCopilotRequestTe : '<absent>';
+			assert.deepStrictEqual([
+				reported.map(valueOf)[0],
+				result.type === 'success' ? result.comments.map(valueOf)[0] : 'no-comments',
+			], expected);
+		});
+
 		test('handles selection input correctly', async () => {
 			const uri = Uri.file('/test/file.ts');
 			const content = 'line 0\nline 1\nline 2\nline 3\nline 4';
@@ -1195,6 +1224,11 @@ multiple lines.
 	class MockTelemetryService extends NullTelemetryService {
 		readonly msftEvents: TelemetryCall[] = [];
 		readonly internalMsftEvents: TelemetryCall[] = [];
+		readonly ghEvents: TelemetryCall[] = [];
+
+		override sendGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+			this.ghEvents.push({ eventName, properties, measurements });
+		}
 
 		override sendMSFTTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
 			this.msftEvents.push({ eventName, properties, measurements });
@@ -1207,6 +1241,7 @@ multiple lines.
 		reset(): void {
 			this.msftEvents.length = 0;
 			this.internalMsftEvents.length = 0;
+			this.ghEvents.length = 0;
 		}
 	}
 
@@ -1275,6 +1310,23 @@ multiple lines.
 
 			assert.strictEqual(mockTelemetryService.internalMsftEvents.length, 1);
 			assert.strictEqual(mockTelemetryService.internalMsftEvents[0].eventName, 'review.comment.vote');
+		});
+
+		test('adds the comment\'s X-GitHub-Copilot-Request-Te only to the GitHub event', () => {
+			const comment = createTestReviewComment({ gitHubCopilotRequestTe: ' TRUE ' });
+
+			sendReviewActionTelemetry(comment, 1, 'helpful', mockLogService, mockTelemetryService, mockInstantiationService);
+
+			const valueOf = (properties: TelemetryEventProperties | undefined) => properties && 'gitHubCopilotRequestTe' in properties ? properties.gitHubCopilotRequestTe : '<absent>';
+			assert.deepStrictEqual({
+				gh: mockTelemetryService.ghEvents.map(e => [e.eventName, e.properties?.messageId, valueOf(e.properties)]),
+				msft: mockTelemetryService.msftEvents.map(e => valueOf(e.properties)),
+				internal: mockTelemetryService.internalMsftEvents.map(e => valueOf(e.properties)),
+			}, {
+				gh: [['review.comment.vote', 'test-message-id', ' TRUE ']],
+				msft: ['<absent>'],
+				internal: ['<absent>'],
+			});
 		});
 
 		test('does not increment actionCount for vote actions', () => {
