@@ -662,6 +662,42 @@ export function interpolateMcpPluginRoot(
 }
 
 /**
+ * Applies Agent Plugins v1 MCP path semantics, which intentionally differ from legacy plugin interpolation.
+ * Only stdio args, env values, and cwd expand `PLUGIN_ROOT`; `./` commands resolve against the plugin root and remote fields remain literal.
+ */
+function interpolateAgentPluginMcpRoot(def: IMcpServerDefinition, pluginRoot: URI): IMcpServerDefinition | undefined {
+	const config = def.configuration;
+	if (config.type !== McpServerType.LOCAL) {
+		return def;
+	}
+
+	const replace = (value: string) => value.replaceAll(PLUGIN_ROOT.token, pluginRoot.fsPath);
+	const local: Mutable<IMcpStdioServerConfiguration> = { ...config };
+	if (local.command.startsWith('./')) {
+		const commandUri = normalizePath(joinPath(pluginRoot, local.command));
+		if (!isEqualOrParent(commandUri, pluginRoot)) {
+			return undefined;
+		}
+		local.command = commandUri.fsPath;
+	}
+	if (local.args) {
+		local.args = local.args.map(replace);
+	}
+	if (local.cwd) {
+		local.cwd = replace(local.cwd);
+	}
+	local.env = { ...local.env };
+	for (const [key, value] of Object.entries(local.env)) {
+		if (typeof value === 'string') {
+			local.env[key] = replace(value);
+		}
+	}
+	local.env[PLUGIN_ROOT.envVar] = pluginRoot.fsPath;
+
+	return { ...def, configuration: local };
+}
+
+/**
  * Regex matching bare `${VAR_NAME}` references (uppercase only) that are NOT
  * using VS Code's `${env:VAR}` colon-delimited syntax.
  */
@@ -1334,12 +1370,18 @@ export function parseMcpServerDefinitionMap(
 		let def: IMcpServerDefinition = {
 			name,
 			configuration,
-			...(formatConfig.format !== PluginFormat.AgentPlugin && { defaultCwd: pluginRoot }),
+			defaultCwd: pluginRoot,
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
-		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
-		if (formatConfig.format !== PluginFormat.AgentPlugin) {
+		if (formatConfig.format === PluginFormat.AgentPlugin) {
+			const interpolated = interpolateAgentPluginMcpRoot(def, pluginRoot);
+			if (!interpolated) {
+				continue;
+			}
+			def = interpolated;
+		} else {
+			def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
 			def = convertBareEnvVarsToVsCodeSyntax(def);
 		}
 		definitions.push(def);

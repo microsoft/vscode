@@ -5,11 +5,14 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -21,14 +24,15 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/responseSelectionSideChatController.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
-import { SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
+import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
-
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -82,7 +86,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
-				nameEditing: content.includes('Press Tab to reach Set Welcome Name'),
+				nameEditing: content.includes('Press Tab to reach Customize Welcome Message'),
 				announcementSetting: content.includes('set accessibility.verbosity.newSessionWelcome to false'),
 			};
 		});
@@ -192,11 +196,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 	});
 
 	test('describes controls according to the effective new-session layout', () => {
-		const getLayoutHelp = (unifiedPicker: boolean, experimentalLayout: boolean, screenReader = false) => {
+		const getLayoutHelp = (unifiedPicker: boolean, experimentalLayout: boolean, agentPickerInAttachContext = false, screenReader = false) => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({
 				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
 				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
+				[AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: agentPickerInAttachContext,
 			});
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiationService.stub(IConfigurationService, configuration);
@@ -208,7 +213,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => screenReader, onDidChangeScreenReaderOptimized: Event.None });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent().split('\n');
 			return {
-				controls: content.find(line => line.startsWith('Inside the new-session prompt')),
+				controls: content.find(line => line.startsWith('Inside the new-session prompt') || line.startsWith('When an Agent picker')),
 				sync: content.find(line => line.startsWith('When available for a folder session with incoming or outgoing commits')),
 				hasSessionOptions: content.some(line => line.startsWith('Above the new-session input')),
 				sessionOptionsMentionsToggle: content.some(line => line.includes('Hide Session Options collapses these controls')),
@@ -217,13 +222,21 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.deepStrictEqual([
 			getLayoutHelp(false, false),
+			getLayoutHelp(false, false, true),
 			getLayoutHelp(true, false),
 			getLayoutHelp(false, true),
 			getLayoutHelp(true, true),
+			getLayoutHelp(true, true, false, true),
 			getLayoutHelp(true, true, true),
 		], [
 			{
 				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+				hasSessionOptions: false,
+				sessionOptionsMentionsToggle: false,
+			},
+			{
+				controls: 'When an Agent picker is available in a new or running session, it initially appears in Add Context. Open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: false,
 				sessionOptionsMentionsToggle: false,
@@ -251,6 +264,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: true,
 				sessionOptionsMentionsToggle: false,
+			},
+			{
+				controls: 'When an Agent picker is available in a new or running session, it initially appears in Add Context. Open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
+				hasSessionOptions: true,
+				sessionOptionsMentionsToggle: true,
 			},
 		]);
 	});
@@ -512,5 +531,156 @@ suite('SessionsChatAccessibilityHelp', () => {
 			tintCheckedState: tintHelp?.includes('A check mark means tinting is enabled.'),
 			tintPreservesImage: tintHelp?.includes('Turning it off keeps the background image'),
 		}, { activation: true, nextButton: true, tintKeyboardAccess: true, tintCheckedState: true, tintPreservesImage: true });
+	});
+
+	test('describes Run and Compare Agents only when enabled', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({
+			[COMPARE_AGENTS_ENABLED_SETTING]: false,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const disabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const disabledContent = disabledProvider.provideContent();
+		await configuration.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, true);
+		const enabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+
+		assert.deepStrictEqual({
+			disabled: disabledContent.includes('activate Run and Compare Agents'),
+			enabled: enabledProvider.provideContent().includes('activate Run and Compare Agents'),
+			workspaceAndBranch: enabledProvider.provideContent().includes('choose a Git repository with at least one commit and a remote, choose the base branch'),
+			permissions: enabledProvider.provideContent().includes('provider-specific Permissions selection'),
+			copilotAllowAllMode: enabledProvider.provideContent().includes('choosing Allow all for Copilot also uses Autopilot mode'),
+			bulkPermissions: enabledProvider.provideContent().includes('Allow all permissions for every participant'),
+			permissionInfo: enabledProvider.provideContent().includes('Activate the adjacent information button'),
+			evaluatorInfo: enabledProvider.provideContent().includes('Their information buttons describe each role'),
+			setupSteps: enabledProvider.provideContent().includes('two-step comparison setup'),
+			stepButtons: enabledProvider.provideContent().includes('Attempts and Evaluation step buttons'),
+			effort: enabledProvider.provideContent().includes('supported reasoning effort'),
+			opensAttemptsGrid: enabledProvider.provideContent().includes('open every available attempt in a resizable grid'),
+			twoPaneInputs: enabledProvider.provideContent().includes('With two attempt panes, both chat inputs remain visible'),
+			threePaneInputs: enabledProvider.provideContent().includes('With three or more, only the active attempt pane shows its chat input'),
+			screenReaderInputs: enabledProvider.provideContent().includes('Screen-reader optimized mode keeps every attempt input visible'),
+			stopParticipant: enabledProvider.provideContent().includes('stop only that participant'),
+			stopAll: enabledProvider.provideContent().includes('stops every running attempt, Judge, and Synthesizer'),
+			stopOnlyWhileRunning: enabledProvider.provideContent().includes('Stop and Stop All are available only while their comparison sessions are running'),
+			archiveComparison: enabledProvider.provideContent().includes('check-mark Archive Comparison action'),
+			deleteGroup: enabledProvider.provideContent().includes('Delete Group remains available from the comparison header context menu'),
+			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs input in an inactive visible pane'),
+			rationaleOrder: enabledProvider.provideContent().includes('Comparison, Validation, Code quality, Solution'),
+			attemptLinks: enabledProvider.provideContent().includes('activate its link to reveal that session'),
+			accessibleView: enabledProvider.provideContent().includes('use Open Accessible View<keybinding:editor.action.accessibleView>'),
+			focusAttempts: enabledProvider.provideContent().includes('use its adjacent dropdown to focus another attempt'),
+			additionalInstructions: enabledProvider.provideContent().includes('choose Additional Synthesis Instructions'),
+			submitInstructions: enabledProvider.provideContent().includes('Activate Start Synthesis with Instructions'),
+			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
+			customSynthesisScroll: enabledProvider.provideContent().includes('The table scrolls when its decisions or attempt columns exceed the available space'),
+			choiceButtons: enabledProvider.provideContent().includes('Use Tab to move between the choice buttons'),
+		}, {
+			disabled: false,
+			enabled: true,
+			workspaceAndBranch: true,
+			permissions: true,
+			copilotAllowAllMode: true,
+			bulkPermissions: true,
+			permissionInfo: true,
+			evaluatorInfo: true,
+			setupSteps: true,
+			stepButtons: true,
+			effort: true,
+			opensAttemptsGrid: true,
+			twoPaneInputs: true,
+			threePaneInputs: true,
+			screenReaderInputs: true,
+			stopParticipant: false,
+			stopAll: false,
+			stopOnlyWhileRunning: false,
+			archiveComparison: true,
+			deleteGroup: true,
+			inactivePaneNotification: true,
+			rationaleOrder: true,
+			attemptLinks: true,
+			accessibleView: true,
+			focusAttempts: true,
+			additionalInstructions: true,
+			submitInstructions: true,
+			customSynthesis: true,
+			customSynthesisScroll: true,
+			choiceButtons: true,
+		});
+	});
+
+	test('provides the focused Judge result as plain text and restores focus', () => {
+		const judgeResource = URI.parse('test:///judge');
+		const comparison: ISessionComparison = {
+			id: 'comparison',
+			groupId: 'group',
+			title: 'Comparison',
+			createdAt: 0,
+			workspace: URI.file('/repo'),
+			prompt: 'Implement',
+			participants: [{
+				id: 'attempt',
+				role: SessionComparisonParticipantRole.Attempt,
+				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Codex' },
+				completion: { elapsedMs: 3_000, tokenCount: 42 },
+			}, {
+				id: 'judge',
+				role: SessionComparisonParticipantRole.Judge,
+				sessionResource: judgeResource,
+				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Judge' },
+			}],
+			verdict: {
+				recommendedParticipantId: 'attempt',
+				explanation: 'Best result.',
+				conflicts: [],
+				attempts: [],
+			},
+		};
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({
+				sessionId: 'judge',
+				resource: judgeResource,
+			}));
+		}());
+		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+			override readonly comparisons = constObservable([comparison]);
+		}());
+		const origin = mainWindow.document.createElement('button');
+		mainWindow.document.body.appendChild(origin);
+		store.add({ dispose: () => origin.remove() });
+		origin.focus();
+
+		const provider = new SessionComparisonAccessibleView().getProvider(instantiationService);
+		assert.ok(provider);
+		store.add(provider);
+		const content = provider?.provideContent();
+		provider?.onClose();
+
+		assert.deepStrictEqual({
+			type: provider?.options.type,
+			content,
+			focusRestored: mainWindow.document.activeElement === origin,
+		}, {
+			type: AccessibleViewType.View,
+			content: [
+				'Comparison result',
+				'Attempt 1 (Codex) won',
+				'',
+				'Why it won',
+				'Best result.',
+				'',
+				'Attempt time and token usage',
+				'Attempt 1 (Codex): Total time 3s; Tokens used 42',
+			].join('\n'),
+			focusRestored: true,
+		});
 	});
 });

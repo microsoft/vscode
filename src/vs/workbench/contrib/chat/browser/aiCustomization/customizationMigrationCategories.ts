@@ -12,7 +12,7 @@ import type { IConfigurationService } from '../../../../../platform/configuratio
 import { ChatConfiguration } from '../../common/constants.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, mcpServerCustomizationMigrationRemovableProperties, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export const enum CustomizationMigrationCategoryId {
@@ -39,6 +39,7 @@ export interface ICustomizationMigrationCandidatePresentation {
 	readonly name: string;
 	readonly selectionAriaLabel: string;
 	readonly pathLabel: string;
+	readonly changesLabel?: string;
 	readonly file?: MigratableConfiguration;
 }
 
@@ -84,7 +85,7 @@ export interface ICustomizationMigrationCategory {
 	readonly noFilesMigratedMessage: string;
 	isCandidate?(customization: MigratableConfiguration): boolean;
 	group(customizations: readonly CustomizationMigrationCandidate[]): readonly ICustomizationMigrationGroup[];
-	getCandidatePresentation(customization: CustomizationMigrationCandidate, getUriLabel: (uri: URI) => string): ICustomizationMigrationCandidatePresentation;
+	getCandidatePresentation(customization: CustomizationMigrationCandidate, getUriLabel: (uri: URI) => string, harnessLabel: string): ICustomizationMigrationCandidatePresentation;
 	getShortcutAriaLabel(count: number): string;
 	getCardDescription(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string): string;
 	getPageDescription(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string): string;
@@ -435,14 +436,14 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
 	configurationSettingIds: CONFIGURED_LOCATION_SETTING_IDS,
 	shortcutLabel: localize('configuredLocationsMigrationShortcutLabel', "Migrate Location Settings"),
-	shortcutTooltip: localize('configuredLocationsMigrationShortcutTooltip', "Move customizations from locations unsupported by the active harness"),
+	shortcutTooltip: localize('configuredLocationsMigrationShortcutTooltip', "Move customizations from VS Code-configured locations to locations supported by the active harness"),
 	cardLabel: localize('configuredLocationsMigrationCardLabel', "Migrate Location Settings"),
 	cardActionLabel: localize('configuredLocationsMigrationCardAction', "Migrate..."),
-	cardActionAriaLabel: localize('configuredLocationsMigrationCardActionAriaLabel', "Migrate customizations from unsupported configured locations"),
+	cardActionAriaLabel: localize('configuredLocationsMigrationCardActionAriaLabel', "Migrate customizations from VS Code-configured locations"),
 	pageTitle: localize('configuredLocationsMigrationPageTitle', "Migrate Location Settings"),
 	pageLinkLabel: localize('configuredLocationsMigrationLearnMore', "Learn more about agent customizations"),
 	pageLinkUrl: CUSTOMIZATION_DOCUMENTATION_URL,
-	pageEmptyMessage: localize('configuredLocationsMigrationPageEmpty', "No customizations in unsupported configured locations are available to migrate."),
+	pageEmptyMessage: localize('configuredLocationsMigrationPageEmpty', "No customizations in VS Code-configured locations are available to migrate."),
 	migrateButtonTooltip: localize('configuredLocationsMigrationPageButtonTooltip', "Move the selected customizations to locations supported by the active harness"),
 	backLabel: localize('backToConfiguredLocationsMigration', "Back to Migrate Location Settings"),
 	noFilesMigratedMessage: localize('configuredLocationsMigrationNoFilesMigrated', "No customizations from configured locations were migrated."),
@@ -485,14 +486,16 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 
 	getCardDescription(customizations, harnessLabel) {
 		return customizations.length === 1
-			? localize('configuredLocationsMigrationCardDescriptionSingle', "Found 1 customization in a configured location that {0} does not use. Move it to keep it available.", harnessLabel)
-			: localize('configuredLocationsMigrationCardDescription', "Found {0} customizations in configured locations that {1} does not use. Move them to keep them available.", customizations.length, harnessLabel);
+			? localize('configuredLocationsMigrationCardDescriptionSingle', "Found 1 customization in a location observed only by the Local agent harness. {0} picks it up when running in VS Code. Move it to a supported location for use outside VS Code.", harnessLabel)
+			: localize('configuredLocationsMigrationCardDescription', "Found {0} customizations in locations observed only by the Local agent harness. {1} picks them up when running in VS Code. Move them to supported locations for use outside VS Code.", customizations.length, harnessLabel);
 	},
 
 	getPageDescription(customizations, harnessLabel) {
 		return customizations.length === 0
 			? localize('configuredLocationsMigrationPageDescriptionEmpty', "Select customizations to move to locations supported by the active harness.")
-			: localize('configuredLocationsMigrationPageDescription', "Found {0} customizations in locations configured through VS Code settings that {1} does not use. Move them to supported harness locations.", customizations.length, harnessLabel);
+			: customizations.length === 1
+				? localize('configuredLocationsMigrationPageDescriptionSingle', "Found 1 customization in a location configured through VS Code settings. These settings are only observed by the Local agent harness. {0} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the selected customization to a supported harness location for use outside VS Code.", harnessLabel)
+				: localize('configuredLocationsMigrationPageDescription', "Found {0} customizations in locations configured through VS Code settings. These settings are only observed by the Local agent harness. {1} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the selected customizations to supported harness locations for use outside VS Code.", customizations.length, harnessLabel);
 	},
 
 	getBanner(_customizations, harnessLabel, destinationLabel, modifiedSettingIds) {
@@ -500,11 +503,11 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 		const settingsList = formatSettingLinks(settingsLinks);
 		const message = settingsLinks.length === 1
 			? destinationLabel
-				? localize('configuredLocationsMigrationBannerSingleSettingWithDestination', "The setting {0} is no longer read by {1}. Move the customizations to '{2}' so both VS Code and {1} can use them.", settingsList, harnessLabel, destinationLabel)
-				: localize('configuredLocationsMigrationBannerSingleSetting', "The setting {0} is no longer read by {1}. Move the customizations into supported harness folders so both VS Code and {1} can use them.", settingsList, harnessLabel)
+				? localize('configuredLocationsMigrationBannerSingleSettingWithDestination', "The setting {0} is only observed by the Local agent harness. {1} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the customizations to '{2}' so {1} can find them when running independently.", settingsList, harnessLabel, destinationLabel)
+				: localize('configuredLocationsMigrationBannerSingleSetting', "The setting {0} is only observed by the Local agent harness. {1} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the customizations into supported harness folders so {1} can find them when running independently.", settingsList, harnessLabel)
 			: destinationLabel
-				? localize('configuredLocationsMigrationBannerSettingsWithDestination', "The settings {0} are no longer read by {1}. Move the customizations to '{2}' so both VS Code and {1} can use them.", settingsList, harnessLabel, destinationLabel)
-				: localize('configuredLocationsMigrationBannerSettings', "The settings {0} are no longer read by {1}. Move the customizations into supported harness folders so both VS Code and {1} can use them.", settingsList, harnessLabel);
+				? localize('configuredLocationsMigrationBannerSettingsWithDestination', "The settings {0} are only observed by the Local agent harness. {1} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the customizations to '{2}' so {1} can find them when running independently.", settingsList, harnessLabel, destinationLabel)
+				: localize('configuredLocationsMigrationBannerSettings', "The settings {0} are only observed by the Local agent harness. {1} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the customizations into supported harness folders so {1} can find them when running independently.", settingsList, harnessLabel);
 		return {
 			message: new MarkdownString(message, {
 				isTrusted: { enabledCommands: ['workbench.action.openSettings'] },
@@ -519,8 +522,8 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 				? localize('configuredLocationsMigrationConfirmMessageWithDestination', "Migrate customizations to '{0}'?", destinationLabel)
 				: localize('configuredLocationsMigrationConfirmMessage', "Migrate customizations to {0}?", harnessLabel),
 			detail: customizations.length === 1
-				? localize('configuredLocationsMigrationConfirmDetailSingle', "This moves 1 customization out of an unsupported configured location.")
-				: localize('configuredLocationsMigrationConfirmDetail', "This moves {0} customizations out of unsupported configured locations.", customizations.length),
+				? localize('configuredLocationsMigrationConfirmDetailSingle', "This moves 1 customization out of a VS Code-configured location.")
+				: localize('configuredLocationsMigrationConfirmDetail', "This moves {0} customizations out of VS Code-configured locations.", customizations.length),
 			primaryButton: localize('configuredLocationsMigrationConfirmButton', "Migrate"),
 			deleteOriginalsLabel: localize('configuredLocationsMigrationDeleteOriginalFilesCheckbox', "Delete the original files after migration"),
 		};
@@ -560,29 +563,35 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	backLabel: localize('backToMcpMigration', "Back to Migrate MCP Servers"),
 	noFilesMigratedMessage: localize('mcpMigrationNoneMigrated', "No MCP servers were migrated."),
 
-	getCandidatePresentation(customization, getUriLabel) {
+	getCandidatePresentation(customization, getUriLabel, harnessLabel) {
 		if (!isMcpServerCustomizationMigrationCandidate(customization)) {
 			throw new Error('Expected an MCP server migration candidate');
 		}
 		const sourceLabel = getUriLabel(customization.sourceUri);
+		const scopeLabel = customization.storage === PromptsStorage.user ? localize('mcpMigrationUserScope', "User") : localize('mcpMigrationWorkspaceScope', "Workspace");
+		const changesLabel = getMcpServerMigrationWarnings(customization, harnessLabel).join('\n');
 		return {
 			name: customization.name,
-			selectionAriaLabel: localize('mcpMigrationSelectAriaLabel', "Select {0} from {1}", customization.name, sourceLabel),
-			pathLabel: localize('mcpMigrationItemPath', "{0} to {1}", sourceLabel, getUriLabel(customization.targetUri)),
+			selectionAriaLabel: changesLabel
+				? localize('mcpMigrationSelectWithChangesAriaLabel', "Select {0} from {1}. {2}", customization.name, sourceLabel, changesLabel)
+				: localize('mcpMigrationSelectAriaLabel', "Select {0} from {1}", customization.name, sourceLabel),
+			pathLabel: localize('mcpMigrationItemScopedPath', "{0}: {1} to {2}", scopeLabel, sourceLabel, getUriLabel(customization.targetUri)),
+			...(changesLabel ? { changesLabel } : {}),
 		};
 	},
 
 	group(customizations) {
+		const servers = customizations.filter(isMcpServerCustomizationMigrationCandidate);
 		return [
 			{
-				key: 'user',
-				label: localize('mcpMigrationUserGroup', "User"),
-				customizations: customizations.filter(customization => customization.storage === PromptsStorage.user),
+				key: 'ready',
+				label: localize('mcpMigrationReadyGroup', "Ready to migrate"),
+				customizations: servers.filter(server => getMcpServerMigrationRemovedProperties(server).length === 0),
 			},
 			{
-				key: 'workspace',
-				label: localize('mcpMigrationWorkspaceGroup', "Workspace"),
-				customizations: customizations.filter(customization => customization.storage === PromptsStorage.local),
+				key: 'changes',
+				label: localize('mcpMigrationChangesGroup', "Migrates with changes"),
+				customizations: servers.filter(server => getMcpServerMigrationRemovedProperties(server).length > 0),
 			},
 		].filter(group => group.customizations.length > 0);
 	},
@@ -694,6 +703,31 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 		}
 	},
 };
+
+function getMcpServerMigrationRemovedProperties(server: IMcpServerCustomizationMigrationCandidate) {
+	return mcpServerCustomizationMigrationRemovableProperties
+		.filter(property => server.removedProperties && Object.hasOwn(server.removedProperties, property));
+}
+
+function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationCandidate, harnessLabel: string): string[] {
+	return getMcpServerMigrationRemovedProperties(server)
+		.map(property => {
+			switch (property) {
+				case 'gallery':
+					return server.removedProperties?.gallery === false
+						? localize('mcpMigrationRemoveDisabledGallery', "The 'gallery' property will be removed. Automatic updates from the registry are already disabled for this MCP server.")
+						: localize('mcpMigrationRemoveGallery', "The 'gallery' property will be removed. This MCP server will no longer be automatically updated from the registry.");
+				case 'version':
+					return localize('mcpMigrationRemoveVersion', "The 'version' property will be removed. The migrated configuration will no longer record version metadata. Version pins in the command, arguments, or URL will not change.");
+				case 'dev':
+					return localize('mcpMigrationRemoveDev', "The 'dev' property will be removed. VS Code will no longer auto-start this server in development mode, restart it when watched files change, attach a debugger, or enable development-mode logging.");
+				case 'sandboxEnabled':
+					return server.removedProperties?.sandboxEnabled === false
+						? localize('mcpMigrationRemoveDisabledSandbox', "The 'sandboxEnabled' property will be removed. VS Code sandboxing is already disabled for this server. Any sandboxing after migration is controlled by {0}.", harnessLabel)
+						: localize('mcpMigrationRemoveSandbox', "The 'sandboxEnabled' property will be removed. VS Code's per-server sandbox and its filesystem and network restrictions will no longer be applied to this server. Any sandboxing after migration is controlled by {0}.", harnessLabel);
+			}
+		});
+}
 
 function formatSettingLinks(settingsLinks: readonly string[]): string {
 	switch (settingsLinks.length) {

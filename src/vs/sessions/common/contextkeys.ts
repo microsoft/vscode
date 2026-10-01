@@ -17,6 +17,7 @@ export const SessionTypeContext = new RawContextKey<string>('sessionType', '', l
 export const SessionWorkspaceIsVirtualContext = new RawContextKey<boolean>('sessionWorkspaceIsVirtual', true, localize('sessionWorkspaceIsVirtual', "Whether the session's workspace is virtual"));
 export const SessionHasGitRepositoryContext = new RawContextKey<boolean>('sessionHasGitRepository', false, localize('sessionHasGitRepository', "Whether the session has a usable git repository"));
 export const SessionUsesCombinedConfigPickerContext = new RawContextKey<boolean>('sessionUsesCombinedConfigPicker', false, localize('sessionUsesCombinedConfigPicker', "Whether the session's provider offers a combined mode and model configuration picker (used on phone layouts in place of the standalone pickers)"));
+export const SessionAgentPickerInAttachContext = new RawContextKey<boolean>('sessionAgentPickerInAttachContext', false, localize('sessionAgentPickerInAttachContext', "Whether the active session's Agent picker is shown in Add Context instead of the input toolbar"));
 export const SessionSupportsRenameContext = new RawContextKey<boolean>('sessionSupportsRename', false, localize('sessionSupportsRename', "Whether the session can be renamed"));
 export const SessionSupportsDeleteContext = new RawContextKey<boolean>('sessionSupportsDelete', false, localize('sessionSupportsDelete', "Whether the session can be deleted"));
 export const SessionItemIsMultiSelectionContext = new RawContextKey<boolean>('sessionItem.isMultiSelection', false, localize('sessionItem.isMultiSelection', "Whether multiple sessions are selected in the sessions list"));
@@ -67,7 +68,7 @@ export const SessionsHasClosedItemContext = new RawContextKey<boolean>('sessions
 
 /**
  * Focus is inside the Agents window's editor surface: an editor part, or the
- * auxiliary bar, which the single-pane layout docks into the side pane as the
+ * auxiliary bar, which the desktop layout docks into the side pane as the
  * detail panel (Files/Changes). Shortcuts shared with VS Code's editor
  * commands defer to those commands while this holds.
  */
@@ -116,6 +117,7 @@ export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('session
 
 export const SessionsTitleBarNewSessionEnabledContext = new RawContextKey<boolean>('sessionsTitleBarNewSessionEnabled', false, localize('sessionsTitleBarNewSessionEnabled', "Whether the new-session button is shown in the titlebar when the sessions list is hidden (A/B experiment)"));
 export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', false, localize('sessionsListPromoteNewChatAction', "Whether New Chat in This Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
+export const SessionsListRearrangeContext = new RawContextKey<boolean>('sessionsListRearrange', false, localize('sessionsListRearrange', "Whether the sessions list uses the experimental navigation arrangement"));
 
 //#endregion
 
@@ -164,14 +166,14 @@ export const CanGoForwardContext = new RawContextKey<boolean>('sessionsCanGoForw
 //#region < --- Editor --- >
 
 export const EditorMaximizedContext = new RawContextKey<boolean>('editorMaximized', false, localize('editorMaximized', "Whether the editor area is maximized"));
-export const SinglePaneLayoutEnabledContext = new RawContextKey<boolean>('agentSessionsSinglePaneLayoutEnabled', false, localize('agentSessionsSinglePaneLayoutEnabled', "Whether the Agents window is using the single-pane (docked detail panel) layout. Single source of truth for gating single-pane behaviour — set once by the workbench from the layout it was constructed with; features must read this instead of the underlying setting"));
-export const SinglePaneChangesEditorTransitionContext = new RawContextKey<boolean>('agentSessionsSinglePaneChangesEditorTransition', false, localize('agentSessionsSinglePaneChangesEditorTransition', "Whether the single-pane Changes editor is being replaced during a session switch"));
-export const HasDockedDetailsContext = new RawContextKey<boolean>('agentSessionsHasDockedDetails', false, localize('agentSessionsHasDockedDetails', "Whether the single-pane active editor has a docked detail panel (a managed Changes/Files tab or a text file editor)"));
-export const SinglePaneDiffEditorInputActiveContext = new RawContextKey<boolean>('agentSessionsSinglePaneDiffEditorInputActive', false, localize('agentSessionsSinglePaneDiffEditorInputActive', "Whether the active single-pane editor input is a diff, independent of the editor used to render it"));
-export const SinglePaneChangesTabMissingContext = new RawContextKey<boolean>('agentSessionsSinglePaneChangesTabMissing', false, localize('agentSessionsSinglePaneChangesTabMissing', "Whether the single-pane session supports a Changes editor but its tab is not currently open"));
-export const SinglePaneFilesTabMissingContext = new RawContextKey<boolean>('agentSessionsSinglePaneFilesTabMissing', false, localize('agentSessionsSinglePaneFilesTabMissing', "Whether the single-pane session supports a Files tab but its tab is not currently open"));
-export const SinglePaneChangesTabAvailableContext = new RawContextKey<boolean>('agentSessionsSinglePaneChangesTabAvailable', false, localize('agentSessionsSinglePaneChangesTabAvailable', "Whether the single-pane session supports a Changes editor"));
-export const SinglePaneFilesTabAvailableContext = new RawContextKey<boolean>('agentSessionsSinglePaneFilesTabAvailable', false, localize('agentSessionsSinglePaneFilesTabAvailable', "Whether the single-pane session supports a Files editor"));
+export const DesktopLayoutContext = new RawContextKey<boolean>('agentSessionsDesktopLayout', false, localize('agentSessionsDesktopLayout', "Whether the Agents window is using the desktop layout"));
+export const DesktopChangesEditorTransitionContext = new RawContextKey<boolean>('agentSessionsDesktopChangesEditorTransition', false, localize('agentSessionsDesktopChangesEditorTransition', "Whether the desktop Changes editor is being replaced during a session switch"));
+export const HasDockedDetailsContext = new RawContextKey<boolean>('agentSessionsHasDockedDetails', false, localize('agentSessionsHasDockedDetails', "Whether the desktop active editor has a docked detail panel (a managed Changes/Files tab or a text file editor)"));
+export const DesktopDiffEditorInputActiveContext = new RawContextKey<boolean>('agentSessionsDesktopDiffEditorInputActive', false, localize('agentSessionsDesktopDiffEditorInputActive', "Whether the active desktop editor input is a diff, independent of the editor used to render it"));
+export const DesktopChangesTabMissingContext = new RawContextKey<boolean>('agentSessionsDesktopChangesTabMissing', false, localize('agentSessionsDesktopChangesTabMissing', "Whether the desktop session supports a Changes editor but its tab is not currently open"));
+export const DesktopFilesTabMissingContext = new RawContextKey<boolean>('agentSessionsDesktopFilesTabMissing', false, localize('agentSessionsDesktopFilesTabMissing', "Whether the desktop session supports a Files tab but its tab is not currently open"));
+export const DesktopChangesTabAvailableContext = new RawContextKey<boolean>('agentSessionsDesktopChangesTabAvailable', false, localize('agentSessionsDesktopChangesTabAvailable', "Whether the desktop session supports a Changes editor"));
+export const DesktopFilesTabAvailableContext = new RawContextKey<boolean>('agentSessionsDesktopFilesTabAvailable', false, localize('agentSessionsDesktopFilesTabAvailable', "Whether the desktop session supports a Files editor"));
 
 //#endregion
 

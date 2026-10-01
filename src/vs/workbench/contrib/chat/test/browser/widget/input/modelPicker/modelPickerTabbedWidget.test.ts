@@ -8,6 +8,7 @@ import * as dom from '../../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../../../base/common/layout.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
@@ -29,7 +30,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../..
 import { StateType } from '../../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
@@ -87,11 +88,15 @@ suite('TabbedModelPicker', () => {
 		access?: IModelConfigurationAccess;
 		details?: string;
 		cacheWarm?: boolean;
+		contextViewLayer?: number;
+		inDialog?: boolean;
 		policyDefault?: string;
 		userDefault?: string;
 		selectedModelId?: string;
 		pinnedModelIds?: string[];
 		controlModels?: IStringDictionary<IModelControlEntry>;
+		controlManifest?: IModelsControlManifest;
+		entitlement?: ChatEntitlement;
 		showUnavailable?: boolean;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
@@ -99,7 +104,8 @@ suite('TabbedModelPicker', () => {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
 		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size280: 28px;';
 		disposables.add(toDisposable(() => container.remove()));
-		const anchor = dom.append(container, dom.$('button'));
+		const anchorContainer = options.inDialog ? dom.append(container, dom.$('.monaco-dialog-box')) : container;
+		const anchor = dom.append(anchorContainer, dom.$('button'));
 		anchor.style.cssText = 'position: fixed; bottom: 20px; left: 20px; width: 120px; height: 22px;';
 		const popup = dom.append(container, dom.$('div'));
 		const render = disposables.add(new MutableDisposable());
@@ -142,13 +148,19 @@ suite('TabbedModelPicker', () => {
 			getContainer: () => container, mainContainer: container, onDidChangeActiveContainer: Event.None,
 		}));
 		instantiationService.set(IStorageService, disposables.add(new InMemoryStorageService()));
-		instantiationService.set(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ entitlement: ChatEntitlement.Pro }));
+		let entitlement = options.entitlement ?? ChatEntitlement.Pro;
+		const entitlementChanged = disposables.add(new Emitter<void>());
+		instantiationService.set(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
+			get entitlement() { return entitlement; },
+			onDidChangeEntitlement: entitlementChanged.event,
+		}));
 		instantiationService.set(ILanguageModelsService, upcastPartial<ILanguageModelsService>({
 			getVendors: () => [
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'copilot', displayName: 'Copilot', isDefault: true }),
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'ollama', displayName: 'Ollama' }),
 			],
 			getLanguageModelGroups: () => [],
+			getModelsControlManifest: () => options.controlManifest ?? { free: {}, paid: {} },
 		}));
 		const changed = disposables.add(new Emitter<string>());
 		const values = new Map<string, IStringDictionary<unknown>>();
@@ -186,10 +198,16 @@ suite('TabbedModelPicker', () => {
 			configurationCacheBreakHint: options.cacheWarm ? { text: 'Changing options resets the prompt cache.', link: undefined, dismiss: () => { hintDismissed = true; } } : undefined,
 		};
 		const picker = disposables.add(instantiationService.createInstance(TabbedModelPicker));
-		picker.show(anchor, context, options.details);
+		picker.show(anchor, context, options.details, false, options.contextViewLayer);
 		return {
 			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges,
+			setEntitlement: (value: ChatEntitlement) => {
+				entitlement = value;
+				entitlementChanged.fire();
+			},
 			get hintDismissed() { return hintDismissed; },
+			get contextViewLayer() { return activeDelegate?.layer; },
+			get anchorPosition() { return activeDelegate?.anchorPosition; },
 		};
 	}
 
@@ -206,6 +224,27 @@ suite('TabbedModelPicker', () => {
 	function goBack(popup: HTMLElement): void {
 		element(popup, '[role="button"][aria-label="Back to Models"]').click();
 	}
+
+	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
+		const result = createPicker({ inDialog: true, contextViewLayer: 1, details: models[0].identifier });
+		const details = {
+			layer: result.contextViewLayer,
+			position: result.anchorPosition,
+			model: result.popup.querySelector('.chat-model-card-name')?.textContent,
+		};
+		goBack(result.popup);
+		assert.deepStrictEqual({
+			details,
+			list: { layer: result.contextViewLayer, position: result.anchorPosition },
+			visible: result.picker.isVisible,
+			selections: result.selections,
+		}, {
+			details: { layer: 1, position: AnchorPosition.BELOW, model: 'First' },
+			list: { layer: 1, position: AnchorPosition.BELOW },
+			visible: true,
+			selections: [],
+		});
+	});
 
 	function defaultBadgeModels(popup: HTMLElement): string[] {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-org-default-badge:not([hidden])'), badge => {
@@ -626,6 +665,109 @@ suite('TabbedModelPicker', () => {
 		element(result.popup, '[role="switch"]').click();
 		assert.deepStrictEqual({ unavailable: hydra.querySelector('.title')?.textContent, routing, selections: result.selections }, {
 			unavailable: 'HydraFusion', routing: ['Balance'], selections: [models[1].identifier],
+		});
+	});
+
+	test('Free plans show HydraFusion as an unavailable upgrade instead of a routing choice', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: auto.identifier,
+			entitlement: ChatEntitlement.Free,
+			showUnavailable: false,
+			controlModels: {},
+		});
+		result.picker.refresh([auto, hydra, ...models]);
+		const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
+		unavailableHydra.click();
+		assert.deepStrictEqual({
+			label: unavailableHydra.querySelector('.title')?.textContent,
+			upgrade: unavailableHydra.textContent?.includes('Upgrade'),
+			selected: selectedModels(result.popup),
+			selections: result.selections,
+		}, {
+			label: 'HydraFusion',
+			upgrade: true,
+			selected: ['Balance'],
+			selections: [],
+		});
+	});
+
+	test('Free plans remove the synthesized HydraFusion upgrade when the live model is removed', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: auto.identifier,
+			entitlement: ChatEntitlement.Free,
+			showUnavailable: false,
+			controlModels: {},
+		});
+		assert.ok(result.popup.querySelector('.chat-model-picker-unavailable'));
+		result.picker.refresh([auto, ...models]);
+		assert.strictEqual(result.popup.querySelector('.chat-model-picker-unavailable'), null);
+	});
+
+	test('resolving an open picker to Free replaces HydraFusion with an unavailable upgrade', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: auto.identifier,
+			entitlement: ChatEntitlement.Unknown,
+			showUnavailable: true,
+			controlModels: {
+				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
+			},
+			controlManifest: {
+				free: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+			},
+		});
+		const before = Array.from(result.popup.querySelectorAll('.chat-model-picker-routing-model .title'), element => element.textContent);
+		result.setEntitlement(ChatEntitlement.Free);
+		const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
+		assert.deepStrictEqual({
+			before,
+			label: unavailableHydra.querySelector('.title')?.textContent,
+			upgrade: unavailableHydra.textContent?.includes('Upgrade'),
+			selected: selectedModels(result.popup),
+			selections: result.selections,
+		}, {
+			before: ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion'],
+			label: 'HydraFusion',
+			upgrade: true,
+			selected: ['Balance'],
+			selections: [],
+		});
+	});
+
+	test('resolving an open picker to Free replaces a selected HydraFusion with Auto', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: hydra.identifier,
+			entitlement: ChatEntitlement.Unknown,
+			showUnavailable: true,
+			controlModels: {
+				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
+			},
+			controlManifest: {
+				free: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+			},
+		});
+		result.setEntitlement(ChatEntitlement.Free);
+		assert.deepStrictEqual({
+			upgrade: element(result.popup, '.chat-model-picker-unavailable').textContent?.includes('Upgrade'),
+			selected: selectedModels(result.popup),
+			selections: result.selections,
+		}, {
+			upgrade: true,
+			selected: ['Balance'],
+			selections: [auto.identifier],
 		});
 	});
 

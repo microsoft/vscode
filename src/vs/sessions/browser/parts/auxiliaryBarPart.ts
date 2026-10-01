@@ -186,7 +186,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		container.style.borderRightWidth = '';
 	}
 
-	/** The part background color. Overridden by the single-pane variant to match the editor. */
+	/** The part background color. Overridden by the desktop variant to match the editor. */
 	protected getPartBackgroundColor(): string {
 		return this.getColor(agentsPanelBackground) || '';
 	}

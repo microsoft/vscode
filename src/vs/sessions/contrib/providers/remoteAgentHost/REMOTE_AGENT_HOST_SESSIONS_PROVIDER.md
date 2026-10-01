@@ -18,6 +18,8 @@ Both windows use [CloudSandboxSessionContribution](../../../../workbench/contrib
 
 Sandbox session discovery is window-owned and does not establish host connections. A full refresh reconciles absent disconnected environments; incremental refreshes retain absent entries and reconcile only explicitly removed or replaced tasks. Both preserve connected and provisioning environments. Failed or cancelled scans must not advance incremental discovery progress.
 
+Remote providers may delegate deletion to their inventory owner instead of AHP. In both windows, sandbox deletion addresses the owning Mission Control task without connecting to the environment; successful deletion removes the cached session, persisted discovery inventory, and environment provider. Failed deletion retains those entries, and stale discovery responses cannot restore a successfully deleted task.
+
 The sandbox contribution saves a minimal discovery inventory in machine-local profile storage, separately for each authentication provider and account. Once the current account is known, it restores providers and cached rows before awaiting network discovery, without waking environments. Failed or partial discovery retains unconfirmed entries. Account changes remove the previous account's providers; credential refreshes for the same account preserve them. No credentials are stored in the inventory.
 
 ## Identity
@@ -35,13 +37,15 @@ Copilot agents may share a logical session type with local and cloud Copilot pro
 
 Never use the logical session type where host-specific routing is required. Resource schemes and provider IDs are created through the shared Agent Host identifier helpers rather than hand-built strings.
 
+Provider-owned session resolution policies retain the remote address for the provider's lifetime, independently of the live connection catalog. Client log discovery uses that identity to find address-keyed transcripts and forwarded logs after disconnection removes the connection.
+
 The remote Agent Host service owns client-local display-name overrides in machine-local application storage, keyed by normalized connection address. Overrides take precedence over configured or discovered names in provider and resource labels without changing connection details or routing identities; clearing an override restores the current default name.
 
 In the Editor Window, a chat session contribution's `sessionListGroup` selects its provider filter without changing its controller, resource scheme, or content-provider routing. Disconnected discovery supplies activity, not authoritative read/archive flags or proof that the host is available.
 
 Both sandbox adapters let fresh discovery update disk-cached activity while preserving host-owned workspace information and user flags. Host-reported activity takes precedence over discovery for the rest of that adapter's lifetime, including after disconnection; older discovery responses cannot replace a newer discovery result. The Agents Window's persisted discovery baselines let title, timestamp, and project fields continue to refresh until the host changes them. Missing activity does not clear a previously reported status. Sandbox connection availability and read-only interactivity remain separate from conversation activity, so disconnection does not turn a reported input request into a conversation error.
 
-In the Agents Window, sandbox sessions are external unless this VS Code profile created them, imported them, or accepted a user message for them. This provenance is persisted as machine-local profile state, independently of host metadata, discovery refreshes, and cached summaries.
+In the Agents Window, all sandbox sessions discovered through Mission Control are non-external, regardless of which client created them or the host's external-session metadata. This classification applies to discovery, connected sessions, and cached summaries restored in any VS Code profile.
 
 ## Host groups
 

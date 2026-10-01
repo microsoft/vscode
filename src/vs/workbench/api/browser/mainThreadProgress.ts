@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgressOptions, IProgressNotificationOptions } from '../../../platform/progress/common/progress.js';
-import { MainThreadProgressShape, MainContext, ExtHostProgressShape, ExtHostContext } from '../common/extHost.protocol.js';
+import { MainThreadProgressShape, MainContext, ExtHostProgressShape, ExtHostContext, IProgressOptionsDto, IProgressStepDto } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { localize } from '../../../nls.js';
 import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 import { toAction } from '../../../base/common/actions.js';
 import { NotificationPriority } from '../../../platform/notification/common/notification.js';
+import { legacyExtensionLinkParsing } from '../../../platform/notification/common/notificationLegacy.js';
 
 @extHostNamedCustomer(MainContext.MainThreadProgress)
 export class MainThreadProgress implements MainThreadProgressShape {
@@ -38,13 +39,14 @@ export class MainThreadProgress implements MainThreadProgressShape {
 		this._progress.clear();
 	}
 
-	async $startProgress(handle: number, options: IProgressOptions, extensionId?: string): Promise<void> {
+	async $startProgress(handle: number, options: IProgressOptionsDto, extensionId?: string): Promise<void> {
 		const task = this._createTask(handle);
+		let progressOptions: IProgressOptions = { ...options, legacyExtensionLinkParsing };
 
 		if (options.location === ProgressLocation.Notification && extensionId) {
 			const sourceIsUrgent = MainThreadProgress.URGENT_PROGRESS_SOURCES.includes(extensionId);
 			const notificationOptions: IProgressNotificationOptions = {
-				...options,
+				...progressOptions,
 				priority: sourceIsUrgent ? NotificationPriority.URGENT : NotificationPriority.DEFAULT,
 				location: ProgressLocation.Notification,
 				secondaryActions: [toAction({
@@ -54,11 +56,11 @@ export class MainThreadProgress implements MainThreadProgressShape {
 				})]
 			};
 
-			options = notificationOptions;
+			progressOptions = notificationOptions;
 		}
 
 		try {
-			this._progressService.withProgress(options, task, () => this._proxy.$acceptProgressCanceled(handle));
+			this._progressService.withProgress(progressOptions, task, () => this._proxy.$acceptProgressCanceled(handle));
 		} catch (err) {
 			// the withProgress-method will throw synchronously when invoked with bad options
 			// which is then an enternal/extension error
@@ -66,7 +68,7 @@ export class MainThreadProgress implements MainThreadProgressShape {
 		}
 	}
 
-	$progressReport(handle: number, message: IProgressStep): void {
+	$progressReport(handle: number, message: IProgressStepDto): void {
 		const entry = this._progress.get(handle);
 		entry?.progress.report(message);
 	}

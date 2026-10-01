@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { computePullRequestIcon, type ChatPullRequestState, type IPullRequestIconStatus } from '../../../../workbench/common/chatPullRequest.js';
 
 export { computePullRequestIcon, type IPullRequestIconStatus };
+export { computeAggregateIssueIcon, computeIssueIcon } from '../../../../workbench/common/chatIssue.js';
 
 export const OPEN_PULL_REQUEST_ACTION_ID = 'workbench.agentSessions.action.openPullRequest';
 export const OPEN_ISSUE_ACTION_ID = 'workbench.agentSessions.action.openIssue';
@@ -206,37 +207,6 @@ export interface IGitHubIssue {
 	readonly createdAt: string;
 	readonly updatedAt: string;
 	readonly closedAt: string | undefined;
-}
-
-/**
- * Compute the issue status icon, mirroring how github.com colors issues: open is
- * green, closed-as-completed is purple, and closed as not planned or duplicate is
- * muted (the work was never done).
- */
-export function computeIssueIcon(state: GitHubIssueState, stateReason: GitHubIssueStateReason | undefined): ThemeIcon {
-	if (state === GitHubIssueState.Open) {
-		return { ...Codicon.issueOpened, color: themeColorFromId('charts.green') };
-	}
-	if (stateReason === GitHubIssueStateReason.NotPlanned || stateReason === GitHubIssueStateReason.Duplicate) {
-		return { ...Codicon.issueClosed, color: themeColorFromId('descriptionForeground') };
-	}
-	return { ...Codicon.issueClosed, color: themeColorFromId('charts.purple') };
-}
-
-/**
- * Compute a single icon summarizing a set of issues: open wins over closed, and
- * closed-as-completed wins over closed as not planned or duplicate. Issues whose
- * live state is not loaded yet count as open, so the icon starts optimistic and
- * only settles once every issue is known to be closed.
- */
-export function computeAggregateIssueIcon(issues: readonly (IGitHubIssue | undefined)[]): ThemeIcon {
-	if (issues.length === 0 || issues.some(issue => !issue || issue.state === GitHubIssueState.Open)) {
-		return computeIssueIcon(GitHubIssueState.Open, undefined);
-	}
-
-	const allDiscarded = issues.every(issue =>
-		issue!.stateReason === GitHubIssueStateReason.NotPlanned || issue!.stateReason === GitHubIssueStateReason.Duplicate);
-	return computeIssueIcon(GitHubIssueState.Closed, allDiscarded ? GitHubIssueStateReason.NotPlanned : GitHubIssueStateReason.Completed);
 }
 
 //#endregion
