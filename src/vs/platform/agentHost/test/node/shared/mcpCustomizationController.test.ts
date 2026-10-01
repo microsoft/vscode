@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
-import { readMcpServerSource, withMcpServerSourceMeta } from '../../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerSource, readMcpServerTools, withMcpServerSourceMeta } from '../../../common/meta/mcpCustomizationMeta.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildChatUri } from '../../../common/state/sessionState.js';
@@ -465,6 +465,51 @@ suite('McpCustomizationController', () => {
 				id: 'mcp-child:demo:fs',
 				state: { kind: McpServerStatus.Stopped },
 			},
+		]);
+	});
+
+	test('child-backed server: published tools surface through runtime state and the container overlay', () => {
+		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
+		store.add(controller);
+		const tools = [{ name: 'read_file', description: 'Read a file.' }, { name: 'list_dir' }];
+
+		controller.applyOne(server('fs', ready()));
+		actions.length = 0;
+		controller.setTools('fs', tools);
+		controller.setTools('fs', tools);
+		controller.applyOne(server('fs', stopped()));
+
+		const container = applyMcpServerRuntimeStates(PLUGIN_CUSTOMIZATIONS[0], controller.runtimeStates.get());
+		assert.deepStrictEqual({
+			actions,
+			runtimeTools: controller.runtimeStates.get().get('mcp-child:demo:fs')?.tools,
+			publishedTools: container.type === CustomizationType.Plugin && container.children?.[0].type === CustomizationType.McpServer ? readMcpServerTools(container.children[0]) : undefined,
+			ignoredUnknownServer: (controller.setTools('unknown', tools), actions.length),
+		}, {
+			// The narrow state action cannot carry tools; the container's publisher republishes it instead.
+			actions: [{ type: ActionType.SessionMcpServerStateChanged, id: 'mcp-child:demo:fs', state: { kind: McpServerStatus.Stopped }, channel: undefined }],
+			runtimeTools: tools,
+			publishedTools: tools,
+			ignoredUnknownServer: 1,
+		});
+	});
+
+	test('top-level server: published tools are republished in _meta and retained across state updates', () => {
+		const { controller, actions } = harness(store);
+		store.add(controller);
+		const tools = [{ name: 'search_web' }];
+
+		controller.applyOne(server('search', ready()));
+		actions.length = 0;
+		controller.setTools('search', tools);
+		controller.setTools('search', tools);
+		controller.applyOne(server('search', stopped()));
+
+		assert.deepStrictEqual(actions.map(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer
+			? { state: action.customization.state.kind, tools: readMcpServerTools(action.customization) }
+			: action.type), [
+			{ state: McpServerStatus.Ready, tools },
+			{ state: McpServerStatus.Stopped, tools },
 		]);
 	});
 

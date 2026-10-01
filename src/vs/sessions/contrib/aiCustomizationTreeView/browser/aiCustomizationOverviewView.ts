@@ -32,6 +32,7 @@ import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.j
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { IAICustomizationMcpServerCountService } from '../../sessions/browser/customizationMcpServerCount.js';
 
 const $ = DOM.$;
 
@@ -80,6 +81,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAICustomizationMcpServerCountService private readonly mcpServerCountService: IAICustomizationMcpServerCountService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -228,7 +230,7 @@ export class AICustomizationOverviewView extends ViewPane {
 			this._register(autorun(reader => {
 				const state = this.toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
 				const toolSets = this.languageModelToolsService.toolSets.read(reader);
-				toolsSection.count = countEnabledCustomizationTools(toolSets, state, reader);
+				toolsSection.count = countEnabledCustomizationTools(toolSets, state, reader) + this.mcpServerCountService.enabledToolCount.read(reader);
 				this.updateCountElements();
 			}));
 		}

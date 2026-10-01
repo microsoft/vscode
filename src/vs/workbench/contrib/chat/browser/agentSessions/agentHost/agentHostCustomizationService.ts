@@ -16,7 +16,7 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
-import { readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { readMcpServerSource, readMcpServerTools } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -262,6 +262,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					sourceUri: source.scheme === 'mcp-top-level' ? undefined : target.resourceUris.fromAgentHost(source),
 					sourceRange: server.range,
 					logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), server.id),
+					tools: readMcpServerTools(server),
 					setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
 					start: () => target.startMcpServer(server.id),
 					stop: () => target.stopMcpServer(server.id),

@@ -86,7 +86,8 @@ export function readCustomizationCount(
 	}
 	if (config.isTools) {
 		const state = toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
-		return countEnabledCustomizationTools(toolsService.toolSets.read(reader), state, reader);
+		return countEnabledCustomizationTools(toolsService.toolSets.read(reader), state, reader)
+			+ mcpServerCountService.enabledToolCount.read(reader);
 	}
 	return 0;
 }

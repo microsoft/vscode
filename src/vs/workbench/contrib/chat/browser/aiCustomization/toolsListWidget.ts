@@ -19,6 +19,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMatch, matchesContiguousSubString } from '../../../../../base/common/filters.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -41,6 +42,12 @@ import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEn
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
+import { getToggledMcpEnablementState } from './mcpListWidget.js';
+import { isContributionEnabled } from '../../common/enablement.js';
+import { IMcpServer, IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
+import { countEnabledMcpServerTools, getMcpServerToolSets, IMcpServerToolSet, McpSessionToolsMemory } from './mcpServerToolSets.js';
 import './media/aiCustomizationManagement.css';
 
 const $ = DOM.$;
@@ -62,6 +69,8 @@ interface IToolSetViewModel {
 	/** When searching, sets are force-expanded to reveal matching tools regardless of user state. */
 	readonly forceExpanded: boolean;
 	readonly readOnly: boolean;
+	/** For MCP server sets: the server whose enablement the set toggle controls. Member tools cannot be toggled individually. */
+	readonly mcpServer?: IMcpServer;
 	/** Precomputed subtitle (own `detail`, or an extension description) shown under the set's name. */
 	readonly detail?: string;
 }
@@ -173,6 +182,7 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		private readonly _toggleExpand: (setId: string) => void,
 		private readonly _resolveExtension: (ts: IToolSet) => IExtension | undefined,
 		private readonly _showExtensionMenu: (anchor: HTMLElement, extension: IExtension) => void,
+		private readonly _setMcpServerEnabled: (server: IMcpServer, enabled: boolean) => void,
 	) { }
 
 	renderTemplate(container: HTMLElement): IToolsSetRowTemplateData {
@@ -221,9 +231,23 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		data.subtext.textContent = vm.detail ?? '';
 		data.alwaysAvailable.style.display = 'none';
 		data.toggle.domNode.style.display = '';
-		data.toggle.domNode.style.visibility = vm.readOnly ? 'hidden' : '';
+		data.toggle.domNode.style.visibility = vm.readOnly && !vm.mcpServer ? 'hidden' : '';
 
-		if (!vm.readOnly) {
+		const mcpServer = vm.mcpServer;
+		if (mcpServer) {
+			data.toggle.setAriaLabel(localize('toolsMcpServerToggle', "Enable MCP server {0}", setName));
+			data.elementDisposables.add(data.toggle.onChange(() => {
+				this._setMcpServerEnabled(mcpServer, data.toggle.checked === true);
+			}));
+			data.elementDisposables.add(autorun(reader => {
+				const enabled = isContributionEnabled(mcpServer.enablement.read(reader));
+				data.toggle.checked = enabled;
+				data.container.setAttribute('aria-checked', String(enabled));
+				const enabledCount = enabled ? vm.allToolIds.length : 0;
+				data.count.textContent = `${enabledCount}/${vm.allToolIds.length}`;
+				data.count.setAttribute('aria-label', localize('toolsRowEnabledOfTotal', "{0} of {1} tools enabled", enabledCount, vm.allToolIds.length));
+			}));
+		} else if (!vm.readOnly) {
 			data.toggle.setAriaLabel(localize('toolsSetToggle', "Enable {0}", setName));
 			data.elementDisposables.add(data.toggle.onChange(() => {
 				this._enablementService.setToolSetEnabled(this._sessionType, ts.id, vm.allToolIds, data.toggle.checked === true);
@@ -231,19 +255,21 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		}
 
 		// Tri-state, enabled count and aria-checked all follow the same enablement observable.
-		data.elementDisposables.add(autorun(reader => {
-			const state = this._enablementService.observe(this._sessionType).read(reader);
-			const triState = getToolSetTriState(state, ts.id, vm.allToolIds);
-			if (!vm.readOnly) {
-				data.toggle.checked = triState;
-				data.container.setAttribute('aria-checked', triState === 'mixed' ? 'mixed' : String(triState));
-			} else {
-				data.container.removeAttribute('aria-checked');
-			}
-			const enabledCount = vm.allToolIds.reduce((n, id) => n + (isToolEnabledInSet(state, ts.id, id) ? 1 : 0), 0);
-			data.count.textContent = `${enabledCount}/${vm.allToolIds.length}`;
-			data.count.setAttribute('aria-label', localize('toolsRowEnabledOfTotal', "{0} of {1} tools enabled", enabledCount, vm.allToolIds.length));
-		}));
+		if (!mcpServer) {
+			data.elementDisposables.add(autorun(reader => {
+				const state = this._enablementService.observe(this._sessionType).read(reader);
+				const triState = getToolSetTriState(state, ts.id, vm.allToolIds);
+				if (!vm.readOnly) {
+					data.toggle.checked = triState;
+					data.container.setAttribute('aria-checked', triState === 'mixed' ? 'mixed' : String(triState));
+				} else {
+					data.container.removeAttribute('aria-checked');
+				}
+				const enabledCount = vm.allToolIds.reduce((n, id) => n + (isToolEnabledInSet(state, ts.id, id) ? 1 : 0), 0);
+				data.count.textContent = `${enabledCount}/${vm.allToolIds.length}`;
+				data.count.setAttribute('aria-label', localize('toolsRowEnabledOfTotal', "{0} of {1} tools enabled", enabledCount, vm.allToolIds.length));
+			}));
+		}
 
 		data.elementDisposables.add(autorun(reader => {
 			const expanded = this._isExpanded(vm, reader);
@@ -339,7 +365,7 @@ class ToolsToolRowRenderer implements IListRenderer<IToolsToolRowEntry, IToolsTo
 		const description = tool.userDescription ?? tool.modelDescription;
 		data.subtext.style.display = description ? '' : 'none';
 		data.subtext.textContent = description ?? '';
-		data.alwaysAvailable.style.display = setVm.readOnly ? '' : 'none';
+		data.alwaysAvailable.style.display = setVm.readOnly && !setVm.mcpServer ? '' : 'none';
 		data.toggle.domNode.style.display = setVm.readOnly ? 'none' : '';
 
 		if (!setVm.readOnly) {
@@ -463,6 +489,9 @@ export class ToolsListWidget extends Disposable {
 	private _currentModel: readonly IToolSetViewModel[] = [];
 	private _setRenderer!: ToolsSetRowRenderer;
 
+	/** MCP servers that contribute tools, shared by the list and the badge count. */
+	private readonly _mcpToolSets: IObservable<readonly IMcpServerToolSet[]>;
+
 	/** Read-only tool sets injected for the current session type (e.g. the Copilot CLI built-ins). */
 	private readonly _staticReadOnlySets: readonly IToolSet[];
 
@@ -479,6 +508,9 @@ export class ToolsListWidget extends Disposable {
 		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IMcpService private readonly _mcpService: IMcpService,
+		@ICustomizationHarnessService private readonly _harnessService: ICustomizationHarnessService,
+		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 	) {
 		super();
 
@@ -496,6 +528,7 @@ export class ToolsListWidget extends Disposable {
 		this._createGallery();
 		this._register(toDisposable(() => this._galleryCts?.dispose(true)));
 
+		this._mcpToolSets = this._createMcpToolSets();
 		const viewModel = this._createViewModel();
 		this._register(autorun(reader => {
 			this._currentModel = viewModel.read(reader);
@@ -508,7 +541,8 @@ export class ToolsListWidget extends Disposable {
 		}));
 		this._register(autorun(reader => {
 			// Badge counts enabled individual tools across all visible sets, ignoring the search filter.
-			const count = countEnabledCustomizationTools(this._toolsService.toolSets.read(reader), this._readState(reader), reader);
+			const count = countEnabledCustomizationTools(this._toolsService.toolSets.read(reader), this._readState(reader), reader)
+				+ countEnabledMcpServerTools(this._mcpToolSets.read(reader), reader);
 			if (count !== this._lastCount) {
 				this._lastCount = count;
 				this._onDidChangeItemCount.fire(count);
@@ -569,6 +603,7 @@ export class ToolsListWidget extends Disposable {
 			setId => this._toggleCollapsed(setId),
 			ts => this._resolveExtensionForToolSet(ts),
 			(anchor, extension) => this._showExtensionContextMenu(anchor, extension),
+			(server, enabled) => this._setMcpServerEnabled(server, enabled),
 		);
 		const groupRenderer = new CustomizationGroupHeaderRenderer<IToolsGroupEntry>(
 			'toolsGroupHeader',
@@ -692,6 +727,16 @@ export class ToolsListWidget extends Disposable {
 		return [copilotCliSet];
 	}
 
+	private _createMcpToolSets(): IObservable<readonly IMcpServerToolSet[]> {
+		const agentHostCustomizationsChanged = observableSignalFromEvent(this, this._agentHostCustomizationService.onDidChangeCustomizations);
+		const memory = new McpSessionToolsMemory();
+		return derived(reader => {
+			agentHostCustomizationsChanged.read(reader);
+			const sessionResource = this._harnessService.activeSessionResource.read(reader);
+			return getMcpServerToolSets(this._mcpService.servers.read(reader), this._agentHostCustomizationService.getMcpServers(sessionResource), reader, { instance: memory, sessionKey: sessionResource.toString() });
+		});
+	}
+
 	private _createViewModel(): IObservable<readonly IToolSetViewModel[]> {
 		// Refresh when extensions change so tool sets from an uninstalled extension drop out immediately (their tools linger in the extension host until reload).
 		const extensionsChanged = observableSignalFromEvent(this, this._extensionsWorkbenchService.onChange);
@@ -700,8 +745,19 @@ export class ToolsListWidget extends Disposable {
 			const query = this._searchQuery.read(reader).trim();
 
 			const result: IToolSetViewModel[] = [];
-			for (const ts of [...this._toolsService.toolSets.read(reader), ...this._staticReadOnlySets]) {
+			const toolSets = [
+				// MCP sets are rebuilt from the servers below so disabled servers stay listed and can be re-enabled.
+				...Iterable.filter(this._toolsService.toolSets.read(reader), ts => ts.source.type !== 'mcp'),
+				...this._staticReadOnlySets,
+			];
+			for (const ts of toolSets) {
 				const vm = this._toViewModel(reader, ts, query);
+				if (vm) {
+					result.push(vm);
+				}
+			}
+			for (const { server, toolSet } of this._mcpToolSets.read(reader)) {
+				const vm = this._toViewModel(reader, toolSet, query, server);
 				if (vm) {
 					result.push(vm);
 				}
@@ -711,7 +767,7 @@ export class ToolsListWidget extends Disposable {
 		});
 	}
 
-	private _toViewModel(reader: IReader, ts: IToolSet, query: string): IToolSetViewModel | undefined {
+	private _toViewModel(reader: IReader, ts: IToolSet, query: string, mcpServer?: IMcpServer): IToolSetViewModel | undefined {
 		if (ts.deprecated) {
 			return undefined;
 		}
@@ -755,7 +811,8 @@ export class ToolsListWidget extends Disposable {
 			visibleTools,
 			nameMatches,
 			forceExpanded: query !== '',
-			readOnly: ts.id === 'copilot-cli',
+			readOnly: ts.id === 'copilot-cli' || mcpServer !== undefined,
+			mcpServer,
 			detail: this._resolveSetDetail(ts)
 		};
 	}
@@ -1062,6 +1119,10 @@ export class ToolsListWidget extends Disposable {
 	 * toggle) toggles expand/collapse but Space/Enter on a focused row changes its enablement.
 	 */
 	private _activateToolEntry(entry: IToolsRowEntry, viaEnter: boolean): void {
+		if (entry.type === 'set' && entry.vm.mcpServer) {
+			this._setMcpServerEnabled(entry.vm.mcpServer, !isContributionEnabled(entry.vm.mcpServer.enablement.get()));
+			return;
+		}
 		const readOnly = entry.type === 'set' ? entry.vm.readOnly : entry.setVm.readOnly;
 		if (readOnly) {
 			if (viaEnter && entry.type === 'set') {
@@ -1077,6 +1138,18 @@ export class ToolsListWidget extends Disposable {
 			const { setVm, toolVm } = entry;
 			const current = isToolEnabledInSet(this._currentState(), setVm.toolSet.id, toolVm.tool.id);
 			this._enablementService.setToolEnabled(this._sessionType, setVm.toolSet.id, toolVm.tool.id, !current);
+		}
+	}
+
+	/**
+	 * Enables or disables an MCP server (and with it all of its tools), keeping the
+	 * workspace/profile scope of its current enablement like the MCP Servers section does.
+	 */
+	private _setMcpServerEnabled(server: IMcpServer, enabled: boolean): void {
+		const id = server.definition.id;
+		const current = this._mcpService.enablementModel.readEnabled(id);
+		if (isContributionEnabled(current) !== enabled) {
+			this._mcpService.enablementModel.setEnabled(id, getToggledMcpEnablementState(current));
 		}
 	}
 

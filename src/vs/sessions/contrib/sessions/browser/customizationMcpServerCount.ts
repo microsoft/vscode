@@ -9,6 +9,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { getEffectiveMcpServerCount } from '../../../../workbench/contrib/chat/browser/aiCustomization/mcpServerCount.js';
+import { countEnabledMcpServerTools, getMcpServerToolSets, McpSessionToolsMemory } from '../../../../workbench/contrib/chat/browser/aiCustomization/mcpServerToolSets.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 
@@ -17,6 +18,8 @@ export const IAICustomizationMcpServerCountService = createDecorator<IAICustomiz
 export interface IAICustomizationMcpServerCountService {
 	readonly _serviceBrand: undefined;
 	readonly count: IObservable<number>;
+	/** Tools contributed by enabled MCP servers, as listed in Chat Customizations → Tools. */
+	readonly enabledToolCount: IObservable<number>;
 }
 
 export class AICustomizationMcpServerCountService extends Disposable implements IAICustomizationMcpServerCountService {
@@ -24,6 +27,7 @@ export class AICustomizationMcpServerCountService extends Disposable implements 
 
 	private readonly agentHostCustomizationsChanged: IObservable<void>;
 	readonly count: IObservable<number>;
+	readonly enabledToolCount: IObservable<number>;
 
 	constructor(
 		@IMcpService private readonly mcpService: IMcpService,
@@ -43,6 +47,13 @@ export class AICustomizationMcpServerCountService extends Disposable implements 
 				reader,
 				this.customizationHarnessService.getActiveDescriptor().hiddenMcpServerCollectionIds,
 			);
+		});
+		const toolsMemory = new McpSessionToolsMemory();
+		this.enabledToolCount = derived(this, reader => {
+			this.agentHostCustomizationsChanged.read(reader);
+			const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
+			const toolSets = getMcpServerToolSets(this.mcpService.servers.read(reader), this.agentHostCustomizationService.getMcpServers(sessionResource), reader, { instance: toolsMemory, sessionKey: sessionResource.toString() });
+			return countEnabledMcpServerTools(toolSets, reader);
 		});
 	}
 }

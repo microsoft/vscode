@@ -7133,6 +7133,40 @@ class SessionPluginController extends Disposable {
 		this._enablementReady = this._customizationEnablementService.initializeSession(this._session.toString()).then(() => {
 			this._isEnablementReady = true;
 		});
+		this._republishContainersOnMcpToolChanges();
+	}
+
+	/**
+	 * Child MCP servers have no narrow protocol action for tool changes, so when a child's
+	 * observed tools change, republish its container with the tools overlaid in `_meta`.
+	 */
+	private _republishContainersOnMcpToolChanges(): void {
+		let previousTools = new Map<string, IMcpServerRuntimeState['tools']>();
+		this._register(autorun(reader => {
+			const states = this.mcpServerStates.read(reader);
+			const nextTools = new Map<string, IMcpServerRuntimeState['tools']>();
+			const changedIds = new Set<string>();
+			for (const [id, state] of states) {
+				nextTools.set(id, state.tools);
+				if (state.tools !== undefined && !equals(previousTools.get(id), state.tools)) {
+					changedIds.add(id);
+				}
+			}
+			previousTools = nextTools;
+			if (changedIds.size === 0) {
+				return;
+			}
+			for (const customization of this.getCustomizations()) {
+				if (customization.type === CustomizationType.McpServer || !customization.children?.some(child => changedIds.has(child.id))) {
+					continue;
+				}
+				const id = customization.id;
+				this._publish(() => ({
+					type: ActionType.SessionCustomizationUpdated,
+					customization: this.getCustomizations().find(candidate => candidate.id === id) ?? customization,
+				}));
+			}
+		}));
 	}
 
 	public get directory(): URI | undefined {

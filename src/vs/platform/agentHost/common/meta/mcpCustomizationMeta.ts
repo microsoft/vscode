@@ -36,3 +36,38 @@ export function withMcpServerSourceMeta(meta: Record<string, unknown> | undefine
 	}
 	return { ...(meta ?? {}), [sourceKey]: source };
 }
+
+const toolsKey = 'agentHost.mcpServerTools';
+
+/** A model-visible tool the agent host observed on an MCP server, published for display only. */
+export interface IMcpServerToolMeta {
+	readonly name: string;
+	readonly description?: string;
+}
+
+/**
+ * Reads the tools the agent host last observed on an MCP server. Returns `undefined` when the
+ * host did not report them (for example a host that does not implement this VS Code extension).
+ */
+export function readMcpServerTools(customization: McpServerCustomization | undefined): readonly IMcpServerToolMeta[] | undefined {
+	const value = customization?._meta?.[toolsKey];
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const tools: IMcpServerToolMeta[] = [];
+	for (const item of value) {
+		if (typeof item !== 'object' || item === null || typeof item.name !== 'string') {
+			continue;
+		}
+		tools.push(typeof item.description === 'string' ? { name: item.name, description: item.description } : { name: item.name });
+	}
+	return tools;
+}
+
+/** Records observed tools in an open metadata bag, preserving every other entry. */
+export function withMcpServerToolsMeta(meta: Record<string, unknown> | undefined, tools: readonly IMcpServerToolMeta[] | undefined): Record<string, unknown> | undefined {
+	if (tools === undefined) {
+		return meta;
+	}
+	return { ...(meta ?? {}), [toolsKey]: tools };
+}
