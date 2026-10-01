@@ -621,6 +621,146 @@ suite('CloudSandboxApiService discovery account', () => {
 	});
 });
 
+suite('CloudSandboxApiService stalled sandbox discovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const startTime = Date.UTC(2026, 8, 30, 12);
+	const oneHour = 60 * 60_000;
+
+	function unstartedTask(id: string, createdAt = startTime - oneHour, ahpResourceUri?: string) {
+		const created = new Date(createdAt).toISOString();
+		return {
+			...task(id, 'New remote session', undefined, `session-${id}`, `env-${id}`),
+			state: 'queued',
+			updated_at: created,
+			sessions: [{
+				id: `session-${id}`,
+				environment_id: `env-${id}`,
+				state: 'queued',
+				created_at: created,
+				updated_at: created,
+				ahp_resource_uri: ahpResourceUri,
+			}],
+		};
+	}
+
+	for (const age of [0, oneHour - 1, oneHour, oneHour + 1]) {
+		test(`only hides an unchanged queued default title after one hour (age=${age}ms)`, () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
+			const { service, requestedUrls } = createService(store, {
+				tasks: [unstartedTask('stalled', startTime - age)], repositories: new Map(),
+			});
+
+			const result = await service.listSessions(CancellationToken.None);
+
+			assert.deepStrictEqual({
+				kind: result.kind,
+				sessions: result.kind === 'failed' ? result.reason : result.sessions.map(session => session.taskId),
+				requests: requestedUrls.map(url => new URL(url).pathname),
+			}, {
+				kind: 'complete',
+				sessions: age >= oneHour ? [] : ['stalled'],
+				requests: ['/agents/tasks', '/agents/tasks', '/agents/tasks/stalled'],
+			});
+		}));
+	}
+
+	test('keeps sessions with progress, another title, or incomplete evidence', () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
+		const base = unstartedTask('base');
+		const session = base.sessions[0];
+		const tasks = [
+			{ ...base, id: 'named', name: 'Work on my repository' },
+			{ ...base, id: 'task-running', state: 'in_progress' },
+			{ ...base, id: 'task-idle', state: 'idle' },
+			{ ...base, id: 'task-unknown', state: undefined },
+			{ ...base, id: 'session-running', sessions: [{ ...session, state: 'in_progress' }] },
+			{ ...base, id: 'session-unknown', sessions: [{ ...session, state: undefined }] },
+			{ ...base, id: 'ahp-resource', sessions: [{ ...session, ahp_resource_uri: 'ahp-session:/started' }] },
+			{ ...base, id: 'updated', sessions: [{ ...session, updated_at: new Date(startTime - oneHour + 1).toISOString() }] },
+			{ ...base, id: 'missing-created', sessions: [{ ...session, created_at: undefined }] },
+			{ ...base, id: 'missing-updated', sessions: [{ ...session, updated_at: undefined }] },
+			{ ...base, id: 'invalid-dates', sessions: [{ ...session, created_at: 'invalid', updated_at: 'invalid' }] },
+			unstartedTask('future', startTime + 1),
+			{ ...base, id: 'multiple-sessions', sessions: [session, { ...session, id: 'second', state: 'idle' }] },
+		];
+		const { service } = createService(store, { tasks, repositories: new Map() });
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => session.taskId), tasks.map(task => task.id));
+	}));
+
+	test('reevaluates cached candidates outside the incremental window when they reach the cutoff without fetching details again', () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [unstartedTask('stalled', startTime - oneHour + 1_000)], repositories: new Map(),
+		});
+		const initial = await service.listSessions(CancellationToken.None);
+		const cached = await service.listSessions(CancellationToken.None, { incremental: true });
+		await timeout(1_000);
+		const expired = await service.listSessions(CancellationToken.None, { incremental: true });
+		const stillExpired = await service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({
+			visible: [initial, cached].map(result => result.kind === 'failed' ? result.reason : result.sessions.map(session => session.taskId)),
+			expired,
+			stillExpired,
+			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/stalled')).length,
+		}, {
+			visible: [['stalled'], ['stalled']],
+			expired: { kind: 'incremental', sessions: [], removedTaskIds: ['stalled'] },
+			stillExpired: { kind: 'incremental', sessions: [], removedTaskIds: ['stalled'] },
+			detailReads: 1,
+		});
+	}));
+
+	test('uses the server clock for the cutoff and falls back to local time when Date is unavailable', () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
+		const results = [];
+		for (const date of [new Date(startTime - 1_000).toUTCString(), '']) {
+			const { service } = createService(store, {
+				tasks: [unstartedTask('stalled')], repositories: new Map(), discoveryDate: () => date,
+			});
+			const result = await service.listSessions(CancellationToken.None);
+			results.push(result.kind === 'failed' ? result.reason : result.sessions.map(session => session.taskId));
+		}
+		assert.deepStrictEqual(results, [['stalled'], []]);
+	}));
+
+	test('restores a hidden task when discovery reports that its session started', () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
+		const current = unstartedTask('stalled');
+		const { service, requestedUrls } = createService(store, { tasks: [current], repositories: new Map() });
+		const initial = await service.listSessions(CancellationToken.None);
+		current.updated_at = new Date(startTime).toISOString();
+		current.state = 'idle';
+		current.sessions[0].state = 'idle';
+		current.sessions[0].updated_at = current.updated_at;
+		current.sessions[0].ahp_resource_uri = 'ahp-session:/started';
+
+		const recovered = await service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({
+			initial,
+			kind: recovered.kind,
+			sessions: recovered.kind === 'failed' ? recovered.reason : recovered.sessions.map(session => [session.taskId, session.status]),
+			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/stalled')).length,
+		}, {
+			initial: { kind: 'complete', sessions: [] },
+			kind: 'incremental',
+			sessions: [['stalled', SessionStatus.Idle]],
+			detailReads: 2,
+		});
+	}));
+
+	test('reports filtered tasks as explicit removals even when another detail fetch leaves discovery partial', () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
+		const { service } = createService(store, {
+			tasks: [unstartedTask('stalled'), task('unresolved', 'Work', undefined, 'other-session', 'other-environment')],
+			repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/tasks/unresolved') ? jsonResponse({}, 503) : undefined,
+		});
+
+		assert.deepStrictEqual(await service.listSessions(CancellationToken.None), {
+			kind: 'partial', sessions: [], removedTaskIds: ['stalled'],
+		});
+	}));
+});
+
 suite('CloudSandboxApiService incremental discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const firstScanDate = 'Tue, 22 Sep 2026 10:00:00 GMT';
