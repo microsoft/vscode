@@ -24,6 +24,7 @@ import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { type ISessionSandboxPolicy, readSessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
 import { ISessionSandboxState, readSessionSandboxState, withSessionSandboxState } from '../common/meta/agentSandboxStateMeta.js';
@@ -181,6 +182,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		@ILogService private readonly _logService: ILogService,
 		private readonly _rootConfigResource?: URI,
 		providerConfigurations: readonly IAgentCustomizationSettingsRegistration[] = [],
+		private readonly _managedSettingsService?: IAgentHostManagedSettingsService,
 	) {
 		super();
 		// Merge our customization schema/values into the existing root config
@@ -206,6 +208,13 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			this._sessionSandboxPolicies.delete(session);
 			this._sessionSandboxChanges.delete(session);
 		}));
+		if (this._managedSettingsService) {
+			this._register(this._managedSettingsService.onDidChangeSandboxRequired(() => {
+				for (const session of this._stateManager.getSessionUris()) {
+					this._publishSessionSandboxPolicy(session);
+				}
+			}));
+		}
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {
@@ -268,7 +277,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const runtimePolicy = this._sessionSandboxPolicies.get(owner);
 		const sandbox = this.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
 		// Windows uses its own enablement setting, not ChatAgentSandboxEnabled.
-		if (process.platform === 'win32' || sandbox?.[AgentHostSandboxKey.Required] !== true) {
+		if (process.platform === 'win32' || !this._managedSettingsService?.sandboxRequired) {
 			return runtimePolicy;
 		}
 		const runtimeAllowsBypass = runtimePolicy?.allowBypass !== false
@@ -276,7 +285,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		return {
 			...runtimePolicy,
 			enabled: true,
-			allowBypass: runtimeAllowsBypass && sandbox[AgentHostSandboxKey.AllowUnsandboxedCommands] === true,
+			allowBypass: runtimeAllowsBypass && sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands] === true,
 			// A known VS Code requirement must not offer the runtime's retry-Off path for unresolved policy.
 			...(runtimePolicy?.failClosed ? { failClosed: false } : {}),
 		};

@@ -625,9 +625,14 @@ updates are logged and leave the runtime's existing configuration and the last
 confirmed sandbox state unchanged without interrupting the session. Other SDK
 sandbox update failures still propagate.
 Runtime-owned sandbox floors are transient and cannot be set through client config.
-The standard-settings forwarder separately preserves `ChatAgentSandboxEnabled: on`
-as the root sandbox `required` flag. On macOS/Linux, the configuration service
-combines that VS Code policy requirement with the runtime floor before resolving
+The protocol client separately forwards policy-origin `ChatAgentSandboxEnabled: on`
+through `setClientSandboxRequired`, on connect, reconnect, and policy changes, for
+local and remote hosts independently of the legacy managed-permissions bridge.
+The host owns these transient, handler-scoped client contributions and requires
+sandboxing while any contributing client requires it. Ordinary root settings
+cannot change that floor; withdrawal or disconnect-grace expiry removes only the
+owning client's contribution. On macOS/Linux, the configuration service combines
+that VS Code policy requirement with the runtime floor before resolving
 session overrides or publishing policy metadata. Ordinary user `on` remains
 overridable; Windows continues to use its independent enablement setting.
 Runtime bypass/outbound restrictions cannot be weakened by this requirement.

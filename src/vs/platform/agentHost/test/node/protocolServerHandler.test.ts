@@ -4633,6 +4633,7 @@ suite('ProtocolServerHandler', () => {
 
 	test('scopes managed settings contributions to each protocol handler', () => {
 		const firstTransport = connectClient('shared-client-id');
+		firstTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 		firstTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { ask: ['Shell'] },
 		}));
@@ -4661,6 +4662,7 @@ suite('ProtocolServerHandler', () => {
 		secondTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
+		secondTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 
 		assert.deepStrictEqual(managedSettingsService.permissions, {
 			disableBypassPermissionsMode: 'disable',
@@ -4671,14 +4673,40 @@ suite('ProtocolServerHandler', () => {
 		secondHandler.dispose();
 
 		assert.deepStrictEqual(managedSettingsService.permissions, { ask: ['Shell'] });
+		assert.strictEqual(managedSettingsService.sandboxRequired, true);
+		firstTransport.simulateMessage(notification('setClientSandboxRequired', { required: false }));
+		assert.strictEqual(managedSettingsService.sandboxRequired, false);
+	});
+
+	test('attributes sandbox policy to the initialized client and rejects malformed contributions', () => {
+		const warnings: string[] = [];
+		logService.warn = message => warnings.push(message);
+		const uninitialized = new MockProtocolTransport();
+		server.simulateConnection(uninitialized);
+		uninitialized.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+		assert.strictEqual(managedSettingsService.sandboxRequired, false);
+
+		const governed = connectClient('governed');
+		const other = connectClient('other');
+		governed.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+		other.simulateMessage(notification('setClientSandboxRequired', { required: false, clientId: 'governed' }));
+		for (const params of [{ required: 'false' }, {}, null]) {
+			governed.simulateMessage(notification('setClientSandboxRequired', params));
+		}
+		assert.strictEqual(managedSettingsService.sandboxRequired, true);
+		assert.strictEqual(warnings.length, 3);
+		governed.simulateMessage(notification('setClientSandboxRequired', { required: false }));
+		assert.strictEqual(managedSettingsService.sandboxRequired, false);
 	});
 
 	test('removes managed settings contributions for active and grace clients on dispose', () => {
 		const activeTransport = connectClient('client-managed-settings-active');
+		activeTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 		activeTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { ask: ['Shell'] },
 		}));
 		const graceTransport = connectClient('client-managed-settings-grace');
+		graceTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 		graceTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
@@ -4692,19 +4720,56 @@ suite('ProtocolServerHandler', () => {
 		handler.dispose();
 
 		assert.deepStrictEqual(managedSettingsService.permissions, {});
+		assert.strictEqual(managedSettingsService.sandboxRequired, false);
 	});
 
 	test('removes a managed settings contribution after disconnect grace expires', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const transport = connectClient('client-managed-settings-disconnect');
+			transport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 			transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 				permissions: { ask: ['Shell'] },
 			}));
 			transport.simulateClose();
+			assert.strictEqual(managedSettingsService.sandboxRequired, true);
 
 			await new Promise(resolve => setTimeout(resolve, 30_001));
 
 			assert.deepStrictEqual(managedSettingsService.permissions, {});
+			assert.strictEqual(managedSettingsService.sandboxRequired, false);
+		});
+	});
+
+	test('disconnect expiry removes only that client sandbox requirement', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const first = connectClient('sandbox-first');
+			const second = connectClient('sandbox-second');
+			first.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+			second.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+			first.simulateClose();
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+			assert.strictEqual(managedSettingsService.sandboxRequired, true);
+			second.simulateMessage(notification('setClientSandboxRequired', { required: false }));
+			assert.strictEqual(managedSettingsService.sandboxRequired, false);
+		});
+	});
+
+	test('reconnecting preserves the sandbox contribution beyond the disconnect grace period', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const first = connectClient('sandbox-reconnect');
+			first.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+			first.simulateClose();
+			const reconnected = new MockProtocolTransport();
+			server.simulateConnection(reconnected);
+			reconnected.simulateMessage(request(2, 'reconnect', {
+				clientId: 'sandbox-reconnect',
+				lastSeenServerSeq: stateManager.serverSeq,
+				subscriptions: [],
+			}));
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+			assert.strictEqual(managedSettingsService.sandboxRequired, true);
+			reconnected.simulateMessage(notification('setClientSandboxRequired', { required: false }));
+			assert.strictEqual(managedSettingsService.sandboxRequired, false);
 		});
 	});
 

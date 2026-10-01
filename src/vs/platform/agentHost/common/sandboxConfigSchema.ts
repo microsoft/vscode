@@ -27,7 +27,6 @@ export const enum AgentHostSandboxConfigKey {
  */
 export const enum AgentHostSandboxKey {
 	Enabled = 'enabled',
-	Required = 'required',
 	WindowsEnabled = 'enabled.windows',
 	AllowNetwork = 'allowNetwork',
 	AllowUnsandboxedCommands = 'allowUnsandboxedCommands',
@@ -42,7 +41,6 @@ export const enum AgentHostSandboxKey {
 /** Shape of the persisted/forwarded `sandbox` object. */
 export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue;
-	[AgentHostSandboxKey.Required]: boolean;
 	[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue;
 	[AgentHostSandboxKey.AllowNetwork]: boolean;
 	[AgentHostSandboxKey.AllowUnsandboxedCommands]: boolean;
@@ -79,10 +77,6 @@ export const sandboxConfigSchema = createSchema({
 				type: 'string',
 				title: localize('agentHost.config.sandbox.enabled.title', "Sandbox Enabled"),
 				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
-			},
-			[AgentHostSandboxKey.Required]: {
-				type: 'boolean',
-				title: localize('agentHost.config.sandbox.required.title', "Sandbox Required by VS Code Policy"),
 			},
 			[AgentHostSandboxKey.WindowsEnabled]: {
 				type: 'string',

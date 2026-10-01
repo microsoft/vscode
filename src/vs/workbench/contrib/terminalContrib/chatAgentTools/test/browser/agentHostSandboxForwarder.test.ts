@@ -261,7 +261,7 @@ suite('AgentHostSandboxForwarder', () => {
 		}]);
 	});
 
-	test('forwards policy arrival and withdrawal even when the resolved enablement stays on', () => {
+	test('keeps policy authority out of ordinary local and remote settings forwarding', () => {
 		const setting = AgentSandboxSettingId.AgentSandboxEnabled;
 		const configuration = new class extends TestConfigurationService {
 			required = false;
@@ -284,17 +284,16 @@ suite('AgentHostSandboxForwarder', () => {
 			});
 		};
 		changePolicy(true);
-		local.setRootState(rootStateWithSandboxSchema({ enabled: 'on', required: true }));
+		local.setRootState(rootStateWithSandboxSchema({ enabled: 'on' }));
 		const connection = remote.addConnection('remote.example:9000');
 		connection.setRootState(rootStateWithSandboxSchema());
-		connection.setRootState(rootStateWithSandboxSchema({ enabled: 'on', required: true }));
+		connection.setRootState(rootStateWithSandboxSchema({ enabled: 'on' }));
 		changePolicy(false);
 
 		const expected = [
-			{ type: ActionType.RootConfigChanged, config: { sandbox: { enabled: 'on', required: true } } },
 			{ type: ActionType.RootConfigChanged, config: { sandbox: { enabled: 'on' } } },
 		];
-		assert.deepStrictEqual(local.dispatched, expected);
+		assert.deepStrictEqual(local.dispatched, []);
 		assert.deepStrictEqual(connection.dispatched, expected);
 	});
 

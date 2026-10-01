@@ -6,8 +6,8 @@
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
-import { AgentHostSandboxKey, sandboxSettingIdToAgentHostKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
+import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
+import { sandboxSettingIdToAgentHostKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 
 /** Setting IDs that affect the engine's sandbox configuration. */
 export const SANDBOX_SETTING_KEYS: readonly string[] = [
@@ -47,11 +47,6 @@ export function readAgentHostSandboxValues(configurationService: IConfigurationS
 		if (value !== undefined) {
 			values[sandboxKey] = value;
 		}
-	}
-	const enabledSetting = AgentSandboxSettingId.AgentSandboxEnabled;
-	const enabledPolicy = normalizeSandboxSettingValue(enabledSetting, configurationService.inspect(enabledSetting).policyValue);
-	if (enabledPolicy === AgentSandboxEnabledValue.On) {
-		values[AgentHostSandboxKey.Required] = true;
 	}
 	return values;
 }

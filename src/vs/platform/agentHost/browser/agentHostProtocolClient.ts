@@ -49,6 +49,7 @@ import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
@@ -119,6 +120,7 @@ function isConnectionClosedError(error: unknown): boolean {
 
 interface IRemoteAgentHostExtensionNotificationMap {
 	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions } };
+	'setClientSandboxRequired': { params: { required: boolean } };
 }
 
 interface IPendingRequest {
@@ -543,6 +545,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (managedPermissionsConfigurationIds.some(settingId => e.affectsConfiguration(settingId))) {
 				void this._updateManagedSettingsPermissions();
 			}
+			if (e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled)) {
+				this._updateSandboxRequired();
+			}
 		}));
 
 		this._register(Event.any(this._workspaceTrustManagementService.onDidChangeTrustedFolders, this._workspaceTrustManagementService.onDidChangeTrust)(() => {
@@ -948,6 +953,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 			this._applyReconnectResult(result, freshInitialize);
 			this._updateManagedSettingsPermissions(true);
+			this._updateSandboxRequired(true);
 			// Re-authenticate on a fresh initialize (the new process holds no
 			// credentials), or when an earlier pass was cut short by a transport
 			// drop — that attempt may have delivered only some of them, and an
@@ -1261,6 +1267,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._updateDisableRepoInfoTelemetry();
 		if (includeManagedSettings) {
 			void this._updateManagedSettingsPermissions();
+			this._updateSandboxRequired();
 		}
 	}
 
@@ -2447,6 +2454,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			? resolveManagedSettingsPermissions(this._configurationService)
 			: {};
 		this._sendExtensionNotification('setClientManagedSettingsPermissions', { permissions }, sendDuringReconnect);
+	}
+
+	private _updateSandboxRequired(sendDuringReconnect = false): void {
+		const value = this._configurationService.inspect<string | boolean>(AgentSandboxSettingId.AgentSandboxEnabled)?.policyValue;
+		this._sendExtensionNotification('setClientSandboxRequired', { required: value === true || value === AgentSandboxEnabledValue.On }, sendDuringReconnect);
 	}
 
 	/**

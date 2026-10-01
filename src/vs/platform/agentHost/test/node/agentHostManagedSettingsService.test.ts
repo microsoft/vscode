@@ -17,9 +17,9 @@ suite('AgentHostManagedSettingsService', () => {
 		service.setClientPermissions('client-1', { disableBypassPermissionsMode: 'disable' });
 		service.setClientPermissions('client-2', { ask: ['Shell'], deny: ['Write(**)'] });
 		const combined = service.permissions;
-		service.removeClientPermissions('client-1');
+		service.removeClient('client-1');
 		const afterFirstRemoval = service.permissions;
-		service.removeClientPermissions('client-2');
+		service.removeClient('client-2');
 
 		assert.deepStrictEqual({
 			combined,
@@ -46,9 +46,29 @@ suite('AgentHostManagedSettingsService', () => {
 
 		service.setClientPermissions('client-1', { ask: ['Shell'] });
 		service.setClientPermissions('client-2', { ask: ['Shell'] });
-		service.removeClientPermissions('client-1');
-		service.removeClientPermissions('client-2');
+		service.removeClient('client-1');
+		service.removeClient('client-2');
 
 		assert.strictEqual(changes, 2);
+	});
+
+	test('aggregates sandbox requirements by owner independently of managed permissions', () => {
+		const service = store.add(new AgentHostManagedSettingsService());
+		const changes: boolean[] = [];
+		let permissionChanges = 0;
+		store.add(service.onDidChangeSandboxRequired(() => changes.push(service.sandboxRequired)));
+		store.add(service.onDidChange(() => permissionChanges++));
+
+		service.setClientSandboxRequired('first', true);
+		service.setClientSandboxRequired('second', true);
+		service.setClientSandboxRequired('unmanaged', false);
+		service.setClientPermissions('first', {});
+		service.removeClient('unmanaged');
+		service.setClientSandboxRequired('first', false);
+		assert.strictEqual(service.sandboxRequired, true);
+		service.removeClient('second');
+		assert.strictEqual(service.sandboxRequired, false);
+		assert.deepStrictEqual(changes, [true, false]);
+		assert.strictEqual(permissionChanges, 0);
 	});
 });

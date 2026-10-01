@@ -47,7 +47,7 @@ suite('sandboxSettingsReader', () => {
 		);
 	});
 
-	test('preserves mandatory sandbox enablement separately from a personal preference', () => {
+	test('does not forward policy authority through ordinary sandbox settings', () => {
 		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
 		const cfg = new class extends TestConfigurationService {
 			override inspect<T>(key: string) {
@@ -57,7 +57,6 @@ suite('sandboxSettingsReader', () => {
 		}({ [settingId]: AgentSandboxEnabledValue.On });
 		assert.deepStrictEqual(readAgentHostSandboxValues(cfg, new NullLogService()), {
 			enabled: 'on',
-			required: true,
 		});
 	});
 
