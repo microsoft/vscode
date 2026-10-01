@@ -15,7 +15,7 @@ import { IFileDeleteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
-import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../common/agentPluginManager.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
 import { customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
@@ -111,44 +111,28 @@ suite('AgentPluginManager', () => {
 
 	suite('syncCustomizations', () => {
 
-		test('uses file plugins in place only when the host trusts their directory', async () => {
+		test('uses agent host file URIs in place and reads file URIs from the client', async () => {
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 			const directory = URI.file('/local/bundle');
-			const ref = { ...makeRef('local', 'revision'), uri: directory.toString() };
-			await fileService.writeFile(URI.joinPath(directory, 'index.js'), VSBuffer.fromString('original'));
+			await fileService.writeFile(URI.joinPath(directory, 'index.js'), VSBuffer.fromString('host'));
 			await fileService.writeFile(URI.joinPath(toAgentClientUri(directory, AUTOMATION_ACTIVE_CLIENT_ID), 'index.js'), VSBuffer.fromString('client-served'));
-			const [untrusted] = await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [ref]);
-			manager.trustHostPluginDirectory(directory);
-			const [trusted] = await manager.syncCustomizations('any-client', [ref]);
+			const hostRef = { ...makeRef('host', 'revision'), uri: toAgentHostFileUri(directory).toString() };
+			const clientRef = { ...makeRef('client', 'revision'), uri: directory.toString() };
+			const [host] = await manager.syncCustomizations('not-connected', [hostRef]);
+			const cacheExistsAfterHost = await fileService.exists(URI.joinPath(manager.basePath, 'cache.json'));
+			const [client] = await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [clientRef]);
 			assert.deepStrictEqual({
-				untrustedCopied: untrusted.pluginDir?.toString() !== directory.toString(),
-				untrustedContent: (await fileService.readFile(URI.joinPath(untrusted.pluginDir!, 'index.js'))).value.toString(),
-				trusted: trusted.pluginDir?.toString(),
-				trustedLoad: trusted.customization.load,
+				hostPluginDir: host.pluginDir?.toString(),
+				hostCustomization: host.customization,
+				cacheExistsAfterHost,
+				clientCopied: client.pluginDir?.toString() !== directory.toString(),
+				clientContent: (await fileService.readFile(URI.joinPath(client.pluginDir!, 'index.js'))).value.toString(),
 			}, {
-				untrustedCopied: true, untrustedContent: 'client-served',
-				trusted: directory.toString(), trustedLoad: { kind: 'loaded' },
-			});
-		});
-
-		test('uses immutable host directories in place without client reads or cache entries', async () => {
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
-			const hostManager = new AgentPluginManager(URI.file('/userData'), fileService, new NullLogService());
-			const directory = URI.joinPath(hostManager.hostPluginsPath, 'automations', 'captured');
-			await fileService.createFolder(directory);
-			await fileService.writeFile(URI.joinPath(directory, 'index.js'), VSBuffer.fromString('immutable'));
-			const ref = { ...makeRef('host', 'revision'), uri: directory.toString() };
-			const [result] = await hostManager.syncCustomizations('not-connected', [ref]);
-			assert.deepStrictEqual({
-				pluginDir: result.pluginDir?.toString(),
-				customization: result.customization,
-				content: (await fileService.readFile(URI.joinPath(directory, 'index.js'))).value.toString(),
-				cacheExists: await fileService.exists(URI.joinPath(hostManager.basePath, 'cache.json')),
-			}, {
-				pluginDir: directory.toString(),
-				customization: { ...ref, load: { kind: 'loaded' } },
-				content: 'immutable',
-				cacheExists: false,
+				hostPluginDir: directory.toString(),
+				hostCustomization: { ...hostRef, load: { kind: 'loaded' } },
+				cacheExistsAfterHost: false,
+				clientCopied: true,
+				clientContent: 'client-served',
 			});
 		});
 

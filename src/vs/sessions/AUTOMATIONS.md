@@ -70,7 +70,7 @@ The host copies each new or changed entry from the dispatching client into an im
 
 For a local VS Code window connected through MessagePort, `file:` plugins are parsed and used at their original host paths instead of copied; edits to their contents on disk take effect in later runs. Virtual bundles and plugins from remote clients are still copied, and garbage collection only removes host-owned copies, never these in-place paths.
 
-A run session receives the copies as a static, host-owned active client created with the session, so providers load them through the same path as any other client plugin, without contacting the originating client. That client contributes no tools and is not re-attached when a session is restored. A selected custom agent inside a captured plugin is remapped to the copy.
+A run session receives the copies as a static, host-owned active client created with the session, so providers load them through the same path as any other client plugin, without contacting the originating client. That client's plugin URIs use the `vscode-agent-host-file:` scheme, which tells the plugin manager to use the host directory in place; a `file:` URI always names a client resource. That client contributes no tools and is not re-attached when a session is restored. A selected custom agent inside a captured plugin is remapped to the copy.
 
 After each create, update, or removal, the host deletes copies that no automation references, including those of a rejected capture. Copies used by a run session stay until the host restarts, because that session keeps using them in place for follow-up turns.
 

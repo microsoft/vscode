@@ -13,7 +13,7 @@ import { parsePlugin } from '../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
-import { AUTOMATION_ACTIVE_CLIENT_ID } from '../common/agentPluginManager.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../common/agentPluginManager.js';
 import type { AutomationEntry, AutomationSessionTemplate } from '../common/state/protocol/channels-automation/state.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentSelection, type ClientPluginCustomization, type PluginCustomization, type SessionActiveClient } from '../common/state/sessionState.js';
 import { toChildCustomizations } from './copilot/copilotPluginConverters.js';
@@ -97,7 +97,8 @@ export class AgentHostAutomationCustomizations {
 				throw new Error(`Missing captured automation customization: ${ref.id}`);
 			}
 			this._usedByRuns.add(copy.uri);
-			return { ...ref, uri: copy.uri, clientId: AUTOMATION_ACTIVE_CLIENT_ID };
+			// Captured copies and local in-place plugins are host paths, not client resources.
+			return { ...ref, uri: toAgentHostFileUri(URI.parse(copy.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID };
 		});
 		return customizations?.length ? {
 			clientId: AUTOMATION_ACTIVE_CLIENT_ID,

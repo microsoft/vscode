@@ -18,7 +18,7 @@ import { CustomizationType, MessageKind, type ClientPluginCustomization, type Pl
 import { CustomizationEnablementKind } from '../../common/state/protocol/channels-session/state.js';
 import type { AutomationEntry } from '../../common/state/protocol/channels-automation/state.js';
 import { AgentHostAutomationCustomizations } from '../../node/agentHostAutomationCustomizations.js';
-import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../common/agentPluginManager.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
 
 suite('AgentHostAutomationCustomizations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -210,7 +210,7 @@ suite('AgentHostAutomationCustomizations', () => {
 		}, {
 			activeClient: {
 				clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [],
-				customizations: [{ ...input, uri: copies[0].uri, clientId: AUTOMATION_ACTIVE_CLIENT_ID }],
+				customizations: [{ ...input, uri: toAgentHostFileUri(URI.parse(copies[0].uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID }],
 			},
 			empty: undefined,
 		});

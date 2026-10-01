@@ -8,7 +8,6 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, type IReader } from '../../../base/common/observable.js';
-import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -118,13 +117,13 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
-		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
+		@IAgentPluginManager pluginManager: IAgentPluginManager,
 		@IFileService fileService: IFileService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 	) {
 		super();
-		this._customizations = new AgentHostAutomationCustomizations(_pluginManager.hostPluginsPath, fileService, this._logService, environmentService.userHome);
+		this._customizations = new AgentHostAutomationCustomizations(pluginManager.hostPluginsPath, fileService, this._logService, environmentService.userHome);
 		this._register(toDisposable(() => this._cancellations.clear()));
 		this._register(toDisposable(() => this._mcpAuthenticationChallenges.clear()));
 		const stored = this._load();
@@ -138,7 +137,6 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		} : undefined;
 		this._manualRunRequests = new Map(stored?.manualRunRequests?.map(request => [request.requestId, request]));
 		if (this._catalog) {
-			this._trustCapturedCustomizations(this._catalog.entries);
 			this._stateManager.setAutomationCatalogState(this._catalog);
 		}
 		for (const run of this._runs.values()) {
@@ -233,7 +231,6 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 		const timestamp = new Date().toISOString();
 		const customizations = await this._customizations.capture(clientId, definition.session.customizations, undefined, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
-		this._trustCapturedCustomizations([{ customizations }]);
 		const automation = this._withInitialScheduleState({
 			resource: action.resource,
 			definition,
@@ -253,21 +250,6 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
 		logAutomationCreated(this._telemetryService, this._definitionTelemetry(automation));
 		this._scheduleNext();
-	}
-
-	/**
-	 * Lets runs use captured local `file:` plugins in place. These paths come
-	 * only from host captures, so a client can never nominate a host path itself.
-	 */
-	private _trustCapturedCustomizations(entries: readonly Pick<AutomationEntry, 'customizations'>[]): void {
-		for (const entry of entries) {
-			for (const customization of entry.customizations ?? []) {
-				const uri = URI.parse(customization.uri);
-				if (uri.scheme === Schemas.file) {
-					this._pluginManager.trustHostPluginDirectory(uri);
-				}
-			}
-		}
 	}
 
 	async handleUpdate(action: AutomationUpdateRequestedAction, clientId?: string): Promise<void> {
@@ -293,7 +275,6 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._validateDefinition(automation.definition);
 		if (action.changes.session !== undefined) {
 			automation.customizations = await this._customizations.capture(clientId, action.changes.session.customizations, existing, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
-			this._trustCapturedCustomizations([automation]);
 		}
 		if (action.changes.triggers !== undefined || action.changes.enabled !== undefined) {
 			automation = this._withInitialScheduleState(automation, new Date());

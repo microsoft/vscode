@@ -39,7 +39,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
-import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../common/agentPluginManager.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
@@ -254,7 +254,7 @@ suite('AgentHostAutomationService', () => {
 			copy: { type: CustomizationType.Plugin, id: 'bundle', uri: copy.uri, name: 'Bundle', children: [], load: { kind: 'loaded' }, icons: undefined, range: undefined, version: undefined },
 			stored: [copy],
 			run: {
-				activeClient: { clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [], customizations: [{ ...ref, uri: copy.uri, clientId: AUTOMATION_ACTIVE_CLIENT_ID }] },
+				activeClient: { clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [], customizations: [{ ...ref, uri: toAgentHostFileUri(URI.parse(copy.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID }] },
 				agent: URI.joinPath(URI.parse(copy.uri), 'agents/reviewer.md').toString(),
 			},
 		});
@@ -282,7 +282,7 @@ suite('AgentHostAutomationService', () => {
 			changes: { session: { ...action.definition.session, customizations: [updatedRef] } },
 		}, 'local');
 		const updated = stateManager.getAutomationCatalogState()!.entries[0];
-		const [runSync] = await pluginManager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [{ ...updatedRef, clientId: AUTOMATION_ACTIVE_CLIENT_ID }]);
+		const [runSync] = await pluginManager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [{ ...updatedRef, uri: toAgentHostFileUri(URI.parse(updatedRef.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID }]);
 		assert.deepStrictEqual({
 			createdUris: created?.map(copy => copy.uri),
 			updatedUris: updated.customizations?.map(copy => copy.uri),

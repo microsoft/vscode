@@ -13,6 +13,18 @@ export const IAgentPluginManager = createDecorator<IAgentPluginManager>('agentPl
 export const AUTOMATION_ACTIVE_CLIENT_ID = 'vscode.automation';
 
 /**
+ * Scheme for plugin customization URIs that name a directory on the agent
+ * host's own disk. Every other URI, including `file:`, names a resource on the
+ * client that published the customization.
+ */
+export const AGENT_HOST_FILE_SCHEME = 'vscode-agent-host-file';
+
+/** Marks a `file:` URI as a path on the agent host's own disk. */
+export function toAgentHostFileUri(uri: URI): URI {
+	return uri.with({ scheme: AGENT_HOST_FILE_SCHEME });
+}
+
+/**
  * A synced customization with its local plugin directory (when available).
  */
 export interface ISyncedCustomization {
@@ -40,18 +52,13 @@ export interface IAgentPluginManager {
 	 */
 	readonly basePath: URI;
 
-	/** Immutable host-owned plugin directories. File URIs under this path are used in place without cache entries. */
+	/** Directory for immutable host-owned plugin copies, such as automation captures. */
 	readonly hostPluginsPath: URI;
 
 	/**
-	 * Marks a host `file:` plugin directory as trusted, so customizations with
-	 * exactly this URI are used in place regardless of which client syncs them.
-	 * Only host-side callers that resolved the path themselves may call this.
-	 */
-	trustHostPluginDirectory(uri: URI): void;
-
-	/**
 	 * Syncs a set of client-provided plugin customizations to local storage.
+	 * Customizations with an {@link AGENT_HOST_FILE_SCHEME} URI are already on
+	 * the host's disk and are used in place without a copy or cache entry.
 	 *
 	 * Each plugin is copied to a local directory, respecting nonce-based
 	 * caching. The optional {@link progress} callback fires with the single
