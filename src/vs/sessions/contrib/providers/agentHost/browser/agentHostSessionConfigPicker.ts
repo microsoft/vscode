@@ -66,6 +66,7 @@ import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownCodexApprovalsSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { CheckoutOperationPreAction, checkoutOperationMeta, isCheckoutOperationDirtyWorkingTreeErrorData } from '../../../../../platform/agentHost/common/meta/agentCheckoutOperationMeta.js';
 import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -938,7 +939,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	private _isDevContainerWorktreeEnabled(): boolean {
-		return this._configurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true;
+		const workspace = this._session.get()?.workspace.get()?.uri;
+		return !(workspace && findDevContainerSample(workspace)) && this._configurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true;
 	}
 
 	private _applyIsolationValue(sessionId: string, checked: boolean): void {
