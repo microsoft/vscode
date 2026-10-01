@@ -54,6 +54,7 @@ suite('SessionGroupsService', () => {
 	let sessionUnarchivedEmitter: Emitter<ISession>;
 	let sessionDeletedEmitter: Emitter<ISession>;
 	let sessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
+	let newDraftSessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let newSessionDiscardedEmitter: Emitter<ISession>;
 	let instantiationService: TestInstantiationService;
 	let sessions: ISession[];
@@ -79,6 +80,7 @@ suite('SessionGroupsService', () => {
 		sessionUnarchivedEmitter = disposables.add(new Emitter<ISession>());
 		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
 		sessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+		newDraftSessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		newSessionDiscardedEmitter = disposables.add(new Emitter<ISession>());
 		sessions = [];
 		inFlightSessions = [];
@@ -94,6 +96,7 @@ suite('SessionGroupsService', () => {
 			onDidUnarchiveSession: sessionUnarchivedEmitter.event,
 			onDidDeleteSession: sessionDeletedEmitter.event,
 			onDidReplaceSession: sessionReplacedEmitter.event,
+			onDidReplaceNewDraftSession: newDraftSessionReplacedEmitter.event,
 			onDidDiscardNewSession: newSessionDiscardedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
@@ -614,7 +617,7 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(service.getGroupOfSession(draft.sessionId), a.id);
 		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), [draft.sessionId]);
 
-		sessionReplacedEmitter.fire({ from: draft, to: committed });
+		newDraftSessionReplacedEmitter.fire({ from: draft, to: committed });
 		sessions = [committed];
 		sessionsChangedEmitter.fire({ added: [], removed: [draft], changed: [committed] });
 		willSendRequestEmitter.fire(committed);
@@ -642,6 +645,44 @@ suite('SessionGroupsService', () => {
 		sessions = [];
 		inFlightSessions = [];
 		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [] });
+
+		assert.strictEqual(service.getGroupOfSession(draft.sessionId), undefined);
+		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), []);
+	});
+
+	test('moving a provisional session overrides its pending group', () => {
+		const a = service.createGroup('A');
+		const b = service.createGroup('B');
+		const draft = createSession('draft');
+		service.setPendingNewSessionGroup(a.id);
+		sessions = [draft];
+		inFlightSessions = [draft];
+		sessionsChangedEmitter.fire({ added: [draft], removed: [], changed: [] });
+
+		service.addToGroup(draft.sessionId, b.id);
+		sessionStartedEmitter.fire(draft);
+
+		assert.deepStrictEqual({
+			group: service.getGroupOfSession(draft.sessionId),
+			aMembers: service.getSessionIdsInGroup(a.id),
+			bMembers: service.getSessionIdsInGroup(b.id),
+		}, {
+			group: b.id,
+			aMembers: [],
+			bMembers: [draft.sessionId],
+		});
+	});
+
+	test('removing a provisional session prevents its pending group from returning', () => {
+		const a = service.createGroup('A');
+		const draft = createSession('draft');
+		service.setPendingNewSessionGroup(a.id);
+		sessions = [draft];
+		inFlightSessions = [draft];
+		sessionsChangedEmitter.fire({ added: [draft], removed: [], changed: [] });
+
+		service.removeFromGroup(draft.sessionId);
+		sessionStartedEmitter.fire(draft);
 
 		assert.strictEqual(service.getGroupOfSession(draft.sessionId), undefined);
 		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), []);
