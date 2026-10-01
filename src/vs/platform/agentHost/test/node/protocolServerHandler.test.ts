@@ -22,7 +22,8 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentCanvasAvailability, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ReconcileAgentHostRepositoryPluginsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
+import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../../common/repositoryPluginReconciliation.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -171,6 +172,7 @@ class MockAgentService implements IAgentService {
 	readonly deleteDetachedWorktreeCalls: string[] = [];
 	readonly claimDetachedWorktreeCalls: string[] = [];
 	readonly reconcileDetachedWorktreesCalls: { scope: string; activeHandles: readonly string[] }[] = [];
+	readonly reconcileRepositoryPluginsCalls: IAgentHostRepositoryPluginReconcileRequest[] = [];
 	readonly collectDebugLogsCalls: { session: string | undefined; chat: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
@@ -299,6 +301,16 @@ class MockAgentService implements IAgentService {
 	async claimDetachedWorktree(handle: string): Promise<void> { this.claimDetachedWorktreeCalls.push(handle); }
 	async reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		this.reconcileDetachedWorktreesCalls.push({ scope, activeHandles });
+	}
+	async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
+		this.reconcileRepositoryPluginsCalls.push(request);
+		return {
+			repositoryEnabledPlugins: { 'demo@market': true },
+			repositoryPlugins: [],
+			installResults: [{ spec: 'demo@market', action: 'installed' }],
+			updateResults: [],
+			warnings: [],
+		};
 	}
 	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory', chat?: URI) {
 		this.collectDebugLogsCalls.push({ session: session?.toString(), chat: chat?.toString(), kind });
@@ -505,6 +517,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,
 				'vscode.devContainers': true,
+				'vscode.repositoryPluginReconciliation': true,
 			},
 		});
 	});
@@ -1483,6 +1496,42 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			response: { jsonrpc: '2.0', id: 23, result: null },
 			calls: [{ scope: 'file:///workspace', activeHandles }],
+		});
+	});
+
+	test('reconciles repository plugins through the provider runtime', async () => {
+		const transport = connectClient('client-repository-plugins');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 24);
+		const params = {
+			workingDirectory: URI.file('/workspace').toString(),
+			trusted: true,
+			automaticUpdatesAllowed: false,
+		};
+
+		transport.simulateMessage(request(24, ReconcileAgentHostRepositoryPluginsExtensionMethod, params));
+
+		assert.deepStrictEqual({
+			response: await responsePromise,
+			calls: agentService.reconcileRepositoryPluginsCalls,
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 24,
+				result: {
+					repositoryEnabledPlugins: { 'demo@market': true },
+					repositoryPlugins: [],
+					installResults: [{ spec: 'demo@market', action: 'installed' }],
+					updateResults: [],
+					warnings: [],
+				},
+			},
+			calls: [{
+				workingDirectory: '/workspace',
+				trusted: true,
+				automaticUpdatesAllowed: false,
+				managedSettings: undefined,
+			}],
 		});
 	});
 

@@ -58,12 +58,19 @@ export interface IAgentPlugin {
 	readonly automations: IObservable<readonly IAgentPluginAutomation[]>;
 	/** Set when the plugin was installed from a marketplace repository. */
 	readonly fromMarketplace?: IMarketplacePlugin;
+	/** Stable plugin identity supplied by an external runtime when marketplace metadata is not available locally. */
+	readonly externalIdentity?: { readonly name: string; readonly marketplace: string };
+	/** Runtime-owned global enablement, when the plugin comes from an external store. */
+	readonly sourceProfileEnablement?: IObservable<boolean | undefined>;
+	/** Runtime-owned repository enablement for the current workspace snapshot. */
+	readonly sourceWorkspaceEnablement?: IObservable<boolean | undefined>;
 }
 
 export interface IAgentPluginService {
 	readonly _serviceBrand: undefined;
 	readonly plugins: IObservable<readonly IAgentPlugin[]>;
 	readonly enablementModel: IEnablementModel;
+	getWorkspaceConfiguredEnablement?(plugin: IAgentPlugin, workingDirectory?: URI): boolean | undefined;
 }
 
 export interface IAgentPluginDiscovery extends IDisposable {

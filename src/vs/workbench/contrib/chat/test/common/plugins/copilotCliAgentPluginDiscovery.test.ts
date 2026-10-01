@@ -34,6 +34,7 @@ interface ITestInstalledPlugin {
 	readonly installedAt?: string;
 	readonly sourceSha?: string;
 	readonly source?: string | { readonly source: 'github'; readonly repo: string; readonly ref?: string; readonly sha?: string; readonly path?: string };
+	readonly enabled?: boolean;
 }
 
 class TestCopilotCliAgentPluginDiscovery extends CopilotCliAgentPluginDiscovery {
@@ -129,7 +130,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			...(plugin.uri ? { cache_path: plugin.uri.path } : {}),
 			version: plugin.version ?? '1.0.0',
 			installed_at: plugin.installedAt ?? '2026-09-21T00:00:00Z',
-			enabled: true,
+			enabled: plugin.enabled ?? true,
 			...(plugin.sourceSha ? { source_sha: plugin.sourceSha } : {}),
 			...(plugin.source ? { source: plugin.source } : {}),
 		}));
@@ -235,6 +236,27 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		})), [{
 			uri: pluginUri.toString(),
 			remove: undefined,
+		}]);
+	});
+
+	test('preserves runtime-owned global enablement', async () => {
+		const pluginUri = joinPath(marketplaceRoot, 'repository-plugin');
+		await writePlugin(pluginUri, 'repository-plugin');
+		await writeInstalledPlugins([{
+			name: 'repository-plugin',
+			marketplace: 'copilot-plugins',
+			uri: pluginUri,
+			enabled: false,
+		}]);
+
+		const sources = await createDiscovery().discoverPluginSources();
+
+		assert.deepStrictEqual(sources.map(source => ({
+			identity: source.externalIdentity,
+			profileEnabled: source.profileEnabled,
+		})), [{
+			identity: { name: 'repository-plugin', marketplace: 'copilot-plugins' },
+			profileEnabled: false,
 		}]);
 	});
 

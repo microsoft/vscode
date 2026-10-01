@@ -15,6 +15,8 @@ import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.j
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 import { AgentHostCanvasesCapabilityMetaKey } from './meta/agentHostCanvasesMeta.js';
+import { AgentHostRepositoryPluginReconciliationCapabilityMetaKey } from './meta/agentHostRepositoryPluginsMeta.js';
+import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from './repositoryPluginReconciliation.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostCanvases } from './meta/agentHostCanvasesMeta.js';
@@ -58,6 +60,7 @@ export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHo
 export const ReportChatUserInteractionExtensionMethod = 'vscode/reportChatUserInteraction';
 export const AgentHostCanvasesChangedNotification = 'vscode/canvases/v1/changed';
 export const ResolveAgentHostCanvasSourceExtensionMethod = 'vscode/canvases/v1/resolveSource';
+export const ReconcileAgentHostRepositoryPluginsExtensionMethod = 'vscode/reconcileRepositoryPlugins';
 export const AGENT_HOST_CANVAS_LIMIT = 8;
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
@@ -73,6 +76,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostTimingCapabilityMetaKey]?: true;
 	readonly [ChatUserInteractionCapability]?: true;
 	readonly [AgentHostCanvasesCapabilityMetaKey]?: true;
+	readonly [AgentHostRepositoryPluginReconciliationCapabilityMetaKey]?: true;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 }
@@ -93,6 +97,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
 		...(canvases ? { [AgentHostCanvasesCapabilityMetaKey]: true as const } : {}),
+		[AgentHostRepositoryPluginReconciliationCapabilityMetaKey]: true,
 	};
 }
 
@@ -222,6 +227,10 @@ export interface IAgentHostExtensionCommandMap {
 	[ResolveAgentHostCanvasSourceExtensionMethod]: {
 		params: ValidatorType<typeof resolveAgentHostCanvasSourceParamsValidator>;
 		result: ValidatorType<typeof resolveAgentHostCanvasSourceResultValidator>;
+	};
+	[ReconcileAgentHostRepositoryPluginsExtensionMethod]: {
+		params: IAgentHostRepositoryPluginReconcileRequest;
+		result: IAgentHostRepositoryPluginReconcileResult;
 	};
 }
 

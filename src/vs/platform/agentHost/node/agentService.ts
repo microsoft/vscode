@@ -27,6 +27,7 @@ import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SES
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
+import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../common/repositoryPluginReconciliation.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
@@ -9501,6 +9502,17 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
 		return this._providerService.getManagedSettingsDiagnostics();
+	}
+
+	async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
+		const provider = this._providerService.getProvider('copilotcli');
+		if (!provider) {
+			throw new Error(`The Copilot provider is unavailable. Registered providers: ${this._providerService.getProviders().map(provider => provider.id).join(', ')}`);
+		}
+		if (!provider.reconcileRepositoryPlugins) {
+			throw new Error('The registered Copilot provider does not support repository plugin reconciliation.');
+		}
+		return provider.reconcileRepositoryPlugins(request);
 	}
 
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {

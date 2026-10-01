@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -15,6 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
 suite('WorkspacePluginSettingsService', () => {
@@ -23,10 +25,14 @@ suite('WorkspacePluginSettingsService', () => {
 
 	let fileService: FileService;
 	let workspaceContextService: TestContextService;
+	let workspaceTrusted: boolean;
+	let trustChanged: Emitter<boolean>;
 	const workspaceRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 
 	setup(() => {
 		workspaceContextService = new TestContextService(testWorkspace(workspaceRoot));
+		workspaceTrusted = true;
+		trustChanged = store.add(new Emitter<boolean>());
 		fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 	});
@@ -36,6 +42,10 @@ suite('WorkspacePluginSettingsService', () => {
 			fileService,
 			workspaceContextService,
 			logService,
+			{
+				isWorkspaceTrusted: () => workspaceTrusted,
+				onDidChangeTrust: trustChanged.event,
+			} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService,
 		));
 	}
 
@@ -55,6 +65,20 @@ suite('WorkspacePluginSettingsService', () => {
 	}
 
 	// --- enabledPlugins parsing ---
+
+	test('ignores repository plugin settings until the workspace is trusted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		workspaceTrusted = false;
+		await writeCopilotSettings(JSON.stringify({
+			enabledPlugins: { 'my-plugin@my-marketplace': true }
+		}));
+		const service = createService();
+		assert.deepStrictEqual([...service.enabledPlugins.get()], []);
+
+		workspaceTrusted = true;
+		trustChanged.fire(true);
+		await waitForState(service.enabledPlugins, value => value.size > 0);
+		assert.deepStrictEqual([...service.enabledPlugins.get()], [['my-plugin@my-marketplace', true]]);
+	}));
 
 	test('parses enabledPlugins from Claude settings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
@@ -110,7 +134,7 @@ suite('WorkspacePluginSettingsService', () => {
 		assert.strictEqual(enabled.get('from-copilot@mp'), true);
 	}));
 
-	test('Claude enabledPlugins take precedence over Copilot for same key', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('Copilot enabledPlugins take precedence over Claude for same key', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			enabledPlugins: { 'shared-plugin@mp': false }
 		}));
@@ -122,7 +146,7 @@ suite('WorkspacePluginSettingsService', () => {
 		await waitForState(service.enabledPlugins, v => v.size > 0);
 
 		const enabled = service.enabledPlugins.get();
-		assert.strictEqual(enabled.get('shared-plugin@mp'), false, 'Claude should win');
+		assert.strictEqual(enabled.get('shared-plugin@mp'), true, 'Copilot should win');
 	}));
 
 	// --- extraKnownMarketplaces parsing ---
@@ -204,7 +228,7 @@ suite('WorkspacePluginSettingsService', () => {
 
 		const marketplaces = service.extraMarketplaces.get();
 		assert.strictEqual(marketplaces.length, 1, 'should deduplicate by canonical ID');
-		assert.strictEqual(marketplaces[0].name, 'claude-name', 'Claude entry should win');
+		assert.strictEqual(marketplaces[0].name, 'copilot-name', 'Copilot entry should win');
 	}));
 
 	// --- Invalid input handling ---

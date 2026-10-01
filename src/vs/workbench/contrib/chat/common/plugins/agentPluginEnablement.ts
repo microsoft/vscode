@@ -28,37 +28,52 @@ interface IAgentPluginCandidate {
  */
 const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
 
-class AgentPluginPolicyEnablementModel implements IEnablementModel {
+class AgentPluginConfiguredEnablementModel implements IEnablementModel {
 	constructor(
 		private readonly base: IEnablementModel,
 		private readonly policyEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+		private readonly sourceProfileEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+		private readonly workspaceEnablement?: IObservable<ReadonlyMap<string, boolean>>,
 	) { }
 
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
 		const policyValue = this.policyEnablement?.read(reader).get(key);
-		return policyValue === true
-			? ContributionEnablementState.EnabledProfile
-			: policyValue === false
-				? ContributionEnablementState.DisabledProfile
-				: this.base.readEnabled(key, reader);
+		if (policyValue !== undefined) {
+			return policyValue ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile;
+		}
+		const workspaceValue = this.workspaceEnablement?.read(reader).get(key);
+		if (workspaceValue !== undefined) {
+			return workspaceValue ? ContributionEnablementState.EnabledWorkspace : ContributionEnablementState.DisabledWorkspace;
+		}
+		const sourceProfileValue = this.sourceProfileEnablement?.read(reader).get(key);
+		if (sourceProfileValue !== undefined) {
+			return sourceProfileValue ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile;
+		}
+		return this.base.readEnabled(key, reader);
 	}
 
 	readProfileEnabled(key: string, reader?: IReader): boolean {
-		return this.policyEnablement?.read(reader).get(key) ?? this.base.readProfileEnabled(key, reader);
+		return this.policyEnablement?.read(reader).get(key)
+			?? this.sourceProfileEnablement?.read(reader).get(key)
+			?? this.base.readProfileEnabled(key, reader);
 	}
 
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
-		const policy = this.policyEnablement?.get();
-		if (policy?.has(key)) {
+		if (this.policyEnablement?.get().has(key)
+			|| this.sourceProfileEnablement?.get().has(key)
+			|| this.workspaceEnablement?.get().has(key)) {
 			return;
 		}
 		this.base.setEnabled(key, state, tx);
 	}
 
 	remove(key: string): void {
-		if (!this.policyEnablement?.get().has(key)) {
-			this.base.remove(key);
+		if (this.policyEnablement?.get().has(key)
+			|| this.sourceProfileEnablement?.get().has(key)
+			|| this.workspaceEnablement?.get().has(key)) {
+			return;
 		}
+		this.base.remove(key);
 	}
 }
 
@@ -67,13 +82,19 @@ export class AgentPluginCollisionEnablementModel extends CollisionEnablementMode
 		base: IEnablementModel,
 		private readonly collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>,
 		private readonly policyEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+		private readonly sourceProfileEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+		private readonly workspaceEnablement?: IObservable<ReadonlyMap<string, boolean>>,
 	) {
-		super(new AgentPluginPolicyEnablementModel(base, policyEnablement), collisionGroups);
+		super(new AgentPluginConfiguredEnablementModel(base, policyEnablement, sourceProfileEnablement, workspaceEnablement), collisionGroups);
 	}
 
 	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
 		const group = isContributionEnabled(state) ? this.collisionGroups.get().get(key) : undefined;
-		if (group?.some(otherId => otherId !== key && this.policyEnablement?.get().get(otherId) === true)) {
+		if (group?.some(otherId => otherId !== key && (
+			this.policyEnablement?.get().get(otherId)
+			?? this.workspaceEnablement?.get().get(otherId)
+			?? this.sourceProfileEnablement?.get().get(otherId)
+		) === true)) {
 			return;
 		}
 		super.setEnabled(key, state, tx);
@@ -192,8 +213,16 @@ function getUniqueAgentPluginCandidates(discoveries: readonly IDiscoveredAgentPl
 
 function getCanonicalPluginIdentity(plugin: IAgentPlugin): string {
 	return getMarketplaceCanonicalIdentity(plugin.fromMarketplace)
+		?? getExternalCanonicalIdentity(plugin.externalIdentity)
 		?? getCopilotCliInstallCanonicalIdentity(plugin)
 		?? `uri:${plugin.uri.toString()}`;
+}
+
+function getExternalCanonicalIdentity(identity: IAgentPlugin['externalIdentity']): string | undefined {
+	if (!identity || identity.marketplace === '_direct') {
+		return undefined;
+	}
+	return `copilot-cli-marketplace:${normalizePluginIdentitySegment(identity.marketplace)}|${normalizePluginIdentitySegment(identity.name)}`;
 }
 
 function getMarketplaceCanonicalIdentity(plugin: IMarketplacePlugin | undefined): string | undefined {
@@ -279,6 +308,9 @@ function getPolicyIdentity(plugin: IAgentPlugin): IPolicyIdentity | undefined {
 	const m = plugin.fromMarketplace;
 	if (m) {
 		return { name: m.name, marketplace: m.marketplace, marketplaceReference: m.marketplaceReference };
+	}
+	if (plugin.externalIdentity) {
+		return plugin.externalIdentity;
 	}
 	if (plugin.uri.scheme !== 'file') {
 		return undefined;

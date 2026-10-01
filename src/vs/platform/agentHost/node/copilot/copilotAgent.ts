@@ -72,6 +72,7 @@ import { isCustomizationEnabled } from '../../common/customizationEnablement.js'
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
+import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../../common/repositoryPluginReconciliation.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -153,6 +154,19 @@ function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, ena
 		deleteEnvironmentVariable(env, 'USE_BUILTIN_RIPGREP');
 		env['USE_TGREP'] = 'true';
 	}
+}
+
+interface ICopilotRepositoryPluginSdk {
+	readonly rpc: {
+		readonly plugins: {
+			reconcileRepository(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult>;
+		};
+	};
+}
+
+function isCopilotRepositoryPluginSdk(client: CopilotClient): client is CopilotClient & ICopilotRepositoryPluginSdk {
+	const plugins: object = client.rpc.plugins;
+	return 'reconcileRepository' in plugins && typeof plugins.reconcileRepository === 'function';
 }
 
 function isCopilotRuntimeManagedSettingsSdk(value: unknown): value is ICopilotRuntimeManagedSettingsSdk {
@@ -1583,6 +1597,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...result.resolved,
 			...(result.account ? { account: result.account } : {}),
 		};
+	}
+
+	async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
+		const client = await this._ensureClientForSession();
+		if (!isCopilotRepositoryPluginSdk(client)) {
+			throw new Error(`The installed Copilot SDK does not support repository plugin reconciliation. Available plugin methods: ${Object.keys(client.rpc.plugins).join(', ')}`);
+		}
+		return client.rpc.plugins.reconcileRepository(request);
 	}
 
 	getCustomizations(): readonly Customization[] {
