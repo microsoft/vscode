@@ -2638,7 +2638,6 @@ class NewSession extends Disposable {
 	/** This draft's URI as the host's registry is keyed by it. */
 	readonly backendUri: URI;
 	readonly workspaceUri: URI | undefined;
-	readonly isDevContainerSample: boolean;
 	readonly requiresWorkspaceTrust: boolean;
 	/** `true` when this is a workspace-less quick chat. */
 	readonly isQuickChat: boolean;
@@ -2768,8 +2767,7 @@ class NewSession extends Disposable {
 		if (this._kind.requiresWorkspace && !workspaceUri) {
 			throw new Error('Workspace has no repository URI');
 		}
-		this.isDevContainerSample = !!workspaceUri && !!findDevContainerSample(workspaceUri);
-		this.workspaceUri = this.isDevContainerSample ? undefined : workspaceUri;
+		this.workspaceUri = workspaceUri && findDevContainerSample(workspaceUri) ? undefined : workspaceUri;
 		this.isQuickChat = this._kind.isQuickChat;
 		this.requiresWorkspaceTrust = !!ctx.workspace?.requiresWorkspaceTrust;
 		this.agentProvider = ctx.sessionType.id;
@@ -4489,7 +4487,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Resolving the session config (schema + defaults for the picker chips)
 		// is part of viewing the new-session UI and stays ungated.
 		void newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { markSessionLoading: true }));
-		if (newSession.isDevContainerSample) {
+		const sourceWorkspace = newSession.session.workspace.get()?.folders[0]?.root;
+		if (sourceWorkspace && findDevContainerSample(sourceWorkspace)) {
 			return;
 		}
 		if (newSession.workspaceUri) {
