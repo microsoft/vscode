@@ -41,8 +41,8 @@ export function getImageGenerationInvocationMessage(toolInvocation: IChatToolInv
 
 export function createImageGenerationLabel(message: string): MarkdownString {
 	const label = new MarkdownString().appendText(message);
-	// Escape GFM autolink punctuation so catalog names remain literal text.
-	label.value = label.value.replace(/[.:@]/g, '\\$&');
+	// Escape backslashes first, then GFM autolink punctuation, so catalog names remain literal text.
+	label.value = label.value.replace(/\\/g, '\\\\').replace(/[.:@]/g, '\\$&');
 	return label;
 }
 
