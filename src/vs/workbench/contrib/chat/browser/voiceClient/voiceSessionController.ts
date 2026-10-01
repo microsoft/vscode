@@ -1281,6 +1281,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (this._audioQueue.length > 0) {
 				setTimeout(() => this._processQueue(), 500);
 			} else {
+				const shownSessionId = this._shownSessionId();
+				if (shownSessionId) {
+					const shownSessionKey = this._sessionKey(shownSessionId);
+					if (this._pendingResponseSummaries.has(shownSessionKey)) {
+						try {
+							this._activateShownSession(URI.parse(shownSessionId));
+						} catch {
+							// ignore malformed session ids
+						}
+					}
+				}
 				if (this._pttHeld) {
 					if (this._bargeInListenActive) {
 						// The passive barge-in turn opened during playback is now
@@ -6209,7 +6220,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._clearPendingResponse(sessionKey);
 				}
 			}
-		} else if (currentState === 'waiting_for_confirmation' && detail) {
+		} else if (currentState === 'waiting_for_confirmation') {
 			this._discardResponsesSupersededByPending(sessionId);
 			// `detail` is the prose flattening, which for a question form is just
 			// the question titles; the options the user has to choose between are
@@ -6221,8 +6232,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (question) {
 				this._narrate(sessionId, question.kind, question.text, undefined, undefined, undefined, question.pending);
 			} else {
+				if ((!detail || detail.trim().length === 0) && confirmationType === 'questionnaire') {
+					return;
+				}
 				const pending = this._pendingNarrationReference(this._modelForSession(sessionId));
-				const confirmation: IVoiceNarratable = { kind: 'confirmation', text: detail, confirmationType, ...(pending ? { pending } : {}) };
+				const confirmationText = detail && detail.trim().length > 0
+					? detail
+					: (confirmationType === 'tool'
+						? localize('voice.toolConfirmationFallback', "Tool confirmation is required.")
+						: localize('voice.confirmationFallback', "Confirmation is required."));
+				const confirmation: IVoiceNarratable = { kind: 'confirmation', text: confirmationText, confirmationType, ...(pending ? { pending } : {}) };
 				this._narrate(sessionId, confirmation.kind, confirmation.text, undefined, undefined, confirmation.confirmationType, confirmation.pending);
 			}
 		}
