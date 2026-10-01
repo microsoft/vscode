@@ -1909,6 +1909,15 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			topLevelTurnId: this.options.request.parentRequestId ?? this.turn.id,
 			summarizedAtRoundId,
 			finishedCb: async (text, index, delta) => {
+				if (delta.retryReason) {
+					// The fetcher is starting a new attempt of this round. Discard the
+					// abandoned attempt's state before recording or executing its retry.
+					toolCalls.length = 0;
+					thinkingItem = undefined;
+					statefulMarker = undefined;
+					phase = undefined;
+					compaction = undefined;
+				}
 				fetchStreamSource?.update(text, delta);
 				if (delta.copilotToolCalls) {
 					toolCalls.push(...delta.copilotToolCalls.map((call): IToolCall => ({
