@@ -608,13 +608,15 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 
 /**
  * Appends a link that opens the Tools section of the Chat Customizations editor.
- * The host's text is escaped so only this link runs the trusted command.
+ * The host's text is escaped, including the angle brackets of autolinks and HTML,
+ * so only this link can run the trusted command.
  */
 function withConfigureToolsLink(hostText: string): MarkdownString {
 	const commandArgs = encodeURIComponent(JSON.stringify([AICustomizationManagementSection.Tools]));
 	const link = `command:${AICustomizationManagementCommands.OpenEditor}?${commandArgs}`;
 	const label = escapeMarkdownLinkLabel(localize('agentHost.byokToolLimitExceeded.configureTools', "Configure Tools"));
-	return new MarkdownString(`${escapeMarkdownSyntaxTokens(hostText)} [${label}](${link})`, {
+	const escapedHostText = escapeMarkdownSyntaxTokens(hostText).replace(/[<>]/g, '\\$&');
+	return new MarkdownString(`${escapedHostText} [${label}](${link})`, {
 		isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor] },
 	});
 }
