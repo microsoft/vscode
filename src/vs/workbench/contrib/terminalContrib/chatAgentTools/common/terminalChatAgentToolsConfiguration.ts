@@ -604,9 +604,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		}
 	},
 	[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests]: {
-		markdownDescription: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only to the **local harness** when {0} is enabled and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
-		deprecated: true,
-		markdownDeprecationMessage: localize('agentSandbox.retryWithAllowNetworkRequests.deprecated', "This setting is deprecated and applies only to the **local harness**."),
+		markdownDescription: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when {0} is enabled and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		markdownDeprecationMessage: localize('agentSandbox.retryWithAllowNetworkRequests.deprecated', "This setting will be deprecated soon."),
+		deprecationMessageShowInSettings: true,
 		type: 'boolean',
 		default: true,
 		tags: ['preview'],
@@ -638,14 +638,14 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		keywords: ['Sandbox', 'sandboxing'],
 		markdownDescription: localize('agentSandbox.allowDevToolAccess', "Controls whether the sandbox allows access to common developer tools and caches."),
 		type: 'boolean',
-		default: false,
+		default: true,
 		tags: ['preview'],
 		restricted: true,
 	},
 	[AgentSandboxSettingId.AgentSandboxAllowAutoApprove]: {
-		markdownDescription: localize('agentSandbox.allowAutoApprove', "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only to the **local harness** when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
-		deprecated: true,
-		markdownDeprecationMessage: localize('agentSandbox.allowAutoApprove.deprecated', "This setting is deprecated and applies only to the **local harness**."),
+		markdownDescription: localize('agentSandbox.allowAutoApprove', "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		markdownDeprecationMessage: localize('agentSandbox.allowAutoApprove.deprecated', "This setting will be deprecated soon."),
+		deprecationMessageShowInSettings: true,
 		type: 'boolean',
 		default: true,
 		tags: ['preview'],
@@ -657,7 +657,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			localization: {
 				description: {
 					key: 'agentSandbox.allowAutoApprove',
-					value: localize('agentSandbox.allowAutoApprove', "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only to the **local harness** when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+					value: localize('agentSandbox.allowAutoApprove', "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 				}
 			}
 		}

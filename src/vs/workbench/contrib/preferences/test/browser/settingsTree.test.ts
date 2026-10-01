@@ -197,6 +197,37 @@ suite('SettingsTree renderer', () => {
 		renderer.dispose();
 	});
 
+	test('renders an upcoming deprecation warning separately from the description', () => {
+		const renderer = store.add(new TestSettingRenderer());
+		const template = renderer.renderTemplate(document.createElement('div'));
+		const element = store.add(createSettingElement('warning'));
+		store.add(element.parent!);
+		const setting = terminalContribConfiguration?.[AgentSandboxSettingId.AgentSandboxAllowAutoApprove];
+		assert.ok(setting);
+		element.setting.deprecationMessage = setting.markdownDeprecationMessage;
+		element.setting.deprecationMessageShowInSettings = setting.deprecationMessageShowInSettings;
+
+		try {
+			renderer.renderElement({ element } as never, 0, template);
+			const icon = template.deprecationWarningElement.firstElementChild;
+			assert.deepStrictEqual({
+				text: template.deprecationWarningElement.textContent,
+				iconClasses: icon?.className,
+				iconRole: icon?.getAttribute('role'),
+				iconAriaLabel: icon?.getAttribute('aria-label'),
+				isInfo: template.containerElement.classList.contains('is-deprecated-info'),
+			}, {
+				text: 'This setting will be deprecated soon.',
+				iconClasses: 'codicon codicon-error',
+				iconRole: 'img',
+				iconAriaLabel: 'Warning',
+				isInfo: false,
+			});
+		} finally {
+			renderer.disposeTemplate(template);
+		}
+	});
+
 	test('renders informational deprecation severity', () => {
 		const renderer = new TestSettingRenderer();
 		const template = renderer.renderTemplate(document.createElement('div'));

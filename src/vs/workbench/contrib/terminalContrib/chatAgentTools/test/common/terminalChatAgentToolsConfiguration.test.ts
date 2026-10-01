@@ -84,7 +84,7 @@ suite('Terminal chat agent tools configuration', () => {
 		assert.deepStrictEqual(values, [true, false, true]);
 	});
 
-	test('deprecates local harness sandbox settings without changing their defaults', () => {
+	test('warns about upcoming sandbox setting deprecation without changing defaults', () => {
 		const settingIds = [
 			AgentSandboxSettingId.AgentSandboxAllowAutoApprove,
 			AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
@@ -94,14 +94,14 @@ suite('Terminal chat agent tools configuration', () => {
 			return {
 				deprecated: setting.deprecated,
 				deprecationMessage: setting.markdownDeprecationMessage,
-				localHarnessOnly: setting.markdownDescription?.includes('only to the **local harness**'),
+				showInSettings: setting.deprecationMessageShowInSettings,
 				default: setting.default,
 				restricted: setting.restricted,
 			};
 		}), settingIds.map(() => ({
-			deprecated: true,
-			deprecationMessage: 'This setting is deprecated and applies only to the **local harness**.',
-			localHarnessOnly: true,
+			deprecated: undefined,
+			deprecationMessage: 'This setting will be deprecated soon.',
+			showInSettings: true,
 			default: true,
 			restricted: true,
 		})));
@@ -117,7 +117,7 @@ suite('Terminal chat agent tools configuration', () => {
 	for (const [key, defaultValue] of [
 		[AgentSandboxSettingId.AgentSandboxMcpServers, true],
 		[AgentSandboxSettingId.AgentSandboxLspServers, true],
-		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, false],
+		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, true],
 		[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, false],
 	] as const) {
 		test(`defaults ${key} to ${defaultValue} while preserving explicit choices`, async () => {

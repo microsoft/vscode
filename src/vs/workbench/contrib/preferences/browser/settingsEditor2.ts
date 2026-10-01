@@ -1814,7 +1814,7 @@ export class SettingsEditor2 extends EditorPane {
 	private refreshSingleElement(element: SettingsTreeSettingElement): void {
 		if (this.isVisible()
 			&& this.settingsTree.hasElement(element)
-			&& (!element.setting.deprecationMessage || element.isConfigured)) {
+			&& (!element.setting.deprecationMessage || element.setting.deprecationMessageShowInSettings || element.isConfigured)) {
 			this.settingsTree.rerender(element);
 		}
 	}

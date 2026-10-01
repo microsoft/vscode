@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId, SearchResultModel, SearchResultIdx, ISettingsEditorViewState, SettingsTreeSettingElement } from '../../browser/settingsTreeModels.js';
+import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId, SearchResultModel, SearchResultIdx, ISettingsEditorViewState, SettingsTreeSettingElement, SettingsTreeModel } from '../../browser/settingsTreeModels.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
@@ -331,6 +331,68 @@ suite('SettingsTree ExP assignments', () => {
 			query: 'font',
 		});
 	});
+});
+
+suite('SettingsTree deprecation warnings', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const search of [false, true]) {
+		test(`keeps opted-in warnings visible without exposing unconfigured deprecated settings (search=${search})`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new class extends TestConfigurationService {
+				isSettingAppliedForAllProfiles(): boolean { return false; }
+			}({ 'test.configured': true });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IWorkbenchConfigurationService, configuration);
+			instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+			instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+			instantiationService.stub(IProductService, TestProductService);
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+			instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+			instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+			instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+			const viewState: ISettingsEditorViewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
+			const model = store.add(search
+				? instantiationService.createInstance(SearchResultModel, viewState, null, true)
+				: instantiationService.createInstance(SettingsTreeModel, viewState, true));
+			const settings = ['test.upcoming', 'test.deprecated', 'test.configured', 'test.explicitlyHidden', 'test.normal'].map(key => new class extends mock<ISetting>() {
+				override key = key;
+				override type = 'boolean';
+				override description = [];
+				override scope = ConfigurationScope.RESOURCE;
+				override deprecationMessage = key === 'test.normal' ? undefined : 'This setting will be deprecated soon.';
+				override deprecationMessageShowInSettings = key === 'test.upcoming' ? true : key === 'test.explicitlyHidden' ? false : undefined;
+			}());
+			const update = () => {
+				if (model instanceof SearchResultModel) {
+					model.setResult(SearchResultIdx.Local, {
+						filterMatches: settings.map(setting => ({ setting, matches: [], matchType: SettingMatchType.None, keyMatchScore: 0, score: 0 })),
+						exactMatch: false,
+					});
+				} else {
+					model.update({ id: 'deprecationWarnings', label: '', settings });
+				}
+			};
+			const visible = () => model.root.children
+				.filter((child): child is SettingsTreeSettingElement => child instanceof SettingsTreeSettingElement)
+				.map(child => ({ key: child.setting.key, warning: child.setting.deprecationMessage }));
+			update();
+			const initial = visible();
+			await configuration.setUserConfiguration('test.configured', undefined);
+			update();
+			assert.deepStrictEqual({ initial, reset: visible() }, {
+				initial: [
+					{ key: 'test.upcoming', warning: 'This setting will be deprecated soon.' },
+					{ key: 'test.configured', warning: 'This setting will be deprecated soon.' },
+					{ key: 'test.normal', warning: undefined },
+				],
+				reset: [
+					{ key: 'test.upcoming', warning: 'This setting will be deprecated soon.' },
+					{ key: 'test.normal', warning: undefined },
+				],
+			});
+		});
+	}
 });
 
 suite('SettingsTree', () => {

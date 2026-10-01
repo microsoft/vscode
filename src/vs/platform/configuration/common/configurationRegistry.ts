@@ -229,6 +229,12 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	included?: boolean;
 
 	/**
+	 * Keep this setting visible in the Settings editor even when it has a deprecation message and is not configured.
+	 * Defaults to false; use for advance deprecation warnings.
+	 */
+	deprecationMessageShowInSettings?: boolean;
+
+	/**
 	 * List of tags associated to the property.
 	 *  - A tag can be used for filtering
 	 *  - Use `experimental` tag for marking the setting as experimental.

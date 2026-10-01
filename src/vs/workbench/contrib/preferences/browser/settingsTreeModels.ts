@@ -684,7 +684,7 @@ export class SettingsTreeModel implements IDisposable {
 		if (tocEntry.settings) {
 			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(s, element));
 			for (const child of settingChildren) {
-				if (!child.setting.deprecationMessage) {
+				if (!child.setting.deprecationMessage || child.setting.deprecationMessageShowInSettings) {
 					children.push(child);
 				} else {
 					child.inspectSelf();

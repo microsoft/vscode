@@ -121,7 +121,7 @@
             "localization": {
                 "description": {
                     "key": "agentSandbox.allowAutoApprove",
-                    "value": "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only to the **local harness** when `#chat.agent.sandbox.enabled#` is enabled."
+                    "value": "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
                 }
             },
             "type": "boolean",
