@@ -3429,6 +3429,7 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual({
 			controlLabels: getContextPickerActions.call(control.harness).map(action => action.label),
 			treatmentLabels: treatmentActions.map(action => action.label),
+			treatmentPlacements: treatmentActions.map(action => action.placement),
 			legacyLayoutTreatmentLabels: getContextPickerActions.call(legacyLayoutTreatment.harness).map(action => action.label),
 			ineligible: [emptyComposer, otherProvider, phoneComposer].map(item => ({
 				labels: getContextPickerActions.call(item.harness).map(action => action.label),
@@ -3442,6 +3443,7 @@ suite('NewChatWidget', () => {
 		}, {
 			controlLabels: ['Existing'],
 			treatmentLabels: ['Agent...', 'Existing'],
+			treatmentPlacements: ['top', undefined],
 			legacyLayoutTreatmentLabels: ['Agent...', 'Existing'],
 			ineligible: [
 				{ labels: ['Existing'], triggers: [] },
