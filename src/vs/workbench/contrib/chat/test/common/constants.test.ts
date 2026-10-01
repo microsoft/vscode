@@ -13,7 +13,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, CopilotHarnessIntroductionMode, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -34,6 +34,18 @@ suite('ChatConfiguration defaults', () => {
 			() => false,
 		);
 	}
+
+	test('normalizes the Copilot harness introduction mode', () => {
+		assert.deepStrictEqual([
+			getCopilotHarnessIntroductionMode(new TestConfigurationService({ [ChatConfiguration.CopilotHarnessIntroductionMode]: CopilotHarnessIntroductionMode.NewSession })),
+			getCopilotHarnessIntroductionMode(new TestConfigurationService({ [ChatConfiguration.CopilotHarnessIntroductionMode]: CopilotHarnessIntroductionMode.AfterRequest })),
+			getCopilotHarnessIntroductionMode(new TestConfigurationService({ [ChatConfiguration.CopilotHarnessIntroductionMode]: 'unexpected' })),
+		], [
+			CopilotHarnessIntroductionMode.NewSession,
+			CopilotHarnessIntroductionMode.AfterRequest,
+			CopilotHarnessIntroductionMode.Off,
+		]);
+	});
 
 	function createChatSessionsService(...types: string[]): MockChatSessionsService {
 		const service = new MockChatSessionsService();

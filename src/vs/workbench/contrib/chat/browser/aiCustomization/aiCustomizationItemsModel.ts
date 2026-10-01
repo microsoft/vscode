@@ -18,6 +18,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
+import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
@@ -120,7 +121,8 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this.refetchObserved(source);
 	}, 0));
 
-	private readonly perSection = new Map<ItemsModelSection, ISettableObservable<readonly IAICustomizationListItem[]>>();
+	private readonly perSectionSource = new Map<ItemsModelSection, ISettableObservable<readonly IAICustomizationListItem[]>>();
+	private readonly perSection = new Map<ItemsModelSection, IObservable<readonly IAICustomizationListItem[]>>();
 	private readonly perSectionCount = new Map<ItemsModelSection, IObservable<number>>();
 	private readonly fetchSeq = new Map<ItemsModelSection, number>();
 	/** Promise of the most recent fetch per section (resolves regardless of stale-discard). */
@@ -159,6 +161,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
 		@ILogService private readonly logService: ILogService,
+		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -166,7 +169,15 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		this.itemNormalizer = new AICustomizationItemNormalizer(labelService, productService);
 
 		for (const section of ITEMS_MODEL_SECTIONS) {
-			const items = observableValue<readonly IAICustomizationListItem[]>(`aiCustomizationItems:${section}`, []);
+			const sourceItems = observableValue<readonly IAICustomizationListItem[]>(`aiCustomizationItems:${section}`, []);
+			const items = section === AICustomizationManagementSection.Skills ? derived(reader => {
+				const marketplaceInstallations = this.marketplaceInstallService.installations.read(reader);
+				return sourceItems.read(reader).map(item => {
+					const marketplace = marketplaceInstallations.findByTarget({ kind: 'skill', uri: item.uri });
+					return marketplace ? { ...item, marketplace } : item;
+				});
+			}) : sourceItems;
+			this.perSectionSource.set(section, sourceItems);
 			this.perSection.set(section, items);
 			this.perSectionCount.set(section, derived(reader => {
 				const pluginEnablement = new ResourceMap<boolean>();
@@ -304,7 +315,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		const seq = (this.fetchSeq.get(section) ?? 0) + 1;
 		this.fetchSeq.set(section, seq);
 		const promptType = sectionToPromptType(section);
-		const observable = this.perSection.get(section)!;
+		const observable = this.perSectionSource.get(section)!;
 		const pending = source.fetchAICustomizationItems(promptType).then(items => {
 			if (this._store.isDisposed) {
 				return;

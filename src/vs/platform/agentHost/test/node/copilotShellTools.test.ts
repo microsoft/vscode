@@ -28,8 +28,10 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalClaim, type TerminalInfo } from '../../common/state/protocol/state.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { formatTerminalText, IAgentHostTerminalManager, type ICommandFinishedEvent, type ISendTextOptions } from '../../node/agentHostTerminalManager.js';
 import { createShellTools, type IUnsandboxedCommandConfirmationRequest, isMultilineCommand, ShellManager, prefixForHistorySuppression, shellTypeForExecutable } from '../../node/copilot/copilotShellTools.js';
+import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 
 /** Chat that owns the terminals created by the shells under test. */
 const TEST_CHAT_URI = URI.parse(buildDefaultChatUri('copilot:/session-1'));
@@ -140,6 +142,9 @@ suite('CopilotShellTools', () => {
 			getEffectiveWorkingDirectories: () => undefined,
 			getSessionConfigValues: session => sessionValues.get(session),
 			getSessionSandboxPolicy: session => policies.get(session),
+			getSessionSandboxEnabled: () => undefined,
+			setSessionSandboxEnabled: () => { },
+			rejectSessionSandboxChange: () => { },
 			setSessionSandboxPolicy: (session, policy) => {
 				policies.set(session, policy);
 				sessionEmitter.fire({ session, config: {}, origin: undefined });
@@ -205,6 +210,7 @@ suite('CopilotShellTools', () => {
 		services.set(ILogService, new NullLogService());
 		services.set(IAgentHostTerminalManager, terminalManager);
 		services.set(IAgentConfigurationService, agentConfigurationService.service);
+		services.set(ISessionDataService, createNullSessionDataService());
 		services.set(IFileService, {
 			createFile: async (uri: URI, content: VSBuffer) => {
 				if (options?.createdFiles) {
@@ -846,6 +852,28 @@ suite('CopilotShellTools', () => {
 		}, { before: true, disabled: false, afterGlobalChange: false, governed: true, other: true });
 	});
 
+	test('custom terminal reads effective network and bypass settings across managed policy changes', async () => {
+		const { instantiationService, agentConfigurationService } = createServices({ sandboxEnabled: true });
+		const owner = 'copilot:/session-1';
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowNetwork, true);
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, false);
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse(buildDefaultChatUri(owner)), undefined));
+		const engine = shellManager.getOrCreateSandboxEngine();
+		const read = async () => ({ network: await engine.isSandboxAllowNetworkEnabled(), bypass: engine.areUnsandboxedCommandsAllowed() });
+		const initial = await read();
+		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true, allowOutbound: false });
+		const denied = await read();
+		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true, allowOutbound: true });
+		const allowed = await read();
+		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: false });
+		assert.deepStrictEqual({ initial, denied, allowed, removed: await read() }, {
+			initial: { network: true, bypass: false },
+			denied: { network: false, bypass: false },
+			allowed: { network: true, bypass: false },
+			removed: { network: true, bypass: false },
+		});
+	});
+
 	test('setWorkingDirectory invalidates the captured sandbox engine roots', async () => {
 		const createdFiles = new Map<string, string>();
 		const initialWorkingDirectory = URI.file('/workspace/initial');
@@ -1008,6 +1036,8 @@ suite('CopilotShellTools', () => {
 		const readablePaths: string[] = platform.isWindows ? config.filesystem.readonlyPaths : config.filesystem.allowRead;
 		assert.ok(Array.isArray(readablePaths), `Expected readable paths array. Got: ${JSON.stringify(config.filesystem)}`);
 		assert.ok(readablePaths.includes(configuredReadPath), `Expected configured read path in readable paths. Got: ${JSON.stringify(readablePaths)}`);
+		const expectedAttachmentPath = URI.from({ scheme: 'inmemory', path: '/session-data/session-1/attachments' }).fsPath;
+		assert.ok(readablePaths.includes(expectedAttachmentPath), `Expected session attachments in readable paths. Got: ${JSON.stringify(readablePaths)}`);
 	});
 
 	test('primary shell tool requests confirmation before rerunning outside the sandbox', async function () {

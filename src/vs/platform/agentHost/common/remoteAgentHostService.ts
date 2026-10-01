@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
+import type { OperatingSystem } from '../../../base/common/platform.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ConfigurationTarget, type IConfigurationService } from '../../configuration/common/configuration.js';
 import { StorageScope, StorageTarget, type IStorageService } from '../../storage/common/storage.js';
@@ -308,6 +309,8 @@ export interface IRemoteAgentHostCreatedConnection {
 	 * Defaults to `false`.
 	 */
 	readonly reconnectTransfersTransportOwnership?: boolean;
+	/** The client owns automatic recovery; its terminal close must not start an outer retry cycle. */
+	readonly reconnectManagedByClient?: boolean;
 }
 
 /** Observes readiness across inner and outer retries; disposal is intentional, failure is terminal. */
@@ -704,8 +707,17 @@ export interface IRemoteAgentHostService {
 	/** Signals that consumers should re-read pendingConnections, including after configuration reconciliation; the catalog may be unchanged. */
 	readonly onDidChangePendingConnections: Event<void>;
 
-	/** Fires when a remote connection is established or lost. */
+	/** Fires when remote connections change; client-local renames only fire {@link onDidChangeDisplayName}. */
 	readonly onDidChangeConnections: Event<void>;
+
+	/** Fires with the normalized address when its client-local display name changes. */
+	readonly onDidChangeDisplayName: Event<string>;
+
+	/** Gets the client-local display-name override, or undefined to use the configured or discovered name. */
+	getDisplayNameOverride(address: string): string | undefined;
+
+	/** Sets a machine-local display-name override. An empty or undefined name restores the default. */
+	setDisplayName(address: string, name: string | undefined): void;
 
 	/**
 	 * Known remote addresses with metadata. This is a status catalog, not a
@@ -810,6 +822,8 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly clientId?: string;
 	readonly defaultDirectory?: string;
 	readonly status: RemoteAgentHostConnectionStatus;
+	/** Last operating system successfully reported by this host. */
+	readonly operatingSystem?: OperatingSystem;
 }
 
 export interface IRemoteAgentHostPendingConnection {
@@ -823,11 +837,16 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	declare readonly _serviceBrand: undefined;
 	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[] { return []; }
 	readonly onDidChangeConnections = Event.None;
+	readonly onDidChangeDisplayName = Event.None;
 	readonly onDidChangePendingConnections = Event.None;
 	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[] = [];
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	readonly onDidChangeConfiguredEntries = Event.None;
+	getDisplayNameOverride(): string | undefined { return undefined; }
+	setDisplayName(): void {
+		throw new Error('Remote agent host display names are not supported in this environment.');
+	}
 	registerConnectionFactory(): IDisposable {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}

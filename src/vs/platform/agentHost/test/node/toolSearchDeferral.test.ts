@@ -60,6 +60,10 @@ suite('toolSearchDeferral', () => {
 			}
 		});
 
+		test('supports HydraFusion', () => {
+			assert.strictEqual(agentHostModelSupportsToolSearch('hydrafusion'), true);
+		});
+
 		test('rejects suffixed GPT variants and other non-Claude models', () => {
 			for (const id of ['gpt-5', 'gpt-5.3', 'gpt-5.4-mini', 'gpt-5.4-preview', 'gpt-5.5-preview', 'gpt5.5-preview', 'gpt-5-6-luna', 'custom-gpt-6', 'gpt-7', 'gemini-2.5-pro', '']) {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), false, id);
@@ -77,8 +81,8 @@ suite('toolSearchDeferral', () => {
 
 		test('non-deferred client allowlist holds the core VS Code tools, not the search tool', () => {
 			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('runTests'));
-			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('rename'));
-			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('usages'));
+			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has('rename'), false);
+			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has('usages'), false);
 			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME), false);
 		});
 	});

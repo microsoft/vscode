@@ -82,7 +82,7 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 		for (const entry of entries) {
 			const address = getEntryAddress(entry);
 			const existing = this._providerInstances.get(address);
-			if (existing && existing.label !== (entry.name || address)) {
+			if (existing && existing.defaultLabel !== (entry.name || address)) {
 				this._providerStores.deleteAndDispose(address);
 			}
 			if (!this._providerStores.has(address)) {

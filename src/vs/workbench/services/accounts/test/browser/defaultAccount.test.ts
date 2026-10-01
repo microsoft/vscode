@@ -16,6 +16,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsData, NullFileManagedSettingsService, NullNativeManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -895,6 +896,162 @@ suite('DefaultAccountProvider', () => {
 		assert.strictEqual(provider.managedSettingsFreshness.state, ManagedSettingsFreshnessState.Satisfied);
 	});
 
+	for (const forceRefresh of [false, true]) {
+		test(`${forceRefresh ? 'forced' : 'expired-cache'} background refresh preserves accepted policy while fetching`, async () => {
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<IRequestContext>();
+			let delaySettings = false;
+			const requestService = new TestRequestService(async options => {
+				if (options.callSite === 'defaultAccount.entitlements') {
+					return jsonResponse({ chat_enabled: true });
+				}
+				if (options.callSite === 'defaultAccount.managedSettings') {
+					if (delaySettings) {
+						started.complete();
+						return response.p;
+					}
+					return jsonResponse({ forceRemoteSettingsRefresh: true, model: 'original-model' });
+				}
+				throw new Error(`Unexpected request: ${options.callSite}`);
+			});
+			const provider = await createProvider(requestService, {}, {}, undefined, { getSessions: async () => sessions });
+			const accountService = disposables.add(new DefaultAccountService(TestProductService));
+			accountService.setDefaultAccountProvider(provider);
+			await accountService.refresh();
+			const gateService = disposables.add(new AccountPolicyService(new NullLogService(), accountService));
+			await gateService.whenInitialized();
+			const gateStates: AccountPolicyGateState[] = [];
+			disposables.add(gateService.onDidChangeGateInfo(info => gateStates.push(info.state)));
+
+			if (!forceRefresh) {
+				const policyData = provider['_policyData'];
+				assert.ok(policyData);
+				provider['setPolicyData']({
+					...policyData,
+					managedSettingsFetchedAt: Date.now() - 60 * 60 * 1000,
+				});
+			}
+			const acceptedFreshness = provider.managedSettingsFreshness;
+			delaySettings = true;
+			const refresh = accountService.refresh({ forceRefresh });
+			await started.p;
+			const duringRefresh = {
+				freshness: provider.managedSettingsFreshness,
+				model: provider.policyData?.managedSettings?.model,
+				gateState: gateService.gateInfo.state,
+			};
+			response.complete(jsonResponse({ forceRemoteSettingsRefresh: true, model: 'updated-model' }));
+			await refresh;
+
+			assert.deepStrictEqual({
+				duringRefresh,
+				afterRefresh: {
+					freshness: provider.managedSettingsFreshness.state,
+					model: provider.policyData?.managedSettings?.model,
+					gateState: gateService.gateInfo.state,
+				},
+				gateStates,
+			}, {
+				duringRefresh: {
+					freshness: acceptedFreshness,
+					model: 'original-model',
+					gateState: AccountPolicyGateState.Inactive,
+				},
+				afterRefresh: {
+					freshness: ManagedSettingsFreshnessState.Satisfied,
+					model: 'updated-model',
+					gateState: AccountPolicyGateState.Inactive,
+				},
+				gateStates: [],
+			});
+		});
+	}
+
+	test('background refresh failure blocks until a live retry succeeds', async () => {
+		let started = new DeferredPromise<void>();
+		let response = new DeferredPromise<IRequestContext>();
+		let delaySettings = false;
+		const provider = await createProvider(new TestRequestService(async () => {
+			if (delaySettings) {
+				started.complete();
+				return response.p;
+			}
+			return jsonResponse({ forceRemoteSettingsRefresh: true });
+		}));
+		const cachedPolicy = createCachedPolicy(true);
+		await provider['getManagedSettings'](sessions, cachedPolicy);
+		delaySettings = true;
+
+		const refresh = provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+		await started.p;
+		const duringRefresh = provider.managedSettingsFreshness.state;
+		response.error(new Error('managed settings request timed out'));
+		const failed = await refresh;
+		const afterFailure = provider.managedSettingsFreshness;
+
+		started = new DeferredPromise<void>();
+		response = new DeferredPromise<IRequestContext>();
+		const retry = provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
+		await started.p;
+		const duringRetry = provider.managedSettingsFreshness.state;
+		response.complete(jsonResponse({ forceRemoteSettingsRefresh: true }));
+		await retry;
+
+		assert.deepStrictEqual({
+			duringRefresh,
+			afterFailure: describeFreshness(afterFailure),
+			retainedPolicy: failed.data,
+			duringRetry,
+			afterRetry: provider.managedSettingsFreshness.state,
+		}, {
+			duringRefresh: ManagedSettingsFreshnessState.Satisfied,
+			afterFailure: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'server',
+				failure: ManagedSettingsFreshnessFailure.Network,
+				hasLastAttempt: true,
+				hasScope: true,
+			},
+			retainedPolicy: cachedPolicy.policyData,
+			duringRetry: ManagedSettingsFreshnessState.Pending,
+			afterRetry: ManagedSettingsFreshnessState.Satisfied,
+		});
+	});
+
+	test('a satisfied refresh does not authorize a different account while fetching', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<IRequestContext>();
+		let delaySettings = false;
+		const provider = await createProvider(new TestRequestService(async () => {
+			if (delaySettings) {
+				started.complete();
+				return response.p;
+			}
+			return jsonResponse({});
+		}), { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+		await provider['getManagedSettings'](sessions, undefined);
+		delaySettings = true;
+
+		const refresh = provider['getManagedSettings']([
+			{ ...sessions[0], account: { id: 'second-account', label: 'hubot' } },
+		], undefined);
+		await started.p;
+		const duringRefresh = provider.managedSettingsFreshness.state;
+		response.complete(jsonResponse({}));
+		await refresh;
+
+		assert.deepStrictEqual({
+			duringRefresh,
+			afterRefresh: provider.managedSettingsFreshness.state,
+			account: provider.managedSettingsFreshness.state === ManagedSettingsFreshnessState.Satisfied
+				? provider.managedSettingsFreshness.scope.accountId : undefined,
+		}, {
+			duringRefresh: ManagedSettingsFreshnessState.Pending,
+			afterRefresh: ManagedSettingsFreshnessState.Satisfied,
+			account: 'second-account',
+		});
+	});
+
 	test('successful retry clears a blocked requirement when the server removes it', async () => {
 		let requestCount = 0;
 		const requestService = new TestRequestService(async () => {
@@ -1623,10 +1780,10 @@ suite('DefaultAccountProvider sign in scopes', () => {
 		readonly options: Record<string, unknown>;
 	}
 
-	async function signIn(options?: Parameters<DefaultAccountProvider['signIn']>[0]): Promise<ICreateSessionCall[]> {
+	async function signIn(options?: Parameters<DefaultAccountProvider['signIn']>[0], configuration: Record<string, boolean | string> = {}): Promise<ICreateSessionCall[]> {
 		const calls: ICreateSessionCall[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService(configuration));
 		instantiationService.stub(IAuthenticationService, {
 			declaredProviders: [],
 			isAuthenticationProviderRegistered: () => true,
@@ -1685,6 +1842,35 @@ suite('DefaultAccountProvider sign in scopes', () => {
 			// The broad defaults plus the extra scopes, deduplicated.
 			additive: [{ scopes: ['read:user', 'user:email', 'repo', 'workflow'], options: { provider: 'google' } }],
 		});
+	});
+
+	test('connector experiments never change default sign-in scopes', async () => {
+		assert.deepStrictEqual({
+			unset: await signIn(),
+			disabled: await signIn(undefined, { [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: false }),
+			publicFeedOnly: await signIn(undefined, { [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true }),
+			enabled: await signIn(undefined, { [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true }),
+			enterprise: await signIn(undefined, {
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+				'github.copilot.advanced.authProvider': 'github-enterprise',
+			}),
+		}, {
+			unset: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			disabled: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			publicFeedOnly: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			enabled: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+			enterprise: [{ scopes: ['read:user', 'user:email', 'repo'], options: {} }],
+		});
+	});
+
+	test('preserves only explicitly requested additional scopes when connectors are enabled', async () => {
+		assert.deepStrictEqual(await signIn({
+			additionalScopes: ['workflow', 'workflow'],
+			provider: 'google',
+		}, { [CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true }), [{
+			scopes: ['read:user', 'user:email', 'repo', 'workflow'],
+			options: { provider: 'google' },
+		}]);
 	});
 });
 

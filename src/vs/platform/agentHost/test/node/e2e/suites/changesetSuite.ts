@@ -25,13 +25,15 @@
 
 import assert from 'assert';
 import { execFileSync, execSync } from 'child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentMergeConfigKey } from '../../../../common/agentMerge.js';
+import { CheckoutOperationPreAction, checkoutOperationMeta, isCheckoutOperationDirtyWorkingTreeErrorData } from '../../../../common/meta/agentCheckoutOperationMeta.js';
+import { ProtocolError } from '../../../../common/state/sessionProtocol.js';
 import { getWorkingDirectoryScopeId } from '../../../../common/agentHostWorkingDirectories.js';
 import type { ListSessionsResult, ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
@@ -314,7 +316,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		}, 100, operationPollRetries);
 	}
 
-	async function invokeChangesetOperation(channel: string, operationId: string): Promise<{
+	async function invokeChangesetOperation(channel: string, operationId: string, meta?: Record<string, unknown>): Promise<{
 		readonly result: InvokeChangesetOperationResult;
 		readonly statuses: readonly string[];
 	}> {
@@ -329,6 +331,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const result = await context.client.call<InvokeChangesetOperationResult>('invokeChangesetOperation', {
 			channel,
 			operationId,
+			_meta: meta,
 		}, CHANGESET_OPERATION_TIMEOUT_MS);
 		await completed;
 		const statuses = context.client.receivedNotifications(n =>
@@ -339,6 +342,125 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			.map(action => action.status);
 		return { result, statuses };
 	}
+
+	function createCheckoutWorkspace(prefix: string): { workspace: string; originalBranch: string } {
+		const workspace = createGitWorkspace(prefix);
+		execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: workspace });
+		const originalBranch = execFileSync('git', ['branch', '--show-current'], { cwd: workspace, encoding: 'utf8' }).trim();
+		execFileSync('git', ['checkout', '-q', '-b', 'checkout-target'], { cwd: workspace });
+		commitFile(workspace, 'seed.txt', 'target\n', 'target content');
+		execFileSync('git', ['checkout', '-q', originalBranch], { cwd: workspace });
+		return { workspace, originalBranch };
+	}
+
+	async function checkoutChannel(workspace: string, prefix: string): Promise<string> {
+		const session = await createSessionIn(workspace, prefix);
+		const channel = buildUncommittedChangesetUri(session);
+		await waitForOperation(channel, 'checkout');
+		return channel;
+	}
+
+	function currentBranch(workspace: string): string {
+		return execFileSync('git', ['branch', '--show-current'], { cwd: workspace, encoding: 'utf8' }).trim();
+	}
+
+	conformanceTest(context, 'checkout lifecycle: an unused session checks out an existing branch', async function () {
+		const { workspace } = createCheckoutWorkspace('ahp-checkout-clean-');
+		const channel = await checkoutChannel(workspace, 'checkout-clean');
+		const result = await invokeChangesetOperation(channel, 'checkout', checkoutOperationMeta('checkout-target'));
+		assert.deepStrictEqual({
+			branch: currentBranch(workspace),
+			file: readFileSync(join(workspace, 'seed.txt'), 'utf8'),
+			statuses: result.statuses,
+		}, { branch: 'checkout-target', file: 'target\n', statuses: ['running', 'idle'] });
+	});
+
+	conformanceTest(context, 'checkout lifecycle: conflicting local edits are preserved with a structured error', async function () {
+		const { workspace, originalBranch } = createCheckoutWorkspace('ahp-checkout-conflict-');
+		writeFileSync(join(workspace, 'seed.txt'), 'local edit\n');
+		const channel = await checkoutChannel(workspace, 'checkout-conflict');
+		await assert.rejects(context.client.call('invokeChangesetOperation', {
+			channel, operationId: 'checkout', _meta: checkoutOperationMeta('checkout-target'),
+		}), error => error instanceof ProtocolError && isCheckoutOperationDirtyWorkingTreeErrorData(error.data));
+		assert.deepStrictEqual({
+			branch: currentBranch(workspace),
+			file: readFileSync(join(workspace, 'seed.txt'), 'utf8'),
+			stashes: execFileSync('git', ['stash', 'list'], { cwd: workspace, encoding: 'utf8' }),
+			operationStatus: (await waitForOperation(channel, 'checkout')).status,
+		}, { branch: originalBranch, file: 'local edit\n', stashes: '', operationStatus: 'idle' });
+	});
+
+	conformanceTest(context, 'checkout lifecycle: stashing preserves tracked and untracked work before switching branches', async function () {
+		const { workspace } = createCheckoutWorkspace('ahp-checkout-stash-');
+		writeFileSync(join(workspace, 'seed.txt'), 'local edit\n');
+		writeFileSync(join(workspace, 'untracked.txt'), 'untracked edit\n');
+		const channel = await checkoutChannel(workspace, 'checkout-stash');
+		await invokeChangesetOperation(channel, 'checkout', checkoutOperationMeta('checkout-target', CheckoutOperationPreAction.Stash));
+		assert.deepStrictEqual({
+			branch: currentBranch(workspace),
+			file: readFileSync(join(workspace, 'seed.txt'), 'utf8'),
+			untrackedExists: existsSync(join(workspace, 'untracked.txt')),
+			stashedTracked: execFileSync('git', ['show', 'stash@{0}:seed.txt'], { cwd: workspace, encoding: 'utf8' }),
+			stashedUntracked: execFileSync('git', ['show', 'stash@{0}^3:untracked.txt'], { cwd: workspace, encoding: 'utf8' }),
+		}, {
+			branch: 'checkout-target',
+			file: 'target\n',
+			untrackedExists: false,
+			stashedTracked: 'local edit\n',
+			stashedUntracked: 'untracked edit\n',
+		});
+	});
+
+	conformanceTest(context, 'checkout lifecycle: committing before checkout saves changes on the original branch', async function () {
+		const { workspace, originalBranch } = createCheckoutWorkspace('ahp-checkout-commit-');
+		writeFileSync(join(workspace, 'seed.txt'), 'local edit\n');
+		writeFileSync(join(workspace, 'untracked.txt'), 'new file\n');
+		const channel = await checkoutChannel(workspace, 'checkout-commit');
+		await invokeChangesetOperation(channel, 'checkout', checkoutOperationMeta('checkout-target', CheckoutOperationPreAction.Commit));
+		assert.deepStrictEqual({
+			branch: currentBranch(workspace),
+			committedEdit: execFileSync('git', ['show', `${originalBranch}:seed.txt`], { cwd: workspace, encoding: 'utf8' }),
+			committedNewFile: execFileSync('git', ['show', `${originalBranch}:untracked.txt`], { cwd: workspace, encoding: 'utf8' }),
+			status: execFileSync('git', ['status', '--porcelain'], { cwd: workspace, encoding: 'utf8' }),
+		}, { branch: 'checkout-target', committedEdit: 'local edit\n', committedNewFile: 'new file\n', status: '' });
+	});
+
+	conformanceTest(context, 'checkout lifecycle: a concurrent Git lock preserves edits and permits a later retry', async function () {
+		const { workspace, originalBranch } = createCheckoutWorkspace('ahp-checkout-lock-');
+		writeFileSync(join(workspace, 'seed.txt'), 'local edit\n');
+		const channel = await checkoutChannel(workspace, 'checkout-lock');
+		const lock = join(workspace, '.git', 'index.lock');
+		writeFileSync(lock, '');
+		try {
+			await assert.rejects(context.client.call('invokeChangesetOperation', {
+				channel, operationId: 'checkout', _meta: checkoutOperationMeta('checkout-target', CheckoutOperationPreAction.Commit),
+			}), /Failed to commit changes/);
+			assert.deepStrictEqual({
+				branch: currentBranch(workspace),
+				file: readFileSync(join(workspace, 'seed.txt'), 'utf8'),
+			}, { branch: originalBranch, file: 'local edit\n' });
+		} finally {
+			unlinkSync(lock);
+		}
+		await waitForOperation(channel, 'checkout');
+		await invokeChangesetOperation(channel, 'checkout', checkoutOperationMeta('checkout-target', CheckoutOperationPreAction.Commit));
+		assert.strictEqual(currentBranch(workspace), 'checkout-target');
+	});
+
+	conformanceTest(context, 'checkout lifecycle: a deleted branch is rejected before stashing the user\'s work', async function () {
+		const { workspace, originalBranch } = createCheckoutWorkspace('ahp-checkout-deleted-');
+		const channel = await checkoutChannel(workspace, 'checkout-deleted');
+		execFileSync('git', ['branch', '-D', 'checkout-target'], { cwd: workspace });
+		writeFileSync(join(workspace, 'seed.txt'), 'local edit\n');
+		await assert.rejects(context.client.call('invokeChangesetOperation', {
+			channel, operationId: 'checkout', _meta: checkoutOperationMeta('checkout-target', CheckoutOperationPreAction.Stash),
+		}), /not an existing local branch/);
+		assert.deepStrictEqual({
+			branch: currentBranch(workspace),
+			file: readFileSync(join(workspace, 'seed.txt'), 'utf8'),
+			stashes: execFileSync('git', ['stash', 'list'], { cwd: workspace, encoding: 'utf8' }),
+		}, { branch: originalBranch, file: 'local edit\n', stashes: '' });
+	});
 
 	async function waitForChangesetFiles(channel: string, basenames: readonly string[]): Promise<readonly IObservedChangesetFile[]> {
 		return retry(async () => {
@@ -1028,27 +1150,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const { workspace, changeset, file } = await createModifiedUncommittedChangeset('changeset-discard');
 		const resource = file.edit.after?.uri;
 		assert.ok(resource);
-		context.client.clearReceived();
-		const completed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/operationStatusChanged')
-			&& getActionEnvelope(n).channel === changeset
-			&& (getActionEnvelope(n).action as { operationId: string; status: string }).operationId === 'discard-changes'
-			&& (getActionEnvelope(n).action as { operationId: string; status: string }).status === 'idle',
-		);
-
-		await context.client.call('invokeChangesetOperation', {
-			channel: changeset,
-			operationId: 'discard-changes',
-			target: { kind: ChangesetOperationTargetKind.Resource, resource },
-		});
-		await completed;
-
-		const statuses = context.client.receivedNotifications(n =>
-			isActionNotification(n, 'changeset/operationStatusChanged')
-			&& getActionEnvelope(n).channel === changeset,
-		).map(n => getActionEnvelope(n).action as { operationId: string; status: string })
-			.filter(action => action.operationId === 'discard-changes')
-			.map(action => action.status);
+		const statuses = await invokeDiscard(changeset, resource);
 		assert.deepStrictEqual({
 			contents: readFileSync(join(workspace, 'seed.txt'), 'utf8').replaceAll('\r\n', '\n'),
 			statuses,
@@ -1520,7 +1622,9 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier === 'parity') {
 		const supportsProviderFileEdits = config.streamingFileCreateToolName !== undefined || config.fileOperationStrategy === 'shell';
 		const providerFileEditsEnabled = config.fileOperationStrategy !== 'shell' || context.portableShellToolReplayEnabled;
-		(config.supportsMultipleChats && supportsProviderFileEdits && providerFileEditsEnabled ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
+		// Quarantined on Codex Windows: https://github.com/microsoft/vscode/issues/338153
+		const providerChangesetAggregationEnabled = config.provider !== 'codex' || !context.isWindows;
+		(config.supportsMultipleChats && supportsProviderFileEdits && providerFileEditsEnabled && providerChangesetAggregationEnabled ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
 			this.timeout(240_000);
 			const workspace = createGitWorkspace(`ahp-provider-session-changeset-${config.provider}-`);
 			const sessionUri = await createSessionIn(workspace, 'provider-session-changeset');

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { constObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
@@ -34,7 +35,12 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
 
 	protected override _adapterOptions() {
-		return { ...super._adapterOptions(), preserveStatusWhenDisconnected: true };
+		return {
+			...super._adapterOptions(),
+			preserveStatusWhenDisconnected: true,
+			useSessionTitleForDefaultChat: true,
+			externalSessionState: () => constObservable(false),
+		};
 	}
 
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
@@ -107,6 +113,16 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	getSessionModifiedTime(rawId: string): number | undefined {
 		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
+	}
+
+	removeDeletedSession(rawId: string): void {
+		const session = this._removeCachedSession(rawId);
+		this._withheldSessions.delete(rawId);
+		this._provisionalSessions.delete(rawId);
+		if (session) {
+			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+			session.dispose();
+		}
 	}
 
 	override getSessions(): ISession[] {

@@ -104,6 +104,11 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			address: cloudSandboxAddress(env.environmentId),
 			name: env.name,
 			connectOnDemand: async () => { await this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }); },
+			disconnectOnDemand: () => this._disconnectEnvironment(cloudSandboxAddress(env.environmentId)),
+			deleteSessionsOnDemand: {
+				ownsSession: rawId => this._ownsSandboxSession(cloudSandboxAddress(env.environmentId), rawId),
+				deleteSessions: sessionIds => this._deleteSandboxSession(cloudSandboxAddress(env.environmentId), sessionIds, rawId => provider.removeDeletedSession(rawId)),
+			},
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 			defaultChangesetKind: ChangesetKind.Session,
 			omitHostFromWorkspaceLabel: true,
@@ -159,7 +164,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			});
 			seededProvider = provider;
 			this._persistInventory();
-			await this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name });
+			await this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created' });
 			if (!this._isEnabled() || this._providerInstances.get(address) !== provider) {
 				throw new CancellationError();
 			}

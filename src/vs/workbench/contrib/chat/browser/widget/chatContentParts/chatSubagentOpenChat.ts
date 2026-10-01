@@ -66,6 +66,13 @@ export interface IOpenSubagentChatContext {
 
 export type SubagentPillContext = Omit<IOpenSubagentChatContext, 'chatResource' | 'isChatAvailable'>;
 
+export interface IInlineSubagentDetailsContext extends SubagentPillContext {
+	readonly presentation: 'inline';
+	readonly expanded: boolean;
+	readonly contentId: string;
+	readonly toggleDetails: () => void;
+}
+
 export type SubagentChatStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled';
 
 export interface ISubagentChatOpener {
@@ -102,16 +109,27 @@ function asOpenSubagentChatContext(context: unknown): IOpenSubagentChatContext |
 	return undefined;
 }
 
+function asInlineSubagentDetailsContext(context: unknown): IInlineSubagentDetailsContext | undefined {
+	if (context && typeof context === 'object') {
+		const candidate: Partial<IInlineSubagentDetailsContext> = context;
+		if (candidate.presentation === 'inline' && typeof candidate.expanded === 'boolean' && typeof candidate.contentId === 'string' && typeof candidate.toggleDetails === 'function') {
+			return candidate as IInlineSubagentDetailsContext;
+		}
+	}
+	return undefined;
+}
+
 export function getSubagentEditorResource(context: IOpenSubagentChatContext): URI | undefined {
-	const parsed = parseChatUri(context.chatResource);
-	if (!parsed || !context.parentSessionResource) {
+	if (!context.parentSessionResource) {
 		return undefined;
 	}
 	try {
-		const parentSessionResource = URI.parse(context.parentSessionResource);
+		URI.parse(context.chatResource, true);
+		const parentSessionResource = URI.parse(context.parentSessionResource, true);
 		const query = new URLSearchParams(parentSessionResource.query);
 		query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, context.chatResource);
-		return parentSessionResource.with({ fragment: parsed.chatId, query: query.toString() });
+		// Preserve legacy editor identities without requiring hosts to use the local chat URI format.
+		return parentSessionResource.with({ fragment: parseChatUri(context.chatResource)?.chatId ?? context.chatResource, query: query.toString() });
 	} catch {
 		return undefined;
 	}
@@ -150,14 +168,21 @@ export function shouldAnimateSubagentToolTransition(displayedToolCallId: string 
 	return displayedIsTool !== targetIsTool || displayedToolCallId !== targetToolCallId;
 }
 
-function createOpenSubagentAction(action: IAction): Action {
-	const proxy = new Action(action.id, action.label, action.class, false, context => action.run(context));
+function createOpenSubagentAction(action: IAction, run: (context: unknown) => Promise<void> = async context => { await action.run(context); }): Action {
+	const proxy = new Action(action.id, action.label, action.class, false, async context => {
+		const inlineContext = asInlineSubagentDetailsContext(context);
+		if (inlineContext) {
+			inlineContext.toggleDetails();
+		} else {
+			await run(context);
+		}
+	});
 	proxy.tooltip = action.tooltip;
 	return proxy;
 }
 
 function createEditorOpenSubagentAction(action: IAction, chatWidgetService: IChatWidgetService, notificationService: INotificationService): Action {
-	const proxy = new Action(action.id, action.label, action.class, false, async rawContext => {
+	return createOpenSubagentAction(action, async rawContext => {
 		const context = asOpenSubagentChatContext(rawContext);
 		const resource = context && getSubagentEditorResource(context);
 		if (!resource) {
@@ -170,8 +195,6 @@ function createEditorOpenSubagentAction(action: IAction, chatWidgetService: ICha
 			title: context.title ? { preferred: context.title } : undefined,
 		});
 	});
-	proxy.tooltip = action.tooltip;
-	return proxy;
 }
 
 class OpenSubagentChatAction extends Action2 {
@@ -376,7 +399,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 
 	protected get pillContext(): SubagentPillContext | undefined {
-		return this.navigationContext;
+		return this.navigationContext ?? asInlineSubagentDetailsContext(this._context);
 	}
 
 	protected get modelName(): string | undefined {
@@ -453,7 +476,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
 	private _setEnabled(enabled: boolean): void {
 		const context = this.navigationContext;
-		const canOpen = enabled && !!context && context.isChatAvailable !== false;
+		const canOpen = !!asInlineSubagentDetailsContext(this._context) || (enabled && !!context && context.isChatAvailable !== false);
 		this._action.enabled = canOpen;
 		this._sourceAction.enabled = canOpen;
 		this.updateEnabled();
@@ -734,12 +757,12 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		const details: string[] = [];
 		if (!this._action.enabled) {
 			details.push(localize('chat.subagent.openChat.unavailable', "Subagent chat is not available yet."));
-		} else if (this._confirmationCount > 0) {
+		} else if (this._confirmationCount > 0 && !asInlineSubagentDetailsContext(this._context)) {
 			details.push(this._confirmationCount === 1
 				? localize('chat.subagent.openChat.confirmationTooltip', "Open subagent chat (1 confirmation needed)")
 				: localize('chat.subagent.openChat.confirmationsTooltip', "Open subagent chat ({0} confirmations needed)", this._confirmationCount));
 		} else {
-			details.push(this._resolvedTitle ? localize('chat.subagent.openChat.aria', "Open subagent chat: {0}", this._resolvedTitle) : this._action.label);
+			details.push(this.getActionLabel());
 		}
 		if (this._reportedAgentType) {
 			details.push(localize('chat.subagent.agentTypeTooltip', "Subagent type: {0}", this._reportedAgentType));
@@ -772,17 +795,35 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this.element.draggable = !!this.options.draggable;
 		this.element.setAttribute('aria-disabled', String(!enabled));
 		this.element.setAttribute('aria-hidden', String(hidden));
+		const inlineContext = asInlineSubagentDetailsContext(this._context);
+		if (inlineContext) {
+			this.element.setAttribute('aria-expanded', String(inlineContext.expanded));
+			this.element.setAttribute('aria-controls', inlineContext.contentId);
+		} else {
+			this.element.removeAttribute('aria-expanded');
+			this.element.removeAttribute('aria-controls');
+		}
+	}
+
+	private getActionLabel(): string {
+		const inlineContext = asInlineSubagentDetailsContext(this._context);
+		if (inlineContext) {
+			return inlineContext.expanded
+				? localize('chat.subagent.hideDetails', "Hide subagent details: {0}", this._resolvedTitle ?? this._action.label)
+				: localize('chat.subagent.showDetails', "Show subagent details: {0}", this._resolvedTitle ?? this._action.label);
+		}
+		return this._resolvedTitle
+			? this._action.enabled
+				? localize('chat.subagent.openChat.aria', "Open subagent chat: {0}", this._resolvedTitle)
+				: localize('chat.subagent.pendingChat.aria', "Subagent: {0}", this._resolvedTitle)
+			: this._action.label;
 	}
 
 	protected override updateAriaLabel(): void {
 		if (!this.element) {
 			return;
 		}
-		const label = this._resolvedTitle
-			? this._action.enabled
-				? localize('chat.subagent.openChat.aria', "Open subagent chat: {0}", this._resolvedTitle)
-				: localize('chat.subagent.pendingChat.aria', "Subagent: {0}", this._resolvedTitle)
-			: this._action.label;
+		const label = this.getActionLabel();
 		const status = this._renderedStatus === 'running'
 			? localize('chat.subagent.status.working', "Subagent is working")
 			: this._renderedStatus === 'waiting'

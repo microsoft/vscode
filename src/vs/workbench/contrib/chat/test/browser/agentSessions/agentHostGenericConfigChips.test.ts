@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
-import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { type ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -25,6 +25,7 @@ import { SessionState, SessionSummary } from '../../../../../../platform/agentHo
 import { INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -43,6 +44,7 @@ import { IChatWidget, IChatWidgetViewModelChangeEvent } from '../../../browser/c
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { IChatPhoneInputPresenter } from '../../../browser/widget/input/chatPhoneInputPresenter.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { AgentHostGenericConfigChips } from '../../../browser/agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { AgentHostChatInputPicker } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
@@ -208,6 +210,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		const ambient = new class extends mock<IAgentHostService>() {
 			override readonly onAgentHostStart = Event.None;
 			override readonly onAgentHostExit = Event.None;
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
 		}();
 		const remoteService = new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConnections = connectionsChanged.event;
@@ -219,7 +222,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 				return [...remoteConnections].find(([address]) => agentHostAuthority(address) === authority)?.[1];
 			}
 		}();
-		const connectionsService = store.add(new AgentHostConnectionsService(ambient, remoteService));
+		const connectionsService = store.add(new AgentHostConnectionsService(ambient, remoteService, new TestPathService(), new NullLogService()));
 		const registerPolicy = (address: string) => store.add(connectionsService.registerSessionResolutionPolicy(agentHostAuthority(address), {
 			sessionSchemeAlias: { ui: 'test-agent', backend: 'ahp-session' },
 		}));
@@ -282,6 +285,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			refreshResolvedConfig: async (...args) => { refreshes.push(args); },
 		});
 		instantiationService.stub(IAgentHostEnablementService, { managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined });
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 		const lane = store.add(instantiationService.createInstance(AgentHostGenericConfigChips, widget));
 		const container = document.createElement('div');
