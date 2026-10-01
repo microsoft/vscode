@@ -59,6 +59,8 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostDownloadProgress } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { toChatBackgroundShells } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBackgroundShells.js';
+import type { IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -1010,7 +1012,7 @@ class AdditionalChat extends Disposable {
 	private readonly _isNew: ISettableObservable<boolean>;
 	private readonly _isArchived: ISettableObservable<boolean>;
 
-	constructor(resource: URI, summary: AgentHostChatSummary, createdAtFallback: Date, changesets: IObservable<readonly ISessionChangeset[] | undefined>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
+	constructor(resource: URI, summary: AgentHostChatSummary, createdAtFallback: Date, changesets: IObservable<readonly ISessionChangeset[] | undefined>, backgroundShells: IObservable<readonly IChatBackgroundShell[]>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
 		super();
 		this.backendUri = URI.parse(summary.resource);
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : undefined;
@@ -1056,6 +1058,7 @@ class AdditionalChat extends Disposable {
 			lastTurnChanges: output?.lastTurnChanges,
 			customizations: output?.customizations,
 			canvases: output?.canvases,
+			backgroundShells,
 			checkpoints: observableValue(this, undefined),
 			modelId: this._withDetails(this._modelId),
 			modelSource: this._withDetails(this._modelSource),
@@ -1538,6 +1541,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return chatUri ? sessionOutput.getChatCustomizations(chatUri).read(reader) : [];
 			}),
 			canvases: this._createChatCanvasesObservable(defaultChatUriObs),
+			backgroundShells: this._createChatBackgroundShellsObservable(defaultChatUriObs),
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
 			modelSource: this.modelSource,
@@ -1821,6 +1825,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			summary,
 			this.createdAt,
 			createChatChangesets(this.backendUri, constObservable(backendUri), this._options, this.isActiveSessionObs, this._createChatCurrentTurnChangesObservable(constObservable(backendUri))),
+			this._createChatBackgroundShellsObservable(constObservable(backendUri)),
 			() => this._acquireChatDetails(this.sessionId),
 			this.workspace,
 			this._options.mapWorkingDirectoryUri ?? (uri => uri),
@@ -2483,6 +2488,20 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				id: chatState.activeTurn.id,
 				changes: this._sessionOutput.getLastTurnChanges(chatUri).read(reader).filter(change => !change.isOutsideWorkspace),
 			};
+		});
+	}
+
+	/** Background shells come from the chat channel, which is only subscribed while the session is active. */
+	private _createChatBackgroundShellsObservable(chatUriObs: IObservable<URI | undefined>): IObservable<readonly IChatBackgroundShell[]> {
+		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
+			this._options,
+			this.isActiveSessionObs,
+			StateComponents.Chat,
+			chatUriObs,
+		);
+		return derivedOpts<readonly IChatBackgroundShell[]>({ owner: this, equalsFn: structuralEquals }, reader => {
+			const chatState = chatStateObs.read(reader).read(reader);
+			return chatState && !(chatState instanceof Error) ? toChatBackgroundShells(chatState.backgroundWork) : [];
 		});
 	}
 

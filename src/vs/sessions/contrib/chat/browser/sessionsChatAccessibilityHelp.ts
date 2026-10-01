@@ -8,6 +8,7 @@ import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js
 import { isWeb } from '../../../../base/common/platform.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { getModePickerAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { getBackgroundShellsPillAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -157,6 +158,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.pastedText', "Long pasted text is stored as an attached text item and replaced in the input with a numbered inline reference."));
 		content.push(localize('sessionsChat.pasteAsText', "To paste the clipboard as plain text, without converting it to Markdown or storing it as an attachment, invoke Paste as Text{0}.", '<keybinding:editor.action.pasteAsText>'));
 		content.push(localize('sessionsChat.backgroundActivities', "Press Shift+Tab from the chat input to reach metadata and status pills above it, use the left and right arrows to move between pills, and press Enter or Space to activate one. Live browsers appear in their own pill, and the chat's subagents appear in another. A pill with more than one entry opens a picker. Subagents are grouped under Subagents: In Progress and Subagents: Completed. In Progress includes subagents waiting for input; Completed includes failed subagents. Use the up and down arrows to move between entries. When an entry has details, Tab moves through its row actions and detail links; Shift+Tab returns to the row action, and the up and down arrows continue moving between entries. Press Enter to open an entry, or Escape to dismiss the picker and return focus to the pill."));
+		content.push(getBackgroundShellsPillAccessibilityHelp());
 		const chatTabsMode = configurationService.getValue<SessionsChatTabsMode>(SESSIONS_CHAT_TABS_SETTING) ?? SESSIONS_CHAT_TABS_DEFAULT;
 		content.push(chatTabsMode === SessionsChatTabsMode.Single
 			? localize('sessionsChat.conversationsAsSessionView', "Chats open directly in the session view without a tab row. Side-by-side chats each show a session header. Pin keeps that chat visible when another chat opens. Close removes that chat group. Closing the last group closes the session from the grid. Non-main chats are hidden and can be reopened later. For sessions that support multiple chats, use Show Chat Tabs in the session overflow menu to show multiple tabs.")
