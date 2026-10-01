@@ -10,7 +10,9 @@ import { INotification, Severity, NotificationsFilter, NotificationPriority } fr
 import { createErrorWithActions } from '../../../base/common/errorMessage.js';
 import { timeout } from '../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { legacyExtensionLinkParsing } from '../../../platform/notification/common/notificationLegacy.js';
+import { NotificationText } from '../../../platform/notification/common/notificationMessage.js';
 
 suite('Notifications', () => {
 
@@ -19,6 +21,156 @@ suite('Notifications', () => {
 
 	teardown(() => {
 		disposables.clear();
+	});
+
+	function createItem(notification: INotification) {
+		const item = NotificationViewItem.create(notification, noFilter)!;
+		disposables.add(toDisposable(() => item.close()));
+		return item;
+	}
+
+	test('renders strings and errors literally by default', () => {
+		const message = 'README.md [Open](command:workbench.action.files.newUntitledFile "Open README") [Help](https://example.com) <b>text</b>';
+		const items = [
+			createItem({ severity: Severity.Info, message }),
+			createItem({ severity: Severity.Error, message: new Error(message) }),
+			createItem({ severity: Severity.Warning, message }),
+		];
+
+		assert.deepStrictEqual(items.map(item => ({
+			raw: item.message.raw,
+			nodes: item.message.linkedText.nodes
+		})), items.map(() => ({ raw: message, nodes: [message] })));
+	});
+
+	test('does not accept boolean or lookalike legacy parsing capabilities at runtime', () => {
+		const message = '[Open](command:unexpected)';
+		const nodes = [true, {}, Symbol('legacyExtensionLinkParsing')].map(capability => createItem({
+			severity: Severity.Info,
+			message,
+			// @ts-expect-error Only the extension bridge capability can enable legacy parsing.
+			legacyExtensionLinkParsing: capability,
+		}).message.linkedText.nodes);
+		assert.deepStrictEqual(nodes, [[message], [message], [message]]);
+	});
+
+	test('preserves explicit links without interpreting literal fragments or link labels', () => {
+		const filename = '[Open](command:unexpected)';
+		const link = { label: filename, href: 'command:showLogs?%5B%22file%22%5D', title: 'Show Logs' };
+		const message = NotificationText.format('Cannot open {0}. {1}', filename, NotificationText.link(link.label, link.href, link.title));
+		const item = createItem({ severity: Severity.Error, message });
+
+		assert.deepStrictEqual({
+			raw: item.message.raw,
+			nodes: item.message.linkedText.nodes,
+		}, {
+			raw: `Cannot open ${filename}. ${filename}`,
+			nodes: [`Cannot open ${filename}. `, link],
+		});
+	});
+
+	test('updating a structured message with plain text removes links even when the text is unchanged', () => {
+		const item = createItem({ severity: Severity.Info, message: NotificationText.link('Details', 'command:showDetails') });
+		const changes: NotificationViewItemContentChangeKind[] = [];
+		disposables.add(item.onDidChangeContent(event => changes.push(event.kind)));
+
+		item.updateMessage('Details');
+		item.updateMessage('Details');
+
+		assert.deepStrictEqual({
+			nodes: item.message.linkedText.nodes,
+			changes
+		}, {
+			nodes: ['Details'],
+			changes: [NotificationViewItemContentChangeKind.MESSAGE]
+		});
+	});
+
+	test('updates link targets without requiring a label change', () => {
+		const item = createItem({ severity: Severity.Info, message: NotificationText.link('Details', 'command:first') });
+		const changes: NotificationViewItemContentChangeKind[] = [];
+		disposables.add(item.onDidChangeContent(event => changes.push(event.kind)));
+
+		item.updateMessage(NotificationText.link('Details', 'command:second'));
+		item.updateMessage(NotificationText.link('Details', 'command:second'));
+
+		assert.deepStrictEqual({
+			nodes: item.message.linkedText.nodes,
+			changes
+		}, {
+			nodes: [{ label: 'Details', href: 'command:second' }],
+			changes: [NotificationViewItemContentChangeKind.MESSAGE]
+		});
+	});
+
+	test('does not deduplicate literal text and different links with the same label', () => {
+		const literal = createItem({ severity: Severity.Info, message: 'Details' });
+		const first = createItem({ severity: Severity.Info, message: NotificationText.link('Details', 'command:first') });
+		const duplicate = createItem({ severity: Severity.Info, message: NotificationText.link('Details', 'command:first') });
+		const second = createItem({ severity: Severity.Info, message: NotificationText.link('Details', 'command:second') });
+
+		assert.deepStrictEqual([
+			literal.equals(first),
+			first.equals(second),
+			first.equals(duplicate),
+		], [false, false, true]);
+	});
+
+	test('preserves legacy link parsing and updates with the extension capability', () => {
+		const item = createItem({
+			severity: Severity.Info,
+			message: '  [Show Logs](command:python.viewOutput)\r\n[Help](https://example.com)  ',
+			legacyExtensionLinkParsing,
+		});
+		const initial = item.message.linkedText.nodes;
+		item.updateMessage('[Check details](command:java.show.server.task.status "Build Status")');
+
+		assert.deepStrictEqual({
+			initial,
+			updated: item.message.linkedText.nodes,
+		}, {
+			initial: [{ label: 'Show Logs', href: 'command:python.viewOutput' }, ' ', { label: 'Help', href: 'https://example.com' }],
+			updated: [{ label: 'Check details', href: 'command:java.show.server.task.status', title: 'Build Status' }]
+		});
+	});
+
+	test('normalizes and truncates messages while preserving the original text', () => {
+		const message = `  line one\r\nline two\rline three\n${'x'.repeat(1000)}`;
+		const item = createItem({ severity: Severity.Info, message });
+		const legacy = createItem({ severity: Severity.Info, message: `${'x'.repeat(995)}[Open](command:unexpected)`, legacyExtensionLinkParsing });
+
+		assert.deepStrictEqual({
+			raw: item.message.raw,
+			displayed: item.message.linkedText.toString(),
+			legacyNodes: legacy.message.linkedText.nodes,
+		}, {
+			raw: message,
+			displayed: `${message.substring(0, 1000).replace(/\r\n|\n|\r/g, ' ').trimStart()}...`,
+			legacyNodes: [`${'x'.repeat(995)}[Open...`],
+		});
+	});
+
+	test('truncates structured labels without changing link targets', () => {
+		const href = `command:showLogs?${'x'.repeat(1100)}`;
+		const item = createItem({
+			severity: Severity.Info,
+			message: NotificationText.concat('x'.repeat(999), NotificationText.link('Details', href))
+		});
+
+		assert.deepStrictEqual(item.message.linkedText.nodes, [
+			'x'.repeat(999),
+			{ label: 'D', href },
+			'...'
+		]);
+	});
+
+	test('shows structured status messages as plain text', () => {
+		const model = disposables.add(new NotificationsModel());
+		const message = NotificationText.concat('Open ', NotificationText.link('logs', 'command:showLogs'));
+		const handle = model.showStatusMessage(message);
+		disposables.add(toDisposable(() => handle.close()));
+
+		assert.strictEqual(model.statusMessage?.message, 'Open logs');
 	});
 
 	test('Items', () => {

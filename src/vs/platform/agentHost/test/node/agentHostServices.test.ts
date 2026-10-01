@@ -241,6 +241,14 @@ suite('Agent Host service registrations', () => {
 		});
 	});
 
+	test('preserves the host fetch implementation in OTel service options', () => {
+		const services = new StrictServiceCollection();
+		registerHostServices(services);
+		const descriptor = services.get(IAgentHostOTelService);
+		assert.ok(descriptor instanceof SyncDescriptor);
+		assert.deepStrictEqual(descriptor.staticArguments, [{ fetchFn: globalThis.fetch }]);
+	});
+
 	test('descriptor-created services have one disposal owner', () => {
 		const services = new StrictServiceCollection();
 		let disposeCount = 0;

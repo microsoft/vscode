@@ -66,6 +66,45 @@ export type AgentHostTurnSendStage =
 	 */
 	| 'checkpoint';
 
+/**
+ * A bounded provider-owned step between host dispatch (`timeToProviderDispatch`)
+ * and the turn's first visible progress. Stages are sequential: marking one
+ * closes the previous one, and the open stage closes at first progress, so
+ * their durations partition the provider's share of time-to-first-progress.
+ *
+ * Providers mark only the stages they actually run; an absent stage did not
+ * run, while an observed `0` ran within the clock's resolution.
+ */
+export type AgentHostProviderSendStage =
+	/** Waiting behind earlier operations queued on the same chat. */
+	| 'queue'
+	/** Acquiring (and, when cold, starting) the provider's SDK client. */
+	| 'client'
+	/** Resolving customization, agent and MCP state for a session launch. */
+	| 'snapshot'
+	/** Building the provider session configuration. */
+	| 'config'
+	/** The provider SDK create/resume session call. */
+	| 'create'
+	/** Post-create session setup required before the session can be used. */
+	| 'finalize'
+	/** Registering and persisting a newly launched session. */
+	| 'persist'
+	/** Refreshing an existing live session whose configuration changed. */
+	| 'refresh'
+	/** Per-turn preparation after the session is ready and before the SDK send. */
+	| 'turnPrepare'
+	/** From the SDK send until the first visible progress (model latency). */
+	| 'modelResponse';
+
+/**
+ * Receives provider stage transitions for one turn. Implementations must be
+ * cheap and must never throw; providers call it on the hot send path.
+ */
+export interface IAgentProviderSendStageRecorder {
+	mark(stage: AgentHostProviderSendStage): void;
+}
+
 export interface IAgentHostClientTelemetryContext {
 	readonly clientType: AgentHostClientType;
 	readonly connectionKind: AgentHostClientConnectionKind;

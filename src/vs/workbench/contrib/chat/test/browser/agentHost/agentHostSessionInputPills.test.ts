@@ -5,14 +5,17 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
-import { IAction } from '../../../../../../base/common/actions.js';
+import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
+import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -20,12 +23,16 @@ import { ChangesetKind } from '../../../../../../platform/agentHost/common/chang
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ComponentToState, SessionState, StateComponents, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
+import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ComponentToState, CustomizationType, ResponsePartKind, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../../../platform/clipboard/test/common/testClipboardService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IGitHubClient } from '../../../../../../platform/github/common/githubService.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IGitHubClient, IGitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -35,17 +42,19 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
+	override resourceUris = identityAgentHostResourceUriMapper;
 	readonly requested: Array<{ kind: StateComponents; resource: URI }> = [];
 	readonly released: URI[] = [];
 	readonly removeSessionArtifactCalls: { readonly session: URI; readonly artifactId: string }[] = [];
@@ -228,6 +237,382 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local') {
+		const instantiationService = createInstantiationService();
+		if (gitHubService) {
+			instantiationService.stub(IGitHubService, gitHubService);
+		}
+		const states = new Map<StateComponents, SessionState | ChatState>([[StateComponents.Session, initialSession]]);
+		if (initialChat) {
+			states.set(StateComponents.Chat, initialChat);
+		}
+		const connection = new StaticAgentConnection(states);
+		connection.resourceUris = createAgentHostResourceUriMapper(connectionAuthority);
+		const sessionResource = URI.parse('agent-host-test:/session');
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
+		let inputFocused = false;
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: viewModelChanged.event,
+			get viewModel() { return viewModel; },
+			setPersistentContentHeight: () => { },
+			focusInput: () => { inputFocused = true; },
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResource: () => ({ connection, connectionAuthority, backendSession: URI.parse('vendor:/sessions/42') }),
+		}));
+		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		}));
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, noProvisionalSessions);
+		instantiationService.stub(INotificationService, notificationService);
+		const commands: { readonly id: string; readonly args: readonly unknown[] }[] = [];
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (id, ...args) => {
+				commands.push({
+					id,
+					args: args.map(arg => {
+						if (arg && typeof arg === 'object') {
+							const revealUri: unknown = Reflect.get(arg, 'revealUri');
+							if (URI.isUri(revealUri)) {
+								return { ...arg, revealUri: revealUri.toString() };
+							}
+						}
+						return arg;
+					}),
+				});
+				return undefined;
+			},
+		}));
+		let dropdownItems: readonly { readonly label: string | undefined; readonly description: string | undefined; select(): void }[] = [];
+		let hideDropdown = () => { };
+		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
+			isVisible: false,
+			show: (_user, _supportsPreview, items, delegate) => {
+				hideDropdown = () => delegate.onHide();
+				dropdownItems = items.map(item => ({
+					label: item.label,
+					description: item.ariaDescription,
+					select: () => {
+						if (item.item) {
+							delegate.onSelect(item.item);
+						}
+					},
+				}));
+			},
+			hide: () => hideDropdown(),
+		}));
+		let menuActions: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, {
+			showContextMenu: delegate => {
+				assert.ok(delegate.getActions);
+				menuActions = delegate.getActions();
+			},
+		});
+		const pills = store.add(instantiationService.createInstance(AgentHostSessionInputPills, widget, false));
+		return {
+			connection, sessionResource, persistentContent, visibility, commands, pills,
+			labels: () => [...persistentContent.querySelectorAll('.chat-pill-label')].map(label => label.textContent),
+			dropdown: (label: string) => {
+				const button = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')].find(button => button.textContent?.includes(label));
+				assert.ok(button, `Missing ${label} pill`);
+				button.click();
+				return dropdownItems;
+			},
+			menu: () => {
+				const row = persistentContent.querySelector<HTMLElement>('.chat-pills-row-content');
+				assert.ok(row);
+				row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+				return menuActions;
+			},
+			showChat: (resource: string) => {
+				const previousSessionResource = viewModel.sessionResource;
+				const query = new URLSearchParams();
+				query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, resource);
+				viewModel = upcastPartial<ChatViewModel>({ sessionResource: sessionResource.with({ query: query.toString() }) });
+				viewModelChanged.fire({ previousSessionResource, currentSessionResource: viewModel.sessionResource });
+			},
+			inputFocused: () => inputFocused,
+		};
+	}
+
+	test('offers the complete shared catalog and live subagents for host-advertised chat identities', async () => {
+		const mainChat = 'vendor-chat:/conversations/main';
+		const otherChat = 'vendor-chat:/conversations/other';
+		const child = (id: string, status: SessionStatus, parent = mainChat): ChatSummary => ({
+			resource: `vendor-chat:/workers/${id}`,
+			title: id,
+			status,
+			modifiedAt: '2026-09-01T00:00:00.000Z',
+			origin: { kind: ChatOriginKind.Tool, chat: parent, toolCallId: id },
+		});
+		const session = upcastPartial<SessionState>({
+			defaultChat: mainChat,
+			chats: [
+				child('Running', SessionStatus.InProgress | SessionStatus.IsRead),
+				child('Completed', SessionStatus.Idle),
+				child('Waiting', SessionStatus.InputNeeded),
+				child('Other chat worker', SessionStatus.InProgress, otherChat),
+				child('Nested worker', SessionStatus.InProgress, 'vendor-chat:/workers/Running'),
+				{ ...child('Fork', SessionStatus.InProgress), origin: { kind: ChatOriginKind.User } },
+			],
+		});
+		const harness = createActivityPills(session);
+		const hiddenByDefault = harness.labels();
+		const menu = harness.menu();
+		await menu.find(action => action.id === 'chatInputPills.toggle.subagents')?.run();
+		const labels = harness.labels();
+		const dropdown = harness.dropdown('3 Subagents');
+		dropdown.find(item => item.label === 'Waiting')?.select();
+		await timeout(0);
+		const options = harness.menu().find(action => action instanceof SubmenuAction && action.label === 'Subagent Options');
+		assert.ok(options instanceof SubmenuAction);
+		await options.actions.find(action => action.label === 'Show In Progress')?.run();
+		const activeLabels = harness.labels();
+		const updatedSession = {
+			...session,
+			chats: session.chats.map(chat => ({ ...chat, status: SessionStatus.Idle })),
+		};
+		harness.connection.setState(StateComponents.Session, updatedSession);
+		const filteredLabels = harness.labels();
+		const recovery = harness.menu().find(action => action instanceof SubmenuAction && action.label === 'Subagent Options');
+		assert.ok(recovery instanceof SubmenuAction);
+		await recovery.actions.find(action => action.label === 'Show All')?.run();
+		const restoredLabels = harness.labels();
+		harness.showChat(otherChat);
+		const siblingLabels = harness.labels();
+		harness.showChat('vendor-chat:/workers/Running');
+		const subagentLabels = harness.labels();
+		harness.showChat(mainChat);
+		harness.persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.focus();
+		harness.connection.setState(StateComponents.Session, { ...session, chats: [] });
+		await timeout(0);
+		harness.pills.dispose();
+
+		assert.deepStrictEqual({
+			hiddenByDefault,
+			offeredKinds: menu.filter(action => action.id.startsWith('chatInputPills.toggle.')).map(action => action.id.slice('chatInputPills.toggle.'.length)).sort(),
+			labels,
+			dropdown: dropdown.map(item => item.label).filter(Boolean),
+			commands: harness.commands,
+			activeLabels,
+			filteredLabels,
+			restoredLabels,
+			siblingLabels,
+			subagentLabels,
+			inputFocusedAfterRemoval: harness.inputFocused(),
+			releasedSubscriptions: harness.connection.released.length === harness.connection.requested.length,
+		}, {
+			hiddenByDefault: [],
+			offeredKinds: SESSION_CHAT_PILL_KINDS.filter(kind => kind !== SessionChatPillKind.Changes).sort(),
+			labels: ['3 Subagents'],
+			dropdown: ['Subagents: In Progress', 'Waiting', 'Running', 'Subagents: Completed', 'Completed'],
+			commands: [{
+				id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
+				args: [{ chatResource: 'vendor-chat:/workers/Waiting', parentSessionResource: harness.sessionResource.toString(), title: 'Waiting' }],
+			}],
+			activeLabels: ['2 Subagents'],
+			filteredLabels: [],
+			restoredLabels: ['3 Subagents'],
+			siblingLabels: ['Other chat worker'],
+			subagentLabels: [],
+			inputFocusedAfterRemoval: true,
+			releasedSubscriptions: true,
+		});
+	});
+
+	test('shows only used customizations and resets parsing when navigating between chats', async () => {
+		const mainChat = 'vendor-chat:/conversations/main';
+		const otherChat = 'vendor-chat:/conversations/other';
+		const skillUri = URI.file('/repo/.github/skills/review/SKILL.md');
+		const instructionUri = URI.file('/repo/.github/instructions/tests.instructions.md');
+		const session = upcastPartial<SessionState>({
+			defaultChat: mainChat,
+			chats: [],
+			workingDirectories: [URI.file('/repo').toString()],
+			customizations: [{
+				id: 'skills',
+				type: CustomizationType.Directory,
+				name: 'Skills',
+				uri: URI.file('/repo/.github').toString(),
+				enabled: true,
+				contents: CustomizationType.Skill,
+				writable: true,
+				children: [
+					{ id: 'review', type: CustomizationType.Skill, name: 'review', uri: skillUri.toString() },
+					{ id: 'tests', type: CustomizationType.Rule, name: 'writing-tests', uri: instructionUri.toString() },
+					{ id: 'unused', type: CustomizationType.Skill, name: 'unused', uri: URI.file('/repo/.github/skills/unused/SKILL.md').toString() },
+				],
+			}],
+		});
+		const chatState = (resource: string, toolName: string, toolInput: string) => upcastPartial<ChatState>({
+			resource,
+			turns: [upcastPartial<Turn>({
+				id: 'shared-turn-id',
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: 'tool',
+						toolName,
+						displayName: toolName,
+						status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						invocationMessage: toolName,
+						pastTenseMessage: toolName,
+						success: true,
+						toolInput,
+					},
+				}],
+			})],
+		});
+		const harness = createActivityPills(session, chatState(mainChat, 'skill', '{"skill":"review"}'));
+		const hiddenByDefault = harness.labels();
+		harness.visibility.toggle(SessionChatPillKind.Customizations);
+		const initialLabels = harness.labels();
+		const skillDropdown = harness.dropdown('1 Customization');
+		skillDropdown.find(item => item.label === 'review')?.select();
+		await timeout(0);
+		harness.connection.setState(StateComponents.Chat, chatState(otherChat, 'read', '{"path":".github/instructions/tests.instructions.md"}'));
+		harness.showChat(otherChat);
+		const instructionDropdown = harness.dropdown('1 Customization');
+		instructionDropdown.find(item => item.label === 'writing-tests')?.select();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			hiddenByDefault,
+			initialLabels,
+			skillDropdown: skillDropdown.map(item => ({ label: item.label, description: item.description })),
+			instructionDropdown: instructionDropdown.map(item => ({ label: item.label, description: item.description })),
+			commands: harness.commands,
+		}, {
+			hiddenByDefault: [],
+			initialLabels: ['1 Customization'],
+			skillDropdown: [
+				{ label: 'Skills', description: undefined },
+				{ label: 'review', description: '.github/skills/review/SKILL.md' },
+			],
+			instructionDropdown: [
+				{ label: 'Instructions', description: undefined },
+				{ label: 'writing-tests', description: '.github/instructions/tests.instructions.md' },
+			],
+			commands: [
+				{ id: AICustomizationManagementCommands.OpenEditor, args: [{ section: AICustomizationManagementSection.Skills, revealUri: skillUri.toString() }] },
+				{ id: AICustomizationManagementCommands.OpenEditor, args: [{ section: AICustomizationManagementSection.Instructions, revealUri: instructionUri.toString() }] },
+			],
+		});
+	});
+
+	test('reveals remote host customizations without remapping client or synced resources', async () => {
+		const chatResource = 'vendor-chat:/conversations/main';
+		const hostUri = URI.file('/repo/.github/skills/host/SKILL.md');
+		const clientUri = URI.file('/client/skills/client/SKILL.md');
+		const syncedUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle/skills/synced/SKILL.md' });
+		const skills = [
+			{ id: 'host', uri: hostUri, clientId: undefined },
+			{ id: 'client', uri: clientUri, clientId: 'test-client' },
+			{ id: 'synced', uri: syncedUri, clientId: undefined },
+		];
+		const session = upcastPartial<SessionState>({
+			defaultChat: chatResource,
+			chats: [],
+			workingDirectories: [URI.file('/repo').toString()],
+			customizations: skills.map(skill => ({
+				id: `${skill.id}-container`,
+				type: CustomizationType.Directory,
+				name: skill.id,
+				uri: dirname(skill.uri).toString(),
+				clientId: skill.clientId,
+				enabled: true,
+				contents: CustomizationType.Skill,
+				writable: false,
+				children: [{ id: skill.id, type: CustomizationType.Skill, name: skill.id, uri: skill.uri.toString() }],
+			})),
+		});
+		const chat = upcastPartial<ChatState>({
+			resource: chatResource,
+			turns: [upcastPartial<Turn>({
+				id: 'turn',
+				responseParts: skills.map(skill => ({
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: skill.id,
+						toolName: skill.id === 'host' ? 'view' : 'skill',
+						displayName: skill.id,
+						status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						invocationMessage: skill.id,
+						pastTenseMessage: skill.id,
+						success: true,
+						toolInput: JSON.stringify(skill.id === 'host' ? { path: '.github/skills/host/SKILL.md' } : { skill: skill.id }),
+					},
+				})),
+			})],
+		});
+		const harness = createActivityPills(session, chat, undefined, 'remote-server');
+		harness.visibility.toggle(SessionChatPillKind.Customizations);
+		const entries = harness.dropdown('3 Customizations').filter(item => item.description !== undefined);
+		for (const entry of entries) {
+			entry.select();
+		}
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			entries: entries.map(entry => ({ label: entry.label, description: entry.description })),
+			commands: harness.commands,
+		}, {
+			entries: [
+				{ label: 'host', description: '.github/skills/host/SKILL.md' },
+				{ label: 'client', description: clientUri.fsPath },
+				{ label: 'synced', description: syncedUri.toString(true) },
+			],
+			commands: [toAgentHostUri(hostUri, 'remote-server'), clientUri, syncedUri].map(uri => ({
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ section: AICustomizationManagementSection.Skills, revealUri: uri.toString() }],
+			})),
+		});
+	});
+
+	test('matches the Agents Window aggregate issue status icon', async () => {
+		const harness = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor-chat:/conversations/main',
+			chats: [],
+			_meta: withSessionArtifacts(undefined, [1, 2].map(number => ({
+				id: `issue-${number}`,
+				type: SessionArtifactType.Issue,
+				label: `Issue ${number}`,
+				link: `https://github.com/microsoft/vscode/issues/${number}`,
+				isGitHub: true,
+				isArtifact: true,
+			}))),
+		}), undefined, createRichGitHubService([]));
+		const icon = () => harness.persistentContent.querySelector<HTMLElement>('.chat-pill-icon');
+		const pending = { open: icon()?.classList.contains('codicon-issue-opened'), color: icon()?.style.color };
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			pending,
+			labels: harness.labels(),
+			closed: icon()?.classList.contains('codicon-issue-closed'),
+			color: icon()?.style.color,
+		}, {
+			pending: { open: true, color: 'var(--vscode-charts-green)' },
+			labels: ['2 Issues'],
+			closed: true,
+			color: 'var(--vscode-charts-purple)',
+		});
+	});
+
 	test('Back to an untitled draft does not subscribe to its UI identity', () => {
 		const instantiationService = createInstantiationService();
 		const connection = new StaticAgentConnection(new Map());
@@ -278,6 +663,7 @@ suite('AgentHostSessionInputPills', () => {
 			provisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
 		viewModel = upcastPartial<ChatViewModel>({ sessionResource: draft });
@@ -549,6 +935,7 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		await timeout(0);
 
@@ -626,6 +1013,8 @@ suite('AgentHostSessionInputPills', () => {
 				label: issueButton?.querySelector('.chat-pill-label')?.textContent,
 				ariaLabel: issueButton?.getAttribute('aria-label'),
 				ariaDescription: issueButton?.getAttribute('aria-description'),
+				closed: issueButton?.querySelector('.chat-pill-icon')?.classList.contains('codicon-issue-closed'),
+				color: issueButton?.querySelector<HTMLElement>('.chat-pill-icon')?.style.color,
 			},
 			opened: openerService.opened.map(({ resource, options }) => ({ resource: resource.toString(true), options })),
 			removed: connection.removeSessionArtifactCalls.map(({ session, artifactId }) => ({ session: session.toString(), artifactId })),
@@ -675,6 +1064,8 @@ suite('AgentHostSessionInputPills', () => {
 				label: 'Live issue title',
 				ariaLabel: 'Open Issue #335383: Live issue title',
 				ariaDescription: `Closed. ${issueUrl}`,
+				closed: true,
+				color: 'var(--vscode-charts-purple)',
 			},
 			opened: [{
 				resource: issueUrl,
@@ -756,6 +1147,7 @@ suite('AgentHostSessionInputPills', () => {
 		explicitQuery.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, childChat);
 		const canonicalChildResource = sessionResource.with({ fragment: childChatId, query: null });
 		const explicitChildResource = sessionResource.with({ fragment: childChatId, query: explicitQuery.toString() });
+		const opaqueChildResource = sessionResource.with({ fragment: childChat, query: explicitQuery.toString() });
 
 		const before = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithoutChild);
 		const after = getAgentHostSessionBrowserOwnerIds(sessionResource, stateWithChild);
@@ -770,6 +1162,7 @@ suite('AgentHostSessionInputPills', () => {
 			before: [sessionResource.toString()],
 			after: [
 				sessionResource.toString(),
+				opaqueChildResource.toString(),
 				canonicalChildResource.toString(),
 				explicitChildResource.toString(),
 			],
@@ -777,6 +1170,25 @@ suite('AgentHostSessionInputPills', () => {
 			hasExplicitChild: true,
 			hasUnrelatedChild: false,
 		});
+	});
+
+	test('includes browsers owned by opaque tool-origin chat URIs', () => {
+		const sessionResource = URI.parse('remote-server-agent:/session');
+		const parentChat = 'vendor-chat:/conversations/main';
+		const childChat = 'vendor-chat:/workers/Waiting?revision=1#result';
+		const query = new URLSearchParams({ [CHAT_SUBAGENT_RESOURCE_QUERY_PARAM]: childChat });
+		const state = upcastPartial<SessionState>({
+			defaultChat: parentChat,
+			chats: [upcastPartial<ChatSummary>({
+				resource: childChat,
+				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'delegate' },
+			})],
+		});
+
+		assert.deepStrictEqual([...getAgentHostSessionBrowserOwnerIds(sessionResource, state)], [
+			sessionResource.toString(),
+			sessionResource.with({ fragment: childChat, query: query.toString() }).toString(),
+		]);
 	});
 
 	test('does not render pills for a Local chat input', () => {
@@ -828,6 +1240,7 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 
@@ -934,6 +1347,7 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		const row = persistentContent.querySelector<HTMLElement>('.agent-host-session-input-pills');
 		const initial = {
@@ -1105,6 +1519,7 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
 		const icon = button?.querySelector<HTMLElement>('.chat-pill-icon');
@@ -1283,6 +1698,7 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			upcastPartial<INotificationService>({ error: error => errors.push(String(error)) }),
+			instantiationService.get(ICommandService),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
 		const copied: string[] = [];
@@ -1337,6 +1753,8 @@ suite('AgentHostSessionInputPills', () => {
 				defaultChat,
 				chats: [{
 					resource: subagentChat,
+					title: 'Subagent',
+					status: SessionStatus.InProgress,
 					origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tool-1' },
 				}],
 				_meta: withSessionArtifacts(undefined, [{
@@ -1397,6 +1815,7 @@ suite('AgentHostSessionInputPills', () => {
 			noProvisionalSessions,
 			labelService,
 			notificationService,
+			instantiationService.get(ICommandService),
 		));
 		const showChat = (resource: URI) => {
 			const previousSessionResource = viewModel.sessionResource;
@@ -1424,5 +1843,70 @@ suite('AgentHostSessionInputPills', () => {
 			canonicalSubagent: { pills: [], hidden: true, persistentContentHeight: undefined },
 			backToSession: { pills: ['1 Artifact'], hidden: false, persistentContentHeight: 28 },
 		});
+	});
+
+	test('shows the chat\'s background shells until they finish', () => {
+		const instantiationService = createInstantiationService();
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const shell: BackgroundShellWork = {
+			kind: BackgroundWorkKind.Shell, id: 'shell:dev-server', label: 'Start dev server', command: 'npm run dev',
+			startedAt: new Date(0).toISOString(), _meta: toCopilotBackgroundShellMeta('dev-server', 'detached'),
+		};
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState>([
+			[StateComponents.Session, upcastPartial<SessionState>({ defaultChat: buildDefaultChatUri(backendSession), chats: [] })],
+			[StateComponents.Chat, upcastPartial<ChatState>({ backgroundWork: [shell] })],
+		]));
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IEditorService),
+			accessor.get(IOpenerService),
+		] as const);
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: () => { },
+		});
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+			noProvisionalSessions,
+			labelService,
+			notificationService,
+			instantiationService.get(ICommandService),
+		));
+		const pills = () => Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
+		const running = pills();
+		connection.setState(StateComponents.Chat, upcastPartial<ChatState>({ backgroundWork: [] }));
+
+		assert.deepStrictEqual({ running, finished: pills() }, { running: ['1 Background Shell'], finished: [] });
 	});
 });

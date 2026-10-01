@@ -1071,8 +1071,12 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[desktop] preserves the side pane when switching to an editorless Quick Chat', async () => {
-		createDesktopController({ desktopLayout: true, activateAux: true });
+	test('[desktop] hides the side pane after switching to an editorless Quick Chat', async () => {
+		createDesktopController({
+			desktopLayout: true,
+			activateAux: true,
+			workspaceFolders: [{ uri: URI.file('/repo') }],
+		});
 		await timeout(0);
 		harness.activeSessionObs.set(makeSession(URI.parse('session:workspace')), undefined);
 		await timeout(0);
@@ -1083,6 +1087,13 @@ suite('DesktopLayoutController', () => {
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.setPartHiddenCalls = [];
+		harness.onApplyWorkingSet = workingSet => {
+			if (workingSet === 'empty') {
+				harness.activeGroupEditors.length = 0;
+				harness.activeEditorInput = undefined;
+				harness.editorGroupsHaveContent = false;
+			}
+		};
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:qc'), { isQuickChat: true }), undefined);
 		await timeout(0);
@@ -1093,9 +1104,12 @@ suite('DesktopLayoutController', () => {
 			hideOrder: harness.setPartHiddenCalls.filter(call =>
 				call.hidden && (call.part === Parts.EDITOR_PART || call.part === Parts.AUXILIARYBAR_PART)),
 		}, {
-			editorVisible: true,
-			auxiliaryBarVisible: true,
-			hideOrder: [],
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			hideOrder: [
+				{ hidden: true, part: Parts.EDITOR_PART },
+				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+			],
 		});
 	});
 

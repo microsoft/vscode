@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { GitHubAccountHandle, GitHubRequestContext, GitHubRequestError, GitHubRequestPriority, GitHubRequestTimeoutError } from './githubTypes.js';
+import { GitHubRequestAccount, GitHubRequestContext, GitHubRequestError, GitHubRequestPriority, GitHubRequestTimeoutError } from './githubTypes.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubRequestOutcome, GitHubRequestTelemetry, gitHubRequestOutcome, IGitHubRequestTiming } from './githubRequestTelemetry.js';
 
@@ -196,7 +196,7 @@ export class GitHubRequestQueue extends Disposable {
 		this._drain();
 	}
 
-	cancelAccount(account: GitHubAccountHandle, reason: unknown = new GitHubRequestError('GitHub credential was invalidated', 'authentication'), owner?: object): void {
+	cancelAccount(account: GitHubRequestAccount, reason: unknown = new GitHubRequestError('GitHub credential was invalidated', 'authentication'), owner?: object): void {
 		const accountKey = GitHubRequestQueue.accountKey(account);
 		for (const request of [...this._pending, ...this._active]) {
 			if (request.accountKey === accountKey && (owner === undefined || request.context.owner === owner)) {
@@ -306,7 +306,10 @@ export class GitHubRequestQueue extends Disposable {
 			|| left.sequence - right.sequence;
 	}
 
-	static accountKey(account: GitHubAccountHandle): string {
+	static accountKey(account: GitHubRequestAccount): string {
+		if (account.kind === 'anonymous') {
+			return `anonymous\x00${account.origin}`;
+		}
 		return `${account.host.toLowerCase()}\x00${account.accountId}`;
 	}
 }
