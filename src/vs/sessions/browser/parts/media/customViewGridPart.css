@@ -67,6 +67,20 @@
 	flex-shrink: 0;
 }
 
+.custom-view-header-content {
+	flex: 2 1 280px;
+	min-width: 160px;
+}
+
+.custom-view-header-content:empty {
+	display: none;
+}
+
+.custom-view-header-title-row:has(> .custom-view-header-content:not(:empty)) {
+	flex-wrap: wrap;
+	align-items: flex-start;
+}
+
 .custom-view-header-actions.custom-view-header-actions-buttons .monaco-action-bar .actions-container {
 	gap: var(--vscode-spacing-size60, 6px);
 }
