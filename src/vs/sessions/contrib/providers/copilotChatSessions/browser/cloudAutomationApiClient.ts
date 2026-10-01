@@ -112,14 +112,19 @@ export class CloudAutomationApiClient extends Disposable {
 					throw invalidResponse();
 				}
 				definitions.push(...await Promise.all(response.data.automations.map(definition => limiter.queue(async () => {
-					if (source.token.isCancellationRequested) {
-						throw new CancellationError();
+					try {
+						if (source.token.isCancellationRequested) {
+							throw new CancellationError();
+						}
+						if (definition?.prompt === undefined && typeof definition?.id === 'string') {
+							return await this.get(accountName, repository, definition.id, source.token);
+						}
+						validateDefinition(definition, repository);
+						return definition;
+					} catch (error) {
+						source.cancel();
+						throw error;
 					}
-					if (definition?.prompt === undefined && typeof definition?.id === 'string') {
-						return this.get(accountName, repository, definition.id, source.token);
-					}
-					validateDefinition(definition, repository);
-					return definition;
 				}))));
 				if (!hasNextPage(response.link)) {
 					return definitions;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, raceCancellationError } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -55,6 +56,8 @@ class Requests extends mock<IRequestService>() {
 
 suite('CloudAutomationApiClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	function setup(sessions?: Promise<readonly AuthenticationSession[]>) {
 		const requests = new Requests();
@@ -120,6 +123,7 @@ suite('CloudAutomationApiClient', () => {
 	for (const outcome of ['success', 'cancel', 'failure'] as const) {
 		test(`missing prompts use at most five concurrent detail requests (${outcome})`, async () => {
 			const { requests, client } = setup();
+			const detailRequests = sinon.spy(client, 'get');
 			const source = disposables.add(new CancellationTokenSource());
 			const definitions = Array.from({ length: 7 }, (_, index) => ({ ...definition, id: `automation-${index}` }));
 			const pending = definitions.map(() => new DeferredPromise<ResponseData>());
@@ -158,7 +162,10 @@ suite('CloudAutomationApiClient', () => {
 						await pending[0].error(error);
 					}
 					await settled;
-					assert.strictEqual(requests.calls.length, 6, 'Does not dispatch queued details after cancellation or failure');
+					assert.deepStrictEqual({
+						detailLookups: detailRequests.callCount,
+						httpRequests: requests.calls.length,
+					}, { detailLookups: 5, httpRequests: 6 }, 'Does not start queued details after cancellation or failure');
 				}
 			} finally {
 				source.cancel();
