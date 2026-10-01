@@ -27,7 +27,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { IFileService, IFileStat, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
+import { IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification } from '../../../../../platform/notification/common/notification.js';
@@ -319,7 +319,7 @@ suite('collectAgentHostDebugLogs', () => {
 			...artifactOfSize(hostEntryCount),
 			entries: Array.from({ length: hostEntryCount }, (_, index) => ({ path: `host-${index}.log`, size: 1 })),
 		};
-		const fileStat = (folder: URI, name: string, mtime = 0) => upcastPartial<IFileStat>({
+		const fileStat = (folder: URI, name: string, mtime = 0) => upcastPartial<IFileStatWithMetadata>({
 			name,
 			resource: URI.joinPath(folder, name),
 			isFile: true,
@@ -344,7 +344,7 @@ suite('collectAgentHostDebugLogs', () => {
 		instantiationService.stub(IRemoteAgentHostService, { connections: [] });
 		instantiationService.stub(IFileService, upcastPartial<IFileService>({
 			resolve: async resource => {
-				let children: IFileStat[];
+				let children: IFileStatWithMetadata[];
 				if (resource.path === '/logs/ahp') {
 					children = ahpFiles.map(file => fileStat(resource, file.name, file.mtime));
 				} else if (resource.path === windowLogs.path) {
@@ -352,11 +352,11 @@ suite('collectAgentHostDebugLogs', () => {
 				} else if (resource.path === logsHome.path) {
 					children = Array.from({ length: sharedLogCount }, (_, index) => fileStat(resource, index === 0 ? 'sharedprocess.log' : `sharedprocess.${index}.log`));
 				} else if (resource.path.startsWith('/data/')) {
-					return upcastPartial<IFileStat>({ size: 1 });
+					return upcastPartial<IFileStatWithMetadata>({ size: 1 });
 				} else {
 					throw new Error(`Unexpected resource: ${resource.toString()}`);
 				}
-				return upcastPartial<IFileStat>({ children });
+				return upcastPartial<IFileStatWithMetadata>({ children });
 			},
 		}));
 		instantiationService.stub(ILogService, logService);
