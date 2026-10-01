@@ -7886,6 +7886,28 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		for (const localIndexEnabled of [false, true]) {
+			test(`restarts idle sessions when local indexing changes to ${localIndexEnabled}`, async () => {
+				const client = new StopCountingClient([]);
+				const { agent, configurationService } = createTestAgentContext(disposables, {
+					copilotClient: client,
+					rootConfig: { [CopilotCliConfigKey.LocalIndexEnabled]: !localIndexEnabled },
+				});
+				try {
+					await agent.listChatsToMigrate();
+					let disposed = false;
+					setDefaultSessionStub(agent, 'idle', { dispose() { disposed = true; } });
+
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalIndexEnabled]: localIndexEnabled });
+					await timeout(0);
+
+					assert.deepStrictEqual({ stopCount: client.stopCount, disposed }, { stopCount: 1, disposed: true });
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+
 		test('does not restart when an unrelated config key changes', async () => {
 			const client = new StopCountingClient([]);
 			const logService = new MutableLogService();
@@ -7933,6 +7955,34 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, 'busy', chat);
 
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				await timeout(0);
+				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed };
+
+				chat.hasActiveTurn = false;
+				reportChatTurnEnded(agent);
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					duringTurn,
+					afterTurn: { stopCount: client.stopCount, disposed: chat.disposed },
+				}, {
+					duringTurn: { stopCount: 0, disposed: false },
+					afterTurn: { stopCount: 1, disposed: true },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('applies local index changes after the active turn finishes', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.listChatsToMigrate();
+				const chat = busyChatStub();
+				setDefaultSessionStub(agent, 'busy', chat);
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalIndexEnabled]: false });
 				await timeout(0);
 				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed };
 
