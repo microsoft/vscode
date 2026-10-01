@@ -165,6 +165,12 @@ class MockCopilotSession {
 	readonly compactCalls: unknown[] = [];
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
+	readonly pluginInstallCalls: Array<{ source: string }> = [];
+	pluginInstallGate: Promise<void> | undefined;
+	onPluginInstall: (() => void) | undefined;
+	readonly pluginMarketplaceAddCalls: Array<{ source: string }> = [];
+	pluginMarketplaceAddGate: Promise<void> | undefined;
+	onPluginMarketplaceAdd: (() => void) | undefined;
 	readonly fleetStartCalls: Array<{ prompt?: string }> = [];
 	fleetStartResult: { started: boolean } = { started: true };
 	fleetStartError: unknown = undefined;
@@ -523,6 +529,35 @@ class MockCopilotSession {
 					throw this.commandInvokeError;
 				}
 				return this.commandInvokeResult;
+			},
+		},
+		plugins: {
+			list: async () => ({ plugins: [] }),
+			install: async (params: { source: string }) => {
+				this.pluginInstallCalls.push(params);
+				this.onPluginInstall?.();
+				await this.pluginInstallGate;
+				return {
+					plugin: { name: 'elasticsearch', marketplace: 'awesome-copilot', enabled: true },
+					skillsInstalled: 7,
+				};
+			},
+			uninstall: async () => { throw new Error('Not implemented'); },
+			update: async () => { throw new Error('Not implemented'); },
+			enable: async () => { throw new Error('Not implemented'); },
+			disable: async () => { throw new Error('Not implemented'); },
+			reload: async () => ({ plugins: [], errors: [] }),
+			marketplaces: {
+				add: async (params: { source: string }) => {
+					this.pluginMarketplaceAddCalls.push(params);
+					this.onPluginMarketplaceAdd?.();
+					await this.pluginMarketplaceAddGate;
+					return { name: 'test-marketplace', source: params.source };
+				},
+				remove: async () => { throw new Error('Not implemented'); },
+				list: async () => ({ marketplaces: [] }),
+				browse: async () => ({ plugins: [] }),
+				refresh: async () => ({ results: [] }),
 			},
 		},
 		fleet: {
@@ -5768,6 +5803,69 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('shows delayed activity while a plugin command remains in progress', () => runWithFakedTimers({}, async () => {
+		const addGate = new DeferredPromise<void>();
+		const addStarted = new DeferredPromise<void>();
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{ name: 'plugin', kind: 'builtin', description: 'Manage plugins', allowDuringAgentExecution: true }],
+		};
+		mockSession.pluginMarketplaceAddGate = addGate.p;
+		mockSession.onPluginMarketplaceAdd = () => addStarted.complete();
+
+		const sendPromise = session.send('/plugin marketplace add github/example', undefined, 'turn-plugin', 'interactive');
+		await addStarted.p;
+		await timeout(1000);
+		addGate.complete();
+		await sendPromise;
+
+		assert.deepStrictEqual({
+			activity: getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []),
+			addCalls: mockSession.pluginMarketplaceAddCalls,
+		}, {
+			activity: ['Adding plugin marketplace…', undefined],
+			addCalls: [{ source: 'github/example' }],
+		});
+	}));
+
+	test('shows plugin install activity immediately', async () => {
+		const installGate = new DeferredPromise<void>();
+		const installStarted = new DeferredPromise<void>();
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{ name: 'plugin', kind: 'builtin', description: 'Manage plugins', allowDuringAgentExecution: true }],
+		};
+		mockSession.pluginInstallGate = installGate.p;
+		mockSession.onPluginInstall = () => installStarted.complete();
+
+		const sendPromise = session.send('/plugin install elasticsearch@awesome-copilot', undefined, 'turn-plugin', 'interactive');
+		await installStarted.p;
+		const activityWhileInstalling = getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []);
+		installGate.complete();
+		await sendPromise;
+
+		assert.deepStrictEqual({
+			activityWhileInstalling,
+			activity: getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []),
+			installCalls: mockSession.pluginInstallCalls,
+		}, {
+			activityWhileInstalling: ['Installing plugin…'],
+			activity: ['Installing plugin…', undefined],
+			installCalls: [{ source: 'elasticsearch@awesome-copilot' }],
+		});
+	});
+
+	test('does not show activity when a plugin command completes within the delay', () => runWithFakedTimers({}, async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{ name: 'plugin', kind: 'builtin', description: 'Manage plugins', allowDuringAgentExecution: true }],
+		};
+
+		await session.send('/plugin marketplace add github/example', undefined, 'turn-plugin', 'interactive');
+
+		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []), []);
+	}));
+
 	test('reapplies an agent-prompt mode override before the SDK send', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
@@ -9044,7 +9142,7 @@ suite('CopilotAgentSession', () => {
 		}));
 
 		for (const platform of ['darwin', 'win32'] as const) {
-			test(`does not query or publish SDK sandbox diagnostics on ${platform}`, async () => {
+			test(`queries and publishes SDK sandbox diagnostics on ${platform}`, async () => {
 				let queries = 0;
 				const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On, [AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On };
 				const { session, mockSession, dispatchedActions, fireRootConfigChange } = await createAgentSession(disposables, {
@@ -9064,8 +9162,8 @@ suite('CopilotAgentSession', () => {
 					diagnostics: dispatchedActions.filter(action => action.type === ActionType.SessionMetaChanged).map(action => readAgentSandboxDiagnostics(action)),
 					sandbox: mockSession.sandboxConfigUpdates.at(-1),
 				}, {
-					queries: 0,
-					diagnostics: [],
+					queries: 3,
+					diagnostics: [['Unsupported sandbox.']],
 					sandbox: expectedSessionSandboxConfig(platform, sandbox),
 				});
 			});

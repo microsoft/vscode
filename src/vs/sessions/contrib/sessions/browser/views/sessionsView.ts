@@ -49,7 +49,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
 import { SessionsListRearrangeExperimentState } from '../sessionsListRearrangeExperiment.js';
@@ -162,6 +162,7 @@ export class SessionsView extends ViewPane {
 	archiveNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private readonly sessionsListRearrangeExperimentState: SessionsListRearrangeExperimentState;
+	private readonly sessionsListRearrangeContext: IContextKey<boolean>;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
 	private readonly customizationsNavigationState: CustomizationsNavigationState;
 	private customizationsPresentation: CustomizationsPresentation = 'hidden';
@@ -200,6 +201,7 @@ export class SessionsView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.sessionsListRearrangeExperimentState = this._register(instantiationService.createInstance(SessionsListRearrangeExperimentState));
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
+		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
 		// Restore persisted grouping
 		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
@@ -474,6 +476,7 @@ export class SessionsView extends ViewPane {
 		const automationsFocused = this.sessionsControl?.isAutomationsFocused() === true;
 		const wasTreatment = this.customizationsPresentation === 'treatment';
 		this.customizationsPresentation = presentation;
+		this.sessionsListRearrangeContext.set(presentation === 'treatment');
 		this.customizationsNavigationVisible.set(presentation === 'treatment', undefined);
 		this.updateHeaderLayout();
 

@@ -17,6 +17,11 @@ import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 import { NotificationsCenter } from '../../browser/parts/notifications/notificationsCenter.js';
 import { Action, ActionRunner } from '../../../base/common/actions.js';
+import { NotificationText } from '../../../platform/notification/common/notificationMessage.js';
+import { legacyExtensionLinkParsing } from '../../../platform/notification/common/notificationLegacy.js';
+import { mock } from '../../../base/test/common/mock.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { URI } from '../../../base/common/uri.js';
 
 suite('NotificationsList row height', () => {
 	suiteSetup(() => {
@@ -120,6 +125,54 @@ suite('NotificationRenderer', () => {
 	});
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const filename = 'README.md [Open](command:unexpected "Open README")';
+	for (const { name, message, legacy, expectedText, expectedLinks } of [
+		{ name: 'literal', message: filename, legacy: false, expectedText: filename, expectedLinks: [] },
+		{
+			name: 'structured',
+			message: NotificationText.concat(filename, ' ', NotificationText.link('Show Logs', 'command:showLogs')),
+			legacy: false,
+			expectedText: `${filename} Show Logs`,
+			expectedLinks: ['command:showLogs'],
+		},
+		{ name: 'legacy extension', message: filename, legacy: true, expectedText: 'README.md Open', expectedLinks: ['command:unexpected'] },
+	]) {
+		test(`renders ${name} text and activates only explicit links with mouse and keyboard`, () => {
+			const container = document.createElement('div');
+			const opened: string[] = [];
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+				override async open(resource: URI | string): Promise<boolean> {
+					opened.push(resource.toString());
+					return true;
+				}
+			});
+			const renderer = instantiationService.createInstance(NotificationRenderer, store.add(new ActionRunner()));
+			const template = renderer.renderTemplate(container);
+			store.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const notification = NotificationViewItem.create({ severity: Severity.Info, message, legacyExtensionLinkParsing: legacy ? legacyExtensionLinkParsing : undefined }, { global: NotificationsFilter.OFF, sources: new Map() })!;
+			store.add(toDisposable(() => notification.close()));
+			renderer.renderElement(notification, 0, template);
+
+			const anchors = [...template.message.querySelectorAll('a')];
+			for (const anchor of anchors) {
+				anchor.click();
+				anchor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				anchor.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+			}
+
+			assert.deepStrictEqual({
+				text: template.message.textContent,
+				links: anchors.map(anchor => anchor.getAttribute('href')),
+				opened,
+			}, {
+				text: expectedText,
+				links: expectedLinks,
+				opened: expectedLinks.flatMap(href => [href, href, href]),
+			});
+		});
+	}
 
 	test('releases replaced notification action view items', () => {
 		const container = document.createElement('div');

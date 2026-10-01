@@ -91,7 +91,7 @@ suite('StandardChatInputPillSources', () => {
 			backgroundShells: { sections },
 		};
 		const full = store.add(instantiationService.createInstance(StandardChatInputPillSources, data, SESSION_CHAT_PILL_KINDS));
-		const editorKinds = [
+		const supportedKinds = [
 			SessionChatPillKind.Changes,
 			SessionChatPillKind.PullRequests,
 			SessionChatPillKind.Issues,
@@ -99,14 +99,14 @@ suite('StandardChatInputPillSources', () => {
 			SessionChatPillKind.References,
 			SessionChatPillKind.Browsers,
 		];
-		const editor = store.add(instantiationService.createInstance(StandardChatInputPillSources, data, editorKinds));
+		const subset = store.add(instantiationService.createInstance(StandardChatInputPillSources, data, supportedKinds));
 
 		assert.deepStrictEqual({
 			full: full.sources.map(source => source.kind),
-			editor: editor.sources.map(source => source.kind),
+			subset: subset.sources.map(source => source.kind),
 		}, {
 			full: SESSION_CHAT_PILL_KINDS,
-			editor: editorKinds,
+			subset: supportedKinds,
 		});
 	});
 
@@ -273,6 +273,36 @@ suite('StandardChatInputPillSources', () => {
 			focusedLivePill: true,
 		});
 	});
+
+	for (const kind of ['issues', 'artifacts', 'references'] as const) {
+		test(`shares single-entry ${kind} actions across surfaces`, async () => {
+			let removed = 0;
+			const entries = [{
+				id: 'entry',
+				label: 'Entry',
+				open: () => { },
+				promotedAction: toAction({ id: 'remove', label: 'Remove Entry', run: () => { removed++; } }),
+			}];
+			const sections = observableValue<readonly IChatPillSection[]>('sections', [{ title: 'Entries', entries }]);
+			const pills = createPills({ [kind]: { sections } });
+			const target = pills.inputPills.getPillElements()[0];
+			const mouseMenu = pills.openContextMenu(target);
+			const keyboardMenu = pills.openContextMenu(target, true);
+			const backgroundMenu = pills.openContextMenu(pills.inputPills.element);
+			await mouseMenu.find(action => action.id === 'remove')?.run();
+			await keyboardMenu.find(action => action.id === 'remove')?.run();
+			sections.set([{ title: 'Entries', entries: [...entries, { ...entries[0], id: 'another' }] }], undefined);
+			const multipleMenu = pills.openContextMenu(pills.inputPills.getPillElements()[0]);
+
+			assert.deepStrictEqual({
+				mouseRemoval: mouseMenu.some(action => action.id === 'remove'),
+				keyboardRemoval: keyboardMenu.some(action => action.id === 'remove'),
+				backgroundRemoval: backgroundMenu.some(action => action.id === 'remove'),
+				multipleRemoval: multipleMenu.some(action => action.id === 'remove'),
+				removed,
+			}, { mouseRemoval: true, keyboardRemoval: true, backgroundRemoval: false, multipleRemoval: false, removed: 2 });
+		});
+	}
 
 	for (const state of ['open', 'closed'] as const) {
 		test(`restores focus after filtering when the target pill ${state === 'open' ? 'remains visible' : 'disappears'}`, async () => {

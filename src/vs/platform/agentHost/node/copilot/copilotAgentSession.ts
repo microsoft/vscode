@@ -43,7 +43,7 @@ import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../.
 import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { AgentCanvasAvailability, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvas, type IAgentCanvasSnapshot, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AGENT_HOST_CANVAS_LIMIT } from '../../common/agentHostExtensionProtocol.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
@@ -890,6 +890,34 @@ export class CopilotAgentSession extends Disposable {
 	/** Working directory this session operates in, if any. */
 	get workingDirectory(): URI | undefined { return this._workingDirectory; }
 
+	async listPluginMarketplaces(): Promise<Awaited<ReturnType<CopilotSession['rpc']['plugins']['marketplaces']['list']>>['marketplaces']> {
+		return (await this._wrapper.session.rpc.plugins.marketplaces.list()).marketplaces;
+	}
+
+	async listInstalledPlugins(): Promise<Awaited<ReturnType<CopilotSession['rpc']['plugins']['list']>>['plugins']> {
+		return (await this._wrapper.session.rpc.plugins.list()).plugins;
+	}
+
+	async listPluginMarketplacePlugins(): Promise<readonly { readonly name: string; readonly marketplace: string }[]> {
+		const marketplaces = (await this._wrapper.session.rpc.plugins.marketplaces.list()).marketplaces
+			.filter(marketplace => marketplace.available !== false);
+		const catalogs = await Promise.all(marketplaces.map(async marketplace => {
+			try {
+				return {
+					marketplace: marketplace.name,
+					plugins: (await this._wrapper.session.rpc.plugins.marketplaces.browse({ name: marketplace.name })).plugins,
+				};
+			} catch (error) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to browse plugin marketplace '${marketplace.name}' for completions: ${getErrorMessage(error)}`);
+				return { marketplace: marketplace.name, plugins: [] };
+			}
+		}));
+		return catalogs.flatMap(catalog => catalog.plugins.map(plugin => ({
+			name: plugin.name,
+			marketplace: catalog.marketplace,
+		})));
+	}
+
 	get extensionLaunchDirectories(): readonly URI[] {
 		return [
 			...(this._launchPlan.workingDirectory ? [this._launchPlan.workingDirectory] : []),
@@ -1325,7 +1353,7 @@ export class CopilotAgentSession extends Disposable {
 	private _requiresFusionEventOwnership = false;
 	private _fusionTurnCancelled = false;
 	private _hasFusionRootTurnBoundary = false;
-	private readonly _activities: Record<'intent' | 'fusion', string | undefined> = { intent: undefined, fusion: undefined };
+	private readonly _activities: Record<'intent' | 'command' | 'fusion', string | undefined> = { intent: undefined, command: undefined, fusion: undefined };
 	private _publishedActivity: string | undefined;
 	/**
 	 * Provisional Fusion tool starts held back from the transcript until a
@@ -1406,7 +1434,7 @@ export class CopilotAgentSession extends Disposable {
 		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(
 			() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands),
-			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command) },
+			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, this._wrapper.session.rpc.plugins) },
 			this._logService,
 		);
 		this._onDidSessionProgress = options.onDidSessionProgress;
@@ -2857,7 +2885,7 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
-		await this._sandboxDiagnostics.update(this._platform !== 'linux' || this._isCustomTerminalToolEnabled() ? { enabled: false } : this._computeSdkSandboxConfig() ?? { enabled: false });
+		await this._sandboxDiagnostics.update(this._isCustomTerminalToolEnabled() ? { enabled: false } : this._computeSdkSandboxConfig() ?? { enabled: false });
 		await this._waitForCanvasExtensions(wrapper);
 		await this._syncShellInitScript();
 		this._promptCacheState = this._promptCache.read(this.resourceUri);
@@ -3293,7 +3321,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder): Promise<void> {
 		if (this._workingDirectoryMutationInProgress) {
 			throw new Error('Cannot start a turn while the working directory is changing');
 		}
@@ -3316,7 +3344,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		try {
-			await this._send(prompt, attachments, mode);
+			await this._send(prompt, attachments, mode, stageRecorder);
 		} catch (err) {
 			// A rejected send never reaches the SDK's agentic loop, so no
 			// `session.idle` will ever arrive to close this turn. The host turns
@@ -3425,7 +3453,7 @@ export class CopilotAgentSession extends Disposable {
 		return execution ? { kind: 'executed', value: await execution.result } : { kind: 'skipped' };
 	}
 
-	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
+	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined, stageRecorder?: IAgentProviderSendStageRecorder): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
 		// An aborted idle resets the live token; retain the pre-await token to preserve cancellation.
@@ -3536,8 +3564,21 @@ export class CopilotAgentSession extends Disposable {
 					return;
 				}
 				let result: Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
+				const commandProgressMessage = runtimeSlashCommand.getProgressMessage?.(slashCommand.rawRest);
+				const showCommandProgressImmediately = commandProgressMessage && runtimeSlashCommand.showProgressImmediately?.(slashCommand.rawRest);
+				if (showCommandProgressImmediately) {
+					this._publishActivity('command', commandProgressMessage);
+				}
+				const commandProgressScheduler = commandProgressMessage && !showCommandProgressImmediately
+					? new RunOnceScheduler(() => {
+						if (this._currentTurn.value === sendingTurn && !abortToken.isCancellationRequested) {
+							this._publishActivity('command', commandProgressMessage);
+						}
+					}, 1000)
+					: undefined;
+				commandProgressScheduler?.schedule();
 				try {
-					const execution = await this._executeSdkOperation(() => this._wrapper.session.rpc.commands.invoke(invocation), sendingTurn, abortToken);
+					const execution = await this._executeSdkOperation(async () => await runtimeSlashCommand.invoke?.(slashCommand.rawRest) ?? this._wrapper.session.rpc.commands.invoke(invocation), sendingTurn, abortToken);
 					if (execution.kind === 'skipped') {
 						return;
 					}
@@ -3557,6 +3598,9 @@ export class CopilotAgentSession extends Disposable {
 					}
 					this._logService.error(err, `[Copilot:${this.sessionId}] rpc.commands.invoke(${slashCommand.command}) failed`);
 					throw commandError;
+				} finally {
+					commandProgressScheduler?.dispose();
+					this._publishActivity('command', undefined);
 				}
 				const output = await runtimeSlashCommand.getOutput?.(slashCommand.rest, result);
 				const renderedOutput = output ? renderCopilotSlashCommandOutput(output) : undefined;
@@ -3615,6 +3659,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 		const execution = await this._executeSdkOperation(() => this._otelService.withTraceContext(traceContext, async () => {
+			stageRecorder?.mark('modelResponse');
 			if (!this._environmentService.isBuilt && prompt === '$error') {
 				await this._wrapper.session.rpc.sendMessages({
 					messages: [{ prompt }],
@@ -5282,7 +5327,7 @@ export class CopilotAgentSession extends Disposable {
 			if (await applySandboxConfig(this._wrapper.session, sandboxConfig, this.sessionId, this._logService)) {
 				this._sandboxDisabledForSession = false;
 				this._configurationService.setSessionSandboxEnabled(this._ownerSessionUri.toString(), sandboxConfig.enabled);
-				await this._sandboxDiagnostics.update(this._platform !== 'linux' || this._isCustomTerminalToolEnabled() ? { enabled: false } : sandboxConfig);
+				await this._sandboxDiagnostics.update(this._isCustomTerminalToolEnabled() ? { enabled: false } : sandboxConfig);
 			}
 		} catch (err) {
 			if (failOnError) {
@@ -7889,9 +7934,9 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
-	private _publishActivity(source: 'intent' | 'fusion', activity: string | undefined): void {
+	private _publishActivity(source: 'intent' | 'command' | 'fusion', activity: string | undefined): void {
 		this._activities[source] = activity;
-		const effectiveActivity = this._activities.fusion ?? this._activities.intent;
+		const effectiveActivity = this._activities.fusion ?? this._activities.command ?? this._activities.intent;
 		if (effectiveActivity !== this._publishedActivity) {
 			this._publishedActivity = effectiveActivity;
 			this._emitAction({ type: ActionType.SessionActivityChanged, activity: effectiveActivity });
@@ -7900,6 +7945,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private _clearActivity(): void {
 		this._activities.intent = undefined;
+		this._activities.command = undefined;
 		this._publishActivity('fusion', undefined);
 	}
 
