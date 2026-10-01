@@ -6213,6 +6213,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// settles to idle. Requesting the summary here queues a second reading
 			// of that same turn, which may surface just before its next prompt.
 			if (this._hasResponseAudioInFlight(sessionKey)) {
+				if (!alreadyNarrated && this._pendingResponseSummaries.get(sessionKey) !== lastResponseSummary) {
+					this._pendingResponseSummaries.set(sessionKey, lastResponseSummary);
+					this._markPendingResponse(sessionKey, true);
+				}
 				return;
 			} else {
 				this._narrate(sessionId, 'response', lastResponseSummary);
