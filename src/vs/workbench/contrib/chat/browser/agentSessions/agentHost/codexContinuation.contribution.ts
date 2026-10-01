@@ -59,29 +59,16 @@ class CodexContinuationContribution extends Disposable {
 			surface: 'editorWindow',
 			onDidChangePresentability: notifications.onDidChangeFilter,
 			isPresentable: () => notifications.getFilter() === NotificationsFilter.OFF,
-			show: (candidate, visible, close) => {
+			show: (candidate, visible, close, runAction) => {
 				const store = new DisposableStore();
 				let programmaticClose = false;
-				let actionTaken = false;
-				let closed = false;
-				const closeOnce = (reason: 'action' | 'dismissed') => {
-					if (!closed) {
-						closed = true;
-						close(reason);
-					}
-				};
-				const runAction = <T>(action: () => T): T => {
-					actionTaken = true;
-					closeOnce('action');
-					return action();
-				};
 				const handle = notifications.prompt(Severity.Info, CODEX_CONTINUATION_MESSAGE, [
-					{ label: CODEX_CONTINUATION_LABEL, run: () => runAction(() => guide.run(candidate, 'editorWindow', navigation)) },
-					{ label: CODEX_CONTINUATION_DISABLE_LABEL, run: () => runAction(() => nudge.disable('editorWindow')) },
+					{ label: CODEX_CONTINUATION_LABEL, keepOpen: true, run: () => runAction(() => guide.run(candidate, 'editorWindow', navigation)) },
+					{ label: CODEX_CONTINUATION_DISABLE_LABEL, keepOpen: true, run: () => runAction(() => nudge.disable('editorWindow')) },
 				]);
 				store.add(handle.onDidChangeVisibility(shown => { if (shown) { visible(); } }));
 				store.add(handle.onDidClose(() => {
-					if (!programmaticClose) { closeOnce(actionTaken ? 'action' : 'dismissed'); }
+					if (!programmaticClose) { close('dismissed'); }
 				}));
 				store.add(toDisposable(() => {
 					programmaticClose = true;

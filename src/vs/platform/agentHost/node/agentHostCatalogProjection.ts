@@ -302,6 +302,7 @@ const sourceControlValidator = new RefinedValidator(plainObject(vObj({
 
 const artifactValidator = plainObject(vObj({
 	id: boundedString(),
+	chat: vOptionalProp(boundedString()),
 	type: vEnum('pullRequest', 'issue', 'commit', 'website', 'file', 'resource'),
 	label: boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT),
 	isArtifact: vOptionalProp(vBoolean()),

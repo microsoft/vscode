@@ -14,6 +14,18 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
+		test(`only describes visible Codex continuation UI (${type})`, () => {
+			const keybindings = new MockKeybindingService();
+			const hidden = getAccessibilityHelpText(type, keybindings, false);
+			const shown = getAccessibilityHelpText(type, keybindings, false, false, false, false, false, ChatSessionArchiveActionWording.Archive, true);
+			assert.deepStrictEqual({
+				hidden: hidden.includes('A ChatGPT limit suggestion'),
+				shown: shown.includes('A ChatGPT limit suggestion'),
+			}, { hidden: false, shown: type !== 'inlineChat' && type !== 'quickChat' });
+		});
+	}
+
 	test('documents the sandbox policy command and report link', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.ok(help.includes('use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
@@ -121,7 +133,7 @@ suite('Chat Accessibility Help', () => {
 			visibility: help.includes('on the hovered, selected, or keyboard-focused model'),
 			inlinePreferences: help.includes('In Auto mode, use Up and Down Arrow to focus an "Optimize for" preference'),
 			hydra: help.includes('HydraFusion, when available, is an alternative routing choice'),
-			hydraDescription: help.includes('press Right Arrow to open its description and focus Learn more'),
+			hydraDescription: help.includes('Focus HydraFusion and press Tab to reach Learn more'),
 			activation: help.includes('Enter or Space applies the preference and keeps the picker open'),
 			autoEntry: help.includes('both the Auto name and preference readout in the chat input open these routing choices'),
 			noAutoDetails: help.includes('Auto has no separate details page'),
@@ -385,6 +397,14 @@ suite('Chat Accessibility Help', () => {
 			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
 			filterPersistence: getAccessibilityHelpText('agentView', keybindingService, true).includes('remembered across sessions'),
 			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('any other pill\'s context menu or the toolbar context menu'),
+			subagentFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Subagent Options'),
+			customizations: getAccessibilityHelpText('panelChat', keybindingService, true).includes('Activate an entry to reveal it in the Customizations editor'),
+			sharedPills: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('available in both the Agents Window and editor window'),
+			hiddenByDefault: getAccessibilityHelpText('agentView', keybindingService, true).includes('hidden by default'),
+			progressiveCollapse: getAccessibilityHelpText('agentView', keybindingService, true).includes('one at a time from right to left'),
+			compactAccessibility: getAccessibilityHelpText('panelChat', keybindingService, true).includes('full labels remain available to screen readers and in tooltips'),
+			scrollFallback: getAccessibilityHelpText('panelChat', keybindingService, true).includes('If the icons still do not fit, the row scrolls horizontally'),
+			agentsCollapse: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('one at a time from right to left'),
 			agentQuickChat: getAccessibilityHelpText('agentView', keybindingService, true, false, false, false).includes('session status pills'),
 			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('session status pills'),
 			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('session status pills'),
@@ -394,6 +414,14 @@ suite('Chat Accessibility Help', () => {
 			pullRequestFilter: true,
 			filterPersistence: true,
 			filterRecovery: true,
+			subagentFilter: true,
+			customizations: true,
+			sharedPills: true,
+			hiddenByDefault: true,
+			progressiveCollapse: true,
+			compactAccessibility: true,
+			scrollFallback: true,
+			agentsCollapse: false,
 			agentQuickChat: false,
 			quickChat: false,
 			inlineChat: false,

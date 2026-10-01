@@ -13,7 +13,7 @@ import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDe
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
-import { SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
+import { parseSessionArtifacts, SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
@@ -25,6 +25,8 @@ const session = URI.parse('agenthost:catalog-source');
 const chat = 'agenthost-chat:catalog-source/default';
 const liveArtifact = { id: 'live-artifact', type: SessionArtifactType.Website, label: 'Live artifact', isArtifact: true, link: 'https://example.com/live' };
 const persistedArtifact = { id: 'persisted-artifact', type: SessionArtifactType.Issue, label: 'Persisted artifact', isArtifact: true, link: 'https://example.com/persisted' };
+const liveScopedArtifact = { ...liveArtifact, chat };
+const persistedScopedArtifact = { ...persistedArtifact, chat };
 const liveCreationReference = { session: 'agenthost:live-creator', chat: 'agenthost-chat:live-creator/default', turnId: 'live-turn' } as const;
 const persistedCreationReference = { session: 'agenthost:persisted-creator', chat: 'agenthost-chat:persisted-creator/default', turnId: 'persisted-turn' } as const;
 const liveGit = { branchName: 'live-branch', outgoingChanges: 2 };
@@ -90,6 +92,7 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 	const resolver = new AgentHostCatalogSourceResolver({
 		isUnpersistedChatBacking: () => unpersistedBacking,
 		worktreeProjectFromRepositoryRoot: root => root ? { uri: URI.parse(root), displayName: 'Persisted worktree' } : undefined,
+		reportMalformedArtifacts: () => { },
 	});
 	return {
 		buildCatalogSyncRequest: (session, state, overrides, preferPersisted, _database, fallbacks) => resolver.buildCatalogSyncRequest(
@@ -110,6 +113,38 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores artifacts for multiple chats from the shared session metadata key', async () => {
+		const peer = 'agenthost-chat:catalog-source/peer';
+		const peerArtifact = { ...persistedArtifact, id: 'peer-artifact', chat: peer };
+		const result = await createResolver({
+			[SESSION_ARTIFACTS_KEY]: JSON.stringify([liveScopedArtifact, peerArtifact]),
+		}).buildCatalogSyncRequest(session, {
+			...sourceState(),
+			chats: [...sourceState().chats, { uri: peer, kind: 'peer' }],
+		}, {}, true);
+
+		assert.deepStrictEqual(result.data._meta?.[SESSION_META_ARTIFACTS_KEY], [
+			liveScopedArtifact,
+			peerArtifact,
+		]);
+		assert.deepStrictEqual(parseSessionArtifacts(result.legacyMetadata[SESSION_ARTIFACTS_KEY]).artifacts, [liveScopedArtifact, peerArtifact]);
+		assert.ok(encodeAgentHostCatalogPayload(result.data).ok);
+	});
+
+	test('migrates legacy artifacts into the shared session collection with default chat provenance', async () => {
+		const result = await createResolver({
+			[SESSION_ARTIFACTS_KEY]: JSON.stringify([persistedArtifact]),
+		}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+
+		assert.deepStrictEqual({
+			artifacts: result.data._meta?.[SESSION_META_ARTIFACTS_KEY],
+			persistedArtifacts: JSON.parse(result.legacyMetadata[SESSION_ARTIFACTS_KEY]),
+		}, {
+			artifacts: [{ ...persistedArtifact, chat }],
+			persistedArtifacts: [{ ...persistedArtifact, chat }],
+		});
+	});
 
 	test('does not persist temporary input restrictions as read-only chats', async () => {
 		const state = sourceState();
@@ -181,12 +216,14 @@ suite('AgentHostCatalogSourceResolver', () => {
 		const absent = new AgentHostCatalogSourceResolver({
 			isUnpersistedChatBacking: () => false,
 			worktreeProjectFromRepositoryRoot: () => undefined,
+			reportMalformedArtifacts: () => { },
 		});
 
 		const result = await absent.buildCatalogSyncRequest(session, sourceState(), {}, true, undefined);
 		const failing = new AgentHostCatalogSourceResolver({
 			isUnpersistedChatBacking: () => false,
 			worktreeProjectFromRepositoryRoot: () => undefined,
+			reportMalformedArtifacts: () => { },
 		});
 
 		await assert.rejects(
@@ -367,7 +404,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 					[SESSION_META_GITHUB_DATA_KEY]: { [liveFolderKey]: liveGitHub },
 					[SESSION_META_GIT_KEY]: liveGit,
 					[SESSION_META_SOURCE_CONTROL_KEY]: liveSourceControl,
-					[SESSION_META_ARTIFACTS_KEY]: [liveArtifact],
+					[SESSION_META_ARTIFACTS_KEY]: [liveScopedArtifact],
 					[SESSION_META_CREATED_BY_SESSION_KEY]: liveCreationReference,
 					[SESSION_META_WORKSPACELESS_KEY]: true,
 					[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
@@ -391,7 +428,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[AH_META_IS_ARCHIVED_DB_KEY]: '',
 				[SESSION_META_MULTI_ROOT_KEY]: JSON.stringify({ workspaceFile: 'file:///live.code-workspace' }),
 				[SESSION_META_FOLDER_PICKER_KEY]: JSON.stringify({ hidden: false }),
-				[SESSION_ARTIFACTS_KEY]: JSON.stringify([liveArtifact]),
+				[SESSION_ARTIFACTS_KEY]: JSON.stringify([liveScopedArtifact]),
 				[AH_META_CREATED_BY_SESSION_DB_KEY]: JSON.stringify(liveCreationReference),
 				[AH_META_WORKSPACELESS_DB_KEY]: 'true',
 				[CHAT_BACKING_METADATA_KEY]: 'agenthost-chat:owner/peer',
@@ -424,7 +461,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 					[SESSION_META_GITHUB_DATA_KEY]: { [liveFolderKey]: persistedGitHub },
 					[SESSION_META_GIT_KEY]: liveGit,
 					[SESSION_META_SOURCE_CONTROL_KEY]: { merge: undefined, ...persistedSourceControl },
-					[SESSION_META_ARTIFACTS_KEY]: [persistedArtifact],
+					[SESSION_META_ARTIFACTS_KEY]: [persistedScopedArtifact],
 					[SESSION_META_CREATED_BY_SESSION_KEY]: persistedCreationReference,
 					[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
 					[SESSION_META_EHCLI_ADOPTED_KEY]: true,
@@ -445,7 +482,7 @@ suite('AgentHostCatalogSourceResolver', () => {
 				[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
 				[SESSION_META_MULTI_ROOT_KEY]: JSON.stringify({ workspaceFile: 'file:///persisted.code-workspace' }),
 				[SESSION_META_FOLDER_PICKER_KEY]: JSON.stringify({ hidden: true, primary: 'file:///persisted' }),
-				[SESSION_ARTIFACTS_KEY]: JSON.stringify([persistedArtifact]),
+				[SESSION_ARTIFACTS_KEY]: JSON.stringify([persistedScopedArtifact]),
 				[AH_META_CREATED_BY_SESSION_DB_KEY]: JSON.stringify(persistedCreationReference),
 				[AH_META_WORKSPACELESS_DB_KEY]: 'false',
 				[CHAT_BACKING_METADATA_KEY]: 'agenthost-chat:owner/peer',

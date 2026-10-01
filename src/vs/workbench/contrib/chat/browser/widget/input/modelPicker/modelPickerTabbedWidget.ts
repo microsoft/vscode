@@ -9,6 +9,7 @@ import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
@@ -23,7 +24,7 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { resolveConfiguredModel } from '../../../../common/modelSelection.js';
@@ -33,11 +34,11 @@ import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerC
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, organizationDefaultLabel } from './modelPickerBadges.js';
 import { createModelAction, createModelItem, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
-import { getModelPickerAccessibilityProvider } from './modelPickerItems.js';
-import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
+import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
+import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
-import { createMessageBanner, getModelHoverContent } from './modelPickerHover.js';
+import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -114,6 +115,7 @@ export class TabbedModelPicker extends Disposable {
 	private readonly _speedVariants = new Map<string, IModelSpeedVariants>();
 	private readonly _preferredSpeedVariants = new Map<string, string>();
 	private _selectionVersion = 0;
+	private _models: readonly ILanguageModelChatMetadataAndIdentifier[] = [];
 	/** The manual Copilot model to restore when Auto is switched off. */
 	private _lastExplicitModelId: string | undefined;
 	private _lastRoutingModelId: string | undefined;
@@ -139,6 +141,19 @@ export class TabbedModelPicker extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.DefaultModel)) {
 				this.refresh();
 			}
+		}));
+		this._register(this._entitlementService.onDidChangeEntitlement(() => {
+			if (!this.isVisible || !this._context) {
+				return;
+			}
+			this._context = this._refreshContextForModels(this._context, this._models);
+			if (this._context.selectedModelId && !this._context.models.some(model => model.identifier === this._context?.selectedModelId)) {
+				const fallback = this._autoModel(this._context) ?? this._fallbackModel(this._context);
+				if (fallback) {
+					this._applyModelSelection(fallback, this._context);
+				}
+			}
+			this.refresh();
 		}));
 		this._register(this._widget.onDidHide(() => {
 			// Search is a transient view. Left on, it would also size the next popup from
@@ -175,15 +190,17 @@ export class TabbedModelPicker extends Disposable {
 		}
 		this._anchor = anchor;
 		this._selectionVersion++;
-		this._context = context;
+		this._models = context.models;
+		const pickerContext = this._filterModelsForEntitlement(context);
+		this._context = pickerContext;
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
 		this._contextViewLayer = contextViewLayer;
-		this._rememberSelection(context.selectedModelId);
+		this._rememberSelection(pickerContext.selectedModelId);
 		if (options?.initialFilterValue !== undefined) {
 			this._searchVisible = true;
 		}
 		this._showCurrent(options?.initialFilterValue, options?.initialFocusItemId);
-		const detailsModel = context.models.find(model => model.identifier === detailsModelId);
+		const detailsModel = pickerContext.models.find(model => model.identifier === detailsModelId);
 		if (detailsModel && !isAutoModel(detailsModel) && !isHydraFusionModel(detailsModel)) {
 			this._showModelDetails(detailsModel, focusConfiguration);
 		}
@@ -203,7 +220,8 @@ export class TabbedModelPicker extends Disposable {
 			return;
 		}
 		if (models) {
-			this._context = { ...this._context, models };
+			this._models = models;
+			this._context = this._refreshContextForModels(this._context, this._models);
 		}
 		const destinations = this._buildDestinations(this._context);
 		if (!destinations.length) {
@@ -225,6 +243,23 @@ export class TabbedModelPicker extends Disposable {
 			this._getModelCard(model, this._context).refresh();
 		}
 		this._widget.refreshActiveList();
+	}
+
+	private _filterModelsForEntitlement(context: ITabbedModelPickerContext): ITabbedModelPickerContext {
+		return {
+			...context,
+			models: filterModelPickerModelsForEntitlement(context.models, this._entitlementService.entitlement, this._languageModelsService),
+			controlModels: filterModelPickerControlModelsForEntitlement(context.controlModels, context.models, this._entitlementService.entitlement, this._languageModelsService),
+		};
+	}
+
+	private _refreshContextForModels(context: ITabbedModelPickerContext, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ITabbedModelPickerContext {
+		const controlModels = getModelPickerControlModels(
+			this._languageModelsService.getModelsControlManifest(),
+			this._entitlementService.entitlement,
+			models,
+		);
+		return this._filterModelsForEntitlement({ ...context, models, controlModels });
 	}
 
 	private _showCurrent(initialFilterValue?: string, initialFocusItemId?: string): void {
@@ -302,7 +337,7 @@ export class TabbedModelPicker extends Disposable {
 						? this._buildAutoModeItems(destination, sections, current)
 						: this._buildItems(destination, sections, current);
 				const hint = current.cacheBreakHint ?? current.configurationCacheBreakHint;
-				const listOptions = withChatInputPickerMotion({
+				const baseListOptions = withChatInputPickerMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 					stopToolbarPointerPropagation: true,
 					tabThroughItemActions: true,
@@ -335,6 +370,9 @@ export class TabbedModelPicker extends Disposable {
 					hideDefaultKeybindingTooltip: true,
 					reserveSubmenuSpace: false,
 				});
+				const listOptions = anchor.closest('.monaco-dialog-box')
+					? { ...baseListOptions, anchorPosition: AnchorPosition.BELOW }
+					: baseListOptions;
 				return {
 					items,
 					listOptions,
@@ -435,6 +473,9 @@ export class TabbedModelPicker extends Disposable {
 			showSuggested: isBuiltIn,
 			// Only the built-in provider has a curated catalogue to compare against.
 			showUnavailable: isBuiltIn && context.unavailableContext.show,
+			alwaysShowUnavailableModelIds: isBuiltIn && this._entitlementService.entitlement === ChatEntitlement.Free
+				? new Set([COPILOT_HYDRA_FUSION_MODEL_ID])
+				: undefined,
 			currentVSCodeVersion: context.unavailableContext.currentVSCodeVersion,
 		});
 		for (const [id, pair] of sections.speedVariants) {
@@ -605,33 +646,14 @@ export class TabbedModelPicker extends Disposable {
 			items.push({ kind: ActionListItemKind.Separator, label: localize('chat.modelPicker.alternativeRouting', "Alternative routing") });
 			if (hydra) {
 				const item = this._createModelItem(hydra, context);
-				const description = localize('chat.modelPicker.hydraFusionDescription', "HydraFusion picks a workflow for each task, using one or more models to draft, review, or escalate when needed.");
-				let hoverContent: ReturnType<typeof getModelHoverContent>;
+				const description = localize('chat.modelPicker.hydraFusionDescription', "Picks a workflow per task, using one or more models to draft, review, or escalate.");
 				items.push({
 					...item,
-					detail: localize('chat.modelPicker.hydraFusionDetail', "May use multiple models"),
+					detail: description,
+					detailLink: { label: localize('chat.modelPicker.learnMore', "Learn more"), uri: HYDRA_FUSION_LEARN_MORE_URL },
 					badge: item.badge ?? hydra.metadata.detail,
 					ariaDescription: [item.ariaDescription, description].filter(Boolean).join(', '),
 					tooltip: [item.tooltip, description].filter(Boolean).join(' \u00b7 '),
-					hover: {
-						content: () => {
-							hoverContent ??= getModelHoverContent(hydra, context.isUBB, undefined, this._openerService, description);
-							if (!hoverContent) {
-								throw new Error('HydraFusion model hover is unavailable');
-							}
-							return hoverContent.element;
-						},
-						disposable: { dispose: () => hoverContent?.disposable.dispose() },
-						disposeContent: content => {
-							if (hoverContent?.element === content) {
-								hoverContent.disposable.dispose();
-								hoverContent = undefined;
-							}
-						},
-						expandable: true,
-						tabThroughPanel: true,
-						getTabbableElements: () => hoverContent?.tabbableElements ?? [],
-					},
 					className: `${item.className} chat-model-picker-routing-model${!item.badge && hydra.metadata.detail ? ' chat-model-picker-badge-preview' : ''}`,
 				});
 			}

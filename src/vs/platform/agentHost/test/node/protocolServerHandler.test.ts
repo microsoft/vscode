@@ -21,9 +21,9 @@ import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { AgentCanvasAvailability, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -189,6 +189,9 @@ class MockAgentService implements IAgentService {
 	readonly onDidNotification = this._onDidNotification.event;
 	private readonly _onMcpNotification = new Emitter<import('../../common/agent.js').IMcpNotification>();
 	readonly onMcpNotification = this._onMcpNotification.event;
+	private readonly _onDidChangeCanvases = new Emitter<IAgentCanvasSnapshot>();
+	readonly onDidChangeCanvases = this._onDidChangeCanvases.event;
+	readonly resolveCanvasSourceCalls: { chat: string; instanceId: string; revision: number }[] = [];
 
 	private _stateManager!: AgentHostStateManager;
 
@@ -246,6 +249,11 @@ class MockAgentService implements IAgentService {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
 	}
+	async resolveCanvasSource(chat: URI, instanceId: string, revision: number): Promise<string> {
+		this.resolveCanvasSourceCalls.push({ chat: chat.toString(), instanceId, revision });
+		return 'https://example.test/canvas';
+	}
+	fireCanvasSnapshot(snapshot: IAgentCanvasSnapshot): void { this._onDidChangeCanvases.fire(snapshot); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		const result = [...this.listedSessions];
 		this.afterListSessionsSnapshot?.();
@@ -350,6 +358,7 @@ class MockAgentService implements IAgentService {
 		this._onDidAction.dispose();
 		this._onDidNotification.dispose();
 		this._onMcpNotification.dispose();
+		this._onDidChangeCanvases.dispose();
 	}
 }
 
@@ -426,8 +435,8 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
-	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>): MockProtocolTransport {
-		const transport = new MockProtocolTransport();
+	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>, transportKind = AgentHostTransportKind.Unknown): MockProtocolTransport {
+		const transport = new MockProtocolTransport(transportKind);
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
@@ -499,6 +508,125 @@ suite('ProtocolServerHandler', () => {
 				'vscode.devContainers': true,
 			},
 		});
+	});
+
+	test('canvas extension is local-only, publishes full snapshots, and fences source resolution', async () => {
+		const snapshot: IAgentCanvasSnapshot = {
+			chat: URI.parse(defaultChatUri),
+			canvases: [{
+				instanceId: 'preview-1',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				revision: 4,
+				availability: AgentCanvasAvailability.Ready,
+			}],
+		};
+		agentService.fireCanvasSnapshot(snapshot);
+		const remote = connectClient('canvas-remote', undefined, undefined, {
+			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
+		}, AgentHostTransportKind.WebSocket);
+		const local = connectClient('canvas-local', undefined, undefined, {
+			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
+		}, AgentHostTransportKind.MessagePort);
+		const remoteInitialize = findResponse(remote.sent, 1);
+		const localInitialize = findResponse(local.sent, 1);
+		assert.ok(remoteInitialize && hasKey(remoteInitialize, { result: true }));
+		assert.ok(localInitialize && hasKey(localInitialize, { result: true }));
+
+		const sourceResponse = waitForResponse(local, 2);
+		local.simulateMessage(request(2, ResolveAgentHostCanvasSourceExtensionMethod, {
+			chat: defaultChatUri,
+			instanceId: 'preview-1',
+			revision: 4,
+		}));
+		agentService.fireCanvasSnapshot(snapshot);
+		const remoteSourceResponse = waitForResponse(remote, 2);
+		remote.simulateMessage(request(2, ResolveAgentHostCanvasSourceExtensionMethod, {
+			chat: defaultChatUri,
+			instanceId: 'preview-1',
+			revision: 4,
+		}));
+
+		assert.deepStrictEqual({
+			capabilities: {
+				local: supportsAgentHostCanvases(localInitialize.result as InitializeResult),
+				remote: supportsAgentHostCanvases(remoteInitialize.result as InitializeResult),
+			},
+			localSnapshots: findNotifications(local.sent, AgentHostCanvasesChangedNotification).map(notification => notification.params),
+			remoteSnapshots: findNotifications(remote.sent, AgentHostCanvasesChangedNotification).length,
+			sourceResponse: await sourceResponse,
+			remoteSourceResponse: await remoteSourceResponse,
+			resolveCalls: agentService.resolveCanvasSourceCalls,
+		}, {
+			capabilities: { local: true, remote: false },
+			localSnapshots: [{ chat: defaultChatUri, canvases: snapshot.canvases }],
+			remoteSnapshots: 0,
+			sourceResponse: { jsonrpc: '2.0', id: 2, result: { url: 'https://example.test/canvas' } },
+			remoteSourceResponse: {
+				jsonrpc: '2.0',
+				id: 2,
+				error: { code: JsonRpcErrorCodes.MethodNotFound, message: `Method not found: ${ResolveAgentHostCanvasSourceExtensionMethod}` },
+			},
+			resolveCalls: [{ chat: defaultChatUri, instanceId: 'preview-1', revision: 4 }],
+		});
+	});
+
+	test('canvas reconnect replays current snapshots and clears snapshots removed while disconnected', async () => {
+		const removedChat = URI.parse(defaultChatUri);
+		const currentChat = URI.parse(buildChatUri('copilotcli:/session-1', 'peer-1'));
+		const removedSnapshot: IAgentCanvasSnapshot = {
+			chat: removedChat,
+			canvases: [{
+				instanceId: 'removed',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				revision: 1,
+				availability: AgentCanvasAvailability.Ready,
+			}],
+		};
+		const currentSnapshot: IAgentCanvasSnapshot = {
+			chat: currentChat,
+			canvases: [{
+				instanceId: 'current',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				revision: 1,
+				availability: AgentCanvasAvailability.Ready,
+			}],
+		};
+		agentService.fireCanvasSnapshot(removedSnapshot);
+		agentService.fireCanvasSnapshot(currentSnapshot);
+		const initial = connectClient('canvas-reconnect', undefined, undefined, {
+			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
+		}, AgentHostTransportKind.MessagePort);
+		initial.simulateClose();
+
+		agentService.fireCanvasSnapshot({ chat: removedChat, canvases: [] });
+		const updatedCurrentSnapshot: IAgentCanvasSnapshot = {
+			...currentSnapshot,
+			canvases: [{ ...currentSnapshot.canvases[0], revision: 2 }],
+		};
+		agentService.fireCanvasSnapshot(updatedCurrentSnapshot);
+
+		const reconnected = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
+		server.simulateConnection(reconnected);
+		const responsePromise = waitForResponse(reconnected, 2);
+		reconnected.simulateMessage(request(2, 'reconnect', {
+			clientId: 'canvas-reconnect',
+			lastSeenServerSeq: stateManager.serverSeq,
+			subscriptions: [],
+			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local },
+		}));
+		await responsePromise;
+		await handler.whenIdle();
+
+		assert.deepStrictEqual(
+			findNotifications(reconnected.sent, AgentHostCanvasesChangedNotification).map(notification => notification.params),
+			[
+				{ chat: currentChat.toString(), canvases: updatedCurrentSnapshot.canvases },
+				{ chat: removedChat.toString(), canvases: [] },
+			],
+		);
 	});
 
 	test('Dev Containers enforce initiating transport trust, ownership, and disconnect cleanup', async () => {
@@ -2597,7 +2725,13 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(2, 'createChat', { channel: 'copilot:/missing', chat: buildChatUri('copilot:/missing', 'peer-1') }));
 			const resp = await responsePromise as { error?: { code: number } };
 
-			assert.strictEqual(resp.error?.code, AHP_SESSION_NOT_FOUND);
+			assert.deepStrictEqual({
+				code: resp.error?.code,
+				created: agentService.createdChats,
+			}, {
+				code: AHP_SESSION_NOT_FOUND,
+				created: [],
+			});
 		});
 
 		test('disposeChat forwards to the agent service and shrinks the catalog', async () => {

@@ -7,10 +7,11 @@ import {
 	GitHubFragmentError,
 	PullRequestComment,
 	PullRequestInlineComment,
+	PullRequestMergeMethod,
 	PullRequestRef,
 	PullRequestSnapshot,
 } from './githubPullRequestService.js';
-import { GitHubRepositoryRef } from './githubQueryService.js';
+import { GitHubPullRequestLookup, GitHubRepositoryRef } from './githubQueryService.js';
 
 export type GitHubMutationOutcome = 'succeeded' | 'reconciled' | 'indeterminate';
 
@@ -31,16 +32,13 @@ export interface CreatePullRequestOptions {
 	readonly draft: boolean;
 }
 
-export interface CreatedPullRequest {
-	readonly ref: PullRequestRef;
-	readonly id?: string;
-	readonly url: string;
-	readonly createdAt?: string;
+export interface CreatedPullRequest extends GitHubPullRequestLookup {
+	readonly title: string;
 }
 
 export interface EnablePullRequestAutoMergeOptions {
 	readonly pullRequestId: string;
-	readonly method: 'MERGE' | 'SQUASH' | 'REBASE';
+	readonly method: PullRequestMergeMethod;
 }
 
 export interface PullRequestNodeOptions {
@@ -146,7 +144,7 @@ export interface PullRequestMergeAuthorization {
 }
 
 export interface PullRequestMergeOptions {
-	readonly method: 'MERGE' | 'SQUASH' | 'REBASE';
+	readonly method: PullRequestMergeMethod;
 	readonly title?: string;
 	readonly message?: string;
 	readonly authorization: PullRequestMergeAuthorization;

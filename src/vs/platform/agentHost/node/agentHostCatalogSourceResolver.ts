@@ -8,7 +8,7 @@ import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMet
 import { readChatInputState } from '../common/meta/agentHostChatInputState.js';
 import { CODEX_SESSION_MODEL_META_KEY, readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
-import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
+import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { ChangesSummary, ChatInteractivity, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
@@ -43,6 +43,7 @@ export interface ICatalogSourceState {
 export interface IAgentHostCatalogSourceResolverDependencies {
 	readonly isUnpersistedChatBacking: (session: URI) => boolean;
 	readonly worktreeProjectFromRepositoryRoot: (repositoryRoot: string | undefined) => { readonly uri: URI; readonly displayName: string } | undefined;
+	readonly reportMalformedArtifacts: (session: string, error: Error | undefined, dropped: number) => void;
 }
 
 export interface IAgentHostCatalogMetadataReference {
@@ -91,7 +92,7 @@ const sessionMetadata = {
 	ehcliAdopted: parsedSessionMetadataKey(AH_META_EHCLI_ADOPTED_DB_KEY, value => value === 'true'),
 	multiRoot: parsedSessionMetadataKey(SESSION_META_MULTI_ROOT_KEY, parseSessionMultiRootMetadata),
 	folderPicker: parsedSessionMetadataKey(SESSION_META_FOLDER_PICKER_KEY, parseSessionFolderPickerDecision),
-	artifacts: parsedSessionMetadataKey(SESSION_ARTIFACTS_KEY, value => parseSessionArtifacts(value).artifacts),
+	artifacts: stringSessionMetadataKey(SESSION_ARTIFACTS_KEY),
 	changes: parsedSessionMetadataKey(META_CHANGES_SUMMARY, readPersistedChanges),
 	chatBacking: stringSessionMetadataKey(CHAT_BACKING_METADATA_KEY),
 	worktreeRepositoryRoot: stringSessionMetadataKey(WORKTREE_META_REPOSITORY_ROOT),
@@ -149,11 +150,18 @@ export class AgentHostCatalogSourceResolver {
 		const folderPicker = preferPersistedMetadata
 			? (sessionMetadata.folderPicker.has(metadata) ? persistedFolderPicker : readSessionFolderPickerDecision(state.meta))
 			: readSessionFolderPickerDecision(state.meta) ?? persistedFolderPicker;
-		const persistedArtifacts = sessionMetadata.artifacts.read(metadata) ?? [];
+		const parsedArtifacts = parseSessionArtifacts(sessionMetadata.artifacts.read(metadata));
+		if (parsedArtifacts.error || parsedArtifacts.dropped > 0) {
+			this._dependencies.reportMalformedArtifacts(session.toString(), parsedArtifacts.error, parsedArtifacts.dropped);
+		}
+		const persistedArtifacts = parsedArtifacts.artifacts;
 		const stateArtifacts = readSessionArtifacts(state.meta);
+		const defaultChat = state.chats.find(chat => chat.kind === 'default')?.uri;
+		const withDefaultChat = (entries: readonly ISessionArtifact[]) => entries
+			.map(artifact => artifact.chat || !defaultChat ? artifact : { ...artifact, chat: defaultChat });
 		const artifacts = preferPersistedMetadata
-			? (metadata[SESSION_ARTIFACTS_KEY] !== undefined ? persistedArtifacts : stateArtifacts)
-			: (metadataOverrides[SESSION_ARTIFACTS_KEY] !== undefined || stateArtifacts.length === 0 ? persistedArtifacts : stateArtifacts);
+			? withDefaultChat(metadata[SESSION_ARTIFACTS_KEY] !== undefined ? persistedArtifacts : stateArtifacts)
+			: withDefaultChat(metadataOverrides[SESSION_ARTIFACTS_KEY] !== undefined || stateArtifacts.length === 0 ? persistedArtifacts : stateArtifacts);
 		const persistedCreationReference = sessionMetadata.creationReference.read(metadata);
 		const creationReference = preferPersistedMetadata
 			? (sessionMetadata.creationReference.has(metadata) ? persistedCreationReference : readSessionCreationReference(state.meta))

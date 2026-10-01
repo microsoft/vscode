@@ -5,8 +5,8 @@
 
 import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
@@ -41,6 +41,10 @@ export interface ICodexContinuationService {
 	readonly _serviceBrand: undefined;
 	readonly candidate: IObservable<ICodexContinuationCandidate | undefined>;
 	readonly revision: IObservable<number>;
+	/** Whether this window is showing a claimed notice or its guide. */
+	readonly isVisible: IObservable<boolean>;
+	/** Scopes contextual accessibility help to an actually visible surface. */
+	trackVisibility(): IDisposable;
 	setActiveSession(resource: URI | undefined): void;
 	setSelectableModels(models: readonly { readonly id: string; readonly vendor: string }[]): void;
 	refresh(): void;
@@ -71,6 +75,8 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 	readonly candidate = this._candidate;
 	private readonly _revision = observableValue(this, 0);
 	readonly revision = this._revision;
+	private readonly _visibleSurfaces = observableValue(this, 0);
+	readonly isVisible = derived(this, reader => this._visibleSurfaces.read(reader) > 0);
 	private readonly _owner = generateUuid();
 	private readonly _evaluate = this._register(new RunOnceScheduler(() => { void this._update().catch(onUnexpectedError); }, 100));
 	private readonly _expiry = this._register(new RunOnceScheduler(() => this._evaluate.schedule(), 0));
@@ -123,6 +129,11 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 		this._register(_agentHost.onAgentHostStart(bind));
 		bind();
 		this.refresh();
+	}
+
+	trackVisibility(): IDisposable {
+		this._visibleSurfaces.set(this._visibleSurfaces.get() + 1, undefined);
+		return toDisposable(() => this._visibleSurfaces.set(this._visibleSurfaces.get() - 1, undefined));
 	}
 
 	setActiveSession(resource: URI | undefined): void {

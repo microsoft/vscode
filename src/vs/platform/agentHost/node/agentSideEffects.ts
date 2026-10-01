@@ -2030,7 +2030,8 @@ export class AgentSideEffects extends Disposable {
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
-				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {})
+				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
+				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),
 			};
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);

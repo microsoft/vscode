@@ -137,7 +137,11 @@ export class CodexContinuationGuide extends Disposable {
 				return true;
 			};
 			const didShow = () => {
-				if (!guideShown) { guideShown = true; this._nudge.log('guideShown', surface); }
+				if (!guideShown) {
+					guideShown = true;
+					store.add(this._nudge.trackVisibility());
+					this._nudge.log('guideShown', surface);
+				}
 			};
 			store.add(autorun(reader => {
 				this._nudge.revision.read(reader);

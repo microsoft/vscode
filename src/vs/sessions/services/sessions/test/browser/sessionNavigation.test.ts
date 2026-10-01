@@ -180,6 +180,10 @@ class MockSessionStore implements ISessionsManagementService {
 		return undefined;
 	}
 
+	getSessionContextReference(_resource: URI): string | undefined {
+		return undefined;
+	}
+
 	getAllSessionTypes(): ISessionType[] { return []; }
 	getAllProviderSessionTypes(): IProviderSessionType[] { return []; }
 	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }

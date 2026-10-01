@@ -12,7 +12,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import type { AgentModelCallFinishedOutcome, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
-import { type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
+import { type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -103,6 +103,10 @@ interface ITurnTiming {
 	openSendStage: { readonly stage: AgentHostTurnSendStage; readonly startedMs: number } | undefined;
 	/** Elapsed time from turn start to provider dispatch, in milliseconds. */
 	sendDispatchedMs: number | undefined;
+	/** Elapsed time of each provider stage between dispatch and first progress, in milliseconds. */
+	readonly providerStageDurationsMs: Map<AgentHostProviderSendStage, number>;
+	/** The provider stage currently being timed, and when it opened. */
+	openProviderStage: { readonly stage: AgentHostProviderSendStage; readonly startedMs: number } | undefined;
 
 	// Hang watchdog state
 	/** Reset on every observed activity; measures the current quiet period. */
@@ -245,6 +249,8 @@ export class AgentHostTurnTracker extends Disposable {
 			sendStageDurationsMs: new Map(),
 			openSendStage: undefined,
 			sendDispatchedMs: undefined,
+			providerStageDurationsMs: new Map(),
+			openProviderStage: undefined,
 			quietStopWatch: StopWatch.create(false),
 			lastActivityKind: TURN_ACTIVITY_NONE,
 			inFlightToolCalls: new Map(),
@@ -321,6 +327,8 @@ export class AgentHostTurnTracker extends Disposable {
 		const elapsed = timing.stopWatch.elapsed();
 		if (timing.firstProgressMs === undefined) {
 			timing.firstProgressMs = elapsed;
+			this._closeProviderStage(timing, elapsed);
+			this._logProviderStages(timing);
 		}
 		if (substantive && timing.firstSubstantiveProgressMs === undefined) {
 			timing.firstSubstantiveProgressMs = elapsed;
@@ -376,6 +384,56 @@ export class AgentHostTurnTracker extends Disposable {
 		const elapsed = Math.max(0, timing.stopWatch.elapsed() - open.startedMs);
 		timing.sendStageDurationsMs.set(open.stage, (timing.sendStageDurationsMs.get(open.stage) ?? 0) + elapsed);
 		timing.openSendStage = undefined;
+	}
+
+	/**
+	 * Opens a provider-owned `stage` and closes the previously open one. Only
+	 * accepted between {@link markSendDispatched} and first progress, so the
+	 * stages partition the provider's share of time-to-first-progress.
+	 */
+	markProviderStage(session: string, turnId: string, stage: AgentHostProviderSendStage): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (!timing || timing.sendDispatchedMs === undefined || timing.firstProgressMs !== undefined) {
+			return;
+		}
+		const now = timing.stopWatch.elapsed();
+		this._closeProviderStage(timing, now);
+		timing.openProviderStage = { stage, startedMs: now };
+		if (!timing.providerStageDurationsMs.has(stage)) {
+			timing.providerStageDurationsMs.set(stage, 0);
+		}
+	}
+
+	/** Creates a recorder that forwards a provider's stage marks for one turn. */
+	createProviderStageRecorder(session: string, turnId: string): IAgentProviderSendStageRecorder {
+		return { mark: stage => this.markProviderStage(session, turnId, stage) };
+	}
+
+	private _closeProviderStage(timing: ITurnTiming, now: number): void {
+		const open = timing.openProviderStage;
+		if (!open) {
+			return;
+		}
+		const elapsed = Math.max(0, now - open.startedMs);
+		timing.providerStageDurationsMs.set(open.stage, (timing.providerStageDurationsMs.get(open.stage) ?? 0) + elapsed);
+		timing.openProviderStage = undefined;
+	}
+
+	/** Logs the first-progress breakdown so local runs can attribute latency without telemetry. */
+	private _logProviderStages(timing: ITurnTiming): void {
+		if (timing.sendDispatchedMs === undefined) {
+			return;
+		}
+		const round = (value: number | undefined) => value === undefined ? undefined : Math.round(value);
+		this._logService.info(`[AgentHostFirstProgress] ${JSON.stringify({
+			provider: timing.agent.id,
+			turnId: timing.turnId,
+			hostRootTurnOrdinal: timing.rootTiming?.hostRootTurnOrdinal,
+			timeToFirstProgress: round(timing.firstProgressMs),
+			timeToProviderDispatch: round(timing.sendDispatchedMs),
+			sendStages: Object.fromEntries([...timing.sendStageDurationsMs].map(([stage, ms]) => [stage, round(ms)])),
+			providerStages: Object.fromEntries([...timing.providerStageDurationsMs].map(([stage, ms]) => [stage, round(ms)])),
+		})}`);
 	}
 
 	/**
@@ -609,6 +667,8 @@ export class AgentHostTurnTracker extends Disposable {
 		this._closeSendStage(timing);
 		// Capture terminal timing before collecting or reporting additional telemetry.
 		const totalTime = timing.stopWatch.elapsed();
+		// A turn that ends before first progress retains its partial provider stage.
+		this._closeProviderStage(timing, totalTime);
 		const timeAfterHangMs = timing.lastHangStopWatch?.elapsed() ?? 0;
 		const usage = this._turnUsages.get(key);
 		let summaries: readonly IAgentTokenUsageSummary[] | undefined;
@@ -647,6 +707,7 @@ export class AgentHostTurnTracker extends Disposable {
 			receivedSteering: timing.receivedSteering,
 			sendStageDurationsMs: timing.sendStageDurationsMs,
 			sendDispatchedMs: timing.sendDispatchedMs,
+			providerStageDurationsMs: timing.providerStageDurationsMs,
 			totalTime,
 			result,
 			model: timing.model,

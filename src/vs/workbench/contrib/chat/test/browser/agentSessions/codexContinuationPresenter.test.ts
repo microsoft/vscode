@@ -20,6 +20,46 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 suite('Codex continuation presentation boundary', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	for (const surface of ['agentsWindow', 'editorWindow'] as const) {
+		for (const scenario of ['clickBeforeVisible', 'clickDuringClaim', 'dismissDuringClaim', 'rejectedClaim'] as const) {
+			test(`${surface} actions await one visibility claim: ${scenario}`, () => runWithFakedTimers({}, async () => {
+				const pending = new DeferredPromise<boolean>();
+				const candidate = upcastPartial<ICodexContinuationCandidate>({});
+				let claims = 0;
+				let actions = 0;
+				let disposed = 0;
+				let visibleSurfaces = 0;
+				const nudge = upcastPartial<ICodexContinuationService>({
+					candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { },
+					wouldShow: async () => true, resolve: async () => candidate, reservePresentation: async () => true,
+					releasePresentation: async () => { }, ownsEpisode: () => true,
+					markVisible: async (_surface, _candidate, isVisible) => { claims++; return await pending.p && isVisible!(); },
+					trackVisibility: () => { visibleSurfaces++; return toDisposable(() => visibleSurfaces--); },
+				});
+				let visible: () => Promise<boolean>;
+				let close: (reason: 'action' | 'dismissed') => void;
+				let runAction: (action: () => void) => Promise<void>;
+				store.add(new CodexContinuationPresenter({
+					surface, onDidChangePresentability: Event.None, isPresentable: () => true,
+					show: (_candidate, didShow, didClose, action) => {
+						visible = didShow; close = didClose; runAction = action;
+						return toDisposable(() => disposed++);
+					},
+				}, nudge, upcastPartial<IHostService>({ hasFocus: true, onDidChangeFocus: Event.None }),
+					upcastPartial<ILanguageModelsService>({ getLanguageModelIds: () => [], onDidChangeLanguageModels: Event.None })));
+				await timeout(1);
+				if (scenario !== 'clickBeforeVisible') { void visible!(); }
+				const action = runAction!(() => actions++);
+				const duplicate = runAction!(() => actions++);
+				assert.deepStrictEqual({ claims, actions, disposed, visibleSurfaces }, { claims: 1, actions: 0, disposed: 0, visibleSurfaces: 0 });
+				if (scenario === 'dismissDuringClaim') { close!('dismissed'); }
+				await pending.complete(scenario !== 'rejectedClaim');
+				await Promise.all([action, duplicate]);
+				assert.deepStrictEqual({ claims, actions, disposed, visibleSurfaces }, {
+					claims: 1, actions: scenario === 'clickBeforeVisible' || scenario === 'clickDuringClaim' ? 1 : 0, disposed: 1, visibleSurfaces: 0,
+				});
+			}));
+		}
+
 		test(`${surface} hidden or silenced does not trigger, reserve, or claim`, () => runWithFakedTimers({}, async () => {
 			const changed = store.add(new Emitter<void>());
 			let presentable = false;
@@ -27,6 +67,7 @@ suite('Codex continuation presentation boundary', () => {
 			const candidate = upcastPartial<ICodexContinuationCandidate>({});
 			const nudge = upcastPartial<ICodexContinuationService>({
 				candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0),
+				trackVisibility: () => toDisposable(() => { }),
 				setSelectableModels: () => { },
 				wouldShow: async () => { calls.push('trigger'); return true; }, resolve: async () => candidate,
 				reservePresentation: async () => { calls.push('reserve'); return true; },
@@ -59,6 +100,7 @@ suite('Codex continuation presentation boundary', () => {
 			let dismissed = 0;
 			const nudge = upcastPartial<ICodexContinuationService>({
 				candidate: eligible, revision: observableValue('revision', 0), setSelectableModels: () => { },
+				trackVisibility: () => toDisposable(() => { }),
 				wouldShow: async () => true, resolve: async () => eligible.get(), reservePresentation: async () => true,
 				releasePresentation: async () => { }, ownsEpisode: () => true, markVisible: async () => true,
 				dismiss: () => dismissed++,
@@ -107,6 +149,7 @@ suite('Codex continuation presentation boundary', () => {
 		const nudge = upcastPartial<ICodexContinuationService>({
 			candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { },
 			wouldShow: async () => true, resolve: async () => candidate, reservePresentation: async () => true,
+			trackVisibility: () => toDisposable(() => { }),
 			releasePresentation: async () => { }, ownsEpisode: () => true, markVisible: async () => true,
 			dismiss: () => dismissed++,
 		});
@@ -136,6 +179,7 @@ suite('Codex continuation presentation boundary', () => {
 		const candidate = upcastPartial<ICodexContinuationCandidate>({});
 		const nudge = upcastPartial<ICodexContinuationService>({
 			candidate: observableValue('candidate', candidate), revision: observableValue('revision', 0), setSelectableModels: () => { },
+			trackVisibility: () => toDisposable(() => { }),
 			wouldShow: async () => true, resolve: async () => candidate, reservePresentation: async () => true,
 			releasePresentation: async () => { }, ownsEpisode: () => true, markVisible: async () => true,
 			dismiss: () => dismissed++,

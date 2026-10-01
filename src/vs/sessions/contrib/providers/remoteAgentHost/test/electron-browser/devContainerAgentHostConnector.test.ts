@@ -144,6 +144,7 @@ suite('Dev Container Agent Host Connector', () => {
 		const source = new class extends mock<IDevContainerAgentHostMainService>() {
 			override readonly onDidOutput = Event.None;
 			override readonly onDidRelayMessage = Event.None;
+			override readonly onDidRelayActivity = Event.None;
 			override readonly onDidRelayClose = Event.None;
 			override readonly onDidCloseConnection = Event.None;
 			override async connect(config: IDevContainerAgentHostConfig) {
@@ -172,6 +173,7 @@ suite('Dev Container Agent Host Connector', () => {
 			const service = new class extends mock<IDevContainerAgentHostMainService>() {
 				override readonly onDidOutput = output.event;
 				override readonly onDidRelayMessage = Event.None;
+				override readonly onDidRelayActivity = Event.None;
 				override readonly onDidRelayClose = Event.None;
 				override readonly onDidCloseConnection = Event.None;
 				override async connect(config: IDevContainerAgentHostConfig) {
@@ -222,6 +224,7 @@ suite('Dev Container Agent Host Connector', () => {
 			const remoteService = new class extends mock<IDevContainerAgentHostMainService>() {
 				override readonly onDidOutput = outputs.event;
 				override readonly onDidRelayMessage = Event.None;
+				override readonly onDidRelayActivity = Event.None;
 				override readonly onDidRelayClose = Event.None;
 				override readonly onDidCloseConnection = Event.None;
 				override async isDockerAvailable(): Promise<boolean> {

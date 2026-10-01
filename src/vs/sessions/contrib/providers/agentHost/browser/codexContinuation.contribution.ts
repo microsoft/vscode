@@ -49,20 +49,14 @@ class CodexContinuationNotice extends Disposable {
 			surface: 'agentsWindow',
 			onDidChangePresentability: Event.map(host.onDidChangeVisibility, () => undefined),
 			isPresentable: () => host.isVisible() && host.container.isConnected && host.container.getClientRects().length > 0,
-			show: (candidate, visible, close) => {
+			show: (candidate, visible, close, runAction) => {
 				const store = new DisposableStore();
 				const notice = store.add(instantiation.createInstance(SessionsListNotice, {
 					description: CODEX_CONTINUATION_MESSAGE, label: CODEX_CONTINUATION_LABEL, disableLabel: CODEX_CONTINUATION_DISABLE_LABEL,
 					focusSessionsList: host.focusSessionsList,
 					dismiss: () => close('dismissed'),
-					disable: () => {
-						close('action');
-						void nudge.disable('agentsWindow');
-					},
-					run: () => {
-						close('action');
-						void guide.run(candidate, 'agentsWindow', navigation);
-					},
+					disable: () => { void runAction(() => nudge.disable('agentsWindow')); },
+					run: () => { void runAction(() => guide.run(candidate, 'agentsWindow', navigation)); },
 				}));
 				host.container.appendChild(notice.domNode);
 				store.add(toDisposable(() => notice.domNode.remove()));

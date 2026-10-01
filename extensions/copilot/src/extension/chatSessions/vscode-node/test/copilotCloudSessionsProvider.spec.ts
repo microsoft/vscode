@@ -1059,6 +1059,32 @@ class FakeTaskApiClient implements ITaskApiClient {
 }
 
 describe('TaskApiBackend', () => {
+	it.each([true, false])('fetchSessionList excludes sandbox and local environments when isAgentSessionsWorkspace=%s', async isAgentSessionsWorkspace => {
+		const task = {
+			...makeTask([], 'in_progress'),
+			name: 'New task',
+			agent_collaborators: [{ slug: 'copilot-developer' }],
+		};
+		const tasks = [
+			{ ...task, id: 'cloud', compute: { provider: 'actions' } },
+			{ ...task, id: 'legacy' },
+			{ ...task, id: 'sandbox', current_environment: { id: 'sandbox-env', kind: 'managed-sandbox' } },
+			{ ...task, id: 'local', current_environment: { id: 'local-env', kind: 'user-local' } },
+			{ ...task, id: 'sandbox-compute', compute: { provider: 'sandboxes' } },
+		];
+		const client = new FakeTaskApiClient({ globalTasks: tasks, repoTasks: tasks });
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
+
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], isAgentSessionsWorkspace);
+
+		expect(result.map(({ taskId, title, state }) => ({ taskId, title, state }))).toEqual([
+			{ taskId: 'cloud', title: 'New task', state: 'in_progress' },
+			{ taskId: 'legacy', title: 'New task', state: 'in_progress' },
+		]);
+	});
+
 	it('preserves most recent activity for every task lifecycle state', async () => {
 		const states: AgentTaskState[] = ['queued', 'in_progress', 'idle', 'waiting_for_user', 'completed', 'failed', 'cancelled', 'timed_out'];
 		const tasks = states.map(state => ({
@@ -1226,6 +1252,29 @@ describe('TaskApiBackend', () => {
 });
 
 describe('isCloudCodingAgentTask', () => {
+	it.each(['copilot-developer', 'copilot-swe-agent'])('rejects sandbox and local environments even with the %s slug', slug => {
+		const task = {
+			...makeTask(),
+			agent_collaborators: [{ slug }],
+		};
+
+		expect({
+			'missing-environment': isCloudCodingAgentTask(task),
+			'null-environment': isCloudCodingAgentTask({ ...task, current_environment: null }),
+			'unknown-environment': isCloudCodingAgentTask({ ...task, current_environment: { kind: 'future-environment' } }),
+			'sandbox-environment': isCloudCodingAgentTask({ ...task, current_environment: { kind: 'managed-sandbox' } }),
+			'local-environment': isCloudCodingAgentTask({ ...task, current_environment: { kind: 'user-local' } }),
+			'sandbox-compute': isCloudCodingAgentTask({ ...task, compute: { provider: 'sandboxes' } }),
+		}).toEqual({
+			'missing-environment': true,
+			'null-environment': true,
+			'unknown-environment': true,
+			'sandbox-environment': false,
+			'local-environment': false,
+			'sandbox-compute': false,
+		});
+	});
+
 	it('keeps cloud coding agent slugs and rejects local-client / missing / malformed slugs', () => {
 		const classify = (agent_collaborators?: Array<{ slug?: unknown }>) =>
 			isCloudCodingAgentTask({ id: 't', state: 'idle', created_at: '2026-03-27T00:00:00Z', ...(agent_collaborators && { agent_collaborators }) } as unknown as AgentTask);

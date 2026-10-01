@@ -96,6 +96,7 @@ suite('Codex continuation exact widget guide', () => {
 				onDidChangeFocusedSession: focused.event, onDidChangeWidgetVisibility: Event.None,
 			});
 			const nudge = upcastPartial<ICodexContinuationService>({
+				trackVisibility: () => toDisposable(() => { }),
 				revision: observableValue('revision', 0),
 				resolve: async () => eligible ? candidate : undefined, ownsEpisode: () => true,
 				log: action => actions.push(action), complete: async () => { actions.push('guideCompleted'); },

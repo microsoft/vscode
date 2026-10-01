@@ -12,7 +12,7 @@ import type { IConfigurationService } from '../../../../../platform/configuratio
 import { ChatConfiguration } from '../../common/constants.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, getCustomizationMigrationEnablementSetting, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, mcpServerCustomizationMigrationRemovableProperties, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export const enum CustomizationMigrationCategoryId {
@@ -39,6 +39,7 @@ export interface ICustomizationMigrationCandidatePresentation {
 	readonly name: string;
 	readonly selectionAriaLabel: string;
 	readonly pathLabel: string;
+	readonly changesLabel?: string;
 	readonly file?: MigratableConfiguration;
 }
 
@@ -66,7 +67,7 @@ export interface ICustomizationMigrationCategory {
 	readonly migrationType: CustomizationMigrationType;
 	/** Prompt types scanned when collecting candidates for this category. */
 	readonly sourceTypes?: readonly PromptsType[];
-	/** Experimental setting gating this migration. Each category is enabled independently. */
+	/** Experimental setting gating this migration. */
 	readonly enablementSetting: ChatConfiguration;
 	/** Settings that must differ from their defaults for this migration to apply. */
 	readonly configurationSettingIds?: readonly string[];
@@ -84,7 +85,7 @@ export interface ICustomizationMigrationCategory {
 	readonly noFilesMigratedMessage: string;
 	isCandidate?(customization: MigratableConfiguration): boolean;
 	group(customizations: readonly CustomizationMigrationCandidate[]): readonly ICustomizationMigrationGroup[];
-	getCandidatePresentation(customization: CustomizationMigrationCandidate, getUriLabel: (uri: URI) => string): ICustomizationMigrationCandidatePresentation;
+	getCandidatePresentation(customization: CustomizationMigrationCandidate, getUriLabel: (uri: URI) => string, harnessLabel: string): ICustomizationMigrationCandidatePresentation;
 	getShortcutAriaLabel(count: number): string;
 	getCardDescription(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string): string;
 	getPageDescription(customizations: readonly CustomizationMigrationCandidate[], harnessLabel: string): string;
@@ -117,7 +118,7 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.PromptFiles,
 	migrationType: CustomizationMigrationType.PromptFiles,
 	sourceTypes: [PromptsType.prompt],
-	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.PromptFiles),
+	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
 	shortcutLabel: localize('promptMigrationShortcutLabel', "Migrate Prompts"),
 	shortcutTooltip: localize('promptMigrationShortcutTooltip', "Convert deprecated prompt files to skills"),
 	cardLabel: localize('promptMigrationCardLabel', "Migrate Prompt Files"),
@@ -256,7 +257,7 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.UserData,
 	migrationType: CustomizationMigrationType.UserData,
 	sourceTypes: [PromptsType.agent, PromptsType.instructions],
-	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.UserData),
+	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
 	shortcutLabel: localize('userDataMigrationShortcutLabel', "Migrate User Data"),
 	shortcutTooltip: localize('userDataMigrationShortcutTooltip', "Move user data agents and instructions to the active harness"),
 	cardLabel: localize('userDataMigrationCardLabel', "Migrate User Data Customizations"),
@@ -432,7 +433,7 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.ConfiguredLocations,
 	migrationType: CustomizationMigrationType.ConfiguredLocations,
 	sourceTypes: [PromptsType.agent, PromptsType.instructions, PromptsType.skill],
-	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.ConfiguredLocations),
+	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
 	configurationSettingIds: CONFIGURED_LOCATION_SETTING_IDS,
 	shortcutLabel: localize('configuredLocationsMigrationShortcutLabel', "Migrate Location Settings"),
 	shortcutTooltip: localize('configuredLocationsMigrationShortcutTooltip', "Move customizations from locations unsupported by the active harness"),
@@ -546,7 +547,7 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.McpServers,
 	migrationType: CustomizationMigrationType.McpServers,
-	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.McpServers),
+	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
 	shortcutLabel: localize('mcpMigrationShortcutLabel', "Migrate MCP Servers"),
 	shortcutTooltip: localize('mcpMigrationShortcutTooltip', "Move eligible MCP servers to workspace root or Copilot home configuration files"),
 	cardLabel: localize('mcpMigrationCardLabel', "Migrate MCP Servers"),
@@ -560,29 +561,35 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	backLabel: localize('backToMcpMigration', "Back to Migrate MCP Servers"),
 	noFilesMigratedMessage: localize('mcpMigrationNoneMigrated', "No MCP servers were migrated."),
 
-	getCandidatePresentation(customization, getUriLabel) {
+	getCandidatePresentation(customization, getUriLabel, harnessLabel) {
 		if (!isMcpServerCustomizationMigrationCandidate(customization)) {
 			throw new Error('Expected an MCP server migration candidate');
 		}
 		const sourceLabel = getUriLabel(customization.sourceUri);
+		const scopeLabel = customization.storage === PromptsStorage.user ? localize('mcpMigrationUserScope', "User") : localize('mcpMigrationWorkspaceScope', "Workspace");
+		const changesLabel = getMcpServerMigrationWarnings(customization, harnessLabel).join('\n');
 		return {
 			name: customization.name,
-			selectionAriaLabel: localize('mcpMigrationSelectAriaLabel', "Select {0} from {1}", customization.name, sourceLabel),
-			pathLabel: localize('mcpMigrationItemPath', "{0} to {1}", sourceLabel, getUriLabel(customization.targetUri)),
+			selectionAriaLabel: changesLabel
+				? localize('mcpMigrationSelectWithChangesAriaLabel', "Select {0} from {1}. {2}", customization.name, sourceLabel, changesLabel)
+				: localize('mcpMigrationSelectAriaLabel', "Select {0} from {1}", customization.name, sourceLabel),
+			pathLabel: localize('mcpMigrationItemScopedPath', "{0}: {1} to {2}", scopeLabel, sourceLabel, getUriLabel(customization.targetUri)),
+			...(changesLabel ? { changesLabel } : {}),
 		};
 	},
 
 	group(customizations) {
+		const servers = customizations.filter(isMcpServerCustomizationMigrationCandidate);
 		return [
 			{
-				key: 'user',
-				label: localize('mcpMigrationUserGroup', "User"),
-				customizations: customizations.filter(customization => customization.storage === PromptsStorage.user),
+				key: 'ready',
+				label: localize('mcpMigrationReadyGroup', "Ready to migrate"),
+				customizations: servers.filter(server => getMcpServerMigrationRemovedProperties(server).length === 0),
 			},
 			{
-				key: 'workspace',
-				label: localize('mcpMigrationWorkspaceGroup', "Workspace"),
-				customizations: customizations.filter(customization => customization.storage === PromptsStorage.local),
+				key: 'changes',
+				label: localize('mcpMigrationChangesGroup', "Migrates with changes"),
+				customizations: servers.filter(server => getMcpServerMigrationRemovedProperties(server).length > 0),
 			},
 		].filter(group => group.customizations.length > 0);
 	},
@@ -694,6 +701,31 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 		}
 	},
 };
+
+function getMcpServerMigrationRemovedProperties(server: IMcpServerCustomizationMigrationCandidate) {
+	return mcpServerCustomizationMigrationRemovableProperties
+		.filter(property => server.removedProperties && Object.hasOwn(server.removedProperties, property));
+}
+
+function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationCandidate, harnessLabel: string): string[] {
+	return getMcpServerMigrationRemovedProperties(server)
+		.map(property => {
+			switch (property) {
+				case 'gallery':
+					return server.removedProperties?.gallery === false
+						? localize('mcpMigrationRemoveDisabledGallery', "The 'gallery' property will be removed. Automatic updates from the registry are already disabled for this MCP server.")
+						: localize('mcpMigrationRemoveGallery', "The 'gallery' property will be removed. This MCP server will no longer be automatically updated from the registry.");
+				case 'version':
+					return localize('mcpMigrationRemoveVersion', "The 'version' property will be removed. The migrated configuration will no longer record version metadata. Version pins in the command, arguments, or URL will not change.");
+				case 'dev':
+					return localize('mcpMigrationRemoveDev', "The 'dev' property will be removed. VS Code will no longer auto-start this server in development mode, restart it when watched files change, attach a debugger, or enable development-mode logging.");
+				case 'sandboxEnabled':
+					return server.removedProperties?.sandboxEnabled === false
+						? localize('mcpMigrationRemoveDisabledSandbox', "The 'sandboxEnabled' property will be removed. VS Code sandboxing is already disabled for this server. Any sandboxing after migration is controlled by {0}.", harnessLabel)
+						: localize('mcpMigrationRemoveSandbox', "The 'sandboxEnabled' property will be removed. VS Code's per-server sandbox and its filesystem and network restrictions will no longer be applied to this server. Any sandboxing after migration is controlled by {0}.", harnessLabel);
+			}
+		});
+}
 
 function formatSettingLinks(settingsLinks: readonly string[]): string {
 	switch (settingsLinks.length) {

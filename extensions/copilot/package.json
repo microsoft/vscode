@@ -4439,6 +4439,10 @@
                 "family": {
                   "type": "string",
                   "description": "Alias the model's family for capability routing (e.g. 'claude-opus-4.7')."
+                },
+                "thinkingInHistory": {
+                  "type": "boolean",
+                  "description": "%github.copilot.config.thinkingInHistory%"
                 }
               },
               "additionalProperties": false
@@ -6900,6 +6904,12 @@
         ]
       },
       {
+        "path": "./assets/prompts/skills/create-canvas/SKILL.md",
+        "sessionTypes": [
+          "copilotcli"
+        ]
+      },
+      {
         "path": "./assets/prompts/skills/chronicle/SKILL.md",
         "when": "github.copilot.sessionSearch.enabled",
         "sessionTypes": [
@@ -7008,7 +7018,7 @@
     "copyfiles": "^2.4.1",
     "csv-parse": "^6.0.0",
     "dotenv": "^17.2.0",
-    "electron": "^42.5.0",
+    "electron": "^42.10.0",
     "esbuild": "0.28.1",
     "fastq": "^1.19.1",
     "glob": "^11.1.0",

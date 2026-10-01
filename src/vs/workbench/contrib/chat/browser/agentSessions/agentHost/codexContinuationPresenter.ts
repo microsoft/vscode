@@ -17,7 +17,7 @@ export interface ICodexContinuationPresentation {
 	readonly surface: CodexContinuationSurface;
 	readonly onDidChangePresentability: Event<void>;
 	isPresentable(): boolean;
-	show(candidate: ICodexContinuationCandidate, visible: () => Promise<boolean>, close: (reason: 'action' | 'dismissed') => void): IDisposable;
+	show(candidate: ICodexContinuationCandidate, visible: () => Promise<boolean>, close: (reason: 'action' | 'dismissed') => void, runAction: (action: () => Promise<void> | void) => Promise<void>): IDisposable;
 }
 
 /** Keeps both surfaces on the same experiment and visibility boundary. */
@@ -73,28 +73,40 @@ export class CodexContinuationPresenter extends Disposable {
 			this._visible = false;
 			const presentation = new DisposableStore();
 			this._presentation.value = presentation;
-			let claiming = false;
+			let visibilityClaim: Promise<boolean> | undefined;
+			let actionPending = false;
 			const isVisible = () => !presentation.isDisposed && !this._store.isDisposed && this._host.hasFocus && this._delegate.isPresentable();
-			presentation.add(this._delegate.show(candidate, async () => {
-				if (!isVisible()) { return false; }
-				if (this._visible || claiming) { return this._visible; }
-				claiming = true;
-				try {
-					const visible = await this._nudge.markVisible(this._delegate.surface, candidate, isVisible);
-					if (presentation.isDisposed) { return false; }
-					this._visible = visible;
-					if (!this._visible) { this._presentation.clear(); }
-					return this._visible;
-				} catch (error) {
-					onUnexpectedError(error);
-					presentation.dispose();
-					return false;
-				} finally { claiming = false; }
-			}, reason => {
+			const claimVisibility = (): Promise<boolean> => {
+				if (!isVisible()) { return Promise.resolve(false); }
+				return visibilityClaim ??= (async () => {
+					try {
+						const visible = await this._nudge.markVisible(this._delegate.surface, candidate, isVisible);
+						if (presentation.isDisposed) { return false; }
+						this._visible = visible;
+						if (visible) { presentation.add(this._nudge.trackVisibility()); }
+						else { this._presentation.clear(); }
+						return visible;
+					} catch (error) {
+						onUnexpectedError(error);
+						presentation.dispose();
+						return false;
+					}
+				})();
+			};
+			const close = (reason: 'action' | 'dismissed') => {
 				if (this._visible && reason === 'dismissed') { this._nudge.dismiss(this._delegate.surface); }
 				this._presentation.clear();
 				this._visible = false;
 				void this._nudge.releasePresentation();
+			};
+			presentation.add(this._delegate.show(candidate, claimVisibility, close, async action => {
+				if (actionPending || !isVisible()) { return; }
+				actionPending = true;
+				// Clicking is itself evidence of visibility. Share the in-flight claim
+				// with the render callback, and keep the surface alive until it settles.
+				if (!await claimVisibility() || !isVisible()) { return; }
+				close('action');
+				try { await action(); } catch (error) { onUnexpectedError(error); }
 			}));
 
 		} catch {

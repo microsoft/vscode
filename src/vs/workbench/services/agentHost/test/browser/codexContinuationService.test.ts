@@ -100,6 +100,19 @@ suite('Codex continuation coordination', () => {
 			assert.deepStrictEqual({ order, listSessions: activity.listSessions }, { order: ['trigger', 'treatment'], listSessions: 1 });
 		}));
 	}
+
+	test('accessibility visibility is scoped to live notice and guide lifetimes', () => {
+		const { service } = create(store.add(new InMemoryStorageService()));
+		const visibility = [service.isVisible.get()];
+		const notice = store.add(service.trackVisibility());
+		visibility.push(service.isVisible.get());
+		const guide = store.add(service.trackVisibility());
+		notice.dispose();
+		visibility.push(service.isVisible.get());
+		guide.dispose();
+		visibility.push(service.isVisible.get());
+		assert.deepStrictEqual(visibility, [false, true, true, false]);
+	});
 	test('low ChatGPT usage and Copilot Free never enumerate session metadata', () => runWithFakedTimers({}, async () => {
 		const lowUsage = create(store.add(new InMemoryStorageService()));
 		lowUsage.account.account = { ...lowUsage.account.account, rateLimits: [{ usedPercent: 1, windowDurationMins: 300 }] };

@@ -1,10 +1,7 @@
 parameters:
-  - name: VSCODE_RUN_ELECTRON_TESTS
-    type: boolean
-  - name: VSCODE_RUN_BROWSER_TESTS
-    type: boolean
-  - name: VSCODE_RUN_REMOTE_TESTS
-    type: boolean
+  - name: VSCODE_TEST_IDS
+    type: object
+    default: []
   - name: VSCODE_COMPILE_TEST_SUITES
     type: boolean
     default: false
@@ -29,14 +26,14 @@ steps:
     displayName: Download Electron and Playwright
     retryCountOnTaskFailure: 3
 
-  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
     - script: npm run gulp node
       env:
         AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
       displayName: Download Node.js
       retryCountOnTaskFailure: 3
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-electron') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: unit-electron
@@ -45,8 +42,9 @@ steps:
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run unit tests (Electron)
-          timeoutInMinutes: 15
+          timeoutInMinutes: 30
 
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-node') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: unit-node
@@ -58,9 +56,9 @@ steps:
           env:
             NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
           displayName: 🧪 Run unit tests (node.js)
-          timeoutInMinutes: 15
+          timeoutInMinutes: 30
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-browser-webkit') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: unit-browser-webkit
@@ -94,7 +92,7 @@ steps:
         compile-extension:vscode-test-resolver
     displayName: Build integration tests
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-electron
@@ -114,9 +112,9 @@ steps:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run integration tests (Electron)
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-webkit') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-browser-webkit
@@ -125,9 +123,9 @@ steps:
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
           displayName: 🧪 Run integration tests (Browser, Webkit)
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
 
-  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-remote
@@ -144,14 +142,14 @@ steps:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run integration tests (Remote)
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
 
   - script: ps -ef
     displayName: Diagnostics before smoke test run
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-electron
@@ -163,12 +161,14 @@ steps:
             npm run smoketest-no-compile -- --tracing --build "$APP_ROOT/$APP_NAME"
           env:
             VSCODE_SMOKE_TEST_POLICY: '1'
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
           displayName: 🧪 Run smoke tests (Electron)
 
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-kerberos-pac-proxy')) }}:
     - script: brew list squid >/dev/null 2>&1 || brew install squid
       displayName: Install Squid for network-isolated smoke tests
 
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-pac-proxy') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-agents-pac-proxy
@@ -181,6 +181,7 @@ steps:
           timeoutInMinutes: 40
           displayName: 🧪 Run Agents Window smoke tests through macOS PAC proxy
 
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-kerberos-pac-proxy') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-agents-kerberos-pac-proxy
@@ -193,7 +194,7 @@ steps:
           timeoutInMinutes: 40
           displayName: 🧪 Run Agents Window smoke tests through Kerberos-authenticated macOS PAC proxy
 
-  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-browser-chromium
@@ -201,10 +202,10 @@ steps:
           script: npm run smoketest-no-compile -- --web --tracing --headless
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
           displayName: 🧪 Run smoke tests (Browser, Chromium)
 
-  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-remote
@@ -217,7 +218,7 @@ steps:
             npm run smoketest-no-compile -- --tracing --remote --build "$APP_ROOT/$APP_NAME"
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
-          timeoutInMinutes: 20
+          timeoutInMinutes: 30
           displayName: 🧪 Run smoke tests (Remote)
 
   - script: ps -ef
@@ -225,7 +226,7 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
     - template: ../../copilot/test-integration-steps.yml@self
       parameters:
         OS: darwin
