@@ -3750,6 +3750,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			} else {
 				if (shouldAvoidCurrentSession) {
 					this.logService.info('[voice] avoiding composer session for voice send; using fallback session routing');
+					const activeSessionId = this._getActiveSessionId();
+					if (activeSessionId) {
+						try {
+							const activeSessionResource = URI.parse(activeSessionId);
+							if (!(activeSessionResource.scheme === 'sessions-voice' && activeSessionResource.path === '/composer')) {
+								const activeResult = await this._sendVoiceRequest(activeSessionResource, text);
+								accepted = !!activeResult && !ChatSendResult.isRejected(activeResult);
+								if (accepted) {
+									this._watchResponseForFloatingWindow(activeSessionResource);
+									return true;
+								}
+							}
+						} catch {
+							// ignore malformed active session ids and continue fallback
+						}
+					}
 				}
 				// No focused chat session — find the most recent existing session
 				// instead of creating a new one, so voice continues the conversation.
