@@ -2906,6 +2906,101 @@ suite('ChatListRenderer', () => {
 		});
 	}));
 
+	test('persistent progress waits for all foreground tools before reporting inactivity', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const setup = createPersistentProgressRenderer();
+		configureTerminalProgressRenderer(setup);
+		const { model, request, renderer, template, node } = setup;
+		renderer.renderElement(node, 0, template);
+		const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+		assert.ok(progress instanceof ChatWorkingProgressContentPart);
+		const terminal = new ChatToolInvocation(
+			{
+				invocationMessage: 'Running tests',
+				toolSpecificData: { kind: 'terminal', commandLine: { original: 'npm test' }, language: 'bash' },
+			},
+			{ id: 'run_in_terminal', displayName: 'Terminal', modelDescription: 'Terminal', source: ToolDataSource.Internal },
+			'terminal', undefined, {},
+		);
+		const otherTool = new ChatToolInvocation(
+			{ invocationMessage: 'Reading results' },
+			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+			'read', undefined, {},
+		);
+		model.acceptResponseProgress(request, terminal);
+		model.acceptResponseProgress(request, otherTool);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The tools are still running.') });
+		await timeout(180_000);
+		const whileRunning = progress.workingLabel;
+		await otherTool.didExecuteTool(undefined);
+		await timeout(90_000);
+		const whileTerminalRunning = progress.workingLabel;
+		await terminal.didExecuteTool(undefined);
+		await timeout(89_999);
+		const beforeThreshold = progress.workingLabel;
+		await timeout(1);
+		assert.deepStrictEqual({ whileRunning, whileTerminalRunning, beforeThreshold, afterThreshold: progress.workingLabel }, {
+			whileRunning: 'Working',
+			whileTerminalRunning: 'Working',
+			beforeThreshold: 'Working',
+			afterThreshold: 'This is taking a little longer than usual',
+		});
+	}));
+
+	test('persistent progress does not report inactivity during a pending progress task', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+		renderer.renderElement(node, 0, template);
+		const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+		assert.ok(progress instanceof ChatWorkingProgressContentPart);
+		await timeout(100);
+		const deferred = new DeferredPromise<string | void>();
+		const task: IChatTask = {
+			kind: 'progressTask',
+			content: new MarkdownString('Running the test suite'),
+			deferred,
+			progress: [],
+			onDidAddProgress: Event.None,
+			add: () => { },
+			complete: result => deferred.complete(result),
+			task: () => deferred.p,
+			isSettled: () => deferred.isSettled,
+			toJSON: () => ({ kind: 'progressTaskSerialized', content: task.content, progress: task.progress }),
+		};
+		model.acceptResponseProgress(request, task);
+		await timeout(90_000);
+		const whileRunning = progress.workingLabel;
+		await task.complete('Tests passed');
+		await timeout(89_999);
+		const beforeThreshold = progress.workingLabel;
+		await timeout(1);
+		assert.deepStrictEqual({ whileRunning, beforeThreshold, afterThreshold: progress.workingLabel }, {
+			whileRunning: 'Working',
+			beforeThreshold: 'Working',
+			afterThreshold: 'This is taking a little longer than usual',
+		});
+	}));
+
+	for (const ending of ['complete', 'cancel'] as const) {
+		test(`retained progress stops its inactivity timer when the response ends (${ending})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { disposables, configurationService, request, renderer, template, node } = createPersistentProgressRenderer();
+			const host = dom.$('div');
+			setARIAContainer(host);
+			disposables.add(toDisposable(() => host.remove()));
+			configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+			renderer.renderElement(node, 0, template);
+			const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+			assert.ok(progress instanceof ChatWorkingProgressContentPart);
+			await timeout(89_999);
+			request.response?.[ending]();
+			await timeout(90_000);
+			assert.deepStrictEqual({
+				label: progress.workingLabel,
+				hidden: progress.domNode.style.display === 'none',
+				active: progress.domNode.classList.contains('chat-working-progress-active'),
+				statuses: [...host.querySelectorAll('.monaco-status')].map(status => status.textContent).filter(Boolean),
+			}, { label: 'Working', hidden: true, active: false, statuses: [] });
+		}));
+	}
+
 	test('persistent progress only reports MCP authentication for the last meaningful part', () => {
 		const authentication: IChatMcpAuthenticationRequired = {
 			kind: 'mcpAuthenticationRequired',
@@ -6132,6 +6227,32 @@ suite('ChatListRenderer', () => {
 			visibleAfterResume: progress.domNode.getClientRects().length > 0,
 			progressRows: template.value.querySelectorAll('.chat-working-progress').length,
 		}, { hiddenAfterCompletion: true, visibleAfterResume: true, progressRows: 1 });
+	});
+
+	test('retained working progress follows completion state without waiting for response-change delivery', () => {
+		const { disposables, container, request, renderer, template, node } = createPersistentProgressRenderer();
+		assert.ok(request.response);
+		const responseChanges = sinon.stub(request.response, 'onDidChange').value(Event.None);
+		disposables.add(toDisposable(() => responseChanges.restore()));
+		configurePersistentProgressTypography(container, 13);
+		renderer.renderElement(node, 0, template);
+		const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+		assert.ok(progress instanceof ChatWorkingProgressContentPart);
+		request.response.complete();
+		const afterCompletion = {
+			visible: progress.domNode.getClientRects().length > 0,
+			active: progress.domNode.classList.contains('chat-working-progress-active'),
+		};
+		request.response.reopen();
+		assert.deepStrictEqual({
+			afterCompletion,
+			visibleAfterReopen: progress.domNode.getClientRects().length > 0,
+			activeAfterReopen: progress.domNode.classList.contains('chat-working-progress-active'),
+		}, {
+			afterCompletion: { visible: false, active: false },
+			visibleAfterReopen: true,
+			activeAfterReopen: true,
+		});
 	});
 
 	for (const incremental of [false, true]) {
