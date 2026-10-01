@@ -705,7 +705,10 @@ class McpMarketplaceItemRenderer implements IListRenderer<IMcpMarketplaceEntry, 
 		const name = DOM.append(DOM.append(details, $('.plugin-list-item-name-row')), $('.plugin-list-item-name'));
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		const actionContainer = DOM.append(container, $('.plugin-list-item-action'));
-		const installButton = new Button(actionContainer, { ...defaultButtonStyles, secondary: true });
+		const installButton = new Button(actionContainer, {
+			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
+			secondary: true,
+		});
 		installButton.element.classList.add('plugin-list-item-install-button');
 		const templateDisposables = new DisposableStore();
 		templateDisposables.add(installButton);
@@ -751,7 +754,7 @@ class McpMarketplaceItemRenderer implements IListRenderer<IMcpMarketplaceEntry, 
 function createMcpSignInButton(parent: HTMLElement, store: Pick<DisposableStore, 'add'>, serverLabel: string): Button {
 	const signInLabel = localize('signInToMcpServer', "Sign in to {0}", serverLabel);
 	const signInButton = store.add(new Button(parent, {
-		...defaultButtonStyles,
+		...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
 		secondary: true,
 		small: true,
 		title: signInLabel,
@@ -766,7 +769,7 @@ function createMcpSignInButton(parent: HTMLElement, store: Pick<DisposableStore,
 function createMcpStartButton(parent: HTMLElement, store: Pick<DisposableStore, 'add'>, serverLabel: string): Button {
 	const startLabel = localize('startMcpServer', "Start {0}", serverLabel);
 	const startButton = store.add(new Button(parent, {
-		...defaultButtonStyles,
+		...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
 		secondary: true,
 		small: true,
 		title: startLabel,
@@ -780,7 +783,7 @@ function createMcpStartButton(parent: HTMLElement, store: Pick<DisposableStore, 
 function createMcpShowOutputButton(parent: HTMLElement, store: Pick<DisposableStore, 'add'>, serverLabel: string): Button {
 	const showOutputLabel = localize('showMcpServerOutput', "Show output for {0}", serverLabel);
 	const showOutputButton = store.add(new Button(parent, {
-		...defaultButtonStyles,
+		...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
 		secondary: true,
 		small: true,
 		title: showOutputLabel,
@@ -1707,6 +1710,8 @@ export class McpListWidget extends Disposable {
 	private disabledIcon!: HTMLElement;
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
+	private installedAddButton!: Button | undefined;
+
 	private filteredServers: IWorkbenchMcpServer[] = [];
 	private installedEntries: IMcpInstalledPresentation[] = [];
 	private readonly installedEntryOrder = new Map<string, number>();
@@ -2444,13 +2449,17 @@ export class McpListWidget extends Disposable {
 		}
 
 		const more = disposables.add(new Button(actions, {
-			...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
-			supportIcons: true,
 			ariaLabel: localize('mcpMoreActionsAria', "More actions for {0}", label),
 		}));
 		more.element.classList.add('plugin-card-icon-button');
-		more.label = `$(${Codicon.ellipsis.id})`;
+		more.icon = Codicon.ellipsis;
 		registerMcpInlineButtonAction(disposables, more, () => {
 			const currentEntry = getEntry();
 			if (currentEntry) {
@@ -2627,15 +2636,26 @@ export class McpListWidget extends Disposable {
 	private renderInstalledSectionActionsWithDisposables(header: HTMLElement, disposables: DisposableStore, showBrowse: boolean): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
 		const addLabel = localize('addServer', "Add Server");
-		const add = disposables.add(new Button(actions, {
-			...defaultButtonStyles,
+		const add = this.installedAddButton = disposables.add(new Button(actions, {
+			...(this.workspaceService.isSessionsWindow ? getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}) : defaultButtonStyles),
 			secondary: true,
-			supportIcons: true,
+			supportIcons: this.workspaceService.isSessionsWindow,
 			title: addLabel,
 			ariaLabel: addLabel,
 		}));
-		add.element.classList.add('plugin-card-icon-button');
-		add.label = `$(${Codicon.add.id})`;
+		add.element.classList.add('plugin-installed-action');
+		add.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
+		add.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
+		if (this.workspaceService.isSessionsWindow) {
+			add.icon = Codicon.add;
+		} else {
+			add.label = this.narrowLayout ? localize('addServerNarrow', "Add") : addLabel;
+		}
 		this.firstCardFocusElement ??= add.element;
 		disposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
 		if (showBrowse && isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService)) {
@@ -2716,9 +2736,18 @@ export class McpListWidget extends Disposable {
 		const statusIcon = DOM.append(errorActions, $('span.mcp-server-state-icon'));
 		const showOutput = this.appendInstalledServerShowOutput(errorActions, getEntry);
 		const toggle = this.appendInstalledServerToggle(actions, getEntry);
-		const more = this.cardDisposables.add(new Button(actions, { ...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }), secondary: true, supportIcons: true, ariaLabel: localize('mcpMoreActionsAria', "More actions for {0}", label) }));
+		const more = this.cardDisposables.add(new Button(actions, {
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
+			secondary: true,
+			ariaLabel: localize('mcpMoreActionsAria', "More actions for {0}", label),
+		}));
 		more.element.classList.add('plugin-card-icon-button');
-		more.label = `$(${Codicon.ellipsis.id})`;
+		more.icon = Codicon.ellipsis;
 		this.cardDisposables.add(more.onDidClick(() => this.showMcpServerActions(entry, more.element)));
 		this.cardListControllers.get(parent)?.addItem({
 			row,
@@ -2888,7 +2917,11 @@ export class McpListWidget extends Disposable {
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = truncateToFirstLine(server.description || localize('mcpNoDescription', "No description provided."));
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('installMcpServerAria', "Install {0}", server.label) }));
+		const install = this.cardDisposables.add(new Button(actions, {
+			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
+			secondary: true,
+			ariaLabel: localize('installMcpServerAria', "Install {0}", server.label),
+		}));
 		install.element.classList.add('plugin-list-item-install-button');
 		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplaceServer(server, install)));
@@ -3164,6 +3197,9 @@ export class McpListWidget extends Disposable {
 		this.wideLayout = wide;
 		this.element.classList.toggle('narrow-layout', narrow);
 		this.element.classList.toggle('wide-layout', wide);
+		if (this.installedAddButton && !this.workspaceService.isSessionsWindow) {
+			this.installedAddButton.label = narrow ? localize('addServerNarrow', "Add") : localize('addServer', "Add Server");
+		}
 	}
 
 	private showMcpServerActions(entry: IMcpInstalledEntry, anchor: HTMLElement | IMouseEvent): void {

@@ -13,7 +13,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import type { IValidator } from '../../../base/common/validation.js';
 import { ILogService } from '../../log/common/log.js';
 import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
-import { IDevContainerAgentHostMainService, type IDevContainerAgentHostConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostMainService, type IDevContainerAgentHostWorkspaceConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
 interface IConnection {
@@ -88,7 +88,7 @@ export class DevContainerAgentHostProtocol extends Disposable {
 				if (!isAbsolute(workspaceFolder) || workspaceFolder.includes('\0') || !config.name.trim() || config.name.includes('\0')) {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workspaceFolder must be an absolute host path and name must be non-empty');
 				}
-				return this._connect({ ...config, workspaceFolder });
+				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), workspaceFolder });
 			}
 			case DevContainerDisconnectExtensionMethod: {
 				const { connectionId } = this._validate(devContainerConnectionParamsValidator, params);
@@ -153,7 +153,7 @@ export class DevContainerAgentHostProtocol extends Disposable {
 		return connection;
 	}
 
-	private async _connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
+	private async _connect(config: IDevContainerAgentHostWorkspaceConfig): Promise<IDevContainerAgentHostConnectResult> {
 		if (this._connections.has(config.connectionId)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Dev Container connectionId is already in use');
 		}

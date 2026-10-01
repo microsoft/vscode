@@ -1649,19 +1649,26 @@ export class AICustomizationListWidget extends Disposable {
 		}
 
 		const label = this.formatTargetedCreateActionLabel(primary);
-		const iconOnly = this.currentSection === AICustomizationManagementSection.Skills;
 		const button = disposables.add(new Button(container, {
-			...defaultButtonStyles,
+			...(this.workspaceService.isSessionsWindow ? getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}) : defaultButtonStyles),
 			secondary: true,
-			supportIcons: iconOnly,
+			supportIcons: this.workspaceService.isSessionsWindow,
 			title: primary.tooltip ?? label,
 			ariaLabel: primary.tooltip ?? label,
 		}));
 		button.element.classList.add('customization-create-action');
-		if (iconOnly) {
-			button.element.classList.add('plugin-card-icon-button');
+		button.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
+		button.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
+		if (this.workspaceService.isSessionsWindow) {
+			button.icon = Codicon.add;
+		} else {
+			button.label = label;
 		}
-		button.label = iconOnly ? `$(${Codicon.add.id})` : label;
 		button.enabled = primary.enabled;
 		disposables.add(button.onDidClick(() => primary.run()));
 
@@ -1683,14 +1690,18 @@ export class AICustomizationListWidget extends Disposable {
 		if (secondaryActions.length > 0) {
 			const moreLabel = localize('moreCreateActions', "More creation actions for {0}", groupKey === PromptsStorage.local ? localize('workspace', "Workspace") : localize('user', "User"));
 			const more = disposables.add(new Button(container, {
-				...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
+				...getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
 				secondary: true,
-				supportIcons: true,
 				title: moreLabel,
 				ariaLabel: moreLabel,
 			}));
 			more.element.classList.add('plugin-card-icon-button', 'customization-create-more-action');
-			more.label = `$(${Codicon.ellipsis.id})`;
+			more.icon = Codicon.ellipsis;
 			disposables.add(more.onDidClick(() => this.showCreateActionsMenu(secondaryActions, more.element)));
 		}
 	}
