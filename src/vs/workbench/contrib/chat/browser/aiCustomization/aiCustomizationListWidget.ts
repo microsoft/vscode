@@ -1663,17 +1663,12 @@ export class AICustomizationListWidget extends Disposable {
 				buttonSecondaryBorder: undefined,
 			}),
 			secondary: true,
-			supportIcons: this.workspaceService.isSessionsWindow,
+			supportIcons: true,
 			title: primary.tooltip ?? label,
 			ariaLabel: primary.tooltip ?? label,
 		}));
-		button.element.classList.add('customization-create-action', 'plugin-card-ghost-button');
-		button.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
-		if (this.workspaceService.isSessionsWindow) {
-			button.icon = Codicon.add;
-		} else {
-			button.label = label;
-		}
+		button.element.classList.add('customization-create-action', 'plugin-card-ghost-button', 'plugin-card-icon-button');
+		button.icon = Codicon.add;
 		button.enabled = primary.enabled;
 		disposables.add(button.onDidClick(() => primary.run()));
 

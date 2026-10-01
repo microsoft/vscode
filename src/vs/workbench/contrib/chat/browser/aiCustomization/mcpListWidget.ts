@@ -1710,7 +1710,6 @@ export class McpListWidget extends Disposable {
 	private disabledIcon!: HTMLElement;
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
-	private installedAddButton!: Button | undefined;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
 	private installedEntries: IMcpInstalledPresentation[] = [];
@@ -2636,7 +2635,7 @@ export class McpListWidget extends Disposable {
 	private renderInstalledSectionActionsWithDisposables(header: HTMLElement, disposables: DisposableStore, showBrowse: boolean): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
 		const addLabel = localize('addServer', "Add Server");
-		const add = this.installedAddButton = disposables.add(new Button(actions, {
+		const add = disposables.add(new Button(actions, {
 			...getButtonStyles({
 				buttonSecondaryBackground: undefined,
 				buttonSecondaryForeground: undefined,
@@ -2644,17 +2643,12 @@ export class McpListWidget extends Disposable {
 				buttonSecondaryBorder: undefined,
 			}),
 			secondary: true,
-			supportIcons: this.workspaceService.isSessionsWindow,
+			supportIcons: true,
 			title: addLabel,
 			ariaLabel: addLabel,
 		}));
-		add.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
-		add.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
-		if (this.workspaceService.isSessionsWindow) {
-			add.icon = Codicon.add;
-		} else {
-			add.label = this.narrowLayout ? localize('addServerNarrow', "Add") : addLabel;
-		}
+		add.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button', 'plugin-card-icon-button');
+		add.icon = Codicon.add;
 		this.firstCardFocusElement ??= add.element;
 		disposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
 		if (showBrowse && isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService)) {
@@ -3206,9 +3200,6 @@ export class McpListWidget extends Disposable {
 		this.wideLayout = wide;
 		this.element.classList.toggle('narrow-layout', narrow);
 		this.element.classList.toggle('wide-layout', wide);
-		if (this.installedAddButton && !this.workspaceService.isSessionsWindow) {
-			this.installedAddButton.label = narrow ? localize('addServerNarrow', "Add") : localize('addServer', "Add Server");
-		}
 	}
 
 	private showMcpServerActions(entry: IMcpInstalledEntry, anchor: HTMLElement | IMouseEvent): void {

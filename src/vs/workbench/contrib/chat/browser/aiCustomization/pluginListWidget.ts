@@ -1505,7 +1505,6 @@ export class PluginListWidget extends Disposable {
 		if (!primary) {
 			return;
 		}
-		const label = this.formatActionLabel(primary);
 		const actionLabel = primary.tooltip ?? primary.label;
 		if (secondary.length > 0) {
 			const secondaryActions = secondary.map((action, index) => disposables.add(new Action(
@@ -1523,7 +1522,7 @@ export class PluginListWidget extends Disposable {
 					buttonSecondaryBorder: undefined,
 				}),
 				secondary: true,
-				supportIcons: this.workspaceService.isSessionsWindow,
+				supportIcons: true,
 				contextMenuProvider: this.contextMenuService,
 				addPrimaryActionToDropdown: false,
 				actions: { getActions: () => secondaryActions },
@@ -1533,13 +1532,9 @@ export class PluginListWidget extends Disposable {
 			button.element.classList.add('plugin-installed-action');
 			button.primaryButton.element.classList.add('plugin-card-ghost-button');
 			button.dropdownButton.element.classList.add('plugin-card-ghost-button');
-			button.primaryButton.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
-			button.dropdownButton.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
-			if (this.workspaceService.isSessionsWindow) {
-				button.icon = Codicon.add;
-			} else {
-				button.label = label;
-			}
+			button.primaryButton.element.classList.add('plugin-card-icon-button');
+			button.dropdownButton.element.classList.add('plugin-card-icon-button');
+			button.icon = Codicon.add;
 			button.enabled = primary.enabled !== false;
 			disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
 			return;
@@ -1552,17 +1547,12 @@ export class PluginListWidget extends Disposable {
 				buttonSecondaryBorder: undefined,
 			}),
 			secondary: true,
-			supportIcons: this.workspaceService.isSessionsWindow,
+			supportIcons: true,
 			title: actionLabel,
 			ariaLabel: actionLabel,
 		}));
-		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
-		button.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
-		if (this.workspaceService.isSessionsWindow) {
-			button.icon = Codicon.add;
-		} else {
-			button.label = label;
-		}
+		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button', 'plugin-card-icon-button');
+		button.icon = Codicon.add;
 		button.enabled = primary.enabled !== false;
 		disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
 	}
