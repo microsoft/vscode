@@ -436,14 +436,14 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
 	configurationSettingIds: CONFIGURED_LOCATION_SETTING_IDS,
 	shortcutLabel: localize('configuredLocationsMigrationShortcutLabel', "Migrate Location Settings"),
-	shortcutTooltip: localize('configuredLocationsMigrationShortcutTooltip', "Move customizations from locations unsupported by the active harness"),
+	shortcutTooltip: localize('configuredLocationsMigrationShortcutTooltip', "Move customizations from VS Code-configured locations to locations supported by the active harness"),
 	cardLabel: localize('configuredLocationsMigrationCardLabel', "Migrate Location Settings"),
 	cardActionLabel: localize('configuredLocationsMigrationCardAction', "Migrate..."),
-	cardActionAriaLabel: localize('configuredLocationsMigrationCardActionAriaLabel', "Migrate customizations from unsupported configured locations"),
+	cardActionAriaLabel: localize('configuredLocationsMigrationCardActionAriaLabel', "Migrate customizations from VS Code-configured locations"),
 	pageTitle: localize('configuredLocationsMigrationPageTitle', "Migrate Location Settings"),
 	pageLinkLabel: localize('configuredLocationsMigrationLearnMore', "Learn more about agent customizations"),
 	pageLinkUrl: CUSTOMIZATION_DOCUMENTATION_URL,
-	pageEmptyMessage: localize('configuredLocationsMigrationPageEmpty', "No customizations in unsupported configured locations are available to migrate."),
+	pageEmptyMessage: localize('configuredLocationsMigrationPageEmpty', "No customizations in VS Code-configured locations are available to migrate."),
 	migrateButtonTooltip: localize('configuredLocationsMigrationPageButtonTooltip', "Move the selected customizations to locations supported by the active harness"),
 	backLabel: localize('backToConfiguredLocationsMigration', "Back to Migrate Location Settings"),
 	noFilesMigratedMessage: localize('configuredLocationsMigrationNoFilesMigrated', "No customizations from configured locations were migrated."),
@@ -486,14 +486,16 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 
 	getCardDescription(customizations, harnessLabel) {
 		return customizations.length === 1
-			? localize('configuredLocationsMigrationCardDescriptionSingle', "Found 1 customization in a configured location that {0} does not use. Move it to keep it available.", harnessLabel)
-			: localize('configuredLocationsMigrationCardDescription', "Found {0} customizations in configured locations that {1} does not use. Move them to keep them available.", customizations.length, harnessLabel);
+			? localize('configuredLocationsMigrationCardDescriptionSingle', "Found 1 customization in a location observed only by the Local agent harness. {0} picks it up when running in VS Code. Move it to a supported location for use outside VS Code.", harnessLabel)
+			: localize('configuredLocationsMigrationCardDescription', "Found {0} customizations in locations observed only by the Local agent harness. {1} picks them up when running in VS Code. Move them to supported locations for use outside VS Code.", customizations.length, harnessLabel);
 	},
 
 	getPageDescription(customizations, harnessLabel) {
 		return customizations.length === 0
 			? localize('configuredLocationsMigrationPageDescriptionEmpty', "Select customizations to move to locations supported by the active harness.")
-			: localize('configuredLocationsMigrationPageDescription', "Found {0} customizations in locations configured through VS Code settings that {1} does not use. Move them to supported harness locations.", customizations.length, harnessLabel);
+			: customizations.length === 1
+				? localize('configuredLocationsMigrationPageDescriptionSingle', "Found 1 customization in a location configured through VS Code settings. These settings are only observed by the Local agent harness. {0} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the selected customization to a supported harness location for use outside VS Code.", harnessLabel)
+				: localize('configuredLocationsMigrationPageDescription', "Found {0} customizations in locations configured through VS Code settings. These settings are only observed by the Local agent harness. {1} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the selected customizations to supported harness locations for use outside VS Code.", customizations.length, harnessLabel);
 	},
 
 	getBanner(_customizations, harnessLabel, destinationLabel, modifiedSettingIds) {
@@ -501,11 +503,11 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 		const settingsList = formatSettingLinks(settingsLinks);
 		const message = settingsLinks.length === 1
 			? destinationLabel
-				? localize('configuredLocationsMigrationBannerSingleSettingWithDestination', "The setting {0} is no longer read by {1}. Move the customizations to '{2}' so both VS Code and {1} can use them.", settingsList, harnessLabel, destinationLabel)
-				: localize('configuredLocationsMigrationBannerSingleSetting', "The setting {0} is no longer read by {1}. Move the customizations into supported harness folders so both VS Code and {1} can use them.", settingsList, harnessLabel)
+				? localize('configuredLocationsMigrationBannerSingleSettingWithDestination', "The setting {0} is only observed by the Local agent harness. {1} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the customizations to '{2}' so {1} can find them when running independently.", settingsList, harnessLabel, destinationLabel)
+				: localize('configuredLocationsMigrationBannerSingleSetting', "The setting {0} is only observed by the Local agent harness. {1} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the customizations into supported harness folders so {1} can find them when running independently.", settingsList, harnessLabel)
 			: destinationLabel
-				? localize('configuredLocationsMigrationBannerSettingsWithDestination', "The settings {0} are no longer read by {1}. Move the customizations to '{2}' so both VS Code and {1} can use them.", settingsList, harnessLabel, destinationLabel)
-				: localize('configuredLocationsMigrationBannerSettings', "The settings {0} are no longer read by {1}. Move the customizations into supported harness folders so both VS Code and {1} can use them.", settingsList, harnessLabel);
+				? localize('configuredLocationsMigrationBannerSettingsWithDestination', "The settings {0} are only observed by the Local agent harness. {1} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the customizations to '{2}' so {1} can find them when running independently.", settingsList, harnessLabel, destinationLabel)
+				: localize('configuredLocationsMigrationBannerSettings', "The settings {0} are only observed by the Local agent harness. {1} picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the customizations into supported harness folders so {1} can find them when running independently.", settingsList, harnessLabel);
 		return {
 			message: new MarkdownString(message, {
 				isTrusted: { enabledCommands: ['workbench.action.openSettings'] },
@@ -520,8 +522,8 @@ const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 				? localize('configuredLocationsMigrationConfirmMessageWithDestination', "Migrate customizations to '{0}'?", destinationLabel)
 				: localize('configuredLocationsMigrationConfirmMessage', "Migrate customizations to {0}?", harnessLabel),
 			detail: customizations.length === 1
-				? localize('configuredLocationsMigrationConfirmDetailSingle', "This moves 1 customization out of an unsupported configured location.")
-				: localize('configuredLocationsMigrationConfirmDetail', "This moves {0} customizations out of unsupported configured locations.", customizations.length),
+				? localize('configuredLocationsMigrationConfirmDetailSingle', "This moves 1 customization out of a VS Code-configured location.")
+				: localize('configuredLocationsMigrationConfirmDetail', "This moves {0} customizations out of VS Code-configured locations.", customizations.length),
 			primaryButton: localize('configuredLocationsMigrationConfirmButton', "Migrate"),
 			deleteOriginalsLabel: localize('configuredLocationsMigrationDeleteOriginalFilesCheckbox', "Delete the original files after migration"),
 		};
