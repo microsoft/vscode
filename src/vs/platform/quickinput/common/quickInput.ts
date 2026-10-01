@@ -216,7 +216,7 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
 	 * and auto-sizes its width to match. Defaults to `'above'`.
 	 */
-	anchorPosition?: 'above' | 'overlay';
+	anchorPosition?: 'above' | 'below' | 'overlay';
 
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
@@ -396,7 +396,7 @@ export interface IQuickInput extends IDisposable {
 	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
 	 * and auto-sizes its width to match. Defaults to `'above'`.
 	 */
-	anchorPosition?: 'above' | 'overlay';
+	anchorPosition?: 'above' | 'below' | 'overlay';
 
 	/**
 	 * Shows the quick input.
@@ -994,6 +994,11 @@ export interface IQuickInputService {
 	 * The current alignment of the quick input widget.
 	 */
 	readonly alignment: IObservable<QuickInputAlignment>;
+
+	/**
+	 * Runs an operation so that the next quick pick it opens inherits the provided anchor.
+	 */
+	withQuickInputAnchor<T>(anchor: IQuickInput['anchor'], anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T>;
 
 	/**
 	 * Opens the quick input box for selecting items and returns a promise

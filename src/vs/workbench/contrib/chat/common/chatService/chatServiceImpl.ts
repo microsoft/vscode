@@ -2172,6 +2172,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		// Build send options from the first request, combining attachments from all
 		const firstRequest = allRequests[0];
+		const isSystemInitiated = firstRequest.sendOptions.isSystemInitiated && allRequests.every(req => req.sendOptions.isSystemInitiated);
 
 		// Preserve terminal correlation only when all merged requests agree on the
 		// same terminal. With subagents, multiple terminals can queue steering
@@ -2185,6 +2186,8 @@ export class ChatService extends Disposable implements IChatService {
 
 		const sendOptions: IChatSendRequestOptions = {
 			...firstRequest.sendOptions,
+			isSystemInitiated,
+			systemInitiatedLabel: isSystemInitiated ? firstRequest.sendOptions.systemInitiatedLabel : undefined,
 			terminalExecutionId: mergedTerminalExecutionId,
 			attachedContext: allRequests.flatMap(req => req.request.variableData.variables.slice()),
 		};
@@ -2314,6 +2317,7 @@ export class ChatService extends Disposable implements IChatService {
 				location: ChatAgentLocation.Chat,
 				editedFileEvents: request.editedFileEvents,
 				modeInstructions: request.modeInfo?.modeInstructions,
+				isSystemInitiated: request.isSystemInitiated,
 			};
 			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
 		}

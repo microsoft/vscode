@@ -8,6 +8,7 @@ import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
@@ -36,7 +37,7 @@ import { getModelPickerAccessibilityProvider } from './modelPickerItems.js';
 import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
-import { createMessageBanner, getModelHoverContent } from './modelPickerHover.js';
+import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -293,7 +294,7 @@ export class TabbedModelPicker extends Disposable {
 						? this._buildAutoModeItems(destination, sections, current)
 						: this._buildItems(destination, sections, current);
 				const hint = current.cacheBreakHint ?? current.configurationCacheBreakHint;
-				const listOptions = withChatInputPickerMotion({
+				const baseListOptions = withChatInputPickerMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 					stopToolbarPointerPropagation: true,
 					tabThroughItemActions: true,
@@ -325,6 +326,9 @@ export class TabbedModelPicker extends Disposable {
 					hideDefaultKeybindingTooltip: true,
 					reserveSubmenuSpace: false,
 				});
+				const listOptions = anchor.closest('.monaco-dialog-box')
+					? { ...baseListOptions, anchorPosition: AnchorPosition.BELOW }
+					: baseListOptions;
 				return {
 					items,
 					listOptions,
@@ -595,33 +599,14 @@ export class TabbedModelPicker extends Disposable {
 			items.push({ kind: ActionListItemKind.Separator, label: localize('chat.modelPicker.alternativeRouting', "Alternative routing") });
 			if (hydra) {
 				const item = this._createModelItem(hydra, context);
-				const description = localize('chat.modelPicker.hydraFusionDescription', "HydraFusion picks a workflow for each task, using one or more models to draft, review, or escalate when needed.");
-				let hoverContent: ReturnType<typeof getModelHoverContent>;
+				const description = localize('chat.modelPicker.hydraFusionDescription', "Picks a workflow per task, using one or more models to draft, review, or escalate.");
 				items.push({
 					...item,
-					detail: localize('chat.modelPicker.hydraFusionDetail', "May use multiple models"),
+					detail: description,
+					detailLink: { label: localize('chat.modelPicker.learnMore', "Learn more"), uri: HYDRA_FUSION_LEARN_MORE_URL },
 					badge: item.badge ?? hydra.metadata.detail,
 					ariaDescription: [item.ariaDescription, description].filter(Boolean).join(', '),
 					tooltip: [item.tooltip, description].filter(Boolean).join(' \u00b7 '),
-					hover: {
-						content: () => {
-							hoverContent ??= getModelHoverContent(hydra, context.isUBB, undefined, this._openerService, description);
-							if (!hoverContent) {
-								throw new Error('HydraFusion model hover is unavailable');
-							}
-							return hoverContent.element;
-						},
-						disposable: { dispose: () => hoverContent?.disposable.dispose() },
-						disposeContent: content => {
-							if (hoverContent?.element === content) {
-								hoverContent.disposable.dispose();
-								hoverContent = undefined;
-							}
-						},
-						expandable: true,
-						tabThroughPanel: true,
-						getTabbableElements: () => hoverContent?.tabbableElements ?? [],
-					},
 					className: `${item.className} chat-model-picker-routing-model${!item.badge && hydra.metadata.detail ? ' chat-model-picker-badge-preview' : ''}`,
 				});
 			}

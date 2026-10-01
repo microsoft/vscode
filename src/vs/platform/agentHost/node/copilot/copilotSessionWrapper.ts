@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -29,6 +29,12 @@ export interface ICopilotModelCallFinishedEvent {
 		readonly containsBuiltInFileEditRequest?: boolean;
 		readonly editClassifierVersion: number;
 	};
+}
+
+/** BYOK provider connections and models registered on an SDK session. */
+export interface ICopilotByokSessionConfig {
+	providers?: NamedProviderConfig[];
+	models?: ProviderModelConfig[];
 }
 
 /**
@@ -60,6 +66,8 @@ export class CopilotSessionWrapper extends Disposable {
 	constructor(
 		readonly session: CopilotSession,
 		readonly canvasRuntimeEnabled: boolean,
+		/** BYOK providers and models the SDK session was launched with. */
+		readonly launchByokConfig: ICopilotByokSessionConfig,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
