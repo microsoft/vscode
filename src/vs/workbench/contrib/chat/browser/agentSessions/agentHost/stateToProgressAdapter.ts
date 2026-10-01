@@ -23,6 +23,7 @@ import { readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk 
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -571,6 +572,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 						: meta.fusionStatus === 'degraded' ? Codicon.warning : Codicon.check,
 			};
 		}
+		case AgentSystemNotificationKind.ByokToolLimitExceeded:
+			return { kind: 'warning', content: withConfigureToolsLink(markdown.value), keepVisibleWhenCollapsed: true };
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
@@ -608,6 +611,22 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		default:
 			return { kind: 'systemNotification', content: markdown };
 	}
+}
+
+/**
+ * Appends a link that opens the Tools section of the Chat Customizations editor.
+ * The host's text is HTML-encoded and then markdown-escaped, so autolinks, HTML
+ * and markdown links in it render as plain text and only this link can run the
+ * trusted command.
+ */
+function withConfigureToolsLink(hostText: string): MarkdownString {
+	const commandArgs = encodeURIComponent(JSON.stringify([AICustomizationManagementSection.Tools]));
+	const link = `command:${AICustomizationManagementCommands.OpenEditor}?${commandArgs}`;
+	const label = escapeMarkdownLinkLabel(localize('agentHost.byokToolLimitExceeded.configureTools', "Configure Tools"));
+	const escapedHostText = escapeMarkdownSyntaxTokens(hostText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+	return new MarkdownString(`${escapedHostText} [${label}](${link})`, {
+		isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor] },
+	});
 }
 
 /** Keep live phase activity visible after its own milestones, but not after answer/tool content. */

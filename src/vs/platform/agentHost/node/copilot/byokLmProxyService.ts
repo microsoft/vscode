@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as http from 'http';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
@@ -16,8 +17,10 @@ import {
 	readProxyRequestBody,
 } from '../shared/loopbackProxyServer.js';
 import {
+	BYOK_MAX_TOOLS,
 	bridgeResultToResponsesBody,
 	bridgeResultToResponsesSseFrames,
+	capBridgeTools,
 	IResponsesRequest,
 	responsesErrorBody,
 	responsesRequestToBridge,
@@ -51,10 +54,26 @@ export interface IByokLmProxyHandle extends ILoopbackProxyHandle {
 	providerBaseUrl(vendor: string): string;
 }
 
+/**
+ * Fired when the proxy dropped tools from a BYOK request to stay within
+ * {@link BYOK_MAX_TOOLS}. The request is still sent with the kept tools.
+ */
+export interface IByokLmToolsCappedEvent {
+	/** Copilot SDK session id from the request's bearer token. */
+	readonly sessionId: string;
+	/** Number of tools the runtime sent to the proxy. */
+	readonly requestedToolCount: number;
+	/** Number of tools forwarded to the model. */
+	readonly sentToolCount: number;
+}
+
 export const IByokLmProxyService = createDecorator<IByokLmProxyService>('byokLmProxyService');
 
 export interface IByokLmProxyService {
 	readonly _serviceBrand: undefined;
+
+	/** Fires when a request's tools were capped at {@link BYOK_MAX_TOOLS}. */
+	readonly onDidCapTools: Event<IByokLmToolsCappedEvent>;
 
 	/** Start the proxy (if not already running) and return a refcounted handle. */
 	start(): Promise<IByokLmProxyHandle>;
@@ -96,6 +115,9 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onDidCapTools = new Emitter<IByokLmToolsCappedEvent>();
+	readonly onDidCapTools = this._onDidCapTools.event;
+
 	constructor(
 		@ILogService logService: ILogService,
 		@IByokLmBridgeRegistry private readonly _bridgeRegistry: IByokLmBridgeRegistry,
@@ -126,6 +148,11 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		};
 	}
 
+	override dispose(): void {
+		super.dispose();
+		this._onDidCapTools.dispose();
+	}
+
 	/** Emit the base's fallback failure using the OpenAI error envelope. */
 	protected override writeInternalError(res: http.ServerResponse): void {
 		this._writeJsonError(res, 500, 'Internal proxy error');
@@ -152,7 +179,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 
 		const vendor = this._parseVendorFromResponsesPath(pathname);
 		if (method === 'POST' && vendor !== undefined) {
-			await this._handleResponses(req, res, runtime, vendor);
+			await this._handleResponses(req, res, runtime, vendor, auth.sessionId);
 			return;
 		}
 
@@ -185,7 +212,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		return vendor;
 	}
 
-	private async _handleResponses(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string): Promise<void> {
+	private async _handleResponses(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string, sessionId: string): Promise<void> {
 		let body: IResponsesRequest;
 		try {
 			const raw = await readProxyRequestBody(req);
@@ -202,6 +229,16 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			const message = err instanceof ResponsesTranslationError ? err.message : String(err);
 			this._writeJsonError(res, 400, message, 'invalid_request_error');
 			return;
+		}
+
+		const capped = capBridgeTools(bridgeRequest);
+		if (capped.droppedToolNames.length > 0) {
+			const requestedToolCount = bridgeRequest.tools?.length ?? 0;
+			const sentToolCount = capped.request.tools?.length ?? 0;
+			this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: sending ${sentToolCount} of ${requestedToolCount} tools to ${vendor}/${bridgeRequest.modelId} (limit ${BYOK_MAX_TOOLS}); dropped ${capped.droppedToolNames.length} tool(s)`);
+			this._logService.trace(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: dropped tools: ${capped.droppedToolNames.join(', ')}`);
+			bridgeRequest = capped.request;
+			this._onDidCapTools.fire({ sessionId, requestedToolCount, sentToolCount });
 		}
 
 		const connection = this._bridgeRegistry.getServingConnection();
@@ -279,6 +316,8 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 export class NullByokLmProxyService implements IByokLmProxyService {
 
 	declare readonly _serviceBrand: undefined;
+
+	readonly onDidCapTools: Event<IByokLmToolsCappedEvent> = Event.None;
 
 	start(): Promise<IByokLmProxyHandle> {
 		return Promise.reject(new Error('BYOK is not supported in this agent host'));
