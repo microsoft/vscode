@@ -9,9 +9,12 @@ import { IDisposable } from '../../base/common/lifecycle.js';
 import { URI } from '../../base/common/uri.js';
 import { IProtocolTransport } from '../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
+import { IDevContainerRepository } from '../../platform/agentHost/common/devContainerSamples.js';
 
 /** Experimental setting that enables Dev Container Agent Host sessions. */
 export const DevContainerAgentHostEnabledSettingId = 'chat.agentHost.devContainer.enabled';
+
+export const DevContainerSamplesEnabledSettingId = 'chat.agentHost.devContainer.samples.enabled';
 
 export const DevContainerIdleTimeoutSettingId = 'chat.agentHost.devContainer.idleTimeout';
 
@@ -31,6 +34,7 @@ export interface IDevContainerAgentHostConnection {
 	readonly workspaceUri: URI;
 	/** Native source path reported by the host that launched the container. */
 	readonly hostWorkspaceFolder?: string;
+	readonly repository?: IDevContainerRepository;
 	readonly defaultDirectory?: string;
 }
 

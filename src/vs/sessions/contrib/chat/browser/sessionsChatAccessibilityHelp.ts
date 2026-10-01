@@ -33,6 +33,7 @@ import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SE
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
+import { DevContainerSamplesEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -55,6 +56,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		}
 		content.push(localize('sessionsChat.preparation', "While a new session is being prepared, the transcript shows your submitted prompt and attachments followed by startup progress. Use Tab to reach Show Log beside the progress message and press Enter to open the Dev Container output channel. The chat input and attachment controls are disabled until preparation finishes. Use the input's Stop action or Cancel Chat command{0} to cancel preparation. If preparation fails or is canceled, your original prompt and attachments remain in the new-session composer.", '<keybinding:workbench.action.chat.cancel>'));
 		content.push(localize('sessionsChat.connectionLog', "While connecting to a Dev Container for an existing session, use Tab to reach Show Log and press Enter to open the Dev Container output channel."));
+		if (configurationService.getValue<boolean>(DevContainerSamplesEnabledSettingId)) {
+			content.push(localize('sessionsChat.devContainerSamples', "The workspace picker includes Try a Dev Container Sample. Open its submenu and choose a sample with the arrow keys and Enter. Selecting a sample does not start Docker or clone the repository. The sample is prepared in a Docker volume when you send your first prompt."));
+		}
 		if (configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING)) {
 			content.push(localize('sessionsChat.responseSelectionMenu', "When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text."));
 		} else {

@@ -17,6 +17,7 @@ import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableO
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentCanvasAvailability, AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCanvas, type IAgentCanvasSnapshot, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
@@ -2637,6 +2638,7 @@ class NewSession extends Disposable {
 	/** This draft's URI as the host's registry is keyed by it. */
 	readonly backendUri: URI;
 	readonly workspaceUri: URI | undefined;
+	readonly isDevContainerSample: boolean;
 	readonly requiresWorkspaceTrust: boolean;
 	/** `true` when this is a workspace-less quick chat. */
 	readonly isQuickChat: boolean;
@@ -2766,7 +2768,8 @@ class NewSession extends Disposable {
 		if (this._kind.requiresWorkspace && !workspaceUri) {
 			throw new Error('Workspace has no repository URI');
 		}
-		this.workspaceUri = workspaceUri;
+		this.isDevContainerSample = !!workspaceUri && !!findDevContainerSample(workspaceUri);
+		this.workspaceUri = this.isDevContainerSample ? undefined : workspaceUri;
 		this.isQuickChat = this._kind.isQuickChat;
 		this.requiresWorkspaceTrust = !!ctx.workspace?.requiresWorkspaceTrust;
 		this.agentProvider = ctx.sessionType.id;
@@ -3094,7 +3097,17 @@ class NewSession extends Disposable {
 			if (seq !== this._configRequestSeq) {
 				return false;
 			}
-			this._config = result;
+			this._config = this.isDevContainerSample && result.schema.properties[SessionConfigKey.Isolation] ? {
+				...result,
+				schema: {
+					...result.schema,
+					properties: {
+						...result.schema.properties,
+						[SessionConfigKey.Isolation]: { ...result.schema.properties[SessionConfigKey.Isolation], readOnly: true },
+					},
+				},
+				values: { ...result.values, [SessionConfigKey.Isolation]: 'folder' },
+			} : result;
 			this._unresolvedConfigValues = undefined;
 			this._syncWorktreePending();
 			return true;
@@ -4348,7 +4361,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const connection = this.connection;
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const initialSessionTemplate = this._resolveAutomationSessionTemplate(sessionType.id, initialAutomationConfiguration);
-		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root) ?? []);
+		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root).filter(uri => !findDevContainerSample(uri)) ?? []);
 		const baseInitialConfigValues = initialAutomationConfiguration
 			? {
 				...this._derivedNewSessionConfig(workspace),
@@ -4486,6 +4499,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Resolving the session config (schema + defaults for the picker chips)
 		// is part of viewing the new-session UI and stays ungated.
 		void newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { markSessionLoading: true }));
+		if (newSession.isDevContainerSample) {
+			return;
+		}
 		if (newSession.workspaceUri) {
 			void newSession.loadBranches(connection).catch(error => {
 				if (this._getNewSession(newSession.sessionId) === newSession) {

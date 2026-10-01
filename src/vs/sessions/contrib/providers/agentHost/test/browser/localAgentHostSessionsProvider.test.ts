@@ -60,7 +60,8 @@ import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../service
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
@@ -135,7 +136,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
-	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
+	public resolveSessionConfigRequests: { config?: Record<string, unknown>; workingDirectory?: URI }[] = [];
 	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
 	public branchCompletionRequests: IAgentSessionConfigCompletionsParams[] = [];
 	public branchCompletionItems: SessionConfigCompletionsResult['items'] = [{ value: 'main', label: 'main' }];
@@ -3954,6 +3955,47 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
+
+	for (const available of [true, false]) {
+		test(`sample drafts defer provisioning and never create a local backend (available: ${available})`, async () => {
+			let containerStarts = 0;
+			let trustRequests = 0;
+			agentHost.resolveSessionConfigResult = {
+				schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } },
+				values: { isolation: 'worktree' },
+			};
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({ [DevContainerSamplesEnabledSettingId]: true, [DevContainerWorktreeEnabledSettingId]: true }),
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override async isAvailable(): Promise<boolean> { return available; }
+					override async connect(): Promise<never> {
+						containerStarts++;
+						throw new Error('Sample provisioning reached');
+					}
+				}(),
+				requestWorkspaceTrust: async () => { trustRequests++; return true; },
+			});
+			const session = provider.createNewSession(devContainerSampleUri(devContainerSamples[0]), provider.sessionTypes[0].id);
+			await timeout(0);
+			const before = {
+				containerStarts, trustRequests,
+				localCreates: agentHost.createdSessionUris.length,
+				enabled: provider.isDevContainerEnabled(session.sessionId),
+				workingDirectories: agentHost.resolveSessionConfigRequests.map(request => request.workingDirectory),
+			};
+			assert.throws(() => provider.setDevContainerEnabled(session.sessionId, false), /must run in a container/);
+			await assert.rejects(provider.prepareNewSession(session.sessionId, CancellationToken.None, 'first prompt'), available ? /Sample provisioning reached/ : /selected Dev Container is not available/);
+			assert.deepStrictEqual({
+				before,
+				after: { containerStarts, trustRequests, localCreates: agentHost.createdSessionUris.length },
+				isolation: provider.getSessionConfig(session.sessionId)?.values.isolation,
+			}, {
+				before: { containerStarts: 0, trustRequests: 0, localCreates: 0, enabled: true, workingDirectories: [undefined] },
+				after: { containerStarts: available ? 1 : 0, trustRequests: available ? 1 : 0, localCreates: 0 },
+				isolation: 'folder',
+			});
+		});
+	}
 
 	test('enables a preferred Dev Container after asynchronous availability resolves', async () => {
 		const availability = new DeferredPromise<boolean>();

@@ -21,6 +21,7 @@ import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { findDevContainerSample, IDevContainerSampleSource } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { NonReconnectableTransportError } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -35,7 +36,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../browser/devContainerSource.js';
@@ -132,8 +133,14 @@ export async function isDevContainerWorkspaceAvailable(
 	if (
 		!configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId)
 		|| !configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
-		|| (workspaceUri.scheme !== Schemas.file && workspaceUri.scheme !== AGENT_HOST_SCHEME)
+		|| configurationService.getValue<boolean>('chat.disableAIFeatures') === true
 	) {
+		return false;
+	}
+	if (findDevContainerSample(workspaceUri)) {
+		return configurationService.getValue<boolean>(DevContainerSamplesEnabledSettingId) === true && await mainService.isDockerAvailable();
+	}
+	if (workspaceUri.scheme !== Schemas.file && workspaceUri.scheme !== AGENT_HOST_SCHEME) {
 		return false;
 	}
 	return await hasDevContainerConfiguration(workspaceUri, fileService) && await mainService.isDockerAvailable();
@@ -220,11 +227,11 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 		}
 	}
 
-	async stopContainer(workspaceFolder: string): Promise<boolean> {
+	async stopContainer(workspaceFolder: string | IDevContainerSampleSource): Promise<boolean> {
 		return (await this._resolveService(CancellationToken.None)).stopContainer(workspaceFolder);
 	}
 
-	async removeContainer(workspaceFolder: string): Promise<boolean> {
+	async removeContainer(workspaceFolder: string | IDevContainerSampleSource): Promise<boolean> {
 		return (await this._resolveService(CancellationToken.None)).removeContainer(workspaceFolder);
 	}
 
@@ -312,7 +319,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 	}
 
 	async isAvailable(workspaceUri: URI): Promise<boolean> {
-		if (workspaceUri.scheme === Schemas.file) {
+		if (workspaceUri.scheme === Schemas.file || findDevContainerSample(workspaceUri)) {
 			return isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService, this._configurationService);
 		}
 		const entry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
@@ -331,16 +338,18 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 
 	async stopContainer(workspaceUri: URI): Promise<boolean> {
 		const service = await this._resolveWorkspaceService(workspaceUri, CancellationToken.None);
-		return service.stopContainer(devContainerSourcePath(workspaceUri));
+		const sample = findDevContainerSample(workspaceUri);
+		return service.stopContainer(sample ? { sampleId: sample.id } : devContainerSourcePath(workspaceUri));
 	}
 
 	async removeContainer(workspaceUri: URI): Promise<boolean> {
 		const service = await this._resolveWorkspaceService(workspaceUri, CancellationToken.None);
-		return service.removeContainer(devContainerSourcePath(workspaceUri));
+		const sample = findDevContainerSample(workspaceUri);
+		return service.removeContainer(sample ? { sampleId: sample.id } : devContainerSourcePath(workspaceUri));
 	}
 
 	private async _resolveWorkspaceService(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostMainService> {
-		if (workspaceUri.scheme === Schemas.file) {
+		if (workspaceUri.scheme === Schemas.file || findDevContainerSample(workspaceUri)) {
 			return this._mainService;
 		}
 		const connection = await resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, token);
@@ -352,8 +361,16 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 
 	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean }): Promise<IDevContainerAgentHostConnection> {
 		ensureDevContainerAgentHostsEnabled(this._configurationService);
+		const sample = findDevContainerSample(workspaceUri);
+		const ensureSampleEnabled = () => {
+			if (sample && (this._configurationService.getValue<boolean>(DevContainerSamplesEnabledSettingId) !== true
+				|| this._configurationService.getValue<boolean>('chat.disableAIFeatures') === true)) {
+				throw new Error(localize('devContainerAgentHost.samplesDisabled', "Dev Container samples are not enabled."));
+			}
+		};
+		ensureSampleEnabled();
 		const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
-		if (workspaceUri.scheme !== Schemas.file && !sourceEntry) {
+		if (workspaceUri.scheme !== Schemas.file && !sourceEntry && !sample) {
 			throw new Error(localize('devContainerAgentHost.workspaceRequired', "Dev Container Agent Hosts require a local, SSH, Tunnel, or WSL workspace."));
 		}
 		if (token.isCancellationRequested) {
@@ -362,7 +379,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		const remoteService = sourceEntry ? new RemoteDevContainerService(token => this._resolveWorkspaceService(workspaceUri, token), this._logService) : undefined;
 		const mainService = remoteService ?? this._mainService;
 		const connectionId = generateUuid();
-		const workspaceFolder = devContainerSourcePath(workspaceUri);
+		const source = sample ? { sampleId: sample.id } : { workspaceFolder: devContainerSourcePath(workspaceUri) };
 		const name = sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`;
 		const outputWriter = new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._outputService);
 		const cancellationListener = token.onCancellationRequested(() => {
@@ -373,7 +390,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		try {
 			const result = await mainService.connect({
 				connectionId,
-				workspaceFolder,
+				...source,
 				name,
 				resume: options?.resume ?? true,
 			});
@@ -391,10 +408,11 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 
 				try {
 					ensureDevContainerAgentHostsEnabled(this._configurationService);
+					ensureSampleEnabled();
 				} catch (error) {
 					throw new NonReconnectableTransportError(error instanceof Error ? error.message : String(error));
 				}
-				if (!sourceEntry && !await this._fileService.exists(workspaceUri)) {
+				if (!sourceEntry && !sample && !await this._fileService.exists(workspaceUri)) {
 					throw new NonReconnectableTransportError('Dev Container workspace folder no longer exists.');
 				}
 
@@ -403,7 +421,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				try {
 					await mainService.connect({
 						connectionId: reconnectConnectionId,
-						workspaceFolder,
+						...source,
 						name,
 						resume: false,
 					});
@@ -444,6 +462,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				address,
 				name: result.name,
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
+				repository: result.repository,
 				transportFactory,
 				transportDisposable: combinedDisposable(
 					outputWriter,
@@ -521,6 +540,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			included: false,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
+		},
+		[DevContainerSamplesEnabledSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.devContainer.samples.enabled', "Show Dev Container samples in the Agents window workspace picker. The sample is cloned into a Docker volume and started when you send the first prompt. Requires Dev Container Agent Host sessions to be enabled."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
 		},
 		[DevContainerIdleTimeoutSettingId]: {
 			type: 'integer',
