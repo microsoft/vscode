@@ -1675,6 +1675,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			);
 			return null;
 		},
+		moveChat: async () => {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Method not found: moveChat');
+		},
 		disposeChat: async (_client, params) => {
 			const chat = URI.parse(params.channel);
 			const parsed = parseChatUri(chat);
@@ -1683,10 +1686,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			await this._agentService.disposeChat(URI.parse(parsed.session), chat);
 			return null;
-		},
-		moveChat: async (_client, params) => {
-			// Clients may only move chats that advertise `movable: true`, and this host never does.
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Chat is not movable: ${params.channel}`);
 		},
 		resourceWrite: async (_client, params) => {
 			return this._agentService.resourceWrite(params);

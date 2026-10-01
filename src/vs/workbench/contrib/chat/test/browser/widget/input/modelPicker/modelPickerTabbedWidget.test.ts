@@ -8,6 +8,7 @@ import * as dom from '../../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../../../base/common/layout.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
@@ -87,6 +88,8 @@ suite('TabbedModelPicker', () => {
 		access?: IModelConfigurationAccess;
 		details?: string;
 		cacheWarm?: boolean;
+		contextViewLayer?: number;
+		inDialog?: boolean;
 		policyDefault?: string;
 		userDefault?: string;
 		selectedModelId?: string;
@@ -99,7 +102,8 @@ suite('TabbedModelPicker', () => {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
 		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size280: 28px;';
 		disposables.add(toDisposable(() => container.remove()));
-		const anchor = dom.append(container, dom.$('button'));
+		const anchorContainer = options.inDialog ? dom.append(container, dom.$('.monaco-dialog-box')) : container;
+		const anchor = dom.append(anchorContainer, dom.$('button'));
 		anchor.style.cssText = 'position: fixed; bottom: 20px; left: 20px; width: 120px; height: 22px;';
 		const popup = dom.append(container, dom.$('div'));
 		const render = disposables.add(new MutableDisposable());
@@ -186,10 +190,12 @@ suite('TabbedModelPicker', () => {
 			configurationCacheBreakHint: options.cacheWarm ? { text: 'Changing options resets the prompt cache.', link: undefined, dismiss: () => { hintDismissed = true; } } : undefined,
 		};
 		const picker = disposables.add(instantiationService.createInstance(TabbedModelPicker));
-		picker.show(anchor, context, options.details);
+		picker.show(anchor, context, options.details, false, options.contextViewLayer);
 		return {
 			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges,
 			get hintDismissed() { return hintDismissed; },
+			get contextViewLayer() { return activeDelegate?.layer; },
+			get anchorPosition() { return activeDelegate?.anchorPosition; },
 		};
 	}
 
@@ -206,6 +212,27 @@ suite('TabbedModelPicker', () => {
 	function goBack(popup: HTMLElement): void {
 		element(popup, '[role="button"][aria-label="Back to Models"]').click();
 	}
+
+	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
+		const result = createPicker({ inDialog: true, contextViewLayer: 1, details: models[0].identifier });
+		const details = {
+			layer: result.contextViewLayer,
+			position: result.anchorPosition,
+			model: result.popup.querySelector('.chat-model-card-name')?.textContent,
+		};
+		goBack(result.popup);
+		assert.deepStrictEqual({
+			details,
+			list: { layer: result.contextViewLayer, position: result.anchorPosition },
+			visible: result.picker.isVisible,
+			selections: result.selections,
+		}, {
+			details: { layer: 1, position: AnchorPosition.BELOW, model: 'First' },
+			list: { layer: 1, position: AnchorPosition.BELOW },
+			visible: true,
+			selections: [],
+		});
+	});
 
 	function defaultBadgeModels(popup: HTMLElement): string[] {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-org-default-badge:not([hidden])'), badge => {

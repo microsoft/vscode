@@ -23,24 +23,24 @@ import { ISessionChangesService } from '../../../changes/browser/sessionChangesS
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import {
 	DetailPanelTarget,
-	SinglePaneDetailPanelCoordinator,
-} from './singlePaneDetailPanelCoordinator.js';
+	DesktopDetailPanelCoordinator,
+} from './desktopDetailPanelCoordinator.js';
 import {
 	isChangesEditorInput,
 	isEditorWithoutDockedDetails,
 	isFileEditorInput,
 	isMainPartEmpty,
-} from './singlePaneSharedHelpers.js';
+} from './desktopSharedHelpers.js';
 import {
-	ISinglePaneLayoutContext,
-	SinglePaneLayoutStrategy,
-} from './singlePaneLayoutStrategy.js';
-import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from './singlePaneVisibilityProfileStore.js';
+	IDesktopLayoutContext,
+	DesktopLayoutStrategy,
+} from './desktopLayoutStrategy.js';
+import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
 
 /**
  * Owns workspace-backed and workspace-less draft layout behavior.
  */
-export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
+export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	private _pendingEntryHideSessionKey: string | undefined;
 	private _replacementDraftKey: string | undefined;
 	private _pendingSidePaneOpenHideSessionKey: string | undefined;
@@ -51,9 +51,9 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 	private _changingVisibility = false;
 
 	constructor(
-		ctx: ISinglePaneLayoutContext,
-		private readonly _detailPanel: SinglePaneDetailPanelCoordinator,
-		private readonly _visibilityStore: SinglePaneVisibilityProfileStore,
+		ctx: IDesktopLayoutContext,
+		private readonly _detailPanel: DesktopDetailPanelCoordinator,
+		private readonly _visibilityStore: DesktopVisibilityProfileStore,
 		@IAgentWorkbenchLayoutService
 		private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
@@ -150,7 +150,7 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 					this._replacementDraftKey = previousDraftKey ? draftKey : undefined;
 					previousDraftKey = draftKey;
 					if (this._replacementDraftKey) {
-						this._logService.trace(`[SinglePaneLayout] Preserving draft composition: session=${this._replacementDraftKey} editor=${this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)} details=${this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)}`);
+						this._logService.trace(`[DesktopLayout] Preserving draft composition: session=${this._replacementDraftKey} editor=${this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)} details=${this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)}`);
 					}
 				}
 				const sessionKey = this._readActiveNewSessionKey(reader);
@@ -202,7 +202,7 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 				|| this._ctx.multipleSessionsVisibleObs.get()) {
 				return;
 			}
-			this._logService.trace(`[SinglePaneLayout] No workspace layout restore settled: session=${sessionKey} width=${this._layoutService.getSize(Parts.EDITOR_PART).width} editor=${this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)} details=${this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)}`);
+			this._logService.trace(`[DesktopLayout] No workspace layout restore settled: session=${sessionKey} width=${this._layoutService.getSize(Parts.EDITOR_PART).width} editor=${this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)} details=${this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)}`);
 			if (this._pendingEditorRestoreKey !== sessionKey) {
 				return;
 			}
