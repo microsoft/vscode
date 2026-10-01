@@ -1448,7 +1448,7 @@ suite('AgentHostChatContribution', () => {
 			// progress handler suppresses the notification; the default config
 			// stub returns `true` for every key, so override just this one.
 			const services = createTestServices(disposables, undefined, undefined, undefined, undefined, isSessionsWindow, undefined, { [ChatAIDisabledSettingId]: false });
-			const openedTitles: (string | undefined)[] = [];
+			const openedTitles: IProgressNotificationOptions['title'][] = [];
 			services.instantiationService.stub(IProgressService, {
 				withProgress: <R,>(options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>) => {
 					openedTitles.push(options.title);
