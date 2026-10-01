@@ -1830,6 +1830,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return {
 			turns: chatState.turns,
 			...(chatState.activeTurn ? { activeTurn: { message: chatState.activeTurn.message, responseParts: chatState.activeTurn.responseParts } } : {}),
+			...(chatState.queuedMessages?.length ? { queuedMessages: chatState.queuedMessages } : {}),
 			hasMoreHistory: !!chatState.turnsNextCursor,
 		};
 	}

@@ -219,7 +219,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.SendMessage,
 		title: 'Send Message',
-		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. Delivery is asynchronous — this tool does not wait for or return the reply.',
+		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. While the target has not started a message you queued there, sending again replaces that message instead of queuing another, so write one complete message that reflects the current state, not just what changed; `get_session_context` shows your undelivered message. Delivery is asynchronous — this tool does not wait for or return the reply.',
 		inputSchema: sendMessageInputSchema,
 		annotations: { readOnlyHint: false },
 		deferLoading: true,
@@ -227,7 +227,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.GetSessionContext,
 		title: 'Get Session Context',
-		description: 'Read the recent conversation of an existing session or chat: a compacted transcript of its turns (messages, replies, and tool calls). Use this to see what a session you created is doing, or to gather context before sending it a message. Returns a compacted summary by default (`detail: "summary"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
+		description: 'Read the recent conversation of an existing session or chat: a compacted transcript of its turns (messages, replies, and tool calls). Use this to see what a session you created is doing, or to gather context before sending it a message. Returns a compacted summary by default (`detail: "summary"`); request `digest` or `full` for more detail. `yourUndeliveredMessage` holds a message you sent there with `send_message` that it has not started yet. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
 		inputSchema: getSessionContextInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -350,6 +350,8 @@ export interface IChatContextSnapshot {
 	readonly turns: readonly Turn[];
 	/** The in-progress turn, if the chat is mid-response. */
 	readonly activeTurn?: Pick<Turn, 'message' | 'responseParts'>;
+	/** Messages waiting to start as new turns, in the order they will run. */
+	readonly queuedMessages?: readonly PendingMessage[];
 	/** `true` when older completed turns exist beyond the in-memory window. */
 	readonly hasMoreHistory: boolean;
 }
@@ -1256,12 +1258,12 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 }
 
 /**
- * Finds the queued message {@link sourceChat} previously sent to a chat that the
- * chat has not started yet, so a follow-up updates it rather than queuing
- * another turn behind it.
+ * Finds the queued message {@link sourceChat} sent that the target chat has not
+ * started yet. A follow-up from {@link sourceChat} replaces it, so the target
+ * only ever holds one current message from each sender.
  */
-function findUndeliveredMessageFrom(state: ChatState, sourceChat: string): PendingMessage | undefined {
-	return state.queuedMessages?.findLast(queued => {
+function findUndeliveredMessageFrom(queuedMessages: readonly PendingMessage[] | undefined, sourceChat: string): PendingMessage | undefined {
+	return queuedMessages?.findLast(queued => {
 		const delegation = readAgentMessageDelegationMeta(queued.message);
 		return delegation !== undefined && hasKey(delegation, { sourceSession: true }) && delegation.sourceChat === sourceChat;
 	});
@@ -1287,9 +1289,10 @@ function getQueuedMessageModel(state: ChatState, queuedMessageId?: string): Mode
 
 /**
  * Sends a message to an existing session/chat, starting a new turn there or
- * queuing it behind the target chat's active or pending messages. A follow-up
- * from the same chat is appended to that chat's earlier queued message while the
- * target has not started it, rather than queued as another turn.
+ * queuing it behind the target chat's active or pending messages. While the
+ * target has not started a message this chat sent earlier, a follow-up replaces
+ * that message rather than queuing another turn, so the sender keeps one
+ * complete, up-to-date message there.
  * Refuses to target {@link currentChannel} (the chat channel the tool runs on)
  * to avoid a session trivially messaging itself in a loop.
  */
@@ -1309,23 +1312,26 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 	const targetState = stateManager?.getChatState(chat.toString());
 	if (stateManager && targetState && (targetState.activeTurn || targetState.steeringMessage || targetState.queuedMessages?.length)) {
 		const delegationMeta = delegation ? toAgentMessageDelegationMeta(delegation) : undefined;
-		const undelivered = sourceChat ? findUndeliveredMessageFrom(targetState, sourceChat.toString()) : undefined;
+		const undelivered = sourceChat ? findUndeliveredMessageFrom(targetState.queuedMessages, sourceChat.toString()) : undefined;
 		if (undelivered) {
-			// Read and update in one synchronous step so the merge never races the
-			// queue drain: the message is either still queued here or already started.
+			// Read and replace in one synchronous step so this never races the queue
+			// drain: the message is either still queued here or already started.
 			const model = undelivered.message.model ?? getQueuedMessageModel(targetState, undelivered.id);
+			// Attachment ranges point into the replaced text, so keep the attachments but drop their ranges.
+			const attachments = undelivered.message.attachments?.map(attachment => attachment.range ? { ...attachment, range: undefined } : attachment);
 			stateManager.dispatchServerAction(chat.toString(), {
 				type: ActionType.ChatPendingMessageSet,
 				kind: PendingMessageKind.Queued,
 				id: undelivered.id,
 				message: {
 					...undelivered.message,
-					text: `${undelivered.message.text}\n\n${message}`,
+					text: message,
 					...(model ? { model } : {}),
+					...(attachments ? { attachments } : {}),
 					_meta: { ...undelivered.message._meta, ...delegationMeta },
 				},
 			});
-			return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), 'updated');
+			return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), { replaced: undelivered.message.text });
 		}
 		const model = getQueuedMessageModel(targetState);
 		const queuedMessage: Message = {
@@ -1347,18 +1353,17 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 }
 
 /**
- * Builds the model-facing `send_message` result. `updated` means the message was
- * appended to an earlier one from the same chat that the target has not started.
+ * Builds the model-facing `send_message` result. A replacement returns the text
+ * it replaced so the sender can tell whether anything it still needs was lost.
  */
-export function formatSendMessageResult(openLink: string, delivery: 'sent' | 'queued' | 'updated'): string {
-	switch (delivery) {
-		case 'sent':
-			return `Message sent (${openLink}).`;
-		case 'queued':
-			return `Message queued (${openLink}).`;
-		case 'updated':
-			return `Message added to the queued message this chat already sent, which has not been delivered yet (${openLink}).`;
+export function formatSendMessageResult(openLink: string, delivery: 'sent' | 'queued' | { readonly replaced: string }): string {
+	if (delivery === 'sent') {
+		return `Message sent (${openLink}).`;
 	}
+	if (delivery === 'queued') {
+		return `Message queued (${openLink}).`;
+	}
+	return `Message replaced this chat's undelivered queued message (${openLink}). Replaced message:\n${delivery.replaced}`;
 }
 
 // --- get_session_context -----------------------------------------------------
@@ -1461,10 +1466,16 @@ interface ISerializedSessionContext {
 	readonly hasMoreHistory: boolean;
 	/** `true` when turns were dropped from the window or any field was shortened. */
 	readonly truncated: boolean;
+	/** Full text of a message the calling chat sent that this chat has not started yet. */
+	readonly yourUndeliveredMessage?: string;
 }
 
-/** Builds the compacted, model-facing session-context payload from a snapshot. */
-export function serializeSessionContext(session: URI, chatId: string | undefined, snapshot: IChatContextSnapshot, detail: SessionContextDetail, transcriptLimit: number): string {
+/**
+ * Builds the compacted, model-facing session-context payload from a snapshot.
+ * When {@link sourceChat} has a message waiting in the chat, it is included in
+ * full so the caller can rewrite it with `send_message`.
+ */
+export function serializeSessionContext(session: URI, chatId: string | undefined, snapshot: IChatContextSnapshot, detail: SessionContextDetail, transcriptLimit: number, sourceChat?: string): string {
 	const caps = contextCaps[detail];
 	let truncated = false;
 	const trunc = (text: string, max: number): string | undefined => {
@@ -1510,6 +1521,7 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 		};
 	});
 
+	const undelivered = sourceChat ? findUndeliveredMessageFrom(snapshot.queuedMessages, sourceChat) : undefined;
 	const payload: ISerializedSessionContext = {
 		session: session.toString(),
 		openLink: buildOpenSessionLinkUri(session, chatId),
@@ -1517,12 +1529,13 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 		transcript,
 		hasMoreHistory: snapshot.hasMoreHistory,
 		truncated,
+		...(undelivered ? { yourUndeliveredMessage: undelivered.message.text } : {}),
 	};
 	return JSON.stringify(payload);
 }
 
-/** Reads and serializes the context of an existing session/chat. */
-export async function applyGetSessionContextTool(accessor: ISessionServerToolAccessor, rawArgs: unknown): Promise<string> {
+/** Reads and serializes the context of an existing session/chat for the chat on {@link currentChannel}. */
+export async function applyGetSessionContextTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI): Promise<string> {
 	const sessions = await accessor.listSessions();
 	const { session, chatId, detail, transcriptLimit } = getSessionContextArgs(rawArgs, sessions);
 	const snapshot = await accessor.getChatContext(session, chatId);
@@ -1538,7 +1551,7 @@ export async function applyGetSessionContextTool(accessor: ISessionServerToolAcc
 			truncated: false,
 		} satisfies ISerializedSessionContext);
 	}
-	return serializeSessionContext(session, chatId, snapshot, detail, transcriptLimit);
+	return serializeSessionContext(session, chatId, snapshot, detail, transcriptLimit, currentChannel);
 }
 
 
@@ -1786,7 +1799,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					return result;
 				}
 				case SessionServerToolName.GetSessionContext:
-					return applyGetSessionContextTool(accessor, rawArgs);
+					return applyGetSessionContextTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.DeleteSession:
 					return applyDeleteSessionTool(accessor, rawArgs, currentSessionUri(currentChannel));
 				default:
