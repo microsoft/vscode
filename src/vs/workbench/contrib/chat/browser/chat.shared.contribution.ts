@@ -1779,16 +1779,14 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			experiment: { mode: 'auto' },
 			scope: ConfigurationScope.APPLICATION_MACHINE,
-			tags: ['preview', 'experimental', 'advanced'],
+			tags: ['preview', 'experimental'],
 		},
 		[AgentHostCopilotLocalMemoryEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.memory.local.enabled', "When enabled together with {0}, Copilot Memory is stored in the repository's `.github/copilot-memories.jsonl` file instead of GitHub's cloud memory service. The file is part of the working tree, so commits made by the agent or the Agents window can include it. Requires a GitHub-hosted repository; user-scoped memories are not available. Applies to sessions created or resumed after the setting changes.", '`#chat.copilot.memory.enabled#`'),
+			markdownDescription: nls.localize('chat.copilot.memory.local.enabled', "When enabled together with {0}, local Copilot Agent Host sessions store Copilot Memory in the repository's `.github/copilot-memories.jsonl` file instead of GitHub's cloud memory service. The file is part of the working tree, so commits made by the agent or the Agents window can include it. Requires a GitHub-hosted repository; user-scoped memories and Copilot Memory policies configured on GitHub do not apply. Applies to sessions created or resumed after the setting changes.", '`#chat.copilot.memory.enabled#`'),
 			default: false,
 			scope: ConfigurationScope.APPLICATION_MACHINE,
-			tags: ['preview', 'experimental', 'advanced'],
-			// The local store skips GitHub's Copilot Memory policy checks; the forwarder also keeps it off in Stable.
-			included: product.quality !== 'stable',
+			tags: ['preview', 'experimental'],
 		},
 		[CopilotAutoModeTierOverrideSettingId]: {
 			type: ['string', 'null'],
