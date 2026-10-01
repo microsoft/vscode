@@ -24,6 +24,18 @@ class TestWorkbenchPanelLayoutController extends BaseLayoutController {
 	protected override get _isPanelVisibilityPerSession(): boolean { return false; }
 }
 
+/**
+ * Opts into both editor-part reveal and hide for an empty working set (the
+ * base never acts either way for an empty set), so the [R4] test below can
+ * exercise `_applyWorkingSet`'s empty-working-set branch — the only branch
+ * whose reveal/hide decision is made purely after the `await`, with nothing
+ * earlier (and not-yet-stale) already having decided the outcome.
+ */
+class TestRevealEmptyWorkingSetLayoutController extends BaseLayoutController {
+	protected override _shouldRevealEditorPartForEmptyWorkingSet(revealEditorPart: boolean): boolean { return revealEditorPart; }
+	protected override _shouldHideEditorPartOnApply(editorPartHidden: boolean): boolean { return editorPartHidden; }
+}
+
 suite('BaseLayoutController', () => {
 
 	const store = new DisposableStore();
@@ -37,6 +49,11 @@ suite('BaseLayoutController', () => {
 	function createWorkbenchPanelController(options: ICreateOptions = {}): TestWorkbenchPanelLayoutController {
 		harness = createTestHarness(store, options);
 		return store.add(harness.instaService.createInstance(TestWorkbenchPanelLayoutController));
+	}
+
+	function createRevealEmptyWorkingSetController(options: ICreateOptions = {}): TestRevealEmptyWorkingSetLayoutController {
+		harness = createTestHarness(store, options);
+		return store.add(harness.instaService.createInstance(TestRevealEmptyWorkingSetLayoutController));
 	}
 
 	teardown(() => store.clear());
@@ -449,6 +466,62 @@ suite('BaseLayoutController', () => {
 			id: `session-working-set:${session.resource.toString()}`,
 			name: `session-working-set:${session.resource.toString()}`,
 		}]);
+	});
+
+	test('[R4] a superseded working-set apply does not publish stale reveal/hide once the chat-layout owner has moved on', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		const layoutState = [{ sessionResource: 'session:a', editorPartHidden: true }];
+		createRevealEmptyWorkingSetController({ useModal: 'some', chatLayoutEnabled: true, desktopLayout: true, workspaceFolders, layoutState });
+
+		const sessionC = makeSession(URI.parse('session:c'));
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+
+		// Get past the initial-restore branch (which never reveals/hides) with an
+		// unrelated session first. The editor part stays visible throughout.
+		harness.activeSessionObs.set(sessionC, undefined);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+		harness.applyWorkingSetCalls = [];
+
+		// Neither A nor B has a saved editor working set, so switching to either
+		// goes through `_applyWorkingSet`'s empty-working-set branch, whose
+		// reveal/hide decision is made only after the `await` — unlike the
+		// non-empty branch, nothing earlier (and not-yet-stale) has already
+		// decided the outcome, so this is the only branch that can observably
+		// prove the post-`await` staleness guard rather than some other,
+		// already-synchronous check.
+		//
+		// A is recorded as having its editor part hidden; B has no such record
+		// (so it wants it revealed, which it already is). While A's apply is
+		// still in flight (synchronously, inside the mocked `applyWorkingSet`
+		// call for A, i.e. before its `await` resumes), the owner moves on to
+		// B — simulating a second, faster switch landing while the first is
+		// queued/awaiting. Without the guard, A's now-stale apply would still
+		// hide the editor part on B's behalf once its own `await` resolves,
+		// which B's later, fresh apply would then have to reveal again; with
+		// the guard, A's stale apply is a no-op and nothing changes at all.
+		let raced = false;
+		harness.onApplyWorkingSet = () => {
+			if (!raced) {
+				raced = true;
+				harness.activeSessionObs.set(sessionB, undefined);
+			}
+		};
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			['empty', 'empty'],
+			'both the superseded and the superseding apply must still run to completion'
+		);
+		assert.deepStrictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART),
+			[],
+			'the superseded (A) apply must not hide the editor part once stale — the still-current (B) owner wants it left visible'
+		);
 	});
 
 	// --- [B3] Persistence & migration / [B4] Save ---

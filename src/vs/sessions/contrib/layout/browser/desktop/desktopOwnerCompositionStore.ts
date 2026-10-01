@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { StorageScope, StorageTarget, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ISidePaneState } from '../../../../browser/workbench.js';
@@ -48,6 +49,9 @@ export class DesktopOwnerCompositionStore {
 
 	/** [R8] Carries a remembered composition across a draft→committed promotion. */
 	remap(oldKey: URI, newKey: URI): void {
+		if (isEqual(oldKey, newKey)) {
+			return;
+		}
 		const state = this._byOwner.get(oldKey);
 		if (!state) {
 			return;

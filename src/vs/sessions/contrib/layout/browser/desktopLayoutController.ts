@@ -65,6 +65,17 @@ export class DesktopLayoutController extends BaseLayoutController {
 		return undefined;
 	}
 
+	/**
+	 * [R-seed] When chat layout is enabled, its dedicated key starts out empty
+	 * even though the disabled key may already hold this window's existing
+	 * per-session layout — read that once, so the main chat inherits it
+	 * instead of regressing to defaults. Kept intact so disabling the setting
+	 * again still finds it.
+	 */
+	protected override get _legacyLayoutStateStorageKey(): string | undefined {
+		return this._chatLayoutEnabled ? DESKTOP_LAYOUT_STATE_KEY : undefined;
+	}
+
 	private get _ctx(): IDesktopLayoutContext {
 		if (!this._context) {
 			const that = this;

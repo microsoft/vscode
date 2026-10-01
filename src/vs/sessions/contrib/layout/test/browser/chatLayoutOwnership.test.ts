@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IActiveSession, IChatDeletedEvent } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
@@ -75,6 +76,31 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		setActiveChat(session, session.mainChat.get());
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false });
+	});
+
+	test('[R-seed] enabling chat layout for the first time inherits the existing per-session state from the disabled key, and leaves it intact', async () => {
+		const layoutState = [{
+			sessionResource: 'session:a',
+			editorWorkingSet: { id: 'ws-1', name: 'ws-1' },
+		}];
+		createDesktopController({ chatLayoutEnabled: true, layoutState });
+		await settle();
+
+		const session = makeSession(URI.parse('session:a'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			[{ id: 'ws-1', name: 'ws-1' }],
+			'the main chat (session-keyed owner) must inherit the working set seeded under the disabled-mode key'
+		);
+
+		// Never removed — switching chat-specific layout back off must still find
+		// the original snapshot under its own (disabled-mode) key untouched.
+		const legacyRaw = harness.storageService.get('sessions.singlePane.layoutState', StorageScope.WORKSPACE);
+		assert.notStrictEqual(legacyRaw, undefined, 'the legacy disabled-mode key must survive the one-time copy-forward read');
+		assert.deepStrictEqual(JSON.parse(legacyRaw!), layoutState, 'the legacy key\'s content must be unchanged by the read');
 	});
 
 	test('[R5] enabled: same-session A/B/A keeps each chat\'s own composition distinct', async () => {

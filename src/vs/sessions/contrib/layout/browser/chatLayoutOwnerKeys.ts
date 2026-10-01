@@ -19,6 +19,25 @@ const CHAT_LAYOUT_OWNER_KEY_SCHEME = 'vscode-chat-layout-owner';
  * while every other chat gets a distinct, stable synthetic key, keeping a
  * single flat map shape for both the disabled (session-keyed) and enabled
  * (chat-keyed) presentations.
+ *
+ * This flat-key shape (rather than a nested `ResourceMap<ResourceMap<V>>` keyed
+ * directly by `(sessionResource, chatResource)`, as used by
+ * `changesViewService.ts`'s in-memory selection store) is a deliberate reuse of
+ * the pre-existing, already-persisted session-keyed maps in
+ * {@link baseSessionLayoutController.ts} (`_workingSets`,
+ * `_viewStateBySession`, `_editorPartHiddenBySession`, `_panelViewBySession`):
+ * restructuring those to a nested shape would be an unrelated, out-of-scope
+ * rewrite of code and storage formats that predate chat-specific layout. The
+ * synthetic key is a pure, deterministic function of `(sessionResource,
+ * chatResource)` (see {@link resolveKey}) — not random — so it regenerates
+ * identically across reloads without needing the resolver's own in-memory
+ * cache to be persisted; only the *consumers* of the key
+ * ({@link DesktopOwnerCompositionStore} and the base controller's maps)
+ * persist state against it. No provider resource is ever reconstructed from
+ * the synthetic key: it is write-only (derived from, never parsed back into,
+ * session/chat resources) and is forgotten/remapped by direct reference via
+ * {@link forgetChat}/{@link forgetSession}/{@link remapSession} rather than by
+ * decoding its path.
  */
 export class ChatLayoutOwnerKeyRegistry {
 

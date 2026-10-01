@@ -156,6 +156,20 @@ export abstract class BaseLayoutController extends Disposable {
 		return WORKING_SETS_STORAGE_KEY;
 	}
 
+	/**
+	 * A presentation-specific legacy key whose snapshot is read (but never
+	 * removed) the first time {@link _layoutStateStorageKey}'s own key is
+	 * empty — used when a presentation keeps a *separate* storage key for its
+	 * chat-owned layout (see the desktop controller's chat-layout key), so the
+	 * main chat transparently inherits whatever per-session state already
+	 * existed under the previous key instead of starting from empty defaults.
+	 * Left intact so switching back later still finds the original snapshot.
+	 * `undefined` (the default) skips this secondary read entirely.
+	 */
+	protected get _legacyLayoutStateStorageKey(): string | undefined {
+		return undefined;
+	}
+
 	protected get _isEditorPartVisibilityPerSession(): boolean {
 		return true;
 	}
@@ -626,6 +640,9 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	private _remapOwnerKeyState(oldKey: URI, newKey: URI): void {
+		if (isEqual(oldKey, newKey)) {
+			return;
+		}
 		const workingSet = this._workingSets.get(oldKey);
 		if (workingSet) {
 			this._workingSets.set(newKey, workingSet);
@@ -784,30 +801,53 @@ export abstract class BaseLayoutController extends Disposable {
 
 	// --- Persistence [B3] ---
 
+	private _applySessionLayoutEntries(entries: readonly ISessionLayoutEntry[]): void {
+		for (const entry of entries) {
+			const resource = URI.parse(entry.sessionResource);
+			if (entry.editorWorkingSet) {
+				this._workingSets.set(resource, entry.editorWorkingSet);
+			}
+			if (this._isEditorPartVisibilityPerSession && entry.editorPartHidden !== undefined) {
+				this._editorPartHiddenBySession.set(resource, entry.editorPartHidden);
+			}
+			if (this._isViewStatePerSession && entry.viewState) {
+				this._viewStateBySession.set(resource, entry.viewState);
+			}
+			if (this._isPanelViewPerSession && entry.panelViewContainerId) {
+				this._panelViewBySession.set(resource, entry.panelViewContainerId);
+			}
+		}
+	}
+
 	private _loadState(): void {
 		// Load from new key first
 		const raw = this._storageService.get(this._layoutStateStorageKey, StorageScope.WORKSPACE);
 		if (raw) {
 			try {
-				for (const entry of JSON.parse(raw) as ISessionLayoutEntry[]) {
-					const resource = URI.parse(entry.sessionResource);
-					if (entry.editorWorkingSet) {
-						this._workingSets.set(resource, entry.editorWorkingSet);
-					}
-					if (this._isEditorPartVisibilityPerSession && entry.editorPartHidden !== undefined) {
-						this._editorPartHiddenBySession.set(resource, entry.editorPartHidden);
-					}
-					if (this._isViewStatePerSession && entry.viewState) {
-						this._viewStateBySession.set(resource, entry.viewState);
-					}
-					if (this._isPanelViewPerSession && entry.panelViewContainerId) {
-						this._panelViewBySession.set(resource, entry.panelViewContainerId);
-					}
-				}
+				this._applySessionLayoutEntries(JSON.parse(raw) as ISessionLayoutEntry[]);
 				return;
 			} catch {
 				// Corrupted data — remove the bad key so we don't keep failing, then fall through to legacy migration
 				this._storageService.remove(this._layoutStateStorageKey, StorageScope.WORKSPACE);
+			}
+		}
+
+		// [R-seed] This own key is empty — read (without removing) a
+		// presentation-specific legacy key once, so the main chat (every entry
+		// here is session-level, i.e. main-chat-equivalent) inherits whatever
+		// state already existed under it rather than starting from empty
+		// defaults. Once this controller itself writes an entry, its own key is
+		// no longer empty and this read is skipped on subsequent loads.
+		const legacyPresentationKey = this._legacyLayoutStateStorageKey;
+		if (legacyPresentationKey) {
+			const legacyPresentationRaw = this._storageService.get(legacyPresentationKey, StorageScope.WORKSPACE);
+			if (legacyPresentationRaw) {
+				try {
+					this._applySessionLayoutEntries(JSON.parse(legacyPresentationRaw) as ISessionLayoutEntry[]);
+					return;
+				} catch {
+					// ignore corrupted data and fall through to the ancient migration below
+				}
 			}
 		}
 
@@ -932,6 +972,15 @@ export abstract class BaseLayoutController extends Disposable {
 			: 'empty';
 		this._onWillApplyWorkingSet(workingSet);
 
+		// [R4] Captured before the sequencer's queued work (and every `await`
+		// inside it) runs, so a chat/owner switch or phone suspend/resume that
+		// lands while this apply is in flight is detected: the queued apply must
+		// still finish (the sequencer runs it to completion regardless), but its
+		// visibility side effects below are skipped once stale so they cannot
+		// publish on behalf of an owner that is no longer current.
+		const chatLayoutSnapshot = this._chatLayoutContext?.state.get();
+		const isStaleChatOwner = (): boolean => !!chatLayoutSnapshot?.owner && !this._chatLayoutContext!.isCurrent(chatLayoutSnapshot);
+
 		return this._workingSetSequencer.queue(async () => {
 			// When multiple sessions are visible, applying a working set must never
 			// change the visibility of the editor part: the editor area is shared
@@ -968,6 +1017,9 @@ export abstract class BaseLayoutController extends Disposable {
 
 			if (workingSet === 'empty') {
 				await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+				if (isStaleChatOwner()) {
+					return;
+				}
 				if (this._shouldRevealEditorPartForEmptyWorkingSet(revealEditorPart) && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 					this._revealEditorPartForWorkingSet();
 				} else if (hideEditorPart && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
@@ -985,6 +1037,9 @@ export abstract class BaseLayoutController extends Disposable {
 				} finally {
 					suppression.dispose();
 				}
+				if (isStaleChatOwner()) {
+					return;
+				}
 				if (this._shouldHideEditorPartOnApply(editorPartHidden) && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 					this._hideEditorPartForWorkingSet();
 				}
@@ -998,6 +1053,9 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 
 			const result = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+			if (isStaleChatOwner()) {
+				return;
+			}
 			if (revealEditorPart && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._revealEditorPartForWorkingSet();
 			} else if (hideEditorPart && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
