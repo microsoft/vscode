@@ -138,7 +138,7 @@ export class SessionsVoiceBridgeContribution extends Disposable implements IWork
 				if (widget.viewModel.editing) {
 					// Let the user review edited input before submitting.
 					widget.input.setValue(text, false);
-					return true;
+					return false;
 				} else {
 					// Preserve any text the user already typed in the input.
 					return widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });

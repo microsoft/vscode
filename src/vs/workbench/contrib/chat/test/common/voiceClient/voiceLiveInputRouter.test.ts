@@ -35,9 +35,11 @@ suite('VoiceLiveInputRouter', () => {
 		const target = router.captureTarget();
 		router.updateContext(context('chat-session:/b', approval));
 		assert.deepStrictEqual(router.resolve('call', 'Yes.', target), {
-			toolCall: { callId: 'call', name: 'respond_to_session', args: {
-				coding_session_id: 'chat-session:/a', request_id: 'request', pending_id: 'approval', response: { type: 'approve' },
-			} },
+			toolCall: {
+				callId: 'call', name: 'respond_to_session', args: {
+					coding_session_id: 'chat-session:/a', request_id: 'request', pending_id: 'approval', response: { type: 'approve' },
+				}
+			},
 		});
 	});
 
@@ -78,10 +80,14 @@ suite('VoiceLiveInputRouter', () => {
 		const final = router.resolve('final', 'My deployment', router.captureTarget());
 		assert.deepStrictEqual({ first, final }, {
 			first: { clarification: 'What name?' },
-			final: { toolCall: { callId: 'final', name: 'respond_to_session', args: {
-				coding_session_id: 'chat-session:/a', request_id: 'request', pending_id: 'questions',
-				response: { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }, { question_id: 'name', freeform: 'My deployment' }] },
-			} } },
+			final: {
+				toolCall: {
+					callId: 'final', name: 'respond_to_session', args: {
+						coding_session_id: 'chat-session:/a', request_id: 'request', pending_id: 'questions',
+						response: { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }, { question_id: 'name', freeform: 'My deployment' }] },
+					}
+				}
+			},
 		});
 	});
 
@@ -94,6 +100,29 @@ suite('VoiceLiveInputRouter', () => {
 			questions: questions.questions?.map(question => ({ ...question, options: [...question.options].reverse() })),
 		}));
 		assert.strictEqual(router.resolve('old-option-order', 'second', target).clarification !== undefined, true);
+	});
+
+	test('clears partial form answers when the same pending occurrence republishes a changed schema', () => {
+		const router = new VoiceLiveInputRouter();
+		router.updateContext(context('chat-session:/a', questions));
+		router.resolve('old-first', 'first', router.captureTarget());
+		const oldSecond = router.captureTarget();
+		router.updateContext(context('chat-session:/a', {
+			...questions,
+			questions: questions.questions?.map(question => ({
+				...question,
+				options: question.options.map(option => ({ ...option, value: `new-${option.value}` })),
+			})),
+		}));
+		const resetIndex = router.captureTarget().questionIndex;
+		const nextPrompt = router.getQuestionPrompt('chat-session:/a', 'questions');
+		const stale = router.resolve('old-second', 'Old deployment', oldSecond);
+		router.resolve('new-first', 'first', router.captureTarget());
+		const final = router.resolve('new-second', 'New deployment', router.captureTarget());
+		assert.deepStrictEqual({ resetIndex, nextPrompt, stale: stale.clarification !== undefined, response: final.toolCall?.args.response }, {
+			resetIndex: 0, nextPrompt: 'Which region? 1. West 2. East', stale: true,
+			response: { type: 'answer', answers: [{ question_id: 'region', value: 'new-westus' }, { question_id: 'name', freeform: 'New deployment' }] },
+		});
 	});
 
 	test('keeps partial form answers isolated across inputs and refuses a stale question turn', () => {
@@ -183,9 +212,11 @@ suite('VoiceLiveInputRouter', () => {
 
 	test('does not confuse a numbered choice with a conflicting label or an unspoken option value', () => {
 		const router = new VoiceLiveInputRouter();
-		router.updateContext(context('chat-session:/a', { ...questions, questions: [{
-			...questions.questions![0], options: [{ label: 'West', value: 'opaque-one' }, { label: 'One', value: 'opaque-two' }],
-		}] }));
+		router.updateContext(context('chat-session:/a', {
+			...questions, questions: [{
+				...questions.questions![0], options: [{ label: 'West', value: 'opaque-one' }, { label: 'One', value: 'opaque-two' }],
+			}]
+		}));
 		assert.deepStrictEqual(['one', '1', 'opaque-one'].map(text => router.resolve(text, text, router.captureTarget()).clarification !== undefined), [true, true, true]);
 	});
 });

@@ -356,10 +356,12 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 			display_locale: 'en-US',
 			sessions: [{
 				id: sessionResource.toString(), is_active: true, agent_state: 'waiting_for_confirmation',
-				pending: { type: 'questions', request_id: requestId, pending_id: derivePendingId(requestId, part), questions: [{
-					id: 'region', type: 'singleSelect', title: 'Region', allow_freeform: false,
-					options: [{ label: 'West US', value: 'westus' }, { label: 'East US', value: 'eastus' }],
-				}] },
+				pending: {
+					type: 'questions', request_id: requestId, pending_id: derivePendingId(requestId, part), questions: [{
+						id: 'region', type: 'singleSelect', title: 'Region', allow_freeform: false,
+						options: [{ label: 'West US', value: 'westus' }, { label: 'East US', value: 'eastus' }],
+					}]
+				},
 			}],
 		});
 		const routed = router.resolve('direct-answer', 'second', router.captureTarget());

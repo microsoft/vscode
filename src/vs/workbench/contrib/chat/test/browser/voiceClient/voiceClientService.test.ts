@@ -164,6 +164,11 @@ class TestRtcPeerConnection extends mock<IGptLivePeerConnection>() {
 	}
 
 	override close(): void { this.closeCalls++; }
+
+	fireConnectionState(state: RTCPeerConnectionState): void {
+		this.connectionState = state;
+		this.onconnectionstatechange?.(new Event('connectionstatechange'));
+	}
 }
 
 class TestGptLiveVoiceClientService extends VoiceClientService {
@@ -378,9 +383,11 @@ suite('VoiceClientService', () => {
 			grounding: peer.channel.sent.filter(event => event.type === 'session.thinking.append' && event.delegation_id === null).map(event => event.content),
 			result: peer.channel.sent.filter(event => event.type === 'session.thinking.append' && event.delegation_id === 'approval-a').at(-1)?.content,
 		}, {
-			calls: [{ callId: 'approval-a', name: 'respond_to_session', turnId: 'turn-a', args: {
-				coding_session_id: 'chat-session:/a', request_id: 'request-chat-session:/a', pending_id: 'pending-chat-session:/a', response: { type: 'approve' },
-			} }],
+			calls: [{
+				callId: 'approval-a', name: 'respond_to_session', turnId: 'turn-a', args: {
+					coding_session_id: 'chat-session:/a', request_id: 'request-chat-session:/a', pending_id: 'pending-chat-session:/a', response: { type: 'approve' },
+				}
+			}],
 			grounding: [
 				'Current chat input: {"id":"chat-session:/a","label":"chat-session:/a","state":"waiting_for_confirmation","pending_type":"approval"}. This is context, not a request to speak.',
 				'Current chat input: {"id":"chat-session:/b","label":"chat-session:/b","state":"waiting_for_confirmation","pending_type":"approval"}. This is context, not a request to speak.',
@@ -430,7 +437,7 @@ suite('VoiceClientService', () => {
 		})), [
 			{ type: 'session.thinking.append', delegation: 'dispatch-0', content: '{"ok":true,"request_status":"accepted","coding_task_status":"pending"}' },
 			{ type: 'session.thinking.append', delegation: 'dispatch-1', content: 'error' },
-			{ type: 'session.commentary.append', delegation: 'dispatch-1', content: 'Your request could not be sent. Please try again in the chat input.' },
+			{ type: 'session.commentary.append', delegation: 'dispatch-1', content: 'Your request was not sent. Please review the chat input and send it from there.' },
 			{ type: 'session.thinking.append', delegation: 'dispatch-2', content: '{"ok":true}' },
 			{ type: 'session.commentary.append', delegation: 'dispatch-2', content: 'Your response was submitted.' },
 			{ type: 'session.thinking.append', delegation: 'dispatch-3', content: '{"ok":false,"reason":"stale_pending"}' },
@@ -805,6 +812,76 @@ suite('VoiceClientService', () => {
 			fatal,
 			handlers: [peer.ontrack, peer.onconnectionstatechange, peer.channel.onmessage, peer.channel.onclose],
 		}, { connected: false, playCalls: 0, closeCalls: 1, fatal: [], handlers: [null, null, null, null] });
+	});
+
+	test('keeps a transient WebRTC disconnect alive and cancels its grace timer on recovery', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const peer = new TestRtcPeerConnection();
+			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+			const fatal: IVoiceFatalDisconnect[] = [];
+			store.add(service.onFatalDisconnect(event => fatal.push(event)));
+			await service.connect(createTestWindow());
+			peer.channel.fireMessage({ type: 'session.started' });
+			peer.fireConnectionState('disconnected');
+			await clock.tickAsync(9_999);
+			const beforeRecovery = service.isConnected;
+			peer.fireConnectionState('connected');
+			await clock.tickAsync(10_001);
+			assert.deepStrictEqual({ beforeRecovery, connected: service.isConnected, closeCalls: peer.closeCalls, fatal }, {
+				beforeRecovery: true, connected: true, closeCalls: 0, fatal: [],
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('ends a sustained WebRTC disconnect at the original grace deadline', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const peer = new TestRtcPeerConnection();
+			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+			const fatal: IVoiceFatalDisconnect[] = [];
+			store.add(service.onFatalDisconnect(event => fatal.push(event)));
+			await service.connect(createTestWindow());
+			peer.channel.fireMessage({ type: 'session.started' });
+			peer.fireConnectionState('disconnected');
+			await clock.tickAsync(9_999);
+			peer.fireConnectionState('disconnected');
+			const beforeDeadline = service.isConnected;
+			await clock.tickAsync(1);
+			assert.deepStrictEqual({ beforeDeadline, connected: service.isConnected, closeCalls: peer.closeCalls, fatalCount: fatal.length }, {
+				beforeDeadline: true, connected: false, closeCalls: 1, fatalCount: 1,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('failed WebRTC peers terminate immediately and explicit disconnect cancels a recovery timer', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const peer = new TestRtcPeerConnection();
+			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+			const fatal: IVoiceFatalDisconnect[] = [];
+			store.add(service.onFatalDisconnect(event => fatal.push(event)));
+			await service.connect(createTestWindow());
+			peer.channel.fireMessage({ type: 'session.started' });
+			peer.fireConnectionState('disconnected');
+			peer.fireConnectionState('failed');
+			const failedImmediately = !service.isConnected;
+			peer.connectionState = 'connected';
+			await service.connect(createTestWindow());
+			peer.channel.fireMessage({ type: 'session.started' });
+			peer.fireConnectionState('disconnected');
+			service.disconnect();
+			await clock.tickAsync(10_000);
+			assert.deepStrictEqual({ failedImmediately, connected: service.isConnected, closeCalls: peer.closeCalls, fatalCount: fatal.length }, {
+				failedImmediately: true, connected: false, closeCalls: 2, fatalCount: 1,
+			});
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('cancels ICE gathering immediately and removes the listener', async () => {

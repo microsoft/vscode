@@ -85,7 +85,7 @@ function questionPrompt(question: IVoicePendingQuestion): string {
 export class VoiceLiveInputRouter {
 	private _context: IVoiceSessionContext = { sessions: [], display_locale: '' };
 	private _hasContext = false;
-	private readonly _answers = new Map<string, IBackendQuestionAnswer[]>();
+	private readonly _answers = new Map<string, { schema: string; answers: IBackendQuestionAnswer[] }>();
 	private readonly _submitted = new Set<string>();
 	private readonly _calls = new Map<string, string>();
 
@@ -96,9 +96,9 @@ export class VoiceLiveInputRouter {
 	updateContext(context: IVoiceSessionContext): void {
 		this._context = context;
 		this._hasContext = true;
-		const live = new Set(context.sessions.filter(session => session.pending).map(session => this._key(session)));
-		for (const key of this._answers.keys()) {
-			if (!live.has(key)) {
+		const live = new Map(context.sessions.filter(session => session.pending).map(session => [this._key(session), JSON.stringify(session.pending)]));
+		for (const [key, answerSet] of this._answers) {
+			if (live.get(key) !== answerSet.schema) {
 				this._answers.delete(key);
 			}
 		}
@@ -125,14 +125,14 @@ export class VoiceLiveInputRouter {
 
 	getQuestionPrompt(sessionId: string, pendingId: string): string | undefined {
 		const session = this._context.sessions.find(candidate => candidate.id === sessionId && candidate.pending?.pending_id === pendingId);
-		const question = session?.pending?.questions?.[this._answers.get(this._key(session))?.length ?? 0];
+		const question = session?.pending?.questions?.[this._answers.get(this._key(session))?.answers.length ?? 0];
 		return question ? questionPrompt(question) : undefined;
 	}
 
 	captureTarget(): IVoiceLiveInputTarget {
 		const active = this._context.sessions.filter(session => session.is_active);
 		const session = active.length === 1 ? structuredClone(active[0]) : undefined;
-		return { session, questionIndex: session ? this._answers.get(this._key(session))?.length ?? 0 : 0, hasContext: this._hasContext };
+		return { session, questionIndex: session ? this._answers.get(this._key(session))?.answers.length ?? 0 : 0, hasContext: this._hasContext };
 	}
 
 	resolve(callId: string, text: string, target: IVoiceLiveInputTarget): VoiceLiveInputResult {
@@ -177,22 +177,24 @@ export class VoiceLiveInputRouter {
 			if (!pending.allow_skip) {
 				return { clarification: localize('voice.live.skipNotAllowed', "This form cannot be skipped. Please answer its questions or respond in the chat input.") };
 			}
-			const answers = this._answers.get(key);
+			const answers = this._answers.get(key)?.answers;
 			response = { type: 'skip', ...(answers?.length ? { answers } : {}) };
 		} else {
-			const answers = this._answers.get(key) ?? [];
+			const answers = this._answers.get(key)?.answers ?? [];
 			const question = pending.questions?.[answers.length];
 			if (!question || target.questionIndex !== answers.length) {
 				return stale;
 			}
 			const answer = resolveAnswer(question, text);
 			if (!answer) {
-				return { clarification: question.allow_freeform
-					? localize('voice.live.chooseOrCustomAnswer', "Please say an exact choice or its number, or say other followed by a custom answer. {0}", questionPrompt(question))
-					: localize('voice.live.chooseAnswer', "Please say an exact choice or its number. {0}", questionPrompt(question)) };
+				return {
+					clarification: question.allow_freeform
+						? localize('voice.live.chooseOrCustomAnswer', "Please say an exact choice or its number, or say other followed by a custom answer. {0}", questionPrompt(question))
+						: localize('voice.live.chooseAnswer', "Please say an exact choice or its number. {0}", questionPrompt(question))
+				};
 			}
 			answers.push(answer);
-			this._answers.set(key, answers);
+			this._answers.set(key, { schema: JSON.stringify(pending), answers });
 			const next = pending.questions?.[answers.length];
 			if (next) {
 				return { clarification: questionPrompt(next) };

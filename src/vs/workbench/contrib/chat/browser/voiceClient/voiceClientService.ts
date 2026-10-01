@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../nls.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -49,6 +50,7 @@ import { ISpeechService, IVoiceLiveSessionResult } from '../../../speech/common/
 import { IVoiceLiveInputTarget, VoiceLiveInputRouter } from '../../common/voiceClient/voiceLiveInputRouter.js';
 
 const GPT_LIVE_SESSION_PROVIDER_ID = 'github.copilot.gptLive';
+const GPT_LIVE_DISCONNECT_GRACE_MS = 10_000;
 
 const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
@@ -178,6 +180,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _gptLiveContext: IVoiceSessionContext | undefined;
 	private _gptLiveInstructionsSent = false;
 	private readonly _gptLiveRequest = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _gptLiveDisconnectTimer = this._register(new MutableDisposable());
 	private _connectionAttempt = 0;
 	private _intentionalDisconnect = false;
 	private _reconnectAttempts = 0;
@@ -493,7 +496,20 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				this._playGptLiveAudio();
 			};
 			peer.onconnectionstatechange = () => {
-				if (this._isActiveConnectionAttempt(connectionAttempt) && (peer.connectionState === 'failed' || peer.connectionState === 'disconnected')) {
+				if (!this._isActiveConnectionAttempt(connectionAttempt)) {
+					return;
+				}
+				if (peer.connectionState === 'disconnected' && !this._gptLiveDisconnectTimer.value) {
+					this._logService.warn('[voice] GPT-Live peer disconnected; allowing time for recovery');
+					this._gptLiveDisconnectTimer.value = disposableTimeout(() => {
+						this._gptLiveDisconnectTimer.clear();
+						if (this._isActiveConnectionAttempt(connectionAttempt) && peer.connectionState !== 'connected') {
+							this._handleGptLiveDisconnect(localize('voice.gptLive.connectionLost', "The OpenAI GPT-Live connection was lost."));
+						}
+					}, GPT_LIVE_DISCONNECT_GRACE_MS);
+				} else if (peer.connectionState === 'connected') {
+					this._gptLiveDisconnectTimer.clear();
+				} else if (peer.connectionState === 'failed') {
 					this._handleGptLiveDisconnect(localize('voice.gptLive.connectionLost', "The OpenAI GPT-Live connection was lost."));
 				}
 			};
@@ -1110,6 +1126,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._gptLivePeer.close();
 		}
 		this._gptLivePeer = undefined;
+		this._gptLiveDisconnectTimer.clear();
 		this._gptLiveAudioFallback.clear();
 		this._gptLiveRemoteStream = undefined;
 		if (this._gptLiveAudio) {
@@ -1406,7 +1423,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			} else {
 				this._sendGptLiveAppend('session.thinking.append', typeof result === 'string' ? result : JSON.stringify(result), callId);
 				const acknowledgement = typeof result === 'string'
-					? localize('voice.gptLive.requestFailed', "Your request could not be sent. Please try again in the chat input.")
+					? localize('voice.gptLive.requestFailed', "Your request was not sent. Please review the chat input and send it from there.")
 					: result.ok
 						? localize('voice.gptLive.responseSubmitted', "Your response was submitted.")
 						: localize('voice.gptLive.responseFailed', "The prompt could not be answered. Please check the current prompt in the chat input.");

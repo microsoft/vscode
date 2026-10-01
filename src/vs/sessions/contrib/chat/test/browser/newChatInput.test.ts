@@ -187,6 +187,51 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 suite('NewChatInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const accepted of [true, false]) {
+		test(`voice submission waits for the real send outcome (${accepted})`, async () => {
+			let text = 'Typed draft';
+			let completed = false;
+			const sent = new DeferredPromise<boolean>();
+			const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+				_sending: false,
+				_editor: { getModel: () => ({ getValue: () => text, setValue: (value: string) => text = value }) },
+				_send: () => sent.p,
+			});
+			const result = input.sendQuery('spoken input').then(value => {
+				completed = true;
+				return value;
+			});
+			await Promise.resolve();
+			const beforeSendResult = completed;
+			await sent.complete(accepted);
+			assert.deepStrictEqual({ text, beforeSendResult, accepted: await result }, {
+				text: 'Typed draft spoken input', beforeSendResult: false, accepted,
+			});
+		});
+	}
+
+	test('voice submission preserves the input and reports a disabled send gate', async () => {
+		let text = 'Typed draft';
+		const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+			_sending: false,
+			_editor: { getModel: () => ({ getValue: () => text, setValue: (value: string) => text = value }) },
+			_contextAttachments: { attachments: [] },
+			options: {},
+			_canSendRequest: constObservable(false),
+		});
+		const accepted = await input.sendQuery('spoken input');
+		assert.deepStrictEqual({ text, accepted }, { text: 'Typed draft spoken input', accepted: false });
+	});
+
+	test('voice submission does not overwrite an input that is already sending', async () => {
+		let text = 'In-flight input';
+		const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+			_sending: true,
+			_editor: { getModel: () => ({ getValue: () => text, setValue: (value: string) => text = value }) },
+		});
+		assert.deepStrictEqual({ accepted: await input.sendQuery('new input'), text }, { accepted: false, text: 'In-flight input' });
+	});
+
 	test('exposes the scoped model control', () => {
 		const modelPickers = new NewChatModelPickerService();
 		const modelNode = document.createElement('button');

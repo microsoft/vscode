@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -75,12 +76,45 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 	test('does not redirect an existing session turn to a new composer and reports a busy composer honestly', async () => {
 		const sent: string[] = [];
 		const composer = upcastPartial<INewChatVoiceComposer>({
-			sendQuery: text => { sent.push(text); return false; },
+			sendQuery: async text => { sent.push(text); return false; },
 		});
 		const accept = registerBridge(undefined, composer);
 		const wrongTarget = await accept('Old session input', 'chat-session:/a');
 		const busy = await accept('Draft input', NEW_CHAT_VOICE_SENTINEL.toString());
 		assert.deepStrictEqual({ sent, wrongTarget, busy }, { sent: ['Draft input'], wrongTarget: false, busy: false });
+	});
+
+	test('waits for the composer send result before reporting acceptance', async () => {
+		const sent = new DeferredPromise<boolean>();
+		const composer = upcastPartial<INewChatVoiceComposer>({ sendQuery: () => sent.p });
+		const accept = registerBridge(undefined, composer);
+		let acknowledged = false;
+		const result = Promise.resolve(accept('Draft input', NEW_CHAT_VOICE_SENTINEL.toString())).then(value => {
+			acknowledged = true;
+			return value;
+		});
+		await Promise.resolve();
+		const beforeSendResult = acknowledged;
+		await sent.complete(false);
+		assert.deepStrictEqual({ beforeSendResult, accepted: await result }, { beforeSendResult: false, accepted: false });
+	});
+
+	test('populates an edited request without acknowledging submission', async () => {
+		const populated: string[] = [];
+		const resource = URI.parse('chat-session:/editing');
+		const widget = new class extends mock<IChatWidget>() {
+			override get viewModel() {
+				return upcastPartial<IChatViewModel>({
+					sessionResource: resource,
+					editing: new class extends mock<NonNullable<IChatViewModel['editing']>>() { }(),
+				});
+			}
+			override readonly input = new class extends mock<IChatWidget['input']>() {
+				override setValue(value: string): void { populated.push(value); }
+			}();
+		}();
+		const accepted = await registerBridge(widget, undefined)('Edited input', resource.toString());
+		assert.deepStrictEqual({ populated, accepted }, { populated: ['Edited input'], accepted: false });
 	});
 });
 
@@ -196,7 +230,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		return {
 			onDidFocus: Event.None,
 			routesWhileSessionActive,
-			sendQuery: () => true,
+			sendQuery: async () => true,
 			prefillInput: () => { },
 			focus: () => { },
 			getVoiceModels: () => [],

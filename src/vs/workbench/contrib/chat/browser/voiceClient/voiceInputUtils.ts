@@ -13,7 +13,7 @@ export function acceptVoiceInput(widget: IChatWidget | undefined, text: string, 
 	}
 	if (widget.viewModel.editing) {
 		widget.input.setValue(text, false);
-		return true;
+		return false;
 	}
 	return widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true, isVoiceModeInput });
 }
