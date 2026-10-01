@@ -10,7 +10,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID, IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
 import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCustomization } from '../common/state/sessionState.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
@@ -142,7 +142,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 	private async _syncPlugin(clientId: string, ref: ClientPluginCustomization): Promise<URI> {
 		const uri = URI.parse(ref.uri);
 		// Normalize so `..` segments cannot escape the host-owned directory.
-		if (uri.scheme === Schemas.file && extUriBiasedIgnorePathCase.isEqualOrParent(extUriBiasedIgnorePathCase.normalizePath(uri), this.hostPluginsPath)) {
+		if (uri.scheme === Schemas.file && (clientId === AUTOMATION_ACTIVE_CLIENT_ID || extUriBiasedIgnorePathCase.isEqualOrParent(extUriBiasedIgnorePathCase.normalizePath(uri), this.hostPluginsPath))) {
 			return uri;
 		}
 		const pluginUri = toAgentClientUri(uri, clientId);

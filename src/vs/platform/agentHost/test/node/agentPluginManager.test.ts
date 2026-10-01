@@ -15,6 +15,7 @@ import { IFileDeleteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../common/agentPluginManager.js';
 import { customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
@@ -109,6 +110,28 @@ suite('AgentPluginManager', () => {
 	// ---- syncCustomizations -------------------------------------------------
 
 	suite('syncCustomizations', () => {
+
+		test('uses file plugins in place only for the automation active client outside host directories', async () => {
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const directory = URI.file('/local/bundle');
+			const ref = { ...makeRef('local', 'revision'), uri: directory.toString() };
+			await fileService.writeFile(URI.joinPath(directory, 'index.js'), VSBuffer.fromString('original'));
+			await fileService.writeFile(URI.joinPath(toAgentClientUri(directory, 'test-client'), 'index.js'), VSBuffer.fromString('client-served'));
+			const [inPlace] = await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [ref]);
+			const cacheExistsBeforeCopy = await fileService.exists(URI.joinPath(manager.basePath, 'cache.json'));
+			const [copied] = await manager.syncCustomizations('test-client', [ref]);
+			assert.deepStrictEqual({
+				inPlace: inPlace.pluginDir?.toString(),
+				inPlaceLoad: inPlace.customization.load,
+				cacheExistsBeforeCopy,
+				copied: copied.pluginDir?.toString() !== directory.toString(),
+				copiedLoad: copied.customization.load,
+				content: (await fileService.readFile(URI.joinPath(copied.pluginDir!, 'index.js'))).value.toString(),
+			}, {
+				inPlace: directory.toString(), inPlaceLoad: { kind: 'loaded' }, cacheExistsBeforeCopy: false,
+				copied: true, copiedLoad: { kind: 'loaded' }, content: 'client-served',
+			});
+		});
 
 		test('uses immutable host directories in place without client reads or cache entries', async () => {
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));

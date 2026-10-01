@@ -17,7 +17,8 @@ import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientU
 import { CustomizationType, MessageKind, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { CustomizationEnablementKind } from '../../common/state/protocol/channels-session/state.js';
 import type { AutomationEntry } from '../../common/state/protocol/channels-automation/state.js';
-import { AgentHostAutomationCustomizations, AUTOMATION_ACTIVE_CLIENT_ID } from '../../node/agentHostAutomationCustomizations.js';
+import { AgentHostAutomationCustomizations } from '../../node/agentHostAutomationCustomizations.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../common/agentPluginManager.js';
 
 suite('AgentHostAutomationCustomizations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -85,6 +86,63 @@ suite('AgentHostAutomationCustomizations', () => {
 		}, {
 			reused: [{ ...copies[0], name: 'Renamed' }], distinct: true,
 			old: '---\nname: Reviewer\n---\nReview carefully.', next: 'Updated',
+		});
+	});
+
+	test('captures local file plugins in place, reuses them, and never garbage collects their paths', async () => {
+		const directory = URI.file('/local/bundle');
+		const localRef = { ...ref, uri: directory.toString() };
+		await fileService.writeFile(URI.joinPath(directory, '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		await fileService.writeFile(URI.joinPath(directory, 'agents/reviewer.md'), VSBuffer.fromString('---\nname: Reviewer\n---\nReview.'));
+		const copySpy = sinon.spy(fileService, 'copy');
+		const copies = (await customizations.capture('author', [localRef], undefined, true))!;
+		const reused = await customizations.capture(undefined, [{ ...localRef, name: 'Renamed' }], entry([localRef], copies));
+		await fileService.createFolder(URI.joinPath(root, 'unused'));
+		await customizations.collectGarbage([]);
+		assert.deepStrictEqual({
+			uri: copies[0].uri,
+			children: copies[0].children?.map(child => ({ type: child.type, name: child.name, uri: child.uri })),
+			load: copies[0].load,
+			reused,
+			copyCount: copySpy.callCount,
+			collected: (await fileService.resolve(root)).children,
+			sourceExists: await fileService.exists(directory),
+		}, {
+			uri: localRef.uri,
+			children: [{ type: CustomizationType.Agent, name: 'Reviewer', uri: URI.joinPath(directory, 'agents/reviewer.md').toString() }],
+			load: { kind: 'loaded' },
+			reused: [{ ...copies[0], name: 'Renamed' }],
+			copyCount: 0,
+			collected: [],
+			sourceExists: true,
+		});
+	});
+
+	test('still copies virtual plugins for local clients', async () => {
+		await seed();
+		const [copy] = (await customizations.capture('author', [ref], undefined, true))!;
+		const destination = URI.joinPath(root, createHash('sha256').update(`${ref.uri}\n${ref.nonce}`).digest('hex'));
+		assert.deepStrictEqual({
+			uri: copy.uri,
+			children: copy.children?.map(child => child.uri),
+		}, {
+			uri: destination.toString(),
+			children: [URI.joinPath(destination, 'agents/reviewer.md').toString()],
+		});
+	});
+
+	test('still copies file plugins for remote clients', async () => {
+		const remoteRef = { ...ref, uri: URI.file('/remote/bundle').toString() };
+		const source = toAgentClientUri(URI.parse(remoteRef.uri), 'author');
+		await fileService.writeFile(URI.joinPath(source, '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		const [copy] = (await customizations.capture('author', [remoteRef], undefined, false))!;
+		const destination = URI.joinPath(root, createHash('sha256').update(`${remoteRef.uri}\n${remoteRef.nonce}`).digest('hex'));
+		assert.deepStrictEqual({
+			uri: copy.uri,
+			manifest: (await fileService.readFile(URI.joinPath(destination, '.plugin/plugin.json'))).value.toString(),
+			sourceExistsOnHost: await fileService.exists(URI.parse(remoteRef.uri)),
+		}, {
+			uri: destination.toString(), manifest: '{"name":"bundle"}', sourceExistsOnHost: false,
 		});
 	});
 

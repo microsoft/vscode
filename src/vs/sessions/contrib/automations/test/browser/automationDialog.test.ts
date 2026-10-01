@@ -14,7 +14,7 @@ import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -42,13 +42,14 @@ import { ResultKind } from '../../../../../platform/keybinding/common/keybinding
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, IAutomationCustomizationChoice, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -62,7 +63,7 @@ import { IAutomationSessionConfiguration } from '../../../../services/sessions/c
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { AutomationDialogService } from '../../browser/automationDialogService.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationCustomizationSelection, AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
@@ -71,7 +72,7 @@ const FOLDER = URI.file('/workspace');
 suite('Automation dialog creation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function openDialog(options: IShowAutomationDialogOptions = {}) {
+	function openDialog(options: IShowAutomationDialogOptions = {}, getCustomizationChoices?: IAutomationService['getCustomizationChoices']) {
 		const configurationService = new TestConfigurationService();
 		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 		const instantiationService = workbenchInstantiationService({
@@ -110,6 +111,7 @@ suite('Automation dialog creation', () => {
 			automations: constObservable(options.existing ? [options.existing] : []),
 			catalogueState: constObservable('ready'),
 			canUpdateAutomation: () => true,
+			getCustomizationChoices,
 		}));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		let targetModel: AutomationIsolationModel | undefined;
@@ -152,8 +154,9 @@ suite('Automation dialog creation', () => {
 		disposables.add(toDisposable(() => cancelButton.click()));
 		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
 		return {
-			result, saveButton, nameInput,
+			result, saveButton, cancelButton, nameInput, container,
 			getTarget: () => ({ quickChat: targetModel?.isQuickChat, workspace: selectedWorkspace }),
+			setWorkspace: (folder: URI) => targetModel?.setQuickChat(false, folder),
 			setPrompt: (prompt: string) => {
 				promptInput.value = prompt;
 				promptChanged.fire();
@@ -164,6 +167,186 @@ suite('Automation dialog creation', () => {
 			},
 		};
 	}
+
+	test('keeps the dialog open during commit and ignores cancel, close, and Escape', async () => {
+		const started = new DeferredPromise<void>();
+		const committed = new DeferredPromise<void>();
+		const dialog = openDialog({
+			commit: async () => {
+				void started.complete();
+				await committed.p;
+			}
+		});
+		dialog.setPrompt('Review changes');
+		dialog.saveButton.click();
+		await started.p;
+		dialog.cancelButton.click();
+		dialog.container.querySelector<HTMLElement>('.dialog-toolbar .action-label')?.click();
+		DOM.getWindow(dialog.container).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+		DOM.getWindow(dialog.container).dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape' }));
+		assert.deepStrictEqual({
+			open: !!dialog.container.querySelector('.automation-dialog'),
+			save: dialog.saveButton.textContent,
+			cancelDisabled: dialog.cancelButton.getAttribute('aria-disabled'),
+			inert: dialog.container.querySelector('.automation-form-content')?.hasAttribute('inert'),
+			status: dialog.container.querySelector('.automation-form-save-status')?.textContent,
+		}, { open: true, save: 'Saving…', cancelDisabled: 'true', inert: true, status: 'Saving automation…' });
+		void committed.complete();
+		assert.deepStrictEqual((await dialog.result)?.kind, 'create');
+	});
+
+	test('shows commit errors inline, preserves input, and supports retry', async () => {
+		let attempts = 0;
+		const dialog = openDialog({
+			commit: async () => {
+				if (++attempts === 1) {
+					throw new Error('Unable to sync plugin');
+				}
+			}
+		});
+		dialog.setPrompt('Review changes');
+		dialog.setName('My automation');
+		dialog.saveButton.click();
+		await timeout(0);
+		const error = dialog.container.querySelector<HTMLElement>('.automation-form-save-error')!;
+		assert.deepStrictEqual({
+			text: error.textContent,
+			role: error.getAttribute('role'),
+			focused: DOM.getWindow(error).document.activeElement === error,
+			name: dialog.nameInput.value,
+			save: dialog.saveButton.textContent,
+			cancelDisabled: dialog.cancelButton.getAttribute('aria-disabled'),
+			inert: dialog.container.querySelector('.automation-form-content')?.hasAttribute('inert'),
+		}, { text: 'Unable to sync plugin', role: 'alert', focused: true, name: 'My automation', save: 'Create', cancelDisabled: 'false', inert: false });
+		dialog.saveButton.click();
+		assert.deepStrictEqual(error.style.display, 'none');
+		assert.deepStrictEqual({ kind: (await dialog.result)?.kind, attempts }, { kind: 'create', attempts: 2 });
+	});
+
+	test('reloads choices from the form target controls and preserves toggles', async () => {
+		const targets: string[] = [];
+		const dialog = openDialog({}, async target => {
+			targets.push(target.kind === 'workspace' ? target.folderUri.toString() : target.kind);
+			return [
+				{ id: 'a', label: 'A', selected: true, outdated: false },
+				{ id: 'b', label: 'B', selected: false, outdated: false },
+			];
+		});
+		await timeout(0);
+		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
+		dialog.container.querySelectorAll<HTMLElement>('.automation-customization-row .monaco-checkbox')[1].click();
+		dialog.setWorkspace(FOLDER);
+		await timeout(0);
+		dialog.setWorkspace(URI.file('/other'));
+		await timeout(0);
+		dialog.setPrompt('Review changes');
+		dialog.saveButton.click();
+		assert.deepStrictEqual({
+			targets,
+			selected: (await dialog.result)?.value.customizationIds,
+		}, { targets: ['quickChat', FOLDER.toString(), URI.file('/other').toString()], selected: ['a', 'b'] });
+	});
+
+	test('surfaces commit cancellation rejections instead of silently abandoning the save', async () => {
+		const error = new CancellationError();
+		const dialog = openDialog({ commit: async () => { throw error; } });
+		dialog.setPrompt('Review changes');
+		dialog.saveButton.click();
+		await timeout(0);
+		const message = dialog.container.querySelector('.automation-form-save-error')?.textContent;
+		dialog.cancelButton.click();
+		assert.deepStrictEqual({ message, result: await dialog.result }, { message: getErrorMessage(error), result: undefined });
+	});
+
+	test('refreshes selected outdated choices on edit without expanding Advanced', async () => {
+		const existing: IAutomationDescriptor = {
+			id: 'existing', name: 'Review', prompt: 'Review changes',
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+			schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 }, enabled: true, createdAt: '', updatedAt: '',
+		};
+		let existingId: string | undefined;
+		const dialog = openDialog({ existing }, async (_target, id) => {
+			existingId = id;
+			return [{ id: 'outdated', label: 'Outdated plugin', selected: true, outdated: true }];
+		});
+		await timeout(0);
+		const expanded = dialog.container.querySelector('.automation-advanced-disclosure')?.getAttribute('aria-expanded');
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ expanded, existingId, kind: result?.kind, selected: result?.value.customizationIds }, {
+			expanded: 'false', existingId: 'existing', kind: 'update', selected: ['outdated'],
+		});
+	});
+
+	test('passes selected customization ids in choice order without requiring expansion', async () => {
+		const choices: IAutomationCustomizationChoice[] = [
+			{ id: 'second', label: 'Second', selected: true, outdated: true },
+			{ id: 'first', label: 'First', selected: false, outdated: false },
+			{ id: 'third', label: 'Third', selected: true, outdated: false },
+		];
+		const started = new DeferredPromise<void>();
+		const committed = new DeferredPromise<void>();
+		const dialog = openDialog({
+			commit: async () => {
+				void started.complete();
+				await committed.p;
+			}
+		}, async () => choices);
+		await timeout(0);
+		const disclosure = dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!;
+		disclosure.click();
+		const checkboxes = dialog.container.querySelectorAll<HTMLElement>('.automation-customization-row .monaco-checkbox');
+		checkboxes[1].click();
+		disclosure.click();
+		dialog.setPrompt('Review changes');
+		dialog.saveButton.click();
+		await started.p;
+		assert.deepStrictEqual({
+			expanded: disclosure.getAttribute('aria-expanded'),
+			status: dialog.container.querySelector('.automation-form-save-status')?.textContent,
+		}, { expanded: 'false', status: 'Syncing customizations…' });
+		void committed.complete();
+		assert.deepStrictEqual((await dialog.result)?.value.customizationIds, ['second', 'first', 'third']);
+	});
+
+	test('hides Advanced when customizations are unsupported', async () => {
+		for (const loader of [undefined, async () => undefined]) {
+			const dialog = openDialog({}, loader);
+			await timeout(0);
+			const display = dialog.container.querySelector<HTMLElement>('.automation-advanced')?.style.display;
+			dialog.setPrompt('Review changes');
+			dialog.saveButton.click();
+			assert.deepStrictEqual({ display, selected: (await dialog.result)?.value.customizationIds }, { display: 'none', selected: undefined });
+		}
+	});
+
+	test('shows loading then an empty customization list', async () => {
+		const choices = new DeferredPromise<readonly IAutomationCustomizationChoice[] | undefined>();
+		const dialog = openDialog({}, async () => choices.p);
+		const disclosure = dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!;
+		disclosure.click();
+		const loading = {
+			summary: dialog.container.querySelector('.automation-advanced-summary')?.textContent,
+			message: dialog.container.querySelector('.automation-customizations-message')?.textContent,
+			expanded: disclosure.getAttribute('aria-expanded'),
+			controls: disclosure.getAttribute('aria-controls'),
+			spinners: dialog.container.querySelectorAll('.automation-customizations .codicon-loading.codicon-modifier-spin').length,
+			chevrons: disclosure.querySelectorAll('.codicon-chevron-down').length,
+		};
+		void choices.complete([]);
+		await timeout(0);
+		dialog.setPrompt('Review changes');
+		dialog.saveButton.click();
+		assert.deepStrictEqual({
+			loading,
+			empty: dialog.container.querySelector('.automation-customizations')?.textContent?.includes('No customizations are available for this target.'),
+			selected: (await dialog.result)?.value.customizationIds,
+		}, {
+			loading: { summary: 'Loading…', message: 'Loading customizations…', expanded: 'true', controls: 'automation-customizations', spinners: 1, chevrons: 1 },
+			empty: true,
+			selected: [],
+		});
+	});
 
 	for (const { label, prompt, name } of [
 		{ label: 'short prompt', prompt: '  Review changes  ', name: 'Review changes' },
@@ -206,6 +389,54 @@ suite('Automation dialog creation', () => {
 		const result = await dialog.result;
 		assert.ok(result?.kind === 'create');
 		assert.strictEqual(result.value.name, 'Summarize changes');
+	});
+
+	suite('Automation customization selection', () => {
+		test('cancels target reloads and preserves only explicit toggles by id', async () => {
+			const requests: { target: string; cancelled: () => boolean; result: DeferredPromise<readonly IAutomationCustomizationChoice[] | undefined> }[] = [];
+			const container = DOM.$('div');
+			const selection = disposables.add(new AutomationCustomizationSelection(
+				container,
+				upcastPartial<IAutomationService>({
+					getCustomizationChoices: async (target, existingId, token) => {
+						assert.strictEqual(existingId, 'existing');
+						const result = new DeferredPromise<readonly IAutomationCustomizationChoice[] | undefined>();
+						requests.push({ target: target.sessionTypeId ?? '', cancelled: () => token.isCancellationRequested, result });
+						return result.p;
+					},
+				}),
+				upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+				new NullLogService(),
+				'existing',
+			));
+			selection.updateTarget({ kind: 'quickChat', providerId: 'host', sessionTypeId: 'one' });
+			void requests[0].result.complete([
+				{ id: 'toggled', label: 'Toggled', selected: true, outdated: false },
+				{ id: 'default', label: 'Default', selected: true, outdated: false },
+			]);
+			await timeout(0);
+			container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
+			container.querySelector<HTMLElement>('.monaco-checkbox')!.click();
+			selection.updateTarget({ kind: 'workspace', folderUri: FOLDER, providerId: 'host', sessionTypeId: 'two', isolation: { kind: 'folder' } });
+			selection.updateTarget({ kind: 'workspace', folderUri: FOLDER, providerId: 'host2', sessionTypeId: 'three', isolation: { kind: 'folder' } });
+			void requests[2].result.complete([
+				{ id: 'new', label: 'New', selected: true, outdated: false },
+				{ id: 'toggled', label: 'Toggled', selected: true, outdated: true },
+				{ id: 'default', label: 'Default', selected: false, outdated: false },
+			]);
+			await timeout(0);
+			void requests[1].result.complete([{ id: 'stale', label: 'Stale', selected: true, outdated: false }]);
+			await timeout(0);
+			assert.deepStrictEqual({
+				requests: requests.map(request => ({ target: request.target, cancelled: request.cancelled() })),
+				selected: selection.getSelectedIds(),
+				summary: container.querySelector('.automation-advanced-summary')?.textContent,
+			}, {
+				requests: [{ target: 'one', cancelled: true }, { target: 'two', cancelled: true }, { target: 'three', cancelled: false }],
+				selected: ['new'],
+				summary: '1 of 3 customizations · 1 outdated',
+			});
+		});
 	});
 
 	test('preserves a supplied quick-chat target and custom name', async () => {

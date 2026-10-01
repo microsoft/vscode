@@ -7,9 +7,10 @@ import './media/automationDialog.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
@@ -17,20 +18,21 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { defaultButtonStyles, defaultDialogStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultDialogStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
-import { AutomationTarget, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
-import { AutomationSessionConfigurationCapture, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
+import { AutomationSessionConfigurationCapture, createAutomationTarget, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
 
 const $ = DOM.$;
@@ -82,6 +84,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAutomationService private readonly automationService: IAutomationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
@@ -127,9 +130,14 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture> = async () => ({ kind: 'preserved', configuration: initialSessionConfiguration });
 		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
 		let waitForAutomationSessionSync: (token: CancellationToken) => Promise<void> = async () => { };
-		let setSaving: (saving: boolean) => void = () => { };
-		let showSessionConfigurationError: (message: string | undefined) => void = () => { };
-		let focusSessionConfigurationError: () => void = () => { };
+		let setSaving: (saving: boolean, committing?: boolean) => void = () => { };
+		let getCustomizationIds: () => readonly string[] | undefined = () => undefined;
+		let progressBar: ProgressBar | undefined;
+		let dialogElement: HTMLElement | undefined;
+		let closeToolbar: HTMLElement | undefined;
+		let commitInProgress = false;
+		let showSaveError: (message: string | undefined) => void = () => { };
+		let focusSaveError: () => void = () => { };
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
 		let focusFirst: () => void = () => { };
 		let saveInProgress = false;
@@ -156,6 +164,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			const sessionConfiguration = sessionConfigurationCapture.configuration;
 			const sessionTemplate = sessionConfiguration?.sessionTemplate;
 			const target = createAutomationTarget(state, getBranch());
+			const customizationIds = getCustomizationIds();
 			if (!target) {
 				return undefined;
 			}
@@ -169,6 +178,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						sessionTemplate: sessionTemplate ?? null,
 					} : {}),
 					enabled: state.enabled,
+					...(customizationIds !== undefined ? { customizationIds } : {}),
 				};
 				return { kind: 'update', id: existing.id, value: patch };
 			}
@@ -185,12 +195,13 @@ export class AutomationDialogService implements IAutomationDialogService {
 						...(sessionConfiguration.permissionLevel !== undefined ? { permissionLevel: sessionConfiguration.permissionLevel } : {}),
 					} : {}),
 				enabled: state.enabled,
+				...(customizationIds !== undefined ? { customizationIds } : {}),
 			};
 			return { kind: 'create', value: create };
 		};
 
 		const closeDialog = (result: IAutomationDialogResult | undefined) => {
-			if (completion.isSettled) {
+			if (completion.isSettled || (commitInProgress && result === undefined)) {
 				return;
 			}
 			dialogTelemetry.complete(result !== undefined);
@@ -214,8 +225,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 			}
 
 			saveInProgress = true;
-			showSessionConfigurationError(undefined);
+			showSaveError(undefined);
 			setSaving(true);
+			progressBar?.infinite().show();
 			if (saveButton) {
 				saveButton.enabled = false;
 				saveButton.label = savingButtonLabel;
@@ -230,7 +242,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				const sessionConfigurationCapture = await getSessionConfiguration(cancellation.token);
 				if (sessionConfigurationCapture.kind === 'failed') {
 					dialogTelemetry.captureFailed();
-					showSessionConfigurationError(captureErrorMessage);
+					showSaveError(captureErrorMessage);
 					shouldFocusError = true;
 					return;
 				}
@@ -240,14 +252,28 @@ export class AutomationDialogService implements IAutomationDialogService {
 				}
 				const result = buildResult(sessionConfigurationCapture);
 				if (result) {
+					if (options.commit) {
+						commitInProgress = true;
+						setSaving(true, true);
+						if (cancelButton) {
+							cancelButton.enabled = false;
+						}
+						dialogElement?.classList.add('committing');
+						closeToolbar?.setAttribute('inert', '');
+						dialogElement?.focus();
+						await options.commit(result);
+						commitInProgress = false;
+					}
 					shouldClose = true;
 					closeDialog(result);
 				}
 			} catch (error) {
-				if (!isCancellationError(error) && !cancellation.token.isCancellationRequested) {
-					this.logService.error('[AutomationDialog] Failed to save the automation session configuration.', error);
-					dialogTelemetry.captureFailed();
-					showSessionConfigurationError(captureErrorMessage);
+				if (commitInProgress || (!isCancellationError(error) && !cancellation.token.isCancellationRequested)) {
+					this.logService.error('[AutomationDialog] Failed to save automation.', error);
+					if (!commitInProgress) {
+						dialogTelemetry.captureFailed();
+					}
+					showSaveError(commitInProgress ? getErrorMessage(error) : captureErrorMessage);
 					shouldFocusError = true;
 				}
 			} finally {
@@ -255,14 +281,21 @@ export class AutomationDialogService implements IAutomationDialogService {
 					saveCancellation.clear();
 				}
 				saveInProgress = false;
+				commitInProgress = false;
 				if (!shouldClose && !completion.isSettled) {
+					dialogElement?.classList.remove('committing');
+					closeToolbar?.removeAttribute('inert');
+					if (cancelButton) {
+						cancelButton.enabled = true;
+					}
+					progressBar?.stop().hide();
 					setSaving(false);
 					if (saveButton) {
 						saveButton.label = saveButtonLabel;
 					}
 					revalidate();
 					if (shouldFocusError) {
-						focusSessionConfigurationError();
+						focusSaveError();
 					}
 				}
 			}
@@ -304,6 +337,10 @@ export class AutomationDialogService implements IAutomationDialogService {
 				},
 				renderBody: container => {
 					container.classList.add('automation-dialog-body');
+					dialogElement = container.closest<HTMLElement>('.monaco-dialog-box') ?? undefined;
+					const progressHost = DOM.append(container, $('.automation-dialog-progress'));
+					progressBar = disposables.add(new ProgressBar(progressHost, defaultProgressBarStyles));
+					progressBar.hide();
 
 					const titlebar = DOM.append(container, $('.automation-titlebar'));
 					titlebar.setAttribute('aria-hidden', 'true');
@@ -316,14 +353,15 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id });
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
 					waitForAutomationSessionSync = handle.waitForAutomationSessionSync;
 					setSaving = handle.setSaving;
-					showSessionConfigurationError = handle.showSessionConfigurationError;
-					focusSessionConfigurationError = handle.focusSessionConfigurationError;
+					getCustomizationIds = handle.getCustomizationIds;
+					showSaveError = handle.showSaveError;
+					focusSaveError = handle.focusSaveError;
 					getFocusableElements = handle.getFocusableElements;
 					const keyboardNavigation = disposables.add(registerAutomationDialogKeyboardNavigation(
 						DOM.getWindow(container),
@@ -333,10 +371,24 @@ export class AutomationDialogService implements IAutomationDialogService {
 							...(cancelButton ? [cancelButton.element] : []),
 						],
 						isAutomationDialogPopupTarget,
-						handle.acceptPromptSuggestion,
-						handle.cancelPromptSuggestion,
+						() => !saveInProgress && handle.acceptPromptSuggestion(),
+						() => !saveInProgress && handle.cancelPromptSuggestion(),
 					));
 					focusFirst = keyboardNavigation.focusFirst;
+					for (const type of [DOM.EventType.KEY_DOWN, DOM.EventType.KEY_UP]) {
+						disposables.add(DOM.addDisposableListener(DOM.getWindow(container), type, (event: KeyboardEvent) => {
+							if (commitInProgress && event.key === 'Escape') {
+								DOM.EventHelper.stop(event, true);
+								event.stopImmediatePropagation();
+							}
+						}, true));
+					}
+					disposables.add(DOM.addDisposableListener(activeContainer, DOM.EventType.CLICK, (event: MouseEvent) => {
+						if (commitInProgress && DOM.isHTMLElement(event.target) && closeToolbar?.contains(event.target)) {
+							DOM.EventHelper.stop(event, true);
+							event.stopImmediatePropagation();
+						}
+					}, true));
 					revalidate = () => {
 						const providerAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
 						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId, isEdit);
@@ -356,6 +408,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 		try {
 			void dialog.show().then(() => closeDialog(undefined));
+			// eslint-disable-next-line no-restricted-syntax -- Dialog owns its close toolbar and exposes no enablement API.
+			closeToolbar = dialogElement?.querySelector<HTMLElement>('.dialog-toolbar') ?? undefined;
 			focusFirst();
 			return await completion.p;
 		} finally {
@@ -374,29 +428,4 @@ function deriveAutomationName(prompt: string): string {
 	const prefix = characters.slice(0, maxLength).join('');
 	const wordBoundary = text.lastIndexOf(' ', prefix.length);
 	return wordBoundary > 0 ? text.slice(0, wordBoundary) : prefix;
-}
-
-function createAutomationTarget(state: IFormState, branch: string | undefined): AutomationTarget | undefined {
-	if (state.isQuickChat) {
-		return state.providerId && state.sessionTypeId
-			? { kind: 'quickChat', providerId: state.providerId, sessionTypeId: state.sessionTypeId }
-			: undefined;
-	}
-	if (!state.folderUri) {
-		return undefined;
-	}
-	const isolation = state.isolationMode === 'worktree'
-		? (branch ? { kind: 'worktree' as const, branch } : undefined)
-		: state.isolationMode === 'workspace'
-			? { kind: 'folder' as const }
-			: { kind: 'default' as const };
-	return isolation
-		? {
-			kind: 'workspace',
-			folderUri: state.folderUri,
-			providerId: state.providerId,
-			sessionTypeId: state.sessionTypeId,
-			isolation,
-		}
-		: undefined;
 }

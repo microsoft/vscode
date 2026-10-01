@@ -9,6 +9,9 @@ import type { ClientPluginCustomization, PluginCustomization } from './state/ses
 
 export const IAgentPluginManager = createDecorator<IAgentPluginManager>('agentPluginManager');
 
+/** Static active-client identity used for host-resolved automation plugins. */
+export const AUTOMATION_ACTIVE_CLIENT_ID = 'vscode.automation';
+
 /**
  * A synced customization with its local plugin directory (when available).
  */
@@ -37,7 +40,7 @@ export interface IAgentPluginManager {
 	 */
 	readonly basePath: URI;
 
-	/** Immutable host-owned plugin directories. File URIs equal to or under this path are synced in place, without cache entries, regardless of clientId. */
+	/** Immutable host-owned plugin directories. File URIs under this path, or synced for AUTOMATION_ACTIVE_CLIENT_ID, are used in place without cache entries. */
 	readonly hostPluginsPath: URI;
 
 	/**

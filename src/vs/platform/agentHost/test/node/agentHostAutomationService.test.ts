@@ -39,7 +39,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
-import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../node/agentHostAutomationCustomizations.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../common/agentPluginManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
@@ -74,6 +74,7 @@ suite('AgentHostAutomationService', () => {
 		disposables.add(clientConnections.registerSource({
 			hasSeenClient: () => false,
 			isClientConnected: () => false,
+			isLocalClient: () => false,
 			getConnectedClientTransportCounts: () => new Map(),
 			requestWorkspaceTrust: async () => false,
 			requestMcpAuthentication: request => {
@@ -256,6 +257,38 @@ suite('AgentHostAutomationService', () => {
 				activeClient: { clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [], customizations: [{ ...ref, uri: copy.uri, clientId: AUTOMATION_ACTIVE_CLIENT_ID }] },
 				agent: URI.joinPath(URI.parse(copy.uri), 'agents/reviewer.md').toString(),
 			},
+		});
+	});
+
+	test('creates and updates local file customizations in place using connection service locality', async () => {
+		disposables.add(clientConnections.registerSource({
+			hasSeenClient: clientId => clientId === 'local',
+			isClientConnected: clientId => clientId === 'local',
+			isLocalClient: clientId => clientId === 'local',
+			getConnectedClientTransportCounts: () => new Map([['local', 1]]),
+			requestWorkspaceTrust: async () => true,
+			requestMcpAuthentication: async () => false,
+		}));
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: URI.file('/local/bundle').toString(), name: 'Bundle', nonce: 'one' };
+		await fileService.writeFile(URI.joinPath(URI.parse(ref.uri), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		const service = createService();
+		const action = createAction();
+		action.definition.session.customizations = [ref];
+		await service.handleCreate(action, 'local');
+		const created = stateManager.getAutomationCatalogState()!.entries[0].customizations;
+		const updatedRef = { ...ref, nonce: 'two' };
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested, resource: action.resource,
+			changes: { session: { ...action.definition.session, customizations: [updatedRef] } },
+		}, 'local');
+		const updated = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({
+			createdUris: created?.map(copy => copy.uri),
+			updatedUris: updated.customizations?.map(copy => copy.uri),
+			refs: updated.definition.session.customizations,
+			copiesExist: await fileService.exists(URI.joinPath(pluginManager.hostPluginsPath, 'automations')),
+		}, {
+			createdUris: [ref.uri], updatedUris: [ref.uri], refs: [updatedRef], copiesExist: false,
 		});
 	});
 
