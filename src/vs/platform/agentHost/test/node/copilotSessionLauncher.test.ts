@@ -825,7 +825,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 					connectorCalls,
 					connectorDisplayName: connectorDisplayNames.get('connector-mail'),
 				}, {
-					featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
+					featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 					connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true', ...(reconcileError ? ['status'] : [])],
 					connectorDisplayName: 'Work IQ Mail',
 				});
@@ -2031,14 +2031,15 @@ suite('CopilotSessionLauncher resume config', () => {
 				CONNECTORS: false,
 				TGREP: false,
 				CONTENT_EXCLUSION: true,
+				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
 			},
 			disabledExperimentalMode: undefined,
-			disabledFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
+			disabledFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
 			defaultExperimentalMode: undefined,
-			defaultFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
-			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
+			defaultFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
+			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 		});
 	});
 
@@ -2051,22 +2052,31 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: disabled.featureFlags,
 			enabled: enabled.featureFlags,
 		}, {
-			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
-			enabled: { CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true },
+			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
+			enabled: { CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
 		});
 	});
 
-	test('explicitly disables Copilot Memory unless opted in', async () => {
+	test('explicitly disables Copilot Memory and the local store unless opted in', async () => {
 		const store = disposables.add(new DisposableStore());
-		const enabled = await buildResumeConfig(createLauncher(store, { memory: true }), { id: 'gpt-5' });
-		const disabled = await buildResumeConfig(createLauncher(store, { memory: false }), { id: 'gpt-5' });
-		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+		const configs = {
+			cloud: await buildResumeConfig(createLauncher(store, { memory: true }), { id: 'gpt-5' }),
+			local: await buildResumeConfig(createLauncher(store, { memory: true, localMemory: true }), { id: 'gpt-5' }),
+			localWithoutMemory: await buildResumeConfig(createLauncher(store, { memory: false, localMemory: true }), { id: 'gpt-5' }),
+			disabled: await buildResumeConfig(createLauncher(store, { memory: false }), { id: 'gpt-5' }),
+			notOptedIn: await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' }),
+		};
 
-		assert.deepStrictEqual([enabled.memory, disabled.memory, notOptedIn.memory], [
-			{ enabled: true },
-			{ enabled: false },
-			{ enabled: false },
-		]);
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(configs).map(([name, config]) => [name, {
+			memory: config.memory,
+			localStore: config.featureFlags?.copilot_swe_agent_memory_in_repo_store,
+		}])), {
+			cloud: { memory: { enabled: true }, localStore: false },
+			local: { memory: { enabled: true }, localStore: true },
+			localWithoutMemory: { memory: { enabled: false }, localStore: false },
+			disabled: { memory: { enabled: false }, localStore: false },
+			notOptedIn: { memory: { enabled: false }, localStore: false },
+		});
 	});
 
 	test('exposes only the client semantic-search override', async () => {
