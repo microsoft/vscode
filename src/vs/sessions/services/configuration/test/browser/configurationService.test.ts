@@ -15,6 +15,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IPolicyService, NullPolicyService, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { ManagedSettingsPresentationService } from '../../../../../workbench/services/configuration/common/managedSettingsPresentation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -446,7 +447,7 @@ suite('Sessions ConfigurationService', () => {
 		}
 		const parent = disposables.add(new SettingsTreeGroupElement('glass', undefined, 'Glass', 0, true));
 		const assignments = disposables.add(new ExperimentalSettingsService());
-		const managedSettingsService = new NullManagedSettingsService();
+		const managedSettingsService = disposables.add(new ManagedSettingsPresentationService(new NullManagedSettingsService()));
 		const languageService = new class extends mock<ILanguageService>() { }();
 		const elements = keys.map(key => {
 			const schema = configurationRegistry.getConfigurationProperties()[key];

@@ -66,12 +66,14 @@ suite('Session sandbox configuration', () => {
 		assert.deepStrictEqual({
 			policies,
 			reconnected: readSessionSandboxPolicy(reconnectSnapshot),
+			metadata: reconnectSnapshot._meta,
 			removed: readSessionSandboxPolicy(manager.getSessionState(owner)),
 			unrelated: readSessionSandboxPolicy(manager.getSessionState(other)),
 			preserved: manager.getSessionState(owner)?._meta?.['test.other'],
 		}, {
 			policies: [{ enabled: true }, { enabled: true, allowBypass: true }, { enabled: false }],
 			reconnected: { enabled: true },
+			metadata: { 'test.other': 'preserved', 'vscode.resolvedSandboxPolicy': { enabled: true } },
 			removed: { enabled: false },
 			unrelated: undefined,
 			preserved: 'preserved',
@@ -79,8 +81,8 @@ suite('Session sandbox configuration', () => {
 	});
 
 	test('ignores missing or malformed sandbox policy metadata', () => {
-		const values = [undefined, null, [], true, {}, { enabled: 'true' }, { enabled: true, allowBypass: 'false' }, { enabled: true, allowOutbound: 'false' }];
-		assert.deepStrictEqual(values.map(value => readSessionSandboxPolicy({ _meta: { 'vscode.sandboxPolicy': value } })), values.map(() => undefined));
+		const values = [undefined, null, [], true, {}, { enabled: 'true' }, { enabled: true, allowBypass: 'false' }, { enabled: true, allowOutbound: 'false' }, { enabled: true, allowLocalNetwork: 'false' }, { enabled: true, allowDevToolAccess: 'false' }, { enabled: true, sandboxMcpServers: 'true' }, { enabled: true, sandboxLspServers: 'true' }];
+		assert.deepStrictEqual(values.map(value => readSessionSandboxPolicy({ _meta: { 'vscode.resolvedSandboxPolicy': value } })), values.map(() => undefined));
 	});
 
 	test('publishes the error to its client before restoring the last successful sandbox value', () => {
@@ -159,9 +161,9 @@ suite('Session sandbox configuration', () => {
 		configuration.setSessionSandboxPolicy(managed, { enabled: true, allowBypass: false });
 		assert.deepStrictEqual([follower, enabled, disabled, managed].map(session => getSessionSandboxOverrides(configuration, session)), [
 			{},
-			{ enabled: 'on', 'enabled.windows': 'on' },
-			{ enabled: 'off', 'enabled.windows': 'off' },
-			{ enabled: 'on', 'enabled.windows': 'on', allowUnsandboxedCommands: false },
+			{ enabled: 'on' },
+			{ enabled: 'off' },
+			{ enabled: 'on', allowUnsandboxedCommands: false },
 		]);
 	});
 
@@ -187,6 +189,60 @@ suite('Session sandbox configuration', () => {
 		]);
 	});
 
+	for (const [key, managedValue] of [
+		[AgentHostSandboxKey.SandboxMcpServers, true],
+		[AgentHostSandboxKey.SandboxLspServers, true],
+		[AgentHostSandboxKey.AllowDevToolAccess, false],
+		[AgentHostSandboxKey.AllowLocalNetwork, false],
+	] as const) {
+		test(`resolved ${key} policy survives serialization and clears when omitted or malformed`, () => {
+			const { manager, configuration, create } = setupSession();
+			const owner = create('servers');
+			const apply = (value: boolean | string | undefined) => {
+				configuration.setSessionSandboxPolicy(owner, projectCopilotSandboxPolicy({
+					source: 'server', serverManaged: true, deviceManaged: false,
+					failClosed: false, bypassPermissionsDisabled: false, managedKeys: ['sandbox'],
+					settings: { sandbox: { enabled: true, allowBypass: false, ...(value !== undefined ? key === AgentHostSandboxKey.AllowLocalNetwork ? { userPolicy: { network: { [key]: value } } } : { [key]: value } : {}) } },
+				}, owner, new NullLogService()));
+				return readSessionSandboxPolicy(JSON.parse(JSON.stringify(manager.getSessionState(owner))));
+			};
+			assert.deepStrictEqual([true, false, undefined, 'true'].map(apply), [
+				{ enabled: true, allowBypass: false, [key]: true },
+				{ enabled: true, allowBypass: false, [key]: false },
+				{ enabled: true, allowBypass: false },
+				{ enabled: true, allowBypass: false },
+			]);
+		});
+
+		test(`managed ${key} overrides root choices for owners, peers and subagents`, () => {
+			const { manager, configuration, create } = setupSession();
+			const owner = create('servers');
+			const peer = buildChatUri(owner, 'peer');
+			manager.addChat(owner, peer);
+			for (const local of [false, true]) {
+				const sandbox = { enabled: 'on', [key]: local };
+				configuration.updateRootConfig({ sandbox });
+				for (const managed of [undefined, false, true, false, undefined]) {
+					configuration.setSessionSandboxPolicy(owner, { enabled: false, [key]: managed });
+					const sessions = [owner, peer, buildSubagentSessionUri(owner, 'child')];
+					assert.deepStrictEqual({
+						values: sessions.map(session => {
+							const effective = getSessionSandboxConfig(configuration, session);
+							return (['linux', 'darwin', 'win32'] as const).map(platform => {
+								const sdk = buildSandboxConfigForSdk(platform, effective);
+								return key === AgentHostSandboxKey.AllowLocalNetwork ? sdk?.userPolicy?.network?.allowLocalNetwork : sdk?.[key];
+							});
+						}),
+						stored: configuration.getRootConfigValues()?.sandbox,
+					}, {
+						values: sessions.map(() => (['linux', 'darwin', 'win32'] as const).map(() => managed === managedValue ? managedValue : local)),
+						stored: sandbox,
+					});
+				}
+			}
+		});
+	}
+
 	for (const localAccess of [false, true]) {
 		test(`resolves effective toggles for owner and peers without changing local ${localAccess} or filesystem settings`, () => {
 			const { manager, configuration, create } = setupSession();
@@ -194,7 +250,7 @@ suite('Session sandbox configuration', () => {
 			const peer = buildChatUri(owner, 'peer');
 			manager.addChat(owner, peer);
 			const sandbox = {
-				enabled: 'on', 'enabled.windows': 'on',
+				enabled: 'on',
 				allowNetwork: localAccess, allowUnsandboxedCommands: localAccess,
 				'fileSystem.linux': { allowRead: ['/reference'], denyRead: ['/private'] },
 			};
@@ -324,17 +380,17 @@ suite('Session sandbox configuration', () => {
 		const owner = create('sdk', { [SessionConfigKey.SandboxEnabled]: 'on' });
 		configuration.updateRootConfig({
 			sandbox: {
-				enabled: 'off', 'enabled.windows': 'off', allowNetwork: false,
+				enabled: 'off', allowNetwork: false,
 				[AgentHostSandboxKey.LinuxFileSystem]: { denyRead: ['/private'] },
 			}
 		});
 		const effective = getSessionSandboxConfig(configuration, owner);
 		const sdk = buildSandboxConfigForSdk('linux', effective);
 		assert.deepStrictEqual({
-			host: effective?.enabled, windows: effective?.['enabled.windows'],
+			host: effective?.enabled,
 			sdk: sdk?.enabled, denied: sdk?.userPolicy?.filesystem?.deniedPaths,
 			network: sdk?.userPolicy?.network?.allowOutbound,
-		}, { host: 'on', windows: 'on', sdk: true, denied: ['/private'], network: false });
+		}, { host: 'on', sdk: true, denied: ['/private'], network: false });
 	});
 
 	test('normalizes Windows filesystem settings on the host without mutating stored configuration', () => {

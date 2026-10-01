@@ -13,6 +13,12 @@ export interface SandboxConfig {
 	/** Whether sandboxing is enabled for the session. */
 	enabled: boolean;
 
+	/** Whether MCP servers run inside the sandbox. */
+	sandboxMcpServers?: boolean;
+
+	/** Whether LSP servers run inside the sandbox. */
+	sandboxLspServers?: boolean;
+
 	/** Whether all sandbox restrictions can be bypassed. */
 	allowBypass?: boolean;
 
@@ -101,9 +107,8 @@ export interface SandboxSeatbeltPolicy {
  *    Domain allow/deny lists are ignored because the SDK's `SandboxConfig`
  *    does not support host-level rules.
  *
- * Windows uses its platform-specific enablement and filesystem settings. It
- * does not fall back to the shared enablement setting so Windows rollout is
- * controlled independently.
+ * All platforms share enablement while retaining platform-specific filesystem settings.
+ * Optional toggles are forwarded only when supplied; absent values use runtime defaults.
  *
  * `extraReadonlyPaths` grants read access to session attachments and generated
  * shell init scripts when the effective sandbox is applied before each turn.
@@ -113,9 +118,7 @@ export function buildSandboxConfigForSdk(
 	sandbox: ISandboxConfigValue | undefined,
 	extraReadonlyPaths?: readonly string[],
 ): SandboxConfig | undefined {
-	const enabledRaw = platform === 'win32'
-		? sandbox?.[AgentHostSandboxKey.WindowsEnabled]
-		: sandbox?.[AgentHostSandboxKey.Enabled];
+	const enabledRaw = sandbox?.[AgentHostSandboxKey.Enabled];
 	if (enabledRaw !== AgentSandboxEnabledValue.On) {
 		return undefined;
 	}
@@ -157,10 +160,17 @@ export function buildSandboxConfigForSdk(
 	}
 
 	const allowNetwork = sandbox?.[AgentHostSandboxKey.AllowNetwork];
-	const allowBypass = sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands] ?? false;
+	const allowLocalNetwork = sandbox?.[AgentHostSandboxKey.AllowLocalNetwork];
+	const allowBypass = sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands];
+	const sandboxMcpServers = sandbox?.[AgentHostSandboxKey.SandboxMcpServers];
+	const sandboxLspServers = sandbox?.[AgentHostSandboxKey.SandboxLspServers];
+	const allowDevToolAccess = sandbox?.[AgentHostSandboxKey.AllowDevToolAccess];
 	const sandboxConfig: SandboxConfig = {
 		enabled: true,
-		allowBypass,
+		...(sandboxMcpServers !== undefined ? { sandboxMcpServers } : {}),
+		...(sandboxLspServers !== undefined ? { sandboxLspServers } : {}),
+		...(allowDevToolAccess !== undefined ? { allowDevToolAccess } : {}),
+		...(allowBypass !== undefined ? { allowBypass } : {}),
 		auth: {
 			git: true,
 			gh: true,
@@ -171,9 +181,12 @@ export function buildSandboxConfigForSdk(
 				...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
 				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
 			},
-			network: {
-				allowOutbound: typeof allowNetwork === 'boolean' ? allowNetwork : false,
-			},
+			...(typeof allowNetwork === 'boolean' || allowLocalNetwork !== undefined ? {
+				network: {
+					...(typeof allowNetwork === 'boolean' ? { allowOutbound: allowNetwork } : {}),
+					...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}),
+				},
+			} : {}),
 		},
 	};
 	return sandboxConfig;

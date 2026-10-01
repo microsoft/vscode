@@ -43,6 +43,34 @@ suite('Terminal chat agent tools configuration', () => {
 
 	suiteTeardown(() => configurationRegistry.deregisterConfigurations([configurationNode]));
 
+	test('registers one sandbox enablement setting for all operating systems', () => {
+		assert.deepStrictEqual({
+			enabled: terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxEnabled].enum,
+			windows: terminalChatAgentToolsConfiguration['chat.agent.sandbox.enabledWindows'],
+		}, { enabled: ['off', 'on'], windows: undefined });
+	});
+
+	test('adds sandbox search keywords and ordering to settings consumed by the Agent Host Copilot sandbox', () => {
+		const settingIds = [
+			[AgentSandboxSettingId.AgentSandboxEnabled, 10],
+			[AgentSandboxSettingId.AgentSandboxAllowNetwork, 20],
+			[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, 25],
+			[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, 30],
+			[AgentSandboxSettingId.AgentSandboxMcpServers, 40],
+			[AgentSandboxSettingId.AgentSandboxLspServers, 50],
+			[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, 60],
+			[AgentSandboxSettingId.AgentSandboxLinuxFileSystem, 70],
+			[AgentSandboxSettingId.AgentSandboxMacFileSystem, 80],
+			[AgentSandboxSettingId.AgentSandboxWindowsFileSystem, 90],
+		] as const;
+		assert.deepStrictEqual(
+			Object.entries(terminalChatAgentToolsConfiguration)
+				.filter(([, setting]) => setting.keywords?.some(keyword => /sandbox/i.test(keyword)))
+				.map(([id, setting]) => [id, setting.keywords, setting.order]),
+			settingIds.map(([id, order]) => [id, ['Sandbox', 'sandboxing'], order]),
+		);
+	});
+
 	test('allows sandbox network access by default and preserves explicit overrides', async () => {
 		const logService = new NullLogService();
 		const defaults = await store.add(new DefaultConfiguration(logService)).initialize();
@@ -56,12 +84,58 @@ suite('Terminal chat agent tools configuration', () => {
 		assert.deepStrictEqual(values, [true, false, true]);
 	});
 
+	test('deprecates local harness sandbox settings without changing their defaults', () => {
+		const settingIds = [
+			AgentSandboxSettingId.AgentSandboxAllowAutoApprove,
+			AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
+		];
+		assert.deepStrictEqual(settingIds.map(id => {
+			const setting = terminalChatAgentToolsConfiguration[id];
+			return {
+				deprecated: setting.deprecated,
+				deprecationMessage: setting.markdownDeprecationMessage,
+				localHarnessOnly: setting.markdownDescription?.includes('only to the **local harness**'),
+				default: setting.default,
+				restricted: setting.restricted,
+			};
+		}), settingIds.map(() => ({
+			deprecated: true,
+			deprecationMessage: 'This setting is deprecated and applies only to the **local harness**.',
+			localHarnessOnly: true,
+			default: true,
+			restricted: true,
+		})));
+	});
+
 	test('registers terminal safety settings as restricted', () => {
 		assert.deepStrictEqual(
 			restrictedSettingIds.map(id => terminalChatAgentToolsConfiguration[id].restricted),
 			restrictedSettingIds.map(() => true),
 		);
 	});
+
+	for (const [key, defaultValue] of [
+		[AgentSandboxSettingId.AgentSandboxMcpServers, true],
+		[AgentSandboxSettingId.AgentSandboxLspServers, true],
+		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, false],
+		[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, false],
+	] as const) {
+		test(`defaults ${key} to ${defaultValue} while preserving explicit choices`, async () => {
+			const logService = new NullLogService();
+			const defaults = await store.add(new DefaultConfiguration(logService)).initialize();
+			const values = [defaults.getValue<boolean>(key)];
+			for (const value of [false, true]) {
+				const parser = new ConfigurationModelParser('sandboxServerSettings', logService);
+				parser.parse(JSON.stringify({ [key]: value }));
+				values.push(defaults.merge(parser.configurationModel).getValue<boolean>(key));
+			}
+			const setting = terminalChatAgentToolsConfiguration[key];
+			assert.deepStrictEqual({
+				values, type: setting.type, restricted: setting.restricted, tags: setting.tags,
+				placeholder: setting.markdownDescription?.includes('This setting has no effect yet.'),
+			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: ['preview'], placeholder: false });
+		});
+	}
 
 	test('filters terminal safety settings from an untrusted single-folder workspace', () => {
 		const parser = new ConfigurationModelParser('terminalSafetySettings', new NullLogService());

@@ -635,7 +635,7 @@ RPC also completes the permission request. Host-generated terminal prompts canno
 offer this SDK action. After an approved opt-out, the user may re-enable sandboxing;
 successful re-enablement locks direct disabling again.
 
-The host publishes the resolved floor in the optional `vscode.sandboxPolicy`
+The host publishes the resolved floor in the optional `vscode.resolvedSandboxPolicy`
 session `_meta` slot through the server-only `SessionMetaChanged` action, including
 the optional outbound-network restriction.
 Session snapshots include it for reconnecting clients; subsequent resolutions

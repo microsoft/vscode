@@ -9,7 +9,6 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -148,10 +147,6 @@ function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMet
 /** Sanitize a free-form id segment so it is safe to embed in a stable action identifier. */
 function sanitizeIdSegment(value: string): string {
 	return value.replace(/[^a-zA-Z0-9_-]/g, '_');
-}
-
-function getLocalSandboxEnabledSettingId(): AgentSandboxSettingId.AgentSandboxEnabled | AgentSandboxSettingId.AgentSandboxWindowsEnabled {
-	return isWindows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
 }
 
 export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
@@ -367,7 +362,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	private getSandboxToggleSettingId(): string | undefined {
 		return this.delegate.getSandboxToggleSettingId
 			? this.delegate.getSandboxToggleSettingId()
-			: getLocalSandboxEnabledSettingId();
+			: AgentSandboxSettingId.AgentSandboxEnabled;
 	}
 
 	private isSandboxToggleSettingEnabled(): boolean {

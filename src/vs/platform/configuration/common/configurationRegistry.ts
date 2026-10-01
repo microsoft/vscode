@@ -12,7 +12,7 @@ import * as nls from '../../../nls.js';
 import { getLanguageTagSettingPlainKey } from './configuration.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../registry/common/platform.js';
-import { IPolicy, IPolicyReference, PolicyName } from '../../../base/common/policy.js';
+import { IPolicy, IPolicyReference, ManagedSettingValue, PolicyName } from '../../../base/common/policy.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import product from '../../product/common/product.js';
 
@@ -284,6 +284,12 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * The non-null types must match the owning setting (enforced when exporting the policy catalog).
 	 */
 	policyReference?: IPolicyReference;
+
+	/**
+	 * Projects runtime-managed restrictions into the Settings UI without changing configuration values.
+	 * Return undefined when editable. Runtime policy enforcement remains authoritative.
+	 */
+	managedSettingsPresentation?: (read: (key: string) => ManagedSettingValue | undefined) => ManagedSettingValue | undefined;
 
 	/**
 	 * When specified, this setting's globally-scoped value is mirrored into the

@@ -47,6 +47,25 @@ suite('sandboxSettingsReader', () => {
 		);
 	});
 
+	for (const [settingId, key, defaultValue] of [
+		[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, AgentHostSandboxKey.AllowUnsandboxedCommands, true],
+		[AgentSandboxSettingId.AgentSandboxMcpServers, AgentHostSandboxKey.SandboxMcpServers, true],
+		[AgentSandboxSettingId.AgentSandboxLspServers, AgentHostSandboxKey.SandboxLspServers, true],
+		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, AgentHostSandboxKey.AllowDevToolAccess, false],
+		[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, AgentHostSandboxKey.AllowLocalNetwork, false],
+	] as const) {
+		test(`forwards ${settingId} default and explicit choices to the agent host`, async () => {
+			const cfg = new TestConfigurationService({ [settingId]: terminalChatAgentToolsConfiguration[settingId].default });
+			const logService = new NullLogService();
+			const values = [readAgentHostSandboxValues(cfg, logService)];
+			for (const value of [false, true]) {
+				await cfg.setUserConfiguration(settingId, value);
+				values.push(readAgentHostSandboxValues(cfg, logService));
+			}
+			assert.deepStrictEqual(values, [{ [key]: defaultValue }, { [key]: false }, { [key]: true }]);
+		});
+	}
+
 	test('normalizes legacy boolean form of chat.agent.sandbox.enabled', () => {
 		const cfgOn = new TestConfigurationService();
 		cfgOn.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, true);
@@ -59,22 +78,6 @@ suite('sandboxSettingsReader', () => {
 		cfgOff.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, false);
 		assert.strictEqual(
 			readSandboxSetting<string>(cfgOff, new NullLogService(), AgentSandboxSettingId.AgentSandboxEnabled),
-			AgentSandboxEnabledValue.Off,
-		);
-	});
-
-	test('normalizes legacy boolean form of chat.agent.sandbox.enabledWindows', () => {
-		const cfgOn = new TestConfigurationService();
-		cfgOn.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, true);
-		assert.strictEqual(
-			readSandboxSetting<string>(cfgOn, new NullLogService(), AgentSandboxSettingId.AgentSandboxWindowsEnabled),
-			AgentSandboxEnabledValue.On,
-		);
-
-		const cfgOff = new TestConfigurationService();
-		cfgOff.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, false);
-		assert.strictEqual(
-			readSandboxSetting<string>(cfgOff, new NullLogService(), AgentSandboxSettingId.AgentSandboxWindowsEnabled),
 			AgentSandboxEnabledValue.Off,
 		);
 	});

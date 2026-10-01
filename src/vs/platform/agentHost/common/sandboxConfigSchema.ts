@@ -27,9 +27,12 @@ export const enum AgentHostSandboxConfigKey {
  */
 export const enum AgentHostSandboxKey {
 	Enabled = 'enabled',
-	WindowsEnabled = 'enabled.windows',
 	AllowNetwork = 'allowNetwork',
+	AllowLocalNetwork = 'allowLocalNetwork',
 	AllowUnsandboxedCommands = 'allowUnsandboxedCommands',
+	SandboxMcpServers = 'sandboxMcpServers',
+	SandboxLspServers = 'sandboxLspServers',
+	AllowDevToolAccess = 'allowDevToolAccess',
 	LinuxFileSystem = 'fileSystem.linux',
 	MacFileSystem = 'fileSystem.mac',
 	WindowsFileSystem = 'fileSystem.windows',
@@ -41,9 +44,12 @@ export const enum AgentHostSandboxKey {
 /** Shape of the persisted/forwarded `sandbox` object. */
 export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue;
-	[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue;
 	[AgentHostSandboxKey.AllowNetwork]: boolean;
+	[AgentHostSandboxKey.AllowLocalNetwork]: boolean;
 	[AgentHostSandboxKey.AllowUnsandboxedCommands]: boolean;
+	[AgentHostSandboxKey.SandboxMcpServers]: boolean;
+	[AgentHostSandboxKey.SandboxLspServers]: boolean;
+	[AgentHostSandboxKey.AllowDevToolAccess]: boolean;
 	[AgentHostSandboxKey.LinuxFileSystem]: IAgentSandboxFileSystemSetting;
 	[AgentHostSandboxKey.MacFileSystem]: IAgentSandboxFileSystemSetting;
 	[AgentHostSandboxKey.WindowsFileSystem]: IAgentSandboxFileSystemSetting;
@@ -78,18 +84,29 @@ export const sandboxConfigSchema = createSchema({
 				title: localize('agentHost.config.sandbox.enabled.title', "Sandbox Enabled"),
 				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 			},
-			[AgentHostSandboxKey.WindowsEnabled]: {
-				type: 'string',
-				title: localize('agentHost.config.sandbox.windowsEnabled.title', "Sandbox Enabled (Windows)"),
-				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
-			},
 			[AgentHostSandboxKey.AllowNetwork]: {
 				type: 'boolean',
 				title: localize('agentHost.config.sandbox.allowNetwork.title', "Allow Network"),
 			},
+			[AgentHostSandboxKey.AllowLocalNetwork]: {
+				type: 'boolean',
+				title: localize('agentHost.config.sandbox.allowLocalNetwork.title', "Allow Local Network"),
+			},
 			[AgentHostSandboxKey.AllowUnsandboxedCommands]: {
 				type: 'boolean',
 				title: localize('agentHost.config.sandbox.allowUnsandboxedCommands.title', "Allow Unsandboxed Commands"),
+			},
+			[AgentHostSandboxKey.SandboxMcpServers]: {
+				type: 'boolean',
+				title: localize('agentHost.config.sandbox.sandboxMcpServers.title', "Sandbox MCP Servers"),
+			},
+			[AgentHostSandboxKey.SandboxLspServers]: {
+				type: 'boolean',
+				title: localize('agentHost.config.sandbox.sandboxLspServers.title', "Sandbox LSP Servers"),
+			},
+			[AgentHostSandboxKey.AllowDevToolAccess]: {
+				type: 'boolean',
+				title: localize('agentHost.config.sandbox.allowDevToolAccess.title', "Allow Dev Tool Access"),
 			},
 			[AgentHostSandboxKey.LinuxFileSystem]: {
 				type: 'object',
@@ -131,9 +148,12 @@ export const sandboxConfigSchema = createSchema({
  */
 export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSandboxKey>> = {
 	[AgentSandboxSettingId.AgentSandboxEnabled]: AgentHostSandboxKey.Enabled,
-	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: AgentHostSandboxKey.WindowsEnabled,
 	[AgentSandboxSettingId.AgentSandboxAllowNetwork]: AgentHostSandboxKey.AllowNetwork,
+	[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork]: AgentHostSandboxKey.AllowLocalNetwork,
 	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: AgentHostSandboxKey.AllowUnsandboxedCommands,
+	[AgentSandboxSettingId.AgentSandboxMcpServers]: AgentHostSandboxKey.SandboxMcpServers,
+	[AgentSandboxSettingId.AgentSandboxLspServers]: AgentHostSandboxKey.SandboxLspServers,
+	[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess]: AgentHostSandboxKey.AllowDevToolAccess,
 	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxKey.LinuxFileSystem,
 	[AgentSandboxSettingId.AgentSandboxMacFileSystem]: AgentHostSandboxKey.MacFileSystem,
 	[AgentSandboxSettingId.AgentSandboxWindowsFileSystem]: AgentHostSandboxKey.WindowsFileSystem,

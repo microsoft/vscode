@@ -22,9 +22,12 @@ export function normalizeSandboxFileSystemPath(path: string, os: OperatingSystem
  */
 export const enum AgentSandboxSettingId {
 	AgentSandboxEnabled = 'chat.agent.sandbox.enabled',
-	AgentSandboxWindowsEnabled = 'chat.agent.sandbox.enabledWindows',
 	AgentSandboxAllowNetwork = 'chat.agent.sandbox.allowNetwork',
+	AgentSandboxAllowLocalNetwork = 'chat.agent.sandbox.allowLocalNetwork',
 	AgentSandboxAllowUnsandboxedCommands = 'chat.agent.sandbox.allowUnsandboxedCommands',
+	AgentSandboxMcpServers = 'chat.agent.sandbox.mcpServers',
+	AgentSandboxLspServers = 'chat.agent.sandbox.lspServers',
+	AgentSandboxAllowDevToolAccess = 'chat.agent.sandbox.allowDevToolAccess',
 	AgentSandboxRetryWithAllowNetworkRequests = 'chat.agent.sandbox.retryWithAllowNetworkRequests',
 	AgentSandboxAllowAutoApprove = 'chat.agent.sandbox.allowAutoApprove',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',

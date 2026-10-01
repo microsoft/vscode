@@ -8775,7 +8775,7 @@ suite('CopilotAgentSession', () => {
 		for (const platform of ['darwin', 'win32'] as const) {
 			test(`does not query or publish SDK sandbox diagnostics on ${platform}`, async () => {
 				let queries = 0;
-				const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On, [AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On };
+				const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 				const { session, mockSession, dispatchedActions, fireRootConfigChange } = await createAgentSession(disposables, {
 					platform,
 					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
@@ -8879,7 +8879,6 @@ suite('CopilotAgentSession', () => {
 					const resource = peerChat ? URI.parse(buildChatUri(sessionUri, 'sandbox-peer')) : undefined;
 					const sandbox = {
 						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
-						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
 					};
 					const results = [];
 					for (const selection of ['off', 'on', 'default']) {
@@ -9158,7 +9157,6 @@ suite('CopilotAgentSession', () => {
 					rootValues: {
 						[AgentHostSandboxConfigKey.Sandbox]: {
 							[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
-							[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
 							[AgentHostSandboxKey.AllowNetwork]: true,
 							[AgentHostSandboxKey.AllowUnsandboxedCommands]: false,
 						},
@@ -9173,11 +9171,42 @@ suite('CopilotAgentSession', () => {
 					allowed: { enabled: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR] }, network: { allowOutbound: true } } },
 				});
 			});
+
+			for (const [key, managedValue] of [
+				[AgentHostSandboxKey.SandboxMcpServers, true],
+				[AgentHostSandboxKey.SandboxLspServers, true],
+				[AgentHostSandboxKey.AllowDevToolAccess, false],
+				[AgentHostSandboxKey.AllowLocalNetwork, false],
+			] as const) {
+				test(`per-request sandbox: enforces ${key} and restores local choices on ${platform}`, async () => {
+					for (const local of [false, true]) {
+						const sandboxPolicy: { enabled: boolean; sandboxMcpServers?: boolean; sandboxLspServers?: boolean; allowDevToolAccess?: boolean; allowLocalNetwork?: boolean } = { enabled: true };
+						const { session, mockSession } = await createAgentSession(disposables, {
+							platform,
+							sandboxPolicy,
+							rootValues: {
+								[AgentHostSandboxConfigKey.Sandbox]: {
+									[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+									[key]: local,
+								},
+							},
+						});
+						const values = [];
+						for (const [index, managed] of [managedValue, !managedValue, undefined].entries()) {
+							sandboxPolicy[key] = managed;
+							await session.send('hello', undefined, `turn-${index}`);
+							const applied = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig;
+							values.push(key === AgentHostSandboxKey.AllowLocalNetwork ? applied.userPolicy?.network?.allowLocalNetwork : applied[key]);
+						}
+						assert.deepStrictEqual(values, [managedValue, local, local]);
+					}
+				});
+			}
 		}
 
 		test('per-request sandbox: applies the configured policy on Windows', async () => {
 			const sandbox = {
-				[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
+				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
 				[AgentHostSandboxKey.WindowsFileSystem]: { denyRead: ['C:/src3/'], allowRead: ['C:\\src3\\'] },
 			};
 			const { session, mockSession } = await createAgentSession(disposables, {
@@ -9231,7 +9260,6 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [
 				expectedSessionSandboxConfig('linux', {
 					[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
-					[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
 				}),
 				{ enabled: false },
 			]);

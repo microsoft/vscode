@@ -12,9 +12,12 @@ import { sandboxSettingIdToAgentHostKey } from '../../../../../platform/agentHos
 /** Setting IDs that affect the engine's sandbox configuration. */
 export const SANDBOX_SETTING_KEYS: readonly string[] = [
 	AgentSandboxSettingId.AgentSandboxEnabled,
-	AgentSandboxSettingId.AgentSandboxWindowsEnabled,
 	AgentSandboxSettingId.AgentSandboxAllowNetwork,
+	AgentSandboxSettingId.AgentSandboxAllowLocalNetwork,
 	AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
+	AgentSandboxSettingId.AgentSandboxMcpServers,
+	AgentSandboxSettingId.AgentSandboxLspServers,
+	AgentSandboxSettingId.AgentSandboxAllowDevToolAccess,
 	AgentSandboxSettingId.AgentSandboxLinuxFileSystem,
 	AgentSandboxSettingId.AgentSandboxMacFileSystem,
 	AgentSandboxSettingId.AgentSandboxWindowsFileSystem,
@@ -34,9 +37,9 @@ export function readSandboxSetting<T>(configurationService: IConfigurationServic
 }
 
 /**
- * Reads the currently-configured sandbox values for forwarding to an agent
+ * Reads the effective sandbox values, including registered defaults, for forwarding to an agent
  * host. The returned record is keyed by the prefix-free agent-host sandbox
- * sub-keys ({@link AgentHostSandboxKey}); keys without a user value are
+ * sub-keys ({@link AgentHostSandboxKey}); keys without an effective value are
  * omitted entirely. Callers should nest this under the agent host's
  * top-level `sandbox` config key when dispatching a `RootConfigChanged`.
  */
@@ -58,7 +61,7 @@ export function readAgentHostSandboxValues(configurationService: IConfigurationS
  * agent-host compatibility.
  */
 function normalizeSandboxSettingValue<T>(settingId: string, value: T | undefined): T | undefined {
-	if (settingId === AgentSandboxSettingId.AgentSandboxEnabled || settingId === AgentSandboxSettingId.AgentSandboxWindowsEnabled) {
+	if (settingId === AgentSandboxSettingId.AgentSandboxEnabled) {
 		if (value === true) {
 			return 'on' as unknown as T;
 		}
