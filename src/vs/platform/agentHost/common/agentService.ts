@@ -120,7 +120,7 @@ export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMc
 export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
 
 /** Configuration key enabling the initial workspace file-name snapshot in Copilot agent-host chats. */
-export const AgentHostWorkspaceSnapshotEnabledSettingId = 'chat.agentHost.experimental.workspaceSnapshot';
+export const AgentHostWorkspaceSnapshotEnabledSettingId = 'chat.experimental.workspaceSnapshot';
 
 /** Configuration key controlling Agent Host agent-orchestration safety limits. */
 export const AgentHostAgentOrchestrationLimitsSettingId = 'chat.agentHost.agentOrchestrationLimits';
