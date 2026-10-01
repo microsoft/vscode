@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { IExperimentalSettingsService } from '../../../../services/configuration/common/experimentalSettings.js';
 import { isOnboardingDeveloperModeEnabled, ONBOARDING_DEVELOPER_MODE_CONFIG } from '../../../onboarding/common/onboardingScenarioService.js';
 import { ChatConfiguration, ChatOnboardingExperience } from '../../common/constants.js';
 import { CHAT_INPUT_TOUR_ID, ChatInputSpotlightTour } from './chatInputSpotlightTour.js';
@@ -42,6 +45,12 @@ const chatOnboardingExperiences: { readonly [experience: string]: IChatOnboardin
  * {@link ChatOnboardingEligibility}; the selected experience only decides *what* runs.
  * The setting is registered for ExP, so an experiment can swap experiences without
  * changing who is eligible.
+ *
+ * The `experimentTrigger` for `config.chat.onboarding.experience` is logged when a
+ * user with a real assignment first becomes eligible, before any arm's experience
+ * starts, so a triggered scorecard compares the same population in every arm. ExP
+ * tells arms apart by variant, not by value, so an A/A test can assign the same
+ * value, such as `none`, to more than one arm.
  */
 export class ChatOnboardingContribution extends Disposable implements IWorkbenchContribution {
 
@@ -50,6 +59,8 @@ export class ChatOnboardingContribution extends Disposable implements IWorkbench
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -63,6 +74,17 @@ export class ChatOnboardingContribution extends Disposable implements IWorkbench
 		});
 
 		const eligibility = this._register(instantiationService.createInstance(ChatOnboardingEligibility, bypassNewUserCheck));
+
+		// Until the assignment resolves, every arm runs the default experience, and telemetry
+		// carries no variant to attribute the trigger to.
+		const hasAssignment = observableFromEvent(this, experimentalSettingsService.onDidChangeAssignments, () => experimentalSettingsService.hasAssignment(ChatConfiguration.OnboardingExperience));
+		this._register(autorun(reader => {
+			// Uses only arm-independent state: not the developer-mode bypass or a tour's shown state.
+			if (hasAssignment.read(reader) && eligibility.isNewUser.read(reader) && eligibility.copilotHarnessChat.read(reader)) {
+				logSettingExperimentTrigger(telemetryService, ChatConfiguration.OnboardingExperience);
+			}
+		}));
+
 		this._register(autorun(reader => {
 			const selected = descriptor.read(reader);
 			if (selected) {
