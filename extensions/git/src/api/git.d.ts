@@ -405,7 +405,7 @@ export interface SourceControlHistoryItemDetailsProvider {
 	provideMessageLinks(repository: Repository, message: string): ProviderResult<string>;
 }
 
-export type APIState = 'uninitialized' | 'initialized';
+export type APIState = 'uninitialized' | 'initialized' | 'failed';
 
 export interface PublishEvent {
 	repository: Repository;
