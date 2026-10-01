@@ -89,7 +89,7 @@ suite('PartToggleWindowResizeController', () => {
 		const showing = harness.controller.resize(request({ width: 0, height: 300 }, { width: 700, height: 700 }));
 		await firstStarted.p;
 		await firstResult.complete({ width: 1000, height: 400 });
-		// Neither an unchanged visibility event nor an intermediate resize completes the request.
+		// Ignore layouts that haven't reached the target size.
 		harness.layout({ width: 1000, height: 700 });
 		harness.layout({ width: 1000, height: 550 });
 		assert.deepStrictEqual({ calls, restored: harness.restored }, { calls: [{ width: 0, height: -300 }], restored: [] });
@@ -119,6 +119,28 @@ suite('PartToggleWindowResizeController', () => {
 		assert.deepStrictEqual(
 			{ calls, restored: harness.restored },
 			{ calls: [{ width: 0, height: 300 }, { width: 0, height: -300 }], restored: [originalEditor] }
+		);
+	});
+
+	test('moving a hidden panel across axes replaces its pending size snapshot', async () => {
+		const calls: IWindowResizeDelta[] = [];
+		const harness = setup(async delta => {
+			calls.push(delta);
+			const target = { width: calls.length === 1 ? 1000 : 1250, height: 400 };
+			harness.layout(target);
+			return target;
+		});
+		await Promise.all([
+			harness.controller.resize(request({ width: 0, height: -300 })),
+			harness.controller.resize(request({ width: 250, height: 0 }, { width: 700, height: 700 }))
+		]);
+		assert.deepStrictEqual(
+			{ calls, editor: harness.restored, parts: harness.restoredParts },
+			{
+				calls: [{ width: 0, height: -300 }, { width: 250, height: 0 }],
+				editor: [originalEditor],
+				parts: [[{ part: Parts.PANEL_PART, size: 250, horizontal: false }]]
+			}
 		);
 	});
 
@@ -207,7 +229,7 @@ suite('PartToggleWindowResizeController', () => {
 		const first = harness.controller.resize(request({ width: 0, height: -300 }));
 		const second = harness.controller.resize(request({ width: 0, height: 300 }));
 		await started.p;
-		// Let the resolved IPC result install the layout listener.
+		// Wait for the layout listener to be installed.
 		await Promise.resolve();
 		harness.controller.dispose();
 		await Promise.all([first, second]);

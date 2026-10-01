@@ -34,7 +34,7 @@ import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow } from '../../window/electron-main/window.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext, WindowStateValidator } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -412,8 +412,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const currentBounds = window.win.getBounds();
 		const currentContentBounds = window.win.getContentBounds();
 		const [minWidth, minHeight] = window.win.getMinimumSize();
+		const workArea = WindowStateValidator.getWorkingArea(screen.getDisplayMatching(currentBounds));
+		if (!workArea) {
+			this.logService.warn('[nativeHostMainService] Cannot resize window without valid display bounds');
+			return;
+		}
 
-		const desiredBounds = getResizedWindowBounds(currentBounds, delta, anchor, { width: minWidth, height: minHeight });
+		const desiredBounds = getResizedWindowBounds(currentBounds, delta, anchor, { width: minWidth, height: minHeight }, workArea);
 
 		window.win.setBounds(desiredBounds);
 		const contentBounds = window.win.getContentBounds();

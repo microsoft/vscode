@@ -34,8 +34,7 @@ interface IWindowResizeLayout {
 }
 
 /**
- * Keeps one size snapshot across overlapping toggles and waits for each native
- * resize to reach the renderer before submitting the next request.
+ * Serializes window resizes and preserves part sizes across overlapping toggles.
  */
 export class PartToggleWindowResizeController extends Disposable {
 	private readonly sequencer = new Sequencer();
@@ -60,11 +59,11 @@ export class PartToggleWindowResizeController extends Disposable {
 
 		this.editorSize ??= resize.editorSize;
 		for (const partSize of resize.partSizes) {
-			if (!this.partSizes.has(partSize.part)) {
+			if (this.partSizes.get(partSize.part)?.horizontal !== partSize.horizontal) {
 				this.partSizes.set(partSize.part, partSize);
 			}
 		}
-		// A part shown while another resize is pending may be temporarily squeezed.
+		// The part may still be squeezed by a pending resize.
 		const partSize = this.partSizes.get(resize.part)?.size ?? Math.abs(resize.delta.width || resize.delta.height);
 		const delta = {
 			width: Math.sign(resize.delta.width) * partSize,
@@ -105,10 +104,10 @@ export class PartToggleWindowResizeController extends Disposable {
 	}
 
 	private async waitForLayout(target: IDimension): Promise<boolean> {
-		// CSS viewport dimensions are integral even when the native bounds / zoom are not.
+		// Allow for rounding when converting native bounds to CSS pixels.
 		const matches = (dimension: IDimension) => Math.abs(dimension.width - target.width) < 1 && Math.abs(dimension.height - target.height) < 1;
 		if (matches(this.layout.getDimension())) {
-			return true; // The layout may already have arrived during the IPC call.
+			return true; // Layout may arrive before the IPC reply.
 		}
 
 		const store = new DisposableStore();

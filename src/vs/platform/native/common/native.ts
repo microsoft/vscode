@@ -169,10 +169,7 @@ export interface IWindowResizeDelta {
 }
 
 /**
- * The edges to keep fixed in place while resizing a window. When `right` is
- * `true`, the window grows/shrinks to the left, otherwise the left edge stays
- * fixed. When `bottom` is `true`, the window grows/shrinks upwards, otherwise
- * the top edge stays fixed.
+ * The edges to keep fixed while resizing. False selects the left or top edge.
  */
 export interface IWindowResizeAnchor {
 	readonly right: boolean;
@@ -180,20 +177,24 @@ export interface IWindowResizeAnchor {
 }
 
 /**
- * Computes new window bounds, clamping to the minimum size before applying the anchor.
+ * Computes anchored bounds, clamped to the minimum size and work area.
  */
-export function getResizedWindowBounds(bounds: IRectangle, delta: IWindowResizeDelta, anchor: IWindowResizeAnchor, minimumSize = { width: 1, height: 1 }): IRectangle {
-	const width = Math.max(1, minimumSize.width, bounds.width + delta.width);
-	const height = Math.max(1, minimumSize.height, bounds.height + delta.height);
+export function getResizedWindowBounds(bounds: IRectangle, delta: IWindowResizeDelta, anchor: IWindowResizeAnchor, minimumSize = { width: 1, height: 1 }, workArea?: IRectangle): IRectangle {
+	const width = Math.max(1, minimumSize.width, Math.min(bounds.width + delta.width, workArea?.width ?? Infinity));
+	const height = Math.max(1, minimumSize.height, Math.min(bounds.height + delta.height, workArea?.height ?? Infinity));
 	const x = anchor.right ? bounds.x + bounds.width - width : bounds.x;
 	const y = anchor.bottom ? bounds.y + bounds.height - height : bounds.y;
 
-	return { x, y, width, height };
+	return {
+		x: workArea ? Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - width)) : x,
+		y: workArea ? Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - height)) : y,
+		width,
+		height
+	};
 }
 
 /**
- * Converts a CSS-pixel resize delta to native window units. Rounding the magnitude
- * preserves opposite deltas at fractional zoom levels.
+ * Converts CSS pixels to native window units. Symmetric rounding avoids drift across toggles.
  */
 export function getZoomedWindowResizeDelta(delta: IWindowResizeDelta, zoomFactor: number): IWindowResizeDelta {
 	const scale = (value: number) => Math.sign(value) * Math.round(Math.abs(value) * zoomFactor);
@@ -338,14 +339,8 @@ export interface ICommonNativeHostService {
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
 
 	/**
-	 * Resizes the window by the delta, keeping the edges as indicated by
-	 * the anchor fixed in place. Has no effect when the window is maximized or in
-	 * full screen. Returns the resulting content bounds in native window units,
-	 * or `undefined` when the content size did not change.
-	 *
-	 * @param delta The amount to grow or shrink the window in pixels.
-	 * @param anchor The edges to keep fixed while resizing.
-	 * @param options Options to target a specific window.
+	 * Resizes the window in native window units, keeping the anchor fixed where the work area permits.
+	 * Returns the new content bounds, or `undefined` if unchanged, maximized or in full screen.
 	 */
 	resizeWindow(delta: IWindowResizeDelta, anchor: IWindowResizeAnchor, options?: INativeHostOptions): Promise<IRectangle | undefined>;
 

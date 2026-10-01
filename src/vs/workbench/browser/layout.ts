@@ -1975,8 +1975,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, hidden);
 
-		// Optionally resize the window so that the editor keeps its size when the
-		// primary side bar is shown or hidden (instead of the editor making room for it)
+		// Capture sizes before changing grid visibility
 		const sideBarToggleResize = this.getPartToggleWindowResize(Parts.SIDEBAR_PART, this.getSideBarPosition(), hidden, wasHidden, skipLayout, false);
 
 		// Adjust CSS
@@ -2006,7 +2005,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		// Apply the window resize that keeps the editor size stable (no-op on web)
 		if (sideBarToggleResize) {
 			void this.partToggleWindowResizeController.resize(sideBarToggleResize);
 		}
@@ -2116,7 +2114,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onDidChangePanelAlignment.fire(alignment);
 	}
 
-	private setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
+	private setPanelHidden(hidden: boolean, skipLayout?: boolean, resizePosition?: Position): void {
 		if (!this.workbenchGrid) {
 			return; // Return if not initialized fully (https://github.com/microsoft/vscode/issues/105480)
 		}
@@ -2132,9 +2130,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		const panelOpensMaximized = this.panelOpensMaximized();
 
-		// Optionally resize the window so that the editor keeps its size when
-		// the panel is shown or hidden (instead of the editor making room for it)
-		const panelToggleResize = this.getPartToggleWindowResize(Parts.PANEL_PART, this.getPanelPosition(), hidden, wasHidden, skipLayout, hidden ? isPanelMaximized : panelOpensMaximized);
+		// Capture sizes before changing grid visibility
+		const panelToggleResize = this.getPartToggleWindowResize(Parts.PANEL_PART, resizePosition ?? this.getPanelPosition(), hidden, wasHidden, skipLayout, hidden ? isPanelMaximized : panelOpensMaximized);
 
 		// Adjust CSS
 		if (hidden) {
@@ -2201,7 +2198,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.editorGroupService.mainPart.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
 		}
 
-		// Apply the window resize that keeps the editor size stable (no-op on web)
 		if (panelToggleResize) {
 			void this.partToggleWindowResizeController.resize(panelToggleResize);
 		}
@@ -2218,7 +2214,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		if (
 			skipLayout || // Skip programmatic visibility changes
-			willBeMaximized || // Editor is not visible when the part is maximized
+			willBeMaximized || // Maximized parts hide the editor
 			this.inMaximizedAuxiliaryBarTransition ||	// Transition resizes all parts at once
 			!visibilityChanged ||
 			!this.canResizeWindowToKeepEditorSize()
@@ -2229,12 +2225,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const horizontal = isHorizontal(position);
 		const partView = this.getPart(part);
 
-		// When hiding, the part is still visible in the grid, so use its current size
-		// When showing, the part is still hidden, so fall back to its last visible size
 		let partSizeAlongAxis: number;
 		if (hidden) {
 			const partSize = this.workbenchGrid.getViewSize(partView);
 			partSizeAlongAxis = horizontal ? partSize.height : partSize.width;
+		} else if (part === Parts.PANEL_PART && position !== this.getPanelPosition()) {
+			// The cached size belongs to the old panel position
+			partSizeAlongAxis = this.stateModel.getRuntimeValue(horizontal ? LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT : LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH);
 		} else {
 			partSizeAlongAxis = this.workbenchGrid.getViewCachedVisibleSize(partView) ?? (horizontal ? partView.minimumHeight : partView.minimumWidth);
 		}
@@ -2253,7 +2250,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			partSizes: [Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART, Parts.PANEL_PART]
 				.filter(candidate => candidate === part || this.isVisible(candidate))
 				.map(candidate => {
-					const horizontal = candidate === Parts.PANEL_PART && isHorizontal(this.getPanelPosition());
+					const horizontal = candidate === Parts.PANEL_PART && isHorizontal(candidate === part ? position : this.getPanelPosition());
 					const size = this.workbenchGrid.getViewSize(this.getPart(candidate));
 					return { part: candidate, size: candidate === part ? partSizeAlongAxis : horizontal ? size.height : size.width, horizontal };
 				})
@@ -2390,9 +2387,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, hidden);
 
-		// Optionally resize the window so that the editor keeps its size when the
-		// secondary side bar is shown or hidden (instead of the editor making room for it).
-		// The secondary side bar is always on the opposite side of the primary side bar.
+		// Capture sizes before changing grid visibility
 		const auxiliaryBarToggleResize = this.getPartToggleWindowResize(Parts.AUXILIARYBAR_PART, this.getSideBarPosition() === Position.LEFT ? Position.RIGHT : Position.LEFT, hidden, wasHidden, skipLayout, false);
 
 		// Adjust CSS
@@ -2428,7 +2423,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		// Apply the window resize that keeps the editor size stable (no-op on web)
 		if (auxiliaryBarToggleResize) {
 			void this.partToggleWindowResizeController.resize(auxiliaryBarToggleResize);
 		}
@@ -2520,7 +2514,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	setPanelPosition(position: Position): void {
 		if (!this.isVisible(Parts.PANEL_PART)) {
-			this.setPanelHidden(false);
+			this.setPanelHidden(false, undefined, position);
 		}
 
 		const panelPart = this.getPart(Parts.PANEL_PART);
