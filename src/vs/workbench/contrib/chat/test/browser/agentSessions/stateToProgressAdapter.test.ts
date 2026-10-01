@@ -3064,7 +3064,7 @@ suite('stateToProgressAdapter', () => {
 			const injected = 'command:aiCustomization.openManagementEditor?%5B%22hooks%22%5D';
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 				kind: ResponsePartKind.SystemNotification,
-				content: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a>`,
+				content: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt;`,
 				_meta: toAgentSystemNotificationMeta({
 					kind: AgentSystemNotificationKind.ByokToolLimitExceeded,
 					severity: AgentSystemNotificationSeverity.Warning,
@@ -3075,9 +3075,13 @@ suite('stateToProgressAdapter', () => {
 
 			const rendered = renderMarkdown(warning.content);
 			try {
-				assert.deepStrictEqual([...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href), [
-					'command:aiCustomization.openManagementEditor?%5B%22tools%22%5D',
-				]);
+				assert.deepStrictEqual({
+					links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
+					text: rendered.element.textContent,
+				}, {
+					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
+					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+				});
 			} finally {
 				rendered.dispose();
 			}
