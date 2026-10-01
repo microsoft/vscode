@@ -24,8 +24,7 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
-import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../common/chatSessionsService.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
+import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 
@@ -113,7 +112,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly _aiEditTelemetryService: IAiEditTelemetryService,
-		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -296,7 +294,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				source: undefined,
 				sourceRequestId: this._telemetryInfo.requestId,
 				isAgentHostSession,
-				provider: getAgentHostProviderForTelemetry(getChatSessionType(this._telemetryInfo.sessionResource), this._chatSessionsService),
 			});
 		} else if (action.kind === 'chatEditingHunkAction' && action.outcome === 'rejected') {
 			this._aiEditTelemetryService.handleCodeRejected({
@@ -317,7 +314,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				source: undefined,
 				sourceRequestId: this._telemetryInfo.requestId,
 				isAgentHostSession,
-				provider: getAgentHostProviderForTelemetry(getChatSessionType(this._telemetryInfo.sessionResource), this._chatSessionsService),
 			});
 		}
 

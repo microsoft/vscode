@@ -25,7 +25,6 @@ import { stringToSnapshot } from '../../../../services/textfile/common/textfiles
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatResponseModel } from '../../common/model/chatModel.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
@@ -84,7 +83,6 @@ export class ChatEditingDeletedFileEntry extends AbstractChatEditingModifiedFile
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
-		@IChatSessionsService chatSessionsService: IChatSessionsService,
 	) {
 		super(
 			resource,
@@ -97,7 +95,6 @@ export class ChatEditingDeletedFileEntry extends AbstractChatEditingModifiedFile
 			undoRedoService,
 			instantiationService,
 			aiEditTelemetryService,
-			chatSessionsService,
 		);
 
 		this._originalContent = originalContent;
