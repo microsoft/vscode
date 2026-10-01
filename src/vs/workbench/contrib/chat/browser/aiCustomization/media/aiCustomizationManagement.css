@@ -938,6 +938,16 @@ per-word capitalization does not survive translation. */
 	opacity: 1;
 }
 
+.ai-customization-list-item .item-right .action-label {
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 /* Highlighted matches */
 .ai-customization-list-item .highlight {
 	font-weight: bold;
@@ -2589,7 +2599,7 @@ per-word capitalization does not survive translation. */
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80) var(--vscode-spacing-size60) var(--vscode-spacing-size160);
 	cursor: pointer;
 	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 32px;
@@ -2776,6 +2786,16 @@ per-word capitalization does not survive translation. */
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+.mcp-server-item .mcp-server-sign-in.monaco-button:hover,
+.mcp-server-item .mcp-server-start.monaco-button:hover,
+.mcp-server-item .mcp-server-show-output.monaco-button:hover,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button:hover,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-start.monaco-button:hover,
+.plugin-list-widget .mcp-installed-home-row .mcp-server-show-output.monaco-button:hover,
+.plugin-list-widget .plugin-list-item-install-button.monaco-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
 .mcp-server-item .mcp-server-status {
 	flex-shrink: 0;
 	width: var(--vscode-spacing-size240);
@@ -2844,7 +2864,7 @@ per-word capitalization does not survive translation. */
 .plugin-list-widget .plugin-list-item {
 	display: flex;
 	align-items: center;
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size80);
 	border-radius: var(--vscode-cornerRadius-small);
 	gap: var(--vscode-spacing-size120);
 	min-height: 44px;
@@ -3056,35 +3076,43 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-list-item-action .plugin-card-icon-button.monaco-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	width: var(--vscode-spacing-size240);
 	min-width: var(--vscode-spacing-size240);
 	height: var(--vscode-spacing-size240);
 	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
 	border-color: transparent;
 	background: transparent;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 }
 
 .plugin-list-widget .plugin-list-item-action .plugin-card-icon-button.monaco-button:hover {
 	background: var(--vscode-toolbar-hoverBackground);
 	border-color: transparent;
-	color: var(--vscode-textLink-activeForeground);
+	color: var(--vscode-foreground);
 }
 
 .plugin-list-widget .mcp-server-actions .plugin-card-icon-button.monaco-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	width: var(--vscode-spacing-size240);
 	min-width: var(--vscode-spacing-size240);
 	height: var(--vscode-spacing-size240);
 	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
 	border-color: transparent;
 	background: transparent;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 }
 
 .plugin-list-widget .mcp-server-actions .plugin-card-icon-button.monaco-button:hover {
 	background: var(--vscode-toolbar-hoverBackground);
 	border-color: transparent;
-	color: var(--vscode-textLink-activeForeground);
+	color: var(--vscode-foreground);
 }
 
 .vscode-high-contrast .plugin-list-widget .plugin-list-item-action .plugin-card-icon-button.monaco-button:focus-visible,
@@ -3187,9 +3215,14 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-card-section-actions .plugin-update-button.monaco-button {
-	width: var(--vscode-spacing-size280);
-	min-width: var(--vscode-spacing-size280);
-	padding: var(--vscode-spacing-size40) 0;
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+}
+
+.plugin-list-widget .plugin-card-section-actions .plugin-installed-action.monaco-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 .plugin-list-widget.narrow-layout .available-plugins-section .plugin-card-section-header,
@@ -3397,14 +3430,54 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-card-actions .plugin-card-icon-button.monaco-button {
-	width: 24px;
-	min-width: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
 	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	border-color: transparent;
+	background: transparent;
+	color: var(--vscode-foreground);
+}
+
+.plugin-list-widget .plugin-card-actions .plugin-card-icon-button.monaco-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	border-color: transparent;
+	color: var(--vscode-foreground);
+}
+
+.plugin-list-widget .plugin-card-icon-button.monaco-button:not(.disabled),
+.ai-customization-group-header .plugin-card-icon-button.monaco-button:not(.disabled) {
+	cursor: pointer;
+}
+
+.ai-customization-group-header .plugin-card-icon-button.monaco-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-foreground);
+	border-color: transparent;
+}
+
+.ai-customization-group-header .plugin-card-icon-button.monaco-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+	border-color: transparent;
 }
 
 .plugin-list-widget .plugin-card-actions .plugin-card-ghost-button.monaco-button,
 .plugin-list-widget .plugin-card-section-header .plugin-card-ghost-button.monaco-button,
-.plugin-list-widget .plugin-marketplace-page-header .plugin-card-ghost-button.monaco-button {
+.plugin-list-widget .plugin-marketplace-page-header .plugin-card-ghost-button.monaco-button,
+.ai-customization-group-header .plugin-card-ghost-button.monaco-button {
 	background: transparent;
 	color: var(--vscode-foreground);
 	border-color: transparent;
@@ -3414,7 +3487,8 @@ per-word capitalization does not survive translation. */
 
 .plugin-list-widget .plugin-card-actions .plugin-card-ghost-button.monaco-button:hover,
 .plugin-list-widget .plugin-card-section-header .plugin-card-ghost-button.monaco-button:hover,
-.plugin-list-widget .plugin-marketplace-page-header .plugin-card-ghost-button.monaco-button:hover {
+.plugin-list-widget .plugin-marketplace-page-header .plugin-card-ghost-button.monaco-button:hover,
+.ai-customization-group-header .plugin-card-ghost-button.monaco-button:hover {
 	background: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 }
