@@ -42,7 +42,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
-import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
@@ -6627,6 +6627,29 @@ suite('CopilotAgentSession', () => {
 
 		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart
 			? [action.part.kind === ResponsePartKind.Markdown ? action.part.content : action.part.kind] : []), ['The final answer.']);
+	});
+
+	test('warns in the active turn when the BYOK proxy caps tools, once per dropped-tool count', async () => {
+		const { session, signals } = await createAgentSession(disposables);
+		session.reportByokToolsCapped(200, 128);
+		session.resetTurnState('turn-1');
+		session.reportByokToolsCapped(200, 128);
+		session.reportByokToolsCapped(200, 128);
+		session.reportByokToolsCapped(140, 128);
+
+		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+			? [{ turnId: action.turnId, content: action.part.content, meta: readAgentSystemNotificationMeta(action.part) }] : []), [
+			{
+				turnId: 'turn-1',
+				content: 'The model only supports 128 tools, 72 tools were not provided to the model.',
+				meta: { kind: AgentSystemNotificationKind.ByokToolLimitExceeded, severity: AgentSystemNotificationSeverity.Warning, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined },
+			},
+			{
+				turnId: 'turn-1',
+				content: 'The model only supports 128 tools, 12 tools were not provided to the model.',
+				meta: { kind: AgentSystemNotificationKind.ByokToolLimitExceeded, severity: AgentSystemNotificationSeverity.Warning, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined },
+			},
+		]);
 	});
 
 	for (const restored of [false, true]) {

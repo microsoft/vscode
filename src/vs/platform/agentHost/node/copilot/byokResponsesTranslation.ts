@@ -239,6 +239,44 @@ export function responsesRequestToBridge(vendor: string, body: IResponsesRequest
 	};
 }
 
+/**
+ * Most tools a BYOK request may carry. OpenAI-compatible providers reject
+ * requests with more, and the Copilot SDK runtime only defers tools behind
+ * tool search for models it serves natively, so BYOK requests are capped here.
+ */
+export const BYOK_MAX_TOOLS = 128;
+
+/**
+ * Trims {@link IByokLmChatRequest.tools} to at most {@link maxTools}. Tools the
+ * conversation already called are kept first so their calls stay valid; the
+ * remaining budget follows the runtime's order, which lists its built-in tools
+ * before client, MCP, and extension tools. The kept tools stay in their original
+ * order so the request prefix remains stable across turns.
+ */
+export function capBridgeTools(request: IByokLmChatRequest, maxTools = BYOK_MAX_TOOLS): { readonly request: IByokLmChatRequest; readonly droppedToolNames: readonly string[] } {
+	const tools = request.tools;
+	if (!tools || tools.length <= maxTools) {
+		return { request, droppedToolNames: [] };
+	}
+	const calledToolNames = new Set(request.input.flatMap(item => item.type === 'function_call' || item.type === 'custom_tool_call' ? [item.name] : []));
+	const kept = new Set<IByokLmTool>();
+	for (const tool of tools) {
+		if (kept.size < maxTools && calledToolNames.has(tool.name)) {
+			kept.add(tool);
+		}
+	}
+	for (const tool of tools) {
+		if (kept.size >= maxTools) {
+			break;
+		}
+		kept.add(tool);
+	}
+	return {
+		request: { ...request, tools: tools.filter(tool => kept.has(tool)) },
+		droppedToolNames: tools.filter(tool => !kept.has(tool)).map(tool => tool.name),
+	};
+}
+
 let responseCounter = 0;
 
 function nextId(prefix: string): string {
