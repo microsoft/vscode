@@ -170,7 +170,7 @@ export interface ISessionsListFixtureHeader {
 	readonly automationRunStatus?: IAutomationRun['status'];
 	/** Shows New, Automations, and Customizations as navigation rows above the Sessions header. */
 	readonly navigationShortcuts?: boolean;
-	/** Count shown on the Customizations navigation row. */
+	/** Customization count exposed in the navigation row's accessibility label. */
 	readonly customizationsCount?: number;
 	/** Shows the Customizations navigation row's migrations-available indicator. */
 	readonly customizationMigrationsAvailable?: boolean;

@@ -32,7 +32,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -49,7 +49,7 @@ import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbe
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
 import { whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
-import { getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 
@@ -169,6 +169,7 @@ export class ModelPickerWidget extends Disposable {
 			getSelectedModel: () => this._selectedModel,
 			getConfigurationAccess: () => this._delegate.modelConfiguration ?? this._languageModelsService,
 			getChatSessionId: () => this._delegate.getChatSessionId?.(),
+			getProvider: () => this._delegate.getProvider ? this._delegate.getProvider() : 'unknown',
 			isDisabled: () => !!this._domNode?.classList.contains('disabled'),
 			shouldShowCacheBreakHint: () => this.shouldShowCacheBreakHint(/* excludeAutoModel */ false),
 			getCacheBreakLearnMoreLink: () => this.getCacheBreakLearnMoreLink(),
@@ -285,7 +286,7 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _normalizeSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): ILanguageModelChatMetadataAndIdentifier | undefined {
-		if (this._entitlementService.entitlement !== ChatEntitlement.Free ||
+		if (!isHydraFusionUpgradeOnly(this._entitlementService.entitlement) ||
 			!model ||
 			!isHydraFusionModel(model) ||
 			isUserProvidedModel(model, this._languageModelsService)) {
@@ -561,7 +562,7 @@ export class ModelPickerWidget extends Disposable {
 
 		const telemetrySession = telemetry instanceof ModelPickerTelemetrySession
 			? telemetry
-			: new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, telemetry, this._selectedModel, this._delegate.getChatSessionId?.());
+			: new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, telemetry, this._selectedModel, this._delegate.getChatSessionId?.(), this._delegate.getProvider ? this._delegate.getProvider() : 'unknown');
 
 		const onSelect = (model: ILanguageModelChatMetadataAndIdentifier) => {
 			telemetrySession.logModelChange(this._selectedModel, model, this._delegate.getChatSessionId?.());

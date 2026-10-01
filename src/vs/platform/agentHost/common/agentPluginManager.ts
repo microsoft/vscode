@@ -37,6 +37,9 @@ export interface IAgentPluginManager {
 	 */
 	readonly basePath: URI;
 
+	/** Immutable host-owned plugin directories. File URIs equal to or under this path are synced in place, without cache entries, regardless of clientId. */
+	readonly hostPluginsPath: URI;
+
 	/**
 	 * Syncs a set of client-provided plugin customizations to local storage.
 	 *

@@ -961,6 +961,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const featureFlags = {
 			CONNECTORS: copilotConnectorsEnabled,
 			TGREP: tgrepEnabled,
+			CONTENT_EXCLUSION: true,
 			...(copilotConnectorsEnabled ? { MANAGED_MCP_SERVERS: true } : {}),
 			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true } : {}),
 		};

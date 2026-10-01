@@ -18,7 +18,8 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentCanvasAvailability, AgentSession, AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
@@ -2267,6 +2268,109 @@ suite('AgentHostProtocolClient', () => {
 		const rejected = assertRemoteProtocolError(resultPromise, { code: -32000, message: 'Connection closed: test.example:1234' });
 		transport.fireClose();
 		await rejected;
+	});
+
+	suite('reverse MCP authentication', () => {
+		const request = {
+			serverName: 'Docs',
+			auth: {
+				reason: McpAuthRequiredReason.Required,
+				resource: {
+					resource: 'https://docs.example/mcp',
+					authorization_servers: ['https://issuer.example'],
+					scopes_supported: ['read', 'write'],
+				},
+				oauthClient: { clientId: 'docs-client' },
+				requiredScopes: ['read'],
+			},
+		};
+
+		test('routes the challenge to the registered handler and returns its result', async () => {
+			const requests: IAgentHostMcpAuthenticationRequest[] = [];
+			const responses: ProtocolTransportMessage[] = [];
+			for (const authenticated of [true, false]) {
+				const { client, transport } = createClient();
+				disposables.add(client.registerMcpAuthenticationHandler(async challenge => {
+					requests.push(challenge);
+					return authenticated;
+				}));
+				transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+				await timeout(0);
+				responses.push(...transport.sentMessages);
+			}
+			assert.deepStrictEqual({ requests, responses }, {
+				requests: [request, request],
+				responses: [
+					{ jsonrpc: '2.0', id: 51, result: { authenticated: true } },
+					{ jsonrpc: '2.0', id: 51, result: { authenticated: false } },
+				],
+			});
+		});
+
+		test('returns false without a handler or after disposing the registration', async () => {
+			const { client, transport } = createClient();
+			transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+			await timeout(0);
+			const registration = disposables.add(client.registerMcpAuthenticationHandler(async () => true));
+			registration.dispose();
+			transport.fireExtensionRequest(52, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+			await timeout(0);
+			assert.deepStrictEqual(transport.sentMessages, [
+				{ jsonrpc: '2.0', id: 51, result: { authenticated: false } },
+				{ jsonrpc: '2.0', id: 52, result: { authenticated: false } },
+			]);
+		});
+
+		test('logs handler errors and returns false', async () => {
+			const errors: string[] = [];
+			const logService = new class extends NullLogService {
+				override error(message: string): void {
+					errors.push(message);
+				}
+			}();
+			const { client, transport } = createClient(undefined, undefined, undefined, logService);
+			disposables.add(client.registerMcpAuthenticationHandler(async () => {
+				throw new Error('Authentication failed');
+			}));
+			transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+			await timeout(0);
+			assert.deepStrictEqual({ errors, responses: transport.sentMessages }, {
+				errors: ['[AgentHostProtocolClient] Failed to silently authenticate MCP server'],
+				responses: [{ jsonrpc: '2.0', id: 51, result: { authenticated: false } }],
+			});
+		});
+
+		test('rejects invalid parameters before invoking the handler', async () => {
+			const { client, transport } = createClient();
+			let calls = 0;
+			disposables.add(client.registerMcpAuthenticationHandler(async () => {
+				calls++;
+				return true;
+			}));
+			const invalidRequests = [
+				{},
+				{ ...request, serverName: 1 },
+				{ ...request, auth: null },
+				{ ...request, auth: { ...request.auth, reason: 'invalid' } },
+				{ ...request, auth: { ...request.auth, resource: { resource: 1 } } },
+				{ ...request, auth: { ...request.auth, requiredScopes: [1] } },
+				{ ...request, auth: { ...request.auth, oauthClient: { clientId: 1 } } },
+			];
+			for (const params of invalidRequests) {
+				transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, params);
+			}
+			await timeout(0);
+			assert.deepStrictEqual({
+				calls,
+				responses: transport.sentMessages.map(message => {
+					assert.ok(hasKey(message, { error: true, id: true }));
+					return { id: message.id, code: message.error.code };
+				}),
+			}, {
+				calls: 0,
+				responses: invalidRequests.map(() => ({ id: 51, code: -32000 })),
+			});
+		});
 	});
 
 	suite('reverse workspace trust', () => {

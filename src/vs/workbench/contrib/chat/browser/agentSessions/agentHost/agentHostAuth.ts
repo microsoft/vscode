@@ -12,7 +12,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
-import { type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { copilotConnectorsScope } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
@@ -885,6 +886,27 @@ async function forceAuthenticationInteractively(
 	} finally {
 		reportAgentHostAuthSignInResult(telemetryService, data, watch.elapsed());
 	}
+}
+
+/** Supplies a previously authorized MCP token without creating sessions or prompting for access. */
+export function autoAuthenticateMcpServer(
+	accessor: ServicesAccessor,
+	connection: IAgentConnection,
+	agentHost: { readonly scheme: string; readonly authority: string },
+	serverName: string,
+	auth: Pick<McpAuthRequirement, 'resource' | 'oauthClient' | 'requiredScopes'>,
+): Promise<boolean> {
+	return resolveMcpServerAuthentication(accessor, auth.resource, {
+		allowInteraction: false,
+		logPrefix: '[AgentHost]',
+		mcpServerId: agentHostMcpServerId(agentHost.authority, serverName, auth.resource.resource),
+		mcpServerName: serverName,
+		mcpServerUrl: auth.resource.resource,
+		oauthClient: auth.oauthClient,
+		scopes: auth.requiredScopes ?? [],
+		agentHost,
+		authenticate: request => connection.authenticate(request),
+	});
 }
 
 export async function resolveMcpServerAuthentication(

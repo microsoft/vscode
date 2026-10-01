@@ -340,6 +340,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 			tools: constObservable([]),
 			isResolved: constObservable(true),
 			whenResolved: () => Promise.resolve(),
+			getSyncedUri: () => undefined,
 			activeClient: (clientId: string) => constObservable({ clientId, tools: [], customizations: [] }),
 			dispose: () => { },
 		});

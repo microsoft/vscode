@@ -721,7 +721,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 				featureFlags,
 				connectorCalls,
 			}, {
-				featureFlags: { CONNECTORS: true, TGREP: false, MANAGED_MCP_SERVERS: true },
+				featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
 				connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true'],
 			});
 		} finally {
@@ -901,6 +901,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createHasExitPlanHandler: typeof createConfigs[0].onExitPlanModeRequest === 'function',
 				createLargeOutput: createConfigs[0].largeOutput,
 				createManagedSettings: createConfigs[0].managedSettings,
+				createFeatureFlags: createConfigs[0].featureFlags,
 				createStreaming: createConfigs[0].streaming,
 				createRequestExtensions: createConfigs[0].requestExtensions,
 				createRequestCanvasRenderer: createConfigs[0].requestCanvasRenderer,
@@ -917,6 +918,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeHasExitPlanHandler: typeof resumeConfigs[0].onExitPlanModeRequest === 'function',
 				resumeLargeOutput: resumeConfigs[0].largeOutput,
 				resumeManagedSettings: resumeConfigs[0].managedSettings,
+				resumeFeatureFlags: resumeConfigs[0].featureFlags,
 				resumeStreaming: resumeConfigs[0].streaming,
 				resumeRequestExtensions: resumeConfigs[0].requestExtensions,
 				resumeRequestCanvasRenderer: resumeConfigs[0].requestCanvasRenderer,
@@ -962,6 +964,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createHasExitPlanHandler: true,
 				createLargeOutput: { maxSizeBytes: 8192 },
 				createManagedSettings: { permissions: managedSettingsPermissions },
+				createFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
 				createStreaming: true,
 				createRequestExtensions: true,
 				createRequestCanvasRenderer: true,
@@ -985,6 +988,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeHasExitPlanHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
+				resumeFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
 				resumeStreaming: true,
 				resumeRequestExtensions: true,
 				resumeRequestCanvasRenderer: true,
@@ -1797,14 +1801,15 @@ suite('CopilotSessionLauncher resume config', () => {
 			enabledFeatureFlags: {
 				CONNECTORS: false,
 				TGREP: false,
+				CONTENT_EXCLUSION: true,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
 			},
 			disabledExperimentalMode: undefined,
-			disabledFeatureFlags: { CONNECTORS: false, TGREP: false },
+			disabledFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
 			defaultExperimentalMode: undefined,
-			defaultFeatureFlags: { CONNECTORS: false, TGREP: false },
-			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, MANAGED_MCP_SERVERS: true },
+			defaultFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
+			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
 		});
 	});
 
@@ -1817,8 +1822,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: disabled.featureFlags,
 			enabled: enabled.featureFlags,
 		}, {
-			disabled: { CONNECTORS: false, TGREP: false },
-			enabled: { CONNECTORS: false, TGREP: true },
+			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
+			enabled: { CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true },
 		});
 	});
 

@@ -236,6 +236,79 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('reveals, selects, and focuses an installed server by ID', () => {
+		const targetEntry = {
+			type: 'server-item' as const,
+			server: { id: 'security-server', label: 'Security server' },
+		};
+		const sameNameEntry = {
+			type: 'server-item' as const,
+			server: { id: 'other-server', label: 'Security server' },
+		};
+		const calls: string[] = [];
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			searchQuery: '',
+			currentTreeGroups: [{
+				element: { type: 'group-header' },
+				children: [sameNameEntry, targetEntry],
+			}],
+			list: {
+				reveal: (entry: object) => calls.push(entry === targetEntry ? 'reveal' : 'reveal-other'),
+				setFocus: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'focus' : 'focus-other'),
+				setSelection: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'select' : 'select-other'),
+				domFocus: () => calls.push('dom-focus'),
+			},
+		}) as McpListWidget;
+
+		assert.deepStrictEqual({
+			revealed: widget.revealAndSelectServer('security-server', 'Security server'),
+			calls,
+		}, {
+			revealed: true,
+			calls: ['reveal', 'focus', 'select', 'dom-focus'],
+		});
+	});
+
+	test('reveals a Connector by its stable Connector name', () => {
+		const sameNameEntry = {
+			type: 'server-item' as const,
+			server: { id: 'other-server', label: 'Mail' },
+		};
+		const connectorEntry = {
+			type: 'builtin-item' as const,
+			id: 'copilot-connector:mail:mail-mcp',
+			label: 'mail-mcp',
+			description: 'Connector: Mail',
+			connector: {
+				id: 'mail:mail-mcp',
+				connector: { name: 'mail', displayName: 'Mail' },
+				serverName: 'mail-mcp',
+			},
+		};
+		const calls: string[] = [];
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			searchQuery: '',
+			currentTreeGroups: [{
+				element: { type: 'group-header' },
+				children: [sameNameEntry, connectorEntry],
+			}],
+			list: {
+				reveal: (entry: object) => calls.push(entry === connectorEntry ? 'reveal' : 'reveal-other'),
+				setFocus: (entries: readonly object[]) => calls.push(entries[0] === connectorEntry ? 'focus' : 'focus-other'),
+				setSelection: (entries: readonly object[]) => calls.push(entries[0] === connectorEntry ? 'select' : 'select-other'),
+				domFocus: () => calls.push('dom-focus'),
+			},
+		}) as McpListWidget;
+
+		assert.deepStrictEqual({
+			revealed: widget.revealAndSelectServer(undefined, 'Mail', 'mail'),
+			calls,
+		}, {
+			revealed: true,
+			calls: ['reveal', 'focus', 'select', 'dom-focus'],
+		});
+	});
+
 	test('routes only an exactly recorded MCP uninstall through the marketplace', async () => {
 		const resource: ICustomizationMarketplaceResource = {
 			sourceId: 'testSource',
@@ -778,6 +851,8 @@ suite('mcpListWidget', () => {
 			],
 			messageClass: message.className,
 			messageText: message.textContent,
+			messageIcon: message.querySelector('.mcp-server-compatibility-icon')?.className,
+			messageIconAriaHidden: message.querySelector('.mcp-server-compatibility-icon')?.getAttribute('aria-hidden'),
 			messageDisplay: message.style.display,
 			linkHref: message.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.getAttribute('href'),
 			migrationRequests,
@@ -790,6 +865,8 @@ suite('mcpListWidget', () => {
 			],
 			messageClass: 'mcp-server-compatibility-message partially-supported',
 			messageText: 'Partially supported. See Migrations for details.',
+			messageIcon: 'mcp-server-compatibility-icon codicon codicon-warning',
+			messageIconAriaHidden: 'true',
 			messageDisplay: '',
 			linkHref: '#',
 			migrationRequests: 1,
@@ -2199,7 +2276,7 @@ suite('mcpListWidget', () => {
 			assert.strictEqual(ctx.templateData.container.style.minHeight, '44px');
 		});
 
-		test('compatibility issues use severity-specific icons without runtime status', () => {
+		test('compatibility issues use severity-specific icons at the beginning of their messages', () => {
 			const render = (kind: 'unsupported' | 'partiallySupported') => {
 				const ctx = createRenderer(createAgentHostServer(), true, false, undefined, kind);
 				disposables.add(ctx.store);
@@ -2210,7 +2287,8 @@ suite('mcpListWidget', () => {
 				ctx.notifyUnchanged();
 				return {
 					message: ctx.templateData.compatibilityMessage.textContent,
-					icon: ctx.templateData.actions.querySelector('.mcp-server-state-icon.compatibility')?.className,
+					messageIcon: ctx.templateData.compatibilityMessage.querySelector('.mcp-server-compatibility-icon')?.className,
+					actionIcon: ctx.templateData.actions.querySelector('.mcp-server-state-icon.compatibility')?.className,
 					badges: ctx.templateData.container.querySelectorAll('.plugin-list-item-status').length,
 					focusedLinkTabIndex,
 					unfocusedLinkTabIndex: ctx.templateData.compatibilityLink?.tabIndex,
@@ -2224,7 +2302,8 @@ suite('mcpListWidget', () => {
 			}, {
 				unsupported: {
 					message: 'Unsupported. See Migrations for details.',
-					icon: 'mcp-server-state-icon codicon codicon-error compatibility unsupported',
+					messageIcon: 'mcp-server-compatibility-icon codicon codicon-error',
+					actionIcon: undefined,
 					badges: 0,
 					focusedLinkTabIndex: 0,
 					unfocusedLinkTabIndex: -1,
@@ -2232,7 +2311,8 @@ suite('mcpListWidget', () => {
 				},
 				partiallySupported: {
 					message: 'Partially supported. See Migrations for details.',
-					icon: 'mcp-server-state-icon codicon codicon-warning compatibility partially-supported',
+					messageIcon: 'mcp-server-compatibility-icon codicon codicon-warning',
+					actionIcon: undefined,
 					badges: 0,
 					focusedLinkTabIndex: 0,
 					unfocusedLinkTabIndex: -1,

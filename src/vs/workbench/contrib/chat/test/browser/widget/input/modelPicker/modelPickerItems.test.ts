@@ -865,23 +865,25 @@ suite('buildModelPickerItems', () => {
 		});
 	});
 
-	test('Free plans show HydraFusion as an unavailable upgrade instead of a routing choice', () => {
-		const auto = createAutoModel();
-		const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
-		const actions = getActionItems(callBuild([auto, hydraFusion], {
-			entitlement: ChatEntitlement.Free,
-			showUnavailableFeatured: false,
-			useGroupedModelPicker: false,
-		}));
-		assert.deepStrictEqual(actions.filter(action => action.label === 'HydraFusion' || action.label === 'Auto').map(action => [
-			action.label,
-			action.disabled ?? false,
-			action.description instanceof MarkdownString ? action.description.value : action.description,
-		]), [
-			['Auto', false, undefined],
-			['HydraFusion', true, '[Upgrade](command:workbench.action.chat.upgradePlan " ")'],
-		]);
-	});
+	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
+		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a routing choice`, () => {
+			const auto = createAutoModel();
+			const hydraFusion = createAgentHostModel('hydrafusion', 'HydraFusion', { id: 'copilot' });
+			const actions = getActionItems(callBuild([auto, hydraFusion], {
+				entitlement,
+				showUnavailableFeatured: false,
+				useGroupedModelPicker: false,
+			}));
+			assert.deepStrictEqual(actions.filter(action => action.label === 'HydraFusion' || action.label === 'Auto').map(action => [
+				action.label,
+				action.disabled ?? false,
+				action.description instanceof MarkdownString ? action.description.value : action.description,
+			]), [
+				['Auto', false, undefined],
+				['HydraFusion', true, '[Upgrade](command:workbench.action.chat.upgradePlan " ")'],
+			]);
+		});
+	}
 
 	test('Free plans show upgrade rather than update for a newer HydraFusion model', () => {
 		const auto = createAutoModel();
