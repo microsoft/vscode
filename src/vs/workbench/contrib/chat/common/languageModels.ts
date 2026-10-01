@@ -286,6 +286,8 @@ export interface ILanguageModelChatMetadata {
 		readonly toolCalling?: boolean;
 		readonly agentMode?: boolean;
 		readonly editTools?: ReadonlyArray<string>;
+		readonly apiType?: 'chatCompletions' | 'responses' | 'messages';
+		readonly adaptiveThinking?: boolean;
 	};
 	/**
 	 * When set, this model is only shown in the model picker for the specified chat session type.

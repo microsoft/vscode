@@ -14,6 +14,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { FileType, IFileDeleteOptions, IFileWriteOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
@@ -126,6 +127,33 @@ suite('customizationMigration', () => {
 				primaryButton: 'Migrate',
 			},
 			failure: 'Could not migrate \'Server\' because the destination already contains a different server with that name.',
+		});
+	});
+
+	test('configured locations copy explains harness discovery and setting scope', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.ConfiguredLocations);
+		const agent: IPromptPath = {
+			uri: URI.file('/workspace/.custom/agents/super.agent.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.agent,
+			source: PromptFileSource.ConfigWorkspace,
+		};
+
+		assert.deepStrictEqual({
+			settingIds: category.configurationSettingIds,
+			card: category.getCardDescription([agent], 'Copilot'),
+			actionAriaLabel: category.cardActionAriaLabel,
+			confirmationDetail: category.getConfirmation([agent], 'Copilot').detail,
+		}, {
+			settingIds: [
+				PromptsConfig.AGENTS_LOCATION_KEY,
+				PromptsConfig.MODE_LOCATION_KEY,
+				PromptsConfig.SKILLS_LOCATION_KEY,
+				PromptsConfig.INSTRUCTIONS_LOCATION_KEY,
+			],
+			card: 'Found 1 customization in a location observed only by the Local agent harness. Copilot picks it up when running in VS Code. Move it to a supported location for use outside VS Code.',
+			actionAriaLabel: 'Migrate customizations from VS Code-configured locations',
+			confirmationDetail: 'This moves 1 customization out of a VS Code-configured location. If all customizations that use the affected location setting migrate successfully, that setting is cleared.',
 		});
 	});
 

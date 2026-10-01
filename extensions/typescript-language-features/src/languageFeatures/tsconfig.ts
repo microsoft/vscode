@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { coalesce } from '../utils/arrays';
 import { exists, looksLikeAbsoluteWindowsPath } from '../utils/fs';
+import { getSafeNotificationMessage } from '../utils/notification';
 
 function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
 	return node?.type === 'array' && node.children
@@ -205,7 +206,10 @@ export function register() {
 		vscode.commands.registerCommand(openExtendsLinkCommandId, async ({ resourceUri, extendsValue, linkType }: OpenExtendsLinkCommandArgs) => {
 			const tsconfigPath = await getTsconfigPath(Utils.dirname(vscode.Uri.from(resourceUri)), extendsValue, linkType);
 			if (tsconfigPath === undefined) {
-				vscode.window.showErrorMessage(vscode.l10n.t("Failed to resolve {0} as module", extendsValue));
+				vscode.window.showErrorMessage(getSafeNotificationMessage(
+					vscode.l10n.t("Failed to resolve {0} as module", extendsValue),
+					vscode.l10n.t("Failed to resolve the referenced configuration as a module."),
+				));
 				return;
 			}
 			// Will suggest to create a .json variant if it doesn't exist yet (but only for relative paths)
