@@ -901,8 +901,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer keeps the options tray transparent while its individual workspace, worktree, branch, and harness controls remain opaque above the chat input.'],
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, chatBackground: 'loud', experimentalComposerLayout: true }),
+		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer keeps the options tray transparent while its workspace, worktree, branch, and harness controls remain opaque. The prompt options and chat input form one continuous opaque stack with no stripes showing between them.'],
+		render: context => renderNewChatWidget(context, {
+			withWorkspace: true,
+			withControlPickers: true,
+			chatBackground: 'loud',
+			experimentalComposerLayout: true,
+			promptOptions: { kind: 'resolved', options: createStandardPromptOptions() },
+		}),
 	}),
 	NewSessionOptionsExpanded: defineComponentFixture({
 		labels: { kind: 'screenshot' },
