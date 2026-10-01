@@ -250,6 +250,30 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.emitChange();
 			void this.reconcileRecords(this.getRecordsByKind('plugin'));
 		}));
+		const pluginManagementScope = this.enabledDisposables.add(new MutableDisposable<DisposableStore>());
+		this.enabledDisposables.add(autorun(reader => {
+			this.harnessService.availableHarnesses.read(reader);
+			this.harnessService.activeHarness.read(reader);
+			const session = this.harnessService.activeSessionResource.read(reader);
+			this.workspaceService.activeProjectRoot.read(reader);
+			const management = this.harnessService.getActiveDescriptor().pluginManagement;
+			const scope = new DisposableStore();
+			pluginManagementScope.value = scope;
+			if (management) {
+				const refresh = () => {
+					void management.getItems(session, false, this.lifetimeToken).catch(error => {
+						this.logService.warn('Unable to refresh agent host plugin inventory', error);
+					});
+				};
+				scope.add(management.onDidChange(refresh));
+				scope.add(autorun(reader => {
+					management.installedPlugins.read(reader);
+					management.inventoryError.read(reader);
+					this.emitChange();
+				}));
+				refresh();
+			}
+		}));
 		this.enabledDisposables.add(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
 			this.harnessService.activeSessionResource.read(reader);
@@ -612,7 +636,49 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return state.kind === 'missing' ? { kind: 'missing', target, repairUnavailableMessage: this.getRepairUnavailableMessage(record) } : { kind: state.kind, target };
 	}
 
+	private getManagedPluginInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState | undefined {
+		const management = this.harnessService.getActiveDescriptor().pluginManagement;
+		const kind = resource.installation?.kind;
+		if (!management || kind !== 'configuredPlugin' && kind !== 'plugin') {
+			return undefined;
+		}
+		if (kind === 'plugin') {
+			return {
+				kind: 'unavailable',
+				message: localize('customizationMarketplace.sdkPinnedPluginUnsupported', "This plugin requires a pinned repository revision and subdirectory that the agent host SDK cannot install yet. Install from the agent host's plugin marketplace instead."),
+			};
+		}
+		if (!this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) ||
+			this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) === false || this.entitlementService.sentiment.hidden) {
+			return { kind: 'unavailable', message: localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.") };
+		}
+		const unavailable = this.getSourceUnavailableMessage(resource.sourceId) ?? management.inventoryError.get();
+		if (unavailable) {
+			return { kind: 'unavailable', message: unavailable };
+		}
+		if (!resource.originLabel) {
+			return { kind: 'unavailable', message: localize('customizationMarketplace.pluginMarketplaceMissing', "This plugin does not identify its source marketplace.") };
+		}
+		const spec = `${resource.displayName}@${resource.originLabel}`;
+		const target: CustomizationMarketplaceInstallationTarget = { kind: 'plugin', uri: management.getPluginUri(spec) };
+		if (this.pendingUninstalls.has(getCustomizationMarketplaceResourceKey(resource))) {
+			return { kind: 'uninstalling', target };
+		}
+		if (this.pending.has(getCustomizationMarketplaceResourceKey(resource))) {
+			return { kind: 'installing' };
+		}
+		const installed = management.installedPlugins.get();
+		if (!installed) {
+			return { kind: 'checking', target };
+		}
+		return installed.some(plugin => plugin.spec === spec) ? { kind: 'installed', target } : { kind: 'available' };
+	}
+
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+		const managed = this.getManagedPluginInstallState(resource);
+		if (managed) {
+			return managed;
+		}
 		if (resource.installation?.kind === 'copilotConnector' &&
 			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true) {
 			return { kind: 'unavailable', message: localize('customizationMarketplace.connectorsDisabled', "Enable the Copilot connectors experiment to connect this resource.") };
@@ -713,6 +779,42 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			return pending.promise;
 		}
 		if (state.kind !== 'available') {
+			return;
+		}
+		const management = this.harnessService.getActiveDescriptor().pluginManagement;
+		if (management && resource.installation?.kind === 'configuredPlugin') {
+			const session = this.harnessService.activeSessionResource.get();
+			const project = this.workspaceService.activeProjectRoot.get();
+			const operationDisposables = new DisposableStore();
+			const token = cancelOnDispose(operationDisposables);
+			operationDisposables.add(this.lifetimeToken.onCancellationRequested(() => operationDisposables.dispose()));
+			operationDisposables.add(this.pluginMarketplaceService.onDidChangeMarketplaces(() => operationDisposables.dispose()));
+			operationDisposables.add(autorun(reader => {
+				this.harnessService.activeHarness.read(reader);
+				const currentSession = this.harnessService.activeSessionResource.read(reader);
+				const currentProject = this.workspaceService.activeProjectRoot.read(reader);
+				if (this.harnessService.getActiveDescriptor().pluginManagement !== management || !isEqual(currentSession, session) || !isEqual(currentProject, project)) {
+					operationDisposables.dispose();
+				}
+			}));
+			const operation = (async () => {
+				const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(token);
+				this.checkEnabled(resource.sourceId, token);
+				const plugin = plugins.find(plugin => getPluginMarketplaceIdentifier(plugin) === resource.identifier);
+				if (!plugin) {
+					throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
+				}
+				await management.install(session, `${plugin.name}@${plugin.marketplace}`, plugin.marketplaceReference.rawValue, token);
+			})();
+			this.pending.set(key, { promise: operation, cancel: () => operationDisposables.dispose() });
+			this.emitChange();
+			try {
+				await operation;
+			} finally {
+				operationDisposables.dispose();
+				this.pending.delete(key);
+				this.emitChange();
+			}
 			return;
 		}
 		const connector = resource.installation?.kind === 'copilotConnector' ? resource.installation : undefined;
@@ -829,6 +931,28 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
+		const management = this.harnessService.getActiveDescriptor().pluginManagement;
+		if (management && resource.installation?.kind === 'configuredPlugin') {
+			const key = getCustomizationMarketplaceResourceKey(resource);
+			const pending = this.pendingUninstalls.get(key);
+			if (pending) {
+				return pending;
+			}
+			const state = this.getManagedPluginInstallState(resource);
+			if (state?.kind !== 'installed') {
+				throw new Error(localize('customizationMarketplace.pluginNotInstalled', "This plugin is not installed on the selected agent host."));
+			}
+			const operation = management.uninstall(this.harnessService.activeSessionResource.get(), `${resource.displayName}@${resource.originLabel}`);
+			this.pendingUninstalls.set(key, operation);
+			this.emitChange();
+			try {
+				await operation;
+			} finally {
+				this.pendingUninstalls.delete(key);
+				this.emitChange();
+			}
+			return;
+		}
 		const connector = resource.installation?.kind === 'copilotConnector' ? resource.installation : undefined;
 		if (connector) {
 			const record = this.findRecord(resource);

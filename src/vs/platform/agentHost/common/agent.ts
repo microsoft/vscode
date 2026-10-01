@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import type { IAgentHostPluginManagement } from './agentHostPluginManagement.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
@@ -251,6 +252,7 @@ export interface IAgentMaterializeChatEvent {
 }
 
 export type AgentProvider = string;
+
 
 export interface IAgentPluginUninstallRequest {
 	readonly name: string;
@@ -1277,6 +1279,7 @@ export interface IAgent {
 
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest): Promise<void>;
+	readonly pluginManagement?: IAgentHostPluginManagement;
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;

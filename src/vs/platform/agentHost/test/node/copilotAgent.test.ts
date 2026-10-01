@@ -1447,6 +1447,71 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('cold plugin management resolves session policy and always removes its temporary SDK session', async () => {
+		for (const failure of ['none', 'creation', 'policy', 'inventory'] as const) {
+			const calls: string[] = [];
+			let configuration: SessionConfig | undefined;
+			const client = new TestCopilotClient([]);
+			client.createSession = async config => {
+				configuration = config;
+				if (failure === 'creation') {
+					throw new Error('Session creation failed');
+				}
+				return new class extends mock<CopilotSession>() {
+					override readonly sessionId = config.sessionId!;
+					override get rpc(): CopilotSession['rpc'] {
+						return new class extends mock<CopilotSession['rpc']>() {
+							override readonly managedSettings = {
+								get: async () => {
+									calls.push('policy');
+									return { source: 'none' as const, serverManaged: false, deviceManaged: false, failClosed: failure === 'policy', bypassPermissionsDisabled: false, managedKeys: [] };
+								},
+							};
+							override readonly plugins = new class extends mock<CopilotSession['rpc']['plugins']>() {
+								override list = async () => {
+									calls.push('list');
+									if (failure === 'inventory') {
+										throw new Error('Inventory unavailable');
+									}
+									return { plugins: [] };
+								};
+							}();
+						}();
+					}
+					override async disconnect(): Promise<void> { calls.push('disconnect'); }
+				}();
+			};
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			try {
+				const operation = agent.pluginManagement.manage({ provider: 'copilotcli', operation: 'list', workingDirectory: URI.file('/workspace').toString() });
+				if (failure === 'none') {
+					await operation;
+				} else {
+					await assert.rejects(operation, failure === 'creation' ? /Session creation failed/ : failure === 'policy' ? /Enterprise policy could not be resolved/ : /Inventory unavailable/);
+				}
+				assert.deepStrictEqual({
+					calls,
+					deleted: client.deletedSessionIds,
+					directory: configuration?.workingDirectory,
+					policy: configuration?.enableManagedSettings,
+					tools: configuration?.availableTools,
+					extensions: configuration?.requestExtensions,
+					hooks: configuration?.enableFileHooks,
+				}, {
+					calls: failure === 'creation' ? [] : failure === 'policy' ? ['policy', 'disconnect'] : ['policy', 'list', 'disconnect'],
+					deleted: [configuration?.sessionId],
+					directory: URI.file('/workspace').fsPath,
+					policy: true,
+					tools: [],
+					extensions: false,
+					hooks: false,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		}
+	});
+
 	test('sandbox override survives config resolution but is not inherited by forks', async () => {
 		const agent = createTestAgent(disposables);
 		try {

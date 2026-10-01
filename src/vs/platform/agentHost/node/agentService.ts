@@ -23,6 +23,7 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasSnapshot, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import type { IAgentHostPluginManagementRequest, IAgentHostPluginManagementResult } from '../common/agentHostPluginManagement.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -621,6 +622,8 @@ export class AgentService extends Disposable implements IAgentService {
 	readonly onMcpNotification: IAgentService['onMcpNotification'];
 	private readonly _onDidChangeCanvases = this._register(new Emitter<IAgentCanvasSnapshot>());
 	readonly onDidChangeCanvases = this._onDidChangeCanvases.event;
+	private readonly _onDidChangePluginManagement = this._register(new Emitter<string>());
+	readonly onDidChangePluginManagement = this._onDidChangePluginManagement.event;
 
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: AgentHostStateManager;
@@ -1398,6 +1401,9 @@ export class AgentService extends Disposable implements IAgentService {
 			subscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
 			if (provider.onDidChangeCanvases) {
 				subscriptions.add(provider.onDidChangeCanvases(snapshot => this._onDidChangeCanvases.fire(snapshot)));
+			}
+			if (provider.pluginManagement?.onDidChange) {
+				subscriptions.add(provider.pluginManagement.onDidChange(() => this._onDidChangePluginManagement.fire(provider.id)));
 			}
 			if (provider.onDidChangeChatHistory) {
 				subscriptions.add(provider.onDidChangeChatHistory(event => {
@@ -4759,6 +4765,18 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Plugin uninstall is unavailable for provider '${providerId}'.`);
 		}
 		await provider.uninstallPlugin(request);
+	}
+
+	getPluginManagementProviders(): readonly string[] {
+		return this._providerService.getProviders().filter(provider => provider.pluginManagement).map(provider => provider.id);
+	}
+
+	async managePlugins(request: IAgentHostPluginManagementRequest): Promise<IAgentHostPluginManagementResult> {
+		const management = this._providerService.getProvider(request.provider)?.pluginManagement;
+		if (!management) {
+			throw new Error(`Plugin management is unavailable for provider '${request.provider}'.`);
+		}
+		return management.manage(request);
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {

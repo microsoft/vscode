@@ -19,6 +19,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
 import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostPluginsChangedNotification, ManageAgentHostPluginsExtensionMethod } from '../../common/agentHostPluginManagement.js';
 import { AgentCanvasAvailability, AgentSession, AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
@@ -436,6 +437,46 @@ suite('AgentHostProtocolClient', () => {
 			supported.push(client.devContainerService !== undefined);
 		}
 		assert.deepStrictEqual(supported, [false, false, false, true]);
+	});
+
+	test('plugin management is optional and supports arbitrary advertised provider identities', async () => {
+		const supported: boolean[] = [];
+		for (const meta of [undefined, { 'vscode.plugins.v1': true }, { 'vscode.plugins.v1': ['provider', 1] }, { 'vscode.plugins.v1': ['third-party-provider'] }]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, meta);
+			supported.push(client.pluginManagement !== undefined);
+		}
+		assert.deepStrictEqual(supported, [false, false, false, true]);
+	});
+
+	test('plugin management validates responses and does not require local session URIs', async () => {
+		const { client, transport } = createClientForIdentity('another-host.example:1234');
+		await connectClient(client, transport, { 'vscode.plugins.v1': ['third-party-provider'] });
+		const management = client.pluginManagement;
+		assert.ok(management);
+		const params = { provider: 'third-party-provider', operation: 'list' as const, workingDirectory: '/workspace' };
+		const request = management.manage(params);
+		const message = transport.sentMessages.at(-1) as JsonRpcRequest;
+		assert.deepStrictEqual({ method: message.method, params: message.params }, { method: ManageAgentHostPluginsExtensionMethod, params });
+		transport.fireMessage({ jsonrpc: '2.0', id: message.id, result: { plugins: [] } });
+		await assert.rejects(request, /Invalid plugin management response/);
+		const valid = management.manage(params);
+		const next = transport.sentMessages.at(-1) as JsonRpcRequest;
+		const result = { plugins: [], catalog: [], messages: [] };
+		transport.fireMessage({ jsonrpc: '2.0', id: next.id, result });
+		assert.deepStrictEqual(await valid, result);
+		await assert.rejects(management.manage({ ...params, provider: 'unsupported' }), /not supported/);
+	});
+
+	test('plugin change notifications are validated and scoped to advertised providers', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, { 'vscode.plugins.v1': ['third-party-provider'] });
+		const changed: string[] = [];
+		disposables.add(client.onDidChangePluginManagement(provider => changed.push(provider)));
+		for (const provider of ['third-party-provider', 'unadvertised', 1]) {
+			transport.fireExtensionNotification({ jsonrpc: '2.0', method: AgentHostPluginsChangedNotification, params: { provider } });
+		}
+		assert.deepStrictEqual(changed, ['third-party-provider']);
 	});
 
 	test('canvas facade requires the versioned capability and a local host identity', async () => {

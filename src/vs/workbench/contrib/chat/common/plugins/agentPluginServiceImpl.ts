@@ -248,6 +248,7 @@ interface IPluginManifest {
  * infrastructure builds the full {@link IAgentPlugin} from it.
  */
 interface IPluginSource {
+	readonly managedBy?: string;
 	readonly uri: URI;
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
 	/** Repository root that serves as the boundary for component path resolution. */
@@ -319,7 +320,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					if (!this._isCurrentRefresh(version)) {
 						return [];
 					}
-					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.watchPluginContents !== false, source.remove, version);
+					const plugin = await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.watchPluginContents !== false, source.remove, version, source.managedBy);
 					seenPluginUris.add(key);
 					plugins.push(plugin);
 				} catch (error) {
@@ -340,7 +341,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		return version === this._discoverVersion && !this._store.isDisposed;
 	}
 
-	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, watchPluginContents: boolean, removeCallback: (() => Promise<boolean>) | undefined, version: number): Promise<IAgentPlugin> {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, watchPluginContents: boolean, removeCallback: (() => Promise<boolean>) | undefined, version: number, managedBy?: string): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -499,6 +500,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			: undefined;
 
 		const plugin: PluginEntry = {
+			managedBy,
 			uri,
 			format: format.format,
 			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
@@ -1157,6 +1159,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 					uri: stat.resource,
 					fromMarketplace: undefined,
 					watchPluginContents: false,
+					managedBy: COPILOT_CLI_AGENT_PROVIDER_ID,
 					remove: this._agentHostService.uninstallPlugin && canUninstall ? async () => {
 						await this._agentHostService.uninstallPlugin!(COPILOT_CLI_AGENT_PROVIDER_ID, {
 							name: installedPlugin.name,

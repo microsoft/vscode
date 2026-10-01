@@ -34,6 +34,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
+import { AgentHostPluginManagementProvider } from './agentHostPluginManagementProvider.js';
 import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID } from './agentHostMcpServerSupport.js';
 import { createCustomizationMcpServerCompatibilityScope } from './agentHostMcpServerSupportScope.js';
 import { AgentHostMcpServerMigrationProvider } from './agentHostMcpServerMigrationProvider.js';
@@ -325,7 +326,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
+		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, [], this._agentHostService.pluginManagementProviders?.includes(agent.provider)));
 
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
 			syncedUri => this._activeClientService.getOrigin(syncedUri)));
@@ -340,6 +341,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			hideGenerateButton: true,
 			syncProvider,
 			itemProvider,
+			pluginManagement: this._agentHostService.pluginManagementProviders?.includes(agent.provider)
+				? store.add(this._instantiationService.createInstance(AgentHostPluginManagementProvider, agent.provider, this._agentHostService))
+				: undefined,
 			hiddenMcpServerCollectionIds: agentHostProviderHasBuiltInGitHubMcpServer(agent.provider) ? [COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID] : undefined,
 			mcpServerCompatibilityProvider: agent.provider === 'copilotcli' ? {
 				acquire: sessionResource => createCustomizationMcpServerCompatibilityScope(

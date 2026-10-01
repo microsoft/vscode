@@ -37,6 +37,7 @@ import { IAgentHostFileSystemService } from '../../../../services/agentHost/comm
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
+import { AgentHostPluginManagementProvider } from '../agentSessions/agentHost/agentHostPluginManagementProvider.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCustomization.js';
 import { IAgentHostTerminalService } from '../../../terminal/browser/agentHostTerminalService.js';
@@ -394,7 +395,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, []));
+		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, [], connection.pluginManagementProviders?.includes(agent.provider)));
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
 			sanitized,
@@ -416,7 +417,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 
 		const harnessDescriptor = createRemoteAgentHarnessDescriptor(sessionType, displayName, pluginController, itemProvider, syncProvider);
-		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
+		agentStore.add(this._customizationHarnessService.registerExternalHarness({
+			...harnessDescriptor,
+			pluginManagement: connection.pluginManagementProviders?.includes(agent.provider)
+				? agentStore.add(this._instantiationService.createInstance(AgentHostPluginManagementProvider, agent.provider, connection))
+				: undefined,
+		}));
 
 		// Session handler (unified)
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(

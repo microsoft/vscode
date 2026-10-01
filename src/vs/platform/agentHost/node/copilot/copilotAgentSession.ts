@@ -494,6 +494,7 @@ export interface ICopilotAgentSessionOptions {
 	readonly rawSessionId: string;
 	readonly onDidSessionProgress: Emitter<AgentSignal>;
 	readonly onDidChangeCanvases: Emitter<IAgentCanvasSnapshot>;
+	readonly onPluginsChanged?: () => void;
 	readonly sessionLauncher: ICopilotSessionLauncher;
 	readonly launchPlan: CopilotSessionLaunchPlan;
 	readonly shellManager: ShellManager | undefined;
@@ -1098,6 +1099,12 @@ export class CopilotAgentSession extends Disposable {
 		this._requiresConnectorConfigurationRefresh = true;
 	}
 
+	private _pluginsNeedReload = false;
+
+	markPluginsChanged(): void {
+		this._pluginsNeedReload = true;
+	}
+
 	/**
 	 * Captures terminal-only observed usage, excluding descendants and restored history.
 	 * Child snapshots are frozen by canonical turn id before their owning tool resumes.
@@ -1428,7 +1435,18 @@ export class CopilotAgentSession extends Disposable {
 		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(
 			() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands),
-			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, this._wrapper.session.rpc.plugins) },
+			{
+				getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, {
+					...this._wrapper.session.rpc.plugins,
+					reload: async () => {
+						try {
+							return await this._wrapper.session.rpc.plugins.reload();
+						} finally {
+							options.onPluginsChanged?.();
+						}
+					},
+				})
+			},
 			this._logService,
 		);
 		this._onDidSessionProgress = options.onDidSessionProgress;
@@ -3743,6 +3761,15 @@ export class CopilotAgentSession extends Disposable {
 	 * Permission and sandbox failures prevent the turn from starting.
 	 */
 	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<void> {
+		if (this._pluginsNeedReload) {
+			this._pluginsNeedReload = false;
+			try {
+				await this._wrapper.session.rpc.plugins.reload();
+			} catch (error) {
+				this._pluginsNeedReload = true;
+				throw error;
+			}
+		}
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();

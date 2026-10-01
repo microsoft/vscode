@@ -23,6 +23,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
+import { agentHostPluginManagementRequestValidator, AgentHostPluginsChangedNotification, ManageAgentHostPluginsExtensionMethod } from '../common/agentHostPluginManagement.js';
 import { AgentHostCanvasesChangedNotification, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, isValidAgentHostCanvasesChangedParams, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, resolveAgentHostCanvasSourceParamsValidator, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostCanvasesChangedParams, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -442,6 +443,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._register(this._agentService.onDidChangeCanvases(snapshot => {
 			this._recordAndBroadcastCanvasSnapshot(snapshot);
 		}));
+		if (this._agentService.onDidChangePluginManagement) {
+			this._register(this._agentService.onDidChangePluginManagement(provider => {
+				for (const record of this._clients.values()) {
+					this._getActiveClientFromRecord(record)?.transport.send({ jsonrpc: '2.0', method: AgentHostPluginsChangedNotification, params: { provider } });
+				}
+			}));
+		}
 
 		if (this._config.otlpLogEmitter) {
 			this._register(this._config.otlpLogEmitter.onDidLog(record => this._broadcastOtlpLog(record)));
@@ -715,6 +723,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					this._otelService?.diagnosticsEnabled,
 					!!this._agentService.importSession,
 					this._supportsCanvases(client),
+					this._agentService.getPluginManagementProviders?.(),
 				),
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
@@ -2007,6 +2016,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * otherwise.
 	 */
 	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
+		if (method === ManageAgentHostPluginsExtensionMethod && this._agentService.managePlugins) {
+			const validated = agentHostPluginManagementRequestValidator.validate(params);
+			if (validated.error) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+			}
+			return this._agentService.managePlugins(validated.content);
+		}
 		if (method === ReportChatUserInteractionExtensionMethod) {
 			if (!this._otelService?.diagnosticsEnabled) {
 				return Promise.resolve();

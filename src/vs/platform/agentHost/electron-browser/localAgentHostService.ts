@@ -154,6 +154,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly clientId = generateUuid();
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 	get canvases(): IAgentHostCanvases | undefined { return this._protocolClient?.canvases; }
+	get pluginManagement() { return this._protocolClient?.pluginManagement; }
+	get pluginManagementProviders() { return this._protocolClient?.pluginManagementProviders; }
+	get onDidChangePluginManagement() { return this._protocolClient?.onDidChangePluginManagement ?? Event.None; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());

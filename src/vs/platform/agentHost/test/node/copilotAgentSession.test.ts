@@ -165,6 +165,8 @@ class MockCopilotSession {
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	readonly pluginInstallCalls: Array<{ source: string }> = [];
+	pluginReloadCalls = 0;
+	pluginReloadError: Error | undefined;
 	pluginInstallGate: Promise<void> | undefined;
 	onPluginInstall: (() => void) | undefined;
 	readonly pluginMarketplaceAddCalls: Array<{ source: string }> = [];
@@ -545,7 +547,13 @@ class MockCopilotSession {
 			update: async () => { throw new Error('Not implemented'); },
 			enable: async () => { throw new Error('Not implemented'); },
 			disable: async () => { throw new Error('Not implemented'); },
-			reload: async () => ({ plugins: [], errors: [] }),
+			reload: async () => {
+				this.pluginReloadCalls++;
+				if (this.pluginReloadError) {
+					throw this.pluginReloadError;
+				}
+				return { plugins: [], errors: [] };
+			},
 			marketplaces: {
 				add: async (params: { source: string }) => {
 					this.pluginMarketplaceAddCalls.push(params);
@@ -1059,6 +1067,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	restrictedTelemetryContextError?: Error;
 	telemetryContext?: IAgentTelemetryContext;
 	onTurnEnded?: () => void;
+	onPluginsChanged?: () => void;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
 	resume?: boolean;
@@ -1376,6 +1385,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
 			onTurnEnded: options?.onTurnEnded,
+			onPluginsChanged: options?.onPluginsChanged,
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
@@ -1537,6 +1547,28 @@ suite('CopilotAgentSession', () => {
 			firstHook: { additionalContext: 'Rename before working' },
 			secondHook: undefined,
 		});
+	});
+
+	test('reloads SDK plugin mutations at the next turn, not during an active turn', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		await session.send('first', undefined, 'turn-1');
+		session.markPluginsChanged();
+		const reloadsDuringTurn = mockSession.pluginReloadCalls;
+		session.discardActiveTurn();
+		await session.send('second', undefined, 'turn-2');
+		session.discardActiveTurn();
+		await session.send('third', undefined, 'turn-3');
+		assert.deepStrictEqual({ reloadsDuringTurn, reloads: mockSession.pluginReloadCalls, sends: mockSession.sendRequests.length }, { reloadsDuringTurn: 0, reloads: 1, sends: 3 });
+	});
+
+	test('failed SDK plugin reload prevents the turn and retries on the next attempt', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		session.markPluginsChanged();
+		mockSession.pluginReloadError = new Error('Plugin reload failed');
+		await assert.rejects(session.send('first', undefined, 'turn-1'), /Plugin reload failed/);
+		mockSession.pluginReloadError = undefined;
+		await session.send('retry', undefined, 'turn-2');
+		assert.deepStrictEqual({ reloads: mockSession.pluginReloadCalls, sends: mockSession.sendRequests.length }, { reloads: 2, sends: 1 });
 	});
 
 	test('forwards Auto routing preferences and explicit resets with the model configuration', async () => {
@@ -5610,6 +5642,17 @@ suite('CopilotAgentSession', () => {
 			activity: ['Installing plugin…', undefined],
 			installCalls: [{ source: 'elasticsearch@awesome-copilot' }],
 		});
+	});
+
+	test('slash plugin mutations notify shared inventory even if SDK reload fails', async () => {
+		let changes = 0;
+		const { session, mockSession } = await createAgentSession(disposables, { onPluginsChanged: () => changes++ });
+		mockSession.commandListResult = {
+			commands: [{ name: 'plugin', kind: 'builtin', description: 'Manage plugins', allowDuringAgentExecution: true }],
+		};
+		mockSession.pluginReloadError = new Error('Plugin reload failed');
+		await assert.rejects(session.send('/plugin install elasticsearch@awesome-copilot', undefined, 'turn-plugin', 'interactive'), /Plugin reload failed/);
+		assert.deepStrictEqual({ changes, installs: mockSession.pluginInstallCalls, reloads: mockSession.pluginReloadCalls }, { changes: 1, installs: [{ source: 'elasticsearch@awesome-copilot' }], reloads: 1 });
 	});
 
 	test('does not show activity when a plugin command completes within the delay', () => runWithFakedTimers({}, async () => {

@@ -159,6 +159,8 @@ export interface IHarnessDescriptor {
 	 * a remote agent host). The create action remains a separate toolbar button.
 	 */
 	readonly pluginActions?: readonly ICustomizationItemAction[];
+	/** Owns new plugin installations and their inventory, without using the workbench plugin store. */
+	readonly pluginManagement?: ICustomizationPluginManagementProvider;
 	/**
 	 * Local MCP collection identifiers that do not apply to this harness.
 	 * Host-published MCP servers remain visible even when their local counterpart
@@ -289,6 +291,18 @@ export interface ICustomizationItemProvider {
 	 * Returns the opaque workspace group containing a customization.
 	 */
 	getWorkspaceGroupId?(sessionResource: URI, resource: URI): string | undefined;
+}
+
+export interface ICustomizationPluginManagementProvider {
+	readonly onDidChange: Event<void>;
+	readonly providerId: string;
+	getItems(sessionResource: URI, browse: boolean, token: CancellationToken): Promise<readonly ICustomizationItem[]>;
+	readonly installedPlugins: IObservable<readonly { readonly spec: string; readonly uri: URI }[] | undefined>;
+	readonly inventoryError: IObservable<string | undefined>;
+	getPluginUri(spec: string, directSourceId?: string): URI;
+	/** Cancellation is supported until the SDK mutation is submitted. */
+	install(sessionResource: URI, source: string, marketplaceSource?: string, token?: CancellationToken): Promise<boolean>;
+	uninstall(sessionResource: URI, spec: string): Promise<void>;
 }
 
 /**

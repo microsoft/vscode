@@ -63,7 +63,7 @@ export interface IAgentCustomizationScope extends IDisposable {
 export interface IAgentHostActiveClientService {
 	readonly _serviceBrand: undefined;
 	/** Acquires (or shares) the refcounted customization scope for `sessionType` + `roots`. Never fails. */
-	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope;
+	acquireScope(sessionType: string, roots: readonly URI[], excludeProviderManagedPlugins?: boolean): IAgentCustomizationScope;
 	/**
 	 * Acquires a shared MCP support scope for a Copilot CLI harness; `undefined` roots mean unknown applicability while an empty array means no workspace.
 	 * Returns `undefined` for harnesses whose MCP delivery is not assessed by the client.
@@ -296,14 +296,14 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		this._semanticSearchEnabled = observableConfigValue(CopilotSemanticSearchEnabledSettingId, false, configurationService);
 	}
 
-	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
+	acquireScope(sessionType: string, roots: readonly URI[], excludeProviderManagedPlugins = false): IAgentCustomizationScope {
 		const normalizedRoots = normalizeRoots(roots, this._uriIdentityService.extUri);
 		const scopeKey = getScopeKey(normalizedRoots, this._uriIdentityService.extUri);
-		const serviceScopeKey = getServiceScopeKey(sessionType, scopeKey);
+		const serviceScopeKey = `${getServiceScopeKey(sessionType, scopeKey)}:${excludeProviderManagedPlugins}`;
 		let scope = this._scopes.get(serviceScopeKey);
 		if (!scope) {
 			// A host that does not share the client's filesystem needs user storage shipped over the wire.
-			const options = isRemoteAgentHostSessionType(sessionType) ? { includeUserStorage: true } : undefined;
+			const options: ILocalCustomizationSyncOptions = { includeUserStorage: isRemoteAgentHostSessionType(sessionType), excludeProviderManagedPlugins };
 			const createdScope: AgentCustomizationScope = this._instantiationService.createInstance(
 				AgentCustomizationScope,
 				sessionType,

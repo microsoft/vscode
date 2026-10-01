@@ -23,7 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
@@ -1077,8 +1077,13 @@ export class PluginListWidget extends Disposable {
 
 		// Re-render when the active harness's remote item provider reports changes
 		const itemProviderChangeDisposable = this._register(new MutableDisposable());
+		const pluginManagementChangeDisposable = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
+			const pluginManagement = this.harnessService.getActiveDescriptor().pluginManagement;
+			pluginManagementChangeDisposable.value = pluginManagement?.onDidChange(() => {
+				void this.refresh();
+			});
 			const itemProvider = this.harnessService.getActiveDescriptor().itemProvider;
 			if (itemProvider) {
 				itemProviderChangeDisposable.value = itemProvider.onDidChange(() => {
@@ -1387,7 +1392,8 @@ export class PluginListWidget extends Disposable {
 		const remoteEntries = this.remoteItems
 			.filter(item => item.groupKey !== 'remote-client' && (!item.name || !installedNames.has(item.name.toLowerCase())))
 			.map(item => ({ type: 'remote-item' as const, item }));
-		const showLegacyMarketplace = shouldShowLegacyPluginMarketplace(this.configurationService);
+		const management = this.harnessService.getActiveDescriptor().pluginManagement;
+		const showLegacyMarketplace = !management && shouldShowLegacyPluginMarketplace(this.configurationService);
 		const availableItems = !showLegacyMarketplace ? [] : this.browseMode || this.searchQuery.trim()
 			? this.marketplaceItems : this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
 		const availableEntries = availableItems.map(item => ({ type: 'marketplace-item' as const, item }));
@@ -1408,9 +1414,13 @@ export class PluginListWidget extends Disposable {
 			},
 			{
 				id: 'remote',
-				label: localize('remotePluginsSection', "Remote Session"),
-				description: localize('remotePluginsSectionDescription', "Plugins configured directly on the active remote agent host."),
-				icon: Codicon.remote,
+				label: management
+					? this.browseMode ? localize('availablePluginsSection', "Available") : localize('agentHostPluginsSection', "Agent Host")
+					: localize('remotePluginsSection', "Remote Session"),
+				description: management
+					? localize('agentHostPluginsSectionDescription', "Plugins managed by the selected agent host.")
+					: localize('remotePluginsSectionDescription', "Plugins configured directly on the active remote agent host."),
+				icon: management ? Codicon.extensions : Codicon.remote,
 				children: remoteEntries,
 			},
 			{
@@ -1422,7 +1432,7 @@ export class PluginListWidget extends Disposable {
 			},
 		].filter(group => group.id === 'available'
 			? showLegacyMarketplace
-			: group.id === 'user' || group.id === 'workspace' || group.children.length > 0);
+			: group.id === 'user' || group.id === 'workspace' || group.id === 'remote' && !!management || group.children.length > 0);
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IPluginListEntry> => {
 			const element: IPluginGroupHeaderEntry = {
@@ -1466,7 +1476,7 @@ export class PluginListWidget extends Disposable {
 			if (this.pluginMarketplaceService.installedPlugins.get().length > 0) {
 				this.renderPluginUpdateAction(actions, disposables);
 			}
-		} else if (entry.group === 'available') {
+		} else if (entry.group === 'available' || entry.group === 'remote' && !!this.harnessService.getActiveDescriptor().pluginManagement) {
 			this.renderPluginAddAction(actions, disposables);
 			if (this.isBrowseMarketplaceAvailable()) {
 				this.renderBrowseMarketplaceAction(actions, disposables);
@@ -1739,6 +1749,14 @@ export class PluginListWidget extends Disposable {
 		button.label = localize('installing', "Installing...");
 		button.enabled = false;
 		try {
+			const management = this.harnessService.getActiveDescriptor().pluginManagement;
+			if (management) {
+				const installed = await management.install(this.harnessService.activeSessionResource.get(), `${item.name}@${item.marketplace}`, item.marketplaceReference.rawValue);
+				button.label = installed ? localize('installed', "Installed") : localize('install', "Install");
+				button.enabled = !installed;
+				void this.refresh();
+				return;
+			}
 			await this.pluginInstallService.installPlugin({
 				name: item.name,
 				description: item.description,
@@ -1760,6 +1778,9 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async queryMarketplaceSnapshot(): Promise<void> {
+		if (this.harnessService.getActiveDescriptor().pluginManagement) {
+			return;
+		}
 		if (!this.marketplaceSnapshot.beginLoading()) {
 			return;
 		}
@@ -1837,6 +1858,10 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async queryMarketplace(): Promise<void> {
+		if (this.harnessService.getActiveDescriptor().pluginManagement) {
+			await this.filterPlugins();
+			return;
+		}
 		if (!shouldShowLegacyPluginMarketplace(this.configurationService)) {
 			return;
 		}
@@ -1899,6 +1924,10 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async queryPluginSearch(): Promise<void> {
+		if (this.harnessService.getActiveDescriptor().pluginManagement) {
+			await this.filterPlugins();
+			return;
+		}
 		if (!this.isBrowseMarketplaceAvailable() || !shouldShowLegacyPluginMarketplace(this.configurationService)) {
 			this.marketplaceItems = [];
 			await this.filterPlugins();
@@ -1979,6 +2008,20 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private async getRemotePluginItems(query: string): Promise<readonly ICustomizationItem[]> {
+		const management = this.harnessService.getActiveDescriptor().pluginManagement;
+		if (management) {
+			try {
+				const items = await management.getItems(this.harnessService.activeSessionResource.get(), this.browseMode, CancellationToken.None);
+				this.searchInput.hideMessage();
+				return items.filter(item => !query || item.name.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query));
+			} catch (error) {
+				this.searchInput.showMessage({
+					content: localize('pluginManagement.inventoryFailed', "Unable to load plugins: {0}", getErrorMessage(error)),
+					type: MessageType.ERROR,
+				});
+				return [];
+			}
+		}
 		if (!this.harnessService.getActiveDescriptor().itemProvider) {
 			return [];
 		}
@@ -2001,12 +2044,16 @@ export class PluginListWidget extends Disposable {
 		const generation = ++this.filterGeneration;
 		const query = this.searchQuery.toLowerCase().trim();
 		const browseMode = this.browseMode;
-		const allPlugins = this.agentPluginService.plugins.get();
+		const management = this.harnessService.getActiveDescriptor().pluginManagement;
+		const allPlugins = this.agentPluginService.plugins.get().filter(plugin => !management || plugin.managedBy !== management.providerId);
 		const remoteItems = [...await this.getRemotePluginItems(query)];
 		if (generation !== this.filterGeneration || this.searchQuery.toLowerCase().trim() !== query || this.browseMode !== browseMode) {
 			return;
 		}
 		this.remoteItems = remoteItems;
+		if (management) {
+			this.marketplaceItems = [];
+		}
 
 		this.installedItems = allPlugins
 			.map(p => installedPluginToItem(p, this.labelService))
