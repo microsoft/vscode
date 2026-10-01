@@ -73,7 +73,6 @@ import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
-import '../../../../contrib/modernUI/browser/media/editorBorder.css';
 
 // ============================================================================
 // Fixture editor input
@@ -496,12 +495,21 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 	groupContainer.appendChild(editorContainer);
 	if (options.editorFrame) {
 		container.classList.add('floating-panels');
+		editorPart.style.border = 'var(--vscode-strokeThickness) solid var(--vscode-editor-border)';
+		editorPart.style.borderRadius = 'var(--vscode-cornerRadius-large)';
+		editorPart.style.boxSizing = 'border-box';
+		editorPart.style.overflow = 'hidden';
+		editorPart.style.backgroundColor = 'var(--vscode-editor-background)';
 		const grid = $('.monaco-grid-view');
 		grid.appendChild(editorPart);
 		container.appendChild(grid);
 	} else {
 		container.appendChild(editorPart);
 	}
+
+	container.style.width = `${width}px`;
+	groupContainer.style.width = options.editorFrame ? '100%' : `${width}px`;
+	const layoutWidth = groupContainer.clientWidth;
 
 	if (options.editorContents !== undefined && model.activeEditor instanceof FixtureEditorInput) {
 		editorContainer.style.height = '240px';
@@ -517,11 +525,8 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 			padding: { top: 16 },
 		}, { contributions: [] }));
 		editor.setModel(textModel);
-		editor.layout(new Dimension(width, 240));
+		editor.layout(new Dimension(layoutWidth, 240));
 	}
-
-	container.style.width = `${width}px`;
-	groupContainer.style.width = `${width}px`;
 
 	const titleControl = disposableStore.add(instantiationService.createInstance(
 		EditorTitleControl,
@@ -538,8 +543,8 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 
 	const layout = () => {
 		titleControl.layout({
-			container: new Dimension(width, titleControl.getHeight().total),
-			available: new Dimension(width, 200),
+			container: new Dimension(layoutWidth, titleControl.getHeight().total),
+			available: new Dimension(layoutWidth, 200),
 		}, options.headerWidth);
 	};
 	groupView.relayoutFn = layout;

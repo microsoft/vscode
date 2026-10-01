@@ -2336,6 +2336,8 @@ suite('ModernUIContribution', () => {
 	test('uses legacy border customizations for connected tabs', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
 		store.add(toDisposable(() => root.remove()));
+		root.style.setProperty('--modern-ui-editor-tab-custom-active-border-top', '#123456');
+		root.style.setProperty('--modern-ui-editor-tab-custom-unfocused-active-border-top', '#234567');
 		const content = appendElement(appendElement(root, 'part editor'), 'content');
 		const createGroup = (active: boolean) => {
 			const group = appendElement(content, `editor-group-container${active ? ' active' : ''}`);

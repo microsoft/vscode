@@ -68,6 +68,8 @@ export function collectModernTabColorCustomizations(theme: ColorThemeData, colle
 	const explicitActiveHoverBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND], TAB_HOVER_BACKGROUND);
 	const explicitUnfocusedActiveHoverBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND], TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_HOVER_BACKGROUND);
 	const tabBorder = resolveLegacyTabColor(theme, TAB_BORDER, []);
+	const activeBorderTop = resolveLegacyTabColor(theme, TAB_ACTIVE_BORDER_TOP, []);
+	const unfocusedActiveBorderTop = resolveLegacyTabColor(theme, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, [], TAB_ACTIVE_BORDER_TOP);
 
 	addColorVariable(collector, '--modern-ui-editor-tab-active-background', activeBackground);
 	addColorVariable(collector, '--modern-ui-editor-tab-unfocused-active-background', unfocusedActiveBackground);
@@ -88,8 +90,10 @@ export function collectModernTabColorCustomizations(theme: ColorThemeData, colle
 	addColorVariable(collector, '--modern-ui-editor-tab-last-pinned-border', resolveLegacyTabColor(theme, TAB_LAST_PINNED_BORDER, []));
 	addColorVariable(collector, '--modern-ui-editor-tab-active-border', resolveLegacyTabColor(theme, TAB_ACTIVE_BORDER, []));
 	addColorVariable(collector, '--modern-ui-editor-tab-unfocused-active-border', resolveLegacyTabColor(theme, TAB_UNFOCUSED_ACTIVE_BORDER, [], TAB_ACTIVE_BORDER));
-	addColorVariable(collector, '--modern-ui-editor-tab-active-border-top', resolveLegacyTabColor(theme, TAB_ACTIVE_BORDER_TOP, []));
-	addColorVariable(collector, '--modern-ui-editor-tab-unfocused-active-border-top', resolveLegacyTabColor(theme, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, [], TAB_ACTIVE_BORDER_TOP));
+	addColorVariable(collector, '--modern-ui-editor-tab-active-border-top', activeBorderTop);
+	addColorVariable(collector, '--modern-ui-editor-tab-unfocused-active-border-top', unfocusedActiveBorderTop);
+	addColorVariable(collector, '--modern-ui-editor-tab-custom-active-border-top', activeBorderTop);
+	addColorVariable(collector, '--modern-ui-editor-tab-custom-unfocused-active-border-top', unfocusedActiveBorderTop);
 	addColorVariable(collector, '--modern-ui-editor-tab-hover-border', resolveLegacyTabColor(theme, TAB_HOVER_BORDER, []));
 	addColorVariable(collector, '--modern-ui-editor-tab-unfocused-hover-border', resolveLegacyTabColor(theme, TAB_UNFOCUSED_HOVER_BORDER, [], TAB_HOVER_BORDER));
 	addColorVariable(collector, '--modern-ui-editor-tab-custom-active-background', explicitActiveBackground);

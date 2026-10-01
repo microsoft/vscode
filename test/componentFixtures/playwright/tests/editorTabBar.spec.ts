@@ -44,6 +44,27 @@ test('Dark Modern keeps legacy, connected, and pill tab surfaces distinct', asyn
 	});
 });
 
+test('Connected defaults do not surface the theme active-top accent', async ({ page }) => {
+	await openFixture(page, 'editor/tabs/TabStyles/Connected/Dark', '.tabs-container > .tab.active');
+	const colors = await page.locator('.editor-group-container').evaluate(group => {
+		const activeFill = group.querySelector<HTMLElement>('.tab.active > .tab-fill');
+		if (!activeFill) {
+			throw new Error('Expected an active connected tab fill');
+		}
+		const groupStyle = getComputedStyle(group);
+		return {
+			capTop: getComputedStyle(activeFill).borderTopColor,
+			structuralBoundary: groupStyle.getPropertyValue('--modern-ui-connected-tab-border').trim(),
+			themeActiveTop: getComputedStyle(group.closest('.monaco-workbench')!).getPropertyValue('--vscode-tab-activeBorderTop').trim(),
+		};
+	});
+	expect(colors).toEqual({
+		capTop: 'rgb(42, 43, 44)',
+		structuralBoundary: '#2a2b2c',
+		themeActiveTop: '#3994bc',
+	});
+});
+
 for (const [group, expected] of [
 	['ActiveGroup', {
 		activeTop: { indicator: 'none', color: 'rgb(34, 211, 238)' },
@@ -172,7 +193,7 @@ for (const [style, expected] of [
 
 for (const [theme, expected] of [
 	['DarkHighContrast', { activeTop: 'rgb(243, 133, 24)', accent: 'rgb(243, 133, 24)', tabBorder: 'rgb(111, 195, 223)' }],
-	['LightHighContrast', { activeTop: 'rgb(181, 32, 13)', accent: 'rgb(0, 107, 189)', tabBorder: 'rgb(15, 74, 133)' }],
+	['LightHighContrast', { activeTop: 'rgb(0, 107, 189)', accent: 'rgb(0, 107, 189)', tabBorder: 'rgb(15, 74, 133)' }],
 ] as const) {
 	test(`pill borders retain high contrast ownership in ${theme}`, async ({ page }) => {
 		await openFixture(page, `editor/tabs/Colors/BorderOwnership/Pill/${theme}`, '.tabs-container > .tab.active');
@@ -409,11 +430,13 @@ for (const [fixture, expected] of [
 			const fill = active?.querySelector<HTMLElement>('.tab-fill');
 			const indicator = active?.querySelector<HTMLElement>('.tab-border-top-container');
 			const strip = group?.querySelector<HTMLElement>('.tabs-and-actions-container');
-			if (!group || !active || !fill || !indicator || !strip) {
+			const body = group?.querySelector<HTMLElement>('.editor-container');
+			if (!group || !active || !fill || !indicator || !strip || !body) {
 				throw new Error('Expected connected editor frame and active tab');
 			}
 			const editorRect = editor.getBoundingClientRect();
 			const fillRect = fill.getBoundingClientRect();
+			const bodyRect = body.getBoundingClientRect();
 			const fillStyle = getComputedStyle(fill);
 			const visibleDividers = [...group.querySelectorAll<HTMLElement>('.tab-divider')]
 				.filter(element => getComputedStyle(element).display !== 'none')
@@ -426,7 +449,9 @@ for (const [fixture, expected] of [
 				capSide: getComputedStyle(fill).borderRightColor,
 				separator: getComputedStyle(strip, '::after').backgroundColor,
 				indicator: getComputedStyle(indicator).display,
-				topAligned: Math.abs(editorRect.top - fillRect.top) <= 1,
+				topAligned: editorRect.top === fillRect.top,
+				bodyOverlap: fillRect.bottom - bodyRect.top,
+				frameInsets: [bodyRect.left - editorRect.left, editorRect.right - bodyRect.right],
 				visibleDividers,
 			};
 		});
@@ -439,6 +464,8 @@ for (const [fixture, expected] of [
 			separator: 'rgb(34, 211, 238)',
 			indicator: 'none',
 			topAligned: true,
+			bodyOverlap: 1,
+			frameInsets: [1, 1],
 			visibleDividers: expected.dividers,
 		});
 	});
