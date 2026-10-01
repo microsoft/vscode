@@ -23,10 +23,10 @@ import { createUnknownAgentHostClientTelemetryContext } from '../../common/agent
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../common/automationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
+import { AutomationDisableConditionKind, AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition, type AutomationEntry } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
@@ -87,6 +87,13 @@ suite('AgentHostAutomationService', () => {
 			session: { provider: 'mock' },
 			enabled: true,
 			triggers: [],
+		};
+	}
+
+	function scheduledDefinition(): AutomationDefinition {
+		return {
+			...definition(),
+			triggers: [{ id: 'schedule', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } }],
 		};
 	}
 
@@ -215,6 +222,25 @@ suite('AgentHostAutomationService', () => {
 			{ name: 'automation.updated', id: hashAutomationTelemetryId(resource), enabled: false, enabledChanged: false, sessionConfigurationChanged: true, scheduleChanged: false, promptChanged: false, titleChanged: false },
 			{ name: 'automation.updated', id: hashAutomationTelemetryId(resource), enabled: false, enabledChanged: false, sessionConfigurationChanged: false, scheduleChanged: false, promptChanged: false, titleChanged: true },
 			{ name: 'automation.deleted', id: hashAutomationTelemetryId(resource), enabled: false, enabledChanged: undefined, sessionConfigurationChanged: undefined, scheduleChanged: undefined, promptChanged: undefined, titleChanged: undefined },
+		]);
+	});
+
+	test('distinguishes end-date changes from schedule changes in update telemetry', async () => {
+		const service = createService();
+		const resource = 'ahp-automation:/review-changes';
+		await enableAndCreate(service, resource);
+		const conditions: AutomationDefinition['disableConditions'] = [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' }];
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: conditions } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: conditions } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { disableConditions: [] } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { triggers: scheduledDefinition().triggers } });
+		assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.updated').map(event => ({
+			scheduleChanged: event.data.scheduleChanged,
+			disableConditionsChanged: event.data.disableConditionsChanged,
+		})), [
+			{ scheduleChanged: false, disableConditionsChanged: true },
+			{ scheduleChanged: false, disableConditionsChanged: true },
+			{ scheduleChanged: true, disableConditionsChanged: false },
 		]);
 	});
 
@@ -1349,6 +1375,211 @@ suite('AgentHostAutomationService', () => {
 		]);
 	}));
 
+	for (const mode of ['idle', 'unavailable', 'active'] as const) {
+		test(`final date disables scheduling with an ${mode} provider or run`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
+			let creates = 0;
+			let cancels = 0;
+			const service = createService({
+				isSessionTemplateAvailable: () => mode !== 'unavailable',
+				createSession: async () => { creates++; return URI.parse('mock:/cutoff'); },
+				startSession: async () => { },
+				cancelSession: async () => { cancels++; return true; },
+			});
+			const conditions = [
+				{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2026-01-01T00:00:01Z' },
+			];
+			await service.handleCreate({ ...createAction(), definition: { ...scheduledDefinition(), disableConditions: conditions } });
+			if (mode === 'active') {
+				await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'before-cutoff' });
+			}
+			await timeout(999);
+			assert.strictEqual(stateManager.getAutomationCatalogState()!.entries[0].definition.enabled, true);
+			await timeout(2);
+			const automation = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual({
+				enabled: automation.definition.enabled,
+				conditions: automation.definition.disableConditions,
+				nextRunAt: automation.nextRunAt,
+				canRun: automation.operations.includes(AutomationOperation.Run),
+				active: automation.runs[0]?.lifecycle.status,
+				creates, cancels,
+			}, {
+				enabled: false, conditions, nextRunAt: undefined, canRun: true,
+				active: mode === 'active' ? AutomationRunStatus.Running : undefined,
+				creates: mode === 'active' ? 1 : 0, cancels: 0,
+			});
+		}));
+	}
+
+	test('expired restart conditions suppress catch-up and allow manual runs', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 2) }, async () => {
+		const timestamp = '2026-01-01T00:00:00Z';
+		const conditions = [
+			{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2026-01-02T00:00:00Z' },
+		];
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [{
+					resource: createAction().resource,
+					definition: { ...scheduledDefinition(), disableConditions: conditions },
+					runs: [], nextRunAt: timestamp,
+					operations: [AutomationOperation.Update, AutomationOperation.Run],
+					createdAt: timestamp, modifiedAt: timestamp,
+					_meta: { 'vscode.scheduleCursors': { schedule: timestamp } },
+				}]
+			},
+		});
+		await storageService.whenIdle();
+		let creates = 0;
+		const manualStarted = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => { creates++; return URI.parse('mock:/expired-manual'); },
+			startSession: async () => { await manualStarted.complete(); },
+		});
+		await timeout(1);
+		const expired = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual([expired.definition.enabled, creates], [false, 0]);
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: expired.resource, changes: { enabled: true } });
+		const reenabled = stateManager.getAutomationCatalogState()!.entries[0];
+		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: expired.resource, requestId: 'manual-after-cutoff' });
+		await manualStarted.p;
+		const manual = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({
+			reenabled: [reenabled.definition.enabled, reenabled.definition.disableConditions],
+			manual: [manual.runs[0].origin.kind, creates],
+		}, {
+			reenabled: [false, conditions],
+			manual: [AutomationRunOriginKind.Manual, 1],
+		});
+	}));
+
+	for (const cutoffSeconds of [59, 60, 61]) {
+		test(`enforces final date ${cutoffSeconds}s around a scheduled admission`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
+			let creates = 0;
+			const service = createService({
+				createSession: async () => { creates++; return URI.parse('mock:/or-conditions'); },
+				startSession: async () => { },
+			});
+			const conditions = [
+				{ kind: AutomationDisableConditionKind.AfterDate as const, date: new Date(Date.now() + cutoffSeconds * 1000).toISOString() },
+			];
+			await service.handleCreate({ ...createAction(), definition: { ...scheduledDefinition(), disableConditions: conditions } });
+			await timeout(62_000);
+			const entry = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual([entry.definition.enabled, creates, entry.definition.disableConditions],
+				[false, cutoffSeconds > 60 ? 1 : 0, conditions]);
+		}));
+	}
+
+	test('scheduled claim persistence failure publishes nothing and does not execute', async () => {
+		const now = new Date();
+		const scheduledFor = new Date(now.getTime() - 60_000).toISOString();
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [{
+					resource: 'ahp-automation:/persist-failure',
+					definition: scheduledDefinition(),
+					runs: [], nextRunAt: scheduledFor,
+					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+					createdAt: now.toISOString(), modifiedAt: now.toISOString(),
+					_meta: { 'vscode.scheduleCursors': { schedule: scheduledFor } },
+				}],
+			},
+			runs: [],
+			manualRunRequests: [],
+		});
+		await storageService.whenIdle();
+		writeFailures = 1;
+		let createCalls = 0;
+		createService({ createSession: async () => { createCalls++; return URI.parse('mock:/unexpected'); } });
+		await timeout(0);
+
+		const automation = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.deepStrictEqual({
+			createCalls,
+			runs: automation?.runs,
+			enabled: automation?.definition.enabled,
+		}, {
+			createCalls: 0,
+			runs: [],
+			enabled: true,
+		});
+	});
+
+	test('final date persistence failure publishes nothing and retries without admitting a run', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1) }, async () => {
+		const service = createService();
+		await service.handleCreate({
+			...createAction(),
+			definition: {
+				...scheduledDefinition(),
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2026-01-01T00:01:00Z' }],
+			},
+		});
+		const initial = stateManager.getAutomationCatalogState()!.entries[0];
+		writeFailures = 1;
+		await timeout(60_001);
+		const failed = stateManager.getAutomationCatalogState()!.entries[0];
+		await timeout(60_000);
+		const retried = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ failed, retried: [retried.definition.enabled, retried.runs, retried.definition.disableConditions] },
+			{ failed: initial, retried: [false, [], initial.definition.disableConditions] });
+	}));
+
+	test('restores a mixed catalogue by disabling obsolete caps and preserving end dates and history', async () => {
+		const timestamp = '2026-01-01T00:00:00Z';
+		const date = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' };
+		const capped = {
+			resource: 'ahp-automation:/capped',
+			definition: { ...definition(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns as const, max: 3 }, date] },
+			runCount: 1,
+			runs: [],
+			operations: [AutomationOperation.Update, AutomationOperation.Run],
+			createdAt: timestamp, modifiedAt: timestamp,
+		};
+		const run: AutomationRunState = {
+			resource: 'ahp-automation-run:/retained',
+			automation: capped.resource,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: timestamp, startedAt: timestamp, completedAt: timestamp },
+			sessions: [],
+		};
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [
+					capped,
+					{ ...capped, resource: 'ahp-automation:/dated', definition: { ...definition(), disableConditions: [date] } },
+					{ ...capped, resource: 'ahp-automation:/unlimited', definition: definition() },
+				]
+			},
+			runs: [run],
+		});
+		await storageService.whenIdle();
+		const service = createService();
+		await storageService.whenIdle();
+		const stored = storageService.get<{ catalog: { automations: AutomationEntry[] }; runs: AutomationRunState[] }>('automations')!;
+		assert.deepStrictEqual({
+			available: service.isAvailable,
+			entries: stateManager.getAutomationCatalogState()!.entries.map(entry => ({
+				enabled: entry.definition.enabled, conditions: entry.definition.disableConditions,
+				hasCount: Object.hasOwn(entry, 'runCount'), runs: entry.runs.length,
+			})),
+			persisted: stored.catalog.automations.map(entry => ({ enabled: entry.definition.enabled, hasCount: Object.hasOwn(entry, 'runCount') })),
+			history: stored.runs,
+		}, {
+			available: true,
+			entries: [
+				{ enabled: false, conditions: [date], hasCount: false, runs: 1 },
+				{ enabled: true, conditions: [date], hasCount: false, runs: 0 },
+				{ enabled: true, conditions: undefined, hasCount: false, runs: 0 },
+			],
+			persisted: [{ enabled: false, hasCount: false }, { enabled: true, hasCount: false }, { enabled: true, hasCount: false }],
+			history: [run],
+		});
+		await assert.rejects(service.handleCreate({ ...createAction(), definition: capped.definition }), /must have kind 'afterDate'/);
+	});
+
 	test('coalesces simultaneously-due schedule triggers on one Automation into a single run', async () => {
 		const now = new Date();
 		const firstScheduledFor = new Date(now.getTime() - 3 * 60_000).toISOString();
@@ -1356,6 +1587,7 @@ suite('AgentHostAutomationService', () => {
 		const automationResource = 'ahp-automation:/multi-trigger';
 		const multiTriggerDefinition: AutomationDefinition = {
 			...definition(),
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }],
 			triggers: [
 				{
 					id: 'first-trigger',
@@ -1436,6 +1668,7 @@ suite('AgentHostAutomationService', () => {
 		const automationResource = 'ahp-automation:/skip-first';
 		const multiTriggerDefinition: AutomationDefinition = {
 			...definition(),
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }],
 			triggers: [
 				{
 					id: 'stale-skip-trigger',
@@ -1526,7 +1759,7 @@ suite('AgentHostAutomationService', () => {
 			catalog: {
 				automations: [{
 					resource: automationResource,
-					definition: definition(),
+					definition: { ...definition(), disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }] },
 					runs: runs.map(run => ({
 						resource: run.resource,
 						automation: run.automation,
@@ -1566,5 +1799,13 @@ suite('AgentHostAutomationService', () => {
 			count: 51,
 			cursor: undefined,
 		});
+
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automationResource, changes: { disableConditions: [] } });
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automationResource, changes: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }] } });
+		const newlyLimited = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.deepStrictEqual({
+			history: newlyLimited?.runs.length,
+			enabled: newlyLimited?.definition.enabled,
+		}, { history: 51, enabled: true });
 	});
 });

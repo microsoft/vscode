@@ -10,6 +10,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { getAutomationDisableConditionsError, getAutomationAfterDate, isAutomationDisableConditions, isAutomationAfterDateExpired } from '../../../../platform/agentHost/common/automationDisableConditions.js';
+import { type AutomationAfterDateCondition } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -64,6 +66,7 @@ interface IAutomationToolOutput {
 	readonly mode?: string | null;
 	readonly permissionLevel?: string | null;
 	readonly sessionTemplate?: IAutomationSessionTemplate;
+	readonly disableConditions: NonNullable<IAutomationDescriptor['disableConditions']>;
 	readonly enabled: boolean;
 	readonly createdAt: string;
 	readonly updatedAt: string;
@@ -122,7 +125,7 @@ export class ListAutomationsTool implements IToolImpl {
 			icon: Codicon.calendar,
 			displayName: localize('automation.tool.list.displayName', "List Automations"),
 			userDescription: localize('automation.tool.list.userDescription', "List scheduled agent automations"),
-			modelDescription: 'List Automation providers and their currently visible scheduled automations. The result is an array with one entry per provider. A provider\'s state applies only to that provider and never makes automations from another provider unavailable. When a provider is "ready", its automations array is complete; otherwise it may be incomplete, including when empty. Use canCreateAutomation and each automation\'s availableOperations before calling configureAutomation, runAutomation, or deleteAutomation. This tool never changes automation state.',
+			modelDescription: 'List Automation providers and their currently visible scheduled automations, including end dates in disableConditions. The result is an array with one entry per provider. A provider\'s state applies only to that provider and never makes automations from another provider unavailable. When a provider is "ready", its automations array is complete; otherwise it may be incomplete, including when empty. Use canCreateAutomation and each automation\'s availableOperations before calling configureAutomation, runAutomation, or deleteAutomation. This tool never changes automation state.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -419,6 +422,10 @@ Omit "automationId" to create an automation; "name", "prompt", and "schedule.int
 
 Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals, and other configuration returned by listAutomations. Omit it on unrelated partial updates, or set it to null to reset provider configuration. Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases.
 
+Use "disableConditions" to stop scheduling at an end date. Only one afterDate condition can be configured. Updates replace the end date: [] clears it; omission preserves it. Other host-owned conditions returned by listAutomations are read-only and remain unchanged. Clearing the end date does not re-enable an automation. Manual runs remain available after the end date. Warn before re-enabling an automation whose end date has passed.
+
+For "daily at 9am until the end of the week", use schedule={interval:"daily",scheduleHour:9,scheduleMinute:0} and an afterDate condition with its date set to an explicit ISO 8601 timestamp. Resolve relative dates using the intended time zone. Newly set dates must be strictly in the future, including when approval completes; an unchanged saved date may be preserved even after it expires.
+
 The change uses the current tool-approval policy. When approval is required, the user sees a normal tool confirmation. If the user cancels or denies the request, do not retry unless they ask you to.`,
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
@@ -548,6 +555,20 @@ The change uses the current tool-approval policy. When approval is required, the
 						type: 'boolean',
 						description: 'Whether scheduled runs are enabled. Defaults to true when creating.',
 					},
+					disableConditions: {
+						type: 'array',
+						maxItems: 1,
+						description: 'Optional scheduling end date. Full replacement on update; [] clears the end date; omission preserves. Manual runs are unaffected.',
+						items: {
+							type: 'object',
+							required: ['kind', 'date'],
+							additionalProperties: false,
+							properties: {
+								kind: { type: 'string', enum: ['afterDate'] },
+								date: { type: 'string', description: 'ISO 8601 timestamp with a time zone, strictly in the future when setting or changing it. An unchanged saved date may be preserved even after it expires.' },
+							},
+						},
+					},
 				},
 			},
 		};
@@ -577,18 +598,9 @@ The change uses the current tool-approval policy. When approval is required, the
 				title: existing
 					? localize('automation.tool.configure.update.confirmationTitle', "Update Automation?")
 					: localize('automation.tool.configure.create.confirmationTitle', "Create Automation?"),
-				message: existing
-					? new MarkdownString(localize(
-						'automation.tool.configure.update.confirmationMessage',
-						"Apply the proposed changes to **{0}** (`{1}`)?",
-						existing.name,
-						existing.id,
-					))
-					: new MarkdownString(localize(
-						'automation.tool.configure.create.confirmationMessage',
-						"Create the automation **{0}**?",
-						proposal.initialValues.name,
-					)),
+				message: proposal.kind === 'update'
+					? this.getUpdateConfirmationMessage(proposal.existing, proposal.initialValues)
+					: this.getCreateConfirmationMessage(proposal.initialValues),
 			},
 			toolSpecificData: proposal.kind === 'update'
 				? {
@@ -746,7 +758,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			throw new AutomationToolInputError('configureAutomation input must be an object.');
 		}
 		const input = rawInput;
-		assertKnownProperties(input, ['automationId', 'name', 'prompt', 'schedule', 'target', 'modelId', 'mode', 'permissionLevel', 'sessionTemplate', 'enabled'], 'configureAutomation input');
+		assertKnownProperties(input, ['automationId', 'name', 'prompt', 'schedule', 'target', 'modelId', 'mode', 'permissionLevel', 'sessionTemplate', 'enabled', 'disableConditions'], 'configureAutomation input');
 
 		const automationId = readOptionalNonEmptyString(input, 'automationId');
 		const existing = automationId ? this.automationService.getAutomation(automationId) : undefined;
@@ -777,6 +789,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			throw new AutomationToolInputError('Legacy "modelId", "mode", and "permissionLevel" aliases cannot update an automation with a canonical session template. Pass the complete updated "sessionTemplate" returned by listAutomations.');
 		}
 		const enabled = readOptionalBoolean(input, 'enabled');
+		const disableConditions = readDisableConditions(input, existing?.disableConditions);
 
 		const proposedValues: IUpdateAutomationOptions = {
 			...(name !== undefined ? { name } : {}),
@@ -788,6 +801,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			...(permissionLevel !== undefined ? { permissionLevel } : {}),
 			...(sessionTemplate !== undefined ? { sessionTemplate } : {}),
 			...(enabled !== undefined ? { enabled } : {}),
+			...(disableConditions !== undefined ? { disableConditions } : {}),
 		};
 		const validateTargetAvailability = input.target !== undefined
 			&& !(isRecord(input.target) && input.target.kind === 'currentSession');
@@ -816,9 +830,29 @@ The change uses the current tool-approval policy. When approval is required, the
 				...(permissionLevel ? { permissionLevel } : {}),
 				...(sessionTemplate ? { sessionTemplate } : {}),
 				...(enabled !== undefined ? { enabled } : {}),
+				...(disableConditions !== undefined ? { disableConditions } : {}),
 			},
 			validateTargetAvailability,
 		};
+	}
+
+	private getCreateConfirmationMessage(options: ICreateAutomationOptions): MarkdownString {
+		const message = new MarkdownString(localize(
+			'automation.tool.configure.create.confirmationMessage',
+			"Create the automation **{0}**?",
+			options.name,
+		));
+		return appendDisableConditionsConfirmation(message, options.disableConditions, options.enabled ?? true);
+	}
+
+	private getUpdateConfirmationMessage(existing: IAutomationDescriptor, patch: IUpdateAutomationOptions): MarkdownString {
+		const message = new MarkdownString(localize(
+			'automation.tool.configure.update.confirmationMessage',
+			"Apply the proposed changes to **{0}** (`{1}`)?",
+			existing.name,
+			existing.id,
+		));
+		return appendDisableConditionsConfirmation(message, patch.disableConditions ?? existing.disableConditions, patch.enabled ?? existing.enabled);
 	}
 
 	private getCurrentSessionTarget(resource: URI | undefined): AutomationTarget | undefined {
@@ -1087,6 +1121,7 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 				mode: automation.mode ?? null,
 				permissionLevel: automation.permissionLevel ?? null,
 			}),
+		disableConditions: automation.disableConditions ?? [],
 		enabled: automation.enabled,
 		createdAt: automation.createdAt,
 		updatedAt: automation.updatedAt,
@@ -1200,7 +1235,7 @@ function resolveAutomationInput(automationService: IAutomationService, rawInput:
 	return automation;
 }
 
-function assertKnownProperties(value: Record<string, unknown>, properties: readonly string[], field: string): void {
+function assertKnownProperties(value: object, properties: readonly string[], field: string): void {
 	const known = new Set(properties);
 	const unexpected = Object.keys(value).find(key => !known.has(key));
 	if (unexpected) {
@@ -1273,6 +1308,38 @@ function readOptionalInteger(value: Record<string, unknown>, property: string, m
 		throw new AutomationToolInputError(`"${property}" must be an integer from ${minimum} through ${maximum}.`);
 	}
 	return candidate;
+}
+
+function readDisableConditions(value: Record<string, unknown>, existing?: IAutomationDescriptor['disableConditions']): AutomationAfterDateCondition[] | undefined {
+	const candidate = value.disableConditions;
+	if (candidate === undefined) {
+		return undefined;
+	}
+	if (!isAutomationDisableConditions(candidate)) {
+		throw new AutomationToolInputError(getAutomationDisableConditionsError(candidate)!);
+	}
+	for (const condition of candidate) {
+		assertKnownProperties(condition, ['kind', 'date'], 'disableConditions');
+	}
+	const date = getAutomationAfterDate(candidate);
+	if (date !== undefined && date !== getAutomationAfterDate(existing) && Date.parse(date) <= Date.now()) {
+		throw new AutomationToolInputError(localize('automation.tool.conditions.futureDate', "The final date must be in the future."));
+	}
+	return candidate;
+}
+
+function appendDisableConditionsConfirmation(message: MarkdownString, conditions: IAutomationDescriptor['disableConditions'], enabled: boolean): MarkdownString {
+	if (conditions !== undefined) {
+		const date = getAutomationAfterDate(conditions);
+		const summary = date !== undefined
+			? localize('automation.tool.conditions.finalDate', "Disable scheduling at {0}.", date)
+			: localize('automation.tool.conditions.none', "No scheduling end date.");
+		message.appendMarkdown(`\n\n${summary}`);
+	}
+	if (enabled && isAutomationAfterDateExpired(conditions)) {
+		message.appendMarkdown('\n\n' + localize('automation.tool.conditions.expired', "The final date has passed. The host will disable scheduling immediately. Change or remove the final date to resume scheduled runs."));
+	}
+	return message;
 }
 
 function readRequiredEnum<const T extends string>(value: Record<string, unknown>, property: string, allowed: readonly T[]): T {

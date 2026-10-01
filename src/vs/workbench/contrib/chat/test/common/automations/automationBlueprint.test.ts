@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AutomationDisableConditionKind } from '../../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAutomationDescriptor } from '../../../common/automations/automation.js';
@@ -100,7 +101,7 @@ suite('Automation blueprints', () => {
 	test('rejects invalid authority and schedule fields', () => {
 		const documents = [
 			'Review the workspace.',
-			'---\nversion: 2\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
+			'---\nversion: 3\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
 			'---\nversion: 1\nid: Review Task\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nenabled: true\nschedule:\n  kind: manual\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "20 * * * *"\n  timeZone: local\n---\nReview.',
@@ -118,13 +119,90 @@ suite('Automation blueprints', () => {
 			}
 		}), [
 			{ code: 'invalidFrontmatter', property: undefined },
-			{ code: 'unsupportedVersion', property: '2' },
+			{ code: 'unsupportedVersion', property: '3' },
 			{ code: 'invalidId', property: 'Review Task' },
 			{ code: 'unknownProperty', property: 'enabled' },
 			{ code: 'unsupportedSchedule', property: '20 * * * *' },
 			{ code: 'unsupportedSchedule', property: '0 24 * * *' },
 			{ code: 'unsupportedTimeZone', property: 'Europe/Berlin' },
 		]);
+	});
+
+	test('round trips an end date', () => {
+		const automation: IAutomationDescriptor = {
+			id: 'review', name: 'Review', prompt: 'Review.',
+			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'mock' },
+			enabled: false, disableConditions: [
+				{ kind: AutomationDisableConditionKind.AfterDate, date: '2026-10-01T00:00:00Z' },
+			], createdAt: '', updatedAt: '',
+		};
+		assert.deepStrictEqual(parseAutomationBlueprint(serializeAutomationBlueprint(automationToBlueprint(automation))), {
+			version: 2, id: 'review', name: 'Review', prompt: 'Review.',
+			schedule: automation.schedule, disableConditions: automation.disableConditions,
+		});
+	});
+
+	test('rejects run-count conditions in version 2', () => {
+		for (const value of ['1', '0', '-1', '1.5', '9007199254740992', 'null']) {
+			assert.throws(() => parseAutomationBlueprint(`---\nversion: 2\nid: review\nname: Review\ndisableConditions:\n  - kind: afterRuns\n    max: ${value}\nschedule:\n  kind: manual\n---\nReview.`),
+				AutomationBlueprintParseError);
+		}
+	});
+
+	test('rejects duplicate and malformed conditions and omits empty conditions on export', () => {
+		const blueprint = parseAutomationBlueprint('---\nversion: 2\nid: review\nname: Review\ndisableConditions: []\nschedule:\n  kind: manual\n---\nReview.');
+		const serialized = serializeAutomationBlueprint(blueprint);
+		assert.deepStrictEqual({
+			hasConditionsField: serialized.includes('disableConditions'),
+			parsed: parseAutomationBlueprint(serialized),
+		}, {
+			hasConditionsField: false,
+			parsed: { version: 1, id: 'review', name: 'Review', prompt: 'Review.', schedule: blueprint.schedule },
+		});
+		for (const conditions of [
+			'null',
+			'\n  - kind: afterRuns\n    max: 1\n  - kind: afterRuns\n    max: 1',
+			'\n  - kind: afterDate\n    date: invalid',
+			'\n  - kind: unknown',
+		]) {
+			assert.throws(() => parseAutomationBlueprint(`---\nversion: 2\nid: review\nname: Review\ndisableConditions: ${conditions}\nschedule:\n  kind: manual\n---\nReview.`), AutomationBlueprintParseError);
+		}
+	});
+
+	test('retains the strict version 1 schema and upgrades exports that add conditions', () => {
+		const legacy = '---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.';
+		assert.throws(() => parseAutomationBlueprint(legacy.replace('schedule:', 'disableConditions: []\nschedule:')),
+			/^Error: unknownProperty: disableConditions$/);
+		const blueprint = parseAutomationBlueprint(legacy);
+		assert.deepStrictEqual({
+			legacy: parseAutomationBlueprint(serializeAutomationBlueprint(blueprint)).version,
+			upgraded: parseAutomationBlueprint(serializeAutomationBlueprint({ ...blueprint, disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' }] })).version,
+			current: parseAutomationBlueprint(legacy.replace('version: 1', 'version: 2')).version,
+		}, { legacy: 1, upgraded: 2, current: 2 });
+	});
+
+	test('clearing an end date restores a condition-free version 1 export', () => {
+		const automation: IAutomationDescriptor = {
+			id: 'review', name: 'Review', prompt: 'Review.',
+			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'mock' },
+			enabled: true, createdAt: '', updatedAt: '',
+		};
+		const neverLimited = automationToBlueprint(automation);
+		const cleared = automationToBlueprint({ ...automation, disableConditions: [] });
+		assert.deepStrictEqual({
+			blueprint: cleared,
+			serialized: serializeAutomationBlueprint(cleared),
+			hasConditionsField: Object.hasOwn(cleared, 'disableConditions'),
+		}, {
+			blueprint: neverLimited,
+			serialized: serializeAutomationBlueprint(neverLimited),
+			hasConditionsField: false,
+		});
+		assert.throws(() => automationToBlueprint({
+			...automation, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }],
+		}), /^Error: invalidField: disableConditions$/);
 	});
 
 	test('exports only portable automation state', () => {

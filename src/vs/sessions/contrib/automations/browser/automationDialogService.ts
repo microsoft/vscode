@@ -168,7 +168,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 					...(sessionConfigurationCapture.kind === 'captured' ? {
 						sessionTemplate: sessionTemplate ?? null,
 					} : {}),
-					enabled: state.enabled,
 				};
 				return { kind: 'update', id: existing.id, value: patch };
 			}
@@ -185,6 +184,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						...(sessionConfiguration.permissionLevel !== undefined ? { permissionLevel: sessionConfiguration.permissionLevel } : {}),
 					} : {}),
 				enabled: state.enabled,
+				...(initial?.disableConditions ? { disableConditions: initial.disableConditions } : {}),
 			};
 			return { kind: 'create', value: create };
 		};

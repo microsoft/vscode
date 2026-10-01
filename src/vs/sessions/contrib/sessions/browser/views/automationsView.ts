@@ -17,13 +17,17 @@ import { autorun, constObservable, IObservable, IReader, ISettableObservable, ob
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { equals } from '../../../../../base/common/objects.js';
+import { getAutomationAfterDate, isAutomationAfterDateExpired } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
@@ -71,6 +75,7 @@ export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automation
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanUpdateContext = new RawContextKey<boolean>('sessionsAutomationCardCanUpdate', false);
 const AutomationCardEnabledContext = new RawContextKey<boolean>('sessionsAutomationCardEnabled', false);
+const AutomationCardHasLimitsContext = new RawContextKey<boolean>('sessionsAutomationCardHasLimits', false);
 
 function areAutomationTemplatesEqual(first: readonly IAutomationTemplate[], second: readonly IAutomationTemplate[]): boolean {
 	return first.length === second.length && first.every((template, index) => {
@@ -84,6 +89,7 @@ function areAutomationTemplatesEqual(first: readonly IAutomationTemplate[], seco
 			&& template.schedule.scheduleHour === other.schedule.scheduleHour
 			&& template.schedule.scheduleMinute === other.schedule.scheduleMinute
 			&& template.schedule.scheduleDay === other.schedule.scheduleDay
+			&& equals(template.disableConditions ?? [], other.disableConditions ?? [])
 			&& template.source?.label === other.source?.label
 			&& ((!template.source && !other.source) || (!!template.source && !!other.source && isEqual(template.source.uri, other.source.uri)));
 	});
@@ -103,11 +109,15 @@ interface IAutomationCardEntry {
 	readonly canDeleteContext: IContextKey<boolean>;
 	readonly canUpdateContext: IContextKey<boolean>;
 	readonly enabledContext: IContextKey<boolean>;
+	readonly hasLimitsContext: IContextKey<boolean>;
 	readonly nameText: HTMLElement;
 	readonly scheduleEl: HTMLElement;
 	readonly folderEl: HTMLElement;
 	readonly folderHover: MutableDisposable<IDisposable>;
+	readonly limitEl: HTMLElement;
+	readonly limitHover: MutableDisposable<IDisposable>;
 	readonly promptEl: HTMLElement;
+	readonly promptHover: MutableDisposable<IDisposable>;
 	readonly disabledBadge: HTMLElement;
 	readonly disposables: DisposableStore;
 }
@@ -546,6 +556,7 @@ class AutomationCardsSection extends Disposable {
 		const canDeleteContext = AutomationCardCanDeleteContext.bindTo(cardContextKeyService);
 		const canUpdateContext = AutomationCardCanUpdateContext.bindTo(cardContextKeyService);
 		const enabledContext = AutomationCardEnabledContext.bindTo(cardContextKeyService);
+		const hasLimitsContext = AutomationCardHasLimitsContext.bindTo(cardContextKeyService);
 		disposables.add(Gesture.addTarget(card));
 
 		const main = DOM.append(card, $<HTMLButtonElement>('button.automations-card-main', {
@@ -561,8 +572,11 @@ class AutomationCardsSection extends Disposable {
 		const scheduleEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-schedule'));
 		const folderEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-folder'));
 		const folderHover = disposables.add(new MutableDisposable());
+		const limitEl = DOM.append(main, $('span.automations-card-limit'));
+		const limitHover = disposables.add(new MutableDisposable());
 
 		const promptEl = DOM.append(main, $('.automations-card-prompt'));
+		const promptHover = disposables.add(new MutableDisposable());
 
 		const actions = DOM.append(card, $('.automations-card-actions'));
 		actions.setAttribute('role', 'group');
@@ -636,11 +650,15 @@ class AutomationCardsSection extends Disposable {
 			canDeleteContext,
 			canUpdateContext,
 			enabledContext,
+			hasLimitsContext,
 			nameText: nameTextEl,
 			scheduleEl,
 			folderEl,
 			folderHover,
+			limitEl,
+			limitHover,
 			promptEl,
+			promptHover,
 			disabledBadge,
 			disposables,
 		};
@@ -654,6 +672,7 @@ class AutomationCardsSection extends Disposable {
 		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));
 		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
 		card.enabledContext.set(automation.enabled);
+		card.hasLimitsContext.set(getAutomationAfterDate(automation.disableConditions) !== undefined);
 		const schedule = formatSchedule(automation.schedule);
 		const scheduleChanged = !previous || formatSchedule(previous.schedule) !== schedule;
 		const nameChanged = !previous || previous.name !== automation.name;
@@ -680,11 +699,26 @@ class AutomationCardsSection extends Disposable {
 			card.folderHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel);
 		}
 
+		if (!previous || previous.enabled !== automation.enabled || !equals(previous.disableConditions, automation.disableConditions)) {
+			const limit = automation.enabled ? formatAutomationLimit(automation) : undefined;
+			card.main.classList.toggle('automations-card-has-limit', !!limit);
+			card.limitEl.textContent = limit?.label ?? '';
+			DOM.setVisibility(!!limit, card.limitEl);
+			if (limit) {
+				card.main.setAttribute('aria-description', limit.description);
+				card.limitHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.limitEl, limit.description);
+			} else {
+				card.main.removeAttribute('aria-description');
+				card.limitHover.clear();
+			}
+		}
+
 		if (!previous || previous.prompt !== automation.prompt) {
 			const maxLength = 120;
 			card.promptEl.textContent = automation.prompt.length > maxLength
 				? automation.prompt.slice(0, maxLength) + '…'
 				: automation.prompt;
+			card.promptHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.promptEl, automation.prompt);
 		}
 	}
 
@@ -992,6 +1026,7 @@ class AutomationCardsSection extends Disposable {
 				name: template.name,
 				prompt: template.prompt,
 				schedule: template.schedule,
+				...(template.disableConditions !== undefined ? { disableConditions: template.disableConditions } : {}),
 				...(template.enabled !== undefined ? { enabled: template.enabled } : {}),
 			});
 		}));
@@ -1569,6 +1604,17 @@ function getAutomationTargetLabel(target: AutomationTarget): string {
 	return target.kind === 'workspace' ? basename(target.folderUri) : localize('quickChat', "No workspace");
 }
 
+function formatAutomationLimit(automation: IAutomationDescriptor): { label: string; description: string } | undefined {
+	const date = getAutomationAfterDate(automation.disableConditions);
+	const formattedDate = date === undefined ? undefined : new Date(date).toLocaleString(undefined, {
+		year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+	});
+	return formattedDate === undefined ? undefined : {
+		label: localize('automationCardEndDate', "Runs until {0}", formattedDate),
+		description: localize('automationCardEndDateDescription', "Stops scheduling at {0}. Manual runs remain available.", formattedDate),
+	};
+}
+
 function groupRunsByDate(runs: readonly IAutomationRun[]): { key: string; label: string; runs: IAutomationRun[] }[] {
 	const now = new Date();
 	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1720,6 +1766,7 @@ async function importAutomationBlueprint(
 			name: blueprint.name,
 			prompt: blueprint.prompt,
 			schedule: blueprint.schedule,
+			...(blueprint.disableConditions !== undefined ? { disableConditions: blueprint.disableConditions } : {}),
 			enabled: false,
 		},
 	});
@@ -2135,6 +2182,7 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 					name,
 					prompt: automation.prompt,
 					schedule: automation.schedule,
+					...(automation.disableConditions !== undefined ? { disableConditions: automation.disableConditions } : {}),
 					target: automation.target,
 					...(automation.sessionTemplate
 						? { sessionTemplate: automation.sessionTemplate }
@@ -2265,6 +2313,52 @@ registerAction2(class DisableAutomationAction extends Action2 {
 	}
 });
 
+registerAction2(class RemoveAutomationLimitsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.removeLimits',
+			title: localize2('removeAutomationEndDate', "Remove end date"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationCardCanUpdateContext, AutomationCardHasLimitsContext),
+			menu: [{
+				id: Menus.AutomationCardContext, group: 'navigation', order: 1.5,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationCardHasLimitsContext),
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
+		const automationService = accessor.get(IAutomationService);
+		if (getAutomationAfterDate(automation.disableConditions) === undefined || !automationService.canUpdateAutomation(automation.id)) {
+			return;
+		}
+		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		const logService = accessor.get(ILogService);
+		const automationsEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+		if (!automationsEnabled()) {
+			await showAutomationsDisabled(dialogService);
+			return;
+		}
+		try {
+			const disableConditions = automation.disableConditions?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterDate) ?? [];
+			const result = await automationService.updateAutomationIfUnchanged(automation.id, { disableConditions }, automation, () => {
+				if (!automationsEnabled()) {
+					throw new Error(localize('automationsDisabledBeforeRemoveEndDate', "Automations were disabled before the end date could be removed."));
+				}
+			});
+			if (result.kind === 'conflict') {
+				throw new Error(result.current
+					? localize('automationChangedBeforeRemoveEndDate', "This automation changed before its end date could be removed. Try again.")
+					: localize('automationDeletedBeforeRemoveEndDate', "This automation was deleted before its end date could be removed."));
+			}
+			status(localize('automationEndDateRemoved', "Removed end date from automation {0}", automation.name));
+		} catch (error) {
+			logService.error('[Automations] Failed to remove automation end date', error);
+			await dialogService.error(localize('automationRemoveEndDateFailed', "Failed to remove automation end date."), getErrorMessage(error));
+		}
+	}
+});
+
 registerAction2(class EnableAutomationAction extends Action2 {
 	constructor() {
 		super({
@@ -2294,7 +2388,23 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 		return;
 	}
 	try {
-		const result = await automationService.updateAutomationIfUnchanged(automation.id, { enabled }, automation, () => {
+		let patch: IUpdateAutomationOptions = { enabled };
+		if (enabled && isAutomationAfterDateExpired(automation.disableConditions)) {
+			const confirmation = await dialogService.confirm({
+				type: 'warning',
+				message: localize('automationExpired', "This automation has expired"),
+				detail: localize('automationExpiredDetail', "The expiration date has passed for this automation. Ask in chat to change the date, or remove it to reenable it."),
+				primaryButton: localize('automationRemoveExpirationAndEnable', "Remove expiration and enable"),
+			});
+			if (!confirmation.confirmed) {
+				return;
+			}
+			patch = {
+				enabled,
+				disableConditions: automation.disableConditions?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterDate) ?? [],
+			};
+		}
+		const result = await automationService.updateAutomationIfUnchanged(automation.id, patch, automation, () => {
 			if (!automationsEnabled()) {
 				throw new Error(enabled
 					? localize('automationsDisabledBeforeEnable', "Automations were disabled before the automation could be enabled.")
@@ -2310,9 +2420,11 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 					? localize('automationDeletedDuringEnable', "This automation was deleted before it could be enabled.")
 					: localize('automationDeletedDuringDisable', "This automation was deleted before it could be disabled.")));
 		}
-		status(enabled
-			? localize('automationEnabledStatus', "Enabled automation {0}", automation.name)
-			: localize('automationDisabledStatus', "Disabled automation {0}", automation.name));
+		status(enabled && !result.automation.enabled
+			? localize('automationRemainsDisabledStatus', "Automation {0} remains disabled.", automation.name)
+			: result.automation.enabled
+				? localize('automationEnabledStatus', "Enabled automation {0}", automation.name)
+				: localize('automationDisabledStatus', "Disabled automation {0}", automation.name));
 	} catch (error) {
 		logService.error(enabled ? '[Automations] Failed to enable automation' : '[Automations] Failed to disable automation', error);
 		await dialogService.error(

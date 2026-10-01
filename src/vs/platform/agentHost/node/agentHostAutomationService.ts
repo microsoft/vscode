@@ -32,6 +32,7 @@ import { nextAutomationCronOccurrence, validateAutomationCron } from './automati
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, DEFAULT_AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES, migrateLegacyAutomationSessionConfig } from '../common/automationConfig.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
+import { getAutomationDisableConditionsError, getAutomationAfterDate, isAutomationDisableConditions, isAutomationAfterDateExpired } from '../common/automationDisableConditions.js';
 
 const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
@@ -207,7 +208,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 
 		const timestamp = new Date().toISOString();
-		const automation = this._withInitialScheduleState({
+		const automation = withDisabledSchedule(this._withInitialScheduleState({
 			resource: action.resource,
 			definition,
 			runs: [],
@@ -218,7 +219,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			],
 			createdAt: timestamp,
 			modifiedAt: timestamp,
-		}, new Date(timestamp));
+		}, new Date(timestamp)));
 		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
 		await this._persist(next, this._runs, this._manualRunRequests);
 		this._catalog = next;
@@ -239,18 +240,20 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		this._requireOperation(existing, AutomationOperation.Update);
 
+		const definition: AutomationDefinition = {
+			...existing.definition,
+			...action.changes,
+		};
 		let automation: AutomationEntry = {
 			...existing,
-			definition: {
-				...existing.definition,
-				...action.changes,
-			},
+			definition,
 			modifiedAt: new Date().toISOString(),
 		};
 		this._validateDefinition(automation.definition);
 		if (action.changes.triggers !== undefined || action.changes.enabled !== undefined) {
 			automation = this._withInitialScheduleState(automation, new Date());
 		}
+		automation = withDisabledSchedule(automation);
 		automation = { ...automation, operations: this._operationsForItem(automation) };
 		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
 		await this._persist(next, this._runs, this._manualRunRequests);
@@ -258,14 +261,16 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
 		const enabledChanged = existing.definition.enabled !== automation.definition.enabled;
 		const scheduleChanged = !equals(existing.definition.triggers, automation.definition.triggers);
+		const disableConditionsChanged = !equals(existing.definition.disableConditions, automation.definition.disableConditions);
 		const sessionConfigurationChanged = !equals(existing.definition.session, automation.definition.session);
 		const promptChanged = !equals(existing.definition.message, automation.definition.message);
 		const titleChanged = existing.definition.title !== automation.definition.title;
-		if (enabledChanged || scheduleChanged || sessionConfigurationChanged || promptChanged || titleChanged) {
+		if (enabledChanged || scheduleChanged || disableConditionsChanged || sessionConfigurationChanged || promptChanged || titleChanged) {
 			logAutomationUpdated(this._telemetryService, {
 				...this._definitionTelemetry(automation),
 				enabledChanged,
 				scheduleChanged,
+				disableConditionsChanged,
 				sessionConfigurationChanged,
 				promptChanged,
 				titleChanged,
@@ -383,7 +388,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			this._logService.error('[AgentHostAutomationService] Automation storage is invalid; automation execution remains unavailable until it is recovered.');
 			return undefined;
 		}
-		return stored;
+		const automations = stored.catalog.automations.map(migrateStoredRunLimits);
+		if (automations.every((automation, index) => automation === stored.catalog.automations[index])) {
+			return stored;
+		}
+		const migrated = { ...stored, catalog: { ...stored.catalog, automations } };
+		this._logService.warn('[AgentHostAutomationService] Removed obsolete stored run limits and usage. Previously capped automations remain disabled until explicitly enabled.');
+		this._storageService.set(STORAGE_KEY, migrated);
+		return migrated;
 	}
 
 	private async _persist(
@@ -458,6 +470,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 					&& !this._activeRunFor(automation.resource))
 				.map(automation => Date.parse(automation.nextRunAt!))
 				.filter(timestamp => Number.isFinite(timestamp));
+			for (const automation of catalog.entries) {
+				if (automation.definition.enabled) {
+					const date = getAutomationAfterDate(automation.definition.disableConditions);
+					if (date !== undefined) {
+						timestamps.push(Date.parse(date));
+					}
+				}
+			}
 			if (timestamps.length === 0) {
 				return;
 			}
@@ -485,6 +505,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 		for (const current of catalog.entries) {
 			if (!current.definition.enabled) {
+				continue;
+			}
+			if (isAutomationDisabledByCondition(current, nowTimestamp)) {
+				const nextAutomation = disableScheduledRuns(current);
+				nextCatalog = automationReducer(nextCatalog, { type: ActionType.AutomationSet, automation: nextAutomation }, this._log);
+				changed.set(nextAutomation.resource, nextAutomation);
 				continue;
 			}
 			if (!current.operations.includes(AutomationOperation.Run)) {
@@ -917,6 +943,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (definition.title.trim().length === 0) {
 			throw new Error('Automation title must not be empty.');
 		}
+		const conditionsError = getAutomationDisableConditionsError(definition.disableConditions);
+		if (conditionsError) {
+			throw new Error(conditionsError);
+		}
 		if (definition.message.origin.kind !== MessageKind.Automation) {
 			throw new Error('Automation message must have an automation origin.');
 		}
@@ -980,6 +1010,25 @@ function getExecutionSessionTemplate(definition: AutomationDefinition): Automati
 		: { ...definition.session, model: definition.message.model };
 }
 
+function isAutomationDisabledByCondition(automation: AutomationEntry, now = Date.now()): boolean {
+	return isAutomationAfterDateExpired(automation.definition.disableConditions, now);
+}
+
+function withDisabledSchedule(automation: AutomationEntry): AutomationEntry {
+	return automation.definition.enabled && isAutomationDisabledByCondition(automation)
+		? disableScheduledRuns(automation)
+		: automation;
+}
+
+function disableScheduledRuns(automation: AutomationEntry): AutomationEntry {
+	return {
+		...automation,
+		definition: { ...automation.definition, enabled: false },
+		nextRunAt: undefined,
+		_meta: withScheduleCursors(automation._meta, {}),
+	};
+}
+
 function isStoredAutomationCatalog(value: unknown): value is IStoredAutomationCatalog {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return false;
@@ -1007,6 +1056,25 @@ function migrateStoredAutomation(automation: AutomationEntry): AutomationEntry {
 	};
 }
 
+function migrateStoredRunLimits(automation: AutomationEntry): AutomationEntry {
+	const hadRunLimit = automation.definition.disableConditions?.some(condition => condition.kind === 'afterRuns');
+	if (!hadRunLimit && !Object.hasOwn(automation, 'runCount')) {
+		return automation;
+	}
+	const migrated = { ...automation };
+	delete migrated.runCount;
+	if (!hadRunLimit) {
+		return migrated;
+	}
+	return disableScheduledRuns({
+		...migrated,
+		definition: {
+			...migrated.definition,
+			disableConditions: migrated.definition.disableConditions?.filter(condition => condition.kind === 'afterDate'),
+		},
+	});
+}
+
 function isStoredAutomations(value: unknown): value is IStoredAutomations {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return false;
@@ -1024,11 +1092,31 @@ function isAutomationEntry(value: unknown): value is AutomationEntry {
 	}
 	const record = value as Record<string, unknown>;
 	return typeof record['resource'] === 'string'
-		&& typeof record['definition'] === 'object' && record['definition'] !== null && !Array.isArray(record['definition'])
+		&& isAutomationDefinition(record['definition'])
 		&& Array.isArray(record['runs'])
 		&& Array.isArray(record['operations'])
 		&& typeof record['createdAt'] === 'string'
 		&& typeof record['modifiedAt'] === 'string';
+}
+
+function isAutomationDefinition(value: unknown): value is AutomationDefinition {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return false;
+	}
+	const definition = value as Record<string, unknown>;
+	const disableConditions = definition['disableConditions'];
+	if (disableConditions === undefined || isAutomationDisableConditions(disableConditions)) {
+		return true;
+	}
+	if (!Array.isArray(disableConditions)) {
+		return false;
+	}
+	const legacyLimits = disableConditions.filter(condition => condition?.kind === 'afterRuns');
+	return legacyLimits.length === 1
+		&& typeof legacyLimits[0].max === 'number'
+		&& Number.isSafeInteger(legacyLimits[0].max)
+		&& legacyLimits[0].max > 0
+		&& isAutomationDisableConditions(disableConditions.filter(condition => condition?.kind !== 'afterRuns'));
 }
 
 function isAutomationRunState(value: unknown): value is AutomationRunState {
