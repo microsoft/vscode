@@ -26,7 +26,7 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		host.remove();
 	});
 
-	function createPickerLane(width: number, expandedWidths: number[]) {
+	function createPickerLane(width: number, expandedWidths: number[], usePreferredWidth = false) {
 		const lane = dom.append(host, dom.$('.picker-lane'));
 		lane.style.display = 'flex';
 		lane.style.width = `${width}px`;
@@ -52,9 +52,32 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		});
 		const layout = store.add(new ChatInputPickerResponsiveLayout('test.measuredPickerLane', lane, {
 			getItems: () => items,
+			usePreferredWidth,
 		}));
 		return { lane, items, layout };
 	}
+
+	test('intrinsic sizing ignores intermediate reveal widths and restores labels', () => {
+		const { lane, items, layout } = createPickerLane(260, [80, 80, 80], true);
+		for (const item of items) {
+			const animation = item.element.animate([{ width: '20px' }, { width: '80px' }], { duration: 1000 });
+			store.add(toDisposable(() => animation.cancel()));
+			animation.pause();
+			animation.currentTime = 0;
+		}
+		layout.layout();
+		const wide = items.map(item => item.isCompact());
+		lane.style.width = '180px';
+		layout.layout();
+		const narrow = items.map(item => item.isCompact());
+		lane.style.width = '260px';
+		layout.layout();
+		assert.deepStrictEqual({ wide, narrow, restored: items.map(item => item.isCompact()) }, {
+			wide: [false, false, false],
+			narrow: [false, false, true],
+			restored: [false, false, false],
+		});
+	});
 
 	test('uses the rendered picker width instead of a viewport threshold', () => {
 		const lane = dom.append(host, dom.$('.picker-lane'));

@@ -95,6 +95,7 @@ class MockWSLMainService extends Disposable implements IWSLRemoteAgentHostMainSe
 	readonly onDidCloseConnection = this._onDidCloseConnection.event;
 	private readonly _onDidRelayMessage = this._register(new Emitter<{ connectionId: string; data: string }>());
 	readonly onDidRelayMessage = this._onDidRelayMessage.event;
+	readonly onDidRelayActivity = Event.None;
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose = this._onDidRelayClose.event;
 	private readonly _onDidReconnect = this._register(new Emitter<void>());

@@ -5,7 +5,7 @@
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
-import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
+import { AgentHostGitHubService, IAgentHostGitHubService } from './agentHostGitHubService.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
 import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
@@ -60,6 +60,7 @@ import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHost
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { AgentHostSessionPromptService, IAgentHostSessionPromptService } from './agentHostSessionPromptService.js';
 import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -80,7 +81,7 @@ export interface IAgentHostCoreServiceInputs {
 	readonly rootConfigResource?: URI;
 	readonly orchestratorDatabase?: IAgentHostDatabase;
 	readonly fetchFn: typeof globalThis.fetch;
-	readonly gitHubServiceOptions: GitHubServiceOptions;
+	readonly gitHubServiceOptions: Omit<GitHubServiceOptions, 'credentialProvider'>;
 	readonly copilotApiService?: ICopilotApiService;
 	readonly hostLaunchKind?: AgentHostLaunchKind;
 	readonly startupMarks?: AgentHostStartupMarks;
@@ -101,7 +102,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
 	services.set(IAgentHostManagedSettingsService, new SyncDescriptor(AgentHostManagedSettingsService));
 	services.set(IAgentHostOctoKitService, new SyncDescriptor(AgentHostOctoKitService, [inputs.fetchFn]));
-	services.set(IGitHubService, new SyncDescriptor(GitHubService, [inputs.gitHubServiceOptions]));
+	services.set(IAgentHostGitHubService, new SyncDescriptor(AgentHostGitHubService, [inputs.gitHubServiceOptions]));
 	services.set(ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
 	services.set(IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
 	services.set(IAgentHostGitStateService, new SyncDescriptor(AgentHostGitStateService));
@@ -117,6 +118,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
+	services.set(IAgentHostSessionPromptService, new SyncDescriptor(AgentHostSessionPromptService));
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));
 	services.set(IAgentHostTurnService, new SyncDescriptor(AgentHostTurnService));
 	services.set(IAgentHostTelemetryReporter, new SyncDescriptor(AgentHostTelemetryReporter));

@@ -484,6 +484,9 @@ export interface ISSHRemoteAgentHostMainService {
 	/** Fires when a message is received from a remote agent host via the SSH relay. */
 	readonly onDidRelayMessage: Event<IRelayMessage>;
 
+	/** Fires with a connection ID while that SSH relay receives part of a message. */
+	readonly onDidRelayActivity: Event<string /* connectionId */>;
+
 	/** Fires when a relay connection to a remote agent host closes. */
 	readonly onDidRelayClose: Event<string /* connectionId */>;
 

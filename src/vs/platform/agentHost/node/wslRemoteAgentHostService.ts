@@ -90,6 +90,8 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage: Event<IRelayMessage> = this._onDidRelayMessage.event;
 
+	readonly onDidRelayActivity: Event<string> = Event.None;
+
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
 
