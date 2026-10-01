@@ -995,27 +995,6 @@ export class SessionDatabase implements ISessionDatabase {
 		return row?.value as string | undefined;
 	}
 
-	getTurnMetadata(prefix: string): Promise<Map<string, string>> {
-		return this._metadataSequencer.queue(() => this._queueOperation(async db => {
-			const rows = await dbAll(db, `
-				SELECT substr(m.key, length(?1) + 1) AS turn_id, t.event_id, m.value
-				FROM session_metadata m
-				LEFT JOIN turns t ON t.id = substr(m.key, length(?1) + 1)
-				WHERE substr(m.key, 1, length(?1)) = ?1`, [prefix]);
-			const result = new Map<string, string>();
-			for (const row of rows) {
-				if (typeof row.turn_id !== 'string' || typeof row.value !== 'string') {
-					continue;
-				}
-				result.set(row.turn_id, row.value);
-				if (typeof row.event_id === 'string') {
-					result.set(row.event_id, row.value);
-				}
-			}
-			return result;
-		}));
-	}
-
 	async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
 		const keys = Object.keys(obj) as (keyof T & string)[];
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions

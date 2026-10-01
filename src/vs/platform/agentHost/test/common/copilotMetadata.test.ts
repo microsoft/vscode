@@ -12,7 +12,7 @@ import { readAgentToolOutputDelta } from '../../common/meta/agentToolCallMeta.js
 import { readAgentContextUsage } from '../../common/meta/agentUsageMeta.js';
 import { readAgentMessagePresentation } from '../../common/meta/agentMessageMeta.js';
 import { hasAgentMetadata } from '../../common/meta/metadata.js';
-import { readCopilotCommand, readCopilotContextUsage, readCopilotErrorDetail, readCopilotModelText, readCopilotToolOrigin, readCopilotToolOutputDelta, readCopilotUsageDetail, withCopilotCommand, withCopilotModelText, withCopilotToolPreferences } from '../../common/meta/copilotd/copilotdMetadataReader.js';
+import { readCopilotContextUsage, readCopilotErrorDetail, readCopilotToolOrigin, readCopilotToolOutputDelta, readCopilotUsageDetail, withCopilotToolPreferences } from '../../common/meta/copilotd/copilotdMetadataReader.js';
 import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageAttachmentKind, MessageKind, readUsageInfoMeta, withMessageRequestHiddenFromTranscript, type Message } from '../../common/state/sessionState.js';
 
 suite('Copilot metadata', () => {
@@ -111,25 +111,6 @@ suite('Copilot metadata', () => {
 			usage: { timeToFirstTokenMs: 1.5, copilotUsage: { future: true } },
 			context: { currentTokens: 0, tokenLimit: 100, messagesLength: 0 },
 			origin: { kind: 'future' },
-		});
-	});
-
-	test('model text and command writers preserve siblings and declared intent', () => {
-		const message: Message = { text: '/compact', origin: { kind: MessageKind.User }, _meta: { opaque: 0 } };
-		const model = withCopilotModelText(message, 'Do not compact; explain the command');
-		const command = withCopilotCommand(model, { name: 'compact', focus: '  keep auth  ' });
-		assert.deepStrictEqual({
-			display: model.text,
-			prompt: readCopilotModelText(model),
-			command: readCopilotCommand(command),
-			meta: command._meta,
-			empty: withCopilotModelText(message, '') === message,
-		}, {
-			display: '/compact',
-			prompt: 'Do not compact; explain the command',
-			command: { name: 'compact', focus: 'keep auth' },
-			meta: { opaque: 0, 'copilot.modelText': 'Do not compact; explain the command', 'copilot.command': { name: 'compact', focus: '  keep auth  ' } },
-			empty: true,
 		});
 	});
 

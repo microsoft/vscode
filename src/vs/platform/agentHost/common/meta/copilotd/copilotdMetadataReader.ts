@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Message, MessageAttachment, ToolDefinition, UsageInfo } from '../../state/protocol/state.js';
-import type { CopilotCommand, CopilotErrorDetail, CopilotToolAvailability, CopilotToolDefer, CopilotUsageDetail } from './generated/copilotdMetadata.js';
+import type { CopilotErrorDetail, CopilotToolAvailability, CopilotToolDefer, CopilotUsageDetail } from './generated/copilotdMetadata.js';
 import { isBoolean, isNumber, isObject, isString } from '../../../../../base/common/types.js';
 import { hasAgentMetadata } from '../metadata.js';
 
@@ -27,31 +27,6 @@ function string(value: unknown): string | undefined {
 
 function number(value: unknown): number | undefined {
 	return isNumber(value) && Number.isFinite(value) ? value : undefined;
-}
-
-export function readCopilotModelText(message: Pick<Message, '_meta'>): string | undefined {
-	const value = message._meta?.['copilot.modelText'];
-	return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-export function withCopilotModelText<T extends Pick<Message, '_meta'>>(message: T, modelText: string | undefined): T {
-	if (!modelText) {
-		return message;
-	}
-	return { ...message, _meta: { ...message._meta, 'copilot.modelText': modelText } };
-}
-
-export function readCopilotCommand(message: Pick<Message, '_meta'>): CopilotCommand | undefined {
-	const value = payload(message, 'copilot.command');
-	if (value?.name !== 'compact') {
-		return undefined;
-	}
-	const focus = string(value.focus)?.trim();
-	return { name: 'compact', focus: focus || null };
-}
-
-export function withCopilotCommand<T extends Pick<Message, '_meta'>>(message: T, command: CopilotCommand): T {
-	return { ...message, _meta: { ...message._meta, 'copilot.command': command } };
 }
 
 export function readCopilotMessageSource(message: Pick<Message, '_meta'>): string | undefined {

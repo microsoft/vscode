@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, readAgentMessageRoundTripMetadata, withAgentHostCommand } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
+import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
 import { readUsageInfoMeta, readAgentContextUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Delayer, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
@@ -39,8 +39,7 @@ import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationI
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta, readAgentToolOutputDelta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
-import { filterSessionConfigValues } from '../../../../../../platform/agentHost/common/sessionConfigBindings.js';
-import { hasAgentMetadata } from '../../../../../../platform/agentHost/common/meta/metadata.js';
+import { filterSessionConfigValues } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readAttachmentDetail, withAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -377,26 +376,12 @@ function getSubagentTiming(state: ISessionWithDefaultChat): { startedAt: number 
 }
 
 function requestMessage(text: string, attachments: readonly MessageAttachment[] | undefined, metadata: Record<string, unknown> | undefined, isSystemInitiated: boolean | undefined, origin?: IChatAgentRequest['agentHostMessageOrigin']): Message {
-	const message: Message = {
+	return {
 		text,
 		origin: origin && (origin.kind !== MessageKind.User || !isSystemInitiated) ? origin : { kind: isSystemInitiated ? MessageKind.SystemNotification : MessageKind.User },
 		...(attachments?.length ? { attachments: [...attachments] } : {}),
 		...(metadata ? { _meta: metadata } : {}),
 	};
-	const compact = attachments?.some(attachment => {
-		if (attachment.type !== MessageAttachmentKind.Simple) {
-			return false;
-		}
-		const completion = readCompletionAttachmentMeta(attachment);
-		return completion?.kind === 'command' && completion.command === 'compact';
-	});
-	if (compact && !hasAgentMetadata(message, ['copilot.command'])) {
-		const typed = /^\/compact(?:\s+(?<focus>[\s\S]*))?$/i.exec(text);
-		if (typed) {
-			return withAgentHostCommand(message, { name: 'compact', focus: typed.groups?.focus });
-		}
-	}
-	return message;
 }
 
 /** Whether `err` reports that the host has no such resource (AHP `NotFound`). */

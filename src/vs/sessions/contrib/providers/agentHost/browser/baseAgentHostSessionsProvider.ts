@@ -37,7 +37,7 @@ import { buildOpenSessionLinkForChatResource } from '../../../../../platform/age
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { filterSessionConfigValues, getSessionWorkspaceBinding, isSessionConfigWritable, readSessionConfigBinding, validateSessionConfigWrite, writeSessionConfigBinding } from '../../../../../platform/agentHost/common/sessionConfigBindings.js';
+import { filterSessionConfigValues, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
@@ -2891,9 +2891,9 @@ class NewSession extends Disposable {
 	/** Re-reads the isolation pick from the cached config into {@link _worktreePending}. */
 	private _syncWorktreePending(): void {
 		const config = this._config;
-		const isolation = config && getSessionWorkspaceBinding(config.schema).isolation;
+		const isolation = config && getSessionWorkspaceProperties(config.schema).isolation;
 		this._worktreePending.set(isolation
-			? readSessionConfigBinding(isolation, config?.values[isolation.key] ?? isolation.schema.default) === 'worktree'
+			? readSessionIsolation(isolation, config?.values[isolation.key] ?? isolation.schema.default) === 'worktree'
 			: isWorktreeIsolation(config?.values), undefined);
 	}
 
@@ -3179,7 +3179,7 @@ class NewSession extends Disposable {
 	}
 
 	loadBranches(connection: IAgentConnection): Promise<readonly SessionConfigValueItem[]> {
-		const branch = this._config && getSessionWorkspaceBinding(this._config.schema).baseBranch;
+		const branch = this._config && getSessionWorkspaceProperties(this._config.schema).baseBranch;
 		return branch ? this._branchLoad ??= this.getConfigCompletions(connection, branch.key, undefined).then(result => result.items) : Promise.resolve([]);
 	}
 
@@ -4997,7 +4997,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				throw new Error(`Session configuration '${property}' is not writable.`);
 			}
 			validateSessionConfigWrite(config.schema, config.values, property, normalizedValue, true);
-			const workspace = getSessionWorkspaceBinding(config.schema);
+			const workspace = getSessionWorkspaceProperties(config.schema);
 			newSession.beginResolveConfigSync();
 			if (property === workspace.isolation?.key) {
 				const upstreamBranchName = normalizedValue === 'worktree'
@@ -5094,7 +5094,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		const replacement = filterSessionConfigValues(runningConfig.schema, Object.fromEntries(Object.entries(nextValues).filter(([key]) => !agentMergeKeys.includes(key))));
-		const workspace = getSessionWorkspaceBinding(runningConfig.schema);
+		const workspace = getSessionWorkspaceProperties(runningConfig.schema);
 		for (const [key, schema] of Object.entries(runningConfig.schema.properties)) {
 			if (schema.readOnly && Object.hasOwn(runningConfig.values, key)
 				&& !agentMergeKeys.includes(key) && !['effectiveApprovalMode', 'availableApprovalModes', 'effectiveAutoTier'].includes(key)
@@ -5315,7 +5315,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!config?.schema.properties[property]) {
 			throw new Error(`Session configuration '${property}' is not advertised.`);
 		}
-		if (property === getSessionWorkspaceBinding(config.schema).baseBranch?.key && newSession.workspaceUri) {
+		if (property === getSessionWorkspaceProperties(config.schema).baseBranch?.key && newSession.workspaceUri) {
 			return newSession.loadBranches(connection);
 		}
 		const result = await newSession.getConfigCompletions(connection, property, query);
@@ -5334,8 +5334,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		const schema = newSession?.getConfig()?.schema;
-		const binding = schema && getSessionWorkspaceBinding(schema).isolation;
-		const isolation = binding && readSessionConfigBinding(binding, providerConfig[binding.key]);
+		const isolationProperty = schema && getSessionWorkspaceProperties(schema).isolation;
+		const isolation = isolationProperty && readSessionIsolation(isolationProperty, providerConfig[isolationProperty.key]);
 		return {
 			isolation: isolation === 'worktree' || isolation === 'folder' ? isolation : undefined,
 			providerConfig,
@@ -5344,8 +5344,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async setIsolationMode(sessionId: string, mode: string): Promise<void> {
 		const config = await this.whenSessionConfigResolved(sessionId, CancellationToken.None);
-		const workspace = getSessionWorkspaceBinding(config.schema);
-		const value = writeSessionConfigBinding(workspace.isolation, mode === 'workspace' ? 'folder' : mode);
+		const workspace = getSessionWorkspaceProperties(config.schema);
+		const value = writeSessionIsolation(workspace.isolation, mode === 'workspace' ? 'folder' : mode);
 		if (!workspace.isolation || value === undefined) {
 			throw new Error('Workspace isolation is not supported by this host.');
 		}
@@ -5354,10 +5354,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async setWorktreeConfiguration(sessionId: string, configuration: ISessionWorktreeConfiguration): Promise<void> {
 		const config = await this.whenSessionConfigResolved(sessionId, CancellationToken.None);
-		const workspace = getSessionWorkspaceBinding(config.schema);
+		const workspace = getSessionWorkspaceProperties(config.schema);
 		const values: Record<string, unknown> = {};
 		if (configuration.isolationMode) {
-			const value = writeSessionConfigBinding(workspace.isolation, configuration.isolationMode === 'workspace' ? 'folder' : configuration.isolationMode);
+			const value = writeSessionIsolation(workspace.isolation, configuration.isolationMode === 'workspace' ? 'folder' : configuration.isolationMode);
 			if (!workspace.isolation || value === undefined) {
 				throw new Error('Workspace isolation is not supported by this host.');
 			}
@@ -5396,11 +5396,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async setBranch(sessionId: string, branch: string): Promise<void> {
 		const config = await this.whenSessionConfigResolved(sessionId, CancellationToken.None);
-		const binding = getSessionWorkspaceBinding(config.schema).baseBranch;
-		if (!binding) {
+		const baseBranchProperty = getSessionWorkspaceProperties(config.schema).baseBranch;
+		if (!baseBranchProperty) {
 			throw new Error('Base branch selection is not supported by this host.');
 		}
-		await this._setTransientNewSessionConfigValue(sessionId, binding.key, branch);
+		await this._setTransientNewSessionConfigValue(sessionId, baseBranchProperty.key, branch);
 	}
 
 	private async _setTransientNewSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
@@ -6496,8 +6496,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		if (newSession.workspaceUri && !newSession.getInitialSessionTemplate()) {
 			const config = newSession.getConfig();
-			const isolation = config && getSessionWorkspaceBinding(config.schema).isolation;
-			this._rememberWorkspaceIsolation(newSession.workspaceUri, isolation && readSessionConfigBinding(isolation, config?.values[isolation.key]));
+			const isolation = config && getSessionWorkspaceProperties(config.schema).isolation;
+			this._rememberWorkspaceIsolation(newSession.workspaceUri, isolation && readSessionIsolation(isolation, config?.values[isolation.key]));
 		}
 
 		newSession.setStatus(SessionStatus.InProgress);
@@ -7119,8 +7119,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Mirrors a session's `isolation` pick onto its adapter. See {@link ISession.worktreePending}. */
 	private _applyWorktreeIsolation(sessionId: string, values: Record<string, unknown> | undefined): void {
 		const config = this._runningSessionConfigs.get(sessionId);
-		const isolation = config && getSessionWorkspaceBinding(config.schema).isolation;
-		if (!(isolation ? readSessionConfigBinding(isolation, values?.[isolation.key]) === 'worktree' : isWorktreeIsolation(values))) {
+		const isolation = config && getSessionWorkspaceProperties(config.schema).isolation;
+		if (!(isolation ? readSessionIsolation(isolation, values?.[isolation.key]) === 'worktree' : isWorktreeIsolation(values))) {
 			return;
 		}
 		const rawId = this._rawIdFromChatId(sessionId);

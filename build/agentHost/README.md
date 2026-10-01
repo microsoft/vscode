@@ -1,6 +1,6 @@
 # Copilot metadata contracts
 
-[copilotd-source.json](./copilotd-source.json) records the upstream repository, source commit, and spec path. Schemas are not vendored. The generator's small contract list maps the 17 selected schema filenames to stable TypeScript export names.
+[copilotd-source.json](./copilotd-source.json) records the upstream repository, source commit, and spec path. Schemas are not vendored. The generator's small contract list maps the 15 selected schema filenames to stable TypeScript export names.
 
 After installing the root development dependencies:
 

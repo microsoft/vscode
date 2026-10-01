@@ -19,7 +19,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { isSessionConfigWritable } from '../../../../../platform/agentHost/common/sessionConfigBindings.js';
+import { isSessionConfigWritable } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';

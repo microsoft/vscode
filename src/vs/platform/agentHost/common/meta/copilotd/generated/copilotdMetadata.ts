@@ -260,25 +260,6 @@ export interface CopilotAttachmentDetail {
 }
 
 /**
- * Model-bound prompt carried on Message._meta when a producer supplied a display-vs-model split. Message.text holds the display form; this key holds the expanded prompt the model actually sees. The host omits the key when no override applies; the empty string is treated as 'no override'. See spec/meta-conventions/copilot/user-message.md.
- */
-export type CopilotModelText = string;
-
-/**
- * A structured host-command marker on a user Message._meta, letting a client invoke a host slash-command structurally instead of relying on the host re-parsing Message.text. A closed object { name, focus? }. A recognized marker takes precedence over copilot.modelText and Message.text. When the marker is missing/malformed or its name is unrecognized, a valid nonempty copilot.modelText is the model-bound prompt and prevents text-based command recognition; only an absent/empty/wrong-type modelText allows the free-typed /command text match. Today the only structured command is `compact`. See spec/meta-conventions/copilot/user-message.md.
- */
-export interface CopilotCommand {
-	/**
-	 * The host command to invoke. `compact` triggers conversation compaction (the /compact command).
-	 */
-	name: 'compact';
-	/**
-	 * Optional free-text focus instructions for the command (the text a user would type after /compact). Omitted, null, or empty means a bare invocation with no focus.
-	 */
-	focus?: string | null;
-}
-
-/**
  * Exact non-empty Copilot SDK user.message.source provenance tag carried on Message._meta.
  */
 export type CopilotSource = string;

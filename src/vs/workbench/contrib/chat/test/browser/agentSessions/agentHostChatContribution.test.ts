@@ -1790,7 +1790,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('a compact completion emits both the original VS Code attachment and the Copilot command marker', async () => {
+		test('a compact completion retains the original command attachment without inventing message metadata', async () => {
 			const { startRequest } = await openWireSession();
 			const commandMeta = { command: 'compact', opaque: false };
 			const { sent, finish } = await startRequest({
@@ -1801,7 +1801,7 @@ suite('AgentHostChatContribution', () => {
 			await finish();
 			assert.deepStrictEqual({ text: sent.action.message.text, meta: sent.action.message._meta, attachments: sent.action.message.attachments }, {
 				text: '/compact auth',
-				meta: { 'copilot.command': { name: 'compact', focus: 'auth' } },
+				meta: undefined,
 				attachments: [{ type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command', _meta: commandMeta }],
 			});
 		});
@@ -1828,7 +1828,7 @@ suite('AgentHostChatContribution', () => {
 		for (const style of ['VS Code', 'Copilot D'] as const) {
 			test(`${style} restored message and attachments survive edit and resend through the handler`, async () => {
 				const detail = { type: 'github_reference', url: 'https://github.com/o/r/issues/7', number: 7, future: { value: false } };
-				const metadata = style === 'VS Code' ? { 'vscode.chat.requestHiddenFromTranscript': false } : { 'copilot.modelText': 'expanded prompt', 'copilot.visibility': 'internal', opaque: 0 };
+				const metadata = style === 'VS Code' ? { 'vscode.chat.requestHiddenFromTranscript': false } : { 'copilot.visibility': 'internal', opaque: 0 };
 				const attachment: MessageAttachment = style === 'VS Code'
 					? { type: MessageAttachmentKind.Resource, uri: 'file:///workspace/file.ts', label: 'file.ts', displayKind: 'document', _meta: { opaque: false } }
 					: { type: MessageAttachmentKind.Simple, label: 'Issue', _meta: { 'copilot.attachmentDetail': detail, browserView: null } };

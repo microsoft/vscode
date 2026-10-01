@@ -238,7 +238,7 @@ suite('ChatModel', () => {
 	});
 
 	test('preserves Agent Host message metadata and latest-call detail across serialization', () => {
-		const metadata = { 'copilot.modelText': 'expanded', opaque: { value: true } };
+		const metadata = { 'copilot.visibility': 'internal', opaque: { value: true } };
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const request = model.addRequest({ text: 'display', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, metadata);
 		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2, latestModelCall: { cost: 0.5 }, contextUsage: { currentTokens: 5, tokenLimit: 100 } });

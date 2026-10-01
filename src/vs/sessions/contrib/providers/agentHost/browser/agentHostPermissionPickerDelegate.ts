@@ -16,7 +16,7 @@ import { IAgentHostEnablementService } from '../../../../../platform/agentHost/c
 import { getAgentHostOperatingSystem } from '../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { getAvailableSessionApprovalChoices, getEffectiveSessionApprovalValue, getSessionApprovalBinding, isSessionConfigWritable, readSessionConfigBinding, writeSessionConfigBinding } from '../../../../../platform/agentHost/common/sessionConfigBindings.js';
+import { getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isSessionConfigWritable, readSessionApprovalLevel, writeSessionApprovalLevel } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -39,21 +39,7 @@ const REQUIRED_CODEX_APPROVALS_VALUE = 'default';
 
 export { isWellKnownAutoApproveSchema, isWellKnownModeSchema };
 
-/**
- * {@link IPermissionPickerDelegate} backed by the active session's AHP
- * `autoApprove` config property.
- *
- * - `currentPermissionLevel` derives from the active session's
- *   `provider.getSessionConfig(...).values.autoApprove`, recomputed when the
- *   active session changes or when any agent-host provider fires
- *   `onDidChangeSessionConfig`.
- * - `setPermissionLevel(level)` calls `provider.setSessionConfigValue(sessionId,
- *   'autoApprove', level)` for the active session's provider.
- * - `isApplicable` is `true` only when the active session's `autoApprove`
- *   schema matches the well-known shape, so the picker hides itself for
- *   non-conforming agents (which fall back to the generic per-property
- *   picker) and when no agent-host session is active.
- */
+/** Adapts the active session's advertised approval property to the shared permission picker. */
 export class AgentHostPermissionPickerDelegate extends Disposable implements IPermissionPickerDelegate {
 
 	/** Fires every time any agent-host provider's session config changes. */
@@ -97,8 +83,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		}
 		const provider = this._getProvider(session.providerId);
 		const config = provider?.getSessionConfig(session.sessionId);
-		const binding = getSessionApprovalBinding(config?.schema);
-		const values = config && binding ? getAvailableSessionApprovalChoices(binding, config.schema, config.values).map(choice => choice.value) : [];
+		const approvalProperty = getSessionApprovalProperty(config?.schema);
+		const values = config && approvalProperty ? getAvailableSessionApprovalValues(approvalProperty, config.schema, config.values).map(value => readSessionApprovalLevel(approvalProperty, value)) : [];
 		return [
 			ChatPermissionLevel.Default,
 			ChatPermissionLevel.Assisted,
@@ -207,16 +193,16 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			const session = this._session.read(reader);
 			const provider = session && this._getProvider(session.providerId);
 			const config = session && provider?.getSessionConfig(session.sessionId);
-			const binding = getSessionApprovalBinding(config?.schema);
+			const approvalProperty = getSessionApprovalProperty(config?.schema);
 			const isNewSession = !!session && provider?.getCreateSessionConfig(session.sessionId) !== undefined;
 			return !phoneInputPresenter.enabled.read(reader)
 				&& isSessionConfigWritable(config?.schema.properties[SessionConfigKey.Mode], isNewSession)
-				&& isSessionConfigWritable(binding?.schema, isNewSession)
+				&& isSessionConfigWritable(approvalProperty?.schema, isNewSession)
 				&& shouldCombineModeAndPermissions(
 					this._configurationService.getValue<boolean>(ChatConfiguration.ExperimentalModePermissionsPicker) === true,
-					session?.sessionType === CopilotCLISessionType.id || binding?.key === 'approvalMode',
+					session?.sessionType === CopilotCLISessionType.id || approvalProperty?.key === 'approvalMode',
 					config?.schema.properties[SessionConfigKey.Mode],
-					binding?.schema,
+					approvalProperty?.schema,
 				);
 		});
 		this.isApplicable = derived(this, reader => this._readIsWellKnown(reader) && !this.isModePickerCombined.read(reader));
@@ -310,12 +296,12 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			return;
 		}
 		const config = provider.getSessionConfig(session.sessionId);
-		const binding = getSessionApprovalBinding(config?.schema);
-		const value = writeSessionConfigBinding(binding, level);
-		if (!binding || value === undefined || !isSessionConfigWritable(binding.schema, provider.getCreateSessionConfig(session.sessionId) !== undefined)) {
+		const approvalProperty = getSessionApprovalProperty(config?.schema);
+		const value = writeSessionApprovalLevel(approvalProperty, level);
+		if (!approvalProperty || value === undefined || !isSessionConfigWritable(approvalProperty.schema, provider.getCreateSessionConfig(session.sessionId) !== undefined)) {
 			throw new Error('Approval configuration is unavailable for this session');
 		}
-		const operation = provider.setSessionConfigValue(session.sessionId, binding.key, value);
+		const operation = provider.setSessionConfigValue(session.sessionId, approvalProperty.key, value);
 		provider.trackSessionConfigOperation(session.sessionId, operation);
 		await operation.catch(onUnexpectedError);
 	}
@@ -323,10 +309,10 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	getPermissionLevelHover(level: ChatPermissionLevel, _meta: IPermissionLevelMeta): string {
 		const session = this._session.get();
 		const config = session && this._getProvider(session.providerId)?.getSessionConfig(session.sessionId);
-		const binding = getSessionApprovalBinding(config?.schema);
-		if (config && binding?.key === 'approvalMode') {
-			const requested = config.values[binding.key] ?? binding.schema.default;
-			const effective = getEffectiveSessionApprovalValue(binding, config.schema, config.values);
+		const approvalProperty = getSessionApprovalProperty(config?.schema);
+		if (config && approvalProperty?.key === 'approvalMode') {
+			const requested = config.values[approvalProperty.key] ?? approvalProperty.schema.default;
+			const effective = getEffectiveSessionApprovalValue(approvalProperty, config.schema, config.values);
 			if (effective !== requested) {
 				return localize('agentHostPermissionPicker.effectiveApprovalsHover', "Effective permissions: {0}. Requested permissions: {1}.", String(effective), String(requested));
 			}
@@ -354,8 +340,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			return ChatPermissionLevel.Default;
 		}
 		const config = provider.getSessionConfig(session.sessionId);
-		const binding = getSessionApprovalBinding(config?.schema);
-		const value = config && binding ? readSessionConfigBinding(binding, getEffectiveSessionApprovalValue(binding, config.schema, config.values)) : undefined;
+		const approvalProperty = getSessionApprovalProperty(config?.schema);
+		const value = config && approvalProperty ? readSessionApprovalLevel(approvalProperty, getEffectiveSessionApprovalValue(approvalProperty, config.schema, config.values)) : undefined;
 		return isChatPermissionLevel(value) ? value : ChatPermissionLevel.Default;
 	}
 
@@ -369,8 +355,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!provider) {
 			return false;
 		}
-		const binding = getSessionApprovalBinding(provider.getSessionConfig(session.sessionId)?.schema);
-		return !!binding && isSessionConfigWritable(binding.schema, provider.getCreateSessionConfig(session.sessionId) !== undefined);
+		const approvalProperty = getSessionApprovalProperty(provider.getSessionConfig(session.sessionId)?.schema);
+		return !!approvalProperty && isSessionConfigWritable(approvalProperty.schema, provider.getCreateSessionConfig(session.sessionId) !== undefined);
 	}
 
 	private _getProvider(providerId: string): IAgentHostSessionsProvider | undefined {

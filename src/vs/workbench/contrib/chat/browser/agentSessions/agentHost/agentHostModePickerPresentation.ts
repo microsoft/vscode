@@ -15,7 +15,7 @@ import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
-import { getSessionApprovalBinding, getSessionModeBinding } from '../../../../../../platform/agentHost/common/sessionConfigBindings.js';
+import { getSessionApprovalProperty, getSessionModeProperty } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
@@ -171,18 +171,18 @@ export function renderModePickerTrigger(
 }
 
 export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema): boolean {
-	return !!getSessionApprovalBinding({ type: 'object', properties: { autoApprove: schema } });
+	return !!getSessionApprovalProperty({ type: 'object', properties: { autoApprove: schema } });
 }
 
 export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): boolean {
-	return !!getSessionModeBinding({ type: 'object', properties: { mode: schema } });
+	return !!getSessionModeProperty({ type: 'object', properties: { mode: schema } });
 }
 
 export function shouldCombineModeAndPermissions(enabled: boolean, isCopilot: boolean, modeSchema: SessionConfigPropertySchema | undefined, permissionSchema: SessionConfigPropertySchema | undefined): boolean {
 	return enabled && isCopilot
 		&& !!modeSchema && !modeSchema.readOnly && !modeSchema.enumDynamic && isWellKnownModeSchema(modeSchema)
 		&& !!permissionSchema && !permissionSchema.readOnly && !permissionSchema.enumDynamic
-		&& !!getSessionApprovalBinding({ type: 'object', properties: { [permissionSchema.enum?.includes('manual') ? 'approvalMode' : 'autoApprove']: permissionSchema } });
+		&& !!getSessionApprovalProperty({ type: 'object', properties: { [permissionSchema.enum?.includes('manual') ? 'approvalMode' : 'autoApprove']: permissionSchema } });
 }
 
 export function renderModePickerPermissions(trigger: HTMLElement, permissions: IModePickerPermissions): void {

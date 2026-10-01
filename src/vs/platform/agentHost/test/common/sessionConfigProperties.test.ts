@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { filterSessionConfigValues, getAvailableSessionApprovalChoices, getEffectiveSessionApprovalValue, getSessionApprovalBinding, getSessionConfigPresentationKey, getSessionModeBinding, getSessionWorkspaceBinding, readSessionConfigBinding, validateSessionConfigWrite, writeSessionConfigBinding } from '../../common/sessionConfigBindings.js';
+import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, readSessionApprovalLevel, readSessionIsolation, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
 import type { SessionConfigSchema } from '../../common/state/protocol/commands.js';
 
-suite('Session config bindings', () => {
+suite('Session config properties', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const copilot: SessionConfigSchema = {
@@ -34,16 +34,16 @@ suite('Session config bindings', () => {
 		},
 	};
 
-	test('VS Code bindings preserve existing choices, defaults, and the meaning of branch', () => {
-		const approval = getSessionApprovalBinding(vscode);
-		const workspace = getSessionWorkspaceBinding(vscode);
+	test('VS Code properties preserve existing choices, defaults, and the meaning of branch', () => {
+		const approval = getSessionApprovalProperty(vscode);
+		const workspace = getSessionWorkspaceProperties(vscode);
 		assert.deepStrictEqual({
-			approval: { key: approval?.key, choices: approval?.choices, default: readSessionConfigBinding(approval, approval?.schema.default) },
-			workspace: { isolation: workspace.isolation?.key, folder: writeSessionConfigBinding(workspace.isolation, 'folder'), branch: workspace.baseBranch?.key },
+			approval: { key: approval?.key, choices: approval?.schema.enum, default: readSessionApprovalLevel(approval, approval?.schema.default) },
+			workspace: { isolation: workspace.isolation?.key, folder: writeSessionIsolation(workspace.isolation, 'folder'), branch: workspace.baseBranch?.key },
 			effective: getEffectiveSessionApprovalValue(approval!, vscode, { autoApprove: 'assisted' }),
 			presentation: getSessionConfigPresentationKey('branch', vscode),
 		}, {
-			approval: { key: 'autoApprove', choices: ['default', 'assisted', 'autoApprove'].map(value => ({ value, configValue: value })), default: 'default' },
+			approval: { key: 'autoApprove', choices: ['default', 'assisted', 'autoApprove'], default: 'default' },
 			workspace: { isolation: 'isolation', folder: 'folder', branch: 'branch' },
 			effective: 'assisted', presentation: 'branch',
 		});
@@ -68,12 +68,12 @@ suite('Session config bindings', () => {
 	}
 
 	test('maps approval choices without changing host keys or values', () => {
-		const binding = getSessionApprovalBinding(copilot)!;
+		const approvalProperty = getSessionApprovalProperty(copilot)!;
 		assert.deepStrictEqual({
-			key: binding.key,
-			defaultLevel: readSessionConfigBinding(binding, binding.schema.default),
-			read: binding.choices.map(choice => readSessionConfigBinding(binding, choice.configValue)),
-			write: ['default', 'assisted', 'autoApprove', 'autopilot'].map(value => writeSessionConfigBinding(binding, value)),
+			key: approvalProperty.key,
+			defaultLevel: readSessionApprovalLevel(approvalProperty, approvalProperty.schema.default),
+			read: approvalProperty.schema.enum?.map(value => readSessionApprovalLevel(approvalProperty, value)),
+			write: ['default', 'assisted', 'autoApprove', 'autopilot'].map(value => writeSessionApprovalLevel(approvalProperty, value)),
 		}, {
 			key: 'approvalMode', defaultLevel: 'assisted',
 			read: ['default', 'assisted', 'autoApprove'],
@@ -90,16 +90,16 @@ suite('Session config bindings', () => {
 			])),
 		}));
 		assert.deepStrictEqual(schemas.map(schema => ({
-			approval: getSessionApprovalBinding(schema)?.key,
-			isolation: getSessionWorkspaceBinding(schema).isolation?.key,
-			branch: getSessionWorkspaceBinding(schema).baseBranch?.key,
+			approval: getSessionApprovalProperty(schema)?.key,
+			isolation: getSessionWorkspaceProperties(schema).isolation?.key,
+			branch: getSessionWorkspaceProperties(schema).baseBranch?.key,
 		})), [
 			{ approval: 'autoApprove', isolation: 'isolation', branch: undefined },
 			{ approval: 'autoApprove', isolation: 'isolation', branch: undefined },
 		]);
 	});
 
-	test('malformed VS keys never fall through to a Copilot binding or mix workspace axes', () => {
+	test('malformed VS keys never fall through to a Copilot property or mix workspace axes', () => {
 		const schema: SessionConfigSchema = {
 			...copilot,
 			properties: {
@@ -109,9 +109,9 @@ suite('Session config bindings', () => {
 			},
 		};
 		assert.deepStrictEqual({
-			approval: getSessionApprovalBinding(schema),
-			isolation: getSessionWorkspaceBinding(schema).isolation,
-			branch: getSessionWorkspaceBinding(schema).baseBranch,
+			approval: getSessionApprovalProperty(schema),
+			isolation: getSessionWorkspaceProperties(schema).isolation,
+			branch: getSessionWorkspaceProperties(schema).baseBranch,
 			filtered: filterSessionConfigValues(schema, { autoApprove: 'custom', approvalMode: 'allow-all', isolation: 'sandbox', target: 'worktree', baseBranch: 'main' }),
 		}, {
 			approval: undefined, isolation: undefined, branch: undefined,
@@ -120,42 +120,43 @@ suite('Session config bindings', () => {
 	});
 
 	test('distinguishes Copilot base branch from the new branch name', () => {
-		const binding = getSessionWorkspaceBinding(copilot);
+		const workspace = getSessionWorkspaceProperties(copilot);
 		assert.deepStrictEqual({
-			isolationKey: binding.isolation?.key,
-			workspaceValue: writeSessionConfigBinding(binding.isolation, 'folder'),
-			baseBranch: binding.baseBranch?.key,
+			isolationKey: workspace.isolation?.key,
+			workspaceValue: writeSessionIsolation(workspace.isolation, 'folder'),
+			readWorkspaceValue: readSessionIsolation(workspace.isolation, 'workspace'),
+			baseBranch: workspace.baseBranch?.key,
 			presentation: ['target', 'baseBranch', 'branch'].map(key => getSessionConfigPresentationKey(key, copilot)),
 		}, {
-			isolationKey: 'target', workspaceValue: 'workspace', baseBranch: 'baseBranch',
+			isolationKey: 'target', workspaceValue: 'workspace', readWorkspaceValue: 'folder', baseBranch: 'baseBranch',
 			presentation: ['isolation', 'branch', 'newBranch'],
 		});
 	});
 
 	test('native mode remains on the advertised mode axis', () => {
-		const binding = getSessionModeBinding(copilot);
+		const modeProperty = getSessionModeProperty(copilot);
 		assert.deepStrictEqual({
-			key: binding?.key,
-			choices: binding?.choices,
-			write: writeSessionConfigBinding(binding, 'autopilot'),
-			unadvertised: writeSessionConfigBinding(binding, 'shell'),
+			key: modeProperty?.key,
+			choices: modeProperty?.schema.enum,
+			accepted: filterSessionConfigValues(copilot, { mode: 'autopilot' }),
+			unadvertised: filterSessionConfigValues(copilot, { mode: 'shell' }),
 		}, {
 			key: 'mode',
-			choices: ['interactive', 'plan', 'autopilot'].map(value => ({ value, configValue: value })),
-			write: 'autopilot', unadvertised: undefined,
+			choices: ['interactive', 'plan', 'autopilot'],
+			accepted: { mode: 'autopilot' }, unadvertised: {},
 		});
 	});
 
 	test('keeps requested approvals distinct from effective and available modes', () => {
-		const binding = getSessionApprovalBinding(copilot)!;
+		const approvalProperty = getSessionApprovalProperty(copilot)!;
 		const values = { approvalMode: 'allow-all', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'] };
 		assert.deepStrictEqual({
-			effective: getEffectiveSessionApprovalValue(binding, copilot, values),
+			effective: getEffectiveSessionApprovalValue(approvalProperty, copilot, values),
 			requested: values.approvalMode,
-			choices: getAvailableSessionApprovalChoices(binding, copilot, values).map(choice => choice.configValue),
-			absent: getEffectiveSessionApprovalValue(binding, copilot, { approvalMode: 'assisted' }),
-			unknown: readSessionConfigBinding(binding, getEffectiveSessionApprovalValue(binding, copilot, { effectiveApprovalMode: 'unknown' })),
-			emptyChoices: getAvailableSessionApprovalChoices(binding, copilot, { availableApprovalModes: [] }),
+			choices: getAvailableSessionApprovalValues(approvalProperty, copilot, values),
+			absent: getEffectiveSessionApprovalValue(approvalProperty, copilot, { approvalMode: 'assisted' }),
+			unknown: readSessionApprovalLevel(approvalProperty, getEffectiveSessionApprovalValue(approvalProperty, copilot, { effectiveApprovalMode: 'unknown' })),
+			emptyChoices: getAvailableSessionApprovalValues(approvalProperty, copilot, { availableApprovalModes: [] }),
 		}, {
 			effective: 'manual', requested: 'allow-all', choices: ['manual', 'assisted'],
 			absent: 'assisted', unknown: undefined, emptyChoices: [],
@@ -180,5 +181,30 @@ suite('Session config bindings', () => {
 		assert.throws(() => validateSessionConfigWrite(copilot, {}, 'effectiveApprovalMode', 'allow-all', true), /not writable/);
 		assert.throws(() => validateSessionConfigWrite(copilot, {}, 'autoApprove', 'autoApprove', true), /not writable/);
 		assert.throws(() => validateSessionConfigWrite(copilot, {}, 'target', 'workspace', false), /not writable/);
+	});
+
+	test('concrete selectors expose the original host property without constructing converted choices', () => {
+		assert.deepStrictEqual([
+			getSessionApprovalProperty(copilot),
+			getSessionIsolationProperty(copilot),
+			getSessionBaseBranchProperty(copilot),
+		], [
+			{ key: 'approvalMode', schema: copilot.properties.approvalMode },
+			{ key: 'target', schema: copilot.properties.target },
+			{ key: 'baseBranch', schema: copilot.properties.baseBranch },
+		]);
+	});
+
+	test('creation filtering and explicit validation share the same schema restrictions', () => {
+		const values = { availableApprovalModes: ['manual', 'assisted'] };
+		const candidates = { approvalMode: 'allow-all', effectiveApprovalMode: 'manual', target: 'worktree', baseBranch: 'main', mode: 'plan', unknown: true };
+		for (const [key, value] of Object.entries(candidates)) {
+			if (key === 'mode') {
+				assert.doesNotThrow(() => validateSessionConfigWrite(copilot, values, key, value, false));
+			} else {
+				assert.throws(() => validateSessionConfigWrite(copilot, values, key, value, false), /not writable|does not offer/);
+			}
+		}
+		assert.deepStrictEqual(filterSessionConfigValues(copilot, { ...values, ...candidates }, false), { mode: 'plan' });
 	});
 });

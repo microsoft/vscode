@@ -30,9 +30,11 @@ App-specific widgets, workflow controls, result counters, and automatic hiding/g
 
 The open `_meta` map and unknown attachment fields remain intact. See [generation and pin-update commands](../../../../../../build/agentHost/README.md).
 
-A model-text override supplies the model-bound prompt before outgoing contributions add context. Stored display text is restored using both native and provider turn identities, including interrupted and provider-started steering turns. Ordinary Chat retries retain that metadata unless the caller explicitly supplies replacement metadata.
+Expanded model-prompt overrides and explicit command markers are deferred to a separate change. This change does not interpret them, alter local-command/steering behavior for them, or persist an extra display-text record. Unknown message metadata may still round-trip opaquely through the existing message storage and retry paths.
 
 Current session occupancy belongs only on the latest restored response, not every historical turn. Idle-session occupancy changes refresh that response; the response model must notify consumers when occupancy or latest-call diagnostics change even if token counts stay the same.
+
+Session configuration uses concrete property selectors in [sessionConfigProperties.ts](../sessionConfigProperties.ts). Approval, isolation, and base-branch selectors expose the host's actual key and original schema. Approval and isolation value conversions are explicit; properties do not carry a second set of converted choices. Schema selection is separate from read-only/mutability enforcement, and filtering creation values shares the same checks as validating an explicit write.
 
 The basic source-selection and writer matrix in [metadataCompatibility.test.ts](../../test/common/metadataCompatibility.test.ts) covers absent, unrelated, VS Code, Copilot D, mixed, and malformed metadata through the public helpers. Explicit false, zero, empty values, and unknown attachment fields retain their intended meanings.
 

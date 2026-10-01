@@ -7,8 +7,8 @@ import assert from 'assert';
 import { readFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { isCopilotMessageInternal, readCopilotAttachmentDetail, readCopilotAutoTierSwitchFailure, readCopilotCommand, readCopilotContext, readCopilotErrorDetail, readCopilotMessageSource, readCopilotModelCallFailure, readCopilotModelCategory, readCopilotModelText, readCopilotToolAvailability, readCopilotToolDefer, readCopilotToolOrigin, readCopilotToolOutputDelta, readCopilotToolTelemetry, readCopilotUsageDetail, readCopilotUsageInfo, withCopilotModelText, withCopilotToolPreferences } from '../../common/meta/copilotd/copilotdMetadataReader.js';
-import { MessageKind, type Message, type ToolDefinition } from '../../common/state/sessionState.js';
+import { isCopilotMessageInternal, readCopilotAttachmentDetail, readCopilotAutoTierSwitchFailure, readCopilotContext, readCopilotErrorDetail, readCopilotMessageSource, readCopilotModelCallFailure, readCopilotModelCategory, readCopilotToolAvailability, readCopilotToolDefer, readCopilotToolOrigin, readCopilotToolOutputDelta, readCopilotToolTelemetry, readCopilotUsageDetail, readCopilotUsageInfo, withCopilotToolPreferences } from '../../common/meta/copilotd/copilotdMetadataReader.js';
+import type { ToolDefinition } from '../../common/state/sessionState.js';
 
 interface Vector {
 	readonly name: string;
@@ -22,7 +22,7 @@ interface VectorFile {
 	readonly tests: readonly Vector[];
 }
 
-const hostOnlyOperations = new Set(['projectFromSdk', 'projectToSdk', 'projectCompaction', 'permitsScope', 'resolveCommand']);
+const hostOnlyOperations = new Set(['projectFromSdk', 'projectToSdk', 'projectCompaction', 'permitsScope']);
 const directory = fileURLToPath(new URL('./fixtures/copilotdMetadata/', import.meta.url));
 
 function record(value: unknown): Record<string, unknown> {
@@ -42,8 +42,6 @@ function source(input: Record<string, unknown>): { readonly _meta?: Record<strin
 function extract(key: string, input: Record<string, unknown>): unknown {
 	const value = source(input);
 	switch (key) {
-		case 'copilot.modelText': return readCopilotModelText(value);
-		case 'copilot.command': return readCopilotCommand(value);
 		case 'copilot.source': return readCopilotMessageSource(value);
 		case 'copilot.visibility': return isCopilotMessageInternal(value) ? 'internal' : undefined;
 		case 'copilot.attachmentDetail': return readCopilotAttachmentDetail(value)?.raw;
@@ -64,13 +62,6 @@ function extract(key: string, input: Record<string, unknown>): unknown {
 }
 
 function write(key: string, input: Record<string, unknown>): unknown {
-	if (key === 'copilot.modelText') {
-		const raw = record(input.message);
-		assert.strictEqual(typeof raw.text, 'string');
-		assert(typeof input.modelText === 'string' || input.modelText === null || input.modelText === undefined);
-		const message: Message = { ...raw, text: String(raw.text), origin: { kind: MessageKind.User }, ...source(input) };
-		return withCopilotModelText(message, input.modelText ?? undefined);
-	}
 	const raw = record(input.tool);
 	assert.strictEqual(typeof raw.name, 'string');
 	const tool: ToolDefinition = { ...raw, name: String(raw.name), ...source(input) };
@@ -85,25 +76,23 @@ function write(key: string, input: Record<string, unknown>): unknown {
 suite('Copilot metadata conformance', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	const files = readdirSync(directory).filter(file => file.endsWith('-vectors.json')).sort();
-	assert.strictEqual(files.length, 17);
+	assert.strictEqual(files.length, 15);
 	for (const name of files) {
 		const vectors = JSON.parse(readFileSync(`${directory}/${name}`, 'utf8')) as VectorFile;
 		assert(Array.isArray(vectors.tests) && vectors.tests.length > 0);
-		const hasWriter = ['copilot.modelText', 'copilot.toolDefer', 'copilot.toolAvailability'].includes(vectors.key);
+		const hasWriter = ['copilot.toolDefer', 'copilot.toolAvailability'].includes(vectors.key);
 		let executed = 0;
 		for (const vector of vectors.tests) {
 			if (hostOnlyOperations.has(vector.op) || (!hasWriter && (vector.op === 'set' || vector.op === 'wireShape'))) {
 				continue;
 			}
-			assert(['extract', 'set', 'wireShape', 'roundTrip'].includes(vector.op), `Unknown operation ${name}: ${vector.op}`);
+			assert(['extract', 'set', 'wireShape'].includes(vector.op), `Unknown operation ${name}: ${vector.op}`);
 			executed++;
 			test(`${name}: ${vector.name}`, () => {
 				let actual: unknown;
 				if (vector.op === 'extract') {
 					assert.strictEqual(Object.keys(vector.expected).length, 1);
 					actual = extract(vectors.key, vector.input) ?? null;
-				} else if (vector.op === 'roundTrip') {
-					actual = readCopilotModelText(record(write(vectors.key, vector.input))) ?? null;
 				} else {
 					actual = write(vectors.key, vector.input);
 				}

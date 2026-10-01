@@ -4,18 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Message } from '../state/protocol/state.js';
-import { isCopilotMessageInternal, readCopilotCommand, readCopilotModelText, withCopilotCommand, withCopilotMessageInternal, withCopilotModelText } from './copilotd/copilotdMetadataReader.js';
+import { isCopilotMessageInternal, withCopilotMessageInternal } from './copilotd/copilotdMetadataReader.js';
 import { hasMessagePresentation, readMessagePresentation, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript as withVSCodeRequestHidden, withMessageSystemInitiatedLabel } from './vscode/agentMessageMeta.js';
 
 export interface IAgentMessagePresentation {
 	readonly hiddenFromTranscript: boolean;
 	readonly requestHiddenFromTranscript: boolean;
 	readonly systemInitiatedLabel?: string;
-}
-
-export interface IAgentHostCommand {
-	readonly name: 'compact';
-	readonly focus?: string | null;
 }
 
 export function readAgentMessagePresentation(message: Message): IAgentMessagePresentation {
@@ -43,22 +38,6 @@ export { withMessageHiddenFromTranscript, withMessageSystemInitiatedLabel };
 export function withMessageRequestHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
 	const result = withVSCodeRequestHidden(message, hidden);
 	return result === message ? result : withCopilotMessageInternal(result);
-}
-
-export function readAgentModelText(message: Pick<Message, '_meta'>): string | undefined {
-	return readCopilotModelText(message);
-}
-
-export function readAgentHostCommand(message: Pick<Message, '_meta'>): IAgentHostCommand | undefined {
-	return readCopilotCommand(message);
-}
-
-export function withAgentModelText<T extends Pick<Message, '_meta'>>(message: T, modelText: string | undefined): T {
-	return withCopilotModelText(message, modelText);
-}
-
-export function withAgentHostCommand<T extends Pick<Message, '_meta'>>(message: T, command: IAgentHostCommand): T {
-	return withCopilotCommand(message, command);
 }
 
 export function readAgentMessageRoundTripMetadata(message: Pick<Message, '_meta'>): Record<string, unknown> | undefined {

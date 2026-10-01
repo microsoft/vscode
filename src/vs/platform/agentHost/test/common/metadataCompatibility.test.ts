@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readAttachmentDetail, withAttachmentDetail } from '../../common/meta/attachmentMeta.js';
 import { readErrorDetail } from '../../common/meta/errorMeta.js';
-import { readAgentHostCommand, readAgentMessagePresentation, readAgentModelText, withAgentHostCommand, withAgentModelText, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript } from '../../common/meta/agentMessageMeta.js';
+import { readAgentMessagePresentation, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript } from '../../common/meta/agentMessageMeta.js';
 import { readAgentModelCallDetail } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
 import { AgentPermissionRequestKind, readAgentPermissionRequestMeta } from '../../common/meta/agentPermissionRequestMeta.js';
@@ -39,19 +39,6 @@ suite('Metadata compatibility', () => {
 		{ name: 'both styles preserve explicit VS Code false', meta: { 'vscode.chat.requestHiddenFromTranscript': false, 'copilot.visibility': 'internal' }, expected: presentation },
 		{ name: 'malformed VS Code does not fall through', meta: { 'vscode.chat.requestHiddenFromTranscript': null, 'copilot.visibility': 'internal' }, expected: presentation },
 		{ name: 'malformed Copilot D', meta: { 'copilot.visibility': true }, expected: presentation },
-	]);
-	readerMatrix('model-bound text', meta => readAgentModelText(message(meta)), undefined, [
-		{ name: 'VS Code has no override', meta: { 'vscode.chat.systemInitiatedLabel': 'Summary' }, expected: undefined },
-		{ name: 'Copilot D', meta: { 'copilot.modelText': 'expanded' }, expected: 'expanded' },
-		{ name: 'Copilot override is honored alongside VS Code presentation', meta: { 'copilot.modelText': 'expanded', 'vscode.chat.systemInitiatedLabel': 'Summary' }, expected: 'expanded' },
-		{ name: 'empty override', meta: { 'copilot.modelText': '' }, expected: undefined },
-		{ name: 'malformed override', meta: { 'copilot.modelText': { text: 'expanded' } }, expected: undefined },
-	]);
-	readerMatrix('host command', meta => readAgentHostCommand(message(meta)), undefined, [
-		{ name: 'Copilot D', meta: { 'copilot.command': { name: 'compact', focus: '  auth  ' } }, expected: { name: 'compact', focus: 'auth' } },
-		{ name: 'blank focus', meta: { 'copilot.command': { name: 'compact', focus: '' } }, expected: { name: 'compact', focus: null } },
-		{ name: 'unknown command', meta: { 'copilot.command': { name: 'future' } }, expected: undefined },
-		{ name: 'malformed command', meta: { 'copilot.command': [] }, expected: undefined },
 	]);
 
 	const attachment = { type: 'selection', text: 'captured', future: { value: 1 } };
@@ -136,18 +123,16 @@ suite('Metadata compatibility', () => {
 		});
 	});
 
-	test('public message writers preserve legacy text and compatible metadata without duplicating prefixes', () => {
-		const original: Message = { ...message({ opaque: false }), text: '/compact auth' };
+	test('public message visibility writers preserve legacy text and metadata without duplicating prefixes', () => {
+		const original: Message = { ...message({ opaque: false }), text: 'continue' };
 		const hidden = withMessageRequestHiddenFromTranscript(original, true);
-		const expanded = withAgentModelText(hidden, 'expanded prompt');
-		const command = withAgentHostCommand(expanded, { name: 'compact', focus: 'auth' });
 		assert.deepStrictEqual({
-			text: command.text, meta: command._meta, repeat: withMessageRequestHiddenFromTranscript(hidden, true).text,
-			unchanged: withMessageRequestHiddenFromTranscript(original, false) === original && withAgentModelText(original, '') === original,
+			text: hidden.text, meta: hidden._meta, repeat: withMessageRequestHiddenFromTranscript(hidden, true).text,
+			unchanged: withMessageRequestHiddenFromTranscript(original, false) === original,
 			fullyHidden: withMessageRequestHiddenFromTranscript(withMessageHiddenFromTranscript(original, true), true)._meta,
 		}, {
-			text: '<!-- vscode-request-hidden-from-transcript -->\n/compact auth',
-			meta: { opaque: false, 'vscode.chat.requestHiddenFromTranscript': true, 'copilot.visibility': 'internal', 'copilot.modelText': 'expanded prompt', 'copilot.command': { name: 'compact', focus: 'auth' } },
+			text: '<!-- vscode-request-hidden-from-transcript -->\ncontinue',
+			meta: { opaque: false, 'vscode.chat.requestHiddenFromTranscript': true, 'copilot.visibility': 'internal' },
 			repeat: hidden.text, unchanged: true,
 			fullyHidden: { opaque: false, 'vscode.chat.hiddenFromTranscript': true },
 		});

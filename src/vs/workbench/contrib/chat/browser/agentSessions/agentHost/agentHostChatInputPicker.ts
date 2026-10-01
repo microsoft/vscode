@@ -30,7 +30,7 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { getAgentHostOperatingSystem } from '../../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { filterSessionConfigValues, getAvailableSessionApprovalChoices, getEffectiveSessionApprovalValue, getSessionApprovalBinding, getSessionConfigPresentationKey, getSessionModeBinding, getSessionWorkspaceBinding, isSessionConfigWritable, readSessionConfigBinding, validateSessionConfigWrite, writeSessionConfigBinding } from '../../../../../../platform/agentHost/common/sessionConfigBindings.js';
+import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, validateSessionConfigWrite, writeSessionApprovalLevel } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { readSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -357,10 +357,10 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 export function isClaimedByDedicatedPicker(property: string, schema: SessionConfigPropertySchema, configSchema: SessionConfigSchema = { type: 'object', properties: { [property]: schema } }): boolean {
 	if (property === SessionConfigKey.AutoApprove || property === 'approvalMode') {
 		return (property === 'approvalMode' && Object.hasOwn(configSchema.properties, SessionConfigKey.AutoApprove))
-			|| getSessionApprovalBinding(configSchema)?.key === property;
+			|| getSessionApprovalProperty(configSchema)?.key === property;
 	}
 	if (property === SessionConfigKey.Mode) {
-		return !!getSessionModeBinding(configSchema);
+		return !!getSessionModeProperty(configSchema);
 	}
 	return WELL_KNOWN_PICKER_PROPERTIES.has(property);
 }
@@ -645,8 +645,8 @@ export class AgentHostChatInputPicker extends Disposable {
 		// shape (default/autoApprove/autopilot). When an agent advertises a
 		// custom AutoApprove schema (e.g. Claude's approval modes), let the
 		// generic-fallback chip lane render it instead.
-		if (!this._generic && ((this._property === SessionConfigKey.AutoApprove && !getSessionApprovalBinding(ctx.configSchema))
-			|| (this._property === SessionConfigKey.Mode && !getSessionModeBinding(ctx.configSchema)))) {
+		if (!this._generic && ((this._property === SessionConfigKey.AutoApprove && !getSessionApprovalProperty(ctx.configSchema))
+			|| (this._property === SessionConfigKey.Mode && !getSessionModeProperty(ctx.configSchema)))) {
 			this._container.style.display = 'none';
 			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
 			return;
@@ -770,8 +770,8 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _bindContext(property: string, configSchema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): Pick<IConfigPickerContext, 'key' | 'configSchema' | 'values' | 'propertySchema' | 'schema' | 'value' | 'approvalHover'> | undefined {
-		const approval = getSessionApprovalBinding(configSchema);
-		const workspace = getSessionWorkspaceBinding(configSchema);
+		const approval = getSessionApprovalProperty(configSchema);
+		const workspace = getSessionWorkspaceProperties(configSchema);
 		const key = property === SessionConfigKey.AutoApprove ? approval?.key ?? (Object.hasOwn(configSchema.properties, SessionConfigKey.AutoApprove) ? SessionConfigKey.AutoApprove : 'approvalMode')
 			: property === SessionConfigKey.Isolation ? workspace.isolationKey
 				: property === SessionConfigKey.Branch ? workspace.baseBranchKey
@@ -781,17 +781,21 @@ export class AgentHostChatInputPicker extends Disposable {
 			return undefined;
 		}
 		if (property === SessionConfigKey.AutoApprove && approval) {
-			const choices = getAvailableSessionApprovalChoices(approval, configSchema, values);
+			const configValues = getAvailableSessionApprovalValues(approval, configSchema, values);
+			const levels = configValues.flatMap(value => {
+				const level = readSessionApprovalLevel(approval, value);
+				return level ? [level] : [];
+			});
 			const requested = values[key] ?? propertySchema.default;
 			const effective = getEffectiveSessionApprovalValue(approval, configSchema, values);
-			const value = readSessionConfigBinding(approval, effective) ?? effective;
-			const indexes = choices.map(choice => propertySchema.enum?.indexOf(choice.configValue) ?? -1);
+			const value = readSessionApprovalLevel(approval, effective) ?? effective;
+			const indexes = configValues.map(value => propertySchema.enum?.indexOf(value) ?? -1);
 			const schema: SessionConfigPropertySchema = {
 				...propertySchema,
-				enum: choices.map(choice => choice.value),
-				enumLabels: choices.map((choice, index) => propertySchema.enumLabels?.[indexes[index]] ?? (choice.value === 'default' ? localize('agentHostChatInputPicker.manualPermissions', "Manual permissions") : choice.value === 'assisted' ? localize('agentHostChatInputPicker.assistedPermissions', "Assisted permissions") : localize('agentHostChatInputPicker.allowAllPermissions', "Allow all"))),
-				enumDescriptions: propertySchema.enumDescriptions ? choices.map((_choice, index) => propertySchema.enumDescriptions?.[indexes[index]] ?? '') : undefined,
-				default: readSessionConfigBinding(approval, propertySchema.default),
+				enum: levels,
+				enumLabels: levels.map((level, index) => propertySchema.enumLabels?.[indexes[index]] ?? (level === 'default' ? localize('agentHostChatInputPicker.manualPermissions', "Manual permissions") : level === 'assisted' ? localize('agentHostChatInputPicker.assistedPermissions', "Assisted permissions") : localize('agentHostChatInputPicker.allowAllPermissions', "Allow all"))),
+				enumDescriptions: propertySchema.enumDescriptions ? configValues.map((_value, index) => propertySchema.enumDescriptions?.[indexes[index]] ?? '') : undefined,
+				default: readSessionApprovalLevel(approval, propertySchema.default),
 			};
 			return {
 				key, configSchema, values, propertySchema, schema, value,
@@ -1196,14 +1200,14 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 		const { sessionResource, backendSession, connection, provider } = ctx;
 		const workingDirectory = this._readWorkingDirectory();
-		const approval = property === SessionConfigKey.AutoApprove ? getSessionApprovalBinding(ctx.configSchema) : undefined;
+		const approval = property === SessionConfigKey.AutoApprove ? getSessionApprovalProperty(ctx.configSchema) : undefined;
 		const approvalValue = approval?.key === SessionConfigKey.AutoApprove
 			? normalizeSessionConfigValue(SessionConfigKey.AutoApprove, value, isAutoApprovePolicyRestricted(this._configurationService))
 			: value;
 		const normalizedValue = ctx.schema.type === 'boolean'
 			? value === 'true'
 			: this._generic ? value
-				: approval ? writeSessionConfigBinding(approval, approvalValue)
+				: approval ? writeSessionApprovalLevel(approval, approvalValue)
 					: normalizeSessionConfigValue(ctx.key, value, isAutoApprovePolicyRestricted(this._configurationService));
 		validateSessionConfigWrite(ctx.configSchema, ctx.values, ctx.key, normalizedValue, isUntitledChatSession(sessionResource));
 		const partial = { [ctx.key]: normalizedValue };

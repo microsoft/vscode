@@ -270,13 +270,13 @@ suite('ChatService', () => {
 	});
 
 	for (const preserveRequestId of [false, true]) {
-		for (const replacement of [{}, { 'copilot.modelText': 'replacement prompt', opaque: true }]) {
+		for (const replacement of [{}, { 'copilot.visibility': 'internal', opaque: true }]) {
 			test(`ordinary resend retains replaced Agent Host metadata with preserveRequestId=${preserveRequestId}, empty=${Object.keys(replacement).length === 0}`, async () => {
 				const invoke = spy(chatAgentService, 'invokeAgent');
 				testDisposables.add(toDisposable(() => invoke.restore()));
 				const service = createChatService();
 				const model = testDisposables.add(startSessionModel(service)).object;
-				const metadata = { 'copilot.modelText': 'expanded prompt', 'copilot.command': { name: 'compact' }, 'copilot.visibility': 'internal', opaque: false };
+				const metadata = { 'copilot.visibility': 'internal', opaque: false };
 				const sent = await service.sendRequest(model.sessionResource, 'display prompt', { metadata });
 				ChatSendResult.assertSent(sent);
 				await sent.data.responseCompletePromise;

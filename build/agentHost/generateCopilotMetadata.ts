@@ -37,8 +37,6 @@ const contracts: readonly Contract[] = [
 	{ typeName: 'CopilotAutoTierSwitchFailure', schema: 'session-meta.copilot.autoTierSwitchFailure.schema.json' },
 	{ typeName: 'CopilotContext', schema: 'session-meta.copilot.context.schema.json' },
 	{ typeName: 'CopilotAttachmentDetail', schema: 'message-attachment.copilot.attachmentDetail.schema.json' },
-	{ typeName: 'CopilotModelText', schema: 'user-message.copilot.modelText.schema.json' },
-	{ typeName: 'CopilotCommand', schema: 'user-message.copilot.command.schema.json' },
 	{ typeName: 'CopilotSource', schema: 'user-message.copilot.source.schema.json' },
 	{ typeName: 'CopilotVisibility', schema: 'user-message.copilot.visibility.schema.json' },
 	{ typeName: 'CopilotToolOrigin', schema: 'tool-definition.copilot.toolOrigin.schema.json' },

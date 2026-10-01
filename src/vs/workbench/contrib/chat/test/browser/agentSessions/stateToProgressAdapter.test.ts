@@ -178,7 +178,7 @@ suite('stateToProgressAdapter', () => {
 			message: {
 				text: 'display',
 				origin: { kind: MessageKind.Tool },
-				_meta: { 'copilot.visibility': 'internal', 'copilot.modelText': 'expanded' },
+				_meta: { 'copilot.visibility': 'internal' },
 				attachments: [{ type: MessageAttachmentKind.Simple, label: 'Fix', _meta: { 'copilot.attachmentDetail': detail } }],
 			},
 			usage: { inputTokens: 5, outputTokens: 2, _meta: { 'copilot.usageDetail': { cost: 0.5, duration: 10 } } },

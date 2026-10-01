@@ -1418,17 +1418,6 @@ suite('SessionDatabase', () => {
 
 	suite('session metadata', () => {
 
-		test('turn metadata resolves native and provider identities before completion', async () => {
-			db = disposables.add(await SessionDatabase.open(':memory:'));
-			await db.createTurn('native-turn');
-			const metadataWrite = db.setMetadata('display.native-turn', 'captured');
-			const eventWrite = db.setTurnEventId('native-turn', 'provider-event');
-			await db.setMetadata('unrelated', 'not included');
-			const values = await db.getTurnMetadata('display.');
-			await Promise.all([metadataWrite, eventWrite]);
-			assert.deepStrictEqual([...values], [['native-turn', 'captured'], ['provider-event', 'captured']]);
-		});
-
 		test('getMetadata returns undefined for missing key', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			assert.strictEqual(await db.getMetadata('nonexistent'), undefined);
