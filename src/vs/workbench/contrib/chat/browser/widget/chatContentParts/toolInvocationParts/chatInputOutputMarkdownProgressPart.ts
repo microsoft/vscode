@@ -31,6 +31,10 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 	public readonly domNode: HTMLElement;
 	private readonly collapsibleListPart: ChatCollapsibleInputOutputContentPart;
 
+	public set title(message: string | IMarkdownString) {
+		this.collapsibleListPart.title = message;
+	}
+
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		return this.collapsibleListPart.codeblocks;
 	}

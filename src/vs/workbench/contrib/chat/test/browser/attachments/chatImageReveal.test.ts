@@ -59,6 +59,7 @@ suite('ChatImageReveal', () => {
 		const image = dom.$<HTMLImageElement>('img', { width: 400, height: 240, src });
 		const host = dom.append(mainWindow.document.body, dom.$('div'));
 		host.style.width = '760px';
+		host.style.setProperty('--chat-image-loading-width', '400px');
 		host.classList.add(`chat-image-reveal-variant-${treatment}`, `chat-image-line-variant-${loading}`);
 		const container = dom.append(host, dom.$('div', undefined, image));
 		const header = dom.append(host, dom.$('.chat-confirmation-widget-title'));
@@ -95,6 +96,20 @@ suite('ChatImageReveal', () => {
 	}
 
 	suite('line reveals', () => {
+
+		test('the default loading width respects the viewport and container limits', () => {
+			const { container, host } = render();
+			host.style.removeProperty('--chat-image-loading-width');
+			const defaultWidth = Math.round(container.getBoundingClientRect().width);
+			host.style.width = '200px';
+			assert.deepStrictEqual({
+				defaultWidth,
+				narrowWidth: Math.round(container.getBoundingClientRect().width),
+			}, {
+				defaultWidth: Math.round(Math.min(mainWindow.innerHeight * 0.6, 400)),
+				narrowWidth: Math.round(Math.min(mainWindow.innerHeight * 0.6, 200)),
+			});
+		});
 
 		test('wait on a line, hide the image while tracing its frame, and clear every effect after two seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { container, image, reveal } = render();

@@ -29,7 +29,7 @@ import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatAutomationConfiguredResultSubPart } from './chatAutomationConfiguredResultSubPart.js';
 import { ChatGeneratedImageResultSubPart, getGeneratedImageResultCount, getLastGeneratedImageToolCallId } from './chatGeneratedImageResultSubPart.js';
-import { ChatImageGenerationProgressPart } from './chatImageGenerationProgressPart.js';
+import { ChatImageGenerationToolProgressPart } from './chatImageGenerationProgressPart.js';
 import { ChatSessionCreatedResultSubPart } from './chatSessionCreatedResultSubPart.js';
 import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
 import { ChatSandboxPrerequisiteConfirmationSubPart } from './chatSandboxPrerequisiteConfirmationSubPart.js';
@@ -45,7 +45,7 @@ import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfir
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 import { ChatOtherClientToolProgressPart } from './chatOtherClientToolProgressPart.js';
-import { getToolInvocationIcon, hasToolInvocationError, isCarouselToolConfirmation, isImageGenerationToolInProgress, isImageGenerationToolInvocation } from './chatToolPartUtilities.js';
+import { createImageGenerationLabel, getToolInvocationIcon, hasToolInvocationError, isCarouselToolConfirmation, isImageGenerationToolInProgress, isImageGenerationToolInvocation } from './chatToolPartUtilities.js';
 
 /**
  * Value equality for {@link IMcpAppRenderData}, used so the App's derived
@@ -235,9 +235,14 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		this.domNode.appendChild(subPartDomNode);
 
 		const render = () => {
-			const wasGeneratingImage = this.subPart instanceof ChatImageGenerationProgressPart;
-			const imageReveal = this.subPart instanceof ChatImageGenerationProgressPart ? this.subPart.getRevealOrigin(this.domNode) : undefined;
+			const wasGeneratingImage = this.subPart instanceof ChatImageGenerationToolProgressPart;
+			const imageReveal = this.subPart instanceof ChatImageGenerationToolProgressPart ? this.subPart.getRevealOrigin(this.domNode) : undefined;
 			const isGeneratingImage = isImageGenerationToolInProgress(toolInvocation);
+			this.imageGenerationProgressSuppressed = this.shouldSuppressImageGenerationProgress();
+			if (this.subPart instanceof ChatImageGenerationToolProgressPart && isGeneratingImage) {
+				this.subPart.setShowAnimation(!this.imageGenerationProgressSuppressed);
+				return;
+			}
 			partStore.clear();
 			this.subPart = undefined;
 			const error = hasToolInvocationError(toolInvocation);
@@ -247,22 +252,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				&& (isGeneratingImage || (this.renderedGeneratedImageResult && getGeneratedImageResultCount(context.content) === 1));
 			this.domNode.classList.toggle('chat-image-generation-mock', isMockImage);
 			this.renderedLastGeneratedImageToolCallId = getLastGeneratedImageToolCallId(context.content);
-			this.imageGenerationProgressSuppressed = this.shouldSuppressImageGenerationProgress();
 			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden
-				|| (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation))
-				|| this.imageGenerationProgressSuppressed) {
-				if (this.imageGenerationProgressSuppressed) {
-					const emptyNode = dom.$('div');
-					subPartDomNode.replaceWith(emptyNode);
-					subPartDomNode = emptyNode;
-					toolIcon?.remove();
-					this.domNode.classList.remove('has-confirmation', 'chat-tool-call-with-icon');
-				}
+				|| (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation))) {
 				this._isVisible.set(false, undefined);
 				return;
 			}
 
 			const subPart = this.subPart = partStore.add(this.createToolInvocationSubPart());
+			if (subPart instanceof ChatImageGenerationToolProgressPart) {
+				partStore.add(subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+			}
 			partStore.add(autorun(reader => {
 				this._isVisible.set(!this.defersConfirmationToCarousel() && (!subPart.isHidden.read(reader) || !!appData.read(reader)), undefined);
 			}));
@@ -280,7 +279,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				partStore.add(imageResult.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			}
 
-			const showToolIcon = !!toolIcon && !(this.subPart instanceof ChatImageGenerationProgressPart) && !isMockImage;
+			const showToolIcon = !!toolIcon && !isMockImage;
 			this.domNode.classList.toggle('generated-image-tool-invocation', this.renderedGeneratedImageResult);
 			this.domNode.classList.toggle('chat-tool-call-with-icon', showToolIcon);
 			if (toolIcon && showToolIcon) {
@@ -385,7 +384,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			const state = this.toolInvocation.state.get();
 
 			if (isImageGenerationToolInProgress(this.toolInvocation, state)) {
-				return this.instantiationService.createInstance(ChatImageGenerationProgressPart, this.toolInvocation, !this.context.suppressProgressShimmer);
+				return this.instantiationService.createInstance(ChatImageGenerationToolProgressPart, this.toolInvocation, this.context, this.codeBlockStartIndex, !this.imageGenerationProgressSuppressed);
 			}
 
 			// Handle streaming state - show streaming progress
@@ -461,7 +460,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 					if (resultDetails.isError) {
 						message = localize('imageGeneration.failed', "Generated image failed");
 					} else if (this.renderedGeneratedImageResult) {
-						message = localize('imageGeneration.generated', "Generated image");
+						message = this.toolInvocation.pastTenseMessage ?? localize('imageGeneration.generated', "Generated image");
+						if (typeof message === 'string') {
+							message = createImageGenerationLabel(message);
+						}
 					}
 				}
 			}

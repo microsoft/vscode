@@ -22,13 +22,14 @@ import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotifi
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { SessionStatus, buildChatUri, buildDefaultChatUri, MessageKind, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
-import { IGitHubService } from '../../../github/common/githubService.js';
+import { IGitHubClient } from '../../../github/common/githubService.js';
+import { createTestGitHubService } from './testGitHubService.js';
 import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import { PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
-import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError, parsePullRequestUrl } from '../../node/agentMergeController.js';
+import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError } from '../../node/agentMergeController.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -81,7 +82,7 @@ suite('AgentMergeController', () => {
 			configurationService,
 			gitStateService,
 			noopGitService,
-			new class extends mock<IGitHubService>() { }(),
+			createTestGitHubService(),
 			endpointService,
 			createProviderService(() => ({
 				[SessionConfigKey.Mode]: 'autopilot',
@@ -154,7 +155,6 @@ suite('AgentMergeController', () => {
 			() => controller.isEnabled(),
 			session => controller.getTurnContext(session),
 			(session, enabled, overrides) => controller.setEnabled(session, enabled, overrides),
-			new class extends mock<IGitHubService>() { }(),
 			new NullLogService(),
 			stateManager,
 			configurationService,
@@ -223,7 +223,6 @@ suite('AgentMergeController', () => {
 			() => controller.isEnabled(),
 			chat => controller.getTurnContext(chat),
 			(chat, enabled, overrides) => controller.setEnabled(chat, enabled, overrides),
-			new class extends mock<IGitHubService>() { }(),
 			new NullLogService(),
 			stateManager,
 			configurationService,
@@ -354,7 +353,7 @@ suite('AgentMergeController', () => {
 			configurationService,
 			gitStateService,
 			noopGitService,
-			new class extends mock<IGitHubService>() {
+			createTestGitHubService(new class extends mock<IGitHubClient>() {
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
 						return { account: snapshot.ref, token: 'test-token', generation: 1, signal };
@@ -370,7 +369,7 @@ suite('AgentMergeController', () => {
 						};
 					}
 				}();
-			}(),
+			}()),
 			disposables.add(new AgentHostGitHubEndpointService(configurationService, logService)),
 			createProviderService(() => ({})),
 			logService,
@@ -419,6 +418,38 @@ suite('AgentMergeController', () => {
 			refreshedAfterRemoval: true,
 		});
 	});
+
+	test('does not request authentication for an evaluation from a replaced runtime', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const changes = disposables.add(new Emitter<void>());
+		const h = createControllerHarness(disposables, repairSnapshot(), changes.event);
+		const resolving = new DeferredPromise<void>();
+		const resolved = new DeferredPromise<URI | undefined>();
+		const authenticationRequests: string[] = [];
+		disposables.add(h.stateManager.onDidEmitNotification(notification => {
+			if (notification.type === 'auth/required') {
+				authenticationRequests.push(notification.type);
+			}
+		}));
+		h.gitService.getRepositoryRoot = async () => {
+			resolving.complete();
+			return resolved.p;
+		};
+		try {
+			h.stateManager.setSessionMeta(h.session, withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature' }), REPOSITORY, {
+				pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature',
+			}));
+			h.configurationService.updateSessionConfig(h.session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+			h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+			await resolving.p;
+			changes.fire();
+			h.gitService.getRepositoryRoot = async () => undefined;
+			await resolved.complete(undefined);
+			await timeout(1);
+			assert.deepStrictEqual({ authenticationRequests, errors: h.errors }, { authenticationRequests: [], errors: [] });
+		} finally {
+			h.controller.dispose();
+		}
+	}));
 
 	test('rechecks peer folder options after attachment without blocking on another chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createPeerRepairHarness(disposables);
@@ -725,7 +756,7 @@ suite('AgentMergeController', () => {
 			configurationService,
 			gitStateService,
 			noopGitService,
-			new class extends mock<IGitHubService>() { }(),
+			createTestGitHubService(),
 			endpointService,
 			createProviderService(() => ({})),
 			logService,
@@ -784,7 +815,6 @@ suite('AgentMergeController', () => {
 			() => controller.isEnabled(),
 			session => controller.getTurnContext(session),
 			(session, enabled, overrides) => controller.setEnabled(session, enabled, overrides),
-			new class extends mock<IGitHubService>() { }(),
 			new NullLogService(),
 			stateManager,
 			configurationService,
@@ -996,7 +1026,7 @@ suite('AgentMergeController', () => {
 			configurationService,
 			gitStateService,
 			noopGitService,
-			new class extends mock<IGitHubService>() { }(),
+			createTestGitHubService(),
 			endpointService,
 			createProviderService(() => ({})),
 			logService,
@@ -1051,7 +1081,7 @@ suite('AgentMergeController', () => {
 			new class extends mock<IAgentHostGitService>() {
 				override async getCurrentBranchName(): Promise<string | undefined> { return undefined; }
 			}(),
-			new class extends mock<IGitHubService>() { }(),
+			createTestGitHubService(),
 			endpointService,
 			createProviderService(() => ({})),
 			logService,
@@ -1242,7 +1272,7 @@ suite('AgentMergeController', () => {
 		}));
 	}
 
-	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, snapshot?: PullRequestSnapshot): {
+	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, snapshot?: PullRequestSnapshot, onDidChangeRepositoryClient: Event<void> = Event.None): {
 		readonly stateManager: AgentHostStateManager;
 		readonly configurationService: AgentConfigurationService;
 		readonly gitService: IAgentHostGitService;
@@ -1286,7 +1316,7 @@ suite('AgentMergeController', () => {
 			configurationService,
 			gitStateService,
 			gitService,
-			new class extends mock<IGitHubService>() {
+			createTestGitHubService(new class extends mock<IGitHubClient>() {
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
 						assert.ok(snapshot);
@@ -1304,7 +1334,7 @@ suite('AgentMergeController', () => {
 						};
 					}
 				}();
-			}(),
+			}(), onDidChangeRepositoryClient),
 			endpointService,
 			createProviderService(() => configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true
 				? { [SessionConfigKey.Mode]: 'autopilot' }
@@ -1362,7 +1392,7 @@ suite('AgentMergeController', () => {
 			configurationService,
 			gitStateService,
 			noopGitService,
-			new class extends mock<IGitHubService>() {
+			createTestGitHubService(new class extends mock<IGitHubClient>() {
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
 						return { account: snapshot.ref, token: 'test-token', generation: 1, signal };
@@ -1378,7 +1408,7 @@ suite('AgentMergeController', () => {
 						};
 					}
 				}();
-			}(),
+			}()),
 			disposables.add(new AgentHostGitHubEndpointService(configurationService, logService)),
 			createProviderService(() => ({})),
 			logService,
@@ -1482,7 +1512,7 @@ suite('AgentMergeController', () => {
 			new class extends mock<IAgentHostGitService>() {
 				override async getCurrentBranchName(): Promise<string | undefined> { return branchName; }
 			}(),
-			new class extends mock<IGitHubService>() { }(),
+			createTestGitHubService(),
 			endpointService,
 			createProviderService(() => ({})),
 			logService,
@@ -1708,28 +1738,6 @@ suite('AgentMergeController', () => {
 			kind: AgentSystemNotificationKind.AgentMergeEnabled,
 			content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration),
 		}]);
-	});
-
-	test('resolves the API host a credential must match for every GitHub deployment', () => {
-		assert.deepStrictEqual({
-			dotCom: parsePullRequestUrl('https://github.com/octo/repo/pull/1')?.apiHost,
-			www: parsePullRequestUrl('https://www.github.com/octo/repo/pull/1')?.apiHost,
-			// GitHub Enterprise Cloud serves its API from an `api.` subdomain, which is
-			// the host the credential reports; comparing the web host rejects every PR.
-			enterpriseCloud: parsePullRequestUrl('https://tenant.ghe.com/octo/repo/pull/1')?.apiHost,
-			enterpriseServer: parsePullRequestUrl('https://ghe.corp.example/octo/repo/pull/1')?.apiHost,
-			parsed: parsePullRequestUrl('https://tenant.ghe.com/octo/repo/pull/42'),
-			notAPullRequest: parsePullRequestUrl('https://github.com/octo/repo/issues/1'),
-			notAUrl: parsePullRequestUrl('octo/repo#1'),
-		}, {
-			dotCom: 'api.github.com',
-			www: 'api.github.com',
-			enterpriseCloud: 'api.tenant.ghe.com',
-			enterpriseServer: 'ghe.corp.example',
-			parsed: { owner: 'octo', repo: 'repo', number: 42, apiHost: 'api.tenant.ghe.com' },
-			notAPullRequest: undefined,
-			notAUrl: undefined,
-		});
 	});
 
 	test('detects a refused gate fragment so a credential can be requested from the snapshot', () => {

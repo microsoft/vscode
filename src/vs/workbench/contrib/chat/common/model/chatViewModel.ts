@@ -164,6 +164,8 @@ export interface IChatWorkingProgress {
 	progressStep?: number;
 	/** Whether prolonged response inactivity should replace the current phrase with the delayed-progress message. */
 	showDelayedProgressMessage?: boolean;
+	/** Rotates painting-themed phrases while an image tool is running. */
+	imageGeneration?: boolean;
 }
 
 

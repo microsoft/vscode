@@ -13,9 +13,9 @@ This folder contains the various test runners for VS Code. Please refer to the d
 
 Copilot image generation is provided by its native runtime and observed by the Copilot Agent Host harness. It requires a compatible runtime/SDK and backend image-generation access. There is no local extension-host image generator.
 
-The shared Chat renderer handles both Copilot's `image_generation` and Codex's `image_gen.imagegen` tool calls. Both show the binary-water placeholder and persistent progress while running, followed by an expandable input/output dropdown and a large image with a Save action on success, or a failed dropdown on error. Restored history uses the same renderer. Codex availability remains controlled by its provider; the current harness enables generation for OpenAI models with a ChatGPT sign-in.
+The shared Chat renderer handles both Copilot's `image_generation` and Codex's `image_gen.imagegen` tool calls. While running, a non-shimmering dropdown exposes the available prompt above the unchanged binary-water animation. The title says `Using <model name> to generate an image` when the host supplies image-model metadata. Only persistent progress rotates through painting-themed phrases; they do not represent backend stages. Each overlapping call keeps its own dropdown while sharing one animation. Success shows the completed input/output dropdown and a large image with a Save action; errors leave a failed dropdown. Restored history uses the same renderer. Codex availability remains controlled by its provider; the current harness enables generation for OpenAI models with a ChatGPT sign-in.
 
-To inspect the UI without image-generation access, use the `chat/generatedImages` Component Explorer fixtures, including the Copilot/Codex selector in `Preview`. The rendering explorations remain under `chat/imageLoadingStudies`; they do not register tools or make image-generation requests.
+To inspect the UI without image-generation access, use the `chat/generatedImages` Component Explorer fixtures, including the Copilot/Codex selector in `Preview`. These fixtures cover the single ASCII binary-water presentation across running, completed, failed, overlapping, and reduced-motion states. They do not register tools or make image-generation requests.
 
 ### Mock image generation in Copilot Agent Host
 
@@ -31,7 +31,7 @@ The mock does not call CAPI or an image provider, and needs no image-generation 
 
 ### Image reveal experiment
 
-On this experiment branch, a single `generate_image_mock` image has one fixed width and top-left anchor from its loading indicator to its finished preview. The square bundled mock uses the same responsive size in every state (up to 400 px and 60% of viewport height). Its Save action and input/output disclosure sit below the image rather than changing its available width or pushing it down at completion. Galleries and real-provider rendering keep their existing layout.
+On this experiment branch, a single `generate_image_mock` image has one fixed width and top-left anchor from its loading indicator to its finished preview. The square bundled mock uses the same responsive size in every state (up to 400 px and 60% of viewport height). Its prompt dropdown remains usable below the loader while running. Its Save action and completed input/output disclosure sit below the image rather than changing its available width or pushing it down at completion. Galleries and real-provider rendering keep their existing layout.
 
 Only the image's width is known while it generates, so every loader keeps a fixed height and works for as long as generation takes. Delayed image bytes leave the loader in place. Reduced motion and high-contrast themes show the loaded image immediately (loaders hold a still frame), and restored results do not replay the animation.
 

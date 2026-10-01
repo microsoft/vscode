@@ -10,7 +10,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
-import { createHostedImageMessage, toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
+import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
@@ -575,7 +575,7 @@ suite('mapSessionEvents — history replay', () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Working on it.', toolRequests: [{ toolCallId: 'tc-1', name: 'task_complete' }] } },
-			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: { summary: 'Done. All good.' } } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'task_complete', arguments: { summary: '## Summary\n\nDone. All good.' } } },
 			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'Output too large to read at once (11.3 KB). Saved to: /tmp/task-complete.txt' } } },
 		];
 
@@ -584,7 +584,7 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(turns.length, 1);
 		assert.deepStrictEqual(partKinds(turns[0].responseParts), [
 			{ kind: ResponsePartKind.Markdown, content: 'Working on it.' },
-			{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:** Done. All good.' },
+			{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:**\n\n## Summary\n\nDone. All good.' },
 		]);
 	});
 
@@ -952,7 +952,7 @@ suite('mapSessionEvents — history replay', () => {
 			state: TurnState.Complete,
 			parts: [
 				{ kind: ResponsePartKind.Markdown, content: 'All done.' },
-				{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:** Finished.' },
+				{ kind: ResponsePartKind.Markdown, content: '\n\n**Task completed:**\n\nFinished.' },
 			],
 		}]);
 	});
@@ -1144,27 +1144,26 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
 	});
 
-	for (const format of ['normalized', 'native'] as const) {
-		test(`restores hosted images before the final answer (${format})`, async () => {
-			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
-				{ type: 'user.message', data: { content: 'Draw some animals.' } },
-				{ type: 'assistant.message', data: { ...createHostedImageMessage(format), reasoningText: 'Creating the images.' } },
-			]));
+	test('restores image function tools before the final answer', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Draw a puppy.' } },
+			{ type: 'assistant.message', data: { messageId: 'image-request', content: 'I will create an image.', toolRequests: [{ toolCallId: 'image-1', name: 'image_generation' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'image-1', toolName: 'image_generation', arguments: { prompt: 'Draw a puppy' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'image-1', success: true, result: { contents: [{ type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' }] } } },
+			{ type: 'assistant.message', data: { messageId: 'image-result', content: 'Image generation completed.' } },
+		]));
 
-			assert.deepStrictEqual(turns[0].responseParts.map(part => {
-				if (part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed) {
-					return { kind: part.kind, toolCallId: part.toolCall.toolCallId, success: part.toolCall.success };
-				}
-				return part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning
-					? { kind: part.kind, content: part.content } : { kind: part.kind };
-			}), [
-				{ kind: ResponsePartKind.Reasoning, content: 'Creating the images.' },
-				{ kind: ResponsePartKind.ToolCall, toolCallId: 'hosted-image-image-1', success: true },
-				{ kind: ResponsePartKind.ToolCall, toolCallId: 'hosted-image-image-2', success: false },
-				{ kind: ResponsePartKind.Markdown, content: 'Here is your image.' },
-			]);
-		});
-	}
+		assert.deepStrictEqual(turns[0].responseParts.map(part => {
+			if (part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed) {
+				return { kind: part.kind, toolCallId: part.toolCall.toolCallId, success: part.toolCall.success };
+			}
+			return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+		}), [
+			{ kind: ResponsePartKind.Markdown, content: 'I will create an image.' },
+			{ kind: ResponsePartKind.ToolCall, toolCallId: 'image-1', success: true },
+			{ kind: ResponsePartKind.Markdown, content: 'Image generation completed.' },
+		]);
+	});
 
 	test('maps SDK image content to an embedded resource on replayed tool completion', async () => {
 		const events: ISessionEvent[] = [
@@ -1197,6 +1196,7 @@ suite('mapSessionEvents — history replay', () => {
 
 	test('maps generated image resource links on replayed tool completion', async () => {
 		const uri = 'generated-images:/session/generated-image.png?version=1';
+		const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image Preview' } };
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'Draw a puppy' } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
@@ -1207,6 +1207,7 @@ suite('mapSessionEvents — history replay', () => {
 					success: true,
 					result: {
 						content: 'Generated an image.',
+						structuredContent: { imageGeneration },
 						contents: [{ type: 'resource_link', uri, name: 'generated-image.png', mimeType: 'image/png', size: 128 }],
 					},
 				},
@@ -1216,10 +1217,18 @@ suite('mapSessionEvents — history replay', () => {
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
 		const part = turns[0].responseParts[0];
 		assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
-		assert.deepStrictEqual(part.toolCall.content, [
-			{ type: ToolResultContentType.Text, text: 'Generated an image.' },
-			{ type: ToolResultContentType.Resource, uri, contentType: 'image/png', sizeHint: 128 },
-		]);
+		assert.deepStrictEqual({
+			content: part.toolCall.content,
+			title: part.toolCall.pastTenseMessage,
+			meta: part.toolCall._meta,
+		}, {
+			content: [
+				{ type: ToolResultContentType.Text, text: 'Generated an image.' },
+				{ type: ToolResultContentType.Resource, uri, contentType: 'image/png', sizeHint: 128 },
+			],
+			title: 'Generated image with Image Preview',
+			meta: { 'vscode.imageGeneration': imageGeneration },
+		});
 	});
 
 	test('maps SDK shell_exit full output to terminal completion on replay', async () => {

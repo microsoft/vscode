@@ -406,6 +406,16 @@ export function pickWorkingLabel(element: ChatTreeItem, configurationService: IC
 	return label;
 }
 
+const imageGenerationMessages = [
+	localize('imageProgress.creating', "Creating image"),
+	localize('imageProgress.mixing', "Mixing the colors"),
+	localize('imageProgress.sketching', "Sketching the scene"),
+	localize('imageProgress.color', "Adding a splash of color"),
+	localize('imageProgress.pixels', "Bringing pixels to life"),
+	localize('imageProgress.possibilities', "Painting the possibilities"),
+];
+const imageGenerationMessageIntervalMs = 4000;
+
 export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
 	private explicitContent: IMarkdownString | undefined;
 	private isActive: boolean;
@@ -413,9 +423,13 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 	private showDelayedProgressMessage: boolean;
 	private showingDelayedProgressMessage = false;
 	private showingUnresponsiveToolMessage = false;
+	private responseComplete = false;
 	private readonly contextElement: ChatTreeItem;
 	private readonly workingLogo: ChatWorkingProgressLogo | undefined;
 	private readonly delayedProgressMessageScheduler: RunOnceScheduler | undefined;
+	private readonly imageGenerationMessageScheduler: RunOnceScheduler | undefined;
+	private imageGeneration: boolean;
+	private imageGenerationMessageIndex = 0;
 
 	constructor(
 		workingProgress: IChatWorkingProgress,
@@ -429,10 +443,13 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 	) {
 		const explicitContent = workingProgress.content;
 		const isActive = workingProgress.isActive ?? true;
+		const imageGeneration = !!context.suppressProgressShimmer && !!workingProgress.imageGeneration;
 		const isInsiders = productService.quality === 'insider';
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
-			content: explicitContent ?? new MarkdownString().appendText(pickWorkingLabel(context.element, workingConfigurationService, workingProgress.progressStep))
+			content: imageGeneration
+				? new MarkdownString().appendText(imageGenerationMessages[0])
+				: explicitContent ?? new MarkdownString().appendText(pickWorkingLabel(context.element, workingConfigurationService, workingProgress.progressStep))
 		};
 		super(progressMessage, chatContentMarkdownRenderer, context,
 			context.suppressProgressShimmer ? isActive : undefined,
@@ -457,27 +474,37 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}
 		this.explicitContent = explicitContent;
 		this.isActive = isActive;
+		this.imageGeneration = imageGeneration;
 		this.progressStep = workingProgress.progressStep;
 		this.showDelayedProgressMessage = workingProgress.showDelayedProgressMessage ?? false;
 		this.contextElement = context.element;
 		this.delayedProgressMessageScheduler = this.workingLogo
 			? this._register(new RunOnceScheduler(() => this.showDelayedProgress(), DELAYED_PROGRESS_MESSAGE_TIMEOUT_MS))
 			: undefined;
+		this.imageGenerationMessageScheduler = this.workingLogo
+			? this._register(new RunOnceScheduler(() => this.rotateImageGenerationMessage(), imageGenerationMessageIntervalMs))
+			: undefined;
 		if (this.workingLogo && isResponseVM(context.element)) {
 			this._register(context.element.model.onDidChange(() => this.onResponseActivity()));
 		}
 		this.updateDelayedProgressMessageScheduler();
+		this.updateImageGenerationMessageScheduler();
 
 		// Keep the replacement anchor, but never leave completed or disposed progress visible.
 		this._register(toDisposable(() => hide(this.domNode)));
 		const response = context.element;
 		if (isResponseVM(response)) {
 			const isComplete = observableFromEvent(this, response.model.onDidChange, () => response.isComplete || response.isCanceled);
-			this._register(autorun(reader => setVisibility(!isComplete.read(reader), this.domNode)));
+			this._register(autorun(reader => {
+				this.responseComplete = isComplete.read(reader);
+				setVisibility(!this.responseComplete, this.domNode);
+				this.updateActiveState();
+				this.updateImageGenerationMessageScheduler();
+			}));
 		}
 
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
-			if (isEqual(context.element.sessionResource, e.sessionResource) && (!this.workingLogo || !this.explicitContent || this.showingUnresponsiveToolMessage)) {
+			if (!this.imageGeneration && isEqual(context.element.sessionResource, e.sessionResource) && (!this.workingLogo || !this.explicitContent || this.showingUnresponsiveToolMessage)) {
 				this.updateWorkingContent(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)), true, false, this.progressStep, false);
 				this.showingUnresponsiveToolMessage = true;
 			}
@@ -488,10 +515,11 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		return renderAsPlaintext(this.currentContent);
 	}
 
-	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive, announce: IChatWorkingProgress['announce'] = false, progressStep = this.progressStep, showDelayedProgressMessage = this.showDelayedProgressMessage): void {
+	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive, announce: IChatWorkingProgress['announce'] = false, progressStep = this.progressStep, showDelayedProgressMessage = this.showDelayedProgressMessage, imageGeneration = false): void {
 		this.showingUnresponsiveToolMessage = false;
 		const previousExplicitContent = this.explicitContent;
 		const previousIsActive = this.isActive;
+		const previousImageGeneration = this.imageGeneration;
 		const previousProgressStep = this.progressStep;
 		const previousShowDelayedProgressMessage = this.showDelayedProgressMessage;
 		const shouldResetDelayedProgress = previousExplicitContent?.value !== content?.value
@@ -499,22 +527,26 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			|| (!previousShowDelayedProgressMessage && showDelayedProgressMessage);
 		this.explicitContent = content;
 		this.isActive = isActive;
+		this.imageGeneration = !!this.workingLogo && imageGeneration;
+		if (this.imageGeneration !== previousImageGeneration) {
+			this.imageGenerationMessageIndex = 0;
+		}
 		this.progressStep = progressStep;
 		this.showDelayedProgressMessage = showDelayedProgressMessage;
 		if (!showDelayedProgressMessage || !isActive || shouldResetDelayedProgress) {
 			this.showingDelayedProgressMessage = false;
 		}
 		this.updateDelayedProgressMessageScheduler(shouldResetDelayedProgress);
+		this.updateImageGenerationMessageScheduler();
 		const resolvedContent = this.resolveWorkingContent();
 		if (this.workingLogo && content?.value === previousExplicitContent?.value && resolvedContent.value === this.currentContent.value && isActive === previousIsActive) {
 			return;
 		}
-		const shouldAnnounce = announce && !!this.workingLogo && !!content && content.value !== previousExplicitContent?.value
+		const shouldAnnounce = announce && !!this.workingLogo
+			&& ((!!content && content.value !== previousExplicitContent?.value) || (this.imageGeneration && !previousImageGeneration))
 			&& this.workingConfigurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates);
 		if (this.workingLogo) {
-			this.domNode.classList.toggle('chat-working-progress-active', isActive);
-			this.workingLogo.setActive(isActive);
-			this.setShimmerActive(isActive);
+			this.updateActiveState();
 		}
 		this.updateMessage(resolvedContent);
 		if (shouldAnnounce) {
@@ -527,7 +559,20 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}
 	}
 
+	private updateActiveState(): void {
+		if (!this.workingLogo) {
+			return;
+		}
+		const active = this.isActive && !this.responseComplete;
+		this.domNode.classList.toggle('chat-working-progress-active', active);
+		this.workingLogo.setActive(active);
+		this.setShimmerActive(active);
+	}
+
 	private resolveWorkingContent(): IMarkdownString {
+		if (this.imageGeneration) {
+			return new MarkdownString().appendText(imageGenerationMessages[this.imageGenerationMessageIndex]);
+		}
 		if (this.showingDelayedProgressMessage) {
 			return new MarkdownString().appendText(localize('persistentProgress.takingLonger', "This is taking a little longer than usual"));
 		}
@@ -538,13 +583,35 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		if (!this.delayedProgressMessageScheduler) {
 			return;
 		}
-		if (!this.showDelayedProgressMessage || !this.isActive) {
+		if (this.imageGeneration || !this.showDelayedProgressMessage || !this.isActive) {
 			this.delayedProgressMessageScheduler.cancel();
 			return;
 		}
 		if (reset || (!this.showingDelayedProgressMessage && !this.delayedProgressMessageScheduler.isScheduled())) {
 			this.delayedProgressMessageScheduler.schedule();
 		}
+	}
+
+	private shouldRotateImageGenerationMessage(): boolean {
+		return this.imageGeneration && this.isActive
+			&& !(isResponseVM(this.contextElement) && (this.contextElement.isComplete || this.contextElement.isCanceled));
+	}
+
+	private updateImageGenerationMessageScheduler(): void {
+		if (!this.shouldRotateImageGenerationMessage()) {
+			this.imageGenerationMessageScheduler?.cancel();
+		} else if (!this.imageGenerationMessageScheduler?.isScheduled()) {
+			this.imageGenerationMessageScheduler?.schedule();
+		}
+	}
+
+	private rotateImageGenerationMessage(): void {
+		if (!this.shouldRotateImageGenerationMessage()) {
+			return;
+		}
+		this.imageGenerationMessageIndex = (this.imageGenerationMessageIndex + 1) % imageGenerationMessages.length;
+		this.updateMessage(this.resolveWorkingContent());
+		this.updateImageGenerationMessageScheduler();
 	}
 
 	private onResponseActivity(): void {

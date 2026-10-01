@@ -16,7 +16,8 @@ import { readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind }
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseChatUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
-import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
+import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
+import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
@@ -28,7 +29,6 @@ import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
-import { readHostedImageToolCalls } from './copilotHostedImageTools.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -334,7 +334,6 @@ export async function mapSessionEvents(
 	const editToolCallIds: string[] = [];
 	const completionsByCallId = new Map<string, ToolExecutionCompleteData>();
 	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
-	const hostedImageToolCallIds = new Set<string>();
 
 	// The SDK tags events that originate from a sub-agent with an
 	// envelope-level `agentId` (the deprecated `data.parentToolCallId` is no
@@ -684,12 +683,11 @@ export async function mapSessionEvents(
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
 				const isPhaseWork = hasToolRequests || fusionToolRoundMessages.has(e);
 				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? (isPhaseWork ? resolveFusionPhaseToolCallId(e.agentId, d.fusion) : undefined);
-				const hostedImageToolCalls = e.agentId && !parentToolCallId ? [] : readHostedImageToolCalls(d);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
 				}
-				if (!content && !reasoningText && !hasToolRequests && hostedImageToolCalls.length === 0) {
+				if (!content && !reasoningText && !hasToolRequests) {
 					if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
 						parentTurnState = TurnState.Complete;
 						touch(parentBuilder);
@@ -710,12 +708,6 @@ export async function mapSessionEvents(
 						id: generateUuid(),
 						content: reasoningText,
 					});
-				}
-				for (const toolCall of hostedImageToolCalls) {
-					if (!hostedImageToolCallIds.has(toolCall.toolCallId)) {
-						hostedImageToolCallIds.add(toolCall.toolCallId);
-						builder.responseParts.push({ kind: ResponsePartKind.ToolCall, toolCall });
-					}
 				}
 				if (content) {
 					builder.responseParts.push({
@@ -1074,6 +1066,7 @@ function makeCompletedToolCallPart(
 	workingDirectory: URI | undefined,
 	resolveAgentName: ToolAgentNameResolver,
 ): ResponsePart {
+	const imageGeneration = info.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(d.result) : undefined;
 	const toolOutput = d.error?.message ?? d.result?.content;
 	const content: ToolResultContent[] = [];
 	if (toolOutput !== undefined) {
@@ -1148,11 +1141,12 @@ function makeCompletedToolCallPart(
 		invocationMessage: info.invocationMessage,
 		toolInput: info.toolInput,
 		success: d.success,
-		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName),
+		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName, imageGeneration),
 		content: content.length > 0 ? content : undefined,
 		error: d.error,
 		confirmed: ToolCallConfirmationReason.NotNeeded,
 		_meta: toToolCallMeta({
+			[imageGenerationToolMetaKey]: imageGeneration,
 			toolKind: info.toolKind,
 			language: info.language,
 			subagentDescription: info.subagentDescription,

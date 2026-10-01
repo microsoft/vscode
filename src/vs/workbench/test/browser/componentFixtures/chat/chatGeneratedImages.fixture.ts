@@ -49,7 +49,7 @@ function createImage(width: number, height: number): string {
 	return canvas.toDataURL('image/png').split(',')[1];
 }
 
-async function renderGeneratedImage(context: ComponentFixtureContext, options: { width?: number; height?: number; landscape?: boolean; multiple?: boolean; progress?: ChatProgressAnimation; running?: boolean; responseComplete?: boolean; toolId?: string; reducedMotion?: boolean; failed?: boolean; earlierAttempt?: 'running' | 'failed' } = {}): Promise<void> {
+async function renderGeneratedImage(context: ComponentFixtureContext, options: { width?: number; height?: number; landscape?: boolean; multiple?: boolean; progress?: ChatProgressAnimation; running?: boolean; expanded?: boolean; responseComplete?: boolean; toolId?: string; modelName?: string; reducedMotion?: boolean; failed?: boolean; earlierAttempt?: 'running' | 'failed' } = {}): Promise<void> {
 	context.container.classList.add(options.reducedMotion ? 'monaco-reduce-motion' : 'monaco-enable-motion');
 	const image = createImage(options.landscape ? 1600 : 800, options.landscape ? 800 : 1600);
 	const failureDetails = {
@@ -62,18 +62,24 @@ async function renderGeneratedImage(context: ComponentFixtureContext, options: {
 		toolId: options.toolId ?? 'image_generation',
 		displayName: 'Generate Image',
 		invocationMessage: 'Generating image',
-		pastTenseMessage: options.running ? undefined : options.failed ? 'Generated image failed' : 'Generated image',
+		pastTenseMessage: options.running ? undefined : options.failed ? 'Generated image failed' : options.modelName ? `Generated image with ${options.modelName}` : 'Generated image',
 		complete: !options.running,
-		toolSpecificData: options.running || options.failed ? undefined : { kind: 'generatedImage' },
+		toolSpecificData: options.running ? {
+			kind: 'input',
+			rawInput: '{"prompt":"Draw an abstract mountain landscape"}',
+			editable: false,
+			imageGeneration: { requestedModel: options.modelName ? { id: 'image-preview', name: options.modelName } : undefined },
+		} : options.failed ? undefined : { kind: 'generatedImage' },
 		resultDetails: options.running ? undefined : options.failed ? failureDetails : {
 			input: '{"prompt":"Draw an abstract mountain landscape"}',
 			output: Array.from({ length: options.multiple ? 2 : 1 }, () => ({ type: 'embed' as const, value: image, mimeType: 'image/png' })),
 		},
 	};
+	const height = options.height ?? (options.running && !options.earlierAttempt ? 560 : 720);
 	await renderChatWidget(context, {
 		width: options.width ?? 760,
-		height: options.height ?? (options.running ? 560 : 720),
-		listHeight: options.height ?? (options.running ? 560 : 720),
+		height,
+		listHeight: height,
 		inputVisible: false,
 		thinkingStyle: ThinkingDisplayMode.Collapsed,
 		collapsedTools: CollapsedToolsDisplayMode.Always,
@@ -90,7 +96,7 @@ async function renderGeneratedImage(context: ComponentFixtureContext, options: {
 					...tool,
 					pastTenseMessage: options.earlierAttempt === 'failed' ? 'Generated image failed' : undefined,
 					complete: options.earlierAttempt === 'failed',
-					toolSpecificData: undefined,
+					toolSpecificData: options.earlierAttempt === 'running' ? tool.toolSpecificData : undefined,
 					resultDetails: options.earlierAttempt === 'failed' ? failureDetails : undefined,
 				}] : []),
 				tool,
@@ -98,6 +104,13 @@ async function renderGeneratedImage(context: ComponentFixtureContext, options: {
 			],
 		}],
 	});
+	if (options.expanded) {
+		const dropdown = context.container.querySelector<HTMLElement>('.chat-confirmation-widget-title');
+		if (!dropdown) {
+			throw new Error('The running image tool must expose its input dropdown');
+		}
+		dropdown.click();
+	}
 	if (!options.running && !options.failed) {
 		await retry(async () => {
 			const images = [...context.container.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')];
@@ -214,6 +227,12 @@ async function renderImageLoadingLifecycle(context: ComponentFixtureContext, cus
 				displayName: 'Generate Image',
 				invocationMessage: 'Generating image',
 				complete: false,
+				toolSpecificData: {
+					kind: 'input',
+					rawInput: '{"prompt":"Draw an abstract mountain landscape"}',
+					editable: false,
+					imageGeneration: {},
+				},
 			}],
 		}],
 		onRendered: ({ model, listWidget }) => {
@@ -229,7 +248,7 @@ async function renderImageLoadingLifecycle(context: ComponentFixtureContext, cus
 					content: [],
 					toolSpecificData: { kind: 'generatedImage' },
 					toolResultDetails: {
-						input: '{}',
+						input: '{"prompt":"Draw an abstract mountain landscape"}',
 						output: [input.source === 'Referenced'
 							? { type: 'ref', uri: imageResource, mimeType }
 							: { type: 'embed', value: image, mimeType }],
@@ -700,10 +719,21 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 	Gallery: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { multiple: true }) }),
 	PersistentProgress: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { progress: ChatProgressAnimation.Draw }) }),
 	Running: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderGeneratedImage(context, { running: true }) }),
+	GeneratingWithImageModel: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderGeneratedImage(context, { modelName: 'GPT Image 2.5 Sunburst', running: true, reducedMotion: true, progress: ChatProgressAnimation.Draw, width: 360 }),
+	}),
+	GeneratingWithPromptExpanded: defineComponentFixture({
+		render: context => renderGeneratedImage(context, { modelName: 'GPT Image 2.5 Sunburst', running: true, expanded: true, reducedMotion: true, progress: ChatProgressAnimation.Draw, height: 800 }),
+	}),
+	CompletedWithImageModel: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderGeneratedImage(context, { modelName: 'GPT Image 2.5 Sunburst', landscape: true }),
+	}),
 	CopilotGenerating: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'animated' },
-		expectedVisualDescriptions: ['An unframed area of small monospace binary digits, as tall as a generated image and a little wider than tall, with swells of denser accent-colored glyphs rolling through it like water and edges that fade out unevenly, without a panel background. No unfinished tool header or tool icon is visible; Generating image appears in the persistent footer below. Reduced motion and high contrast show one still composition.'],
+		expectedVisualDescriptions: ['An expandable tool row without shimmer sits above an unframed area of small monospace binary digits, with swells of denser accent-colored glyphs rolling through it like water. Expanding the row reveals the submitted prompt while the animation stays visible. Painting-themed phrases rotate only in the persistent footer. Reduced motion and high contrast show one still binary composition.'],
 		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, progress: ChatProgressAnimation.Draw }),
 	}),
 	CodexGenerating: defineComponentFixture({
@@ -714,7 +744,7 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 		virtualTime: { enabled: false },
 		labels: { kind: 'animated' },
 		inputSchema: z.object({ enableAnimations: z.boolean().default(true) }),
-		expectedVisualDescriptions: ['Two concurrent image-generation attempts share exactly one unframed binary-digit placeholder and one Generating image footer. There is no second placeholder, empty tool row, or tool header.'],
+		expectedVisualDescriptions: ['Two concurrent image-generation attempts each retain an expandable input row and share exactly one unframed binary-digit placeholder and one painting-themed progress footer.'],
 		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, earlierAttempt: 'running', progress: ChatProgressAnimation.Draw }),
 	}),
 	CodexOverlapping: defineComponentFixture({

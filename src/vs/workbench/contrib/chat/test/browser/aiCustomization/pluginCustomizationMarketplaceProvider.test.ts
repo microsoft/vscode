@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -30,6 +31,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		marketplace: customReference.displayLabel,
 		marketplaceReference: customReference,
 		marketplaceType: MarketplaceType.Claude,
+		readmeUri: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
 	};
 
 	class TestPluginMarketplaceService extends mock<IPluginMarketplaceService>() {
@@ -83,7 +85,8 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				representativeQueries: [],
 				originLabel: customReference.displayLabel,
 				version: '1.0',
-				url: undefined,
+				url: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
+				readmeUri: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
 				score: 0,
 				priority: 1,
 				installation: { kind: 'configuredPlugin' },

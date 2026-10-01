@@ -25,13 +25,14 @@ suite('Chat Accessibility Help', () => {
 			standalone: help.includes('Image generation appears separately from thinking and tool-call groups'),
 			harnesses: help.includes('Copilot and Codex agent sessions share this presentation'),
 			position: help.includes('Completed steps collapse only before the first image-generation tool, keeping image tools in their original position'),
-			placeholder: help.includes('While generation runs, a decorative animation of shifting binary digits marks where the image will appear, without a tool dropdown'),
-			overlapping: help.includes('Overlapping image-generation attempts share one placeholder while any attempt is running'),
+			placeholder: help.includes('A decorative animation of shifting binary digits remains visible below the dropdown'),
+			overlapping: help.includes('Overlapping image-generation attempts each keep their own input dropdown and share one animation'),
 			reducedMotion: help.includes('does not indicate a percentage complete and stays still when reduced motion is enabled or a high contrast theme is active'),
-			dropdown: help.includes('Only when generation finishes does the tool dropdown appear for inspecting its available prompt and output'),
+			dropdown: help.includes('While generation runs, expand the tool dropdown to inspect the submitted prompt'),
 			expand: help.includes('Tab to focus the dropdown and Enter or Space to expand or collapse it'),
-			progress: help.includes('progress line says Generating image while generation runs'),
-			imageAndDropdown: help.includes('Successful generation shows the Generated image dropdown and the large image below it, even when the dropdown is collapsed'),
+			progress: help.includes('Only the persistent progress line rotates through painting-themed phrases, without repeatedly announcing them'),
+			imageModel: help.includes('Its title says Using the image model to generate an image when the model is available, and does not shimmer'),
+			imageAndDropdown: help.includes('Successful generation shows the Generated image dropdown, including the image model when available, and the large image below it even when collapsed'),
 			failure: help.includes('Generated image failed row can be expanded to inspect the error'),
 			restoredState: help.includes('Completed and failed image tools keep their final status when you reopen the chat'),
 			previews: help.includes('Image previews appear as soon as generation succeeds, even if the response is still in progress'),
@@ -39,7 +40,7 @@ suite('Chat Accessibility Help', () => {
 			loadFailure: help.includes('Unable to load image indicates a problem loading the preview, not a failed generation'),
 			keyboard: help.includes('Tab or Shift+Tab to focus an image and Enter to open it'),
 			save: help.includes('Save action beside the image'),
-		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, dropdown: true, expand: true, progress: true, imageAndDropdown: true, failure: true, restoredState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
+		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, dropdown: true, expand: true, progress: true, imageModel: true, imageAndDropdown: true, failure: true, restoredState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
 	});
 
 	test('documents the development-only Copilot Agent Host image preview', () => {
@@ -150,7 +151,7 @@ suite('Chat Accessibility Help', () => {
 			visibility: help.includes('on the hovered, selected, or keyboard-focused model'),
 			inlinePreferences: help.includes('In Auto mode, use Up and Down Arrow to focus an "Optimize for" preference'),
 			hydra: help.includes('HydraFusion, when available, is an alternative routing choice'),
-			hydraDescription: help.includes('press Right Arrow to open its description and focus Learn more'),
+			hydraDescription: help.includes('Focus HydraFusion and press Tab to reach Learn more'),
 			activation: help.includes('Enter or Space applies the preference and keeps the picker open'),
 			autoEntry: help.includes('both the Auto name and preference readout in the chat input open these routing choices'),
 			noAutoDetails: help.includes('Auto has no separate details page'),

@@ -1685,6 +1685,41 @@ suite('stateToProgressAdapter', () => {
 			});
 		}
 
+		for (const name of [undefined, 'Image Preview']) {
+			test(`uses structured image identity with ${name ? 'a display name' : 'an id fallback'} on a non-VS Code host`, () => {
+				const backendSession = URI.parse('other-host:/opaque-resource');
+				const expectedName = name ?? 'provider/image-preview';
+				const metadata = { 'vscode.imageGeneration': { requestedModel: { id: 'provider/image-preview', name } } };
+				const running = createToolCallState({
+					toolName: 'remote_create_image',
+					_meta: metadata,
+				});
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+				const state = live.state.get();
+				assert.ok(state.type === IChatToolInvocation.StateKind.Executing);
+				const progress = state.progress.get().message;
+				const completed = createCompletedToolCall({
+					toolName: running.toolName,
+					_meta: metadata,
+					pastTenseMessage: 'Generated image',
+					content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
+				});
+				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+				assert.deepStrictEqual({
+					progress,
+					live: live.pastTenseMessage,
+					restored: restored.pastTenseMessage,
+					imageData: restored.toolSpecificData,
+				}, {
+					progress: `Generating image with ${expectedName}`,
+					live: `Generated image with ${expectedName}`,
+					restored: `Generated image with ${expectedName}`,
+					imageData: { kind: 'generatedImage' },
+				});
+			});
+		}
+
 		for (const toolName of ['image_gen.imagegen', 'image_generation', 'generate_image_mock']) {
 			for (const resourceReference of [false, true]) {
 				for (const toolInput of [undefined, '{"prompt":"Draw a puppy"}']) {
@@ -1776,6 +1811,19 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('toolCallStateToInvocation', () => {
+
+		test('keeps image prompt input and image identity while running and reconnecting', () => {
+			const imageGeneration = { requestedModel: { id: 'provider/image-preview', name: 'Image Preview' } };
+			const tc = createToolCallState({
+				toolName: 'image_generation',
+				toolInput: '{"prompt":"A puppy","quality":"low"}',
+				_meta: { 'vscode.imageGeneration': imageGeneration },
+			});
+			const live = toolCallStateToInvocation(tc);
+			const expected = { kind: 'input', rawInput: tc.toolInput, editable: false, imageGeneration };
+			const restoredRunning = toolCallStateToInvocation(tc);
+			assert.deepStrictEqual([live.toolSpecificData, restoredRunning.toolSpecificData], [expected, expected]);
+		});
 
 		test('creates ChatToolInvocation for running tool', () => {
 			const tc = createToolCallState({

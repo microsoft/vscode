@@ -264,12 +264,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			protocolVersion: cachedTunnel?.protocolVersion ?? TUNNEL_MIN_PROTOCOL_VERSION,
 			hostConnectionCount: 0,
 		};
-		const connectOptions = this.getAutoConnectMode(tunnel) === 'prompt'
-			? { ...options, userInitiated: true }
-			: options;
 		const auth = authProvider
-			? await this._getTokenForProvider(authProvider, !connectOptions.userInitiated)
-			: await this._getToken(!connectOptions.userInitiated);
+			? await this._getTokenForProvider(authProvider, !options.userInitiated)
+			: await this._getToken(!options.userInitiated);
 		if (!auth) {
 			throw new NonReconnectableTransportError('No cached authentication available to connect the tunnel.');
 		}
@@ -284,7 +281,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					hostLabel: tunnel.name,
 					productName: this._productService.nameShort,
 					inventory: session.inventory,
-					userInitiated: connectOptions.userInitiated,
+					userInitiated: options.userInitiated || this.getAutoConnectMode(tunnel) === 'prompt',
 				});
 				if (!selection) {
 					await this._mainService.cancelSelection(session.selectionId);
@@ -331,7 +328,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			);
 			return {
 				connection,
-				transportDisposable: this._createTransportDisposable(result, connectOptions.userInitiated, editorFallback),
+				transportDisposable: this._createTransportDisposable(result, options.userInitiated, editorFallback),
 			};
 		} catch (err) {
 			this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });

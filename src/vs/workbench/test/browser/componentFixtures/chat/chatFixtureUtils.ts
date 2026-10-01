@@ -55,6 +55,7 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { TestPathService } from '../../workbenchTestServices.js';
 import { IAgentSdkSetupService } from '../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ICodexAccountService } from '../../../../services/agentHost/browser/codexAccountService.js';
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
@@ -193,7 +194,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IEditorResolverService, new class extends mock<IEditorResolverService>() { override getEditors() { return []; } }());
 	reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { override onDidActiveEditorChange = Event.None; }());
 	reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { override readonly onDidChangeExtensions = Event.None; }());
-	reg.defineInstance(IPathService, new class extends mock<IPathService>() { }());
+	reg.defineInstance(IPathService, new TestPathService());
 	reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() { override async getCurrentExperiments() { return []; } override async getTreatment() { return undefined; } override onDidRefetchAssignments = Event.None; }());
 	reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
 	// `getContainer` stands in for the workbench container that widgets use to host
@@ -313,6 +314,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	}());
 	reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 		override getAllChatSessionContributions() { return []; }
+		override getChatSessionContribution() { return undefined; }
 		override readonly onDidChangeSessionOptions = Event.None;
 		override readonly onDidChangeOptionGroups = Event.None;
 		override readonly onDidChangeAvailability = Event.None;
@@ -487,18 +489,13 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 }
 
 /**
- * Reports reduced motion whenever the motion classes on a fixture container or its ancestors
- * would stop CSS animations, so script-driven animations follow the same Enable Animations,
- * reduced motion and pause switches as CSS ones.
+ * Makes script-driven fixture animations honor the same motion classes as CSS animations.
  */
 export class FixtureMotionAccessibilityService extends TestAccessibilityService {
 
 	override onDidChangeReducedMotion: Event<void>;
-	private readonly stoppedSelector: string;
-
-	constructor(private readonly container: HTMLElement, store: DisposableStore, pausedClasses: readonly string[] = []) {
+	constructor(private readonly container: HTMLElement, store: DisposableStore) {
 		super();
-		this.stoppedSelector = ['monaco-reduce-motion', 'disable-animations', ...pausedClasses].map(className => `.${className}`).join(', ');
 		const onDidChangeReducedMotion = store.add(new Emitter<void>());
 		this.onDidChangeReducedMotion = onDidChangeReducedMotion.event;
 		const observer = new MutationObserver(() => onDidChangeReducedMotion.fire());
@@ -509,6 +506,6 @@ export class FixtureMotionAccessibilityService extends TestAccessibilityService 
 	}
 
 	override isMotionReduced(): boolean {
-		return !this.container.closest('.monaco-enable-motion') || !!this.container.closest(this.stoppedSelector);
+		return !this.container.closest('.monaco-enable-motion') || !!this.container.closest('.monaco-reduce-motion, .disable-animations');
 	}
 }

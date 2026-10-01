@@ -6,12 +6,14 @@
 import { createMarkdownCommandLink, IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { IReader } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 
 export function isImageGenerationToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
 	return toolInvocation.toolSpecificData?.kind === 'generatedImage'
+		|| (toolInvocation.toolSpecificData?.kind === 'input' && !!toolInvocation.toolSpecificData.imageGeneration)
 		|| toolInvocation.toolId === 'image_gen.imagegen'
 		|| toolInvocation.toolId === 'image_generation'
 		|| toolInvocation.toolId === 'generate_image_mock';
@@ -23,6 +25,25 @@ export function isImageGenerationToolInProgress(toolInvocation: IChatToolInvocat
 	}
 	const current = state ?? toolInvocation.state.get();
 	return current.type === IChatToolInvocation.StateKind.Streaming || current.type === IChatToolInvocation.StateKind.Executing;
+}
+
+export function getImageGenerationInvocationMessage(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): string {
+	if (toolInvocation.kind === 'toolInvocation') {
+		toolInvocation.state.read(reader);
+	}
+	const model = toolInvocation.toolSpecificData?.kind === 'input'
+		? toolInvocation.toolSpecificData.imageGeneration?.requestedModel
+		: undefined;
+	return model
+		? localize('imageGeneration.usingModel', "Using {0} to generate an image", model.name ?? model.id)
+		: localize('imageGeneration.progress', "Generating image");
+}
+
+export function createImageGenerationLabel(message: string): MarkdownString {
+	const label = new MarkdownString().appendText(message);
+	// Character references prevent GFM autolinks without double-escaping Markdown syntax.
+	label.value = label.value.replace(/[.:@]/g, character => `&#${character.charCodeAt(0)};`);
+	return label;
 }
 
 export function hasToolInvocationError(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
