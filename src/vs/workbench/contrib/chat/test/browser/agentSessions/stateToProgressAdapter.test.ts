@@ -3041,6 +3041,23 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('produces a warning with a Configure Tools link for active BYOK tool limit notification', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Only 128 of 200 [enabled](command:evil) tools are available to this model.',
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ByokToolLimitExceeded,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+
+			assert.deepStrictEqual(result.map(part => part.kind === 'warning' ? { kind: part.kind, value: part.content.value, isTrusted: part.content.isTrusted } : part), [{
+				kind: 'warning',
+				value: 'Only 128 of 200 \\[enabled\\]\\(command:evil\\) tools are available to this model. [Configure Tools](command:aiCustomization.openManagementEditor?%5B%22tools%22%5D)',
+				isTrusted: { enabledCommands: ['aiCustomization.openManagementEditor'] },
+			}]);
+		});
+
 		test('styles workspace transitions as accessible transcript boundaries', () => {
 			const notice = (workspaceKind: AgentSystemNotificationWorkspaceKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 				kind: ResponsePartKind.SystemNotification,

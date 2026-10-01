@@ -25,6 +25,8 @@ export const enum AgentSystemNotificationKind {
 	AgentMergePullRequestMerged = 'agentMergePullRequestMerged',
 	/** The model ended a response round without text or tool calls; clients settle any open thinking section and render nothing. */
 	ResponseRoundEnded = 'responseRoundEnded',
+	/** More tools were enabled than a bring-your-own-key model accepts, so some were not sent to it. */
+	ByokToolLimitExceeded = 'byokToolLimitExceeded',
 }
 
 export const enum AgentSystemNotificationWorkspaceKind {
@@ -52,6 +54,7 @@ const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.AgentMergeDisabled,
 	AgentSystemNotificationKind.AgentMergePullRequestMerged,
 	AgentSystemNotificationKind.ResponseRoundEnded,
+	AgentSystemNotificationKind.ByokToolLimitExceeded,
 ]);
 
 interface IHasSystemNotificationMeta {
