@@ -57,8 +57,8 @@ suite('ByokLmProxyService', () => {
 		return `${handle.providerBaseUrl(vendor)}/responses`;
 	}
 
-	function authHeaders(handle: IByokLmProxyHandle): Record<string, string> {
-		return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${handle.nonce}.${sessionId}` };
+	function authHeaders(handle: IByokLmProxyHandle, selectedSessionId = sessionId): Record<string, string> {
+		return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${handle.nonce}.${selectedSessionId}` };
 	}
 
 	test('serves the unauthenticated health check', async () => {
@@ -298,6 +298,325 @@ suite('ByokLmProxyService', () => {
 		]);
 	});
 
+	test('recovers only the exact scoped tool continuation without overriding explicit state', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const initialInput = [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Use both tools.' }] }];
+		const outputs = [
+			{ type: 'function_call_output', call_id: 'function_1', output: 'Rain' },
+			{ type: 'custom_tool_call_output', call_id: 'custom_1', output: 'Applied patch.' },
+		];
+		const replayedInput = [
+			...initialInput,
+			{ type: 'function_call', call_id: 'function_1', name: 'get_weather', arguments: '{}' },
+			{ type: 'custom_tool_call', call_id: 'custom_1', name: 'apply_patch', input: '*** Begin Patch\n*** End Patch' },
+			...outputs,
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				if (captured.length === 1) {
+					return {
+						responseId: 'resp_provider_1',
+						output: [
+							{ type: 'function_call', callId: 'function_1', name: 'get_weather', argumentsJson: '{}' },
+							{ type: 'custom_tool_call', callId: 'custom_1', name: 'apply_patch', input: '*** Begin Patch\n*** End Patch' },
+						],
+					};
+				}
+				if (captured.length === 6) {
+					return { responseId: 'resp_provider_2', output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+				}
+				return { output: [], error: 'not a valid continuation' };
+			},
+			async handle => {
+				const post = (vendor: string, model: string, requestSessionId: string, input: unknown, previousResponseId?: string) => fetch(responsesUrl(handle, vendor), {
+					method: 'POST',
+					headers: authHeaders(handle, requestSessionId),
+					body: JSON.stringify({ model, input, ...(previousResponseId ? { previous_response_id: previousResponseId } : {}) }),
+				});
+
+				let response = await post('acme', 'm', sessionId, initialInput);
+				assert.strictEqual(response.status, 200);
+				await response.text();
+
+				response = await post('acme', 'm', sessionId, replayedInput, 'resp_explicit');
+				assert.strictEqual(response.status, 502);
+				await response.text();
+
+				for (const [vendor, model, requestSessionId] of [
+					['acme', 'm', 'sess-2'],
+					['other', 'm', sessionId],
+					['acme', 'other-model', sessionId],
+				]) {
+					response = await post(vendor, model, requestSessionId, replayedInput);
+					assert.strictEqual(response.status, 502);
+					await response.text();
+				}
+
+				response = await post('acme', 'm', sessionId, replayedInput);
+				assert.strictEqual(response.status, 200);
+				await response.text();
+
+				response = await post('acme', 'm', sessionId, replayedInput);
+				assert.strictEqual(response.status, 502);
+				await response.text();
+			},
+		);
+
+		assert.strictEqual(captured[1]?.previousResponseId, 'resp_explicit');
+		assert.deepStrictEqual(captured.slice(2, 5).map(request => request.previousResponseId), [undefined, undefined, undefined]);
+		assert.deepStrictEqual({
+			previousResponseId: captured[5]?.previousResponseId,
+			input: captured[5]?.input,
+			clearedPreviousResponseId: captured[6]?.previousResponseId,
+		}, {
+			previousResponseId: 'resp_provider_1',
+			input: [
+				{ type: 'function_call_output', callId: 'function_1', output: 'Rain' },
+				{ type: 'custom_tool_call_output', callId: 'custom_1', output: 'Applied patch.' },
+			],
+			clearedPreviousResponseId: undefined,
+		});
+	});
+
+	test('consumes an explicit continuation only after a successful bridge result', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const output = { type: 'function_call_output', call_id: 'call_1', output: 'done' };
+		const replayedInput = [
+			{ type: 'function_call', call_id: 'call_1', name: 'tool', arguments: '{}' },
+			output,
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				if (captured.length === 1) {
+					return {
+						responseId: 'resp_1',
+						output: [{ type: 'function_call', callId: 'call_1', name: 'tool', argumentsJson: '{}' }],
+					};
+				}
+				return captured.length === 2
+					? { output: [], error: 'retryable failure' }
+					: { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				const post = (input: unknown, previousResponseId?: string) => fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({ model: 'm', input, ...(previousResponseId ? { previous_response_id: previousResponseId } : {}) }),
+				});
+
+				for (const [input, previousResponseId, expectedStatus] of [
+					[[], undefined, 200],
+					[[output], 'resp_1', 502],
+					[[output], 'resp_1', 200],
+					[replayedInput, undefined, 200],
+				] as const) {
+					const response = await post(input, previousResponseId);
+					assert.strictEqual(response.status, expectedStatus);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual({
+			previousResponseIds: captured.map(request => request.previousResponseId),
+			finalInput: captured[3]?.input,
+		}, {
+			previousResponseIds: [undefined, 'resp_1', 'resp_1', undefined],
+			finalInput: [
+				{ type: 'function_call', callId: 'call_1', name: 'tool', argumentsJson: '{}' },
+				{ type: 'function_call_output', callId: 'call_1', output: 'done' },
+			],
+		});
+	});
+
+	test('preserves full stateless replay when no resumable provider state is reported', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const initialInput = [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Use the tool.' }] }];
+		const replayedInput = [
+			...initialInput,
+			{ type: 'function_call', call_id: 'call_1', name: 'tool', arguments: '{}' },
+			{ type: 'function_call_output', call_id: 'call_1', output: 'done' },
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				return captured.length === 1
+					? { output: [{ type: 'function_call', callId: 'call_1', name: 'tool', argumentsJson: '{}' }] }
+					: { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				for (const input of [initialInput, replayedInput]) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'm', input }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual({
+			previousResponseId: captured[1]?.previousResponseId,
+			input: captured[1]?.input,
+		}, {
+			previousResponseId: undefined,
+			input: [
+				{ type: 'message', role: 'user', content: [{ type: 'text', text: 'Use the tool.' }] },
+				{ type: 'function_call', callId: 'call_1', name: 'tool', argumentsJson: '{}' },
+				{ type: 'function_call_output', callId: 'call_1', output: 'done' },
+			],
+		});
+	});
+
+	test('keeps interleaved parent and subagent continuations in the same scope', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const parentInitial = [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Parent' }] }];
+		const subagentInitial = [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Subagent' }] }];
+		const replay = (input: object[], callId: string) => [
+			...input,
+			{ type: 'function_call', call_id: callId, name: 'tool', arguments: '{}' },
+			{ type: 'function_call_output', call_id: callId, output: 'done' },
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				if (captured.length <= 2) {
+					const trajectory = captured.length === 1 ? 'parent' : 'subagent';
+					return {
+						responseId: `resp_${trajectory}`,
+						output: [{ type: 'function_call', callId: `call_${trajectory}`, name: 'tool', argumentsJson: '{}' }],
+					};
+				}
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				for (const input of [
+					parentInitial,
+					subagentInitial,
+					replay(parentInitial, 'call_parent'),
+					replay(subagentInitial, 'call_subagent'),
+				]) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'm', input }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual(captured.map(request => ({
+			previousResponseId: request.previousResponseId,
+			input: request.input,
+		})), [
+			{ previousResponseId: undefined, input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'Parent' }] }] },
+			{ previousResponseId: undefined, input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'Subagent' }] }] },
+			{ previousResponseId: 'resp_parent', input: [{ type: 'function_call_output', callId: 'call_parent', output: 'done' }] },
+			{ previousResponseId: 'resp_subagent', input: [{ type: 'function_call_output', callId: 'call_subagent', output: 'done' }] },
+		]);
+	});
+
+	test('preserves full replay when multiple pending responses match', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const replayedInput = [
+			{ type: 'function_call', call_id: 'call_shared', name: 'tool', arguments: '{}' },
+			{ type: 'function_call_output', call_id: 'call_shared', output: 'done' },
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				return captured.length <= 2
+					? { responseId: `resp_${captured.length}`, output: [{ type: 'function_call', callId: 'call_shared', name: 'tool', argumentsJson: '{}' }] }
+					: { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				for (const input of [[], [], replayedInput]) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'm', input }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual({
+			previousResponseId: captured[2]?.previousResponseId,
+			input: captured[2]?.input,
+		}, {
+			previousResponseId: undefined,
+			input: [
+				{ type: 'function_call', callId: 'call_shared', name: 'tool', argumentsJson: '{}' },
+				{ type: 'function_call_output', callId: 'call_shared', output: 'done' },
+			],
+		});
+	});
+
+	test('bounds abandoned tool continuations while preserving recent state', async function () {
+		this.timeout(10000);
+
+		const captured: IByokLmChatRequest[] = [];
+		const maximumPendingContinuations = 256;
+
+		await withProxy(
+			async request => {
+				const index = captured.length;
+				captured.push(request);
+				if (index <= maximumPendingContinuations + 1) {
+					return {
+						responseId: `resp_${index}`,
+						output: [{ type: 'function_call', callId: `call_${index}`, name: 'tool', argumentsJson: '{}' }],
+					};
+				}
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				const post = async (index: number, input: unknown) => {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle, `sess-${index}`),
+						body: JSON.stringify({ model: 'm', input }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				};
+
+				// Sessions can disappear after receiving a tool call. Fill the proxy,
+				// add another candidate in its oldest scope, then overflow it.
+				for (let index = 0; index < maximumPendingContinuations; index++) {
+					await post(index, []);
+				}
+				await post(0, []);
+				await post(maximumPendingContinuations, []);
+
+				for (const [session, call] of [[1, 1], [0, maximumPendingContinuations]]) {
+					await post(session, [
+						{ type: 'function_call', call_id: `call_${call}`, name: 'tool', arguments: '{}' },
+						{ type: 'function_call_output', call_id: `call_${call}`, output: 'done' },
+					]);
+				}
+			},
+		);
+
+		assert.deepStrictEqual(captured.slice(-2).map(request => request.previousResponseId), [
+			undefined,
+			`resp_${maximumPendingContinuations}`,
+		]);
+	});
+
 	test('decodes a url-encoded vendor path segment', async () => {
 		let captured: IByokLmChatRequest | undefined;
 		await withProxy(
@@ -380,16 +699,18 @@ suite('ByokLmProxyService', () => {
 		);
 	});
 
-	test('rejects a malformed JSON body with 400', async () => {
+	test('rejects a malformed or null JSON body with 400', async () => {
 		await withProxy(
 			async () => ({ output: [] }),
 			async (handle) => {
-				const response = await fetch(responsesUrl(handle, 'acme'), {
-					method: 'POST',
-					headers: authHeaders(handle),
-					body: 'not json',
-				});
-				assert.strictEqual(response.status, 400);
+				for (const body of ['not json', 'null']) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body,
+					});
+					assert.strictEqual(response.status, 400);
+				}
 			},
 		);
 	});
