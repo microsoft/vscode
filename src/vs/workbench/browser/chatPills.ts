@@ -289,7 +289,12 @@ export class ChatPillsRow extends Disposable {
 				this._onDidChangeLayout.fire();
 			}
 		}));
-		this._register(addDisposableListener(this.content, EventType.FOCUS_IN, () => this.scanDomNode()));
+		this._register(addDisposableListener(this.content, EventType.FOCUS_IN, event => {
+			if (isHTMLElement(event.target)) {
+				event.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+			}
+			this.scanDomNode();
+		}));
 		this._register(addDisposableListener(this.content, EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			const target = isHTMLElement(event.target) ? event.target : this.content;

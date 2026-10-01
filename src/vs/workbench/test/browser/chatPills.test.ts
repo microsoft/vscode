@@ -497,7 +497,8 @@ suite('ChatPills', () => {
 			for (let index = 0; index < allItems.length; index++) {
 				allItems[index].classList.toggle('compact', index >= allItems.length - count);
 			}
-			return Math.ceil(widget.element.getBoundingClientRect().width);
+			// Keep the below-threshold probes outside the row's one-pixel overflow tolerance.
+			return Math.floor(widget.element.getBoundingClientRect().width);
 		};
 		return { row, widget, actions, pills, initialPills, collapsed, labelsVisible, resize, widthWithCollapsed };
 	}
@@ -581,26 +582,36 @@ suite('ChatPills', () => {
 		harness.resize(compactWidth - 20);
 		const overflow = harness.row.content.scrollWidth > harness.row.content.clientWidth + 1;
 		const labelsVisible = harness.labelsVisible();
-		harness.widget.getPillElements().at(-1)!.focus();
+		const buttons = harness.widget.getPillElements();
+		const lastButton = buttons.at(-1)!;
+		lastButton.focus();
 		const scrollLeft = harness.row.content.scrollLeft;
+		const focusedLastPill = mainWindow.document.activeElement === lastButton;
+		const lastPillVisible = lastButton.getBoundingClientRect().right <= harness.row.content.getBoundingClientRect().right + 1;
 		harness.row.layout();
+		const scrollPreserved = harness.row.content.scrollLeft === scrollLeft;
+		buttons[0].focus();
 
 		assert.deepStrictEqual({
 			fits,
 			overflow,
 			collapsed: harness.collapsed(),
 			labelsVisible,
-			focusedLastPill: mainWindow.document.activeElement === harness.widget.getPillElements().at(-1),
+			focusedLastPill,
+			lastPillVisible,
 			scrolledToLastPill: scrollLeft > 0,
-			scrollPreserved: harness.row.content.scrollLeft === scrollLeft,
+			scrollPreserved,
+			scrolledBackToFirstPill: harness.row.content.scrollLeft === 0 && mainWindow.document.activeElement === buttons[0],
 		}, {
 			fits: true,
 			overflow: true,
 			collapsed: [0, 1, 2, 3],
 			labelsVisible: [false, false, false, false],
 			focusedLastPill: true,
+			lastPillVisible: true,
 			scrolledToLastPill: true,
 			scrollPreserved: true,
+			scrolledBackToFirstPill: true,
 		});
 	});
 

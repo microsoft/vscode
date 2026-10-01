@@ -30,8 +30,7 @@ import { TestClipboardService } from '../../../../../../platform/clipboard/test/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { IGitHubService } from '../../../../../../platform/github/common/githubService.js';
-import { IGitHubClient } from '../../../../../../platform/github/common/githubService.js';
+import { IGitHubClient, IGitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
