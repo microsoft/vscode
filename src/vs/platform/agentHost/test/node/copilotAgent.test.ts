@@ -14900,6 +14900,38 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('sendMessage attributes a peer chat resume to launch stages and forwards the recorder to the launch plan', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'stage-peer');
+				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
+				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				await agent.materializeChat(chatUri, session, JSON.stringify({ sdkSessionId: 'peer-sdk-id' }));
+
+				const marks: string[] = [];
+				const sendStageRecorder = { mark: (stage: string) => { marks.push(stage); } };
+				const internals = agent as unknown as ChatInternals;
+				const forwardedRecorders: boolean[] = [];
+				internals._createAgentSession = (launchPlan, _dir, _ac, identity) => {
+					forwardedRecorders.push(launchPlan.stageRecorder === sendStageRecorder);
+					const built = makeFakeChatSession(session, launchPlan.sessionId, undefined, launchPlan.shellManager);
+					(built.fake as { chatChannelUri?: URI }).chatChannelUri = identity?.chatChannelUri;
+					return built.fake;
+				};
+
+				await agent.chats.sendMessage(chatUri, 'hello peer', undefined, undefined, undefined, undefined, { ...exactChatContext(session, chatUri), sendStageRecorder });
+
+				assert.deepStrictEqual({ marks, forwardedRecorders }, {
+					marks: ['queue', 'refresh', 'snapshot', 'client', 'snapshot', 'persist', 'turnPrepare'],
+					forwardedRecorders: [true],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('sendMessage resolves the working directory before resuming an addressed backing', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const worktreeIsolation = new NullAgentHostWorktreeIsolation();

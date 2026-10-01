@@ -14,6 +14,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
+import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
@@ -284,6 +285,8 @@ interface ICopilotSessionLaunchBase {
 	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubCredentials: CopilotGitHubSessionCredentials;
+	/** Receives launch stage timing for the turn that triggered this launch, if any. */
+	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 
 	/**
 	 * Whether this is a workspace-less session. Threaded into the
@@ -689,7 +692,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
+		plan.stageRecorder?.mark('config');
 		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
+		plan.stageRecorder?.mark('create');
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
 			if (!managedSettingsResolved) {
 				this._logService.error(`[Copilot:${plan.sessionId}] Copilot runtime did not report its resolved managed settings; continuing with available sandbox configuration`);
@@ -786,6 +791,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ResumeSessionConfig): Promise<CopilotSessionWrapper> {
+		plan.stageRecorder?.mark('finalize');
 		try {
 			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
@@ -948,12 +954,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
-		const byok = await this.resolveByokSessionConfig(plan.sessionId);
-		if (byok.models?.length) {
-			// The provider base URL carries the proxy's host:port, which correlates a
-			// session with its `ByokLmProxyService` bind when reading logs.
-			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${byok.models.length} BYOK model(s) across ${byok.providers?.length ?? 0} provider(s) via loopback proxy ${byok.providers?.[0]?.baseUrl}`);
-		}
 		const hydraFusionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
@@ -963,12 +963,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true } : {}),
 		};
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
-		let shellTools: Awaited<ReturnType<typeof createShellTools>> = [];
+		let shellToolsPromise: ReturnType<typeof createShellTools> | Promise<[]> = Promise.resolve([]);
 		if (enableCustomTerminalTool) {
 			if (!plan.shellManager) {
 				throw new Error(`ShellManager is required to launch Copilot session '${plan.sessionId}'`);
 			}
-			shellTools = await createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
+			shellToolsPromise = createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
 		}
 		// Rely on the SDK to discover most agents/skills/etc. from `pluginDirectories`
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
@@ -979,7 +979,15 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
-		const customAgents = plan.isEphemeral ? [] : await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
+		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
+		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
+		// These are independent, so resolve them concurrently rather than paying each in turn.
+		const [byok, shellTools, customAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);
+		if (byok.models?.length) {
+			// The provider base URL carries the proxy's host:port, which correlates a
+			// session with its `ByokLmProxyService` bind when reading logs.
+			this._logService.info(`[Copilot:${plan.sessionId}] Wired ${byok.models.length} BYOK model(s) across ${byok.providers?.length ?? 0} provider(s) via loopback proxy ${byok.providers?.[0]?.baseUrl}`);
+		}
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
