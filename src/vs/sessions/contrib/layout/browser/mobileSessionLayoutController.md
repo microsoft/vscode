@@ -24,5 +24,5 @@ The auxiliary bar (side pane) is never auto-opened, auto-closed or remembered on
 
 ## Implementation notes
 
-- **Registration** — contributed by `sessions.layout.contribution.ts` (`WorkbenchPhase.AfterRestored`) **only** on the web phone layout, i.e. when `isWeb && isMobile`. The contribution is imported from `sessions.web.main.ts`. Every other layout uses the [desktop controller](./desktopSessionLayoutController.md).
+- **Registration** — contributed by `sessions.layout.contribution.ts` (`WorkbenchPhase.BlockRestore`) only for the mobile workbench. The contribution is imported from `sessions.web.main.ts`. Every non-phone layout uses `DesktopLayoutController`.
 - **No side-pane wiring [M2]** — deliberately does **not** override `_registerViewStateManagement`, so none of the desktop auxiliary-bar logic runs.

@@ -8,6 +8,7 @@ import type { ChatLanguageModelToolReference, ChatRequest, ChatRequestEditedFile
 import { FilterReason } from '../../../platform/networking/common/openai';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { isLocation, toLocation } from '../../../util/common/types';
+import { findLastIdx } from '../../../util/vs/base/common/arraysFind';
 import { ResourceMap } from '../../../util/vs/base/common/map';
 import { assertType } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -81,6 +82,7 @@ export class Turn {
 			request.acceptedConfirmationData,
 			isToolCallLimitAcceptance(request) || isContinueOnError(request) || isSwitchToAutoOnRateLimit(request),
 			request.modeInstructions2,
+			request.isSystemInitiated,
 		);
 	}
 
@@ -93,6 +95,7 @@ export class Turn {
 		readonly acceptedConfirmationData?: unknown[],
 		readonly isContinuation = false,
 		readonly modeInstructions?: ChatRequest['modeInstructions2'],
+		readonly isSystemInitiated = false,
 	) { }
 
 	get promptVariables(): ChatVariablesCollection | undefined {
@@ -242,6 +245,14 @@ export function normalizeSummariesOnRounds(turns: readonly Turn[]): void {
 
 export interface IConversationState {
 	readonly turns: Turn[];
+}
+
+/** Returns the history boundary of the user task continued by a system notification. */
+export function getCurrentTaskHistoryStart(history: readonly Turn[], isSystemInitiated: boolean): number {
+	if (!isSystemInitiated) {
+		return history.length;
+	}
+	return Math.max(0, findLastIdx(history, turn => !turn.isSystemInitiated && !turn.isContinuation));
 }
 
 export class Conversation {

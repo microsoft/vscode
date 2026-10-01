@@ -26,6 +26,7 @@ import {
 	AgentHostCopilotMultiRootEnabledSettingId,
 	AgentHostMarkdownPlanRichLinksEnabledSettingId,
 	AgentHostOTelCaptureContentSettingId,
+	AgentHostOTelCaptureIdentitySettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
 	AgentHostOTelEnabledSettingId,
 	AgentHostOTelExporterTypeSettingId,
@@ -470,9 +471,8 @@ configurationRegistry.registerConfiguration({
 				},
 			},
 		},
-		// The native runtime consumes managed identity policy directly. This slot
-		// registers the shared policy for the legacy extension, not process env.
-		['chat.agentHost.otel.captureIdentity']: {
+		// Shared with the Local extension; native runtimes resolve their own policy.
+		[AgentHostOTelCaptureIdentitySettingId]: {
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,

@@ -628,8 +628,10 @@ async function getPipelineTimeline(): Promise<Timeline> {
 
 /**
  * Artifacts that can only be published once a job succeeded, by job name. The
- * x64 test jobs run in parallel with the jobs that produce these artifacts
- * (see win32/product-build-win32.yml and linux/product-build-linux-jobs.yml).
+ * platform test jobs run in parallel with the jobs that produce these artifacts
+ * (see the platform-specific product-build job templates). The tests of a
+ * platform can be sharded across several jobs named `<job name>_<shard>`, in
+ * which case every shard must succeed.
  */
 const artifactsByGatingJob: Readonly<Record<string, readonly string[]>> = {
 	'Windows_x64_Test': [
@@ -649,15 +651,29 @@ const artifactsByGatingJob: Readonly<Record<string, readonly string[]>> = {
 		'vscode_web_linux_x64_archive-unsigned',
 		'vscode_cli_linux_x64_cli',
 	],
+	'macOS_arm64_Test': [
+		'vscode_client_darwin_arm64_archive',
+		'vscode_client_darwin_arm64_dmg',
+		'vscode_server_darwin_arm64_archive',
+		'vscode_web_darwin_arm64_archive',
+		'vscode_cli_darwin_arm64_cli',
+		'vscode_client_darwin_universal_archive',
+		'vscode_client_darwin_universal_dmg',
+	],
 };
 
 interface IGatingJob {
+	/** The job that blocks the publishing, or all gating jobs when none does. */
 	readonly name: string;
 	/** `missing` when the job is not part of the pipeline run, e.g. when tests are skipped. */
 	readonly state: 'succeeded' | 'pending' | 'failed' | 'missing';
 }
 
-/** Returns the job that gates the publishing of the artifact, if any, see `artifactsByGatingJob`. */
+/**
+ * Returns the job that gates the publishing of the artifact, if any, see
+ * `artifactsByGatingJob`. When the tests are sharded, returns a failed shard,
+ * else a pending one, else all shards once they all succeeded.
+ */
 function getGatingJob(timeline: Timeline, artifactName: string): IGatingJob | undefined {
 	const name = Object.keys(artifactsByGatingJob).find(job => artifactsByGatingJob[job].includes(artifactName));
 
@@ -666,15 +682,35 @@ function getGatingJob(timeline: Timeline, artifactName: string): IGatingJob | un
 	}
 
 	// Job identifiers have the form `<stage>.<job>.__default`, and a retried job has a record for each attempt
-	const attempts = timeline.records.filter(r => r.type === 'Job' && (r.name === name || r.identifier?.split('.').includes(name)));
+	const attemptsByJob = new Map<string, TimelineRecord[]>();
 
-	if (attempts.length === 0) {
-		return { name, state: 'missing' };
-	} else if (attempts.some(r => r.state === 'completed' && (r.result === 'succeeded' || r.result === 'succeededWithIssues'))) {
-		return { name, state: 'succeeded' };
-	} else {
-		return { name, state: attempts.some(r => r.state !== 'completed') ? 'pending' : 'failed' };
+	for (const record of timeline.records) {
+		if (record.type !== 'Job') {
+			continue;
+		}
+
+		const job = record.identifier?.split('.').find(part => part === name || part.startsWith(`${name}_`)) ?? (record.name === name ? name : undefined);
+
+		if (job) {
+			attemptsByJob.set(job, [...attemptsByJob.get(job) ?? [], record]);
+		}
 	}
+
+	if (attemptsByJob.size === 0) {
+		return { name, state: 'missing' };
+	}
+
+	const jobs: IGatingJob[] = [...attemptsByJob].map(([job, attempts]) => {
+		if (attempts.some(r => r.state === 'completed' && (r.result === 'succeeded' || r.result === 'succeededWithIssues'))) {
+			return { name: job, state: 'succeeded' };
+		} else {
+			return { name: job, state: attempts.some(r => r.state !== 'completed') ? 'pending' : 'failed' };
+		}
+	});
+
+	return jobs.find(job => job.state === 'failed')
+		?? jobs.find(job => job.state === 'pending')
+		?? { name: jobs.map(job => job.name).join(', '), state: 'succeeded' };
 }
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
@@ -1006,7 +1042,9 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_LINUX_ARM64') === 'True') { stages.add('LinuxARM64'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX_ARMHF') === 'True') { stages.add('LinuxARMHF'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
-	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_X64') === 'True') { stages.add('macOSX64'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_ARM64') === 'True') { stages.add('macOSARM64'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_UNIVERSAL') === 'True') { stages.add('macOSUniversal'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
 	let timeline: Timeline;

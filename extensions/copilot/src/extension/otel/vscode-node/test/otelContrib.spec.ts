@@ -14,6 +14,7 @@ import { NullTelemetryService } from '../../../../platform/telemetry/common/null
 import { MockExtensionContext } from '../../../../platform/test/node/extensionContext';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../util/common/test/simpleMock';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { OTelContrib } from '../otelContrib';
 
 const ui = vi.hoisted(() => ({
@@ -119,11 +120,37 @@ describe('OTelContrib restart notification', () => {
 	});
 
 	it('ends progress when the restart command fails, then offers a manual reload', async () => {
-		ui.executeCommand.mockRejectedValue(new Error('Restart unavailable'));
+		ui.executeCommand.mockImplementation(async (command: string) => {
+			if (command === 'workbench.action.restartExtensionHost') {
+				throw new Error('Restart unavailable');
+			}
+		});
 		settings.policy = { enabled: true, otlpEndpoint: 'https://managed.example' };
 		await vi.advanceTimersByTimeAsync(500);
 		expect(events).toEqual(['progress opened', 'progress completed', 'reload warning']);
 		expect(ui.showWarningMessage).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not prompt for a blocked refresh when only the readiness command completes', async () => {
+		contribution.dispose();
+		settings.policy = { enabled: true, otlpEndpoint: 'https://managed.example' };
+		contribution = createContribution();
+		const settled = new DeferredPromise<void>();
+		ui.executeCommand.mockImplementation(async (command: string) => {
+			if (command === '_workbench.whenAccountPolicySettled') {
+				await settled.p;
+			}
+		});
+		settings.policy = {};
+		settings.policySlotDefaults = { enabled: false, exporterType: '', otlpEndpoint: '', captureIdentity: false };
+		await vi.advanceTimersByTimeAsync(500);
+		expect(ui.showInformationMessage).not.toHaveBeenCalled();
+		expect(ui.executeCommand).toHaveBeenCalledWith('_workbench.whenAccountPolicySettled');
+
+		await settled.complete();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(ui.showInformationMessage).not.toHaveBeenCalled();
+		expect(ui.withProgress).not.toHaveBeenCalled();
 	});
 
 	it('acknowledges successful recovery and logs it once without a success toast', async () => {
