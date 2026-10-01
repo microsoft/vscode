@@ -28,6 +28,7 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { createPolicyManagedEnablementAction, createUninstallPluginAction, getPluginPolicyEnablement, isPluginPolicyBlocked, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
@@ -190,6 +191,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		@IPathService private readonly pathService: IPathService,
 		@ILogService private readonly logService: ILogService,
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) {
 		super();
 
@@ -370,6 +372,15 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 				installButton.enabled = false;
 				const marketplacePlugin = toMarketplacePlugin(item);
 				try {
+					const management = this.harnessService.getActiveDescriptor().pluginManagement;
+					if (management) {
+						const installed = await management.install(this.harnessService.activeSessionResource.get(), `${item.name}@${item.marketplace}`, item.marketplaceReference.rawValue);
+						if (!this._store.isDisposed && this.current === item) {
+							installButton.label = installed ? localize('installed', "Installed") : localize('install', "Install");
+							installButton.enabled = !installed;
+						}
+						return;
+					}
 					await this.pluginInstallService.installPlugin(marketplacePlugin);
 					if (this._store.isDisposed || this.current !== item) {
 						return;

@@ -53,6 +53,7 @@ export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
 
 export interface ILocalCustomizationSyncOptions {
 	readonly includeUserStorage?: boolean;
+	readonly excludeProviderManagedPlugins?: boolean;
 }
 
 export interface ILocalCustomizationFile {
@@ -245,6 +246,9 @@ export async function resolveCustomizationRefs(
 	const looseFiles: ISyncableFile[] = [];
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
+		if (options?.excludeProviderManagedPlugins && plugin.managedBy === parseAgentHostHarness(sessionType)) {
+			return;
+		}
 		const key = plugin.uri.toString();
 		if (!pluginRefs.has(key)) {
 			const promise = (async (): Promise<ClientPluginCustomization> => {

@@ -71,8 +71,11 @@ A descriptor may define:
 - an optional MCP migration provider;
 - required agent availability;
 - external items, enablement, and plugin actions.
+- an optional plugin-management provider that owns plugin inventory and lifecycle rather than using the workbench installation store.
 
 Harness compatibility is distinct from MCP runtime and enablement state. Providers acquire a ref-counted scope for the active session and publish resolved state plus generic per-server compatibility and localized details, allowing shared widgets to present support without importing provider-specific assessment logic.
+
+Provider-owned plugin management is shared by the Plugins section, source-install action and supported Discover installations. The workbench retains trust confirmation, progress and error presentation; the provider owns installation, updates, removal, effective enablement and persistence. Provider inventories are not copied into workbench installation records or forwarded back to the owning host as independent plugin directories. Hosts negotiate this optional capability, and harnesses without it retain existing workbench behavior. Existing workbench-owned installations remain separate until explicitly migrated.
 
 When a new descriptor field is added, update every descriptor factory and both workbench registrations.
 

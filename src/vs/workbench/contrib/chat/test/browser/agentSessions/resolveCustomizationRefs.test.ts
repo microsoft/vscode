@@ -253,6 +253,32 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('does not forward SDK-owned plugin directories back to capable Copilot hosts', async () => {
+		const uri = URI.file('/home/user/.copilot/installed-plugins/plugin');
+		const plugin = { ...makePlugin(uri, { agents: 1 }), managedBy: 'copilotcli' };
+		const results = [];
+		for (const [sessionType, excludeProviderManagedPlugins] of [
+			['agent-host-copilotcli', true],
+			['remote-devbox-copilotcli', true],
+			['remote-devbox-copilotcli', false],
+			['agent-host-claude', true],
+		] as const) {
+			const refs = await resolveCustomizationRefs(
+				makeFileService(),
+				makePromptsService(new Map()),
+				new FakeSyncProvider(),
+				makeAgentPluginService([plugin]),
+				makeMcpService(),
+				makeConfigurationResolverService(),
+				new FakeBundler() as unknown as SyncedCustomizationBundler,
+				sessionType,
+				{ excludeProviderManagedPlugins },
+			);
+			results.push(refs.map(ref => ref.uri));
+		}
+		assert.deepStrictEqual(results, [[], [], [uri.toString()], [uri.toString()]]);
+	});
+
 	test('passes built-in skills to the bundler as loose files', async () => {
 		const builtin = URI.file('/builtin/create-pr/SKILL.md');
 		const promptsService = makePromptsService(new Map([

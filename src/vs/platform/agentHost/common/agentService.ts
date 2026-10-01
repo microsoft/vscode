@@ -30,6 +30,7 @@ import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction,
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
 import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentPluginUninstallRequest, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
+import type { IAgentHostPluginManagement, IAgentHostPluginManagementRequest, IAgentHostPluginManagementResult } from './agentHostPluginManagement.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
@@ -874,6 +875,9 @@ export interface IAgentService {
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 	refreshCopilotConnectorSessions?(): Promise<void>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void>;
+	getPluginManagementProviders?(): readonly string[];
+	readonly onDidChangePluginManagement?: Event<string>;
+	managePlugins?(request: IAgentHostPluginManagementRequest): Promise<IAgentHostPluginManagementResult>;
 
 	/**
 	 * Create an additional chat within an existing session. Spins up the
@@ -1122,6 +1126,9 @@ export interface IAgentConnection {
 	readonly devContainerService?: IDevContainerAgentHostMainService;
 	/** Available only for the local VS Code canvas extension contract. */
 	readonly canvases?: IAgentHostCanvases;
+	readonly pluginManagement?: IAgentHostPluginManagement;
+	readonly pluginManagementProviders?: readonly string[];
+	readonly onDidChangePluginManagement?: Event<string>;
 
 	readonly clientId: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;

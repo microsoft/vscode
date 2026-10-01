@@ -20,6 +20,7 @@ import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
@@ -78,6 +79,9 @@ class InstallFromSourceAction extends Action2 {
 		const pluginInstallService = accessor.get(IPluginInstallService);
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const fileDialogService = accessor.get(IFileDialogService);
+		const harnessService = accessor.get(ICustomizationHarnessService);
+		const management = harnessService.getActiveDescriptor().pluginManagement;
+		const sessionResource = harnessService.activeSessionResource.get();
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
@@ -85,9 +89,11 @@ class InstallFromSourceAction extends Action2 {
 			iconClass: ThemeIcon.asClassName(Codicon.folder),
 			tooltip: localize('pickPluginFolder', "Pick Folder"),
 		};
-		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo, git URL, or local folder path");
+		inputBox.placeholder = management
+			? localize('sdkPluginSourcePlaceholder', "plugin@marketplace, owner/repo, git URL, or a path on the agent host")
+			: localize('pluginSourcePlaceholder', "owner/repo, git URL, or local folder path");
 		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository, git URL, or local folder path to install a plugin from");
-		inputBox.buttons = [pickFolderButton];
+		inputBox.buttons = management ? [] : [pickFolderButton];
 		inputBox.ignoreFocusOut = true;
 		inputBox.show();
 
@@ -100,7 +106,7 @@ class InstallFromSourceAction extends Action2 {
 			}
 
 			// Quick format validation keeps the input box open for correction.
-			const validationError = pluginInstallService.validatePluginSource(source);
+			const validationError = management ? undefined : pluginInstallService.validatePluginSource(source);
 			if (validationError) {
 				inputBox.validationMessage = validationError;
 				return;
@@ -114,7 +120,9 @@ class InstallFromSourceAction extends Action2 {
 				// Hide the input box so it doesn't conflict with trust/progress dialogs.
 				inputBox.hide();
 
-				const result = await pluginInstallService.installPluginFromSource(source);
+				const result = management
+					? { success: await management.install(sessionResource, source), message: undefined }
+					: await pluginInstallService.installPluginFromSource(source);
 				if (!result.success) {
 					if (result.message) {
 						// Re-open with the error so the user can correct their input.

@@ -2431,7 +2431,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return existing;
 		}
 
-		const scope = this._activeClientService.acquireScope(this._config.sessionType, this._resolveCustomizationScopeRoots(sessionResource));
+		const scope = this._activeClientService.acquireScope(this._config.sessionType, this._resolveCustomizationScopeRoots(sessionResource), this._config.connection.pluginManagementProviders?.includes(this._config.provider));
 		const entry = new ActiveClientEntry(
 			scope,
 			this._config.connection.clientId,

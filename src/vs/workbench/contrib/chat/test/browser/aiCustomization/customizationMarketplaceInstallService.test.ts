@@ -49,7 +49,7 @@ import { getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ICustomizationHarnessService, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationPluginManagementProvider, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
@@ -465,7 +465,12 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}
 		}();
 		const harnessService = new class extends mock<ICustomizationHarnessService>() {
+			override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>(this, []);
 			override readonly activeHarness = observableValue(this, 'test-harness');
+			pluginManagement: ICustomizationPluginManagementProvider | undefined;
+			override getActiveDescriptor(): IHarnessDescriptor {
+				return { id: this.activeHarness.get(), label: 'Test Harness', icon: Codicon.copilot, pluginManagement: this.pluginManagement };
+			}
 			override readonly activeSessionResource = observableValue(this, URI.parse('test-harness:///session'));
 			folders: readonly ICustomizationSourceFolder[] | undefined = [
 				{ uri: destinationDirectory, label: 'Workspace', source: PromptsStorage.local },
@@ -1389,6 +1394,63 @@ suite('CustomizationMarketplaceInstallService', () => {
 	});
 
 	suite('plugins', () => {
+		test('SDK harnesses install and remove configured plugins without workbench installation records', async () => {
+			const fixture = await createFixture({ enabled: true });
+			const inventory = observableValue<readonly { spec: string; uri: URI }[]>('inventory', []);
+			const calls: string[] = [];
+			const management = new class extends mock<ICustomizationPluginManagementProvider>() {
+				override readonly onDidChange = Event.None;
+				override readonly installedPlugins = inventory;
+				override readonly inventoryError = observableValue<string | undefined>('error', undefined);
+				override getPluginUri(spec: string): URI { return URI.from({ scheme: 'agent-host-plugin', path: `/${spec}` }); }
+				override async getItems() { return []; }
+				override async install(_session: URI, spec: string, source?: string): Promise<boolean> {
+					calls.push(`install:${spec}:${source}`);
+					inventory.set([{ spec, uri: this.getPluginUri(spec) }], undefined);
+					return true;
+				}
+				override async uninstall(_session: URI, spec: string): Promise<void> {
+					calls.push(`uninstall:${spec}`);
+					inventory.set([], undefined);
+				}
+			}();
+			fixture.harnessService.pluginManagement = management;
+			fixture.harnessService.activeHarness.set('other-harness', undefined);
+			const plugin = installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' });
+			fixture.marketplaceService.availablePlugins = [plugin.plugin];
+			const candidate = resource({
+				sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
+				identifier: getPluginMarketplaceIdentifier(plugin.plugin),
+				displayName: plugin.plugin.name,
+				originLabel: plugin.plugin.marketplace,
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				installation: { kind: 'configuredPlugin' },
+			});
+			await fixture.service.install(candidate);
+			const installed = fixture.service.getInstallState(candidate).kind;
+			await fixture.service.uninstall(candidate);
+			assert.deepStrictEqual({
+				installed, removed: fixture.service.getInstallState(candidate).kind, calls,
+				records: fixture.service.installations.get().installations,
+				legacyInstalls: fixture.pluginService.directInstalls,
+			}, {
+				installed: 'installed', removed: 'available',
+				calls: ['install:demo@Catalog:owner/catalog#release', 'uninstall:demo@Catalog'],
+				records: [], legacyInstalls: [],
+			});
+		});
+
+		test('pinned Discover plugins are explicitly unsupported only for SDK-managed harnesses', async () => {
+			const fixture = await createFixture({ enabled: true });
+			fixture.harnessService.pluginManagement = new class extends mock<ICustomizationPluginManagementProvider>() { }();
+			const candidate = pluginResource();
+			const state = fixture.service.getInstallState(candidate);
+			assert.ok(state.kind === 'unavailable' && state.message.includes('pinned repository revision'));
+			await assert.rejects(fixture.service.install(candidate), /pinned repository revision/);
+			fixture.harnessService.pluginManagement = undefined;
+			assert.strictEqual(fixture.service.getInstallState(candidate).kind, 'available');
+		});
+
 		test('configured marketplace entries install through the plugin trust path only while Marketplace is enabled', async () => {
 			const fixture = await createFixture();
 			const plugin = installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' });

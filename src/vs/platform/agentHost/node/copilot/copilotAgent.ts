@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type ManagedSettingsResolvedData, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type CopilotSession, type GitHubTelemetryNotification, type ManagedSettingsResolvedData, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -24,6 +24,8 @@ import { basename as resourceBasename, extUriBiasedIgnorePathCase, isEqual, isEq
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import type { IAgentHostPluginManagementRequest, IAgentHostPluginManagementResult } from '../../common/agentHostPluginManagement.js';
+import { manageCopilotPlugins } from './copilotPluginManagement.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
@@ -979,6 +981,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _secondaryAssignmentContext: CopilotSecondaryAssignmentContext;
 	private readonly _githubTelemetryRouter: AgentHostGitHubTelemetryRouter | undefined;
 	readonly onDidCustomizationsChange: Event<void>;
+	private readonly _onDidChangePluginManagement = this._register(new Emitter<void>());
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
 	/**
@@ -1854,6 +1857,69 @@ export class CopilotAgent extends Disposable implements IAgent {
 			name: pluginSpec,
 			directSourceId: request.directSourceId,
 		}));
+	}
+
+	readonly pluginManagement = {
+		onDidChange: this._onDidChangePluginManagement.event,
+		manage: (request: IAgentHostPluginManagementRequest) => this._managePlugins(request),
+	};
+
+	private _pluginsChanged(): void {
+		for (const session of this._allLiveSessions()) {
+			session.markPluginsChanged();
+		}
+		this._onDidChangePluginManagement.fire();
+	}
+
+	private async _managePlugins(request: IAgentHostPluginManagementRequest): Promise<IAgentHostPluginManagementResult> {
+		const directory = request.workingDirectory === undefined ? undefined : URI.parse(request.workingDirectory);
+		if (directory && (directory.scheme !== Schemas.file || !isAbsolute(directory.fsPath))) {
+			throw new Error('Plugin management requires an absolute working directory.');
+		}
+		const client = await this._ensureClientForSession();
+		const sessionId = `vscode-plugin-management-${generateUuid()}`;
+		let session: CopilotSession | undefined;
+		try {
+			session = await client.createSession({
+				sessionId,
+				clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+				workingDirectory: directory?.fsPath,
+				enableConfigDiscovery: false,
+				enableFileHooks: false,
+				enableManagedSettings: true,
+				managedSettings: { permissions: this._managedSettingsService.permissions },
+				availableTools: [],
+				requestExtensions: false,
+				mcpServers: {},
+				onPermissionRequest: () => ({ kind: 'denied-no-approval-rule-and-could-not-request-from-user' }),
+				...this._getGitHubSessionCredentials().sdkSessionOptions,
+			});
+			const policy = await session.rpc.managedSettings.get();
+			if (policy.failClosed) {
+				throw new Error(localize('pluginManagement.policyUnavailable', "Enterprise policy could not be resolved. Plugin management is unavailable until policy resolution succeeds."));
+			}
+			try {
+				return await manageCopilotPlugins(session.rpc.plugins, request);
+			} finally {
+				if (request.operation !== 'list' && request.operation !== 'browse') {
+					this._pluginsChanged();
+				}
+			}
+		} finally {
+			if (session) {
+				try {
+					await session.disconnect();
+				} finally {
+					await client.deleteSession(sessionId);
+				}
+			} else {
+				try {
+					await client.deleteSession(sessionId);
+				} catch (error) {
+					this._logService.warn('[Copilot] Unable to clean up a failed plugin management session', error);
+				}
+			}
+		}
 	}
 
 	async startMcpServer(session: URI, id: string, token: CancellationToken = CancellationToken.None): Promise<void> {
@@ -6029,6 +6095,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				rawSessionId: launchPlan.sessionId,
 				onDidSessionProgress: this._onDidChatProgress,
 				onDidChangeCanvases: this._onDidChangeCanvases,
+				onPluginsChanged: () => this._pluginsChanged(),
 				sessionLauncher: this._sessionLauncher,
 				launchPlan,
 				shellManager: launchPlan.shellManager,

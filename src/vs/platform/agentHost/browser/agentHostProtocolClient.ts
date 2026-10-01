@@ -20,6 +20,8 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentCanvasAvailability, AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type IAgentCanvas, type IAgentCanvasSnapshot } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostCanvases, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { readAgentHostPluginManagementProviders } from '../common/meta/agentHostPluginManagementMeta.js';
+import { agentHostPluginManagementResultValidator, agentHostPluginsChangedValidator, AgentHostPluginsChangedNotification, ManageAgentHostPluginsExtensionMethod, type IAgentHostPluginManagement } from '../common/agentHostPluginManagement.js';
 import { AgentHostCanvasesChangedNotification, agentHostCanvasesChangedParamsValidator, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, isValidAgentHostCanvasesChangedParams, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, resolveAgentHostCanvasSourceResultValidator, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostCanvases, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostTiming, supportsChatUserInteractionTiming } from '../common/meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
@@ -268,6 +270,32 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			&& supportsAgentHostCanvases(this._initializeResult.get())
 			? this._canvasService
 			: undefined;
+	}
+
+	get pluginManagementProviders(): readonly string[] {
+		return readAgentHostPluginManagementProviders(this._initializeResult.get());
+	}
+
+	private readonly _onDidChangePluginManagement = this._register(new Emitter<string>());
+	readonly onDidChangePluginManagement = this._onDidChangePluginManagement.event;
+
+	get pluginManagement(): IAgentHostPluginManagement | undefined {
+		if (this.pluginManagementProviders.length === 0) {
+			return undefined;
+		}
+		return {
+			manage: async request => {
+				if (!this.pluginManagementProviders.includes(request.provider)) {
+					throw new Error(`Plugin management is not supported by provider '${request.provider}'.`);
+				}
+				const response = await this._sendExtensionRequest(ManageAgentHostPluginsExtensionMethod, request);
+				const validated = agentHostPluginManagementResultValidator.validate(response);
+				if (validated.error) {
+					throw new Error(`Invalid plugin management response: ${validated.error.message}`);
+				}
+				return validated.content;
+			},
+		};
 	}
 
 	private readonly _subscriptionManager: AgentSubscriptionManager;
@@ -2046,6 +2074,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._logService.warn(`[RemoteAgentHostProtocol] Received response for unknown request id ${msg.id}`);
 			}
 		} else if (isJsonRpcNotification(msg)) {
+			if ((msg as { method: string }).method === AgentHostPluginsChangedNotification) {
+				const validated = agentHostPluginsChangedValidator.validate(msg.params);
+				if (validated.error) {
+					this._logService.warn('[AgentHost] Invalid plugin management notification', validated.error);
+				} else if (this.pluginManagementProviders.includes(validated.content.provider)) {
+					this._onDidChangePluginManagement.fire(validated.content.provider);
+				}
+				return;
+			}
 			if ((msg as { method: string }).method === AgentHostCanvasesChangedNotification) {
 				this._handleCanvasSnapshot((msg as { params?: unknown }).params);
 				return;

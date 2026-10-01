@@ -36,6 +36,8 @@ export interface IAgentPluginAutomation {
 }
 
 export interface IAgentPlugin {
+	/** Provider that owns this plugin's installation, when discovered from a provider's inventory. */
+	readonly managedBy?: string;
 	readonly uri: URI;
 	readonly format: PluginFormat;
 	/** Human-readable display name for the plugin. */

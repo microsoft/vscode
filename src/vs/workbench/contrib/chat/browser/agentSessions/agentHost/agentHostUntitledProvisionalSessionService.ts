@@ -430,7 +430,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return;
 		}
 
-		const scope = this._activeClientService.acquireScope(`agent-host-${entry.provider}`, roots);
+		const scope = this._activeClientService.acquireScope(`agent-host-${entry.provider}`, roots, this._agentHostService.pluginManagementProviders?.includes(entry.provider));
 		entry.activeClientBinding.value = new ActiveClientBinding(roots, scope, this._agentHostService.clientId, () => this._publishActiveClient(entry));
 	}
 

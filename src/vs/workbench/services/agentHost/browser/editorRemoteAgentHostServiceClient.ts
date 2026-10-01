@@ -222,6 +222,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.getInflightSessionCreate(resource);
 	}
 
+	get pluginManagement() { return this._protocolClient?.pluginManagement; }
+	get pluginManagementProviders() { return this._protocolClient?.pluginManagementProviders; }
+	get onDidChangePluginManagement() { return this._protocolClient?.onDidChangePluginManagement ?? Event.None; }
+
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}

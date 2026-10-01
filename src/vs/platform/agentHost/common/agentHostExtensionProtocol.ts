@@ -15,6 +15,8 @@ import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.j
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 import { AgentHostCanvasesCapabilityMetaKey } from './meta/agentHostCanvasesMeta.js';
+import { AgentHostPluginManagementCapabilityMetaKey } from './meta/agentHostPluginManagementMeta.js';
+import { ManageAgentHostPluginsExtensionMethod, type IAgentHostPluginManagementRequest, type IAgentHostPluginManagementResult } from './agentHostPluginManagement.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostCanvases } from './meta/agentHostCanvasesMeta.js';
@@ -73,6 +75,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostTimingCapabilityMetaKey]?: true;
 	readonly [ChatUserInteractionCapability]?: true;
 	readonly [AgentHostCanvasesCapabilityMetaKey]?: true;
+	readonly [AgentHostPluginManagementCapabilityMetaKey]?: readonly string[];
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 }
@@ -82,7 +85,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, canvases = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, canvases = false, pluginManagementProviders: readonly string[] = []): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
@@ -93,6 +96,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
 		...(canvases ? { [AgentHostCanvasesCapabilityMetaKey]: true as const } : {}),
+		...(pluginManagementProviders.length ? { [AgentHostPluginManagementCapabilityMetaKey]: pluginManagementProviders } : {}),
 	};
 }
 
@@ -169,6 +173,7 @@ export const removeSessionArtifactParamsValidator = vObj({
 export const importSessionParamsValidator = vObj({ session: vString() });
 
 export interface IAgentHostExtensionCommandMap {
+	[ManageAgentHostPluginsExtensionMethod]: { params: IAgentHostPluginManagementRequest; result: IAgentHostPluginManagementResult };
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[ReportChatUserInteractionExtensionMethod]: { params: IChatUserInteractionTiming; result: void };
