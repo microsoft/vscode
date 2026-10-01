@@ -49,6 +49,10 @@ class TestContextMenuService extends mock<IContextMenuService>() {
 	override showContextMenu(delegate: IContextMenuDelegate): void {
 		this.delegate = delegate;
 	}
+
+	reset(): void {
+		this.delegate = undefined;
+	}
 }
 
 class TestSessionGroupsService extends mock<ISessionGroupsService>() {
@@ -358,7 +362,7 @@ suite('Sessions list context menus', () => {
 		const available = () => {
 			const row = container.querySelector<HTMLElement>('.session-item');
 			assert.ok(row);
-			contextMenu.delegate = undefined;
+			contextMenu.reset();
 			dispatchContextMenu(row);
 			const actions = contextMenu.delegate?.getActions() ?? [];
 			const result = actions.some(action => action.id === PROMOTE_SESSION_COMMAND_ID);
