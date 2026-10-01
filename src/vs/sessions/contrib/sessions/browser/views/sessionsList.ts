@@ -297,12 +297,12 @@ function getChatListDiffStats(chat: IChat, reader: IReader): ISessionChangesStat
 		: undefined;
 }
 
-function getSessionTreeElement(session: ISession, createChatItem: (chat: IChat) => SessionChatItem = chat => new SessionChatItem(session, chat), reader?: IReader): IObjectTreeElement<SessionListItem> {
+function getSessionTreeElement(session: ISession, createChatItem: (chat: IChat) => SessionChatItem = chat => new SessionChatItem(session, chat), reader?: IReader, collapseByDefault = false): IObjectTreeElement<SessionListItem> {
 	const chats = getSessionListChats(session, reader);
 	return {
 		element: session,
 		collapsible: chats.length > 0,
-		collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+		collapsed: collapseByDefault ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded,
 		children: chats.length > 0 ? chats.map(chat => ({ element: createChatItem(chat) })) : undefined,
 	};
 }
@@ -6785,6 +6785,8 @@ export interface ISessionsFlatListOptions {
 	readonly showSessionHover?: boolean;
 	/** Renders the sidebar's nested chats, expanded by default, without adding sections. */
 	readonly showChatChildren?: boolean;
+	/** Starts child groups collapsed while preserving subsequent user toggles. */
+	readonly collapseChatChildrenByDefault?: boolean;
 	readonly ariaLabel?: string;
 	/** Called when a session row is opened (clicked / activated). */
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
@@ -7075,7 +7077,7 @@ export class SessionsFlatList extends Disposable {
 						chats.set(chat, item);
 					}
 					return item;
-				}, reader));
+				}, reader, this.options.collapseChatChildrenByDefault));
 				this.tree.setChildren(null, elements);
 				reader.store.add(autorun(heightReader => {
 					for (const node of this.tree.getNode().children) {

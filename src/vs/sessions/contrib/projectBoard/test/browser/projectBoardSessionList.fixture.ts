@@ -21,7 +21,7 @@ import { ProjectBoardState } from '../../browser/projectBoardState.js';
 import { ProjectBoardCatalogService } from '../../browser/projectBoardCatalog.js';
 import { DEFAULT_PROJECT_BOARD_ID, IProjectBoardCatalogService } from '../../common/projectBoardCatalog.js';
 
-function renderBoard({ container, disposableStore, theme }: ComponentFixtureContext, width: number, collapseChats = false): void {
+function renderBoard({ container, disposableStore, theme }: ComponentFixtureContext, width: number, expandChats = false): void {
 	container.classList.add('kanban-custom-view');
 	container.style.width = `${width}px`;
 	container.style.height = '650px';
@@ -82,7 +82,7 @@ function renderBoard({ container, disposableStore, theme }: ComponentFixtureCont
 	const service = disposableStore.add(instantiationService.createInstance(ProjectBoardService));
 	const view = disposableStore.add(service.createView(container));
 	view.layout(width, 650);
-	if (collapseChats) {
+	if (expandChats) {
 		for (const twistie of container.querySelectorAll<HTMLElement>('.monaco-tl-twistie.collapsible')) {
 			twistie.click();
 		}
@@ -91,6 +91,6 @@ function renderBoard({ container, disposableStore, theme }: ComponentFixtureCont
 
 export default defineThemedFixtureGroup({ path: 'sessions/projectBoard/' }, {
 	SessionList: defineComponentFixture({ render: context => renderBoard(context, 1250) }),
-	SessionListCollapsed: defineComponentFixture({ render: context => renderBoard(context, 1250, true) }),
+	SessionListExpanded: defineComponentFixture({ render: context => renderBoard(context, 1250, true) }),
 	SessionListNarrow: defineComponentFixture({ render: context => renderBoard(context, 760) }),
 });
