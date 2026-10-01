@@ -75,6 +75,7 @@ import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
+import '../../../../contrib/modernUI/browser/media/editorBorder.css';
 
 // ============================================================================
 // Fixture editor input
