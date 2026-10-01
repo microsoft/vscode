@@ -159,6 +159,69 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
+	test('retrieves an authenticated saved feed in order and omits unavailable resources', async () => {
+		const { service, requests } = createService({
+			id: 'feed/featured',
+			name: 'Featured customizations',
+			version: 7,
+			entries: [
+				{ identifier: skill.identifier, status: 'available', resource: skill },
+				{ identifier: 'urn:air:example.com:skills:removed', status: 'unavailable' },
+				{
+					identifier: 'urn:air:github.com:github:awesome-copilot:plugins:accessibility-kanban',
+					status: 'available',
+					resource: {
+						...skill,
+						identifier: 'urn:air:github.com:github:awesome-copilot:plugins:accessibility-kanban',
+						displayName: 'Accessibility Kanban',
+						type: CustomizationMarketplaceMediaType.CopilotPlugin,
+						mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+						url: 'https://github.com/github/awesome-copilot/blob/main/plugins/accessibility-kanban/plugin.json',
+						metadata: { sourceSet: 'github/awesome-copilot', repoPath: 'plugins/accessibility-kanban/plugin.json' },
+					},
+				},
+			],
+		});
+
+		const feed = await service.getFeed('feed/featured', 'featured-token', CancellationToken.None);
+
+		assert.deepStrictEqual({
+			name: feed.name,
+			items: feed.items.map(item => [item.identifier, item.displayName, item.installation]),
+			requests: requests.requests,
+		}, {
+			name: 'Featured customizations',
+			items: [
+				[skill.identifier, skill.displayName, { kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' }],
+				['urn:air:github.com:github:awesome-copilot:plugins:accessibility-kanban', 'Accessibility Kanban', { kind: 'plugin', repository: 'github/awesome-copilot', ref: 'main', path: 'plugins/accessibility-kanban' }],
+			],
+			requests: [{
+				url: 'https://agentfinder.github.com/internal/v1/feeds/feed%2Ffeatured',
+				type: 'GET',
+				headers: { Accept: 'application/json', Authorization: 'Bearer featured-token' },
+				disableCache: true,
+				timeout: 30_000,
+				followRedirects: 0,
+				callSite: 'agentFinder.featured',
+			}],
+		});
+	});
+
+	test('rejects malformed saved feeds and reports authentication failures', async () => {
+		const invalidFeeds = [
+			{ id: 'different', name: 'Featured', version: 1, entries: [] },
+			{ id: 'feed', name: 'Featured', version: 1, entries: [{ identifier: skill.identifier, status: 'available', resource: { ...skill, identifier: 'different' } }] },
+			{ id: 'feed', name: 'Featured', version: 1, entries: [{ identifier: skill.identifier, status: 'unavailable', resource: skill }] },
+		];
+		for (const body of invalidFeeds) {
+			const { service } = createService(body);
+			await assert.rejects(service.getFeed('feed', 'token', CancellationToken.None), /invalid response/);
+		}
+
+		const { service } = createService({ error: 'Unauthorized' }, 401);
+		await assert.rejects(service.getFeed('feed', 'token', CancellationToken.None), /Sign in to view featured customizations/);
+	});
+
 	test('resolves an MCP registry icon through the fixed Agent Finder registry', async () => {
 		const lookups: { url: string; manifestUrl: string | undefined; manifestVersion: string | undefined; cancelled: boolean }[] = [];
 		const mcpGalleryService = upcastPartial<IMcpGalleryService>({

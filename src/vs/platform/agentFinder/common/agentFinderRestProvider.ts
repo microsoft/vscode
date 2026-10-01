@@ -19,10 +19,15 @@ import { IMcpGalleryService } from '../../mcp/common/mcpManagement.js';
 import { IRequestService, readBoundedResponse } from '../../request/common/request.js';
 
 const endpoint = 'https://agentfinder.github.com/api/v1';
+const feedEndpoint = 'https://agentfinder.github.com/internal/v1/feeds';
 const requestTimeout = 30_000;
 const maxResponseBytes = 5 * 1024 * 1024;
 const defaultPageSize = 30;
 const maxPageSize = 100;
+const maxFeedEntries = 100;
+const maxFeedIdLength = 4096;
+const maxFeedNameCodePoints = 512;
+const maxFeedIdentifierLength = 512;
 const maxQueryLength = 4096;
 const maxUnsupportedOnlyPages = 32;
 const maxUriLength = 8192;
@@ -38,6 +43,11 @@ const maxConcurrentMcpIconRequests = 4;
 const mcpIconRequestTimeout = 5_000;
 
 class AgentFinderError extends Error { }
+
+export interface IAgentFinderResourceFeed {
+	readonly name: string;
+	readonly items: readonly ICustomizationMarketplaceEntry[];
+}
 
 export class AgentFinderRestProvider implements ICustomizationMarketplaceProvider {
 	readonly id = CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
@@ -88,7 +98,7 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 					followRedirects: 0,
 					callSite: 'agentFinder.query',
 				};
-				const response = await raceCancellationError(this.requestPage(request, cancellation.token), cancellation.token);
+				const response = await raceCancellationError(this.requestJson(request, cancellation.token, 'catalog'), cancellation.token);
 				const page = parsePage(response, pageSize, query ? { kind: 'search', pageToken } : { kind: 'browse', offset });
 				const items = page.items.filter(item => item.mediaType !== CustomizationMarketplaceMediaType.CursorPlugin);
 				if (items.length || !page.nextCursor) {
@@ -115,6 +125,56 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 				throw error;
 			}
 			throw new AgentFinderError(localize('agentFinder.unavailable', "Unable to reach the customization catalog. Check your connection and try again."));
+		} finally {
+			cancellation.cancel();
+			store.dispose();
+		}
+	}
+
+	async getFeed(feedId: string, authorization: string, token: CancellationToken): Promise<IAgentFinderResourceFeed> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!feedId || feedId.length > maxFeedIdLength || !feedId.trim() || !authorization) {
+			throw new AgentFinderError(localize('agentFinder.invalidFeaturedFeed', "The featured customization feed is not configured correctly."));
+		}
+
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource(token));
+		let timedOut = false;
+		const requestTimeoutDisposable = disposableTimeout(() => {
+			timedOut = true;
+			cancellation.cancel();
+		}, requestTimeout, store);
+
+		try {
+			const response = await raceCancellationError(this.requestJson({
+				url: `${feedEndpoint}/${encodeURIComponent(feedId)}`,
+				type: 'GET',
+				headers: { Accept: 'application/json', Authorization: `Bearer ${authorization}` },
+				disableCache: true,
+				timeout: requestTimeout,
+				followRedirects: 0,
+				callSite: 'agentFinder.featured',
+			}, cancellation.token, 'featured'), cancellation.token);
+			const feed = parseFeed(response, feedId);
+			requestTimeoutDisposable.dispose();
+			const page = await this.resolveMcpIcons({ items: feed.items }, token);
+			return {
+				name: feed.name,
+				items: page.items.filter(item => item.mediaType !== CustomizationMarketplaceMediaType.CursorPlugin),
+			};
+		} catch (error) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (timedOut) {
+				throw new AgentFinderError(localize('agentFinder.featuredTimeout', "The featured customizations took too long to load. Try again."));
+			}
+			if (error instanceof AgentFinderError || isCancellationError(error)) {
+				throw error;
+			}
+			throw new AgentFinderError(localize('agentFinder.featuredUnavailable', "Unable to reach the featured customization feed. Check your connection and try again."));
 		} finally {
 			cancellation.cancel();
 			store.dispose();
@@ -175,24 +235,35 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 		}
 	}
 
-	private async requestPage(options: IRequestOptions, token: CancellationToken): Promise<unknown> {
+	private async requestJson(options: IRequestOptions, token: CancellationToken, operation: 'catalog' | 'featured'): Promise<unknown> {
 		const context = await this.requestService.request(options, token);
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
 			const status = context.res.statusCode;
+			if (operation === 'featured' && status === 401) {
+				throw new AgentFinderError(localize('agentFinder.featuredSignInRequired', "Sign in to view featured customizations."));
+			}
 			if (status === 429) {
-				throw new AgentFinderError(localize('agentFinder.rateLimited', "The customization catalog is receiving too many requests. Try again later."));
+				throw new AgentFinderError(operation === 'catalog'
+					? localize('agentFinder.rateLimited', "The customization catalog is receiving too many requests. Try again later.")
+					: localize('agentFinder.featuredRateLimited', "The featured customization feed is receiving too many requests. Try again later."));
 			}
 			if (!status || status < 200 || status >= 300) {
-				throw new AgentFinderError(localize('agentFinder.httpError', "The customization catalog could not complete the request (HTTP {0}). Try again later.", status ?? '—'));
+				throw new AgentFinderError(operation === 'catalog'
+					? localize('agentFinder.httpError', "The customization catalog could not complete the request (HTTP {0}). Try again later.", status ?? '—')
+					: localize('agentFinder.featuredHttpError', "The featured customization feed could not complete the request (HTTP {0}). Try again later.", status ?? '—'));
 			}
-			const text = await raceCancellationError(readBoundedResponse(context, maxResponseBytes, () => new AgentFinderError(localize('agentFinder.responseTooLarge', "The customization catalog response is too large. Try a smaller page."))), token);
+			const text = await raceCancellationError(readBoundedResponse(context, maxResponseBytes, () => new AgentFinderError(operation === 'catalog'
+				? localize('agentFinder.responseTooLarge', "The customization catalog response is too large. Try a smaller page.")
+				: localize('agentFinder.featuredResponseTooLarge', "The featured customization feed response is too large."))), token);
 			try {
 				return JSON.parse(text);
 			} catch {
-				throw new AgentFinderError(localize('agentFinder.invalidJson', "The customization catalog returned invalid JSON. Try again later."));
+				throw new AgentFinderError(operation === 'catalog'
+					? localize('agentFinder.invalidJson', "The customization catalog returned invalid JSON. Try again later.")
+					: localize('agentFinder.featuredInvalidJson', "The featured customization feed returned invalid JSON. Try again later."));
 			}
 		} finally {
 			context.stream.destroy();
@@ -281,6 +352,36 @@ function parsePage(value: unknown, pageSize: number, cursor: { kind: 'browse'; o
 		total: value.total,
 		nextCursor: isPageToken(value.pageToken) ? JSON.stringify({ kind: 'search', pageToken: value.pageToken }) : undefined,
 	};
+}
+
+function parseFeed(value: unknown, feedId: string): IAgentFinderResourceFeed {
+	if (!isRecord(value) || value.id !== feedId || typeof value.name !== 'string' || !value.name.trim() ||
+		[...value.name].length > maxFeedNameCodePoints || !isNonNegativeInteger(value.version) || value.version < 1 ||
+		!Array.isArray(value.entries) || value.entries.length > maxFeedEntries) {
+		throw invalidResponse();
+	}
+	const identifiers = new Set<string>();
+	const items: ICustomizationMarketplaceEntry[] = [];
+	for (const entry of value.entries) {
+		if (!isRecord(entry) || typeof entry.identifier !== 'string' || !entry.identifier ||
+			entry.identifier.length > maxFeedIdentifierLength || identifiers.has(entry.identifier) ||
+			(entry.status !== 'available' && entry.status !== 'unavailable')) {
+			throw invalidResponse();
+		}
+		identifiers.add(entry.identifier);
+		if (entry.status === 'unavailable') {
+			if (entry.resource !== undefined) {
+				throw invalidResponse();
+			}
+			continue;
+		}
+		const resource = parseResource(entry.resource);
+		if (resource.identifier !== entry.identifier) {
+			throw invalidResponse();
+		}
+		items.push(resource);
+	}
+	return { name: value.name, items };
 }
 
 function parseResource(value: unknown): ICustomizationMarketplaceEntry {

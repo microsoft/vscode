@@ -11,6 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -20,13 +21,17 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IMcpGalleryService } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
+import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceWorkbenchService, PlatformCustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('CustomizationMarketplaceWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +73,16 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			override readonly catalogMayRequireConsent = false;
 			override readonly connectionStateKnown = false;
 		}());
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = Event.None;
+			override async getSessions() { return []; }
+		}());
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+			override readonly currentDefaultAccount = null;
+			override async getDefaultAccount() { return null; }
+		}());
+		instantiationService.stub(IProductService, new class extends mock<IProductService>() { }());
 	}
 
 	function createService(
@@ -92,6 +107,16 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			normalizedPlatformService,
 			pluginMarketplaceService,
 			connectorsService,
+			new class extends mock<IAuthenticationService>() {
+				override readonly onDidChangeSessions = Event.None;
+				override async getSessions() { return []; }
+			}(),
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override readonly currentDefaultAccount = null;
+				override async getDefaultAccount() { return null; }
+			}(),
+			new class extends mock<IProductService>() { }(),
 			store.add(new TestInstantiationService()),
 		);
 	}
@@ -194,6 +219,111 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			requests: requests.map(request => request.type),
 			sources: pages.map(page => page.items.map(item => item.sourceId)),
 		}, { whileDisabled: { creations: 0, requests: 0 }, createdCatalogClient: true, creations: 1, requests: ['GET', 'POST'], sources: [['agentFinder'], ['agentFinder']] });
+	});
+
+	test('loads the product-configured featured feed with the current default account', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const requests: IRequestOptions[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
+			override async query() { return { items: [] }; }
+		}());
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override getMarketplaceReferences() { return []; }
+		}());
+		registerConnectorService(instantiationService);
+		const account = {
+			authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+			accountName: 'octocat',
+			sessionId: 'default-session',
+			enterprise: false,
+		};
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+			override readonly currentDefaultAccount = account;
+			override async getDefaultAccount() { return account; }
+		}());
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = Event.None;
+			override async getSessions() {
+				return [{
+					id: 'default-session',
+					accessToken: 'default-account-token',
+					account: { id: 'account-id', label: 'octocat' },
+					scopes: ['read:user'],
+				}];
+			}
+		}());
+		instantiationService.stub(IProductService, new class extends mock<IProductService>() {
+			override readonly defaultChatAgent = new class extends mock<NonNullable<IProductService['defaultChatAgent']>>() {
+				override readonly agentFinderFeaturedFeedId = 'feed/featured';
+			}();
+		}());
+		instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
+			override async request(options: IRequestOptions) {
+				requests.push(options);
+				return {
+					res: { statusCode: 200, headers: {} },
+					stream: bufferToStream(VSBuffer.fromString(JSON.stringify({
+						id: 'feed/featured',
+						name: 'Featured',
+						version: 1,
+						entries: [{
+							identifier: 'urn:air:example.com:skills:review',
+							status: 'available',
+							resource: {
+								identifier: 'urn:air:example.com:skills:review',
+								displayName: 'Review',
+								type: CustomizationMarketplaceMediaType.Skill,
+								url: 'https://example.com/review',
+							},
+						}],
+					}))),
+				};
+			}
+		}());
+		instantiationService.stub(IMcpGalleryService, new class extends mock<IMcpGalleryService>() { }());
+		instantiationService.stub(ILogService, new NullLogService());
+		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
+
+		const featured = await service.getFeatured({}, CancellationToken.None);
+		const excluded = await service.getFeatured({ sourceIds: [CustomizationMarketplaceSources.PluginMarketplaces.id] }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			featured,
+			excluded,
+			requests: requests.map(request => ({ url: request.url, authorization: request.headers?.Authorization })),
+		}, {
+			featured: {
+				sourceId: 'agentFinder',
+				items: [{
+					sourceId: 'agentFinder',
+					identifier: 'urn:air:example.com:skills:review',
+					displayName: 'Review',
+					description: '',
+					mediaType: CustomizationMarketplaceMediaType.Skill,
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					url: URI.parse('https://example.com/review'),
+					externalUrl: 'https://example.com/review',
+					repository: undefined,
+					icon: undefined,
+					publisher: undefined,
+					version: undefined,
+					score: undefined,
+					installation: undefined,
+				}],
+			},
+			excluded: undefined,
+			requests: [{
+				url: 'https://agentfinder.github.com/internal/v1/feeds/feed%2Ffeatured',
+				authorization: 'Bearer default-account-token',
+			}],
+		});
 	});
 
 	test('plugin-only Discover does not query the public feed', async () => {

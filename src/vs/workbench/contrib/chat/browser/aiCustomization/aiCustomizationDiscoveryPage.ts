@@ -14,7 +14,7 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { Action, IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { equals } from '../../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -27,7 +27,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceFeatured, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { affectsCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -135,7 +135,13 @@ interface ICatalogPageState {
 interface IBrowseCatalogCache {
 	readonly items: readonly ICustomizationMarketplaceResource[];
 	readonly page: ICatalogPageState;
+	readonly featuredItems: readonly ICustomizationMarketplaceResource[] | undefined;
+	readonly featuredSourceError: ICustomizationMarketplaceSourceError | undefined;
 }
+
+type FeaturedLoadOutcome =
+	| { readonly kind: 'success'; readonly featured: ICustomizationMarketplaceFeatured | undefined }
+	| { readonly kind: 'error'; readonly error: Error };
 
 interface IDiscoveryRowTemplate {
 	readonly root: HTMLElement;
@@ -591,6 +597,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private installedItems: readonly IInstalledDiscoveryItem[] = [];
 	private providerPlugins: readonly IInstalledDiscoveryItem[] = [];
 	private catalogItems: readonly ICustomizationMarketplaceResource[] = [];
+	private featuredItems: readonly ICustomizationMarketplaceResource[] | undefined;
+	private featuredSourceError: ICustomizationMarketplaceSourceError | undefined;
 	private marketplaceSources: readonly ICustomizationMarketplaceSourceInfo[] = [];
 	private selectedSourceId: string | undefined;
 	private visibleSectionIds = new Set<AICustomizationManagementSection>();
@@ -987,6 +995,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.installErrors.clear();
 		const cached = this.query.isEmpty() ? this.browseCatalogCache.get(this.selectedSourceId ?? '') : undefined;
 		this.catalogPage = cached?.page;
+		this.featuredItems = cached?.featuredItems;
+		this.featuredSourceError = cached?.featuredSourceError;
 		if (cached) {
 			this.catalogItems = cached.items;
 			this.loaded = true;
@@ -1065,6 +1075,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.catalogPage = undefined;
 		this.browseCatalogCache.clear();
 		this.catalogItems = [];
+		this.featuredItems = undefined;
+		this.featuredSourceError = undefined;
 		this.loaded = false;
 		this.errorMessage = undefined;
 		this.render();
@@ -1258,6 +1270,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.filteredBackfillLimitReached = false;
 		this.errorMessage = undefined;
 		this.render(true);
+		const featuredPromise = !append && this.query.isEmpty() && this.marketplaceService.featuredSourceIds?.some(sourceId =>
+			(!this.selectedSourceId || sourceId === this.selectedSourceId) && this.marketplaceSources.some(source => source.id === sourceId))
+			? this.loadFeatured(request.token)
+			: undefined;
 
 		try {
 			const backfill = !this.query.isEmpty() && this.query.types.size > 0 && getCatalogMediaType(this.query.types) === undefined;
@@ -1302,14 +1318,29 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					this.filteredBackfillLimitReached = true;
 				}
 			}
+			if (featuredPromise) {
+				const outcome = await featuredPromise;
+				if (outcome.kind === 'error') {
+					throw outcome.error;
+				}
+				if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
+					return;
+				}
+				const featured = outcome.featured;
+				this.featuredItems = featured?.items;
+				this.featuredSourceError = featured?.error ? { sourceId: featured.sourceId, message: featured.error } : undefined;
+			}
 			this.loaded = true;
 			if (this.query.isEmpty() && this.catalogPage) {
 				this.browseCatalogCache.set(this.selectedSourceId ?? '', {
 					items: this.catalogItems,
 					page: this.catalogPage,
+					featuredItems: this.featuredItems,
+					featuredSourceError: this.featuredSourceError,
 				});
 			}
 		} catch (error) {
+			request.cancel();
 			if (sequence !== this.requestSequence || isCancellationError(error)) {
 				return;
 			}
@@ -1322,6 +1353,19 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.request.clear();
 				this.render(this.loadingMore);
 			}
+		}
+	}
+
+	private async loadFeatured(token: CancellationToken): Promise<FeaturedLoadOutcome> {
+		try {
+			return {
+				kind: 'success',
+				featured: await this.marketplaceService.getFeatured?.({
+					sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
+				}, token),
+			};
+		} catch (error) {
+			return { kind: 'error', error: error instanceof Error ? error : new Error(getErrorMessage(error)) };
 		}
 	}
 
@@ -1342,7 +1386,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private render(preserveResults = false): void {
-		this.sourceWarnings.update(this.catalogPage?.sourceErrors ?? [], this.loading);
+		const sourceErrors = [...this.catalogPage?.sourceErrors ?? []];
+		if (this.featuredSourceError && !sourceErrors.some(error => error.sourceId === this.featuredSourceError?.sourceId)) {
+			sourceErrors.push(this.featuredSourceError);
+		}
+		this.sourceWarnings.update(sourceErrors, this.loading);
 		const catalogPending = this.isCatalogPending();
 		const showProgress = this.visible && catalogPending && !this.isLoadingMore();
 		if (showProgress !== this.progressBarActive) {
@@ -1516,7 +1564,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		this.browseStatus.textContent = '';
-		const leading = getLeadingBrowseItems(this.catalogItems);
+		const leading = (this.featuredItems ?? getLeadingBrowseItems(this.catalogItems))
+			.filter(item => getCatalogType(item) !== undefined)
+			.slice(0, leadingBrowseItemCount);
 		const leadingIds = new Set(leading.map(getCustomizationMarketplaceResourceKey));
 		if (leading.length) {
 			this.renderBrowseSection(

@@ -992,6 +992,7 @@ interface IRenderEditorOptions {
 	readonly copilotConnectorsEnabled?: boolean;
 	readonly copilotConnectors?: readonly ICopilotConnector[];
 	readonly marketplaceVisibilityEnabled?: boolean;
+	readonly featuredFeedEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
@@ -1160,6 +1161,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeSentiment = Event.None;
 			}());
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly featuredSourceIds = options.featuredFeedEnabled ? ['testSource'] : [];
 				override readonly sources = [
 					CustomizationMarketplaceSources.PluginMarketplaces,
 					CustomizationMarketplaceSources.McpGallery,
@@ -1168,6 +1170,20 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled', requiresMarketplaceVisibility: true },
 					CustomizationMarketplaceSources.CopilotConnectors,
 				];
+				override async getFeatured(query: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>) {
+					if (!options.featuredFeedEnabled || query.sourceIds && !query.sourceIds.includes('testSource')) {
+						return undefined;
+					}
+					return {
+						sourceId: 'testSource',
+						items: [
+							customizationMarketplaceResources[2],
+							customizationMarketplaceResources[1],
+							customizationMarketplaceResources[4],
+							customizationMarketplaceResources[0],
+						],
+					};
+				}
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
 					assert(sourceEnabled(), 'A fixture with no enabled sources must not query the catalog.');
@@ -1768,6 +1784,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
 			'Featured cards must place source metadata beside the name and the description on the next line.',
 		);
+		if (options.featuredFeedEnabled) {
+			assert(
+				[...featured?.querySelectorAll('.customization-discovery-card-name') ?? []].map(element => element.textContent).join('\n')
+				=== ['Figma', 'Browser tools', 'Documentation workflow', 'Repository review'].join('\n'),
+				'Discover must preserve the saved featured feed order.',
+			);
+		}
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
 		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
@@ -3322,6 +3345,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: agentHostCopilotSessionResource,
 			marketplaceVisibilityEnabled: true,
 			isSessionsWindow: true,
+		}),
+	}),
+
+	DiscoverFeaturedFeed: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Discover renders the product-configured AgentFinder saved feed as the ordered elevated collection, while the remaining catalog items stay grouped by type below it.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			featuredFeedEnabled: true,
+			width: 800,
 		}),
 	}),
 
