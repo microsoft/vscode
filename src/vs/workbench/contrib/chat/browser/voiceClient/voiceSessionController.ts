@@ -759,7 +759,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * later focus/state event can retry rather than the reply being lost.
 	 */
 	private readonly _pendingSolicitedNarrations = new Map<string, IPendingSolicitedNarration>();
-	private _openAiNarrationInFlightId: string | undefined;
+	private readonly _openAiNarrationIds = new Set<string>();
 	private static readonly _SOLICITED_NARRATION_AUDIO_START_TIMEOUT_MS = 30_000;
 	private static readonly _VOICE_PROGRESS_INITIAL_DELAY_MS = 5_000;
 	private static readonly _VOICE_PROGRESS_INTERVAL_MS = 10_000;
@@ -4594,9 +4594,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return false;
 		}
 
-		this._cancelOpenAiNarration();
 		const narrationId = generateUuid();
-		this._openAiNarrationInFlightId = narrationId;
+		this._openAiNarrationIds.add(narrationId);
 		const audioStartTimer = setTimeout(() => {
 			this._handleSolicitedNarrationAudioStartTimeout(narrationId);
 		}, VoiceSessionController._SOLICITED_NARRATION_AUDIO_START_TIMEOUT_MS);
@@ -4619,18 +4618,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._statusText.set('Speaking...', undefined);
 		};
 		utterance.onend = () => {
-			if (this._openAiNarrationInFlightId !== narrationId) {
-				return;
-			}
-			this._openAiNarrationInFlightId = undefined;
+			this._openAiNarrationIds.delete(narrationId);
 			this._markNarrationHeard(narrationId);
 			this._restoreVoiceStateAfterNarrationTimeout();
 		};
 		utterance.onerror = () => {
-			if (this._openAiNarrationInFlightId !== narrationId) {
-				return;
-			}
-			this._openAiNarrationInFlightId = undefined;
+			this._openAiNarrationIds.delete(narrationId);
 			const tracked = this._pendingSolicitedNarrations.get(narrationId);
 			if (tracked) {
 				this._clearPendingSolicitedNarration(narrationId, tracked);
@@ -4643,18 +4636,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _cancelOpenAiNarration(): void {
-		if (!this._openAiNarrationInFlightId) {
+		if (this._openAiNarrationIds.size === 0) {
 			return;
 		}
-		const narrationId = this._openAiNarrationInFlightId;
-		this._openAiNarrationInFlightId = undefined;
 		const synthesis = this._window?.speechSynthesis ?? mainWindow.speechSynthesis;
-		synthesis?.cancel();
-		const tracked = this._pendingSolicitedNarrations.get(narrationId);
-		if (tracked) {
-			this._clearPendingSolicitedNarration(narrationId, tracked);
+		for (const narrationId of this._openAiNarrationIds) {
+			const tracked = this._pendingSolicitedNarrations.get(narrationId);
+			if (tracked) {
+				this._clearPendingSolicitedNarration(narrationId, tracked);
+			}
+			this._solicitedNarrationIds.delete(narrationId);
 		}
-		this._solicitedNarrationIds.delete(narrationId);
+		this._openAiNarrationIds.clear();
+		synthesis?.cancel();
 	}
 
 	private _markSolicitedNarrationAudioStarted(narrationId: string | undefined): void {
@@ -4715,7 +4709,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _restoreVoiceStateAfterNarrationTimeout(): void {
-		if (this.ttsPlaybackService.isPlaying || this._audioQueue.length > 0 || this._currentPlaybackSessionId !== null || this._pttHeld) {
+		const synthesis = this._window?.speechSynthesis ?? mainWindow.speechSynthesis;
+		if (this.ttsPlaybackService.isPlaying || this._audioQueue.length > 0 || this._currentPlaybackSessionId !== null || this._openAiNarrationIds.size > 0 || synthesis?.speaking || this._pttHeld) {
 			return;
 		}
 		if (this._isHandsFreeEnabled() && this._window && this._isConnected.get()) {
