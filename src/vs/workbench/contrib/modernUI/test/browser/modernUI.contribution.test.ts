@@ -3485,6 +3485,31 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('uses iconless leading spacing when the file icon theme is disabled', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui-tabs');
+		root.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px;';
+		store.add(toDisposable(() => root.remove()));
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container');
+		const title = appendElement(group, 'title tabs show-file-icons');
+		const tabs = appendElement(title, 'tabs-container');
+		const tab = appendElement(tabs, 'tab');
+		const targetWindow = getWindow(root);
+
+		const fileIconThemeNone = targetWindow.getComputedStyle(tab).paddingLeft;
+		root.classList.add('file-icons-enabled');
+		const fileIconsEnabled = targetWindow.getComputedStyle(tab).paddingLeft;
+		title.classList.remove('show-file-icons');
+		const iconsSettingDisabled = targetWindow.getComputedStyle(tab).paddingLeft;
+
+		assert.deepStrictEqual({ fileIconThemeNone, fileIconsEnabled, iconsSettingDisabled }, {
+			fileIconThemeNone: '8px',
+			fileIconsEnabled: '6px',
+			iconsSettingDisabled: '8px',
+		});
+	});
+
 	test('persists reserved tab actions and hides unreserved actions in contrast themes', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark');
 		theme.setCustomColors({ [activeContrastBorder]: '#FFFFFF' });
