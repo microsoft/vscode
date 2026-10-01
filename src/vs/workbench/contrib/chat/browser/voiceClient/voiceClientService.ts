@@ -1083,6 +1083,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 						type: 'realtime',
 						instructions: this._getOpenAiSessionInstructions(voiceInstructions),
 						output_modalities: ['audio'],
+						input_audio_transcription: {
+							model: 'gpt-4o-mini-transcribe',
+						},
 						audio: {
 							output: {
 								voice: this._getOpenAiVoice(),
