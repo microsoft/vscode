@@ -721,7 +721,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 				featureFlags,
 				connectorCalls,
 			}, {
-				featureFlags: { CONNECTORS: true, MANAGED_MCP_SERVERS: true },
+				featureFlags: { CONNECTORS: true, TGREP: false, MANAGED_MCP_SERVERS: true },
 				connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true'],
 			});
 		} finally {
@@ -1796,14 +1796,29 @@ suite('CopilotSessionLauncher resume config', () => {
 			enabledExperimentalMode: true,
 			enabledFeatureFlags: {
 				CONNECTORS: false,
+				TGREP: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
 			},
 			disabledExperimentalMode: undefined,
-			disabledFeatureFlags: { CONNECTORS: false },
+			disabledFeatureFlags: { CONNECTORS: false, TGREP: false },
 			defaultExperimentalMode: undefined,
-			defaultFeatureFlags: { CONNECTORS: false },
-			connectorFeatureFlags: { CONNECTORS: true, MANAGED_MCP_SERVERS: true },
+			defaultFeatureFlags: { CONNECTORS: false, TGREP: false },
+			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, MANAGED_MCP_SERVERS: true },
+		});
+	});
+
+	test('configures repository-size-gated tgrep feature flag', async () => {
+		const store = disposables.add(new DisposableStore());
+		const disabled = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+		const enabled = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Tgrep]: true }), { id: 'gpt-5' });
+
+		assert.deepStrictEqual({
+			disabled: disabled.featureFlags,
+			enabled: enabled.featureFlags,
+		}, {
+			disabled: { CONNECTORS: false, TGREP: false },
+			enabled: { CONNECTORS: false, TGREP: true },
 		});
 	});
 
