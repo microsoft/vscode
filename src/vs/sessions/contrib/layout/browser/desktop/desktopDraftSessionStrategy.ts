@@ -184,11 +184,15 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			if (this._activeQuickChatKey !== sessionKey) {
 				this._activeQuickChatKey = sessionKey;
 				const hasSavedWorkingSet = this._ctx.hasSavedWorkingSet(activeSession.resource);
-				this._pendingEditorRestoreKey = !multipleSessionsVisible && hasSavedWorkingSet
+				const isRestoringSessionLayout = this._ctx.isRestoringSessionLayout;
+				this._pendingEditorRestoreKey = !multipleSessionsVisible
 					? sessionKey
 					: undefined;
 				if (!multipleSessionsVisible && hasSavedWorkingSet) {
 					this._applyQuickChatSharedVisibility();
+				} else if (!multipleSessionsVisible && !isRestoringSessionLayout && isMainPartEmpty(this._editorGroupsService)) {
+					this._pendingEditorRestoreKey = undefined;
+					this._hideQuickChatSidePaneTransiently();
 				}
 				this._detailPanel.sync(DetailPanelTarget.Files);
 			}
