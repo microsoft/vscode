@@ -7598,7 +7598,7 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('keeps warnings outside collapsed completed steps', async () => {
+	test('keeps only warnings that opt in outside collapsed completed steps', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -7660,7 +7660,8 @@ suite('ChatListRenderer', () => {
 			await toolInvocation.didExecuteTool(undefined);
 		};
 		await runTool('call-1');
-		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Some tools are not available') });
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Some tools are not available'), keepVisibleWhenCollapsed: true });
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Ordinary warning') });
 		await runTool('call-2');
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Final response') });
 		request.response?.complete();
@@ -7668,20 +7669,24 @@ suite('ChatListRenderer', () => {
 		const firstDisclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
 		renderer.renderElement(node, 0, template);
 
-		const warning = [...container.querySelectorAll<HTMLElement>('.chat-notification-widget')]
-			.find(element => element.textContent?.includes('Some tools are not available'));
+		const findWarning = (text: string) => [...container.querySelectorAll<HTMLElement>('.chat-notification-widget')]
+			.find(element => element.textContent?.includes(text));
+		const warning = findWarning('Some tools are not available');
+		const ordinaryWarning = findWarning('Ordinary warning');
 		const disclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
 		assert.deepStrictEqual({
 			warningVisible: !!warning,
 			warningInsideDisclosure: !!warning && !!disclosure?.contains(warning),
 			warningBeforeDisclosure: !!warning && !!disclosure && !!(warning.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING),
+			ordinaryWarningInsideDisclosure: !!ordinaryWarning && !!disclosure?.contains(ordinaryWarning),
 			disclosureLabel: disclosure?.querySelector('.completed-response-summary')?.textContent,
 			disclosureReusedOnRerender: !!disclosure && disclosure === firstDisclosure,
 		}, {
 			warningVisible: true,
 			warningInsideDisclosure: false,
 			warningBeforeDisclosure: true,
-			disclosureLabel: 'Completed 2 steps',
+			ordinaryWarningInsideDisclosure: true,
+			disclosureLabel: 'Completed 3 steps',
 			disclosureReusedOnRerender: true,
 		});
 

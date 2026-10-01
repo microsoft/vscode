@@ -3611,11 +3611,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
 		}
-		// Warnings stay visible above the disclosure instead of being folded into the steps.
+		// Warnings that opt in stay visible above the disclosure instead of being folded into the steps.
 		const warningIndexes = new Set<number>();
 		const warningNodes = new Set<Node>();
 		for (let index = collapseStartIndex; index < collapseEndIndex; index++) {
-			const warningNode = content[index]?.kind === 'warning' ? templateData.renderedParts?.[index]?.domNode : undefined;
+			const part = content[index];
+			const warningNode = part?.kind === 'warning' && part.keepVisibleWhenCollapsed ? templateData.renderedParts?.[index]?.domNode : undefined;
 			if (warningNode && (warningNode.parentElement === templateData.value || warningNode.parentElement === templateData.completedResponseDisclosure)) {
 				warningIndexes.add(index);
 				warningNodes.add(warningNode);

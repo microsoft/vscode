@@ -3051,10 +3051,11 @@ suite('stateToProgressAdapter', () => {
 				}),
 			}]), undefined);
 
-			assert.deepStrictEqual(result.map(part => part.kind === 'warning' ? { kind: part.kind, value: part.content.value, isTrusted: part.content.isTrusted } : part), [{
+			assert.deepStrictEqual(result.map(part => part.kind === 'warning' ? { kind: part.kind, value: part.content.value, isTrusted: part.content.isTrusted, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed } : part), [{
 				kind: 'warning',
 				value: 'Only 128 of 200 \\[enabled\\]\\(command:evil\\) tools are available to this model. [Configure Tools](command:aiCustomization.openManagementEditor?%5B%22tools%22%5D)',
 				isTrusted: { enabledCommands: ['aiCustomization.openManagementEditor'] },
+				keepVisibleWhenCollapsed: true,
 			}]);
 		});
 

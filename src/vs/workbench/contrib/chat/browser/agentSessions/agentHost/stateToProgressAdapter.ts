@@ -566,7 +566,7 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			};
 		}
 		case AgentSystemNotificationKind.ByokToolLimitExceeded:
-			return { kind: 'warning', content: withConfigureToolsLink(markdown.value) };
+			return { kind: 'warning', content: withConfigureToolsLink(markdown.value), keepVisibleWhenCollapsed: true };
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }

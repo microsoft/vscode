@@ -390,6 +390,11 @@ export interface IChatTaskResult {
 export interface IChatWarningMessage {
 	content: IMarkdownString;
 	kind: 'warning';
+	/**
+	 * Keeps the warning visible instead of folding it into a completed
+	 * response's collapsed steps.
+	 */
+	keepVisibleWhenCollapsed?: boolean;
 }
 
 export interface IChatInfoMessage {
