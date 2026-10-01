@@ -834,13 +834,15 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			DOM.clearNode(template.folderRow);
 			if (showDetailsRow && statusMessage !== undefined) {
 				const statusElement = DOM.append(template.folderRow, $('span.session-description'));
-				if (typeof statusMessage === 'string') {
-					statusElement.textContent = statusMessage;
-				} else if (this.markdownRendererService) {
-					descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusElement);
+				const statusDescription = typeof statusMessage === 'string'
+					? statusMessage
+					: renderAsPlaintext(statusMessage, { omitMarkdownSyntax: true });
+				if (typeof statusMessage === 'string' || !this.markdownRendererService) {
+					statusElement.textContent = statusDescription;
 				} else {
-					statusElement.textContent = renderAsPlaintext(statusMessage, { omitMarkdownSyntax: true });
+					descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusElement);
 				}
+				reader.store.add(this.hoverService.setupDelayedHover(statusElement, { content: statusDescription }, { groupId: 'sessions-list' }));
 			} else if (showDetailsRow && folderLabel && chatWorkspace) {
 				const kind = getSessionWorkspaceKind(chatWorkspace, false);
 				const icon = kind === SessionWorkspaceKind.Worktree ? Codicon.worktreeCompact : Codicon.folderCompact;
@@ -2870,7 +2872,8 @@ class SessionsAccessibilityProvider {
 				const chatStatus = element.chat.status.read(reader);
 				const updatedAt = chatStatus === SessionStatus.InProgress ? undefined : element.chat.updatedAt.read(reader);
 				const status = getSessionConversationStatusAriaLabel(chatStatus);
-				const statusMessage = getSessionStatusMessage(chatStatus, element.chat.description.read(reader));
+				const chatDescription = element.chat.description.read(reader);
+				const statusMessage = getSessionStatusMessage(chatStatus, chatDescription);
 				const folderLabel = getChatWorkspaceBadgeLabel(element.session.workspace.read(reader), element.chat.workspace.read(reader));
 				let label = updatedAt
 					? folderLabel
@@ -2879,7 +2882,7 @@ class SessionsAccessibilityProvider {
 					: folderLabel
 						? localize('sessionChatItemFolderWithoutTimeAria', "{0}, chat in folder {1}, {2}", title, folderLabel, status)
 						: localize('sessionChatItemWithoutTimeAria', "{0}, chat, {1}", title, status);
-				if (statusMessage !== undefined) {
+				if (statusMessage !== undefined && (chatStatus === SessionStatus.InProgress || chatDescription !== undefined)) {
 					const statusMessageText = typeof statusMessage === 'string'
 						? statusMessage
 						: renderAsPlaintext(statusMessage, { omitMarkdownSyntax: true });
