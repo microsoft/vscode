@@ -10,7 +10,7 @@ import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
@@ -5147,7 +5147,60 @@ suite('Sessions - SessionsList', () => {
 					},
 				])
 			), {
-				'Active chat': { hasProgress: true, hasDot: false, hasDiscussion: false, ariaLabel: 'Active chat, chat, updated now, State: In Progress' },
+				'Active chat': { hasProgress: true, hasDot: false, hasDiscussion: false, ariaLabel: 'Active chat, chat, State: In Progress, Working...' },
+			});
+		});
+
+		test('shows each chat activity instead of modified time while in progress', () => {
+			const firstStatus = observableValue('first-chat-status', SessionStatus.InProgress);
+			const firstDescription = observableValue<IMarkdownString | undefined>('first-chat-description', new MarkdownString('Reading files'));
+			const firstUpdatedAt = observableValue<Date | undefined>('first-chat-updatedAt', new Date());
+			const first = {
+				...createChat('First task', ChatOriginKind.User),
+				status: firstStatus,
+				description: firstDescription,
+				updatedAt: firstUpdatedAt,
+			};
+			const secondStatus = observableValue('second-chat-status', SessionStatus.InProgress);
+			const secondDescription = observableValue<IMarkdownString | undefined>('second-chat-description', new MarkdownString('Running tests'));
+			const second = {
+				...createChat('Second task', ChatOriginKind.User),
+				status: secondStatus,
+				description: secondDescription,
+			};
+			const main = createChat('Main chat');
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, first, second]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const container = renderSessionChats(session);
+			const snapshot = () => Object.fromEntries(
+				[...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(item => [
+					item.querySelector('.session-chat-title')?.textContent,
+					{
+						message: item.querySelector('.session-chat-folder-row .session-description')?.textContent,
+						time: item.querySelector('.session-chat-time')?.textContent,
+						ariaLabel: item.closest('.monaco-list-row')?.getAttribute('aria-label'),
+					},
+				])
+			);
+
+			const whileActive = snapshot();
+			firstStatus.set(SessionStatus.Completed, undefined);
+			const afterFirstCompletes = snapshot();
+
+			assert.deepStrictEqual({ whileActive, afterFirstCompletes }, {
+				whileActive: {
+					'First task': { message: 'Reading files', time: undefined, ariaLabel: 'First task, chat, State: In Progress, Reading files' },
+					'Second task': { message: 'Running tests', time: undefined, ariaLabel: 'Second task, chat, State: In Progress, Running tests' },
+				},
+				afterFirstCompletes: {
+					'First task': { message: undefined, time: 'now', ariaLabel: 'First task, chat, updated now, State: Completed' },
+					'Second task': { message: 'Running tests', time: undefined, ariaLabel: 'Second task, chat, State: In Progress, Running tests' },
+				},
 			});
 		});
 
