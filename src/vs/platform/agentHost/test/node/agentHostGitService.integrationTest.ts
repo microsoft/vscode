@@ -596,6 +596,39 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree captures racily clean same-size edits without changing the real index', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		run('config', 'core.checkStat', 'minimal');
+		run('config', 'core.trustctime', 'false');
+		const trackedFile = join(dir, 'tracked.txt');
+		const indexFile = join(dir, '.git', 'index');
+		const timestamp = new Date('2000-01-01T00:00:00.000Z');
+		await fs.writeFile(trackedFile, 'one\n');
+		await fs.utimes(trackedFile, timestamp, timestamp);
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+
+		// Matching file/index timestamps force Git's racy-clean content check without sleeps.
+		await fs.writeFile(trackedFile, 'two\n');
+		await fs.utimes(trackedFile, timestamp, timestamp);
+		await fs.utimes(indexFile, timestamp, timestamp);
+		const indexBefore = await fs.readFile(indexFile);
+		assert.strictEqual(run('--no-optional-locks', 'status', '--porcelain=v1').toString(), ' M tracked.txt\n');
+
+		const tree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+		assert.ok(tree, 'expected a working-tree snapshot');
+		assert.deepStrictEqual({
+			content: run('show', `${tree}:tracked.txt`).toString(),
+			indexUnchanged: indexBefore.equals(await fs.readFile(indexFile)),
+			indexMtime: (await fs.stat(indexFile)).mtime.toISOString(),
+		}, {
+			content: 'two\n',
+			indexUnchanged: true,
+			indexMtime: timestamp.toISOString(),
+		});
+	});
+
 	(hasGit ? test : test.skip)('computes bounded per-file patches from an immutable working-tree snapshot', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();
