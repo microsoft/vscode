@@ -441,7 +441,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 		const harness = await createContribution(store, [discoveredSession()], { storageService: storage });
 		const address = cloudSandboxAddress('env-1');
 		const provider = harness.contribution.stubProviders.get(address)!;
-		await provider.config.deleteSessionsOnDemand!(['sess-1']);
+		await provider.config.deleteSessionsOnDemand!.deleteSessions(['sess-1']);
 		harness.contribution.dispose();
 		const restored = await createContribution(store, [], {
 			storageService: storage,
@@ -466,7 +466,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 			storageService: storage, deleteTask: async () => { throw new Error('delete rejected'); },
 		});
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
-		await assert.rejects(provider.config.deleteSessionsOnDemand!(['sess-1']), /delete rejected/);
+		await assert.rejects(provider.config.deleteSessionsOnDemand!.deleteSessions(['sess-1']), /delete rejected/);
 		const beforeReload = { sessions: provider.seeded.length, disposed: provider.disposed, disconnected: [...harness.disconnectedFrom] };
 		harness.contribution.dispose();
 		const restored = await createContribution(store, [], {
@@ -480,7 +480,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 	test('stale discovery cannot recreate a deleted task', async () => {
 		const harness = await createContribution(store, [discoveredSession()]);
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
-		await provider.config.deleteSessionsOnDemand!(['sess-1']);
+		await provider.config.deleteSessionsOnDemand!.deleteSessions(['sess-1']);
 		await harness.runDiscovery();
 		assert.deepStrictEqual({
 			sameProvider: harness.contribution.stubProviders.get(cloudSandboxAddress('env-1')) === provider,
@@ -491,8 +491,12 @@ suite('CloudSandboxAgentHostContribution', () => {
 	test('does not delete a different session sharing an environment', async () => {
 		const harness = await createContribution(store, [discoveredSession()]);
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
-		await assert.rejects(provider.config.deleteSessionsOnDemand!(['not-the-discovered-session']), /session not found/);
-		assert.deepStrictEqual({ deletedTasks: harness.deletedTasks, disposed: provider.disposed }, { deletedTasks: [], disposed: false });
+		assert.deepStrictEqual({
+			ownsInventorySession: provider.config.deleteSessionsOnDemand!.ownsSession('sess-1'),
+			ownsOtherSession: provider.config.deleteSessionsOnDemand!.ownsSession('not-the-discovered-session'),
+			deletedTasks: harness.deletedTasks,
+			disposed: provider.disposed,
+		}, { ownsInventorySession: true, ownsOtherSession: false, deletedTasks: [], disposed: false });
 	});
 
 	test('seeds the discovered repository so a never-opened session is not workspace-less', async () => {

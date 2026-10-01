@@ -44,7 +44,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	constructor(
 		address: string,
 		workspaceRepositories: IObservable<ReadonlySet<string> | undefined>,
-		private readonly _deleteSession: (rawId: string, token: CancellationToken) => Promise<void>,
+		private readonly _deleteSession: (rawId: string, token: CancellationToken) => Promise<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentHostAuthenticationService authenticationService: IRemoteAgentHostAuthenticationService,
 	) {
@@ -175,10 +175,8 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		if (resource.scheme !== this.sessionType) {
 			throw new Error(localize('cloudSandbox.deleteInvalidSession', "The session does not belong to this sandbox."));
 		}
-		if (resource.fragment) {
+		if (resource.fragment || !await this._deleteSession(AgentSession.id(resource), token)) {
 			await this._controller.deleteChatSessionItem(resource, token);
-		} else {
-			await this._deleteSession(AgentSession.id(resource), token);
 		}
 	}
 

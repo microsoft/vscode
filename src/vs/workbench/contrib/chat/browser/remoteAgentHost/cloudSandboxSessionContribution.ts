@@ -424,6 +424,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._storageService.storeAll(entries, false);
 	}
 
+	protected _ownsSandboxSession(address: string, rawId: string): boolean {
+		const environment = this._environments.get(address);
+		return !!environment?.taskId && environment.sessionId === rawId;
+	}
+
 	protected async _deleteSandboxSession(address: string, sessionIds: readonly string[], removeSession: (rawId: string) => void, token: CancellationToken = CancellationToken.None): Promise<void> {
 		const environment = this._environments.get(address);
 		if (!environment?.taskId || !environment.sessionId || sessionIds.some(id => id !== environment.sessionId)) {

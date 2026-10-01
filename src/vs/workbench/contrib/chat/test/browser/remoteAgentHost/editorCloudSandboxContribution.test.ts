@@ -163,7 +163,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
-	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[] };
+	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
 		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
@@ -174,6 +174,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		hidden: false,
 		accountKey: 'github:editor-account' as string | undefined,
 		connectError: undefined as Error | undefined,
+		disposeSessionError: undefined as Error | undefined,
 		hostSessions: [{
 			session: backendSession, summary: discovered.name,
 			startTime: Date.parse(discovered.updatedAt!), modifiedTime: Date.parse(discovered.updatedAt!),
@@ -190,6 +191,13 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override readonly initializeResult = constObservable(undefined);
 		override readonly resourceUris = createAgentHostResourceUriMapper(authority);
 		override async listSessions(): Promise<IAgentSessionMetadata[]> { return state.hostSessions; }
+		override async disposeSession(session: URI): Promise<void> {
+			calls.disposedSessions.push(session.toString());
+			if (state.disposeSessionError) {
+				throw state.disposeSessionError;
+			}
+			state.hostSessions = state.hostSessions.filter(entry => entry.session.toString() !== session.toString());
+		}
 	}();
 	const chatSessionsService = new class extends mock<IChatSessionsService>() {
 		override readonly onDidChangeItemsProviders = Event.None;
@@ -381,6 +389,40 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const rejectDeletion of [false, true]) {
+		test(`deletes additional connected sessions through AHP: rejected=${rejectDeletion}`, async () => {
+			const h = createHarness(store, { workspaceFolders: [] });
+			const additionalBackend = AgentSession.uri('ahp-session', 'additional-session');
+			const additionalResource = resource.with({ path: '/additional-session' });
+			h.state.hostSessions.push({
+				...h.state.hostSessions[0],
+				session: additionalBackend,
+				summary: 'Additional session',
+			});
+			h.state.online = true;
+			await h.refresh();
+			await h.contribution.activate();
+			await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+			if (rejectDeletion) {
+				h.state.disposeSessionError = new Error('AHP deletion rejected');
+				await assert.rejects(h.chatSessionsService.deleteChatSessionItem(additionalResource, CancellationToken.None), /AHP deletion rejected/);
+			} else {
+				await h.chatSessionsService.deleteChatSessionItem(additionalResource, CancellationToken.None);
+			}
+			assert.deepStrictEqual({
+				deletedTasks: h.calls.deletedTasks,
+				disposedSessions: h.calls.disposedSessions,
+				items: h.items().map(item => item.resource.toString()).sort(),
+				controllerRegistered: h.controllers.has(sessionType),
+			}, {
+				deletedTasks: [],
+				disposedSessions: [additionalBackend.toString()],
+				items: (rejectDeletion ? [resource.toString(), additionalResource.toString()] : [resource.toString()]).sort(),
+				controllerRegistered: true,
+			});
+		});
+	}
 
 	test('enables the context-menu command and deletes an offline discovered sandbox through Mission Control', async () => {
 		const h = createHarness(store);

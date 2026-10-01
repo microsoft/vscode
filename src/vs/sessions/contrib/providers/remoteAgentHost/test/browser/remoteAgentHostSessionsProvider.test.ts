@@ -3860,6 +3860,79 @@ suite('CloudSandboxSessionsProvider discovery status', () => {
 suite('CloudSandboxSessionsProvider deletion', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const targets of [['additional-session'], ['sandbox-session', 'additional-session'], ['additional-session', 'sandbox-session']]) {
+		test(`routes mixed catalogs to their deletion owners: ${targets.join(', ')}`, async () => {
+			const operations: string[] = [];
+			const connection = store.add(new class extends MockAgentConnection {
+				override async disposeSession(session: URI): Promise<void> {
+					operations.push(`ahp:${session.toString()}`);
+					await super.disposeSession(session);
+				}
+			}());
+			const metadata = ['sandbox-session', 'additional-session'].map(id => createSession(id, { provider: 'copilot' }));
+			for (const session of metadata) {
+				connection.addSession({ ...session, session: session.session.with({ scheme: 'ahp-session' }) });
+			}
+			const provider = createProvider(store.add(new DisposableStore()), connection, {
+				address: 'cloudsandbox:mixed-delete',
+				ctor: CloudSandboxSessionsProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				noConnection: true,
+				deleteSessionsOnDemand: {
+					ownsSession: id => id === 'sandbox-session',
+					deleteSessions: async ids => {
+						operations.push(`missionControl:${ids.join(',')}`);
+						for (const id of ids) {
+							sandbox.removeDeletedSession(id);
+						}
+						provider.clearConnection();
+					},
+				},
+			});
+			const sandbox = provider as CloudSandboxSessionsProvider;
+			provider.setConnection(connection);
+			await timeout(0);
+			provider.seedSessions(metadata);
+			const sessions = targets.map(id => sandbox.getCachedSession(id)!);
+			await provider.deleteSessions(sessions.map(session => session.sessionId));
+			assert.deepStrictEqual({
+				supportsDelete: sessions.map(session => session.capabilities.get().supportsDelete),
+				operations,
+				remaining: provider.getSessions().map(session => AgentSession.id(session.resource)),
+			}, {
+				supportsDelete: targets.map(() => true),
+				operations: ['ahp:ahp-session:/additional-session', ...(targets.includes('sandbox-session') ? ['missionControl:sandbox-session'] : [])],
+				remaining: targets.includes('sandbox-session') ? [] : ['sandbox-session'],
+			});
+		});
+	}
+
+	test('does not delete the Mission Control task when a mixed batch fails on AHP', async () => {
+		const connection = store.add(new class extends MockAgentConnection {
+			override async disposeSession(): Promise<void> {
+				throw new Error('AHP deletion rejected');
+			}
+		}());
+		const owned: string[] = [];
+		const metadata = [createSession('sandbox-session'), createSession('additional-session')];
+		for (const session of metadata) {
+			connection.addSession(session);
+		}
+		const provider = createProvider(store.add(new DisposableStore()), connection, {
+			ctor: CloudSandboxSessionsProvider,
+			deleteSessionsOnDemand: {
+				ownsSession: id => id === 'sandbox-session',
+				deleteSessions: async ids => { owned.push(...ids); },
+			},
+		});
+		provider.seedSessions(metadata);
+		const sessions = provider.getSessions();
+		await assert.rejects(provider.deleteSessions(sessions.map(session => session.sessionId)), /AHP deletion rejected/);
+		assert.deepStrictEqual({ owned, remaining: provider.getSessions().map(session => AgentSession.id(session.resource)) }, {
+			owned: [], remaining: ['sandbox-session', 'additional-session'],
+		});
+	});
+
 	for (const connected of [false, true]) {
 		test(`deletes through the inventory owner without AHP: connected=${connected}`, async () => {
 			const connection = store.add(new MockAgentConnection());
@@ -3873,11 +3946,14 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 				noConnection: true,
 				readOnlyWhenDisconnected: true,
 				connectOnDemand: async () => { connects++; },
-				deleteSessionsOnDemand: async ids => {
-					deleted.push([...ids]);
-					for (const id of ids) {
-						sandbox.removeDeletedSession(id);
-					}
+				deleteSessionsOnDemand: {
+					ownsSession: id => id === 'sandbox-session',
+					deleteSessions: async ids => {
+						deleted.push([...ids]);
+						for (const id of ids) {
+							sandbox.removeDeletedSession(id);
+						}
+					},
 				},
 			});
 			const sandbox = provider as CloudSandboxSessionsProvider;
@@ -3906,7 +3982,10 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 		const connection = store.add(new MockAgentConnection());
 		const provider = createProvider(store.add(new DisposableStore()), connection, {
 			ctor: CloudSandboxSessionsProvider, noConnection: true,
-			deleteSessionsOnDemand: async () => { throw new Error('Mission Control rejected deletion'); },
+			deleteSessionsOnDemand: {
+				ownsSession: id => id === 'sandbox-session',
+				deleteSessions: async () => { throw new Error('Mission Control rejected deletion'); },
+			},
 		});
 		provider.seedSessions([createSession('sandbox-session')]);
 		const session = provider.getSessions()[0];
