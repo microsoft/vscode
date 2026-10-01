@@ -22,6 +22,7 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
+import { parseGitHubCommitTarget, type IGitHubCommitTarget } from '../../../../platform/github/common/githubUrls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -33,7 +34,6 @@ import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveAr
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
-import { parseGitHubCommitTarget, type IGitHubCommitTarget } from '../../../../workbench/contrib/github/browser/githubCommitResolver.js';
 import { createCommitResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
 import { SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';

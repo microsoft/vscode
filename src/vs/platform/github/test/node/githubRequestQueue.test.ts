@@ -50,7 +50,7 @@ suite('GitHubRequestQueue', () => {
 	test('counts parked requests and reserves admission for interactive work', async () => {
 		const scheduler = store.add(new FakeGitHubScheduler());
 		const queue = store.add(new GitHubRequestQueue(scheduler,
-			request => request.account.accountId === '1' ? Math.max(0, 1_000 - scheduler.now()) : 0,
+			request => request.account.kind !== 'anonymous' && request.account.accountId === '1' ? Math.max(0, 1_000 - scheduler.now()) : 0,
 			{ maximumRequests: 4, maximumAccountRequests: 4, maximumCallerRequests: 4, reservedInteractiveRequests: 1 }));
 		let dispatched = 0;
 		const parked = Array.from({ length: 3 }, () => queue.enqueue(context({ priority: 'background' }), async () => { dispatched++; }));

@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { isObject } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -16,7 +15,8 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, TurnState, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import type { GitHubIssueOrPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import type { GitHubIssueOrPullRequest } from '../../github/common/githubQueryService.js';
+import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
@@ -24,7 +24,6 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH = 40;
 const MAX_TITLE_TOKENS = 32;
 const GITHUB_CONTEXT_REQUEST_TIMEOUT = 5_000;
-const MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS = 5;
 const MAX_GITHUB_CONTEXT_BODY_CHARS = 4_000;
 const MAX_GITHUB_CONTEXT_REFERENCES = 10;
 const MAX_TRAILING_HAN_SUFFIX_CODE_UNITS = 6;
@@ -92,7 +91,7 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly getGitHubToken?: () => string | undefined;
 	readonly getGitHubHost?: () => string | undefined;
 	readonly gitHubContextRequestTimeout?: number;
-	readonly octoKitService?: IAgentHostOctoKitService;
+	readonly gitHubService?: IAgentHostGitHubService;
 	readonly copilotApiService?: ICopilotApiService;
 	readonly getInitialTitleGenerationStrategy?: () => AutomaticTitleGenerationStrategy;
 }
@@ -677,23 +676,19 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	private async _appendGitHubContext(promptContent: string, referenceSource: string, cancellationSignal: AbortSignal, token: CancellationToken): Promise<string> {
 		const references = this._parseGitHubReferences(referenceSource);
 		const githubToken = this._options.getGitHubToken?.();
-		const octoKitService = this._options.octoKitService;
-		if (references.length === 0 || !githubToken || !octoKitService) {
+		const gitHubService = this._options.gitHubService;
+		if (references.length === 0 || !githubToken || !gitHubService) {
 			return promptContent;
 		}
 
 		const signal = AbortSignal.any([cancellationSignal, AbortSignal.timeout(this._options.gitHubContextRequestTimeout ?? GITHUB_CONTEXT_REQUEST_TIMEOUT)]);
-		const limiter = new Limiter<IGitHubReferenceContext | undefined>(MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS);
+		const store = new DisposableStore();
 		try {
-			const contexts = await Promise.all(references.map(reference => limiter.queue(async () => {
+			const client = store.add(gitHubService.acquireRepositoryClient(signal)).object;
+			const { account } = await client.credentials.getCredential(signal);
+			const contexts = await Promise.all(references.map(async reference => {
 				try {
-					const value = await octoKitService.getIssueOrPullRequest(
-						reference.owner,
-						reference.repo,
-						reference.number,
-						githubToken,
-						signal,
-					);
+					const value = await client.query.getIssueOrPullRequest({ ...account, owner: reference.owner, repo: reference.repo, number: reference.number }, signal);
 					return { reference, value };
 				} catch (error) {
 					if (!token.isCancellationRequested) {
@@ -701,7 +696,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 					}
 					return undefined;
 				}
-			})));
+			}));
 			const successfulContexts = contexts.filter(context => context !== undefined);
 			if (successfulContexts.length === 0) {
 				return promptContent;
@@ -712,8 +707,13 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			const contentBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - gitHubContext.length - separator.length);
 			const content = promptContent.length > contentBudget ? truncateMiddle(promptContent, contentBudget) : promptContent;
 			return `${content}${separator}${gitHubContext}`;
+		} catch (error) {
+			if (!token.isCancellationRequested) {
+				this._logService.warn('[AgentHostSessionTitleController] Failed to acquire GitHub context', error);
+			}
+			return promptContent;
 		} finally {
-			limiter.dispose();
+			store.dispose();
 		}
 	}
 

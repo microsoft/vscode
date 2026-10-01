@@ -24,7 +24,7 @@ import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/
 import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
-import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigrationFailureReason } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigrationFailureReason, mcpServerCustomizationMigrationRemovableProperties } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
 
@@ -159,6 +159,7 @@ export class McpServerCustomizationMigrator {
 				excluded(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 				continue;
 			}
+			const removedProperties = getRemovedProperties(rawConfiguration);
 			candidates.push({
 				type: CustomizationMigrationType.McpServers,
 				storage,
@@ -167,6 +168,7 @@ export class McpServerCustomizationMigrator {
 				sourceUri,
 				targetUri,
 				projectedConfiguration: server.projectedConfiguration,
+				...(removedProperties ? { removedProperties } : {}),
 			});
 		}
 
@@ -393,7 +395,8 @@ async function migrateGroup(
 				: McpServerCustomizationMigrationFailureReason.InvalidSource);
 			continue;
 		}
-		if (!equals(sourceConfiguration, migrationConfiguration)) {
+		if (!equals(sourceConfiguration, migrationConfiguration)
+			|| !equals(getRemovedProperties(sourceServers[candidate.name]), candidate.removedProperties)) {
 			reject(candidate, McpServerCustomizationMigrationFailureReason.SourceChanged);
 			continue;
 		}
@@ -894,9 +897,19 @@ function isPortableMigrationVariable(name: string, argument: string | undefined)
 
 function hasOnlyRepresentableProperties(rawConfiguration: Record<string, unknown>, type: McpServerType): boolean {
 	const allowed = type === McpServerType.LOCAL
-		? new Set(['type', 'command', 'args', 'env', 'cwd'])
-		: new Set(['type', 'transport', 'url', 'headers']);
+		? new Set(['type', 'command', 'args', 'env', 'cwd', ...mcpServerCustomizationMigrationRemovableProperties])
+		: new Set(['type', 'transport', 'url', 'headers', ...mcpServerCustomizationMigrationRemovableProperties.filter(property => property !== 'sandboxEnabled')]);
 	return Object.keys(rawConfiguration).every(key => allowed.has(key));
+}
+
+function getRemovedProperties(rawConfiguration: unknown): IMcpServerCustomizationMigrationCandidate['removedProperties'] {
+	if (!isJsonObject(rawConfiguration)) {
+		return undefined;
+	}
+	const entries = mcpServerCustomizationMigrationRemovableProperties
+		.filter(property => Object.hasOwn(rawConfiguration, property))
+		.map(property => [property, rawConfiguration[property]] as const);
+	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
 function setJsonValue(content: string, path: readonly string[], value: unknown): string {

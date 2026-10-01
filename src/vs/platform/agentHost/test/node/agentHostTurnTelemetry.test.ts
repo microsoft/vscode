@@ -50,6 +50,7 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
@@ -296,6 +297,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
+		services.set(IAgentHostSessionPromptService, {
+			_serviceBrand: undefined,
+			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+		});
 		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
 		const providerService = createTestAgentHostProviderService(() => agent);
@@ -1749,6 +1754,34 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			workingDirectory: undefined,
 			checkpoint: undefined,
 			providerDispatch: undefined,
+		});
+	});
+
+	test('attributes provider time between dispatch and first progress to the stages the provider marked', () => {
+		setupSession();
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn-provider', undefined, undefined, 'default', undefined, undefined);
+		const recorder = turnTracker.createProviderStageRecorder(defaultChatUri, 'turn-provider');
+		// Marks before dispatch belong to the host, not the provider.
+		recorder.mark('queue');
+		turnTracker.markSendDispatched(defaultChatUri, 'turn-provider');
+		recorder.mark('create');
+		recorder.mark('modelResponse');
+		turnTracker.markFirstProgress(defaultChatUri, 'turn-provider');
+		// Work after first progress is not part of time-to-first-progress.
+		recorder.mark('persist');
+		turnTracker.turnCompleted(defaultChatUri, 'turn-provider', 'success');
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			queue: data.providerStageQueueMs,
+			create: typeof data.providerStageCreateMs,
+			modelResponse: typeof data.providerStageModelResponseMs,
+			persist: data.providerStagePersistMs,
+		}, {
+			queue: undefined,
+			create: 'number',
+			modelResponse: 'number',
+			persist: undefined,
 		});
 	});
 

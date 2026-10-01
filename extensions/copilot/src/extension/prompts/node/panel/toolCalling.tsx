@@ -25,6 +25,7 @@ import { IChatEndpoint } from '../../../../platform/networking/common/networking
 import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { thinkingOriginFromMetadata } from '../../../../platform/thinking/common/thinking';
 import { toErrorMessage } from '../../../../util/common/errorMessage';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../../util/vs/base/common/errors';
@@ -49,6 +50,8 @@ export interface ChatToolCallsProps extends BasePromptElementProps {
 	readonly toolCallRounds: readonly IToolCallRound[] | undefined;
 	readonly toolCallResults: Record<string, LanguageModelToolResult2> | undefined;
 	readonly isHistorical?: boolean;
+	/** Whether completed rounds belong to the user task continued by a system notification. */
+	readonly isCurrentTask?: boolean;
 	readonly toolCallMode?: CopilotToolMode;
 	readonly enableCacheBreakpoints?: boolean;
 	readonly truncateAt?: number;
@@ -141,7 +144,9 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
 			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking)
 			|| (this.promptEndpoint.apiType === 'chatCompletions' && this.promptEndpoint.supportsThinkingContentInHistory);
-		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || apiSupportsHistoricalThinking);
+		const thinkingApi = this.promptEndpoint.apiType ?? round.originApi ?? thinkingOriginFromMetadata(round.thinking?.metadata);
+		const continuesCurrentTask = this.props.isCurrentTask && thinkingApi === 'chatCompletions';
+		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || continuesCurrentTask || apiSupportsHistoricalThinking);
 		// Record which API produced this round so the request builders can tell replayable
 		// reasoning from foreign state without guessing from the payload's id.
 		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} originApi={round.originApi} />;

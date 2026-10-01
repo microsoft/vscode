@@ -11,7 +11,7 @@ import type { IChatEndpoint } from '../../../networking/common/networking';
 import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isGpt6Family, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
-	return { family, model } as unknown as IChatEndpoint;
+	return { family, model, name: model } as unknown as IChatEndpoint;
 }
 
 describe('OpenAI prompt model classification', () => {
@@ -95,6 +95,28 @@ describe('GPT-6 family capabilities', () => {
 			isGpt6Family(family),
 			isGpt6Family(fakeModel(family, 'gpt-6')),
 		]).toEqual([false, false]);
+	});
+});
+
+describe('VSC Model F edit tool capabilities', () => {
+	test('uses replace-string tools exclusively when identified by family', () => {
+		const model = fakeModel('vscModelF-preview', 'opaque-model-id');
+
+		expect({
+			supportsApplyPatch: modelSupportsApplyPatch(model),
+			canUseApplyPatchExclusively: modelCanUseApplyPatchExclusively(model),
+			supportsSimplifiedApplyPatchInstructions: modelSupportsSimplifiedApplyPatchInstructions(model),
+			supportsReplaceString: modelSupportsReplaceString(model),
+			supportsMultiReplaceString: modelSupportsMultiReplaceString(model),
+			canUseReplaceStringExclusively: modelCanUseReplaceStringExclusively(model),
+		}).toEqual({
+			supportsApplyPatch: false,
+			canUseApplyPatchExclusively: false,
+			supportsSimplifiedApplyPatchInstructions: false,
+			supportsReplaceString: true,
+			supportsMultiReplaceString: true,
+			canUseReplaceStringExclusively: true,
+		});
 	});
 });
 

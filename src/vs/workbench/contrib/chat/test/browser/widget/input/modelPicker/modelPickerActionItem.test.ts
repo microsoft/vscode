@@ -90,6 +90,7 @@ suite('ModelPickerActionItem', () => {
 		const delegate: IModelPickerDelegate = {
 			currentModel: constObservable(model),
 			setModel: () => { },
+			setModelProgrammatically: () => { },
 			getModels: () => [model],
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true,
@@ -147,6 +148,7 @@ suite('ModelPickerActionItem', () => {
 			setSelectedModel: () => { },
 			setCompact: () => { },
 			setContextViewLayer: layer => contextViewLayers.push(layer),
+			setForceTabbedPicker: () => { },
 			render: container => container.appendChild(widgetElement),
 			show: anchor => anchors.push(anchor),
 			dispose: () => disposed++,
@@ -155,6 +157,7 @@ suite('ModelPickerActionItem', () => {
 		const delegate: IModelPickerDelegate = {
 			currentModel: constObservable(undefined),
 			setModel: () => { },
+			setModelProgrammatically: () => { },
 			getModels: () => [],
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true,

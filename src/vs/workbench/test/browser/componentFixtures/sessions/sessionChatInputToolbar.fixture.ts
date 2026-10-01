@@ -16,6 +16,7 @@ import { IFileContent, IFileService } from '../../../../../platform/files/common
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
 import { chatPersistentContentVisibleClass } from '../../../../contrib/chat/browser/widget/chatWidget.js';
+import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS } from '../../../../contrib/chat/common/sessionChatPills.js';
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../contrib/browserView/common/browserView.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -238,6 +239,12 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 		},
 	});
 
+	const visibility = instantiationService.get(ISessionChatPillVisibilityService);
+	for (const kind of SESSION_CHAT_PILL_KINDS) {
+		if (!visibility.isVisible(kind, undefined)) {
+			visibility.toggle(kind);
+		}
+	}
 	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined));
 	pills.setSession(sessionMock.session, sessionMock.chat);
 	pills.setDebugData(options?.debugData);
@@ -597,29 +604,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		}),
 	}),
 
-	SessionChatPills_ResponsiveWide: defineComponentFixture({
+	...Object.fromEntries([
+		['Wide', '600px'],
+		['Medium', '280px'],
+		['Narrow', '180px'],
+		['Overflow', '60px'],
+	].map(([name, width]) => [`SessionChatPills_Responsive${name}`, defineComponentFixture({
 		render: ctx => renderPills(ctx, createMockSession({
 			status: SessionStatus.NeedsInput,
 			turnChanges: [editedFile('app.ts', 452, 85), editedFile('util.ts', 8, 2)],
 			artifacts: [{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') }],
 			browsers: [{ title: 'Project Preview' }, { title: 'Component Explorer' }],
-		}), {
-			compact: 'auto',
-			width: '600px',
-		}),
-	}),
-
-	SessionChatPills_ResponsiveNarrow: defineComponentFixture({
-		render: ctx => renderPills(ctx, createMockSession({
-			status: SessionStatus.NeedsInput,
-			turnChanges: [editedFile('app.ts', 452, 85), editedFile('util.ts', 8, 2)],
-			artifacts: [{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') }],
-			browsers: [{ title: 'Project Preview' }, { title: 'Component Explorer' }],
-		}), {
-			compact: 'auto',
-			width: '180px',
-		}),
-	}),
+			subagents: ['Review implementation', 'Review tests'],
+		}), { compact: 'auto', width }),
+	})])),
 
 	// --- Gating -------------------------------------------------------------
 

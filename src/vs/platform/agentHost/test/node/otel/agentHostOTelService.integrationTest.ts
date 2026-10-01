@@ -18,7 +18,7 @@ import {
 	IOtlpExportTraceServiceRequest,
 	OtlpSpanKind,
 } from '../../../../otel/node/otlp/otlpJsonTypes.js';
-import { AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
+import { AgentHostComparisonAttemptCountAttribute, AgentHostComparisonAttemptIndexAttribute, AgentHostComparisonIdAttribute, AgentHostComparisonRoleAttribute, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService, normalizeAgentHostOtlpBody, readAgentHostOTelEnv } from '../../../node/otel/agentHostOTelService.js';
 import { AgentHostOTelSpansDbSubPath } from '../../../common/agentService.js';
 
@@ -448,6 +448,53 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 				const operationNames = persisted.map(s => s.operation_name);
 				ok(operationNames.every(op => op === 'invoke_agent'));
 				notStrictEqual(persisted[0].request_model, null);
+			} finally {
+				reader.close();
+			}
+		} finally {
+			restoreEnv(saved);
+			await cleanup();
+		}
+	});
+
+	test('DB mode: adds bounded comparison metadata to the session anchor', async () => {
+		const saved = saveEnv();
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+		const cleanup = () => rm(tmp, { recursive: true, force: true }).catch(() => undefined);
+		try {
+			process.env.COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED = 'true';
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(tmp));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+
+			await svc.getSdkTelemetryConfig();
+			svc.setSessionComparisonMetadata('claude:/attempt', {
+				id: 'comparison-id',
+				role: 'attempt',
+				attemptIndex: 1,
+				attemptCount: 3,
+			});
+			svc.getSessionTraceContext('conversation', 'claude:/attempt');
+			await svc.flush();
+
+			const dbPath = svc.getSpansDbPath();
+			ok(dbPath);
+			const reader = new OTelSqliteStore(dbPath!.fsPath);
+			try {
+				const anchor = reader.getSpansByConversationId('conversation').find(span => span.name === AgentHostSessionSpanName);
+				ok(anchor);
+				deepStrictEqual({
+					comparisonId: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonIdAttribute),
+					role: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonRoleAttribute),
+					attemptIndex: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonAttemptIndexAttribute),
+					attemptCount: reader.getSpanAttribute(anchor.span_id, AgentHostComparisonAttemptCountAttribute),
+				}, {
+					comparisonId: 'comparison-id',
+					role: 'attempt',
+					attemptIndex: '1',
+					attemptCount: '3',
+				});
 			} finally {
 				reader.close();
 			}

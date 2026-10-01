@@ -198,7 +198,7 @@ export function isVSCModelB(model: LanguageModelChat | IChatEndpoint) {
 export function isVSCModelReplaceStringSet(model: LanguageModelChat | IChatEndpoint) {
 	const ID_hash = getCachedSha256Hash(getModelId(model));
 	const family_hash = getCachedSha256Hash(model.family);
-	return VSC_MODEL_HASHES_EDIT_TOOL_SET.includes(ID_hash) || VSC_MODEL_HASHES_EDIT_TOOL_SET.includes(family_hash);
+	return VSC_MODEL_HASHES_EDIT_TOOL_SET.includes(ID_hash) || VSC_MODEL_HASHES_EDIT_TOOL_SET.includes(family_hash) || isVSCModelF(model);
 }
 
 export function isVSCModelC(model: LanguageModelChat | IChatEndpoint) {
@@ -218,6 +218,11 @@ export function isVSCModelE(model: LanguageModelChat | IChatEndpoint) {
 	const ID_hash = getCachedSha256Hash(modelId);
 	const family_hash = getCachedSha256Hash(model.family);
 	return model.name.startsWith('vscModelE') || model.family.startsWith('vscModelE') || modelId.startsWith('vscModelE') || VSC_MODEL_HASHES_E.includes(ID_hash) || VSC_MODEL_HASHES_E.includes(family_hash);
+}
+
+export function isVSCModelF(model: LanguageModelChat | IChatEndpoint) {
+	const modelId = getModelId(model);
+	return model.name.startsWith('vscModelF') || model.family.startsWith('vscModelF') || modelId.startsWith('vscModelF');
 }
 
 export function isGpt52CodexFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {

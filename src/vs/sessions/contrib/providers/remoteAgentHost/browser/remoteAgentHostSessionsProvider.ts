@@ -294,6 +294,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
 		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
+			connectionAddress: config.address,
 			sessionSchemeAlias: this._sessionSchemeAlias,
 			defaultChangesetKind: this._defaultChangesetKind,
 		}));
@@ -990,12 +991,12 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._disposeAllNewSessions();
 		this._syncRootState(undefined);
 
-		// Drop only the transient pending/draft session; keep the persisted
+		// Drop only the transient pending/draft sessions; keep the persisted
 		// cache so the workspace picker keeps showing offline sessions.
-		if (this._pendingSession) {
-			const pending = this._pendingSession;
-			this._pendingSession = undefined;
-			this._onDidChangeSessions.fire({ added: [], removed: [pending], changed: [] });
+		if (this._pendingSessions.size > 0) {
+			const pending = [...this._pendingSessions.values()];
+			this._pendingSessions.clear();
+			this._onDidChangeSessions.fire({ added: [], removed: pending, changed: [] });
 		}
 
 		// Reset the in-memory cache-initialized flag so a fresh connection
