@@ -1835,14 +1835,16 @@ suite('mcpListWidget', () => {
 		test('shows configuration paths instead of descriptions in rows and accessible labels', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
-			const createServer = (id: string, label: string, path: string) => new class extends mock<IWorkbenchMcpServer>() {
+			const workspaceUri = URI.file('/workspace/.vscode/mcp.json');
+			const homeUri = URI.file('/Users/test/.config/mcp.json');
+			const createServer = (id: string, label: string, resource: URI) => new class extends mock<IWorkbenchMcpServer>() {
 				override readonly id = id;
 				override readonly label = label;
 				override readonly description = 'Server description';
 				override readonly name = label;
 				override readonly installState = McpServerInstallState.Installed;
 				override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() {
-					override readonly mcpResource = URI.file(path);
+					override readonly mcpResource = resource;
 				}();
 			}();
 			const render = (server: IWorkbenchMcpServer) => {
@@ -1856,18 +1858,18 @@ suite('mcpListWidget', () => {
 			};
 
 			assert.deepStrictEqual({
-				workspace: render(createServer('workspace-server', 'Workspace Server', '/workspace/.vscode/mcp.json')),
-				home: render(createServer('user-server', 'User Server', '/Users/test/.config/mcp.json')),
+				workspace: render(createServer('workspace-server', 'Workspace Server', workspaceUri)),
+				home: render(createServer('user-server', 'User Server', homeUri)),
 			}, {
 				workspace: {
 					path: '.vscode/mcp.json',
-					hover: '/workspace/.vscode/mcp.json',
+					hover: workspaceUri.fsPath,
 					description: '',
 					ariaLabel: 'Workspace Server, configured in .vscode/mcp.json',
 				},
 				home: {
 					path: '~/.config/mcp.json',
-					hover: '/Users/test/.config/mcp.json',
+					hover: homeUri.fsPath,
 					description: '',
 					ariaLabel: 'User Server, configured in ~/.config/mcp.json',
 				},

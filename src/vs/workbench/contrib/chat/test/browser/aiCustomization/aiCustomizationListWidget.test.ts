@@ -17,10 +17,12 @@ import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceService } f
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
-import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -514,6 +516,25 @@ suite('aiCustomizationListWidget', () => {
 		});
 	});
 
+	test('normalizes remote workspace customization locations through the label service', () => {
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI, options?: Parameters<ILabelService['getUriLabel']>[1]): string {
+				return `${options?.relative ? 'relative' : 'absolute'}:${resource.path}`;
+			}
+		}();
+		const normalizer = new AICustomizationItemNormalizer(labelService, new class extends mock<IProductService>() { }());
+		const item = normalizer.normalizeItem({
+			uri: URI.parse('vscode-remote://ssh-remote+host/workspace/.github/prompts/review.prompt.md'),
+			type: PromptsType.prompt,
+			name: 'Review',
+			source: PromptsStorage.local,
+			extensionId: undefined,
+			pluginUri: undefined,
+		}, PromptsType.prompt);
+
+		assert.strictEqual(item.filename, 'relative:/workspace/.github/prompts/review.prompt.md');
+	});
+
 	suite('extractExtensionIdFromPath', () => {
 		test('extracts extension ID from copilot-chat extension path', () => {
 			assert.strictEqual(
@@ -772,6 +793,54 @@ suite('aiCustomizationListWidget', () => {
 				descriptionDisplay: '',
 				secondaryText: '.github\\instructions\\typescript.instructions.md',
 				usesHookSecondaryTextStyling: true,
+			});
+		});
+
+		test('hook rows keep commands separate from recycled path labels', async () => {
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
+				id: 'prompt',
+				uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+				name: 'Review',
+				filename: '.github/prompts/review.prompt.md',
+				description: 'Review changes',
+				source: PromptsStorage.local,
+				promptType: PromptsType.prompt,
+				disabled: false,
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Prompts);
+			items.set([{
+				id: 'hook',
+				uri: URI.file('/workspace/.github/hooks/hooks.json'),
+				name: 'Pre Tool Use',
+				filename: '.github/hooks/hooks.json',
+				description: 'npm run lint',
+				source: PromptsStorage.local,
+				promptType: PromptsType.hook,
+				disabled: false,
+			}], undefined);
+			widget.layout(800, 500);
+
+			const row = widget.element.querySelector('.ai-customization-list-item');
+			assert.deepStrictEqual({
+				command: row?.querySelector<HTMLElement>('.item-description > .monaco-highlighted-label')?.textContent,
+				commandDisplay: row?.querySelector<HTMLElement>('.item-description > .monaco-highlighted-label')?.style.display,
+				pathDisplay: row?.querySelector<HTMLElement>('.item-path')?.style.display,
+			}, {
+				command: 'npm run lint',
+				commandDisplay: '',
+				pathDisplay: 'none',
 			});
 		});
 
