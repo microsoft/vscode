@@ -1375,7 +1375,7 @@ suite('ActionListWidget', () => {
 		});
 	});
 
-	test('applies toolbar scrollbar clearance only to detail rows', () => {
+	test('does not add right margin to action toolbars', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
 				{ ...action('plain'), toolbarActions: [toAction({ id: 'plain-toolbar', label: 'Plain Toolbar', run: () => { } })] },
@@ -1394,7 +1394,6 @@ suite('ActionListWidget', () => {
 		const detailRow = rows[1];
 		const detail = detailRow.querySelector<HTMLElement>('.detail')!;
 		const toolbar = detailRow.querySelector<HTMLElement>('.action-list-item-toolbar')!;
-		const verticalScrollbar = widget.domNode.querySelector<HTMLElement>('.scrollbar.vertical')!;
 		const initial = {
 			rowHeight: detailRow.getBoundingClientRect().height,
 			detailTop: detail.getBoundingClientRect().top,
@@ -1409,7 +1408,6 @@ suite('ActionListWidget', () => {
 			toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
 			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
 			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
-			clearsScrollbar: detailRow.getBoundingClientRect().right - toolbar.getBoundingClientRect().right >= verticalScrollbar.getBoundingClientRect().width,
 		};
 
 		assert.deepStrictEqual({
@@ -1431,15 +1429,14 @@ suite('ActionListWidget', () => {
 				detailTop: initial.detailTop,
 				toolbarDisplay: 'flex',
 				toolbarVisibility: 'hidden',
-				toolbarMarginRight: '10px',
+				toolbarMarginRight: '0px',
 			},
 			focused: {
 				rowHeight: 48,
 				detailTop: initial.detailTop,
 				toolbarDisplay: 'flex',
 				toolbarVisibility: 'visible',
-				toolbarMarginRight: '10px',
-				clearsScrollbar: true,
+				toolbarMarginRight: '0px',
 			},
 		});
 	});
