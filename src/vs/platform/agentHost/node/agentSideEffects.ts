@@ -2034,7 +2034,7 @@ export class AgentSideEffects extends Disposable {
 			if (agent.chats.prepareTurn) {
 				this._reportOverlapExperimentTrigger();
 				if (this._agentConfigService.getRootValue(platformRootSchema, AgentHostOverlapProviderPreparationConfigKey) === true) {
-					providerPreparation = agent.chats.prepareTurn(chatUri, resolvedWorkingDirectories, clientOperationContext).catch(err => {
+					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, clientOperationContext).catch(err => {
 						this._logService.warn(`[AgentSideEffects] Turn preparation failed for ${chat}; sending will prepare again`, err);
 					});
 				}

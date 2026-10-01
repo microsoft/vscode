@@ -691,9 +691,9 @@ suite('AgentSideEffects', () => {
 				},
 			});
 			setRootConfig({ [AgentHostOverlapProviderPreparationConfigKey]: true });
-			const preparedDirectories: (string[] | undefined)[] = [];
-			agent.chats.prepareTurn = async (_chat, workingDirectories) => {
-				preparedDirectories.push(workingDirectories?.map(directory => directory.toString()));
+			const prepared: { turnId: string; directories: string[] | undefined }[] = [];
+			agent.chats.prepareTurn = async (_chat, turnId, workingDirectories) => {
+				prepared.push({ turnId, directories: workingDirectories?.map(directory => directory.toString()) });
 				order.push('prepare:start');
 				await preparation.p;
 				order.push('prepare:end');
@@ -709,10 +709,10 @@ suite('AgentSideEffects', () => {
 			capture.complete();
 			await waitForSendMessageCalls(1);
 
-			assert.deepStrictEqual({ whileBothPending, whileCapturing, preparedDirectories }, {
+			assert.deepStrictEqual({ whileBothPending, whileCapturing, prepared }, {
 				whileBothPending: { order: ['checkpoint:start', 'prepare:start'], sends: 0 },
 				whileCapturing: { order: ['checkpoint:start', 'prepare:start', 'prepare:end'], sends: 0 },
-				preparedDirectories: [[URI.file('/wd').toString()]],
+				prepared: [{ turnId: 'turn-1', directories: [URI.file('/wd').toString()] }],
 			});
 		});
 

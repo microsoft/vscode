@@ -831,11 +831,11 @@ export interface IAgentChats {
 	 * Optional pre-send preparation, such as materializing a deferred provider
 	 * session, after the turn's model/agent selection and working directories
 	 * are resolved. The host may run it concurrently with the turn-start
-	 * checkpoint capture and awaits both before {@link sendMessage}, so
-	 * implementations must not send a prompt or modify the working tree.
-	 * Preparation that is not needed must resolve without doing work.
+	 * checkpoint capture and awaits both before {@link sendMessage} for the same
+	 * `turnId`, so implementations must not send a prompt or modify the working
+	 * tree. Preparation that is not needed must resolve without doing work.
 	 */
-	prepareTurn?(chat: URI, workingDirectories: readonly URI[] | undefined, context: AgentChatOperationContext): Promise<void>;
+	prepareTurn?(chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, context: AgentChatOperationContext): Promise<void>;
 
 	/** Prepare an existing chat for input without sending a turn. May acquire its native writer lock. */
 	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;

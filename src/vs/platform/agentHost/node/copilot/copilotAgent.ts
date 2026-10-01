@@ -969,6 +969,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
+	/** Exact chat key -> turn whose `prepareTurn` launched the chat's live session. */
+	private readonly _preparedTurnLaunches = new Map<string, string>();
 	/**
 	 * Last host-published customization snapshot per configuration scope (AGENTS.md section 8b).
 	 * Updated only from host call boundaries; absence is distinct from an empty list.
@@ -3674,7 +3676,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Chat-addressed surface for the chats within a session.
 	 */
 	readonly chats: IAgentChats = {
-		prepareTurn: (chat: URI, workingDirectories: readonly URI[] | undefined, context: URI | IAgentChatContext): Promise<void> => this._prepareTurn(chat, workingDirectories, context),
+		prepareTurn: (chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, context: URI | IAgentChatContext): Promise<void> => this._prepareTurn(chat, turnId, workingDirectories, context),
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			this._noteHostCustomizations(context);
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
@@ -4698,23 +4700,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 		context: IResolvedCopilotChatContext,
 		entry: CopilotAgentSession,
 		workingDirectories: readonly URI[] | undefined,
-		options: { readonly operation: 'sendMessage' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken },
+		options: { readonly operation: 'sendMessage' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken; readonly launchedForTurn?: boolean },
 	): Promise<CopilotAgentSession> {
 		const activeClient = this._activeClients.get(context.configurationResource);
 		// MCP Stop still needs the queued sync to finish before it can resolve the server to stop.
 		const waitToken = options.operation === 'sendMessage' ? options.token ?? CancellationToken.None : CancellationToken.None;
-		await activeClient?.pluginController.retryFailedClientSyncIfNeeded(waitToken);
-		const { operation, allowRestart, turnId } = options;
+		const { operation, allowRestart, turnId, launchedForTurn } = options;
 		const rootsChanged = workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
-		const currentSnapshot = activeClient ? await raceCancellationError(activeClient.snapshot(context.chatKey), waitToken) : undefined;
-		const structuralRestartReason = activeClient && currentSnapshot ? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, context.chatKey, currentSnapshot), waitToken) : undefined;
-		const currentDisabledRootMcpServers = currentSnapshot
-			? await raceCancellationError(this._disabledRootMcpServers(context.configurationResource, entry.sessionId, currentSnapshot), waitToken)
-			: undefined;
-		const disabledRootMcpServersChanged = !!currentDisabledRootMcpServers && !equals(
-			[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
-			[...new Set(currentDisabledRootMcpServers)].sort(),
-		);
+		let structuralRestartReason: string | undefined;
+		let disabledRootMcpServersChanged = false;
+		if (!launchedForTurn) {
+			await activeClient?.pluginController.retryFailedClientSyncIfNeeded(waitToken);
+			const currentSnapshot = activeClient ? await raceCancellationError(activeClient.snapshot(context.chatKey), waitToken) : undefined;
+			structuralRestartReason = activeClient && currentSnapshot ? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, context.chatKey, currentSnapshot), waitToken) : undefined;
+			const currentDisabledRootMcpServers = currentSnapshot
+				? await raceCancellationError(this._disabledRootMcpServers(context.configurationResource, entry.sessionId, currentSnapshot), waitToken)
+				: undefined;
+			disabledRootMcpServersChanged = !!currentDisabledRootMcpServers && !equals(
+				[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
+				[...new Set(currentDisabledRootMcpServers)].sort(),
+			);
+		}
 		const refreshReason = (entry.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
 			?? (entry.requiresRestartAfterModelChange ? 'hydraFusionModelChanged' : undefined)
 			?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
@@ -4756,8 +4762,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let entry: CopilotAgentSession | undefined = current.target;
 			const hadCachedEntry = !!entry;
 			stageRecorder?.mark('refresh');
+			// A session `prepareTurn` launched for this very turn already reflects the
+			// current customization snapshot, so its send skips re-deriving it.
+			const launchedForTurn = turnId !== undefined && this._preparedTurnLaunches.get(current.chatKey) === turnId;
+			this._preparedTurnLaunches.delete(current.chatKey);
 			if (entry) {
-				entry = await this._refreshSessionConfiguration(current, entry, workingDirectories, { operation: 'sendMessage', allowRestart: 'always', turnId, token });
+				entry = await this._refreshSessionConfiguration(current, entry, workingDirectories, { operation: 'sendMessage', allowRestart: 'always', turnId, token, launchedForTurn });
 			} else {
 				await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded(token);
 				if (token.isCancellationRequested) {
@@ -5472,8 +5482,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Materializes or resumes a chat's SDK session ahead of its first send, so the
 	 * host can overlap that startup with the turn-start checkpoint. A chat that
 	 * already has a live session is left to `sendMessage`, which refreshes it.
+	 * The launch records `turnId`, so that turn's send skips re-checking the
+	 * configuration the session was just launched with.
 	 */
-	private async _prepareTurn(chat: URI, workingDirectories: readonly URI[] | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
+	private async _prepareTurn(chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
 		const initial = this._resolveSendChatContext(chat, operationContext);
 		await this._queueChat(initial.configurationId, initial.sequencerKey, 'prepareTurn', async () => {
 			const current = this._resolveSendChatContext(chat, operationContext);
@@ -5482,7 +5494,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			// Mirrors the send path, so the session is launched with the same plugin state.
 			await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded(CancellationToken.None);
-			await this._ensureResolvedChatSession(current, workingDirectories);
+			if (await this._ensureResolvedChatSession(current, workingDirectories)) {
+				this._preparedTurnLaunches.set(current.chatKey, turnId);
+			}
 		});
 	}
 
