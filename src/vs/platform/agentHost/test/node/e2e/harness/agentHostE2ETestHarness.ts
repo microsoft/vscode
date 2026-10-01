@@ -1163,6 +1163,13 @@ export class AgentHostE2EServerLease {
 	async release(createdSessions: string[], forceRestart = false): Promise<void> {
 		const client = this._client;
 		const cleanupErrors: Error[] = [];
+		const recordCleanupError = (error: unknown) => {
+			const cleanupError = error instanceof Error ? error : new Error(String(error));
+			cleanupErrors.push(cleanupError);
+			if (cleanupErrors.length === 1) {
+				this.dumpRuntimeLogsOnFailure(`resource cleanup: ${cleanupError.message}`);
+			}
+		};
 		if (client) {
 			// A session left unrestored after a host restart is restored on subscribe.
 			const restoreTimeout = getAgentHostE2ETestTimeout(10_000, 30_000);
@@ -1194,7 +1201,7 @@ export class AgentHostE2EServerLease {
 					}
 					await client.call('disposeSession', { channel: session }, disposeTimeout);
 				} catch (error) {
-					cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+					recordCleanupError(error);
 				}
 			}
 			client.close();
@@ -1209,16 +1216,16 @@ export class AgentHostE2EServerLease {
 			try {
 				this._server?.capiReplay?.assertNoReplayMismatches();
 			} catch (error) {
-				cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+				recordCleanupError(error);
 				try {
 					await this._server?.capiReplay?.close();
 				} catch (stopError) {
-					cleanupErrors.push(stopError instanceof Error ? stopError : new Error(String(stopError)));
+					recordCleanupError(stopError);
 				}
 				try {
 					await stopServer(this._server);
 				} catch (stopError) {
-					cleanupErrors.push(stopError instanceof Error ? stopError : new Error(String(stopError)));
+					recordCleanupError(stopError);
 				}
 				this._server = undefined;
 				this._modelBackedTestsOnCurrentServer = 0;
@@ -1236,12 +1243,12 @@ export class AgentHostE2EServerLease {
 					await this._server?.capiReplay?.stop();
 				}
 			} catch (error) {
-				cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+				recordCleanupError(error);
 			} finally {
 				try {
 					await stopServer(this._server);
 				} catch (error) {
-					cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+					recordCleanupError(error);
 				}
 				this._server = undefined;
 				this._modelBackedTestsOnCurrentServer = 0;
@@ -1250,6 +1257,7 @@ export class AgentHostE2EServerLease {
 		}
 		if (forceRestart || cleanupErrors.length > 0) {
 			this._needsFreshDataDirectory = true;
+			this.dumpRuntimeLogsOnFailure('resource cleanup after shutdown');
 		}
 		if (cleanupErrors.length > 0) {
 			if (forceRestart) {
@@ -1274,6 +1282,9 @@ export class AgentHostE2EServerLease {
 					this._server = undefined;
 				}
 			}
+		} catch (error) {
+			this.dumpRuntimeLogsOnFailure(`suite cleanup: ${error instanceof Error ? error.message : String(error)}`);
+			throw error;
 		} finally {
 			await removeTempDirs(this._dataDirs);
 		}

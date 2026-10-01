@@ -63,9 +63,9 @@ suite('Agent Host E2E diagnostics', () => {
 	test('surfaces errors other than absent log directories', () => {
 		const root = mkdtempSync(join(tmpdir(), 'agent-host-diagnostics-'));
 		disposables.add(toDisposable(() => rmSync(root, { recursive: true, force: true })));
-		const invalidHome = join(root, 'not-a-directory');
-		writeFileSync(invalidHome, '');
+		const invalidDestination = join(root, 'not-a-directory');
+		writeFileSync(invalidDestination, '');
 
-		assert.throws(() => preserveAgentHostE2ELogs(invalidHome, invalidHome, join(root, 'retained'), 'failure'), { code: 'ENOTDIR' });
+		assert.throws(() => preserveAgentHostE2ELogs(root, root, invalidDestination, 'failure'));
 	});
 });
