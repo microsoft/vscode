@@ -15,7 +15,7 @@ Copilot image generation is provided by its native runtime and observed by the C
 
 The shared Chat renderer handles both Copilot's `image_generation` and Codex's `image_gen.imagegen` tool calls. While running, a non-shimmering dropdown exposes the available prompt above the unchanged binary-water animation. The title says `Using <model name> to generate an image` when the host supplies image-model metadata. Only persistent progress rotates through painting-themed phrases; they do not represent backend stages. Each overlapping call keeps its own dropdown while sharing one animation. Success shows the completed input/output dropdown and a large image with a Save action; errors leave a failed dropdown. Restored history uses the same renderer. Codex availability remains controlled by its provider; the current harness enables generation for OpenAI models with a ChatGPT sign-in.
 
-To inspect the UI without image-generation access, use the `chat/generatedImages` Component Explorer fixtures, including the Copilot/Codex selector in `Preview`. The rendering explorations remain under `chat/imageLoadingStudies`; they do not register tools or make image-generation requests.
+To inspect the UI without image-generation access, use the `chat/generatedImages` Component Explorer fixtures, including the Copilot/Codex selector in `Preview`. These fixtures cover the single ASCII binary-water presentation across running, completed, failed, overlapping, and reduced-motion states. They do not register tools or make image-generation requests.
 
 ### Mock image generation in Copilot Agent Host
 

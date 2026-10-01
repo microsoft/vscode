@@ -2400,7 +2400,7 @@ suite('ChatListRenderer', () => {
 			const dropdown = template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title');
 			assert.ok(dropdown);
 			dropdown.click();
-			const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image [Preview](https://example.invalid)' } };
+			const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image \\ [Preview](https://example.invalid) www.example.invalid user@example.invalid' } };
 			const running = { ...toolCall, _meta: { 'vscode.imageGeneration': imageGeneration } };
 			updateRunningToolSpecificData(tool, running, backendSession, 'remote');
 			await timeout(0);

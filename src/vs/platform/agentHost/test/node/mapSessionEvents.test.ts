@@ -10,7 +10,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
-import { createHostedImageMessage, toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
+import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
@@ -1144,27 +1144,26 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
 	});
 
-	for (const format of ['normalized', 'native'] as const) {
-		test(`restores hosted images before the final answer (${format})`, async () => {
-			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
-				{ type: 'user.message', data: { content: 'Draw some animals.' } },
-				{ type: 'assistant.message', data: { ...createHostedImageMessage(format), reasoningText: 'Creating the images.' } },
-			]));
+	test('restores image function tools before the final answer', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Draw a puppy.' } },
+			{ type: 'assistant.message', data: { messageId: 'image-request', content: 'I will create an image.', toolRequests: [{ toolCallId: 'image-1', name: 'image_generation' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'image-1', toolName: 'image_generation', arguments: { prompt: 'Draw a puppy' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'image-1', success: true, result: { contents: [{ type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' }] } } },
+			{ type: 'assistant.message', data: { messageId: 'image-result', content: 'Image generation completed.' } },
+		]));
 
-			assert.deepStrictEqual(turns[0].responseParts.map(part => {
-				if (part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed) {
-					return { kind: part.kind, toolCallId: part.toolCall.toolCallId, success: part.toolCall.success };
-				}
-				return part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning
-					? { kind: part.kind, content: part.content } : { kind: part.kind };
-			}), [
-				{ kind: ResponsePartKind.Reasoning, content: 'Creating the images.' },
-				{ kind: ResponsePartKind.ToolCall, toolCallId: 'hosted-image-image-1', success: true },
-				{ kind: ResponsePartKind.ToolCall, toolCallId: 'hosted-image-image-2', success: false },
-				{ kind: ResponsePartKind.Markdown, content: 'Here is your image.' },
-			]);
-		});
-	}
+		assert.deepStrictEqual(turns[0].responseParts.map(part => {
+			if (part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed) {
+				return { kind: part.kind, toolCallId: part.toolCall.toolCallId, success: part.toolCall.success };
+			}
+			return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+		}), [
+			{ kind: ResponsePartKind.Markdown, content: 'I will create an image.' },
+			{ kind: ResponsePartKind.ToolCall, toolCallId: 'image-1', success: true },
+			{ kind: ResponsePartKind.Markdown, content: 'Image generation completed.' },
+		]);
+	});
 
 	test('maps SDK image content to an embedded resource on replayed tool completion', async () => {
 		const events: ISessionEvent[] = [

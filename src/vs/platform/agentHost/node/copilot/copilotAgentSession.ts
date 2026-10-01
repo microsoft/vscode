@@ -62,7 +62,7 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
-import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallCompletedState, type ToolCallContributor, type ToolCallRunningState } from '../../common/state/protocol/state.js';
+import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
@@ -96,7 +96,6 @@ import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcp
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, type CopilotFusionEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
-import { readHostedImageToolCalls, readHostedImageToolProgress } from './copilotHostedImageTools.js';
 import { createImageGenerationMockTool } from './copilotImageGenerationMockTool.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
@@ -199,11 +198,6 @@ interface ICopilotStreamingToolCall {
 	started: boolean;
 	displayedInputLength: number;
 	displayedMessage: string | undefined;
-}
-
-interface ICopilotHostedImageToolCall {
-	readonly turnId: string;
-	readonly parentToolCallId: string | undefined;
 }
 
 const SESSION_STATE_DIRECTORY = 'session-state';
@@ -755,9 +749,6 @@ class CopilotTurn extends Disposable {
 	 */
 	readonly markdownPartIds = new Map<string, string>();
 
-	/** SDK messages that contributed text, independent of later AHP part boundaries. */
-	readonly streamedMessageIds = new Set<string>();
-
 	/** Current reasoning response part IDs for this turn, keyed by `parentToolCallId ?? ''`. */
 	readonly reasoningPartIds = new Map<string, string>();
 
@@ -913,8 +904,6 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, ICopilotActiveToolCall>();
-	private readonly _activeHostedImageToolCalls = new Map<string, ICopilotHostedImageToolCall>();
-	private readonly _completedHostedImageToolCallIds = new LRUCache<string, true>(256);
 	private readonly _streamingToolCalls = new Map<string, ICopilotStreamingToolCall>();
 	private readonly _streamingToolDisplaySchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	/**
@@ -1820,7 +1809,6 @@ export class CopilotAgentSession extends Disposable {
 		if (!parentToolCallId) {
 			return;
 		}
-		this._clearHostedImageToolCalls(parentToolCallId);
 		if (this._dropLateRootTurnEvents) {
 			this._rootTurnIdBySubagentToolCallId.delete(parentToolCallId);
 			this._subagentDirectUsageByToolCallId.delete(parentToolCallId);
@@ -2081,52 +2069,6 @@ export class CopilotAgentSession extends Disposable {
 		this._currentTurn.value?.reasoningPartIds.delete(scope);
 	}
 
-	private _startHostedImageToolCall(toolCall: ToolCallRunningState | ToolCallCompletedState, parentToolCallId: string | undefined): ICopilotHostedImageToolCall | undefined {
-		if (this._completedHostedImageToolCallIds.has(toolCall.toolCallId)) {
-			return undefined;
-		}
-		const existing = this._activeHostedImageToolCalls.get(toolCall.toolCallId);
-		if (existing) {
-			if (existing.parentToolCallId !== parentToolCallId) {
-				this._logService.warn(`[Copilot:${this.sessionId}] Hosted image tool changed its owning agent; dropping`);
-				return undefined;
-			}
-			return existing;
-		}
-		if (!parentToolCallId && !this._currentTurn.value) {
-			this._logService.trace(`[Copilot:${this.sessionId}] Hosted image tool arrived without an active turn; dropping`);
-			return undefined;
-		}
-		const tracked = { turnId: this._turnId, parentToolCallId };
-		this._activeHostedImageToolCalls.set(toolCall.toolCallId, tracked);
-		this._beginToolCallRound(parentToolCallId);
-		this._emitAction({
-			type: ActionType.ChatToolCallStart,
-			turnId: tracked.turnId,
-			toolCallId: toolCall.toolCallId,
-			toolName: toolCall.toolName,
-			displayName: toolCall.displayName,
-		}, parentToolCallId);
-		this._emitAction({
-			type: ActionType.ChatToolCallReady,
-			turnId: tracked.turnId,
-			toolCallId: toolCall.toolCallId,
-			invocationMessage: toolCall.invocationMessage,
-			toolInput: toolCall.toolInput,
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-		}, parentToolCallId);
-		return tracked;
-	}
-
-	private _clearHostedImageToolCalls(parentToolCallId: string | undefined): void {
-		for (const [toolCallId, call] of this._activeHostedImageToolCalls) {
-			if (call.parentToolCallId === parentToolCallId) {
-				this._completedHostedImageToolCallIds.set(toolCallId, true);
-				this._activeHostedImageToolCalls.delete(toolCallId);
-			}
-		}
-	}
-
 	/**
 	 * Starts a fresh `pending` turn, discarding any per-turn streaming state
 	 * from a previous turn so the next text/reasoning chunk allocates a new
@@ -2143,7 +2085,6 @@ export class CopilotAgentSession extends Disposable {
 		this._fusionPhaseLabels.clear();
 		this._clearActivity();
 		this._detectInterruptedTurnOnRestore = false;
-		this._clearHostedImageToolCalls(undefined);
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
 		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext, this._getTelemetryContext(), providerInitiated);
@@ -2279,7 +2220,6 @@ export class CopilotAgentSession extends Disposable {
 		if (this._resumingTurnAwaitingProviderStart === this._currentTurn.value) {
 			this._resumingTurnAwaitingProviderStart = undefined;
 		}
-		this._clearHostedImageToolCalls(undefined);
 		this._currentTurn.clear();
 		this._settleIdleWaiters(true);
 		this._agentMergeTurn = false;
@@ -2399,7 +2339,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Emits a streaming text delta. The first delta of a turn allocates a
 	 * markdown response part; subsequent deltas append to it.
 	 */
-	private _emitMarkdownDelta(content: string, parentToolCallId?: string, trustedRootTurn = false, messageId?: string): void {
+	private _emitMarkdownDelta(content: string, parentToolCallId?: string, trustedRootTurn = false): void {
 		if (parentToolCallId === undefined && !trustedRootTurn && this._shouldDropLateRootTurnEvent('assistant.message_delta')) {
 			return;
 		}
@@ -2411,9 +2351,6 @@ export class CopilotAgentSession extends Disposable {
 			// Drop it and surface the unexpected state.
 			this._logService.error(`[Copilot:${this.sessionId}] Markdown delta emitted with no active turn; dropping`);
 			return;
-		}
-		if (messageId && content) {
-			turn.streamedMessageIds.add(messageId);
 		}
 		const markdownScope = parentToolCallId ?? '';
 		let partId = turn.markdownPartIds.get(markdownScope);
@@ -6025,56 +5962,14 @@ export class CopilotAgentSession extends Disposable {
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message_delta')) {
 				return;
 			}
-			this._emitMarkdownDelta(e.data.deltaContent, this._parentToolCallIdForSubagentEvent(e), false, e.data.messageId);
-		}));
-
-		this._register(wrapper.onServerToolProgress(e => {
-			const toolCall = readHostedImageToolProgress(e.data);
-			if (!toolCall || this._shouldDropLateRootTurnEvent('assistant.server_tool_progress', true)) {
-				return;
-			}
-			this._resumeSubagentForEvent(e);
-			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.server_tool_progress')) {
-				return;
-			}
-			this._startHostedImageToolCall(toolCall, this._parentToolCallIdForSubagentEvent(e));
+			this._emitMarkdownDelta(e.data.deltaContent, this._parentToolCallIdForSubagentEvent(e));
 		}));
 
 		const renderMessage = (e: SessionEventPayload<'assistant.message'>, contentParentToolCallId: string | undefined, isLastMessageChunk: boolean, isFusionMessage = false): void => {
-			const hostedImageToolCalls = readHostedImageToolCalls(e.data);
-			for (const toolCall of hostedImageToolCalls) {
-				const tracked = this._startHostedImageToolCall(toolCall, contentParentToolCallId);
-				if (!tracked) {
-					continue;
-				}
-				if (toolCall.toolInput !== undefined) {
-					this._emitAction({
-						type: ActionType.ChatToolCallReady,
-						turnId: tracked.turnId,
-						toolCallId: toolCall.toolCallId,
-						invocationMessage: toolCall.invocationMessage,
-						toolInput: toolCall.toolInput,
-						confirmed: ToolCallConfirmationReason.NotNeeded,
-					}, contentParentToolCallId);
-				}
-				this._emitAction({
-					type: ActionType.ChatToolCallComplete,
-					turnId: tracked.turnId,
-					toolCallId: toolCall.toolCallId,
-					result: {
-						success: toolCall.success,
-						pastTenseMessage: toolCall.pastTenseMessage,
-						content: toolCall.content,
-						error: toolCall.error,
-					},
-				}, contentParentToolCallId);
-				this._activeHostedImageToolCalls.delete(toolCall.toolCallId);
-				this._completedHostedImageToolCallIds.set(toolCall.toolCallId, true);
-			}
 			const markdownScope = contentParentToolCallId ?? '';
-			const isEmptyFinalAnswer = isLastMessageChunk && e.data.phase === 'final_answer' && !e.data.content && !e.data.toolRequests?.length && hostedImageToolCalls.length === 0;
+			const isEmptyFinalAnswer = isLastMessageChunk && e.data.phase === 'final_answer' && !e.data.content && !e.data.toolRequests?.length;
 			// Fusion sends distinct complete chunks without preceding text deltas.
-			if (e.data.content && (isFusionMessage || (!this._currentTurn.value?.streamedMessageIds.has(e.data.messageId) && !this._currentTurn.value?.markdownPartIds.has(markdownScope)))) {
+			if (e.data.content && (isFusionMessage || !this._currentTurn.value?.markdownPartIds.has(markdownScope))) {
 				const partId = generateUuid();
 				this._currentTurn.value?.markdownPartIds.set(markdownScope, partId);
 				this._emitAction({
@@ -8630,10 +8525,6 @@ export class CopilotAgentSession extends Disposable {
 	 * Cancels every pending interaction for abort and dispose. This completes synchronously before any awaiter resumes, so ordering is not significant.
 	 */
 	private _cancelAllPendingInteractions(): void {
-		for (const toolCallId of this._activeHostedImageToolCalls.keys()) {
-			this._completedHostedImageToolCallIds.set(toolCallId, true);
-		}
-		this._activeHostedImageToolCalls.clear();
 		this._cancelPendingAutoApprovals();
 		this._denyPendingPermissions();
 		this._cancelPendingUserInputs();

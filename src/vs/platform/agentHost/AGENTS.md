@@ -94,9 +94,9 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
 
-### Copilot hosted image tools
+### Image-generation tools
 
-Provider-hosted image generation is observed, not dispatched as a client function call. [copilotHostedImageTools.ts](node/copilot/copilotHostedImageTools.ts) normalizes the SDK's hosted progress and completed results for both live handling and history restoration. The harness emits existing AHP tool-call actions with the `image_generation` name, so the shared generated-image UI renders the output without a new protocol kind.
+Copilot image generation is a runtime-owned `image_generation` function tool. The harness maps its ordinary SDK tool start, progress, and completion events into existing AHP tool-call actions, for both live display and history restoration. There is no separate provider-hosted Responses image path.
 
 Copilot generation is runtime-owned; the local extension-host harness does not register an image generator or a client-side mock. Codex's existing `imageGeneration` items map to `image_gen.imagegen` and reuse the same renderer. Its final revised prompt is published before completion so live and restored tool dropdowns expose the provider's input without substituting a display label for an unavailable prompt.
 
@@ -104,11 +104,7 @@ Source builds register `generate_image_mock` as an SDK client tool executed insi
 
 The runtime-owned `image_generation` tool supplies `structuredContent.imageGeneration.requestedModel` during tool progress and in its completed result. Live and history mappers project this into the optional AHP `_meta["vscode.imageGeneration"]` slot, validated by [agentImageGenerationMeta.ts](common/meta/agentImageGenerationMeta.ts). This is the requested image engine, not the SDK event's conversation `model` or a confirmed serving model. Clients localize the generating and completed labels from its name, falling back to its ID; older hosts without the metadata retain generic labels. The client preserves `toolInput` in a read-only running dropdown so the submitted prompt remains inspectable during generation. Painting-themed phrase rotation belongs only to the persistent footer; it does not replace the tool's model label or represent backend generation stages.
 
-Streamed SDK message IDs are tracked separately from the current markdown part, so opening a standalone image row cannot make the final assistant message repeat text that was already rendered.
-
-Hosted image results precede the final markdown carried by the same assistant message in both live rendering and restored history. Already-streamed text retains its position without being emitted again.
-
-The runtime owns availability, authorization, provider replay, and durable image assets. Resource links must resolve through the host's `resourceRead`; an opaque SDK asset id alone is not a readable AHP resource. Hosted-call tracking is scoped to its owning chat/subagent, and completed-call deduplication retains only a bounded set of ids, never image bytes.
+The runtime owns availability, authorization, and durable tool history. Inline images use AHP embedded-resource content; resource links must resolve through the host's `resourceRead`. An opaque SDK asset ID alone is not a readable AHP resource. The client uses one ASCII binary-water animation for all image-generation tools, with the standard prompt dropdown and final image/save UI.
 
 ### Orchestrator layer
 

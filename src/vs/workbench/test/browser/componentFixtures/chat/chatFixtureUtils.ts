@@ -489,18 +489,13 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 }
 
 /**
- * Reports reduced motion whenever the motion classes on a fixture container or its ancestors
- * would stop CSS animations, so script-driven animations follow the same Enable Animations,
- * reduced motion and pause switches as CSS ones.
+ * Makes script-driven fixture animations honor the same motion classes as CSS animations.
  */
 export class FixtureMotionAccessibilityService extends TestAccessibilityService {
 
 	override onDidChangeReducedMotion: Event<void>;
-	private readonly stoppedSelector: string;
-
-	constructor(private readonly container: HTMLElement, store: DisposableStore, pausedClasses: readonly string[] = []) {
+	constructor(private readonly container: HTMLElement, store: DisposableStore) {
 		super();
-		this.stoppedSelector = ['monaco-reduce-motion', 'disable-animations', ...pausedClasses].map(className => `.${className}`).join(', ');
 		const onDidChangeReducedMotion = store.add(new Emitter<void>());
 		this.onDidChangeReducedMotion = onDidChangeReducedMotion.event;
 		const observer = new MutationObserver(() => onDidChangeReducedMotion.fire());
@@ -511,6 +506,6 @@ export class FixtureMotionAccessibilityService extends TestAccessibilityService 
 	}
 
 	override isMotionReduced(): boolean {
-		return !this.container.closest('.monaco-enable-motion') || !!this.container.closest(this.stoppedSelector);
+		return !this.container.closest('.monaco-enable-motion') || !!this.container.closest('.monaco-reduce-motion, .disable-animations');
 	}
 }

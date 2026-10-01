@@ -162,33 +162,3 @@ export type ISessionEvent =
 export function toSessionEvents(events: readonly ISessionEvent[]): SessionEvent[] {
 	return events as unknown as SessionEvent[];
 }
-
-export function createHostedImageMessage(format: 'normalized' | 'native'): SessionEventPayload<'assistant.message'>['data'] {
-	const imageData = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=';
-	const calls = [
-		{ kind: 'image_generation', callId: 'image-1', status: 'completed', input: 'Draw a fox', content: [{ type: 'image', data: imageData, mimeType: 'image/png' }] },
-		{ kind: 'image_generation', callId: 'image-2', status: 'failed', input: 'Draw a puppy', error: { message: 'Generation failed' } },
-	];
-	const items: NonNullable<SessionEventPayload<'assistant.message'>['data']['serverTools']>['items'] = [];
-	if (format === 'native') {
-		for (const call of calls) {
-			const item = {
-				type: 'image_generation_call',
-				id: call.callId,
-				status: call.status,
-				revised_prompt: call.input,
-			};
-			if (call.content) {
-				items.push({ ...item, result: call.content[0].data });
-			} else if (call.error) {
-				items.push({ ...item, error: call.error });
-			}
-		}
-	}
-	const serverTools = {
-		provider: 'openai-responses' as const,
-		items,
-		...(format === 'normalized' ? { calls } : {}),
-	};
-	return { messageId: 'image-message', content: 'Here is your image.', serverTools };
-}

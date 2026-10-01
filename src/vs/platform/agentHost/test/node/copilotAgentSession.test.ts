@@ -44,7 +44,7 @@ import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
-import { createHostedImageMessage, toSessionEvents } from './copilotTestEvents.js';
+import { toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
@@ -11515,59 +11515,41 @@ Use the attached image as context.
 			}]);
 		});
 
-		for (const format of ['normalized', 'native'] as const) {
-			for (const withProgress of [false, true]) {
-				test(`hosted images precede the final answer (${format}, progress=${withProgress})`, async () => {
-					const { session, mockSession, signals } = await createAgentSession(disposables);
-					session.resetTurnState('turn-hosted-image');
-					if (withProgress) {
-						for (const [outputIndex, callId] of ['image-1', 'image-2'].entries()) {
-							const progress = { kind: 'image_generation', status: 'in_progress', callId, outputIndex };
-							mockSession.fire('assistant.server_tool_progress', progress);
-						}
-					}
-					mockSession.fire('assistant.message', createHostedImageMessage(format));
-
-					const actions = getActions(signals);
-					assert.deepStrictEqual({
-						starts: actions.filter(action => action.type === ActionType.ChatToolCallStart).map(action => action.toolCallId),
-						parts: actions.flatMap((action): { kind: string; content: string; success?: boolean }[] => {
-							if (action.type === ActionType.ChatToolCallComplete) {
-								return [{ kind: 'image', content: action.toolCallId, success: action.result.success }];
-							}
-							if (action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown) {
-								return [{ kind: 'markdown', content: action.part.content, success: undefined }];
-							}
-							return [];
-						}),
-					}, {
-						starts: ['hosted-image-image-1', 'hosted-image-image-2'],
-						parts: [
-							{ kind: 'image', content: 'hosted-image-image-1', success: true },
-							{ kind: 'image', content: 'hosted-image-image-2', success: false },
-							{ kind: 'markdown', content: 'Here is your image.', success: undefined },
-						],
-					});
-				});
-			}
-		}
-
-		test('hosted image completion does not repeat markdown streamed before image progress', async () => {
+		test('image function tools retain streamed text and precede the final answer', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
-			session.resetTurnState('turn-hosted-image-dedup');
-			const message = createHostedImageMessage('normalized');
+			session.resetTurnState('turn-image-order');
+			const message = {
+				messageId: 'image-request',
+				content: 'I will create an image.',
+				toolRequests: [{ toolCallId: 'image-1', name: 'image_generation', arguments: { prompt: 'Draw a puppy' } }],
+			};
 			mockSession.fire('assistant.message_delta', {
 				messageId: message.messageId,
 				deltaContent: message.content,
 			});
-			const progress = { kind: 'image_generation', status: 'in_progress', callId: 'image-1', outputIndex: 0 };
-			mockSession.fire('assistant.server_tool_progress', progress);
 			mockSession.fire('assistant.message', message);
-			mockSession.fire('assistant.message', { messageId: 'after-image', content: 'The image is ready.' });
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'image-1',
+				toolName: 'image_generation',
+				arguments: { prompt: 'Draw a puppy' },
+			});
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'image-1',
+				success: true,
+				result: {
+					content: 'Image data was returned to the client.',
+					contents: [{ type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' }],
+				},
+			});
+			mockSession.fire('assistant.message', { messageId: 'after-image', content: 'Image generation completed.' });
 
-			assert.deepStrictEqual(getActions(signals).flatMap(action =>
-				action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown
-					? [action.part.content] : []), [message.content, 'The image is ready.']);
+			assert.deepStrictEqual(getActions(signals).flatMap(action => {
+				if (action.type === ActionType.ChatToolCallComplete) {
+					return [action.toolCallId];
+				}
+				return action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown
+					? [action.part.content] : [];
+			}), [message.content, 'image-1', 'Image generation completed.']);
 		});
 
 		test('tool completion preserves generated image bytes and resource links', async () => {
