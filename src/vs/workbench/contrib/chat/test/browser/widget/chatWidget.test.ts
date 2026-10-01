@@ -444,13 +444,14 @@ suite('ChatWidget', () => {
 		}]);
 	});
 
-	function createStartEditingWidget(input: object, request: IChatRequestViewModel, configurationService: TestConfigurationService) {
+	function createStartEditingWidget(input: object, request: IChatRequestViewModel, configurationService: TestConfigurationService, inputPart: object = input) {
 		let editing: IChatRequestViewModel | undefined;
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
 			_store: { value: store },
 			_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
 			_editingDisposables: { value: store.add(new MutableDisposable()) },
+			_onDidChangeActiveInputEditor: { value: { fire: () => { } } },
 			configurationService: { value: configurationService },
 			telemetryService: { value: NullTelemetryService },
 			viewModel: {
@@ -462,12 +463,15 @@ suite('ChatWidget', () => {
 				},
 			},
 			input: { value: input },
-			inputPart: { value: input },
+			inputPart: { value: inputPart },
+			inlineInputPart: { value: input },
+			inputContainer: { value: undefined, writable: true },
+			createInput: { value: () => { } },
 			contribs: { value: [] },
 			onDidChangeItems: { value: () => { } },
 			listWidget: {
 				value: {
-					getTemplateDataForRequestId: () => ({ currentElement: request }),
+					getTemplateDataForRequestId: () => ({ currentElement: request, requestTimestampContainer: mainWindow.document.createElement('div') }),
 					acquireAutoScrollHold: () => Disposable.None,
 				},
 			},
@@ -504,6 +508,41 @@ suite('ChatWidget', () => {
 		widget.startEditing(request.id);
 
 		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
+	});
+
+	test('inline editing a queued request without a model starts on the conversation model', async () => {
+		const modelId = 'agent-host-copilot:claude-opus-5.5';
+		const modelConfiguration = { reasoningEffort: 'xhigh', contextWindow: '1m' };
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.editRequests', 'inline');
+		const main = mockObject<ChatInputPart>()({
+			currentLanguageModel: modelId,
+			currentModeObs: observableValue('main.mode', upcastPartial<ReturnType<ChatInputPart['currentModeObs']['get']>>({ id: 'agent' })),
+			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({}),
+			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
+			onDidClickOverlay: Event.None,
+		});
+		main.getModelConfiguration.returns(modelConfiguration);
+		const inline = mockObject<ChatInputPart>()({
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
+				getValue: () => 'queued by another session', getModel: () => null, focus: () => { },
+				onDidChangeModelContent: Event.None, onDidChangeCursorSelection: Event.None,
+			}),
+			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({ getAttachmentIDs: () => new Set() }),
+		});
+		inline.requestModelByIdentifier.resolves(true);
+		const request = upcastPartial<IChatRequestViewModel>({
+			id: 'request',
+			message: { text: 'queued by another session', parts: [] },
+			messageText: 'queued by another session',
+			variables: [],
+			pendingKind: ChatRequestQueueKind.Queued,
+		});
+		const widget = createStartEditingWidget(inline, request, configurationService, main);
+
+		widget.startEditing(request.id);
+
+		assert.deepStrictEqual(inline.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
 	});
 
 	function createFakeInputPart(name: string) {

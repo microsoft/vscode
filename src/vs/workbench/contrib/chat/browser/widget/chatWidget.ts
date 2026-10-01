@@ -2344,8 +2344,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else {
 				this.inputPart.element.classList.add('editing');
 			}
-			if (currentElement.modelId) {
-				void this.input.requestModelByIdentifier(currentElement.modelId, currentElement.modelConfiguration);
+			// A request that never recorded a model (e.g. one queued by another session) edits
+			// with the conversation's current model, not the inline editor's default, so
+			// resubmitting it does not switch models.
+			const editModelId = currentElement.modelId ?? (isInput ? undefined : this.inputPart.currentLanguageModel);
+			if (editModelId) {
+				const editModelConfiguration = currentElement.modelId ? currentElement.modelConfiguration : this.inputPart.getModelConfiguration(editModelId);
+				void this.input.requestModelByIdentifier(editModelId, editModelConfiguration);
 			}
 
 			this.inputPart.toggleChatInputOverlay(!isInput);

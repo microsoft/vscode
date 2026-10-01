@@ -2219,7 +2219,95 @@ suite('SessionServerTools', () => {
 		assert.throws(() => getSendMessageArgs({ session: 'copilot:/s2' }, []), /message/);
 	});
 
-	test('send_message queues agent-originated messages in FIFO order while the target chat is busy', async () => {
+	test('send_message updates the sending chat\'s undelivered queued message instead of queuing another', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const targetSession = 'copilot:/s2';
+		const targetChat = buildDefaultChatUri(targetSession);
+		stateManager.createSession({
+			resource: targetSession,
+			provider: 'copilot',
+			title: 'Target',
+			status: SessionStatus.InProgress,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		const sessionModel: ModelSelection = { id: 'claude-opus-5.5', config: { reasoningEffort: 'xhigh', contextWindow: '1m' } };
+		stateManager.dispatchServerAction(targetChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: new Date(0).toISOString(),
+			message: { text: 'running', origin: { kind: MessageKind.User }, model: sessionModel },
+		});
+		const prompts: string[] = [];
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace), sessionMeta('s3', SessionStatus.InProgress, workspace)],
+			onPrompt: (_session, _chat, prompt) => { prompts.push(prompt); },
+		}));
+
+		const firstResult = await group.execute(stateManager, executionContext('copilot:/s1'), SessionServerToolName.SendMessage, { session: targetSession, message: 'first' });
+		const otherResult = await group.execute(stateManager, executionContext('copilot:/s3'), SessionServerToolName.SendMessage, { session: targetSession, message: 'from another chat' });
+		const [first] = stateManager.getChatState(targetChat)?.queuedMessages ?? [];
+		// The user edits the undelivered message before its sender follows up.
+		stateManager.dispatchServerAction(targetChat, {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Queued,
+			id: first.id,
+			message: { ...first.message, text: 'first (edited)', model: { id: 'gpt-5' } },
+		});
+		const followUpResult = await group.execute(stateManager, { ...executionContext('copilot:/s1'), turnId: 'turn-2' }, SessionServerToolName.SendMessage, { session: targetSession, message: 'second' });
+
+		const targetState = stateManager.getChatState(targetChat);
+		assert.deepStrictEqual({
+			results: [firstResult, otherResult, followUpResult],
+			firstModel: first.message.model,
+			activeTurn: targetState?.activeTurn?.id,
+			queuedMessages: targetState?.queuedMessages?.map(queued => ({
+				isFirst: queued.id === first.id,
+				text: queued.message.text,
+				origin: queued.message.origin,
+				model: queued.message.model,
+				delegation: readAgentMessageDelegationMeta(queued.message),
+			})),
+			prompts,
+		}, {
+			results: [
+				'Message queued (agent-host-session://copilot/s2).',
+				'Message queued (agent-host-session://copilot/s2).',
+				'Message added to the queued message this chat already sent, which has not been delivered yet (agent-host-session://copilot/s2).',
+			],
+			firstModel: sessionModel,
+			activeTurn: 'active-turn',
+			queuedMessages: [
+				{
+					isFirst: true,
+					text: 'first (edited)\n\nsecond',
+					origin: { kind: MessageKind.Agent },
+					model: { id: 'gpt-5' },
+					delegation: {
+						sourceSession: 'copilot:/s1',
+						sourceChat: buildDefaultChatUri('copilot:/s1'),
+						sourceTurnId: 'turn-2',
+					},
+				},
+				{
+					isFirst: false,
+					text: 'from another chat',
+					origin: { kind: MessageKind.Agent },
+					model: sessionModel,
+					delegation: {
+						sourceSession: 'copilot:/s3',
+						sourceChat: buildDefaultChatUri('copilot:/s3'),
+						sourceTurnId: 'turn-1',
+					},
+				},
+			],
+			prompts: [],
+		});
+		store.dispose();
+	});
+
+	test('send_message queues a new message with the chat\'s current model once the earlier one has started', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 		const targetSession = 'copilot:/s2';
@@ -2236,55 +2324,40 @@ suite('SessionServerTools', () => {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'active-turn',
 			startedAt: new Date(0).toISOString(),
-			message: { text: 'running', origin: { kind: MessageKind.User } },
+			message: { text: 'running', origin: { kind: MessageKind.Agent } },
 		});
-		const prompts: string[] = [];
+		stateManager.dispatchServerAction(targetChat, { type: ActionType.ChatDraftChanged, draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'gpt-5.6-sol' } } });
 		const group = createSessionServerToolGroup(createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)],
-			onPrompt: (_session, _chat, prompt) => { prompts.push(prompt); },
 		}));
 		const context = executionContext('copilot:/s1');
 
 		const firstResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: targetSession, message: 'first' });
+		const [first] = stateManager.getChatState(targetChat)?.queuedMessages ?? [];
+		stateManager.dispatchServerAction(targetChat, { type: ActionType.ChatTurnComplete, turnId: 'active-turn', duration: 0 });
+		stateManager.dispatchServerAction(targetChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'queued-turn',
+			startedAt: new Date(0).toISOString(),
+			message: first.message,
+			queuedMessageId: first.id,
+		});
+		// The running turn's model wins over a different one picked in the draft since.
+		stateManager.dispatchServerAction(targetChat, { type: ActionType.ChatDraftChanged, draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet-5' } } });
 		const secondResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: targetSession, message: 'second' });
 
 		const targetState = stateManager.getChatState(targetChat);
 		assert.deepStrictEqual({
 			results: [firstResult, secondResult],
-			activeTurn: targetState?.activeTurn?.id,
-			queuedMessages: targetState?.queuedMessages?.map(queued => ({
-				text: queued.message.text,
-				origin: queued.message.origin,
-				delegation: readAgentMessageDelegationMeta(queued.message),
-			})),
-			prompts,
+			activeTurn: { text: targetState?.activeTurn?.message.text, model: targetState?.activeTurn?.message.model },
+			queuedMessages: targetState?.queuedMessages?.map(queued => ({ text: queued.message.text, model: queued.message.model })),
 		}, {
 			results: [
 				'Message queued (agent-host-session://copilot/s2).',
 				'Message queued (agent-host-session://copilot/s2).',
 			],
-			activeTurn: 'active-turn',
-			queuedMessages: [
-				{
-					text: 'first',
-					origin: { kind: MessageKind.Agent },
-					delegation: {
-						sourceSession: 'copilot:/s1',
-						sourceChat: buildDefaultChatUri('copilot:/s1'),
-						sourceTurnId: 'turn-1',
-					},
-				},
-				{
-					text: 'second',
-					origin: { kind: MessageKind.Agent },
-					delegation: {
-						sourceSession: 'copilot:/s1',
-						sourceChat: buildDefaultChatUri('copilot:/s1'),
-						sourceTurnId: 'turn-1',
-					},
-				},
-			],
-			prompts: [],
+			activeTurn: { text: 'first', model: { id: 'gpt-5.6-sol' } },
+			queuedMessages: [{ text: 'second', model: { id: 'gpt-5.6-sol' } }],
 		});
 		store.dispose();
 	});
