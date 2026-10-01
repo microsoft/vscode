@@ -3749,31 +3749,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				accepted = await this._acceptVoiceInput(text, currentSessionResource);
 			} else {
 				if (shouldAvoidCurrentSession) {
-					this.logService.info('[voice] avoiding composer session for voice send; rerouting to shown session');
-					const shownSessionId = this._shownSessionId();
-					if (shownSessionId) {
-						try {
-							const shownSessionResource = URI.parse(shownSessionId);
-							const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', shownSessionResource.toString()).catch(() => false);
-							if (switched) {
-								await new Promise(resolve => setTimeout(resolve, 200));
-								accepted = await this._acceptVoiceInput(text, shownSessionResource);
-								if (accepted) {
-									this.logService.info(`[voice] rerouted voice send via switched shown session=${shownSessionResource.toString()}`);
-									return true;
-								}
-							}
-							const shownSessionResult = await this._sendVoiceRequest(shownSessionResource, text);
-							accepted = !!shownSessionResult && !ChatSendResult.isRejected(shownSessionResult);
-							if (accepted) {
-								this.logService.info(`[voice] rerouted voice send via direct shown session request=${shownSessionResource.toString()}`);
-								this._watchResponseForFloatingWindow(shownSessionResource);
-								return true;
-							}
-						} catch {
-							// ignore malformed shown session ids and continue fallback
-						}
-					}
+					this.logService.info('[voice] avoiding composer session for voice send; using fallback session routing');
 				}
 				// No focused chat session — find the most recent existing session
 				// instead of creating a new one, so voice continues the conversation.
