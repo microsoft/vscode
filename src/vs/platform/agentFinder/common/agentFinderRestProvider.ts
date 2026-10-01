@@ -301,6 +301,8 @@ function parseResource(value: unknown): ICustomizationMarketplaceEntry {
 	const sourceSet = text(metadata?.sourceSet);
 	const repository = (sourceSet && !sourceSet.includes('://') ? githubRepository(parseHttpUri(`https://github.com/${sourceSet}`), true) : undefined) ?? githubRepository(url);
 	const publisher = repository?.path.split('/')[1];
+	const installation = parseInstallation(mediaType, metadata, url, externalUrl);
+	const readmeUri = getReadmeUri(installation);
 	return {
 		identifier,
 		displayName,
@@ -312,12 +314,21 @@ function parseResource(value: unknown): ICustomizationMarketplaceEntry {
 		url,
 		externalUrl,
 		repository,
+		...(readmeUri ? { readmeUri } : {}),
 		icon: publisher ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${publisher}.png`, query: 'size=64' }) : undefined,
 		publisher,
 		version: text(value.version) ?? text(metadata?.version),
 		score: value.score,
-		installation: parseInstallation(mediaType, metadata, url, externalUrl),
+		installation,
 	};
+}
+
+function getReadmeUri(installation: CustomizationMarketplaceInstallation | undefined): URI | undefined {
+	if (installation?.kind !== 'plugin') {
+		return undefined;
+	}
+	const path = [installation.repository, installation.ref, installation.path, 'README.md'].filter(Boolean).join('/');
+	return URI.from({ scheme: Schemas.https, authority: 'raw.githubusercontent.com', path: `/${path}` });
 }
 
 function parseInstallation(mediaType: string, metadata: Record<string, unknown> | undefined, url: URI | undefined, externalUrl: string | undefined): CustomizationMarketplaceInstallation | undefined {

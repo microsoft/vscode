@@ -11,6 +11,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -256,6 +257,19 @@ suite('AgentHostAuthTokenCache', () => {
 			results: [true, false],
 			authenticateCalls: 1,
 		});
+	});
+
+	test('forwards changed account provenance even when the token is unchanged', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		let calls = 0;
+		const send = async () => { calls++; };
+		const results = [
+			await cache.authenticate('resource', ['repo'], 'token', send),
+			await cache.authenticate('resource', ['repo'], 'token', send, 'account-a'),
+			await cache.authenticate('resource', ['repo'], 'token', send, 'account-a'),
+			await cache.authenticate('resource', ['repo'], 'token', send, 'account-b'),
+		];
+		assert.deepStrictEqual({ results, calls }, { results: [true, true, false, true], calls: 3 });
 	});
 
 	test('different tokens are serialized for the same resource and scopes', async () => {
@@ -1620,6 +1634,29 @@ suite('authenticateProtectedResources', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('forwards selected account provenance without changing the host resource', async () => {
+		const resource = { ...protectedResource, resource: 'https://other-host.example/custom/repository-resource' };
+		const account = { id: 'provider-account', label: 'Private account label' };
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'provider',
+			getSessions: async () => [{ id: 'session', scopes: ['read'], accessToken: 'token', account }],
+		});
+		const instantiation = createAuthInstantiationService(disposables, authentication);
+		const agents = [new class extends mock<AgentInfo>() { override readonly protectedResources = [resource]; }()];
+		const requests: { resource: string; account: ReturnType<typeof readAuthenticationAccount>; metadata: Record<string, unknown> | undefined }[] = [];
+		await instantiation.invokeFunction(authenticateProtectedResources, agents, {
+			logPrefix: '[AgentHost]',
+			authenticate: async request => {
+				requests.push({ resource: request.resource, account: readAuthenticationAccount(request), metadata: request._meta });
+			},
+		});
+		assert.deepStrictEqual(requests, [{
+			resource: resource.resource,
+			account: { providerId: 'provider', accountId: 'provider-account' },
+			metadata: { 'vscode.authentication.account': { providerId: 'provider', accountId: 'provider-account' } },
+		}]);
+	});
+
 	for (const enabled of [undefined, false, true]) {
 		test(`connector-scoped authentication preference is experiment gated: ${enabled}`, async () => {
 			const account = { id: 'active-account', label: 'Active' };
@@ -2125,7 +2162,10 @@ suite('resolveAuthenticationInteractively', () => {
 		assert.deepStrictEqual({ success, commandCalls: commandService.calls.length, requests }, {
 			success: true,
 			commandCalls: 0,
-			requests: [{ resource: protectedResource.resource, scopes: ['read'], token: 'fresh-token' }],
+			requests: [{
+				resource: protectedResource.resource, scopes: ['read'], token: 'fresh-token',
+				_meta: authenticationAccountMeta({ providerId: 'provider-1', accountId: 'account-1' }),
+			}],
 		});
 	});
 

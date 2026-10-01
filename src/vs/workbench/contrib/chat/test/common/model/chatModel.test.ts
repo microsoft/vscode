@@ -738,7 +738,7 @@ suite('ChatModel', () => {
 		// The chat service records "migration hint already shown" in `contrib`,
 		// then the input widget publishes its own contrib keys on the next sync
 		// (typing, sending, model change). That rebuild must not drop the
-		// service's key, or `chat.customizations.migrationHint: "once"` degrades
+		// service's key, or `chat.customizations.migration.enabled: true` degrades
 		// into "always".
 		model.inputModel.setState({ contrib: { customizationMigrationHintShown: true } });
 		model.inputModel.setState({ inputText: 'typing', contrib: { widgetOwnedKey: 'from-widget' } });

@@ -27,7 +27,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 
 const maxSearchQueryLength = 256;
 const maxSearchWords = 16;
@@ -150,6 +150,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	private enabled = false;
 	private accountIdentity: string | undefined;
 	private authenticationAccountId: string | undefined;
+	private readonly connectorAuthorizationSessionIds = new Set<string>();
 	private _authorizationRequired = false;
 	private _catalogMayRequireConsent = false;
 	private _connectors: readonly ICopilotConnector[] = [];
@@ -411,14 +412,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			const listeners = new DisposableStore();
 			this.enabledListeners.value = listeners;
 			listeners.add(this.defaultAccountService.onDidChangeDefaultAccount(account => this.updateAccountIdentity(account)));
-			listeners.add(this.authenticationService.onDidChangeSessions(({ providerId, event }) => {
-				const account = this.defaultAccountService.currentDefaultAccount;
-				if (account?.authenticationProvider.id === providerId &&
-					[event.added, event.changed, event.removed].some(sessions => sessions?.some(session =>
-						session.id === account.sessionId || session.account.id === this.authenticationAccountId && hasConnectorScope(session, true)))) {
-					this.resetCatalogContext();
-				}
-			}));
+			listeners.add(this.authenticationService.onDidChangeSessions(({ providerId, event }) => this.handleAuthenticationSessionsChanged(providerId, event)));
 			this.updateAccountIdentity(this.defaultAccountService.currentDefaultAccount);
 		} else {
 			this.enabledListeners.clear();
@@ -439,11 +433,57 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		this.setConnectors([], false);
 	}
 
+	private handleAuthenticationSessionsChanged(providerId: string, event: AuthenticationSessionsChangeEvent): void {
+		const account = this.defaultAccountService.currentDefaultAccount;
+		if (!account || account.authenticationProvider.id !== providerId) {
+			return;
+		}
+		const affectedSessions = [...event.added ?? [], ...event.changed ?? [], ...event.removed ?? []];
+		const authenticationAccountId = this.authenticationAccountId
+			?? affectedSessions.find(session => session.id === account.sessionId || session.account.label === account.accountName)?.account.id;
+		if (!authenticationAccountId || !affectedSessions.some(session =>
+			session.id === account.sessionId ||
+			session.account.id === authenticationAccountId && (hasConnectorScope(session, true) || this.connectorAuthorizationSessionIds.has(session.id)))) {
+			return;
+		}
+		this.authenticationAccountId = authenticationAccountId;
+		const connectorAuthorizationChanged = this.updateConnectorAuthorizationSessions(event, authenticationAccountId);
+		this.resetCatalogContext();
+		if (connectorAuthorizationChanged) {
+			void this.refreshAgentHostConnectorSessions();
+		}
+	}
+
+	private updateConnectorAuthorizationSessions(event: AuthenticationSessionsChangeEvent, accountId: string): boolean {
+		const wasAuthorized = this.connectorAuthorizationSessionIds.size > 0;
+		for (const session of event.removed ?? []) {
+			this.connectorAuthorizationSessionIds.delete(session.id);
+		}
+		for (const session of [...event.changed ?? [], ...event.added ?? []]) {
+			if (session.account.id === accountId && hasConnectorScope(session, false)) {
+				this.connectorAuthorizationSessionIds.add(session.id);
+			} else {
+				this.connectorAuthorizationSessionIds.delete(session.id);
+			}
+		}
+		return wasAuthorized !== (this.connectorAuthorizationSessionIds.size > 0);
+	}
+
+	private replaceConnectorAuthorizationSessions(sessions: readonly AuthenticationSession[], accountId: string): void {
+		this.connectorAuthorizationSessionIds.clear();
+		for (const session of sessions) {
+			if (session.account.id === accountId && hasConnectorScope(session, false)) {
+				this.connectorAuthorizationSessionIds.add(session.id);
+			}
+		}
+	}
+
 	private updateAccountIdentity(account: IDefaultAccount | null): void {
 		const identity = getAccountIdentity(account);
 		if (identity !== this.accountIdentity) {
 			this.accountIdentity = identity;
 			this.authenticationAccountId = undefined;
+			this.connectorAuthorizationSessionIds.clear();
 			this.resetCatalogContext();
 			this._onDidChangeAccount.fire();
 		}
@@ -539,6 +579,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			return undefined;
 		}
 		this.authenticationAccountId = session.account.id;
+		this.replaceConnectorAuthorizationSessions(sessions, session.account.id);
 		return {
 			account,
 			session,

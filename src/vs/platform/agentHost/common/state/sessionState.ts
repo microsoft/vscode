@@ -14,6 +14,7 @@ import { distinct } from '../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
+import { getPullRequestUrlKey } from '../../../github/common/githubUrls.js';
 import type { IProductService } from '../../../product/common/productService.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../agentHostWorkingDirectories.js';
 import { isAgentWorkspaceContinuationMessage } from '../meta/agentWorkspaceContinuationMeta.js';
@@ -1413,11 +1414,6 @@ export function getSessionRelatedPullRequestUrls(gitHubState: ISessionGitHubStat
 /** Maximum pull requests retained for a session. */
 export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
 
-/** Normalized key for comparing pull request URLs irrespective of case and trailing slashes. */
-export function getSessionPullRequestUrlKey(url: string): string {
-	return url.trim().replace(/\/+$/, '').toLowerCase();
-}
-
 function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 	const normalizedUrls = urls.map(url => {
 		const match = /^https:\/\/(?<host>[^/]+)\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
@@ -1426,7 +1422,7 @@ function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 			? `https://${groups['host'].toLowerCase()}/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
 			: url;
 	});
-	return distinct(normalizedUrls, getSessionPullRequestUrlKey).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+	return distinct(normalizedUrls, getPullRequestUrlKey).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
 }
 
 /** Returns GitHub state with `pullRequestUrl` moved to the front of its bounded history. */
@@ -1862,7 +1858,7 @@ export function getAllSessionRelatedPullRequestUrls(meta: SessionSummaryMeta | u
 	const urls = new Map<string, string>();
 	for (const state of [readSessionGitHubStateInput(meta), ...readSessionGitHubData(meta).values()]) {
 		for (const url of getSessionRelatedPullRequestUrls(state)) {
-			const key = getSessionPullRequestUrlKey(url);
+			const key = getPullRequestUrlKey(url);
 			if (!urls.has(key)) {
 				urls.set(key, url);
 			}
@@ -1937,6 +1933,43 @@ export function parseSessionCreationReference(value: string | undefined): ISessi
 
 export function withSessionCreationReference(meta: SessionSummaryMeta | undefined, creationReference: ISessionCreationReference): SessionSummaryMeta {
 	return { ...meta, [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference };
+}
+
+export const SESSION_META_COMPARISON_KEY = 'agentHost/sessionComparison';
+
+export type AgentSessionComparisonRole = 'attempt' | 'judge' | 'synthesis';
+
+export interface IAgentSessionComparisonMetadata {
+	readonly id: string;
+	readonly role: AgentSessionComparisonRole;
+	readonly attemptIndex?: number;
+	readonly attemptCount: number;
+}
+
+export function readSessionComparisonMetadata(meta: SessionSummaryMeta | undefined): IAgentSessionComparisonMetadata | undefined {
+	const value = meta?.[SESSION_META_COMPARISON_KEY];
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { [key: string]: unknown };
+	if (typeof candidate.id !== 'string' || candidate.id.length === 0 || candidate.id.length > 128
+		|| (candidate.role !== 'attempt' && candidate.role !== 'judge' && candidate.role !== 'synthesis')
+		|| !Number.isInteger(candidate.attemptCount) || (candidate.attemptCount as number) < 2
+		|| (candidate.attemptIndex !== undefined && (!Number.isInteger(candidate.attemptIndex) || (candidate.attemptIndex as number) < 0 || (candidate.attemptIndex as number) >= (candidate.attemptCount as number)))
+		|| (candidate.role === 'attempt') !== (candidate.attemptIndex !== undefined)
+	) {
+		return undefined;
+	}
+	return {
+		id: candidate.id,
+		role: candidate.role,
+		attemptIndex: candidate.attemptIndex as number | undefined,
+		attemptCount: candidate.attemptCount as number,
+	};
+}
+
+export function withSessionComparisonMetadata(meta: SessionSummaryMeta | undefined, comparison: IAgentSessionComparisonMetadata): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_COMPARISON_KEY]: comparison };
 }
 
 /**

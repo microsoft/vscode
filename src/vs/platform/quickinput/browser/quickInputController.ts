@@ -9,7 +9,7 @@ import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, Sequencer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../base/common/lifecycle.js';
@@ -79,6 +79,8 @@ export class QuickInputController extends Disposable {
 
 	private controller: IQuickInput | null = null;
 	get currentQuickInput() { return this.controller ?? undefined; }
+	private readonly quickInputAnchorSequencer = new Sequencer();
+	private quickInputAnchorScope: { readonly anchor: IQuickInput['anchor']; readonly anchorPosition: IQuickInput['anchorPosition']; consumed: boolean } | undefined;
 
 	private _container: HTMLElement;
 	get container() { return this._container; }
@@ -675,6 +677,20 @@ export class QuickInputController extends Disposable {
 		return new QuickPick<T, typeof options>(ui);
 	}
 
+	async withQuickInputAnchor<T>(anchor: IQuickInput['anchor'], anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T> {
+		return this.quickInputAnchorSequencer.queue(async () => {
+			const scope = { anchor, anchorPosition, consumed: false };
+			this.quickInputAnchorScope = scope;
+			try {
+				return await operation();
+			} finally {
+				if (this.quickInputAnchorScope === scope) {
+					this.quickInputAnchorScope = undefined;
+				}
+			}
+		});
+	}
+
 	createInputBox(): IInputBox {
 		const ui = this.getUI(true);
 		return new InputBox(ui);
@@ -699,6 +715,12 @@ export class QuickInputController extends Disposable {
 
 	private show(controller: IQuickInput) {
 		this.completeCloseAnimation();
+		const anchorScope = this.quickInputAnchorScope;
+		if (controller.type === QuickInputType.QuickPick && controller.anchor === undefined && anchorScope && !anchorScope.consumed) {
+			anchorScope.consumed = true;
+			controller.anchor = anchorScope.anchor;
+			controller.anchorPosition = anchorScope.anchorPosition;
+		}
 		const ui = this.getUI(true);
 		const oldController = this.controller;
 		this.controller = controller;
@@ -983,13 +1005,15 @@ export class QuickInputController extends Disposable {
 					preferredAnchorPosition = AnchorPosition.BELOW;
 				} else {
 					width = 380;
+					preferredAnchorPosition = this.controller.anchorPosition === 'below' ? AnchorPosition.BELOW : AnchorPosition.ABOVE;
 				}
 
 				listHeight = this.dimension ? Math.min(this.dimension.height * listHeightRatio, maxListHeight) : maxListHeight;
 
 				// Beware:
 				// We need to add some extra pixels to the height to account for the input and padding.
-				const containerHeight = Math.floor(listHeight) + verticalPadding;
+				const anchorGap = this.controller.anchorPosition === 'overlay' ? 0 : 4;
+				const containerHeight = Math.floor(listHeight) + verticalPadding + anchorGap;
 				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: preferredAnchorPosition });
 
 				if (anchorAlignment === AnchorAlignment.RIGHT) {
@@ -1001,10 +1025,10 @@ export class QuickInputController extends Disposable {
 				}
 
 				if (anchorPosition === AnchorPosition.ABOVE) {
-					style.bottom = `${bottom}px`;
+					style.bottom = `${bottom + anchorGap}px`;
 					style.top = 'initial';
 				} else {
-					style.top = `${top}px`;
+					style.top = `${top + anchorGap}px`;
 					style.bottom = 'initial';
 				}
 

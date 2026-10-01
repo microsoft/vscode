@@ -57,7 +57,7 @@ import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReferenc
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CustomizationMigrationHintMode } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -1088,6 +1088,119 @@ suite('ChatService', () => {
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
 	});
+
+	for (const duringActiveRequest of [true, false]) {
+		test(`system notifications retain their provenance after ${duringActiveRequest ? 'steering an active' : 'resuming an idle'} task`, async () => {
+			const started = new DeferredPromise<void>();
+			const complete = new DeferredPromise<void>();
+			const invocations: { message: string; isSystemInitiated: boolean; history: { message: string; isSystemInitiated: boolean }[] }[] = [];
+			const canceled: string[] = [];
+			const agentId = 'notificationAgent';
+			testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+				async invoke(request, _progress, history, token) {
+					invocations.push({
+						message: request.message,
+						isSystemInitiated: !!request.isSystemInitiated,
+						history: history.map(entry => ({ message: entry.request.message, isSystemInitiated: !!entry.request.isSystemInitiated })),
+					});
+					testDisposables.add(token.onCancellationRequested(() => canceled.push(request.message)));
+					if (invocations.length === 1) {
+						started.complete();
+						await complete.p;
+					}
+					return {};
+				},
+			}));
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const first = await service.sendRequest(model.sessionResource, 'task', { agentId });
+			ChatSendResult.assertSent(first);
+			await started.p;
+			if (!duringActiveRequest) {
+				complete.complete();
+				await first.data.responseCompletePromise;
+			}
+
+			const notification = '[Terminal terminal-1 notification: command completed.]\nTerminal output:\nNOTIFY-DONE';
+			const pending = await service.sendRequest(model.sessionResource, notification, { agentId, queue: ChatRequestQueueKind.Steering, isSystemInitiated: true });
+			if (duringActiveRequest) {
+				assert.ok(ChatSendResult.isQueued(pending));
+				complete.complete();
+				await first.data.responseCompletePromise;
+			}
+			const sent = ChatSendResult.isQueued(pending) ? await pending.deferred : pending;
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+			const nextPending = await service.sendRequest(model.sessionResource, 'next notification', { agentId, queue: ChatRequestQueueKind.Steering, isSystemInitiated: true });
+			const next = ChatSendResult.isQueued(nextPending) ? await nextPending.deferred : nextPending;
+			ChatSendResult.assertSent(next);
+			await next.data.responseCompletePromise;
+			service.processPendingRequests(model.sessionResource);
+
+			assert.deepStrictEqual({ invocations, canceled, pending: model.getPendingRequests().length }, {
+				invocations: [
+					{ message: 'task', isSystemInitiated: false, history: [] },
+					{ message: notification, isSystemInitiated: true, history: [{ message: 'task', isSystemInitiated: false }] },
+					{ message: 'next notification', isSystemInitiated: true, history: [{ message: 'task', isSystemInitiated: false }, { message: notification, isSystemInitiated: true }] },
+				],
+				canceled: [],
+				pending: 0,
+			});
+		});
+	}
+
+	for (const { name, firstIsSystem, secondIsSystem, expectSystem } of [
+		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expectSystem: true },
+		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expectSystem: false },
+		{ name: 'user input then notification', firstIsSystem: false, secondIsSystem: true, expectSystem: false },
+	]) {
+		test(`steering batches preserve user turn boundaries: ${name}`, async () => {
+			const started = new DeferredPromise<void>();
+			const complete = new DeferredPromise<void>();
+			const invoked: { message: string; isSystemInitiated: boolean }[] = [];
+			const agentId = 'notificationAgent';
+			testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+				async invoke(request) {
+					invoked.push({ message: request.message, isSystemInitiated: !!request.isSystemInitiated });
+					if (invoked.length === 1) {
+						started.complete();
+						await complete.p;
+					}
+					return {};
+				},
+			}));
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const first = await service.sendRequest(model.sessionResource, 'task', { agentId });
+			ChatSendResult.assertSent(first);
+			await started.p;
+			const pending = [];
+			for (const [i, isSystemInitiated] of [firstIsSystem, secondIsSystem].entries()) {
+				const result = await service.sendRequest(model.sessionResource, `message ${i + 1}`, {
+					agentIdSilent: agentId,
+					queue: ChatRequestQueueKind.Steering,
+					isSystemInitiated,
+					systemInitiatedLabel: isSystemInitiated ? 'Terminal completed' : undefined,
+				});
+				assert.ok(ChatSendResult.isQueued(result));
+				pending.push(result);
+			}
+			complete.complete();
+			await first.data.responseCompletePromise;
+			for (const queued of pending) {
+				const result = await queued.deferred;
+				ChatSendResult.assertSent(result);
+				await result.data.responseCompletePromise;
+			}
+			assert.deepStrictEqual({ invoked, label: model.lastRequest?.systemInitiatedLabel, pending: model.getPendingRequests().length }, {
+				invoked: [{ message: 'task', isSystemInitiated: false }, { message: 'message 1\n\nmessage 2', isSystemInitiated: expectSystem }],
+				label: expectSystem ? 'Terminal completed' : undefined,
+				pending: 0,
+			});
+		});
+	}
 
 	test('multiple steering messages are combined into a single request', async () => {
 		const requestStarted = new DeferredPromise<void>();
@@ -2688,7 +2801,7 @@ suite('ChatService', () => {
 		});
 	});
 
-	test('customization migration hint respects never, once, always, and workspace harness dismissal', async () => {
+	test('customization migration hint respects enablement, once-per-session, and workspace harness dismissal', async () => {
 		const sessionType = SessionType.AgentHostCopilot;
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
@@ -2742,7 +2855,7 @@ suite('ChatService', () => {
 		await neverModeResponse.data.responseCompletePromise;
 
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled, true);
 		const first = await testService.sendRequest(sessionResource, 'first', { agentId: sessionType });
 		ChatSendResult.assertSent(first);
 		await first.data.responseCompletePromise;
@@ -2750,7 +2863,6 @@ suite('ChatService', () => {
 		ChatSendResult.assertSent(second);
 		await second.data.responseCompletePromise;
 
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Always);
 		const otherSessionResource = URI.from({ scheme: sessionType, path: '/other-session' });
 		const otherRef = await testService.acquireOrLoadSession(otherSessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(otherRef);
@@ -2798,11 +2910,9 @@ suite('ChatService', () => {
 			dismissedForSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE),
 			dismissedForOtherSessionType: storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(SessionType.AgentHostClaude), StorageScope.WORKSPACE),
 		}, {
-			computeCalls: 3,
+			computeCalls: 2,
 			computedFor: sessionResource.toString(),
 			migrationTelemetry: [
-				{ action: 'assessment', migrationFlowId: 'migration-flow-id', category: 'promptFiles', count: 3 },
-				{ action: 'hintShown', migrationFlowId: 'migration-flow-id', count: 3 },
 				{ action: 'assessment', migrationFlowId: 'migration-flow-id', category: 'promptFiles', count: 3 },
 				{ action: 'hintShown', migrationFlowId: 'migration-flow-id', count: 3 },
 				{ action: 'assessment', migrationFlowId: 'migration-flow-id', category: 'promptFiles', count: 3 },
@@ -2811,7 +2921,7 @@ suite('ChatService', () => {
 			neverHint: [],
 			firstHint: [expectedHint],
 			secondHint: [],
-			otherSessionHints: [[expectedHint], [expectedHint]],
+			otherSessionHints: [[expectedHint], []],
 			dismissedSessionHint: [],
 			dismissedForSessionType: true,
 			dismissedForOtherSessionType: undefined,
@@ -2848,7 +2958,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled, true);
 		instantiationService.stub(ICustomizationMigrationService, migrationService);
 		const testService = createChatService();
 		const firstRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);

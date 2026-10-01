@@ -316,7 +316,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * stamps its transport vendor — `copilot`/`anthropic` — there while keeping
 	 * `provider` as the `claude` routing owner); that wins. Otherwise BYOK models
 	 * are surfaced by the agent host under the `vendor/[group/]id` selection id (see
-	 * `resolveByokSessionConfig`), so their upstream vendor is the id prefix; native
+	 * `synthesizeByokSessionConfig`), so their upstream vendor is the id prefix; native
 	 * harness models have no prefix and group under their `provider` (the harness,
 	 * e.g. `copilotcli`). The picker resolves the display name from the vendor
 	 * registry — no name mapping lives here.
