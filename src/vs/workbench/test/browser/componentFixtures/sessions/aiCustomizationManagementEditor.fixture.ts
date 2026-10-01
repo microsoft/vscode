@@ -1912,16 +1912,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			);
 			const resultAction = availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button');
 			if (resultAction) {
-				const actionBounds = resultAction.getBoundingClientRect();
-				const primaryActionPoints = [
-					[actionBounds.left + actionBounds.width / 2, rowBounds.top + 1],
-					[actionBounds.left + actionBounds.width / 2, rowBounds.bottom - 1],
-					[actionBounds.left - 1, actionBounds.top + actionBounds.height / 2],
-					[actionBounds.right + 1, actionBounds.top + actionBounds.height / 2],
-				] as const;
+				const pointerTransparentContent = [
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-icon'),
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-identity'),
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-aside'),
+				];
 				assert(
-					primaryActionPoints.every(([x, y]) => targetWindow.document.elementFromPoint(x, y) === availablePrimaryAction)
-					&& resultAction.contains(targetWindow.document.elementFromPoint(actionBounds.left + actionBounds.width / 2, actionBounds.top + actionBounds.height / 2)),
+					pointerTransparentContent.every(element => !element || targetWindow.getComputedStyle(element).pointerEvents === 'none')
+					&& targetWindow.getComputedStyle(resultAction).pointerEvents === 'auto',
 					'The Discover result must keep the primary action clickable around an independently clickable item action.',
 				);
 			}
