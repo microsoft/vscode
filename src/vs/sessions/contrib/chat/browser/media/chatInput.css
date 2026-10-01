@@ -18,6 +18,22 @@
 	z-index: 1;
 }
 
+/* The experimental composer groups controls inside the prompt stack. Give that
+ * stack the main session surface as an opaque base so translucent input colors
+ * do not reveal a configured chat background between its elements. */
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-content.experimental-new-session-composer .new-chat-input-container {
+	background-color: var(--session-view-background);
+	border-radius:
+		0
+		var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))
+		var(--vscode-cornerRadius-large)
+		var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-content.experimental-new-session-composer.quick-chat .new-chat-input-container {
+	border-top-left-radius: var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large));
+}
+
 /* The tip sits in the input's notice slot, attached to the top of the input. */
 .new-chat-input-container > .chat-getting-started-tip-container {
 	width: 100%;
