@@ -10,14 +10,32 @@ export function attributePermissionResult(result: PermissionRequestResult, sourc
 	if (!source || result.kind === 'no-result') {
 		return result;
 	}
+	if (source === 'human_response') {
+		return createAttributedPermissionResult(result, {
+			source,
+			surface: 'sdk',
+			outcome: 'prompted_user',
+			responseCapability: 'interactive',
+		});
+	}
 	return createAttributedPermissionResult(result, {
 		source,
 		surface: 'sdk',
-		outcome: source === 'human_response' ? 'prompted_user'
-			: result.kind === 'approve-once' || result.kind === 'approved' || result.kind === 'approve-for-session' || result.kind === 'approve-for-location' || result.kind === 'approve-permanently'
-				? 'auto_approved' : 'autopilot_denied',
-		...(source === 'human_response' ? { responseCapability: 'interactive' } : {}),
+		outcome: isApprovalResponse(result) ? 'auto_approved' : 'autopilot_denied',
 	});
+}
+
+function isApprovalResponse(result: PermissionRequestResult): boolean {
+	switch (result.kind) {
+		case 'approve-once':
+		case 'approved':
+		case 'approve-for-session':
+		case 'approve-for-location':
+		case 'approve-permanently':
+			return true;
+		default:
+			return false;
+	}
 }
 
 export function isPermissionDeniedKind(kind: PermissionResult['kind'] | undefined): boolean {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { PermissionDecisionSource, PermissionResult } from '@github/copilot-sdk';
+import type { PermissionDecisionSource, PermissionRequestResult, PermissionResult } from '@github/copilot-sdk';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { attributePermissionResult, permissionResultToConfirmKind } from '../../node/copilot/copilotPermissionAttribution.js';
 
@@ -29,6 +29,21 @@ suite('Copilot permission attribution', () => {
 			{ kind: 'reject' },
 			{ kind: 'no-result' },
 		]);
+	});
+
+	test('retains positive outcomes for automatic approval response variants', () => {
+		const approvals = [
+			{ kind: 'approve-once' },
+			{ kind: 'approved' },
+			{ kind: 'approve-for-session' },
+			{ kind: 'approve-for-location', approval: { kind: 'read' }, locationKey: 'workspace' },
+			{ kind: 'approve-permanently', domain: 'example.com' },
+		] satisfies PermissionRequestResult[];
+		assert.deepStrictEqual(approvals.map(result => attributePermissionResult(result, 'host_policy')), approvals.map(result => ({
+			kind: 'attributed',
+			result,
+			decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'auto_approved' },
+		})));
 	});
 
 	test('requires explicit human attribution, including scoped grants', () => {
