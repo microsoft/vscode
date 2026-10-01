@@ -89,7 +89,7 @@ export function createAltBufferPromise(
  *
  * @param allowLayoutMatch Whether the output starts at the start marker's row, so it begins with the
  * prompt and echo. Only then is the echo also matched by its layout: `getOutput()` starts after the
- * echo, and buffer contents read after the start marker was trimmed may not contain it.
+ * echo, and buffer contents read without a live start marker start at line 0 and may not contain it.
  */
 export function stripCommandEchoAndPrompt(output: string, commandLine: string, log?: (message: string) => void, allowLayoutMatch?: boolean): string {
 	log?.(`stripCommandEchoAndPrompt input: output length=${output.length}, commandLine length=${commandLine.length}`);
@@ -112,8 +112,8 @@ function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log
 	// Strip leading lines that are part of the command echo using findCommandEcho.
 	// Allow suffix matching to handle partial command echoes from getOutput()
 	// where the prompt line is not included, and layout matching to handle
-	// buffer echoes of multi-line commands or of command lines that zsh broke
-	// into rows.
+	// buffer echoes of multi-line commands or of long command lines that were
+	// broken into rows.
 	const echoResult = findCommandEcho(output, commandLine, /*allowSuffixMatch*/ true, allowLayoutMatch);
 	const lines = echoResult ? echoResult.linesAfter : output.split('\n');
 	const startIndex = 0;
@@ -213,7 +213,7 @@ export function findCommandEcho(output: string, commandLine: string, allowSuffix
 	// contiguous substring even when terminal wrapping splits it across lines.
 	const { strippedOutput, indexMapping } = stripNewLinesAndBuildMapping(output);
 	const matchIndex = strippedOutput.indexOf(trimmedCommand);
-	const layoutMatch = matchIndex === -1 && allowLayoutMatch ? findCommandEchoByLayout(output, trimmedCommand) : undefined;
+	const layoutMatch = matchIndex === -1 && allowLayoutMatch ? findCommandEchoIgnoringWhitespace(output, trimmedCommand) : undefined;
 
 	let originalEnd: number;
 	let contentBefore: string;
@@ -223,7 +223,7 @@ export function findCommandEcho(output: string, commandLine: string, allowSuffix
 		contentBefore = strippedOutput.substring(0, matchIndex).trim();
 		originalEnd = indexMapping[matchIndex + trimmedCommand.length - 1];
 	} else if (layoutMatch) {
-		contentBefore = output.substring(0, layoutMatch.start).replace(/\n/g, '').trim();
+		contentBefore = output.substring(0, layoutMatch.start).trim();
 		originalEnd = layoutMatch.end;
 	} else if (allowSuffixMatch) {
 		// If the full command wasn't found, check if the output starts with a
@@ -274,70 +274,28 @@ export function findCommandEcho(output: string, commandLine: string, allowSuffix
 }
 
 /**
- * Finds a command echo whose layout differs from the command text: each run of whitespace in the
- * command may be any whitespace in the echo, a row break may split a word, and the rest of the
- * first row, such as a right prompt, may follow the first line of a multi-line command.
+ * Finds a command echo whose layout differs from the command text, ignoring whitespace: each line
+ * of a multi-line command is echoed on its own row, and a row break in a long command line may
+ * replace a space or add padding. The echo must start on the first line, after the prompt, so the
+ * match can't reach into the output.
  *
  * @returns The offsets in the output of the first and last characters of the echo.
  */
-function findCommandEchoByLayout(output: string, command: string): { start: number; end: number } | undefined {
-	const [firstLine, ...otherLines] = command.split(/\r\n|\r|\n/);
-	const firstWords = firstLine.trim().split(/\s+/);
-	const otherWords = otherLines.length > 0 ? otherLines.join('\n').trim().split(/\s+/) : [];
-	// A match contains the words in order with only whitespace added, so most misses can be ruled
-	// out without scanning every start offset
-	const compactOutput = output.replace(/\s+/g, '');
-	if (!compactOutput.includes(firstWords.join('')) || !compactOutput.includes(otherWords.join(''))) {
+function findCommandEchoIgnoringWhitespace(output: string, command: string): { start: number; end: number } | undefined {
+	const compactCommand = command.replace(/\s+/g, '');
+	const chars: string[] = [];
+	const offsets: number[] = [];
+	for (let i = 0; i < output.length; i++) {
+		if (!/\s/.test(output[i])) {
+			chars.push(output[i]);
+			offsets.push(i);
+		}
+	}
+	const index = chars.join('').indexOf(compactCommand);
+	if (index === -1 || output.lastIndexOf('\n', offsets[index]) !== -1) {
 		return undefined;
 	}
-	const isSpace = (i: number) => i < output.length && /\s/.test(output[i]);
-	const skipSpace = (i: number) => {
-		while (isSpace(i)) {
-			i++;
-		}
-		return i;
-	};
-	// Returns the offset after the words when they match at offset i, or -1
-	const matchWords = (words: string[], i: number) => {
-		for (let w = 0; w < words.length; w++) {
-			if (w > 0) {
-				if (!isSpace(i)) {
-					return -1;
-				}
-				i = skipSpace(i);
-			}
-			for (let c = 0; c < words[w].length; c++) {
-				if (c > 0 && output[i] === '\n') {
-					i++;
-				}
-				if (output[i] !== words[w][c]) {
-					return -1;
-				}
-				i++;
-			}
-		}
-		return i;
-	};
-	const firstChar = firstWords[0][0];
-	for (let start = output.indexOf(firstChar); start !== -1; start = output.indexOf(firstChar, start + 1)) {
-		let end = matchWords(firstWords, start);
-		if (end !== -1 && otherWords.length > 0) {
-			const firstLineEnd = end;
-			const rowEnd = output.indexOf('\n', firstLineEnd);
-			end = -1;
-			// zsh may draw a right prompt after the first line
-			if (output[firstLineEnd] !== '\n' && isSpace(firstLineEnd) && rowEnd !== -1) {
-				end = matchWords(otherWords, skipSpace(rowEnd + 1));
-			}
-			if (end === -1 && isSpace(firstLineEnd)) {
-				end = matchWords(otherWords, skipSpace(firstLineEnd));
-			}
-		}
-		if (end !== -1) {
-			return { start, end: end - 1 };
-		}
-	}
-	return undefined;
+	return { start: offsets[index], end: offsets[index + compactCommand.length - 1] };
 }
 
 export function stripNewLinesAndBuildMapping(output: string): { strippedOutput: string; indexMapping: number[] } {

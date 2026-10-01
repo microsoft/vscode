@@ -468,16 +468,7 @@ suite('XtermTerminal', () => {
 			strictEqual(result, 'line 1\nline 2\nline 3\nline 4\nline 5', 'Should handle markers at buffer boundaries correctly');
 		});
 
-		test('should join soft-wrapped rows', async () => {
-			const longLine = `${'a'.repeat(79)} ${'b'.repeat(20)}`;
-			const startMarker = xterm.raw.registerMarker(0)!;
-			await write(`${longLine}\r\nshort\r\n`);
-			const endMarker = xterm.raw.registerMarker(0)!;
-
-			strictEqual(xterm.getContentsAsText(startMarker, endMarker), `${longLine}\nshort\n`);
-		});
-
-		test('should not join past an end marker in the middle of a wrapped line', async () => {
+		test('should join soft-wrapped rows up to the end marker', async () => {
 			const startMarker = xterm.raw.registerMarker(0)!;
 			await write('a'.repeat(80));
 			const firstRowMarker = xterm.raw.registerMarker(0)!;

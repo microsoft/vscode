@@ -41,7 +41,7 @@ suite('NoneExecuteStrategy', () => {
 			raw: {
 				registerMarker: () => ({
 					line: markerLine,
-					isDisposed: false,
+					isDisposed: markerLine === -1,
 					onDispose: Event.None,
 					dispose: () => { },
 				}),
@@ -136,13 +136,13 @@ suite('NoneExecuteStrategy', () => {
 	}));
 
 	test('should not match the echo by layout when the start marker was trimmed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		// The buffer is read from line 0, so it may not contain the echo
-		const { instance } = createMockTerminalAndXterm('line1\ncat\nfile\nline4\nlast', 'last', -1);
+		// The buffer is read from line 0, so its first lines are output rather than the echo
+		const { instance } = createMockTerminalAndXterm('cat\nfile\nlast', 'last', -1);
 		const strategy = store.add(new NoneExecuteStrategy(instance, () => false, new TestConfigurationService(), createLogService()));
 		const cts = store.add(new CancellationTokenSource());
 
 		const result = await strategy.execute('cat file', cts.token);
 
-		assert.strictEqual(result.output, 'line1\ncat\nfile\nline4\nlast');
+		assert.strictEqual(result.output, 'cat\nfile\nlast');
 	}));
 });

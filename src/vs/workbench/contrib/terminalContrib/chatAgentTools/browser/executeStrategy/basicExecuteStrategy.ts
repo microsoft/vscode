@@ -268,14 +268,15 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			}
 			if (output === undefined) {
 				try {
-					const startMarkerDisposed = this._startMarker.value?.line === -1;
-					output = xterm.getContentsAsText(this._startMarker.value, endMarker);
+					const startMarker = this._startMarker.value;
+					const startMarkerDisposed = startMarker?.line === -1;
+					output = xterm.getContentsAsText(startMarker, endMarker);
 					this._log('Fetched output via markers');
 
 					// The marker-based output includes the command echo and trailing
 					// prompt lines. Strip them to isolate the actual command output.
 					if (output !== undefined) {
-						output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this), /*allowLayoutMatch*/ !startMarkerDisposed);
+						output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this), /*allowLayoutMatch*/ startMarker !== undefined && !startMarkerDisposed);
 					}
 
 					if (startMarkerDisposed) {

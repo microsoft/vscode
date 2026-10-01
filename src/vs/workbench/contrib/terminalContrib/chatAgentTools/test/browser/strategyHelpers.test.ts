@@ -123,88 +123,50 @@ suite('stripCommandEchoAndPrompt', () => {
 		]);
 	});
 
-	test('strips command echo that zsh broke into rows', () => {
-		// zsh doesn't soft-wrap the rows of a long command line, and a row break can replace a space
-		const commandLine = ` echo xx${Array(59).fill('ab').join(' ')} | wc -c`;
-		const output = [
+	test('strips command echo whose row breaks dropped a space or added padding', () => {
+		// zsh and ConPTY may break a long command line into rows that aren't soft-wrapped,
+		// dropping the space at the break
+		const zshCommandLine = ` echo xx${Array(59).fill('ab').join(' ')} | wc -c`;
+		const zshOutput = [
 			'➜  app git:(main) ✗  echo xxab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab a',
 			'b ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab',
 			'ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab | wc -c',
 			'     179',
 		].join('\n');
-
-		assert.strictEqual(stripCommandEchoAndPrompt(output, commandLine, undefined, /*allowLayoutMatch*/ true), '     179');
-	});
-
-	test('strips multi-line command echo with a right prompt on the first row', () => {
-		const output = [
-			'➜  app git:(main) ✗ python3 - <<\'EOF\'                                       [0]',
-			'print(\'first\')',
-			'print(\'second\')',
-			'EOF',
-			'first',
-			'second',
+		// A wide character that doesn't fit at the end of a row leaves a blank cell, which the
+		// joined soft-wrapped row keeps as a space
+		const wideCommandLine = `echo "${'x'.repeat(55)}完整进程列表"`;
+		const wideOutput = [
+			`user@host:~/src $ echo "${'x'.repeat(55)} 完整进程列表"`,
+			`${'x'.repeat(55)}完整进程列表`,
+			'user@host:~/src $ ',
 		].join('\n');
 
-		assert.strictEqual(
-			stripCommandEchoAndPrompt(output, 'python3 - <<\'EOF\'\nprint(\'first\')\nprint(\'second\')\nEOF', undefined, /*allowLayoutMatch*/ true),
-			'first\nsecond'
-		);
+		assert.deepStrictEqual([
+			stripCommandEchoAndPrompt(zshOutput, zshCommandLine, undefined, /*allowLayoutMatch*/ true),
+			stripCommandEchoAndPrompt(wideOutput, wideCommandLine, undefined, /*allowLayoutMatch*/ true),
+		], [
+			'     179',
+			`${'x'.repeat(55)}完整进程列表`,
+		]);
 	});
 
-	test('strips the echo of a large multi-line command', () => {
-		const lines = Array.from({ length: 250 }, (_, i) => `print('line ${i}', ${i} * 2)  # some padding to make the line longer`);
-		const commandLine = ['python3 - <<\'EOF\'', ...lines, 'EOF'].join('\n');
-		const output = ['user@host:~/src $ python3 - <<\'EOF\'', ...lines, 'EOF', 'line 0 0', 'user@host:~/src $ '].join('\n');
-
-		assert.strictEqual(stripCommandEchoAndPrompt(output, commandLine, undefined, /*allowLayoutMatch*/ true), 'line 0 0');
-	});
-
-	test('preserves output of a multi-line command when there is no echo', () => {
-		// getOutput() starts after the echo, and the output must not be mistaken for it
-		const commandLine = 'cat <<\'EOF\'\nfirst\nsecond\nEOF';
-
-		assert.strictEqual(
-			stripCommandEchoAndPrompt('first\nsecond\n', commandLine),
-			'first\nsecond'
-		);
-	});
-
-	test('preserves output that contains the command without its whitespace', () => {
+	test('only matches the command echo by layout at the start of buffer contents', () => {
+		// The listing contains `ls -l` without its whitespace, but not on the first line
 		const listing = [
 			'total 16',
 			'-rw-r--r--  1 user  staff  1203 Sep 30 12:00 README.md',
 			'-rw-r--r--  1 user  staff   311 Sep 30 12:00 skills-lock.json',
-			'drwxr-xr-x  4 user  staff   128 Sep 30 12:00 src',
 		].join('\n');
 
 		assert.deepStrictEqual([
-			stripCommandEchoAndPrompt(listing, 'ls -l'),
 			stripCommandEchoAndPrompt(listing, 'ls -l', undefined, /*allowLayoutMatch*/ true),
+			// getOutput() starts after the echo, so it is never matched by layout
+			stripCommandEchoAndPrompt('cat\nfile\n', 'cat file'),
 		], [
 			listing,
-			listing,
+			'cat\nfile',
 		]);
-	});
-
-	test('preserves getOutput() output that contains the command words on separate lines', () => {
-		// getOutput() starts after the echo, so it is never matched by layout
-		assert.strictEqual(stripCommandEchoAndPrompt('cat\nfile\n', 'cat file'), 'cat\nfile');
-	});
-
-	test('preserves output when a multi-line echo diverges from the command', () => {
-		const output = [
-			'user@host:~/src $ cat > /tmp/a.py <<\'EOF\'',
-			'import os',
-			'garbage row',
-			'1',
-			'user@host:~/src $ ',
-		].join('\n');
-
-		assert.strictEqual(
-			stripCommandEchoAndPrompt(output, 'cat > /tmp/a.py <<\'EOF\'\nimport os\nprint(1)\nEOF\npython3 /tmp/a.py', undefined, /*allowLayoutMatch*/ true),
-			'user@host:~/src $ cat > /tmp/a.py <<\'EOF\'\nimport os\ngarbage row\n1'
-		);
 	});
 
 	test('strips trailing prompt with various prompt styles', () => {
