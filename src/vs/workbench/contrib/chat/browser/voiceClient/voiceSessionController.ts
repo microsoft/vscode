@@ -3748,6 +3748,30 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// There's an active chat widget — send to it
 				accepted = await this._acceptVoiceInput(text, currentSessionResource);
 			} else {
+				if (shouldAvoidCurrentSession) {
+					const shownSessionId = this._shownSessionId();
+					if (shownSessionId) {
+						try {
+							const shownSessionResource = URI.parse(shownSessionId);
+							const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', shownSessionResource.toString()).catch(() => false);
+							if (switched) {
+								await new Promise(resolve => setTimeout(resolve, 200));
+								accepted = await this._acceptVoiceInput(text, shownSessionResource);
+								if (accepted) {
+									return true;
+								}
+							}
+							const shownSessionResult = await this._sendVoiceRequest(shownSessionResource, text);
+							accepted = !!shownSessionResult && !ChatSendResult.isRejected(shownSessionResult);
+							if (accepted) {
+								this._watchResponseForFloatingWindow(shownSessionResource);
+								return true;
+							}
+						} catch {
+							// ignore malformed shown session ids and continue fallback
+						}
+					}
+				}
 				// No focused chat session — find the most recent existing session
 				// instead of creating a new one, so voice continues the conversation.
 				const models = [...this.chatService.chatModels.get()];
