@@ -33,7 +33,8 @@ import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, 
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
@@ -283,6 +284,7 @@ class ToggleChatModeAction extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 
 		const arg = args.at(0) as IToggleChatModeArgs | undefined;
+		const chatSessionsService = accessor.get(IChatSessionsService);
 		let widget: IChatWidget | undefined;
 		if (arg?.sessionResource) {
 			widget = chatWidgetService.getWidgetBySessionResource(arg.sessionResource);
@@ -309,7 +311,7 @@ class ToggleChatModeAction extends Action2 {
 			return;
 		}
 
-		reportChatModeChange(telemetryService, currentMode, switchToMode, requestCount);
+		reportChatModeChange(telemetryService, currentMode, switchToMode, requestCount, getAgentHostProviderForTelemetry(chatSession ? getChatSessionType(chatSession.sessionResource) : undefined, chatSessionsService));
 
 		widget.input.setChatMode(switchToMode.id, true, true);
 

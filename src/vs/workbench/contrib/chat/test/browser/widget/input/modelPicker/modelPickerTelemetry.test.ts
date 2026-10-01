@@ -255,6 +255,10 @@ suite('ModelPickerTelemetry', () => {
 				// Replace the random session id with its open order and check each duration
 				// is a real elapsed time, so events stay deterministic to compare.
 				const normalized: IStringDictionary<unknown> = { ...data };
+				if (name !== 'chat.modelPickerInteraction') {
+					assert.strictEqual(normalized.provider, 'copilotcli');
+					delete normalized.provider;
+				}
 				if (typeof normalized.pickerSessionId === 'string') {
 					if (!pickerSessionIds.includes(normalized.pickerSessionId)) {
 						pickerSessionIds.push(normalized.pickerSessionId);
@@ -304,6 +308,7 @@ suite('ModelPickerTelemetry', () => {
 			setModelProgrammatically: supportsProgrammaticSelection ? model => programmaticDelegateSelections.push(model.identifier) : undefined,
 			getModels: () => models,
 			getChatSessionId: () => 'session-1',
+			getProvider: () => 'copilotcli',
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true, showManageModelsAction: false, showUnavailableFeatured: true,
 				showFeatured: true, showAutoModel: true, showModelIcon: false,
@@ -340,6 +345,7 @@ suite('ModelPickerTelemetry', () => {
 					getSelectedModel: () => picker.selectedModel,
 					getConfigurationAccess: () => configurationAccess,
 					getChatSessionId: () => 'session-1',
+					getProvider: () => 'copilotcli',
 					isDisabled: () => false,
 					shouldShowCacheBreakHint: () => false,
 					getCacheBreakLearnMoreLink: () => undefined,
@@ -783,8 +789,11 @@ suite('ModelPickerTelemetry', () => {
 		const logged: { name: string; durationMs: unknown; pickerSessionId: unknown }[] = [];
 		let now = 1000;
 		const session = new ModelPickerTelemetrySession(upcastPartial<ITelemetryService>({
-			publicLog2: (name: string, data?: IStringDictionary<unknown>) => { logged.push({ name, durationMs: data?.durationMs, pickerSessionId: data?.pickerSessionId }); },
-		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', () => now);
+			publicLog2: (name: string, data?: IStringDictionary<unknown>) => {
+				assert.strictEqual(data?.provider, 'codex-openai');
+				logged.push({ name, durationMs: data?.durationMs, pickerSessionId: data?.pickerSessionId });
+			},
+		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', 'codex-openai', () => now);
 		now = 1250.4;
 		session.logModelChange(model, otherModel, 'session-1');
 		now = 2000;

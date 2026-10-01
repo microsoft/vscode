@@ -21174,55 +21174,63 @@ Use the attached image as context.
 			} as SessionEventPayload<'user.message'>['data']);
 		}
 
-		test('emits with counts derived from source types + AH identifiers', async () => {
-			const telemetryService = new CapturingTelemetryService();
-			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
-			session.resetTurnState('turn-instructions', undefined, AgentHostClientType.EditorWindow, {
-				clientType: AgentHostClientType.EditorWindow,
-				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
-				transportKind: AgentHostTransportKind.MessagePort,
-				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-				machineId: 'client-machine-id',
-				devDeviceId: 'client-dev-device-id',
+		for (const peerChat of [false, true]) {
+			test(`emits with counts derived from source types + AH identifiers (peerChat=${peerChat})`, async () => {
+				const telemetryService = new CapturingTelemetryService();
+				const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+				const chatUri = URI.parse(buildChatUri(sessionUri, 'instructions-peer'));
+				const { session, mockSession } = await createAgentSession(disposables, {
+					telemetryService,
+					sessionUri,
+					...(peerChat ? { resource: chatUri, chatChannelUri: chatUri } : {}),
+				});
+				session.resetTurnState('turn-instructions', undefined, AgentHostClientType.EditorWindow, {
+					clientType: AgentHostClientType.EditorWindow,
+					connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+					transportKind: AgentHostTransportKind.MessagePort,
+					hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+					machineId: 'client-machine-id',
+					devDeviceId: 'client-dev-device-id',
+				});
+
+				mockSession.getInstructionSourcesResult = {
+					sources: [
+						{ id: 'a', label: '', sourcePath: '.github/copilot-instructions.md', content: '', type: 'repo', location: 'repository' },
+						{ id: 'b', label: '', sourcePath: 'AGENTS.md', content: '', type: 'model', location: 'repository' },
+						{ id: 'c', label: '', sourcePath: 'CLAUDE.md', content: '', type: 'model', location: 'repository' },
+						{ id: 'd', label: '', sourcePath: '.github/instructions/ts.instructions.md', content: '', type: 'vscode', location: 'repository', applyTo: ['**/*.ts'] },
+						{ id: 'e', label: '', sourcePath: '.github/instructions/general.instructions.md', content: '', type: 'vscode', location: 'repository' },
+						{ id: 'f', label: '', sourcePath: 'nested AGENTS.md', content: '', type: 'nested-agents', location: 'working-directory' },
+						{ id: 'g', label: '', sourcePath: 'child instruction files', content: '', type: 'child-instructions', location: 'working-directory' },
+					],
+				};
+
+				fireUserMessage(mockSession);
+				await timeout(0);
+
+				const emitted = telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected');
+				assert.deepStrictEqual(emitted, [{
+					eventName: 'agentHost.instructionsCollected',
+					data: {
+						initiatorClientType: 'editor_window',
+						initiatorConnectionKind: 'remote_extension_host',
+						initiatorTransportKind: 'message_port',
+						hostLaunchKind: 'vscode_main_process',
+						initiatorMachineId: 'client-machine-id',
+						initiatorDevDeviceId: 'client-dev-device-id',
+						provider: 'copilotcli',
+						agentSessionId: AgentSession.id(peerChat ? chatUri : sessionUri),
+						isSubagentSession: false,
+						totalInstructionsCount: 7,
+						agentInstructionsCount: 3, // repo + model + model
+						applyingInstructionsCount: 1, // only the ts.instructions.md has applyTo
+						referencedInstructionsCount: 2, // nested-agents + child-instructions
+						claudeMdCount: 1,
+					},
+				}]);
+				assert.strictEqual(mockSession.getInstructionSourcesCallCount, 1);
 			});
-
-			mockSession.getInstructionSourcesResult = {
-				sources: [
-					{ id: 'a', label: '', sourcePath: '.github/copilot-instructions.md', content: '', type: 'repo', location: 'repository' },
-					{ id: 'b', label: '', sourcePath: 'AGENTS.md', content: '', type: 'model', location: 'repository' },
-					{ id: 'c', label: '', sourcePath: 'CLAUDE.md', content: '', type: 'model', location: 'repository' },
-					{ id: 'd', label: '', sourcePath: '.github/instructions/ts.instructions.md', content: '', type: 'vscode', location: 'repository', applyTo: ['**/*.ts'] },
-					{ id: 'e', label: '', sourcePath: '.github/instructions/general.instructions.md', content: '', type: 'vscode', location: 'repository' },
-					{ id: 'f', label: '', sourcePath: 'nested AGENTS.md', content: '', type: 'nested-agents', location: 'working-directory' },
-					{ id: 'g', label: '', sourcePath: 'child instruction files', content: '', type: 'child-instructions', location: 'working-directory' },
-				],
-			};
-
-			fireUserMessage(mockSession);
-			await timeout(0);
-
-			const emitted = telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected');
-			assert.deepStrictEqual(emitted, [{
-				eventName: 'agentHost.instructionsCollected',
-				data: {
-					initiatorClientType: 'editor_window',
-					initiatorConnectionKind: 'remote_extension_host',
-					initiatorTransportKind: 'message_port',
-					hostLaunchKind: 'vscode_main_process',
-					initiatorMachineId: 'client-machine-id',
-					initiatorDevDeviceId: 'client-dev-device-id',
-					provider: 'copilot',
-					agentSessionId: 'test-session-1',
-					isSubagentSession: false,
-					totalInstructionsCount: 7,
-					agentInstructionsCount: 3, // repo + model + model
-					applyingInstructionsCount: 1, // only the ts.instructions.md has applyTo
-					referencedInstructionsCount: 2, // nested-agents + child-instructions
-					claudeMdCount: 1,
-				},
-			}]);
-			assert.strictEqual(mockSession.getInstructionSourcesCallCount, 1);
-		});
+		}
 
 		test('skips SDK-injected messages (source !== "user")', async () => {
 			const telemetryService = new CapturingTelemetryService();
