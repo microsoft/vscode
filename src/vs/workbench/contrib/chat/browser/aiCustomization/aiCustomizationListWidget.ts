@@ -53,10 +53,11 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
+import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -734,6 +735,7 @@ export class AICustomizationListWidget extends Disposable {
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICustomizationMarketplaceService private readonly marketplaceService: ICustomizationMarketplaceService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) {
@@ -754,11 +756,18 @@ export class AICustomizationListWidget extends Disposable {
 			this.updateAddButton();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) &&
+			if (affectsCustomizationDiscoveryAvailability(event, this.marketplaceService) &&
 				this.currentSection === AICustomizationManagementSection.Skills) {
 				this.filterItems();
 			}
 		}));
+		if (this.marketplaceService.onDidChangeSources) {
+			this._register(this.marketplaceService.onDidChangeSources(() => {
+				if (this.currentSection === AICustomizationManagementSection.Skills) {
+					this.filterItems();
+				}
+			}));
+		}
 	}
 
 	private create(): void {
@@ -1614,7 +1623,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.renderTargetedCreateActions(actions, entry.groupKey, disposables);
 		if (entry.groupKey === PromptsStorage.user &&
 			this.currentSection === AICustomizationManagementSection.Skills &&
-			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true) {
+			isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService)) {
 			const label = localize('browseSkills', "Browse Skills");
 			const button = disposables.add(new Button(actions, {
 				...defaultButtonStyles,
