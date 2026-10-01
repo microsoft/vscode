@@ -31,7 +31,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
-import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement } from '../agentPluginActions.js';
+import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -48,7 +49,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
@@ -638,6 +639,17 @@ function compareInstalledPluginItems(a: IInstalledPluginItem, b: IInstalledPlugi
 	return formatDisplayName(a.name).localeCompare(formatDisplayName(b.name));
 }
 
+export function partitionInstalledPluginItemsByScope(items: readonly IInstalledPluginItem[]): { readonly user: IInstalledPluginItem[]; readonly workspace: IInstalledPluginItem[] } {
+	const workspace = items.filter(item => {
+		const state = item.plugin.enablement.get();
+		return state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
+	});
+	return {
+		user: items.filter(item => !workspace.includes(item)),
+		workspace,
+	};
+}
+
 export function getInstalledPluginMetadata(item: IInstalledPluginItem): string {
 	const metadata: string[] = [];
 	const contributionSummary = getInstalledPluginContributionSummary(item);
@@ -798,6 +810,7 @@ export class PluginListWidget extends Disposable {
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget'); // reuse MCP shell, add plugin-specific row styling
@@ -1219,6 +1232,7 @@ export class PluginListWidget extends Disposable {
 
 	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void, ...classNames: string[]): HTMLButtonElement {
 		const primaryAction = createCustomizationCardPrimaryAction(surface, label, ...classNames);
+		trackCustomizationCardPrimaryActionFocus(primaryAction, surface.closest<HTMLElement>('.plugin-home-row') ?? surface, this.cardDisposables);
 		this.rememberCardFocusElement(primaryAction);
 		this.cardDisposables.add(DOM.addDisposableListener(primaryAction, 'click', callback));
 		return primaryAction;
@@ -1366,7 +1380,9 @@ export class PluginListWidget extends Disposable {
 			return;
 		}
 
-		const installedEntries = this.installedItems.map(item => ({ type: 'plugin-item' as const, item }));
+		const partitionedInstalledItems = partitionInstalledPluginItemsByScope(this.installedItems);
+		const workspaceEntries = partitionedInstalledItems.workspace.map(item => ({ type: 'plugin-item' as const, item }));
+		const userEntries = partitionedInstalledItems.user.map(item => ({ type: 'plugin-item' as const, item }));
 		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
 		const remoteEntries = this.remoteItems
 			.filter(item => item.groupKey !== 'remote-client' && (!item.name || !installedNames.has(item.name.toLowerCase())))
@@ -1377,20 +1393,36 @@ export class PluginListWidget extends Disposable {
 		const availableEntries = availableItems.map(item => ({ type: 'marketplace-item' as const, item }));
 		const definitions = [
 			{
-				id: 'installed',
-				label: localize('installedPluginsSection', "Installed"),
-				description: localize('installedPluginsSectionDescription', "Plugins installed locally or configured by the active remote session."),
-				icon: Codicon.plug,
-				children: [...installedEntries, ...remoteEntries],
+				id: 'user',
+				label: localize('userPluginsGroup', "User"),
+				description: localize('userPluginsGroupDescription', "Plugins installed for your profile and available across workspaces."),
+				icon: Codicon.account,
+				children: userEntries,
 			},
-			...(showLegacyMarketplace ? [{
+			{
+				id: 'workspace',
+				label: localize('workspacePluginsGroup', "Workspace"),
+				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
+				icon: Codicon.folder,
+				children: workspaceEntries,
+			},
+			{
+				id: 'remote',
+				label: localize('remotePluginsSection', "Remote Session"),
+				description: localize('remotePluginsSectionDescription', "Plugins configured directly on the active remote agent host."),
+				icon: Codicon.remote,
+				children: remoteEntries,
+			},
+			{
 				id: 'available',
 				label: localize('availablePluginsSection', "Available"),
 				description: localize('availablePluginsSectionDescription', "Browse and install plugins from your marketplaces."),
 				icon: Codicon.extensions,
 				children: availableEntries,
-			}] : []),
-		];
+			},
+		].filter(group => group.id === 'available'
+			? showLegacyMarketplace
+			: group.id === 'user' || group.id === 'workspace' || group.children.length > 0);
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IPluginListEntry> => {
 			const element: IPluginGroupHeaderEntry = {
@@ -1429,7 +1461,7 @@ export class PluginListWidget extends Disposable {
 
 	private renderPluginTreeGroupActions(entry: IPluginGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
 		const actions = DOM.append(container, $('.plugin-card-section-actions'));
-		if (entry.group === 'installed') {
+		if (entry.group === 'user' || entry.group === 'workspace') {
 			this.renderPluginAddAction(actions, disposables);
 			if (this.pluginMarketplaceService.installedPlugins.get().length > 0) {
 				this.renderPluginUpdateAction(actions, disposables);
@@ -2125,7 +2157,8 @@ export class PluginListWidget extends Disposable {
 
 	private getInstalledPluginActions(item: IInstalledPluginItem, disposables: DisposableStore): IAction[] {
 		const actions: IAction[] = [];
-		const groups = getInstalledPluginContextMenuActions(item.plugin, this.instantiationService);
+		const removePlugin = () => removePluginWithMarketplaceOwnership(item.plugin, this.marketplaceInstallService);
+		const groups = getInstalledPluginContextMenuActions(item.plugin, this.instantiationService, removePlugin);
 		for (const menuActions of groups) {
 			for (const menuAction of menuActions) {
 				actions.push(menuAction);

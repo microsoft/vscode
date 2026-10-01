@@ -97,6 +97,7 @@ const noopOTelService: IAgentHostOTelService = {
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,
+	setSessionComparisonMetadata: () => { },
 	releaseSessionTraceContext: () => { },
 	withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
 	getCurrentTraceContext: () => undefined,
@@ -128,6 +129,7 @@ function createTestAuthenticationService(): IAgentHostAuthenticationService {
 	return {
 		_serviceBrand: undefined,
 		onDidChangeAuthToken: Event.None,
+		getAuthAccount: () => undefined,
 		getAuthToken: request => request.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'gh-int-test-token' : undefined,
 	};
 }

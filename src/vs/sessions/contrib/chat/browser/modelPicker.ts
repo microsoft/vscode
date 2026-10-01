@@ -76,6 +76,9 @@ export class ModelPicker extends Disposable {
 					});
 				}
 			},
+			setModelProgrammatically: model => {
+				this._selectionModel.selectModel(model.identifier, false);
+			},
 			getModels: () => [...this._selectionModel.state.get().models],
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,
@@ -92,6 +95,7 @@ export class ModelPicker extends Disposable {
 
 		const pickerOptions: IChatInputPickerOptions = {
 			compact,
+			minimal: compact,
 		};
 		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 		this._modelPicker = this._register(instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions));

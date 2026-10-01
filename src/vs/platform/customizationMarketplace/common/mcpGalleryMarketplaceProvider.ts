@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../product/common/productService.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
 
 export function normalizeMcpGalleryUrl(value: string | undefined): string | undefined {
@@ -69,7 +69,11 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 	const webUrl = safeWebUri(server.webUrl);
 	const repository = safeWebUri(server.repositoryUrl);
 	const url = webUrl ?? repository;
-	const icon = safeWebUri(server.icon?.light);
+	const lightIcon = safeWebUri(server.icon?.light);
+	const darkIcon = safeWebUri(server.icon?.dark);
+	const icon: CustomizationMarketplaceIcon | undefined = lightIcon && darkIcon
+		? { light: lightIcon, dark: darkIcon }
+		: lightIcon ?? darkIcon;
 	return {
 		identifier: `${registry}:${server.name}`,
 		displayName: server.displayName || server.name,

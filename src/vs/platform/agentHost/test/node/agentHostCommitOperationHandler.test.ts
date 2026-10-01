@@ -155,6 +155,7 @@ function createAuthenticationService(token: string | undefined): IAgentHostAuthe
 	return {
 		_serviceBrand: undefined,
 		onDidChangeAuthToken: Event.None,
+		getAuthAccount: () => undefined,
 		getAuthToken: () => token,
 	};
 }
