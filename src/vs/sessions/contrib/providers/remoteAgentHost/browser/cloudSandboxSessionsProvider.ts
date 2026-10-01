@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
+import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
@@ -39,8 +43,29 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			...super._adapterOptions(),
 			preserveStatusWhenDisconnected: true,
 			useSessionTitleForDefaultChat: true,
-			externalSessionState: () => constObservable(false),
+			externalSessionState: (resource: URI, store: DisposableStore) => {
+				const key = this._localSessionStorageKey(AgentSession.id(resource));
+				store.add(this._chatService.onDidAcceptRequest(({ chatSessionResource }) => {
+					if (isEqual(resource, chatSessionResource.with({ fragment: '' }))) {
+						this._storageService.store(key, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+					}
+				}));
+				// Preserve profile-local provenance without exposing sandbox sessions as external.
+				return constObservable(false);
+			},
 		};
+	}
+
+	private _localSessionStorageKey(rawId: string): string {
+		return `sessions.cloudSandbox.localSession.${this.id}.${rawId}`;
+	}
+
+	override async importSession(sessionId: string): Promise<void> {
+		await super.importSession(sessionId);
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (rawId) {
+			this._storageService.store(this._localSessionStorageKey(rawId), true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
 	}
 
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
@@ -75,6 +100,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	seedProvisionalSession(rawMeta: IAgentSessionMetadata): void {
 		const meta = this._adoptSessionMeta(rawMeta);
 		const rawId = AgentSession.id(meta.session);
+		this._storageService.store(this._localSessionStorageKey(rawId), true, StorageScope.PROFILE, StorageTarget.MACHINE);
 		if (this._sessionCache.has(rawId)) {
 			return;
 		}
