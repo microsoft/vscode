@@ -57,14 +57,6 @@ function decodePcm16Chunk(ctx: AudioContext, bytes: Uint8Array): AudioBuffer | u
 	if (bytes.byteLength < 2) {
 		return undefined;
 	}
-
-	function binaryToBytes(binary: string): Uint8Array {
-		const bytes = new Uint8Array(binary.length);
-		for (let i = 0; i < binary.length; i++) {
-			bytes[i] = binary.charCodeAt(i);
-		}
-		return bytes;
-	}
 	const sampleCount = Math.floor(bytes.byteLength / 2);
 	if (sampleCount <= 0) {
 		return undefined;
@@ -77,6 +69,14 @@ function decodePcm16Chunk(ctx: AudioContext, bytes: Uint8Array): AudioBuffer | u
 		channel[i] = sample < 0 ? sample / 0x8000 : sample / 0x7fff;
 	}
 	return audioBuffer;
+}
+
+function binaryToBytes(binary: string): Uint8Array {
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) {
+		bytes[i] = binary.charCodeAt(i);
+	}
+	return bytes;
 }
 
 export class TtsPlaybackService extends Disposable implements ITtsPlaybackService {
