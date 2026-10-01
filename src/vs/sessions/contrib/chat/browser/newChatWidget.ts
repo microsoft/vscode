@@ -49,6 +49,7 @@ import { ChatInputPickerResponsiveLayout } from '../../../../workbench/contrib/c
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
@@ -126,6 +127,27 @@ export function isExperimentalSessionComposerLayoutEnabled(configurationService:
 
 export function areNewSessionWelcomePhrasesEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(NEW_SESSION_WELCOME_PHRASES_SETTING);
+}
+
+/**
+ * Observes whether new-session welcome phrases should be shown. Phrases are
+ * hidden whenever a custom chat background is active so the text never competes
+ * with the background for contrast.
+ */
+export function observeShowNewSessionWelcomePhrases(owner: object, configurationService: IConfigurationService, chatBackgroundService: ISessionsChatBackgroundService): IObservable<boolean> {
+	const welcomePhrasesEnabled = observableFromEvent(
+		owner,
+		Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_PHRASES_SETTING)),
+		() => areNewSessionWelcomePhrasesEnabled(configurationService),
+	);
+	const hasCustomChatBackground = observableFromEvent(
+		owner,
+		chatBackgroundService.onDidChangeBackground,
+		() => !!chatBackgroundService.getBackground(),
+	);
+	return derived(owner, reader =>
+		welcomePhrasesEnabled.read(reader) && !hasCustomChatBackground.read(reader),
+	);
 }
 
 export class NewChatWidget extends Disposable {
@@ -230,6 +252,7 @@ export class NewChatWidget extends Disposable {
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 	) {
 		super();
 		this._newSessionAttachContextMenu = this._register(menuService.createMenu(Menus.NewSessionAttachContext, this.contextKeyService));
@@ -288,11 +311,7 @@ export class NewChatWidget extends Disposable {
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING)),
 			() => this.configurationService.getValue<boolean>(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
 		);
-		this._showWelcomePhrases = observableFromEvent(
-			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_PHRASES_SETTING)),
-			() => areNewSessionWelcomePhrasesEnabled(this.configurationService),
-		);
+		this._showWelcomePhrases = observeShowNewSessionWelcomePhrases(this, this.configurationService, this.chatBackgroundService);
 		this._isWorkspacePickerQuickChat = derived(this, reader => {
 			const session = this._session.read(reader);
 			return this._useConsolidatedRemoteWorkspaces.read(reader) && !!session?.isQuickChat?.read(reader);

@@ -21,11 +21,14 @@ import { IActiveSession, ICreateNewSessionOptions, ISendRequestSentEvent, Worksp
 import { ISendRequestOptions, ISessionPermissionOption, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
-import { NewChatWidget } from '../../browser/newChatWidget.js';
+import { NewChatWidget, observeShowNewSessionWelcomePhrases } from '../../browser/newChatWidget.js';
+import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { getNewSessionWelcomePhrases } from '../../common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -1265,6 +1268,31 @@ suite('NewChatWidget', () => {
 			wrapped: 'Two',
 			empty: { text: '', hidden: false },
 		});
+	});
+
+	test('hides welcome phrases while a custom chat background is active', () => {
+		const configurationService = new TestConfigurationService({ [NEW_SESSION_WELCOME_PHRASES_SETTING]: true });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const onDidChangeBackground = disposables.add(new Emitter<void>());
+		let background: ISessionsChatBackground | undefined;
+		const chatBackgroundService = upcastPartial<ISessionsChatBackgroundService>({
+			onDidChangeBackground: onDidChangeBackground.event,
+			getBackground: () => background,
+		});
+		const showWelcomePhrases = observeShowNewSessionWelcomePhrases({}, configurationService, chatBackgroundService);
+		const observed: boolean[] = [];
+		disposables.add(autorun(reader => {
+			observed.push(showWelcomePhrases.read(reader));
+		}));
+
+		background = upcastPartial<ISessionsChatBackground>({ kind: 'codicons' });
+		onDidChangeBackground.fire();
+		background = undefined;
+		onDidChangeBackground.fire();
+		configurationService.setUserConfiguration(NEW_SESSION_WELCOME_PHRASES_SETTING, false);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === NEW_SESSION_WELCOME_PHRASES_SETTING }));
+
+		assert.deepStrictEqual(observed, [true, false, true, false]);
 	});
 
 	test('announces the welcome phrase once and identifies the opt-out setting', () => {
