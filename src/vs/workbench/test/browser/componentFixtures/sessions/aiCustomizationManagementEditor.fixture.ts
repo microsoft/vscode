@@ -7,7 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -1789,6 +1789,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& descriptionLinks.join('\n') === ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks'].join('\n'),
 			'Discover must link each customization type from its description.',
 		);
+		if (options.featuredFeedEnabled) {
+			const expectedNames = ['Figma', 'Browser tools', 'Documentation workflow', 'Repository review'];
+			await retry(async () => {
+				const names = [...ctx.container.querySelectorAll('.customization-discovery-section.featured .customization-discovery-card-name')].map(element => element.textContent);
+				assert(names.join('\n') === expectedNames.join('\n'), 'Discover must preserve the saved featured feed order.');
+			}, 10, 100);
+		}
 		const featured = ctx.container.querySelector<HTMLElement>('.customization-discovery-section.featured');
 		const featuredCard = featured?.querySelector<HTMLElement>('.customization-discovery-card');
 		const featuredName = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-name');
@@ -1801,11 +1808,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Featured cards must place source metadata beside the name and the description on the next line.',
 		);
 		if (options.featuredFeedEnabled) {
-			assert(
-				[...featured?.querySelectorAll('.customization-discovery-card-name') ?? []].map(element => element.textContent).join('\n')
-				=== ['Figma', 'Browser tools', 'Documentation workflow', 'Repository review'].join('\n'),
-				'Discover must preserve the saved featured feed order.',
-			);
 			const featuredImages = [...featured?.querySelectorAll<HTMLImageElement>('.customization-discovery-card-icon img') ?? []];
 			assert(featuredImages.length === 4, 'The saved featured feed fixture must render each enriched resource icon.');
 			await Promise.all(featuredImages.map(image => image.decode()));
