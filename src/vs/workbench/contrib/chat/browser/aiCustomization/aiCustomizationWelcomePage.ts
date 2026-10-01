@@ -8,7 +8,6 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { affectsCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
@@ -20,6 +19,7 @@ import { PromptLaunchersAICustomizationWelcomePage } from './aiCustomizationWelc
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
+import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 
 const $ = DOM.$;
 
@@ -126,11 +126,11 @@ export class AICustomizationWelcomePage extends Disposable {
 	}
 
 	isMarketplaceConfigurationChange(event: IConfigurationChangeEvent): boolean {
-		return affectsCustomizationMarketplaceSources(event, this.marketplaceService.allSources ?? this.marketplaceService.sources);
+		return affectsCustomizationDiscoveryAvailability(event, this.marketplaceService);
 	}
 
 	private isAnySourceEnabled(): boolean {
-		return getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).length > 0;
+		return isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService);
 	}
 
 	private updateImplementation(): void {

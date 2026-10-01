@@ -947,6 +947,13 @@ function createEmptyCustomizationMarketplaceInstallService(): ICustomizationMark
 	}();
 }
 
+function createEmptyCustomizationMarketplaceService(): ICustomizationMarketplaceService {
+	return new class extends mock<ICustomizationMarketplaceService>() {
+		override readonly sources = [];
+		override readonly onDidChangeSources = Event.None;
+	}();
+}
+
 function isRecordedCustomizationMarketplaceInstallState(state: CustomizationMarketplaceInstallState | undefined): state is RecordedCustomizationMarketplaceInstallState {
 	return state?.kind === 'checking'
 		|| state?.kind === 'installed'
@@ -2160,6 +2167,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
@@ -2372,6 +2380,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 				}
 			}());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
@@ -2461,6 +2470,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(mcpAccessConfig, McpAccessValue.None, byPolicy));
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
@@ -2547,6 +2557,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});

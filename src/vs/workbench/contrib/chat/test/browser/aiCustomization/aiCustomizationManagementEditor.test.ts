@@ -21,7 +21,7 @@ import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hove
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -437,6 +437,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const { editor, section } = context;
 		const configuration = createConfigurationServiceStub({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled });
 		editor.configurationService = configuration;
+		Object.assign(editor, { marketplaceService: { sources: [CustomizationMarketplaceSources.AgentFinderPublicFeed] } });
 		const sections: { id: AICustomizationManagementSection }[] = [];
 		let overview: readonly AICustomizationManagementSection[] = [];
 		Object.assign(editor, {
@@ -556,8 +557,8 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	test('plugin marketplace deep links open plugin-filtered Discover only when its source is enabled', async () => {
-		const { editor, configuration } = createGatedSectionEditor();
+	test('marketplace deep links open type-filtered Discover only when it is enabled', async () => {
+		const { editor, configuration } = createGatedSectionEditor(true);
 		const queries: string[] = [];
 		Object.assign(editor, {
 			welcomePage: {
@@ -567,8 +568,14 @@ suite('aiCustomizationManagementEditor', () => {
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		editor.selectSectionById(AICustomizationManagementSection.Skills, { showMarketplace: true });
+		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true });
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
-		assert.deepStrictEqual(queries, ['@type:plugin']);
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
+		editor.selectSectionById(AICustomizationManagementSection.Skills, { showMarketplace: true });
+		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true });
+		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
+		assert.deepStrictEqual(queries, ['@type:skill', '@type:mcp', '@type:plugin']);
 	});
 
 	test('showing Discover from its navigation button resets its filters', () => {

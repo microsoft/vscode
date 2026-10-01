@@ -91,7 +91,7 @@ import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/commo
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -1143,6 +1143,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(this.listWidget.onDidRequestCreateManual(({ type, target, rootFileName }) => {
 			this.createNewItemManual(type, target, rootFileName);
 		}));
+		this.editorDisposables.add(this.listWidget.onDidRequestBrowse(() => {
+			this.selectSection(AICustomizationManagementSection.Skills, { showMarketplace: true });
+		}));
 
 		// Container for Models content (only in sessions)
 		const hasSections = new Set(this.workspaceService.managementSections);
@@ -1191,6 +1194,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorDisposables.add(this.mcpListWidget.onDidRequestOpenMigrations(() => {
 				void this.startCustomizationMigration(CustomizationMigrationCategoryId.McpServers);
 			}));
+			this.editorDisposables.add(this.mcpListWidget.onDidRequestBrowse(() => {
+				this.selectSection(AICustomizationManagementSection.McpServers, { showMarketplace: true });
+			}));
 		}
 
 		// Container for Plugins content
@@ -1205,6 +1211,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 			this.editorDisposables.add(this.pluginListWidget.onDidSelectPlugin(item => {
 				this.showEmbeddedPluginDetail(item);
+			}));
+			this.editorDisposables.add(this.pluginListWidget.onDidRequestBrowse(() => {
+				this.selectSection(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 			}));
 		}
 
@@ -3582,12 +3591,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
 		if (!options?.showMarketplace ||
-			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true) {
+			!isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService)) {
 			return false;
 		}
-		const type = section === AICustomizationManagementSection.Plugins ? 'plugin'
-			: section === AICustomizationManagementSection.McpServers ? 'mcp'
-				: undefined;
+		const type = section === AICustomizationManagementSection.Skills ? 'skill'
+			: section === AICustomizationManagementSection.Plugins ? 'plugin'
+				: section === AICustomizationManagementSection.McpServers ? 'mcp'
+					: undefined;
 		if (!type) {
 			return false;
 		}
