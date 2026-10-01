@@ -900,7 +900,7 @@ suite('AgentSideEffects', () => {
 			const trigger = [`config.${AgentHostDeferTurnStartCheckpointSettingId}`];
 			assert.deepStrictEqual(results, {
 				enabled: { sentBeforeCapture: true, barrier: true, triggers: trigger },
-				disabled: { sentBeforeCapture: false, barrier: false, triggers: trigger },
+				disabled: { sentBeforeCapture: false, barrier: true, triggers: trigger },
 				unsupported: { sentBeforeCapture: false, barrier: false, triggers: [] },
 			});
 		});
@@ -920,6 +920,36 @@ suite('AgentSideEffects', () => {
 			await barriers[0];
 
 			assert.notStrictEqual(stateManager.getChatState(defaultChatUri)?.turns.at(-1)?.state, TurnState.Error);
+		});
+
+		test('hands turn preparation the barrier so hook commands run while the session starts wait for the capture', async () => {
+			const capture = new DeferredPromise<void>();
+			const localSideEffects = createDeferringSideEffects({
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: () => capture.p,
+			});
+			setRootConfig({ [AgentHostOverlapProviderPreparationConfigKey]: true });
+			(agent.chats as { supportsTurnStartBarrier?: boolean }).supportsTurnStartBarrier = true;
+			let prepareBarrier: Promise<void> | undefined;
+			agent.chats.prepareTurn = async (_chat, _turnId, _workingDirectories, context) => {
+				prepareBarrier = URI.isUri(context) ? undefined : context.turnStartBarrier;
+			};
+
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await timeout(0);
+			let barrierSettled = false;
+			void prepareBarrier?.then(() => { barrierSettled = true; });
+			await timeout(0);
+			const beforeCapture = barrierSettled;
+			capture.complete();
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({ hasBarrier: prepareBarrier !== undefined, beforeCapture, afterCapture: barrierSettled }, {
+				hasBarrier: true,
+				beforeCapture: false,
+				afterCapture: true,
+			});
 		});
 	});
 

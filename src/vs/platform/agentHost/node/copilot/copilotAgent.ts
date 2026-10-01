@@ -986,6 +986,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Live session -> the turn whose `prepareTurn` launched it; dropped with the session. */
 	private readonly _preparedTurnLaunches = new WeakMap<CopilotAgentSession, string>();
 	/**
+	 * Chat URI -> turn-start barrier of the turn being prepared or sent, until it
+	 * settles. Hook commands run while that chat's session starts wait for it.
+	 */
+	private readonly _pendingTurnStartBarriers = new Map<string, Promise<void>>();
+	/**
 	 * Last host-published customization snapshot per configuration scope (AGENTS.md section 8b).
 	 * Updated only from host call boundaries; absence is distinct from an empty list.
 	 */
@@ -4839,6 +4844,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
+		this._trackTurnStartBarrier(chat, operationContext);
 		const context = this._resolveSendChatContext(chat, operationContext);
 		const stageRecorder = operationContext && !URI.isUri(operationContext) ? operationContext.sendStageRecorder : undefined;
 		stageRecorder?.mark('queue');
@@ -5572,6 +5578,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * syncs and workspace scans the launch just completed.
 	 */
 	private async _prepareTurn(chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
+		this._trackTurnStartBarrier(chat, operationContext);
 		const initial = this._resolveSendChatContext(chat, operationContext);
 		await this._queueChat(initial.configurationId, initial.sequencerKey, 'prepareTurn', async () => {
 			const current = this._resolveSendChatContext(chat, operationContext);
@@ -6114,9 +6121,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
 				telemetryContext: () => this.getTelemetryContext(),
+				pendingTurnStartBarrier: () => this._pendingTurnStartBarriers.get(chatChannelUri.toString()),
 			},
 		);
 		return agentSession;
+	}
+
+	private _trackTurnStartBarrier(chat: URI, operationContext: URI | IAgentChatContext | undefined): void {
+		const barrier = operationContext && !URI.isUri(operationContext) ? operationContext.turnStartBarrier : undefined;
+		if (!barrier) {
+			return;
+		}
+		const key = chat.toString();
+		this._pendingTurnStartBarriers.set(key, barrier);
+		const release = () => {
+			if (this._pendingTurnStartBarriers.get(key) === barrier) {
+				this._pendingTurnStartBarriers.delete(key);
+			}
+		};
+		barrier.then(release, release);
 	}
 
 	/** Resolves root-configured MCP servers that must be disabled when the SDK session starts. */

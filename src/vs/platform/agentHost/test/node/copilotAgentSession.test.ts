@@ -1072,6 +1072,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	restrictedTelemetryContextError?: Error;
 	telemetryContext?: IAgentTelemetryContext;
 	onTurnEnded?: () => void;
+	pendingTurnStartBarrier?: () => Promise<void> | undefined;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
 	resume?: boolean;
@@ -1392,6 +1393,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
 			onTurnEnded: options?.onTurnEnded,
+			pendingTurnStartBarrier: options?.pendingTurnStartBarrier,
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
@@ -16292,6 +16294,21 @@ Use the attached image as context.
 			const beforeBarrier = settled;
 			barrier.complete();
 			await hook;
+
+			assert.deepStrictEqual({ beforeBarrier, afterBarrier: settled }, { beforeBarrier: false, afterBarrier: true });
+		});
+
+		test('hook commands wait for the pending turn-start barrier before the turn is sent', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const barrier = new DeferredPromise<void>();
+			await createAgentSession(disposables, { captureRuntime: capturedRuntime, pendingTurnStartBarrier: () => barrier.p });
+
+			let settled = false;
+			const wait = capturedRuntime.current!.waitForTurnStartBarrier().then(() => { settled = true; });
+			await timeout(0);
+			const beforeBarrier = settled;
+			barrier.complete();
+			await wait;
 
 			assert.deepStrictEqual({ beforeBarrier, afterBarrier: settled }, { beforeBarrier: false, afterBarrier: true });
 		});

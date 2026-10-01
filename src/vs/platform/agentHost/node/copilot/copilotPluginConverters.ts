@@ -384,8 +384,16 @@ export function toSdkHooks(
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
+		/** Awaited before any plugin hook command runs, since a command can modify the working tree. */
+		readonly beforeHookCommands?: () => Promise<void>;
 	},
 ): SessionHooks {
+	const beforeCommands = async (commands: readonly IParsedHookCommand[] | undefined) => {
+		if (commands?.length) {
+			await editTrackingHooks?.beforeHookCommands?.();
+		}
+	};
+
 	// Group all commands by SDK handler key
 	const commandsByKey = new Map<keyof SessionHooks, IParsedHookCommand[]>();
 	for (const group of hookGroups) {
@@ -408,6 +416,7 @@ export function toSdkHooks(
 			if (internalResult !== undefined) {
 				return internalResult;
 			}
+			await beforeCommands(preToolCommands);
 			return runHookCommands(preToolCommands, input);
 		};
 	}
@@ -417,6 +426,7 @@ export function toSdkHooks(
 	if (postToolCommands?.length || editTrackingHooks) {
 		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
 			await editTrackingHooks?.onPostToolUse(input);
+			await beforeCommands(postToolCommands);
 			return runHookCommands(postToolCommands, input);
 		};
 	}
@@ -425,6 +435,7 @@ export function toSdkHooks(
 	const promptCommands = commandsByKey.get('onUserPromptSubmitted');
 	if (promptCommands?.length || editTrackingHooks?.onUserPromptSubmitted) {
 		hooks.onUserPromptSubmitted = async (input: UserPromptSubmittedHookInput) => {
+			await beforeCommands(promptCommands);
 			const stdin = JSON.stringify(input);
 			for (const cmd of promptCommands ?? []) {
 				try {
@@ -441,6 +452,7 @@ export function toSdkHooks(
 	const startCommands = commandsByKey.get('onSessionStart');
 	if (startCommands?.length) {
 		hooks.onSessionStart = async (input: SessionStartHookInput) => {
+			await beforeCommands(startCommands);
 			const stdin = JSON.stringify(input);
 			for (const cmd of startCommands) {
 				try {
@@ -456,6 +468,7 @@ export function toSdkHooks(
 	const endCommands = commandsByKey.get('onSessionEnd');
 	if (endCommands?.length) {
 		hooks.onSessionEnd = async (input: SessionEndHookInput) => {
+			await beforeCommands(endCommands);
 			const stdin = JSON.stringify(input);
 			for (const cmd of endCommands) {
 				try {
@@ -471,6 +484,7 @@ export function toSdkHooks(
 	const errorCommands = commandsByKey.get('onErrorOccurred');
 	if (errorCommands?.length) {
 		hooks.onErrorOccurred = async (input: ErrorOccurredHookInput) => {
+			await beforeCommands(errorCommands);
 			const stdin = JSON.stringify(input);
 			for (const cmd of errorCommands) {
 				try {

@@ -57,6 +57,7 @@ const testRuntime: ICopilotSessionRuntime = {
 	handlePreToolUse: async () => { },
 	handlePostToolUse: async () => { },
 	handleUserPromptSubmitted: () => undefined,
+	waitForTurnStartBarrier: async () => { },
 	createClientSdkTools: () => [],
 	createServerSdkTools: () => [],
 	reloadExtensions: async () => { },

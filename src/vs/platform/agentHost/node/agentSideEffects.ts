@@ -2028,17 +2028,35 @@ export class AgentSideEffects extends Disposable {
 
 			await Promise.all(selectionUpdates);
 
+			// A provider that holds everything that can modify the working tree —
+			// tools and hook commands — behind a barrier can be sent the turn while
+			// the turn-start checkpoint is still being captured: the checkpoint
+			// still describes the tree the agent starts from.
+			let deferCheckpoint = false;
+			let turnStartBarrier: Promise<void> | undefined;
+			if (checkpointCapture && agent.chats.supportsTurnStartBarrier) {
+				this._reportExperimentTrigger(AgentHostDeferTurnStartCheckpointSettingId);
+				deferCheckpoint = this._agentConfigService.getRootValue(platformRootSchema, AgentHostDeferTurnStartCheckpointConfigKey) === true;
+				turnStartBarrier = checkpointCapture.then(() => { }, err => {
+					if (deferCheckpoint) {
+						this._logService.warn(`[AgentSideEffects] Turn-start checkpoint failed for ${chat}; the turn continues without it`, err);
+					}
+				});
+			}
+
 			// A provider can prepare the turn — e.g. materialize a deferred session
 			// with the selection applied above — while attachments, contributions
-			// and the checkpoint capture run. Dispatch still waits for both, so the
-			// checkpoint keeps describing the tree the agent starts from. A failed
-			// preparation is only logged: `sendMessage` then prepares as usual and
-			// surfaces any error exactly as it would without the overlap.
+			// and the checkpoint capture run. Dispatch still waits for preparation,
+			// and the barrier keeps the session's hook commands from modifying the
+			// tree before the checkpoint is captured. A failed preparation is only
+			// logged: `sendMessage` then prepares as usual and surfaces any error
+			// exactly as it would without the overlap.
 			let providerPreparation: Promise<void> | undefined;
 			if (agent.chats.prepareTurn) {
 				this._reportExperimentTrigger(AgentHostOverlapProviderPreparationSettingId);
 				if (this._agentConfigService.getRootValue(platformRootSchema, AgentHostOverlapProviderPreparationConfigKey) === true) {
-					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, clientOperationContext).catch(err => {
+					const prepareContext = turnStartBarrier ? { ...clientOperationContext, turnStartBarrier } : clientOperationContext;
+					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, prepareContext).catch(err => {
 						this._logService.warn(`[AgentSideEffects] Turn preparation failed for ${chat}; sending will prepare again`, err);
 					});
 				}
@@ -2050,19 +2068,6 @@ export class AgentSideEffects extends Disposable {
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			this._turnTracker.markSendStage(turnChannel, turnId, 'contributions');
 			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId, workingDirectories: resolvedWorkingDirectories });
-			// A provider that holds the turn's tools behind a barrier can be sent the
-			// turn while the turn-start checkpoint is still being captured. Its tools
-			// cannot modify the working tree before the capture completes, so the
-			// checkpoint still describes the tree the agent starts from.
-			let turnStartBarrier: Promise<void> | undefined;
-			if (checkpointCapture && agent.chats.supportsTurnStartBarrier) {
-				this._reportExperimentTrigger(AgentHostDeferTurnStartCheckpointSettingId);
-				if (this._agentConfigService.getRootValue(platformRootSchema, AgentHostDeferTurnStartCheckpointConfigKey) === true) {
-					turnStartBarrier = checkpointCapture.catch(err => {
-						this._logService.warn(`[AgentSideEffects] Turn-start checkpoint failed for ${chat}; the turn continues without it`, err);
-					});
-				}
-			}
 			const sendContext = {
 				...clientOperationContext,
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
@@ -2080,7 +2085,7 @@ export class AgentSideEffects extends Disposable {
 				this._turnTracker.markSendStage(turnChannel, turnId, 'providerPreparation');
 				await providerPreparation;
 			}
-			if (checkpointCapture && !turnStartBarrier) {
+			if (checkpointCapture && !deferCheckpoint) {
 				// Measures only what the checkpoint still costs the critical path
 				// after overlapping the work above, not the capture's total cost.
 				this._turnTracker.markSendStage(turnChannel, turnId, 'checkpoint');
