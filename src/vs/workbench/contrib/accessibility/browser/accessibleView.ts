@@ -910,7 +910,7 @@ export class AccessibleView extends Disposable {
 			hint += ' - ' + toolbarHint + '\n';
 		}
 		if (this._currentProvider?.id === AccessibleViewProviderId.Notification) {
-			hint += ' - ' + localize('notificationLinks', "Notification links are available in the toolbar. Use Left and Right Arrow to find a link and Enter to open it.") + '\n';
+			hint += ' - ' + localize('notificationLinks', "If a notification contains links, they are available in the toolbar. Use Left and Right Arrow to find a link and Enter to open it.") + '\n';
 		}
 		if (chatHints) {
 			hint += chatHints;

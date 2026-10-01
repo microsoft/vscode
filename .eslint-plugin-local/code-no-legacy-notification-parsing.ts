@@ -32,10 +32,9 @@ export default new class implements eslint.Rule.RuleModule {
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		const { allowedFiles } = context.options[0] as { allowedFiles: string[] };
 		const allowed = allowedFiles.some(file => path.resolve(root, file) === path.resolve(context.filename));
-		const capabilityLocals = new Set<string>();
-		const localExports: TSESTree.Identifier[] = [];
+		const capabilityBindings = new Set<eslint.Scope.Variable>();
 		const exportedValues: TSESTree.Node[] = [];
-		const capabilityReferences: Array<readonly [number, number]> = [];
+		const returnedValues = new Map<TSESTree.Node, TSESTree.Node[]>();
 
 		function isLegacyModule(source: TSESTree.Node): boolean {
 			const value = source.type === 'Literal' ? source.value
@@ -48,6 +47,73 @@ export default new class implements eslint.Rule.RuleModule {
 			return resolved.replace(/\.(?:js|ts)$/, '') === legacyModule;
 		}
 
+		function exposesCapability(node: TSESTree.Node | null | undefined, visited = new Set<TSESTree.Node>()): boolean {
+			if (!node || visited.has(node)) {
+				return false;
+			}
+			visited.add(node);
+			const exposes = (value: TSESTree.Node | null | undefined) => exposesCapability(value, visited);
+			switch (node.type) {
+				case 'Identifier': {
+					let scope: eslint.Scope.Scope | null = context.sourceCode.getScope(node as Node);
+					while (scope) {
+						const variable = scope.set.get(node.name);
+						if (variable) {
+							return capabilityBindings.has(variable)
+								|| variable.defs.some(definition => exposes(definition.node as TSESTree.Node))
+								|| variable.references.some(reference => reference.isWrite() && exposes(reference.writeExpr as TSESTree.Node | null));
+						}
+						scope = scope.upper;
+					}
+					return false;
+				}
+				case 'VariableDeclaration':
+					return node.declarations.some(exposes);
+				case 'VariableDeclarator':
+					return exposes(node.init);
+				case 'FunctionDeclaration':
+				case 'FunctionExpression':
+				case 'ArrowFunctionExpression':
+					return (node.body?.type !== 'BlockStatement' && exposes(node.body))
+						|| (returnedValues.get(node)?.some(exposes) ?? false);
+				case 'ClassDeclaration':
+				case 'ClassExpression':
+					return node.body.body.some(exposes) || exposes(node.superClass);
+				case 'MethodDefinition':
+				case 'PropertyDefinition':
+				case 'AccessorProperty':
+					return exposes(node.value);
+				case 'ObjectExpression':
+					return node.properties.some(exposes);
+				case 'Property':
+					return exposes(node.value) || (node.computed && exposes(node.key));
+				case 'ArrayExpression':
+					return node.elements.some(exposes);
+				case 'SpreadElement':
+				case 'AwaitExpression':
+					return exposes(node.argument);
+				case 'ConditionalExpression':
+					return exposes(node.consequent) || exposes(node.alternate);
+				case 'LogicalExpression':
+					return exposes(node.left) || exposes(node.right);
+				case 'AssignmentExpression':
+					return exposes(node.right);
+				case 'SequenceExpression':
+					return exposes(node.expressions.at(-1));
+				case 'TSAsExpression':
+				case 'TSTypeAssertion':
+				case 'TSNonNullExpression':
+				case 'TSSatisfiesExpression':
+				case 'ChainExpression':
+					return exposes(node.expression);
+				case 'CallExpression':
+				case 'NewExpression':
+					return exposes(node.callee) || node.arguments.some(exposes);
+				default:
+					return false;
+			}
+		}
+
 		return {
 			ImportDeclaration: rawNode => {
 				const node = rawNode as TSESTree.ImportDeclaration;
@@ -58,12 +124,9 @@ export default new class implements eslint.Rule.RuleModule {
 					if (specifier.type !== 'ImportSpecifier') {
 						context.report({ node: specifier, messageId: 'explicitImport' });
 					} else if (specifier.importKind !== 'type' && (specifier.imported.type === 'Identifier' ? specifier.imported.name : specifier.imported.value) === capabilityName) {
-						capabilityLocals.add(specifier.local.name);
 						const variable = context.sourceCode.getDeclaredVariables(rawNode).find(variable => variable.name === specifier.local.name);
-						for (const reference of variable?.references ?? []) {
-							if (reference.identifier.range) {
-								capabilityReferences.push(reference.identifier.range);
-							}
+						if (variable) {
+							capabilityBindings.add(variable);
 						}
 						if (!allowed) {
 							context.report({ node: specifier, messageId: 'restrictedCapability' });
@@ -76,12 +139,8 @@ export default new class implements eslint.Rule.RuleModule {
 				if (node.exportKind === 'type') {
 					return;
 				}
-				if (node.declaration?.type === 'VariableDeclaration') {
-					for (const declaration of node.declaration.declarations) {
-						if (declaration.init) {
-							exportedValues.push(declaration.init);
-						}
-					}
+				if (node.declaration) {
+					exportedValues.push(node.declaration);
 				}
 				for (const specifier of node.specifiers) {
 					if (specifier.exportKind === 'type') {
@@ -90,16 +149,24 @@ export default new class implements eslint.Rule.RuleModule {
 					if (node.source && isLegacyModule(node.source)) {
 						context.report({ node: specifier, messageId: 'restrictedExport' });
 					} else if (!node.source && specifier.local.type === 'Identifier') {
-						localExports.push(specifier.local);
+						exportedValues.push(specifier.local);
 					}
 				}
 			},
 			ExportDefaultDeclaration: rawNode => {
 				const node = rawNode as TSESTree.ExportDefaultDeclaration;
-				if (node.declaration.type === 'Identifier') {
-					localExports.push(node.declaration);
-				} else {
-					exportedValues.push(node.declaration);
+				exportedValues.push(node.declaration);
+			},
+			ReturnStatement: rawNode => {
+				const node = rawNode as TSESTree.ReturnStatement;
+				let parent: TSESTree.Node | undefined = node.parent;
+				while (parent && parent.type !== 'FunctionDeclaration' && parent.type !== 'FunctionExpression' && parent.type !== 'ArrowFunctionExpression') {
+					parent = parent.parent;
+				}
+				if (parent && node.argument) {
+					const values = returnedValues.get(parent) ?? [];
+					values.push(node.argument);
+					returnedValues.set(parent, values);
 				}
 			},
 			ExportAllDeclaration: rawNode => {
@@ -127,13 +194,11 @@ export default new class implements eslint.Rule.RuleModule {
 				}
 			},
 			'Program:exit': () => {
-				for (const node of localExports) {
-					if (capabilityLocals.has(node.name)) {
-						context.report({ node, messageId: 'restrictedExport' });
-					}
+				if (!capabilityBindings.size) {
+					return;
 				}
 				for (const node of exportedValues) {
-					if (capabilityReferences.some(([start, end]) => start >= node.range[0] && end <= node.range[1])) {
+					if (exposesCapability(node)) {
 						context.report({ node, messageId: 'restrictedExport' });
 					}
 				}
