@@ -3739,10 +3739,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		} else {
 			// Use the currently focused chat session if available
 			const currentSession = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);
+			const currentSessionResource = currentSession ? URI.parse(currentSession) : undefined;
+			const shouldAvoidCurrentSession = !!currentSessionResource
+				&& currentSessionResource.scheme === 'sessions-voice'
+				&& currentSessionResource.path === '/composer';
 			let accepted = false;
-			if (currentSession) {
+			if (currentSessionResource && !shouldAvoidCurrentSession) {
 				// There's an active chat widget — send to it
-				accepted = await this._acceptVoiceInput(text, URI.parse(currentSession));
+				accepted = await this._acceptVoiceInput(text, currentSessionResource);
 			} else {
 				// No focused chat session — find the most recent existing session
 				// instead of creating a new one, so voice continues the conversation.
