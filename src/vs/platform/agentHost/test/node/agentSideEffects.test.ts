@@ -141,7 +141,6 @@ class NoopGitStateService implements IAgentHostGitStateService {
 
 class NoopWorktreeIsolation extends NullAgentHostWorktreeIsolation { }
 
-/** Models a worktree session before its first send creates the worktree. */
 /** Models a worktree session whose first send creates the worktree, as `resolveOnFirstSend` does. */
 class FirstSendWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	private readonly _onDidChangePending = new Emitter<string>();

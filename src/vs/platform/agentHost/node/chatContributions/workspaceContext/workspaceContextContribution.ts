@@ -87,7 +87,10 @@ function snapshotKey(enumerationRoots: readonly URI[]): string {
 export class WorkspaceContextContribution extends Disposable implements IAgentHostChatContribution {
 
 	static readonly id = 'workspaceContext';
-	/** Instructions follow `markdownPlanRichLinks` (100) and precede `chatSurface` (300). */
+	/**
+	 * Only sequences this contribution's hooks among the others. The provider
+	 * renders the snapshot after every host instruction, whatever the order.
+	 */
 	readonly order = 175;
 	private readonly _prepared = this._register(new DisposableMap<ProtocolURI, IPreparedSnapshot>());
 	/** First-turn chats whose session is creating its worktree, keyed by session id. */
