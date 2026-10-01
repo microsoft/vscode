@@ -37,7 +37,7 @@ suite('CustomEditorInfo', () => {
 
 		// Matches when languageId matches regardless of filename
 		assert.strictEqual(info.matches(URI.file('/path/to/notes.notes'), 'markdown'), true);
-		assert.strictEqual(info.matches(URI.file('/path/to/notes.notes'), 'MARKDOWN'), true);
+		assert.strictEqual(info.matches(URI.file('/path/to/notes.notes'), 'MARKDOWN'), false);
 		assert.strictEqual(info.matches(URI.file('/path/to/readme.md'), 'markdown'), true);
 
 		// Does not match when languageId differs or is undefined

@@ -1108,7 +1108,11 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			if (langId) {
 				const settingId = defaultAssociationType === EditorAssociationType.DiffEditor ? diffEditorLanguageAssociationsSettingId : editorLanguageAssociationsSettingId;
 				const langAssociations = this.getAllUserAssociationsForSetting(settingId, true);
-				const configured = langAssociations.find(a => a.language === langId);
+				let configured = langAssociations.find(a => a.language === langId);
+				if (!configured && defaultAssociationType === EditorAssociationType.DiffEditor) {
+					const generalAssociations = this.getAllUserAssociationsForSetting(editorLanguageAssociationsSettingId, true);
+					configured = generalAssociations.find(a => a.language === langId);
+				}
 				if (configured) {
 					defaultEditorId = configured.viewType;
 				} else {
@@ -1154,12 +1158,15 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (!showDefaultPicker) {
 			const separator: IQuickPickSeparator = { type: 'separator' };
 			quickPickEntries.push(separator);
-			const editorDefault = this.getEditorMatches(resource).defaultRule;
-			const configureDefaultEntry = {
-				id: EditorResolverService.configureDefaultID,
-				label: localize('promptOpenWith.configureDefault', "Configure default editor for '{0}'...", editorDefault.associationPattern),
-			};
-			quickPickEntries.push(configureDefaultEntry);
+
+			if (extname(resource) !== '') {
+				const editorDefault = this.getEditorMatches(resource).defaultRule;
+				const configureDefaultEntry = {
+					id: EditorResolverService.configureDefaultID,
+					label: localize('promptOpenWith.configureDefault', "Configure default editor for '{0}'...", editorDefault.associationPattern),
+				};
+				quickPickEntries.push(configureDefaultEntry);
+			}
 
 			const langId = this.getEffectiveLanguageId(resource);
 			if (langId) {
@@ -1174,12 +1181,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			// For diffs, additionally offer to configure a diff-only default so the choice does not
 			// affect how the resource opens as a normal editor (writes to `diffEditorAssociations`).
 			if (associationType === EditorAssociationType.DiffEditor) {
-				const diffEditorDefault = this.getEditorMatches(resource, { isDiffEditor: true }).defaultRule;
-				const configureDefaultDiffEntry = {
-					id: EditorResolverService.configureDefaultDiffID,
-					label: localize('promptOpenWith.configureDefaultDiff', "Configure default editor (diff only) for '{0}'...", diffEditorDefault.associationPattern),
-				};
-				quickPickEntries.push(configureDefaultDiffEntry);
+				if (extname(resource) !== '') {
+					const diffEditorDefault = this.getEditorMatches(resource, { isDiffEditor: true }).defaultRule;
+					const configureDefaultDiffEntry = {
+						id: EditorResolverService.configureDefaultDiffID,
+						label: localize('promptOpenWith.configureDefaultDiff', "Configure default editor (diff only) for '{0}'...", diffEditorDefault.associationPattern),
+					};
+					quickPickEntries.push(configureDefaultDiffEntry);
+				}
 
 				if (langId) {
 					const langName = this.languageService.getLanguageName(langId) ?? langId;

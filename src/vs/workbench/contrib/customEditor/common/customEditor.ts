@@ -36,8 +36,8 @@ export interface ICustomEditorService {
 	readonly models: ICustomEditorModelManager;
 
 	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
-	getAllCustomEditors(resource: URI): CustomEditorInfoCollection;
-	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
+	getAllCustomEditors(resource: URI, languageId?: string): CustomEditorInfoCollection;
+	getContributedCustomEditors(resource: URI, languageId?: string): CustomEditorInfoCollection;
 	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
 
 	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;

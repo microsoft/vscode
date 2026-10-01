@@ -152,15 +152,22 @@ class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureT
 		const headers = [
 			nls.localize('customEditors view type', "View Type"),
 			nls.localize('customEditors priority', "Priority"),
-			nls.localize('customEditors filenamePattern', "Filename Pattern"),
+			nls.localize('customEditors selector', "Selector"),
 		];
 
 		const rows: IRowData[][] = customEditors
 			.map(customEditor => {
+				const selectorLabel = customEditor.selector.map(x => {
+					if (x.filenamePattern && x.language) {
+						return `${x.filenamePattern} (${x.language})`;
+					}
+					return x.filenamePattern ?? x.language ?? '*';
+				}).join(', ');
+
 				return [
 					customEditor.viewType,
 					renderPriority(customEditor.priority),
-					coalesce(customEditor.selector.map(x => x.filenamePattern)).join(', ')
+					selectorLabel
 				];
 			});
 

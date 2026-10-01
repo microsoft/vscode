@@ -13,6 +13,7 @@ import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { FileOperation, IFileService } from '../../../../platform/files/common/files.js';
@@ -68,6 +69,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 
@@ -336,8 +338,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return this._contributedEditors.get(viewType);
 	}
 
-	public getContributedCustomEditors(resource: URI): CustomEditorInfoCollection {
-		return new CustomEditorInfoCollection(this._contributedEditors.getContributedEditors(resource));
+	public getContributedCustomEditors(resource: URI, languageId?: string): CustomEditorInfoCollection {
+		const lang = languageId ?? this.languageService.guessLanguageIdByFilepathOrFirstLine(resource) ?? undefined;
+		return new CustomEditorInfoCollection(this._contributedEditors.getContributedEditors(resource, lang));
 	}
 
 	public getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection {
@@ -347,10 +350,11 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				.map(association => this._contributedEditors.get(association.viewType))));
 	}
 
-	public getAllCustomEditors(resource: URI): CustomEditorInfoCollection {
+	public getAllCustomEditors(resource: URI, languageId?: string): CustomEditorInfoCollection {
+		const lang = languageId ?? this.languageService.guessLanguageIdByFilepathOrFirstLine(resource) ?? undefined;
 		return new CustomEditorInfoCollection([
 			...this.getUserConfiguredCustomEditors(resource).allEditors,
-			...this.getContributedCustomEditors(resource).allEditors,
+			...this.getContributedCustomEditors(resource, lang).allEditors,
 		]);
 	}
 
@@ -413,7 +417,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return;
 		}
 
-		const possibleEditors = this.getAllCustomEditors(newResource);
+		const langId = this.languageService.guessLanguageIdByFilepathOrFirstLine(newResource) ?? undefined;
+		const possibleEditors = this.getAllCustomEditors(newResource, langId);
 
 		// See if we have any non-optional custom editor for this resource
 		if (!possibleEditors.allEditors.some(editor => editor.priority.editor !== RegisteredEditorPriority.option)) {
