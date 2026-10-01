@@ -6,7 +6,7 @@
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
-import { IReference } from '../../../base/common/lifecycle.js';
+import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { isWindows } from '../../../base/common/platform.js';
@@ -22,6 +22,7 @@ import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
+import type { IAgentHostMcpAuthenticationRequest } from './agentHostExtensionProtocol.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -1194,6 +1195,8 @@ export interface IAgentConnection {
 	/** Best-effort renderer diagnostics; supported only by hosts advertising the OTel timing capability. */
 	reportFirstResponse?(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void>;
 	reportUserInteraction?(timing: IChatUserInteractionTiming): Promise<void>;
+	/** Registers a connection-scoped handler that supplies MCP authentication without prompting. */
+	registerMcpAuthenticationHandler?(handler: (request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>): IDisposable;
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
