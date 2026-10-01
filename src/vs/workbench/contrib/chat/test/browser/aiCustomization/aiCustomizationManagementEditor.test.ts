@@ -2061,6 +2061,7 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.showCustomizationMigrationDashboard = () => { };
 			editor.refreshCustomizationMigrationInfo = async () => { };
 			const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+			const confirmation = category.getConfirmation([server], 'Copilot');
 			await editor.migrateSelectedCustomizations(category, [server]);
 
 			assert.deepStrictEqual({
@@ -2070,7 +2071,11 @@ suite('aiCustomizationManagementEditor', () => {
 				writesInProgress: editor.customizationMigrationWritesInProgress,
 			}, {
 				calls: confirmed ? ['confirm', 'migrate', 'info'] : ['confirm'],
-				confirmations: [{ type: 'warning', ...category.getConfirmation([server], 'Copilot') }],
+				confirmations: [{
+					type: 'warning',
+					...confirmation,
+					detail: editor.getMcpMigrationConfirmationDetail(confirmation.detail, [server]),
+				}],
 				inProgress: false,
 				writesInProgress: false,
 			});
