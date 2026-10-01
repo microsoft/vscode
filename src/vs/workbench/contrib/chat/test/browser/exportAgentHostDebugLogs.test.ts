@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
+import { Event } from '../../../../../base/common/event.js';
 import { isDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -13,9 +14,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AhpJsonlLogger, isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
+import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostService, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -29,7 +31,9 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IPathService } from '../../../../../platform/path/common/pathService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
 import { BrowserAgentHostDebugLogsExportService, collectAgentHostDebugLogs, collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, IAgentHostDebugLogsExportService, notifyAgentHostDebugLogsExported, prepareAgentHostDebugLogsExport, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
@@ -301,8 +305,9 @@ suite('collectAgentHostDebugLogs', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const provider of ['copilot', 'copilotcli']) {
-		for (const connected of [true, false]) {
-			test(`exports only ${provider} host traffic ${connected ? 'when host log collection is unsupported' : 'after disconnection'}`, async () => {
+		for (const status of ['connected', 'disconnected', 'removed']) {
+			test(`exports only ${provider} host traffic when the connection is ${status}`, async () => {
+				const connected = status === 'connected';
 				const instantiationService = disposables.add(new TestInstantiationService());
 				const logService = new NullLogService();
 				const fileService = disposables.add(new FileService(logService));
@@ -338,13 +343,25 @@ suite('collectAgentHostDebugLogs', () => {
 						throw new Error('Method not found');
 					},
 				});
-				instantiationService.stub(IAgentHostService, { clientId: 'local-client' });
-				instantiationService.stub(IAgentHostConnectionsService, {
-					resolveSessionResource: () => connected ? { connection, connectionAuthority: agentHostAuthority(address), backendSession } : undefined,
+				instantiationService.stub(IAgentHostService, {
+					clientId: 'local-client',
+					onAgentHostStart: Event.None,
+					onAgentHostExit: Event.None,
+					resourceUris: identityAgentHostResourceUriMapper,
 				});
 				instantiationService.stub(IRemoteAgentHostService, {
-					connections: [address, unrelatedAddress].map(address => ({ address, name: address, status: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected })),
+					onDidChangeConnections: Event.None,
+					connections: (status === 'removed' ? [unrelatedAddress] : [address, unrelatedAddress]).map(address => ({ address, name: address, status: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected })),
+					getConnection: candidate => connected && candidate === address ? connection : undefined,
+					getConnectionByAuthority: candidate => connected && candidate === agentHostAuthority(address) ? connection : undefined,
 				});
+				instantiationService.stub(IPathService, new TestPathService(URI.from({ scheme: Schemas.inMemory, path: '/home' })));
+				const connectionsService = disposables.add(instantiationService.createInstance(AgentHostConnectionsService));
+				instantiationService.set(IAgentHostConnectionsService, connectionsService);
+				disposables.add(connectionsService.registerSessionResolutionPolicy(agentHostAuthority(address), {
+					...(status === 'removed' ? { connectionAddress: address } : {}),
+					sessionSchemeAlias: { ui: provider, backend: backendSession.scheme },
+				}));
 				instantiationService.stub(IFileService, fileService);
 				instantiationService.stub(ILogService, logService);
 				instantiationService.stub(IWorkbenchEnvironmentService, {

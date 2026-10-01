@@ -8,7 +8,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
-import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -85,6 +85,7 @@ export interface IAgentHostLogSource {
 export interface IAgentHostLogSourceServices {
 	readonly pathService: IPathService;
 	readonly agentHostService: IAgentHostService;
+	readonly agentHostConnectionsService: IAgentHostConnectionsService;
 	readonly remoteAgentHostService: IRemoteAgentHostService;
 	readonly outputService: IOutputService;
 	readonly fileService: IFileService;
@@ -138,10 +139,11 @@ export async function enumerateAgentHostLogSources(
 		return [];
 	}
 
-	const { pathService, agentHostService, remoteAgentHostService, outputService, fileService, environmentService } = services;
+	const { pathService, agentHostService, agentHostConnectionsService, remoteAgentHostService, outputService, fileService, environmentService } = services;
 	const userHome = pathService.userHome({ preferLocal: true });
 	const isLocal = sessionResource.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX);
 	const remoteConnection = isLocal ? undefined : getRemoteConnectionForSession(sessionResource, remoteAgentHostService.connections);
+	const remoteAddress = isLocal ? undefined : agentHostConnectionsService.resolveSessionResourceIdentity(sessionResource)?.connectionAddress ?? remoteConnection?.address;
 
 	const sources: IAgentHostLogSource[] = [];
 
@@ -162,7 +164,7 @@ export async function enumerateAgentHostLogSources(
 	}
 
 	// 2. Existing AHP wire log(s). The setting controls logger creation, not whether historical files remain discoverable.
-	const ahpLogId = isLocal ? agentHostService.clientId : remoteConnection?.address;
+	const ahpLogId = isLocal ? agentHostService.clientId : remoteAddress;
 	const wireFiles = await listWireLogFiles(fileService, environmentService, ahpLogId);
 	wireFiles.forEach((file, index) => {
 		sources.push({
@@ -180,8 +182,8 @@ export async function enumerateAgentHostLogSources(
 	const channelIds: string[] = [];
 	if (isLocal) {
 		channelIds.push(AGENT_HOST_LOG_OUTPUT_CHANNEL_ID);
-	} else if (remoteConnection) {
-		channelIds.push(remoteAgentHostLogOutputChannelId(remoteConnection.address));
+	} else if (remoteAddress) {
+		channelIds.push(remoteAgentHostLogOutputChannelId(remoteAddress));
 	}
 	channelIds.push(WINDOW_LOG_CHANNEL_ID, SHARED_PROCESS_LOG_CHANNEL_ID);
 	for (const channelId of channelIds) {

@@ -268,9 +268,10 @@ export async function collectAgentHostDebugLogs(
 			ahpLogId = agentHostService.clientId;
 		} else {
 			const remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
-			if (remoteConnection) {
-				forwardedAgentHostLogFileNames.add(getOutputChannelLogFileName(remoteAgentHostLogOutputChannelId(remoteConnection.address)));
-				ahpLogId = remoteConnection.address;
+			const remoteAddress = agentHostConnectionsService.resolveSessionResourceIdentity(activeSession.resource)?.connectionAddress ?? remoteConnection?.address;
+			if (remoteAddress) {
+				forwardedAgentHostLogFileNames.add(getOutputChannelLogFileName(remoteAgentHostLogOutputChannelId(remoteAddress)));
+				ahpLogId = remoteAddress;
 			}
 		}
 	} else {

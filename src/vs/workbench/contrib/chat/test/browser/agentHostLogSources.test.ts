@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostAhpJsonlLoggingSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
@@ -63,7 +64,7 @@ suite('AgentHostLogSources', () => {
 		)?.address), ['host-name', 'host-name', 'host-name']);
 	});
 
-	test('enumerates cloud host AHP logs after disconnection without assuming a Copilot CLI filesystem layout', async () => {
+	test('enumerates address-keyed cloud host AHP logs after the connection catalog entry is removed', async () => {
 		const address = 'cloudsandbox:env-1';
 		const logger = disposables.add(new AhpJsonlLogger({ logsHome: logsDir, logId: address, connectionId: 'cloud-client', transport: 'webpubsub' }, fileService, new NullLogService()));
 		const unrelatedLogger = disposables.add(new AhpJsonlLogger({ logsHome: logsDir, logId: 'cloudsandbox:env-2', connectionId: 'other-client', transport: 'webpubsub' }, fileService, new NullLogService()));
@@ -74,7 +75,12 @@ suite('AgentHostLogSources', () => {
 		const services = new class extends mock<IAgentHostLogSourceServices>() {
 			override readonly pathService = new TestPathService(URI.from({ scheme: Schemas.inMemory, path: '/home' }));
 			override readonly remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
-				override readonly connections = [{ address, name: 'Cloud', status: RemoteAgentHostConnectionStatus.disconnected }];
+				override readonly connections = [];
+			}();
+			override readonly agentHostConnectionsService = new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAddress: address, connectionAuthority: agentHostAuthority(address), backendSession: URI.parse('host-session-v2:/session-1') };
+				}
 			}();
 			override readonly outputService = new class extends mock<IOutputService>() {
 				override getChannelDescriptor(_id: string): undefined {
