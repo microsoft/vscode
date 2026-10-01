@@ -270,7 +270,7 @@ class TestNotificationService extends mock<INotificationService>() {
 	readonly whenPrompted = new DeferredPromise<void>();
 	readonly prompts: {
 		readonly severity: Severity;
-		readonly message: string;
+		readonly message: Parameters<INotificationService['prompt']>[1];
 		readonly choices: Parameters<INotificationService['prompt']>[2];
 		readonly options: Parameters<INotificationService['prompt']>[3];
 	}[] = [];
