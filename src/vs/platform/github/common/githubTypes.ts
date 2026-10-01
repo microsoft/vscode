@@ -11,9 +11,19 @@ export type GitHubRequestKind = 'rest' | 'graphql' | 'download';
 export type GitHubTelemetrySource = 'workbench' | 'web' | 'agentHost' | 'sharedProcess' | 'other';
 
 export interface GitHubAccountHandle {
+	readonly kind?: 'authenticated';
 	readonly host: string;
 	readonly accountId: string;
 }
+
+/** One anonymous quota identity per API origin and engine-owned network executor. */
+export interface GitHubAnonymousAccount {
+	readonly kind: 'anonymous';
+	readonly host: string;
+	readonly origin: string;
+}
+
+export type GitHubRequestAccount = GitHubAccountHandle | GitHubAnonymousAccount;
 
 export type GitHubRequestPriority =
 	| 'mutationReconciliation'
@@ -46,7 +56,7 @@ export interface GitHubRequestOptions {
 
 export interface GitHubRequestContext {
 	readonly kind: GitHubRequestKind;
-	readonly account: GitHubAccountHandle;
+	readonly account: GitHubRequestAccount;
 	readonly caller: string;
 	readonly resource: string;
 	readonly priority: GitHubRequestPriority;
@@ -113,7 +123,7 @@ export interface GitHubClientMetadata {
 }
 
 export interface GitHubServiceOptions {
-	readonly credentialProvider: IGitHubCredentialProvider;
+	readonly credentialProvider?: IGitHubCredentialProvider;
 	readonly fetch?: GitHubFetch;
 	readonly telemetrySource?: GitHubTelemetrySource;
 	readonly clientMetadata?: GitHubClientMetadata;
@@ -134,6 +144,11 @@ export interface GitHubClientOptions {
 	readonly authorization: GitHubAuthorizationContext;
 	readonly apiBaseUri: string;
 	readonly graphQlUri: string;
+}
+
+/** Trusted API base for public reads; callers cannot override authentication or network execution. */
+export interface GitHubAnonymousClientOptions {
+	readonly apiBaseUri: string;
 }
 
 export interface GitHubCredentialChange {
