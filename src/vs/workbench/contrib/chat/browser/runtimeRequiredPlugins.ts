@@ -73,17 +73,10 @@ export class RuntimeRequiredPluginService extends Disposable implements IRuntime
 		if (!workingDirectories) {
 			this._runtimeRepositoryPluginService.retainWorkingDirectories(directories);
 		}
-		if (directories.length === 0
-			|| this._chatEntitlementService.sentiment.hidden
-			|| !this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
+		if (this._chatEntitlementService.sentiment.hidden) {
 			this._runtimeRepositoryPluginService.removeSnapshots(directories);
+			this._runtimeRepositoryPluginService.removeManagedSnapshot();
 			this._logService.debug('[RuntimeRequiredPlugins] Skipping: no eligible workspace context');
-			return;
-		}
-
-		if (!this._workspaceTrustService.isWorkspaceTrusted()) {
-			this._runtimeRepositoryPluginService.removeSnapshots(directories);
-			this._logService.debug('[RuntimeRequiredPlugins] Skipping: workspace is not trusted');
 			return;
 		}
 
@@ -91,14 +84,44 @@ export class RuntimeRequiredPluginService extends Disposable implements IRuntime
 		if (!connection.ensureRequiredPlugins
 			|| !supportsAgentHostEnsureRequiredPlugins(connection.initializeResult.get())) {
 			this._runtimeRepositoryPluginService.removeSnapshots(directories);
-			if (this._hasRequiredPlugins()) {
+			this._runtimeRepositoryPluginService.removeManagedSnapshot();
+			if (this._hasManagedRequiredPlugins()) {
 				throw new Error('The Agent Host does not support required plugin enforcement.');
 			}
-			this._logService.debug('[RuntimeRequiredPlugins] Skipping: Agent Host capability unavailable');
+			this._logService.warn('[RuntimeRequiredPlugins] Skipping repository auto-install: Agent Host capability unavailable');
 			return;
 		}
 
 		const managedSettings = this._managedSettings();
+		await this._ensureSequencer.queue('', async () => {
+			try {
+				const result = await connection.ensureRequiredPlugins!({ managedSettings });
+				this._runtimeRepositoryPluginService.setManagedSnapshot(result);
+				for (const warning of result.warnings) {
+					this._logService.warn(`[RuntimeRequiredPlugins] ${warning}`);
+				}
+			} catch (error) {
+				this._runtimeRepositoryPluginService.removeManagedSnapshot();
+				this._runtimeRepositoryPluginService.removeSnapshots(directories);
+				throw error;
+			}
+		});
+
+		if (directories.length === 0) {
+			return;
+		}
+
+		if (!this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
+			this._runtimeRepositoryPluginService.removeSnapshots(directories);
+			this._logService.debug('[RuntimeRequiredPlugins] Skipping repository auto-install: plugin integration is disabled');
+			return;
+		}
+
+		if (!this._workspaceTrustService.isWorkspaceTrusted()) {
+			this._runtimeRepositoryPluginService.removeSnapshots(directories);
+			this._logService.debug('[RuntimeRequiredPlugins] Skipping repository auto-install: workspace is not trusted');
+			return;
+		}
 
 		await Promise.all(directories.map(workingDirectory =>
 			this._ensureSequencer.queue(this._uriIdentityService.extUri.getComparisonKey(workingDirectory), async () => {
@@ -180,10 +203,7 @@ export class RuntimeRequiredPluginService extends Disposable implements IRuntime
 		};
 	}
 
-	private _hasRequiredPlugins(): boolean {
-		if ([...this._workspacePluginSettingsService.enabledPlugins.get().values()].some(enabled => enabled)) {
-			return true;
-		}
+	private _hasManagedRequiredPlugins(): boolean {
 		const managedEnabledPlugins = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue;
 		return Object.values(managedEnabledPlugins ?? {}).some(enabled => enabled);
 	}

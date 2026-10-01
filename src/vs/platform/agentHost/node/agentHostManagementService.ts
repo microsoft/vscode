@@ -79,7 +79,9 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		}
 		return this._runMutation(() => this._agentService.ensureRequiredPlugins!({
 			...request,
-			workingDirectory: toRequiredPluginRuntimeWorkingDirectory(request.workingDirectory),
+			...(request.workingDirectory
+				? { workingDirectory: toRequiredPluginRuntimeWorkingDirectory(request.workingDirectory) }
+				: {}),
 		}));
 	}
 

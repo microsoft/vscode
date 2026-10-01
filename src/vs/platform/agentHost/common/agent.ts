@@ -1448,7 +1448,7 @@ export interface IAgent {
 	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
 
-	/** Ensure repository- and managed-required plugins through the provider-owned runtime. */
+	/** Auto-install repository plugins and enforce managed plugins through the provider-owned runtime. */
 	ensureRequiredPlugins?(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult>;
 
 	/** Return the provider-owned state file for a session, when one exists. */

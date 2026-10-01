@@ -128,13 +128,15 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		);
 
 		const policyEnablement = derived(reader => {
+			this._runtimeRepositoryPluginService.snapshotRevision.read(reader);
 			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, reader);
 			const policy = enabledPluginsPolicy.read(reader);
 			const result = new Map<string, boolean>();
 			if (discoveredPlugins && policy) {
 				for (const { plugins } of discoveredPlugins) {
 					for (const plugin of plugins) {
-						const policyValue = getAgentPluginPolicyEnablement(plugin, policy);
+						const policyValue = getAgentPluginPolicyEnablement(plugin, policy)
+							?? this._runtimeRepositoryPluginService.getManagedEnablement(plugin.externalIdentity);
 						if (policyValue !== undefined) {
 							result.set(plugin.uri.toString(), policyValue);
 						}
@@ -211,24 +213,30 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		}
 
 		this.plugins = derived(read => {
-			if (!pluginsEnabled.read(read)) {
-				return [];
-			}
 			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, read);
 			if (!discoveredPlugins) {
 				return [];
 			}
-			return getSortedAgentPlugins(discoveredPlugins);
+			const plugins = getSortedAgentPlugins(discoveredPlugins);
+			if (pluginsEnabled.read(read)) {
+				return plugins;
+			}
+			const policy = policyEnablement.read(read);
+			return plugins.filter(plugin => policy.get(plugin.uri.toString()) === true);
 		});
 
 		this._register(autorun(reader => {
 			const plugins = this.plugins.read(reader);
 			const policy = enabledPluginsPolicy.read(reader);
+			this._runtimeRepositoryPluginService.snapshotRevision.read(reader);
 			transaction(tx => {
 				for (const plugin of plugins) {
-					const policyValue = getAgentPluginPolicyEnablement(plugin, policy);
+					const configuredPolicyValue = getAgentPluginPolicyEnablement(plugin, policy);
+					const policyValue = configuredPolicyValue
+						?? this._runtimeRepositoryPluginService.getManagedEnablement(plugin.externalIdentity);
 					if (setPolicyEnablement(plugin, policyValue, tx) && policyValue !== undefined) {
-						logService.debug(`[AgentPluginService] Plugin '${getAgentPluginPolicyId(plugin) ?? plugin.uri.toString()}' ${policyValue ? 'enabled' : 'disabled'} by ChatEnabledPlugins policy`);
+						const source = configuredPolicyValue !== undefined ? 'ChatEnabledPlugins policy' : 'runtime managed settings';
+						logService.debug(`[AgentPluginService] Plugin '${getAgentPluginPolicyId(plugin) ?? plugin.uri.toString()}' ${policyValue ? 'enabled' : 'disabled'} by ${source}`);
 					}
 				}
 			});

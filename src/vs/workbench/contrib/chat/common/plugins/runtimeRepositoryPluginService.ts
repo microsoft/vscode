@@ -11,7 +11,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export interface IRuntimeRepositoryPluginSnapshot {
-	readonly workingDirectory: URI;
+	readonly workingDirectory?: URI;
 	readonly result: IAgentHostEnsureRequiredPluginsResult;
 }
 
@@ -27,9 +27,12 @@ export interface IRuntimeRepositoryPluginService {
 	readonly snapshots: IObservable<readonly IRuntimeRepositoryPluginSnapshot[]>;
 	readonly snapshotRevision: IObservable<number>;
 	setSnapshot(workingDirectory: URI, result: IAgentHostEnsureRequiredPluginsResult): void;
+	setManagedSnapshot(result: IAgentHostEnsureRequiredPluginsResult): void;
 	removeSnapshots(workingDirectories: readonly URI[]): void;
+	removeManagedSnapshot(): void;
 	retainWorkingDirectories(workingDirectories: readonly URI[]): void;
 	getEnablement(pluginIdentity: IRuntimeRepositoryPluginIdentity | undefined, isRuntimeSource: boolean, workingDirectory: URI | undefined): boolean | undefined;
+	getManagedEnablement(pluginIdentity: IRuntimeRepositoryPluginIdentity | undefined): boolean | undefined;
 	markDiscoverySettled(revision: number): void;
 	whenDiscoverySettled(): Promise<void>;
 }
@@ -50,12 +53,19 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 	}
 
 	setSnapshot(workingDirectory: URI, result: IAgentHostEnsureRequiredPluginsResult): void {
-		const key = this._key(workingDirectory);
-		if (this._snapshots.get().get(key)?.result.fingerprint === result.fingerprint) {
+		this._setSnapshot(this._key(workingDirectory), { workingDirectory, result });
+	}
+
+	setManagedSnapshot(result: IAgentHostEnsureRequiredPluginsResult): void {
+		this._setSnapshot('', { result });
+	}
+
+	private _setSnapshot(key: string, snapshot: IRuntimeRepositoryPluginSnapshot): void {
+		if (this._snapshots.get().get(key)?.result.fingerprint === snapshot.result.fingerprint) {
 			return;
 		}
 		const snapshots = new Map(this._snapshots.get());
-		snapshots.set(key, { workingDirectory, result });
+		snapshots.set(key, snapshot);
 		this._setSnapshots(snapshots);
 	}
 
@@ -70,20 +80,34 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 		}
 	}
 
+	removeManagedSnapshot(): void {
+		if (!this._snapshots.get().has('')) {
+			return;
+		}
+		const snapshots = new Map(this._snapshots.get());
+		snapshots.delete('');
+		this._setSnapshots(snapshots);
+	}
+
 	retainWorkingDirectories(workingDirectories: readonly URI[]): void {
 		const retained = new Set(workingDirectories.map(uri => this._key(uri)));
-		const snapshots = new Map([...this._snapshots.get()].filter(([key]) => retained.has(key)));
+		const snapshots = new Map([...this._snapshots.get()].filter(([key]) => key === '' || retained.has(key)));
 		if (snapshots.size !== this._snapshots.get().size) {
 			this._setSnapshots(snapshots);
 		}
 	}
 
 	getEnablement(pluginIdentity: IRuntimeRepositoryPluginIdentity | undefined, isRuntimeSource: boolean, workingDirectory: URI | undefined): boolean | undefined {
-		if (!pluginIdentity || !workingDirectory) {
+		if (!pluginIdentity) {
 			return undefined;
 		}
-		const snapshot = this._snapshots.get().get(this._key(workingDirectory));
-		const activation = snapshot?.result.plugins.find(candidate =>
+		const workspaceActivation = workingDirectory
+			? this._snapshots.get().get(this._key(workingDirectory))?.result.plugins.find(candidate =>
+				candidate.plugin.name === pluginIdentity.name
+				&& candidate.plugin.marketplace === pluginIdentity.marketplace
+			)
+			: undefined;
+		const activation = workspaceActivation ?? this._snapshots.get().get('')?.result.plugins.find(candidate =>
 			candidate.plugin.name === pluginIdentity.name
 			&& candidate.plugin.marketplace === pluginIdentity.marketplace
 		);
@@ -91,6 +115,23 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 			return isRuntimeSource ? false : undefined;
 		}
 		return isRuntimeSource && activation.enabled;
+	}
+
+	getManagedEnablement(pluginIdentity: IRuntimeRepositoryPluginIdentity | undefined): boolean | undefined {
+		if (!pluginIdentity) {
+			return undefined;
+		}
+		for (const snapshot of this._snapshots.get().values()) {
+			const activation = snapshot.result.plugins.find(candidate =>
+				candidate.managed
+				&& candidate.plugin.name === pluginIdentity.name
+				&& candidate.plugin.marketplace === pluginIdentity.marketplace
+			);
+			if (activation) {
+				return activation.enabled;
+			}
+		}
+		return undefined;
 	}
 
 	markDiscoverySettled(revision: number): void {

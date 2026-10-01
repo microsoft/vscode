@@ -182,7 +182,7 @@ suite('AgentHostClientTools', () => {
 	}
 
 	test('rejects required plugin failures and recovers after successful reconciliation', async () => {
-		const failure = new Error('Required plugins could not be reconciled: required@market');
+		const failure = new Error('Managed plugins could not be ensured: managed@market');
 		const requiredPluginState = { error: failure as Error | undefined };
 		const { service, refreshPlugins } = createActiveClientService(constObservable([]), constObservable([]), undefined, requiredPluginState);
 		const scope = disposables.add(service.acquireScope('agent-host-claude', [URI.file('/workspace')]));

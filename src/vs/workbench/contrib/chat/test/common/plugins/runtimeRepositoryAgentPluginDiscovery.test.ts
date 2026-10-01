@@ -53,6 +53,7 @@ suite('RuntimeRepositoryAgentPluginDiscovery', () => {
 					cache_path: pluginPath,
 				},
 				enabled: true,
+				managed: false,
 			}],
 			warnings: [],
 		});

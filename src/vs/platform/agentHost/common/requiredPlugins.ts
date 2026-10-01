@@ -20,10 +20,11 @@ export interface IAgentHostWorkspacePluginRecord {
 export interface IAgentHostWorkspacePluginActivation {
 	readonly plugin: IAgentHostWorkspacePluginRecord;
 	readonly enabled: boolean;
+	readonly managed: boolean;
 }
 
 export interface IAgentHostEnsureRequiredPluginsRequest {
-	readonly workingDirectory: string;
+	readonly workingDirectory?: string;
 	readonly managedSettings?: Record<string, unknown>;
 }
 

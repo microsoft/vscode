@@ -12,7 +12,7 @@ Agent plugins are a modular extension system that allows external packages of pr
 | `agentPluginEnablement.ts` | Plugin collision enablement, canonical plugin identity, and enterprise-policy identity helpers |
 | `agentPluginRepositoryService.ts` | `IAgentPluginRepositoryService` — abstract repository clone/pull/cache operations |
 | `runtimeRepositoryPluginService.ts` | Per-workspace plugin projections returned after runtime-owned requirement enforcement |
-| `runtimeRequiredPluginService.ts` | Workbench service contract for ensuring repository- and managed-required plugins |
+| `runtimeRequiredPluginService.ts` | Workbench service contract for repository auto-install and managed plugin enforcement |
 | `pluginMarketplaceService.ts` | `IPluginMarketplaceService` — marketplace metadata, installed-plugin storage, trusted-marketplace tracking, periodic update checks |
 | `pluginInstallService.ts` | `IPluginInstallService` — install/update/uninstall orchestration interface |
 | `pluginSource.ts` | `IPluginSource` — per-source-kind strategy interface (install path, ensure, update, cleanup) |
@@ -152,17 +152,17 @@ This service owns plugins installed explicitly through VS Code. Repository-confi
 
 ### Runtime-owned required plugins
 
-Repository settings can enable plugins from known marketplaces without first installing them through VS Code. The Copilot runtime owns this workflow:
+Repository settings can request plugins from known marketplaces, while managed settings can require plugins globally. The Copilot runtime owns both workflows:
 
-1. VS Code ensures requirements for every workspace folder when the workspace, trust, relevant settings, or Agent Host connection changes.
-2. VS Code sends a request only after workspace trust is established. The request carries the workspace URI and effective managed plugin/marketplace controls.
+1. VS Code enforces managed requirements even without a workspace root, and prepares every trusted workspace folder when the workspace, trust, relevant settings, or Agent Host connection changes.
+2. The request carries effective managed plugin/marketplace controls and, for a trusted repository, its workspace URI.
 3. The local Agent Host converts the URI to the runtime's filesystem path and calls the experimental `plugins.ensureRequired` SDK API. Remote Agent Hosts may opt into the namespaced `vscode.ensureRequiredPlugins` capability; hosts that omit it remain interoperable.
-4. The runtime derives positive requirements from repository and managed settings, installs missing plugins through the existing plugin transaction, applies managed marketplace restrictions, verifies every requirement is active, and returns exact persisted or live activation records. Explicit repository `false` entries are returned only to project workspace enablement and never trigger mutation.
+4. The runtime best-effort auto-installs positive repository requests, fail-closed installs and verifies positive managed requirements, applies managed marketplace restrictions, and returns exact persisted or live activation records. Explicit repository `false` entries are returned only to project workspace enablement and never trigger mutation.
 5. VS Code stores the result per workspace, discovers those returned plugin roots, and publishes their global plus workspace enablement to Copilot, Claude, and Codex.
 
-Repository-only installations are persisted in the runtime's global inventory with `enabled: false`; the repository decision enables them only in the matching workspace. A repository-scoped `false` decision never demotes the shared global record. Enablement precedence is managed policy, repository workspace state, runtime global state, then VS Code user state. Initial Agent Host customization publication waits for enforcement so a first turn cannot miss a required plugin. A repository- or managed-required plugin that cannot be installed and activated rejects the operation and blocks initial customization resolution. If the host capability disappears or later enforcement fails, VS Code removes the affected workspace snapshot rather than publishing stale enablement.
+Repository-only installations are persisted in the runtime's global inventory with `enabled: false`; the repository decision enables them only in the matching workspace. A repository-scoped `false` decision never demotes the shared global record. A repository auto-install failure is returned as a warning and does not block customization publication. Managed-only installations also retain a disabled global baseline, but their returned managed provenance forces the effective state and keeps the UI action locked. A managed plugin that cannot be installed and activated rejects the operation and blocks initial customization resolution, including workspaceless sessions. If later managed enforcement fails, VS Code removes the affected snapshot rather than publishing stale enablement.
 
-The runtime operation is a thin adapter over the same headless workspace-plugin preparation service used by interactive and prompt-mode CLI hosts. That service owns settings composition, required installation, verification, and the workspace snapshot fingerprint. VS Code compares fingerprints and suppresses customization reloads when the effective plugin snapshot is unchanged.
+The runtime operation is a thin adapter over the same headless workspace-plugin preparation service used by interactive and prompt-mode CLI hosts. That service owns settings composition, repository auto-install, managed enforcement, and the workspace snapshot fingerprint. VS Code compares fingerprints and suppresses customization reloads when the effective plugin snapshot is unchanged.
 
 Required-plugin enforcement does not introduce another update scheduler. Explicit and existing automatic update flows continue to use the runtime's `plugins.update` APIs.
 

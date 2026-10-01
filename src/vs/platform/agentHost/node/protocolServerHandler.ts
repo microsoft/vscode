@@ -2196,20 +2196,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				const workingDirectoryParam = params['workingDirectory'];
 				const managedSettings = params['managedSettings'];
-				if (typeof workingDirectoryParam !== 'string' || !workingDirectoryParam) {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workingDirectory must be a non-empty URI string'));
+				if (workingDirectoryParam !== undefined && (typeof workingDirectoryParam !== 'string' || !workingDirectoryParam)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workingDirectory must be a non-empty URI string when provided'));
 				}
 				if (managedSettings !== undefined && (!managedSettings || typeof managedSettings !== 'object' || Array.isArray(managedSettings))) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'managedSettings must be an object'));
 				}
-				let workingDirectory: string;
-				try {
-					workingDirectory = toRequiredPluginRuntimeWorkingDirectory(workingDirectoryParam);
-				} catch {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workingDirectory must be a valid URI string'));
+				let workingDirectory: string | undefined;
+				if (workingDirectoryParam !== undefined) {
+					try {
+						workingDirectory = toRequiredPluginRuntimeWorkingDirectory(workingDirectoryParam);
+					} catch {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workingDirectory must be a valid URI string'));
+					}
 				}
 				return this._agentService.ensureRequiredPlugins({
-					workingDirectory,
+					...(workingDirectory ? { workingDirectory } : {}),
 					managedSettings: managedSettings as Record<string, unknown> | undefined,
 				});
 			}

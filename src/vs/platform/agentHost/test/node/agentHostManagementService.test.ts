@@ -38,15 +38,18 @@ suite('AgentHostManagementService', () => {
 		);
 
 		assert.deepStrictEqual({
-			result: await service.ensureRequiredPlugins({
+			workspaceResult: await service.ensureRequiredPlugins({
 				workingDirectory: URI.file('/workspace').toString(),
 			}),
+			managedResult: await service.ensureRequiredPlugins({ managedSettings: { enabledPlugins: { 'managed@market': true } } }),
 			requests,
 		}, {
-			result,
-			requests: [{
-				workingDirectory: '/workspace',
-			}],
+			workspaceResult: result,
+			managedResult: result,
+			requests: [
+				{ workingDirectory: '/workspace' },
+				{ managedSettings: { enabledPlugins: { 'managed@market': true } } },
+			],
 		});
 	});
 });

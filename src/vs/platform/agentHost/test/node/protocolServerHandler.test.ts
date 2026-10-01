@@ -1525,6 +1525,33 @@ suite('ProtocolServerHandler', () => {
 				managedSettings: undefined,
 			}],
 		});
+
+		test('ensures managed plugins without a workspace directory', async () => {
+			const transport = connectClient('client-managed-plugins');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 25);
+			const params = {
+				managedSettings: { enabledPlugins: { 'managed@market': true } },
+			};
+
+			transport.simulateMessage(request(25, EnsureAgentHostRequiredPluginsExtensionMethod, params));
+
+			assert.deepStrictEqual({
+				response: await responsePromise,
+				call: agentService.ensureRequiredPluginsCalls.at(-1),
+			}, {
+				response: {
+					jsonrpc: '2.0',
+					id: 25,
+					result: {
+						fingerprint: 'test',
+						plugins: [],
+						warnings: [],
+					},
+				},
+				call: params,
+			});
+		});
 	});
 
 	test('rejects a debug-log chat belonging to another session', async () => {

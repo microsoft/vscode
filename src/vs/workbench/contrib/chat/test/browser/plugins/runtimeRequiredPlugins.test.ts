@@ -15,6 +15,7 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentHostEnsureRequiredPluginsRequest, IAgentHostEnsureRequiredPluginsResult } from '../../../../../../platform/agentHost/common/requiredPlugins.js';
+import type { IConfigurationOverrides, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -36,7 +37,7 @@ suite('RuntimeRequiredPlugins', () => {
 		warnings: [],
 	};
 
-	function createHarness(trusted = true) {
+	function createHarness(trusted = true, managedRequired = false, pluginsEnabled = true) {
 		const requests: IAgentHostEnsureRequiredPluginsRequest[] = [];
 		let failure: Error | undefined;
 		const initializeResult = observableValue('initializeResult', {
@@ -72,7 +73,17 @@ suite('RuntimeRequiredPlugins', () => {
 				enabledPlugins: observableValue('enabledPlugins', new Map([['demo@market', true]])),
 				extraMarketplaces: observableValue('extraMarketplaces', []),
 			} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService,
-			new TestConfigurationService({ [ChatConfiguration.PluginsEnabled]: true }),
+			new class extends TestConfigurationService {
+				constructor() {
+					super({ [ChatConfiguration.PluginsEnabled]: pluginsEnabled });
+				}
+				override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+					const inspected = super.inspect<T>(key, overrides);
+					return key === ChatConfiguration.EnabledPlugins && managedRequired
+						? { ...inspected, policyValue: { 'managed@market': true } as T }
+						: inspected;
+				}
+			}(),
 			runtimeService,
 			new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = { hidden: false };
@@ -102,26 +113,39 @@ suite('RuntimeRequiredPlugins', () => {
 		await timeout(150);
 		assert.deepStrictEqual({
 			requests: harness.requests,
-			snapshots: harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()),
+			snapshots: harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory?.toString() ?? 'managed'),
 		}, {
-			requests: [{
-				workingDirectory: workspace.toString(),
-				managedSettings: undefined,
-			}],
-			snapshots: [workspace.toString()],
+			requests: [
+				{ managedSettings: undefined },
+				{ workingDirectory: workspace.toString(), managedSettings: undefined },
+			],
+			snapshots: ['managed', workspace.toString()],
 		});
 	});
 
-	test('does not send repository configuration from an untrusted workspace', async () => {
-		const harness = createHarness(false);
+	test('enforces managed requirements without sending an untrusted repository', async () => {
+		const harness = createHarness(false, true);
 		await timeout(150);
 
 		assert.deepStrictEqual({
 			requests: harness.requests,
-			snapshots: harness.runtimeService.snapshots.get(),
+			snapshots: harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory?.toString() ?? 'managed'),
 		}, {
-			requests: [],
-			snapshots: [],
+			requests: [{ managedSettings: { enabledPlugins: { 'managed@market': true } } }],
+			snapshots: ['managed'],
+		});
+
+		test('enforces managed requirements when repository plugin integration is disabled', async () => {
+			const harness = createHarness(true, true, false);
+			await timeout(150);
+
+			assert.deepStrictEqual({
+				requests: harness.requests,
+				snapshots: harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory?.toString() ?? 'managed'),
+			}, {
+				requests: [{ managedSettings: { enabledPlugins: { 'managed@market': true } } }],
+				snapshots: ['managed'],
+			});
 		});
 	});
 
@@ -135,8 +159,18 @@ suite('RuntimeRequiredPlugins', () => {
 		assert.deepStrictEqual(harness.runtimeService.snapshots.get(), []);
 	});
 
-	test('rejects required plugins when the host capability is unavailable', async () => {
+	test('does not block repository auto-install when the host capability is unavailable', async () => {
 		const harness = createHarness();
+		await timeout(150);
+		harness.setCapability(false);
+
+		await harness.requiredPluginService.ensure([workspace]);
+
+		assert.deepStrictEqual(harness.runtimeService.snapshots.get(), []);
+	});
+
+	test('rejects managed requirements when the host capability is unavailable', async () => {
+		const harness = createHarness(true, true);
 		await timeout(150);
 		harness.setCapability(false);
 
@@ -144,8 +178,6 @@ suite('RuntimeRequiredPlugins', () => {
 			harness.requiredPluginService.ensure([workspace]),
 			/does not support required plugin enforcement/,
 		);
-
-		assert.deepStrictEqual(harness.runtimeService.snapshots.get(), []);
 	});
 
 	test('retains active session roots while pruning inactive snapshots', async () => {
@@ -153,16 +185,16 @@ suite('RuntimeRequiredPlugins', () => {
 		const detached = URI.file('/workspace.worktrees/detached');
 		const retention = store.add(harness.requiredPluginService.retainWorkingDirectories([detached]));
 		await harness.requiredPluginService.ensure();
-		const retained = harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()).sort();
+		const retained = harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory?.toString() ?? 'managed').sort();
 
 		retention.dispose();
 
 		assert.deepStrictEqual({
 			retained,
-			afterRelease: harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()),
+			afterRelease: harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory?.toString() ?? 'managed'),
 		}, {
-			retained: [workspace.toString(), detached.toString()].sort(),
-			afterRelease: [workspace.toString()],
+			retained: ['managed', workspace.toString(), detached.toString()].sort(),
+			afterRelease: ['managed', workspace.toString()],
 		});
 	});
 });

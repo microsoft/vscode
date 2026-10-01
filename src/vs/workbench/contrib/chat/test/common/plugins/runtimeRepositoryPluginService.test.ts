@@ -15,7 +15,7 @@ import { RuntimeRepositoryPluginService } from '../../../common/plugins/runtimeR
 suite('RuntimeRepositoryPluginService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function result(path: string, enabled: boolean): IAgentHostEnsureRequiredPluginsResult {
+	function result(path: string, enabled: boolean, managed = false): IAgentHostEnsureRequiredPluginsResult {
 		return {
 			fingerprint: `${path}:${enabled}`,
 			plugins: [{
@@ -27,6 +27,7 @@ suite('RuntimeRepositoryPluginService', () => {
 					cache_path: path,
 				},
 				enabled,
+				managed,
 			}],
 			warnings: [],
 		};
@@ -59,7 +60,7 @@ suite('RuntimeRepositoryPluginService', () => {
 			second: false,
 			duplicateSource: false,
 			missingWorkspace: false,
-			ambient: undefined,
+			ambient: false,
 		});
 	});
 
@@ -72,7 +73,23 @@ suite('RuntimeRepositoryPluginService', () => {
 
 		service.retainWorkingDirectories([second]);
 
-		assert.deepStrictEqual(service.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()), [second.toString()]);
+		assert.deepStrictEqual(service.snapshots.get().map(snapshot => snapshot.workingDirectory?.toString()), [second.toString()]);
+	});
+
+	test('keeps managed plugins enabled without a workspace root', () => {
+		const service = createService();
+		const plugin = { name: 'demo', marketplace: 'market' };
+		service.setManagedSnapshot(result('/plugins/managed', true, true));
+
+		assert.deepStrictEqual({
+			workspaceless: service.getEnablement(plugin, true, undefined),
+			unknownWorkspace: service.getEnablement(plugin, true, URI.file('/workspace')),
+			managed: service.getManagedEnablement(plugin),
+		}, {
+			workspaceless: true,
+			unknownWorkspace: true,
+			managed: true,
+		});
 	});
 
 	test('does not republish an unchanged runtime fingerprint', () => {
@@ -102,6 +119,6 @@ suite('RuntimeRepositoryPluginService', () => {
 
 		service.removeSnapshots([first]);
 
-		assert.deepStrictEqual(service.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()), [second.toString()]);
+		assert.deepStrictEqual(service.snapshots.get().map(snapshot => snapshot.workingDirectory?.toString()), [second.toString()]);
 	});
 });
