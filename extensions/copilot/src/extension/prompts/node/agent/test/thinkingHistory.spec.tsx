@@ -13,7 +13,8 @@ import { ConfigKey, IConfigurationService } from '../../../../../platform/config
 import { ModelSupportedEndpoint } from '../../../../../platform/endpoint/common/endpointProvider';
 import { CopilotChatEndpoint } from '../../../../../platform/endpoint/node/copilotChatEndpoint';
 import { ExtensionContributedChatEndpoint } from '../../../../../platform/endpoint/vscode-node/extChatEndpoint';
-import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
+import { FinishedCallback, IResponseDelta } from '../../../../../platform/networking/common/fetch';
+import { IChatEndpoint, IEndpointBody } from '../../../../../platform/networking/common/networking';
 import { CAPIChatMessage } from '../../../../../platform/networking/common/openai';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { ThinkingOriginApi } from '../../../../../platform/thinking/common/thinking';
@@ -29,7 +30,7 @@ import { CustomEndpointBYOKModelProvider, CustomEndpointModelConfig } from '../.
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
 import { Conversation, Turn, TurnStatus } from '../../../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../../../prompt/common/intents';
-import { ToolCallRound } from '../../../../prompt/common/toolCallRound';
+import { ThinkingDataItem, ToolCallRound } from '../../../../prompt/common/toolCallRound';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt } from '../agentPrompt';
@@ -39,14 +40,21 @@ class RequestCapturingChatMLFetcher implements IChatMLFetcher {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidMakeChatMLRequest = Event.None;
 	readonly requests: CAPIChatMessage[][] = [];
+	readonly bodies: IEndpointBody[] = [];
+	responseDeltas: IResponseDelta[] = [];
 	private readonly delegate = new MockChatMLFetcher();
 
 	async fetchOne(options: IFetchMLOptions): Promise<ChatResponse> {
-		this.requests.push(options.endpoint.createRequestBody({
+		const body = options.endpoint.createRequestBody({
 			...options,
 			requestId: 'thinking-history-request',
 			postOptions: options.requestOptions ?? {},
-		}).messages ?? []);
+		});
+		this.bodies.push(body);
+		this.requests.push(body.messages ?? []);
+		for (const delta of this.responseDeltas) {
+			await options.finishedCb?.(delta.text, 0, delta);
+		}
 		await options.finishedCb?.('done', 0, { text: 'done' });
 		return this.delegate.fetchOne();
 	}
@@ -71,7 +79,7 @@ suite('Agent history preserves thinking across user turns', () => {
 
 	afterEach(() => store.clear());
 
-	async function renderRequest(endpoint: IChatEndpoint, promptContext: IBuildPromptContext, enableSummarization: boolean): Promise<CAPIChatMessage[]> {
+	async function renderRequest(endpoint: IChatEndpoint, promptContext: IBuildPromptContext, enableSummarization: boolean, finishedCb?: FinishedCallback): Promise<CAPIChatMessage[]> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const { messages } = await PromptRenderer.create(instantiationService, endpoint, AgentPrompt, {
 			priority: 1,
@@ -86,7 +94,7 @@ suite('Agent history preserves thinking across user turns', () => {
 			messages,
 			requestOptions: {},
 			modelCapabilities: { enableThinking: true },
-			finishedCb: undefined,
+			finishedCb,
 			location: ChatLocation.Panel,
 		}, CancellationToken.None);
 		expect(response.type).toBe(ChatFetchResponseType.Success);
@@ -142,6 +150,7 @@ suite('Agent history preserves thinking across user turns', () => {
 			sendRequest: async (messages, options, token) => {
 				const parts: vscode.LanguageModelResponsePart2[] = [];
 				await customProvider.provideLanguageModelChatResponse(model, messages, {
+					...options,
 					requestInitiator: 'core',
 					tools: options?.tools ?? [],
 					toolMode: options?.toolMode ?? LanguageModelChatToolMode.Auto,
@@ -225,6 +234,89 @@ suite('Agent history preserves thinking across user turns', () => {
 		});
 	}
 
+	async function renderStreamedConversation(apiType: 'responses' | 'messages', adaptiveThinking: boolean, enableSummarization: boolean) {
+		const endpoint = await createEndpoint('custom', 'deployment', {
+			apiType, adaptiveThinking, zeroDataRetentionEnabled: true, minThinkingBudget: 1024, maxThinkingBudget: 4096,
+		});
+		const firstTurn = new Turn('streamed-turn-1', { type: 'user', message: 'Read the file and report the findings.' });
+		const context: IBuildPromptContext = {
+			query: firstTurn.request.message,
+			history: [],
+			conversation: new Conversation('streamed-thinking', [firstTurn]),
+			chatVariables: new ChatVariablesCollection(),
+			tools: { availableTools: [], toolInvocationToken: null as never, toolReferences: [] },
+		};
+		const toolCalls = [{ id: 'read-call', name: 'read_file', arguments: '{"filePath":"/workspace/example.txt"}' }];
+		async function receiveRound(promptContext: IBuildPromptContext, final: boolean) {
+			fetcher.responseDeltas = [
+				{ text: '', thinking: { id: final ? 'rs_final' : 'rs_tool', text: final ? 'The file has been read.' : 'Read the file first.' } },
+				{ text: '', thinking: { id: final ? 'rs_final' : 'rs_tool', encrypted: final ? 'opaque-final' : 'opaque-tool' } },
+				...(final ? [] : [{ text: '', copilotToolCalls: toolCalls }]),
+			];
+			let thinking: ThinkingDataItem | undefined;
+			await renderRequest(endpoint, promptContext, enableSummarization, async (_text, _index, delta) => {
+				if (delta.thinking) {
+					thinking = ThinkingDataItem.createOrUpdate(thinking, delta.thinking);
+				}
+			});
+			return ToolCallRound.create({
+				modelId: endpoint.model, originApi: apiType, response: final ? 'Done.' : 'Reading the file.',
+				toolCalls: final ? [] : toolCalls, toolInputRetry: 0, thinking,
+			});
+		}
+		const toolRound = await receiveRound(context, false);
+		const toolCallResults = { 'read-call': new LanguageModelToolResult([new LanguageModelTextPart('File contents.')]) };
+		const finalRound = await receiveRound({ ...context, toolCallRounds: [toolRound], toolCallResults }, true);
+		const duringTurn = fetcher.bodies.at(-1)!;
+		firstTurn.setResponse(TurnStatus.Success, { type: 'model', message: 'Done.' }, 'streamed-response', {
+			metadata: { toolCallRounds: [toolRound, finalRound], toolCallResults },
+		});
+		const secondTurn = new Turn('streamed-turn-2', { type: 'user', message: 'Continue from those findings.' });
+		fetcher.responseDeltas = [];
+		await renderRequest(endpoint, {
+			...context,
+			query: secondTurn.request.message,
+			history: [firstTurn],
+			conversation: new Conversation('streamed-thinking', [firstTurn, secondTurn]),
+		}, enableSummarization);
+		return { duringTurn, nextTurn: fetcher.bodies.at(-1)! };
+	}
+
+	test.each([false, true])('custom stateless Responses replays streamed tool and final reasoning (summarization=%s)', async enableSummarization => {
+		const { duringTurn, nextTurn } = await renderStreamedConversation('responses', false, enableSummarization);
+		expect({
+			store: nextTurn.store,
+			previousResponseId: nextTurn.previous_response_id,
+			duringTurn: duringTurn.input?.filter(item => item.type === 'reasoning'),
+			nextTurn: nextTurn.input?.filter(item => item.type === 'reasoning'),
+		}).toEqual({
+			store: false,
+			previousResponseId: undefined,
+			duringTurn: [{ type: 'reasoning', id: 'rs_tool', summary: [], encrypted_content: 'opaque-tool' }],
+			nextTurn: [
+				{ type: 'reasoning', id: 'rs_tool', summary: [], encrypted_content: 'opaque-tool' },
+				{ type: 'reasoning', id: 'rs_final', summary: [], encrypted_content: 'opaque-final' },
+			],
+		});
+	});
+
+	test.each([false, true].flatMap(enableSummarization => [false, true].map(adaptiveThinking => ({ enableSummarization, adaptiveThinking }))))('custom Messages preserves streamed signatures and respects its history policy (summarization=$enableSummarization, adaptive=$adaptiveThinking)', async ({ enableSummarization, adaptiveThinking }) => {
+		const { duringTurn, nextTurn } = await renderStreamedConversation('messages', adaptiveThinking, enableSummarization);
+		expect(duringTurn.messages).toContainEqual(expect.objectContaining({
+			role: 'assistant', content: expect.arrayContaining([{ type: 'thinking', thinking: 'Read the file first.', signature: 'opaque-tool' }]),
+		}));
+		const assistants = nextTurn.messages?.filter(message => message.role === 'assistant');
+		if (adaptiveThinking) {
+			expect(assistants).toMatchObject([
+				{ content: expect.arrayContaining([{ type: 'thinking', thinking: 'Read the file first.', signature: 'opaque-tool' }]) },
+				{ content: expect.arrayContaining([{ type: 'thinking', thinking: 'The file has been read.', signature: 'opaque-final' }]) },
+			]);
+		} else {
+			expect(assistants).toHaveLength(2);
+			expect(assistants).not.toContainEqual(expect.objectContaining({ content: expect.arrayContaining([expect.objectContaining({ type: 'thinking' })]) }));
+		}
+	});
+
 	test.each([false, true])('CCR2: custom family aliases select the preserved-thinking default (summarization=%s)', async enableSummarization => {
 		await accessor.get(IConfigurationService).setConfig(ConfigKey.Advanced.ModelCapabilityOverrides, {
 			deployment: { family: 'kimi-k3' },
@@ -293,6 +385,8 @@ suite('Agent history preserves thinking across user turns', () => {
 
 	test.each((['Copilot', 'custom'] as const).flatMap(provider => [false, true].flatMap(enableSummarization => [
 		{ provider, enableSummarization, modelId: 'kimi-k3', thinkingInHistory: undefined },
+		{ provider, enableSummarization, modelId: 'k3', thinkingInHistory: undefined },
+		{ provider, enableSummarization, modelId: 'k3-256k', thinkingInHistory: undefined },
 		{ provider, enableSummarization, modelId: 'custom-preserved-thinking', thinkingInHistory: true },
 	])))('replays $provider $modelId reasoning unchanged (summarization=$enableSummarization)', async ({ provider, modelId, thinkingInHistory, enableSummarization }) => {
 		await accessor.get(IConfigurationService).setConfig(ConfigKey.Advanced.ModelCapabilityOverrides, {

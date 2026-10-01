@@ -179,7 +179,7 @@ export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string):
 
 /** Kimi K3 requires preserved thinking across user turns as well as tool calls. */
 export function modelSupportsThinkingContentInHistory(model: LanguageModelChat | IChatEndpoint): boolean {
-	return [model.family, getModelId(model)].some(value => /(?:^|\/)kimi-k3(?:$|[-:])/i.test(value));
+	return [model.family, getModelId(model)].some(value => /(?:^|\/)(?:kimi-)?k3(?:$|[-:])/i.test(value));
 }
 
 export function isVSCModelA(model: LanguageModelChat | IChatEndpoint) {

@@ -209,6 +209,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		const telemetryTurn = getTelemetryTurnFromProperties(telemetryProperties);
 
 		const vscodeOptions: vscode.LanguageModelChatRequestOptions = {
+			includeEncryptedThinking: true,
 			tools: ((requestOptions?.tools ?? []) as OpenAiFunctionTool[]).map(tool => ({
 				name: tool.function.name,
 				description: tool.function.description,
