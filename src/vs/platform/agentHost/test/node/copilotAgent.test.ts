@@ -8887,7 +8887,11 @@ suite('CopilotAgent', () => {
 				toolCallId: 'tc-read-plan-agent-composition',
 			}, { sessionId: 'test-session-1' });
 
-			assert.strictEqual(result.kind, 'approve-once');
+			assert.deepStrictEqual(result, {
+				kind: 'attributed',
+				result: { kind: 'approve-once' },
+				decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'auto_approved' },
+			});
 		} finally {
 			if (previousCopilotHome === undefined) {
 				delete process.env['COPILOT_HOME'];
@@ -8980,7 +8984,11 @@ suite('CopilotAgent', () => {
 				permissionResult: await permissionRequestResult,
 				pendingEditContentExists: await fileService.exists(editContentUri),
 			}, {
-				permissionResult: { kind: 'approve-once' },
+				permissionResult: {
+					kind: 'attributed',
+					result: { kind: 'approve-once' },
+					decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'auto_approved' },
+				},
 				pendingEditContentExists: false,
 			});
 		} finally {
@@ -9032,7 +9040,11 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
+				results: [
+					{ kind: 'approve-once' },
+					{ kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'auto_approved' } },
+					{ kind: 'reject', feedback: 'The user denied permission.' },
+				],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -9137,7 +9149,11 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
+				results: [
+					{ kind: 'approve-once' },
+					{ kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'auto_approved' } },
+					{ kind: 'reject', feedback: 'The user denied permission.' },
+				],
 				pendingPermissionCount: 2,
 			});
 		} finally {

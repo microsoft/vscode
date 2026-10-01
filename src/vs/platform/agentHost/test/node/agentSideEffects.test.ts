@@ -5705,10 +5705,11 @@ suite('AgentSideEffects', () => {
 				approved: true,
 				confirmed: 'user-action' as const,
 				selectedOptionId: 'allow-session',
+				_meta: { 'agentHost.permissionDecisionSource': 'human_response' },
 			} as ChatAction, 'test-client', undefined, undefined, false, 7);
 
 			assert.deepStrictEqual(responses, [
-				['tc-peer-perm', true, { selectedOptionId: 'allow-session', origin: { clientId: 'test-client', clientSeq: 7 } }],
+				['tc-peer-perm', true, { decisionSource: 'human_response', selectedOptionId: 'allow-session', origin: { clientId: 'test-client', clientSeq: 7 } }],
 			]);
 			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?.config?.values[SessionConfigKey.Permissions], { allow: ['write'], deny: [] });
 		});
