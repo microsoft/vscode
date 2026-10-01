@@ -844,11 +844,13 @@ export interface IAgentHostToolApprovalReport extends IAgentHostTurnAttributedRe
 	toolId: string;
 	toolSourceKind: string;
 	confirmKind: AgentHostToolApprovalConfirmKind;
+	decisionSource?: string;
+	permissionResult?: string;
 	confirmationNotNeededReason: string | undefined;
 	requestUnsandboxedExecution: boolean | undefined;
 }
 
-type AgentHostToolApprovalConfirmKind = 'userAction' | 'setting' | 'confirmationNotNeeded' | 'denied';
+type AgentHostToolApprovalConfirmKind = 'userAction' | 'setting' | 'confirmationNotNeeded' | 'denied' | 'unknown';
 
 export interface IAgentHostToolApprovalEvent extends IAgentHostEventTelemetry {
 	provider: string;
@@ -860,6 +862,9 @@ export interface IAgentHostToolApprovalEvent extends IAgentHostEventTelemetry {
 	toolExtensionId: string | undefined;
 	toolSourceKind: string;
 	confirmKind: AgentHostToolApprovalConfirmKind;
+	decisionSource?: string;
+	permissionResult?: string;
+	approvalTelemetryVersion: number;
 	settingId: string | undefined;
 	lmServiceScope: string | undefined;
 	customButtonKind: string | undefined;
@@ -869,6 +874,9 @@ export interface IAgentHostToolApprovalEvent extends IAgentHostEventTelemetry {
 }
 
 export type IAgentHostToolApprovalClassification = IAgentHostEventClassification & LanguageModelToolApprovalClassification & {
+	decisionSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK permission decision source. human_response is explicit human attribution; missing is unattributed, not human.' };
+	permissionResult?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK permission result category, distinguishing rule, hook, policy, cancellation and unavailable-responder outcomes.' };
+	approvalTelemetryVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Version of the approval classification. Version 2 requires explicit human attribution for userAction.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool approval belongs to a subagent session.' };
@@ -1337,6 +1345,9 @@ export class AgentHostTelemetryReporter {
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
 			confirmKind: report.confirmKind,
+			...(report.decisionSource !== undefined ? { decisionSource: report.decisionSource } : {}),
+			...(report.permissionResult !== undefined ? { permissionResult: report.permissionResult } : {}),
+			approvalTelemetryVersion: 2,
 			settingId: undefined,
 			lmServiceScope: undefined,
 			customButtonKind: undefined,
