@@ -4665,6 +4665,18 @@ export class CodexAgent extends Disposable implements IAgent {
 			return {};
 		}
 		try {
+			const connection = this._connection;
+			if (session.unsubscribeBeforeResume && !session.resumePromise && connection.kind === 'ready') {
+				// Leave pending launch changes for the next send if this app-server still owns the thread.
+				const response = await connection.client.request<'thread/read', ThreadReadResponse>('thread/read', {
+					threadId: session.threadId,
+					includeTurns: false,
+				}).catch(() => undefined);
+				if (response && this._isCurrentConnection(connection) && response.thread.id === session.threadId
+					&& (response.thread.status.type === 'idle' || response.thread.status.type === 'active')) {
+					return {};
+				}
+			}
 			await this._ensureThreadConnection(session);
 			return {};
 		} catch (error) {

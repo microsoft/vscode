@@ -13,7 +13,7 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../tele
 import { GitHubRequestQueue } from '../../common/githubRequestQueue.js';
 import { GitHubRequestTelemetry, gitHubRequestOutcome } from '../../common/githubRequestTelemetry.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
-import { GitHubRequestContext, GitHubRequestError } from '../../common/githubTypes.js';
+import { GitHubAccountHandle, GitHubRequestContext, GitHubRequestError } from '../../common/githubTypes.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 
 class RecordingTelemetryService extends mock<ITelemetryService>() {
@@ -36,7 +36,7 @@ class RecordingTelemetryService extends mock<ITelemetryService>() {
 	}
 }
 
-function context(overrides: Partial<GitHubRequestContext> = {}): GitHubRequestContext {
+function context(overrides: Partial<GitHubRequestContext & { account: GitHubAccountHandle }> = {}): GitHubRequestContext & { account: GitHubAccountHandle } {
 	return {
 		kind: 'rest',
 		account: { host: 'private-tenant.example', accountId: 'private-account' },

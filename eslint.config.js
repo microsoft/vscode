@@ -2392,6 +2392,21 @@ export default defineConfig(
 		}
 	},
 	{
+		files: ['src/vs/**/*.ts'],
+		rules: {
+			'local/code-no-legacy-notification-parsing': ['error', {
+				allowedFiles: [
+					'src/vs/workbench/api/browser/mainThreadMessageService.ts',
+					'src/vs/workbench/api/browser/mainThreadProgress.ts',
+					'src/vs/platform/notification/test/common/notificationMessage.test.ts',
+					'src/vs/workbench/test/common/notifications.test.ts',
+					'src/vs/workbench/test/browser/notificationsList.test.ts',
+					'src/vs/workbench/services/progress/test/browser/progressService.test.ts',
+				],
+			}],
+		},
+	},
+	{
 		// `IAgentSessionsService` and the agent sessions model are provider-internal
 		// to Copilot. Only the Copilot chat sessions provider may consume them; the
 		// rest of the Agents window (sessions workbench) must stay provider-agnostic.

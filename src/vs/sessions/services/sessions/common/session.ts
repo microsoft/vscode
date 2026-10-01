@@ -13,8 +13,11 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISessionChatCustomization } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
+import type { IChatBackgroundShell } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 
 export { getHighestPriorityPullRequestIcon };
+export { type ISessionChatCustomization, SessionCustomizationKind } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
@@ -300,26 +303,6 @@ export interface ISessionArtifact {
 	readonly commitHash?: string;
 	/** Whether a pull request or issue lives on GitHub. */
 	readonly isGitHub?: boolean;
-}
-
-/** The kinds of customization a chat can use. */
-export const enum SessionCustomizationKind {
-	Agent = 'agent',
-	Skill = 'skill',
-	Instruction = 'instruction',
-	Hook = 'hook',
-	Prompt = 'prompt',
-	McpServer = 'mcpServer',
-	Plugin = 'plugin',
-}
-
-/** A customization the agent used or read during a chat. Provider-neutral. */
-export interface ISessionChatCustomization {
-	readonly id: string;
-	readonly kind: SessionCustomizationKind;
-	readonly name: string;
-	/** Source file or directory, used to reveal the customization. */
-	readonly uri?: URI;
 }
 
 /**
@@ -724,6 +707,8 @@ export interface IChat {
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
 	/** Live model-opened canvases owned by this chat. */
 	readonly canvases?: IObservable<readonly ISessionCanvas[]>;
+	/** Active background shells, including commands started in earlier turns. */
+	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */

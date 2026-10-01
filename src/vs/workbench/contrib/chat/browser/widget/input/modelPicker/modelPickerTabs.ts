@@ -168,6 +168,7 @@ export interface IModelPickerSectionsOptions {
 	readonly showSuggested: boolean;
 	/** Whether to name curated models the user cannot select yet. Off by default. */
 	readonly showUnavailable?: boolean;
+	readonly alwaysShowUnavailableModelIds?: ReadonlySet<string>;
 	/** This build's version, used to spot models gated behind a newer VS Code. */
 	readonly currentVSCodeVersion?: string;
 }
@@ -273,13 +274,10 @@ function hasPromo(model: ILanguageModelChatMetadataAndIdentifier): boolean {
  * build is too old. Named so the path to unlocking them stays visible.
  */
 function buildUnavailableEntries(options: IModelPickerSectionsOptions): IModelPickerUnavailableEntry[] {
-	if (!options.showUnavailable) {
-		return [];
-	}
 	const present = new Set(options.models.flatMap(model => [model.identifier, model.metadata.id]));
 	const entries: IModelPickerUnavailableEntry[] = [];
 	for (const [id, entry] of Object.entries(options.controlModels)) {
-		if (!entry.featured) {
+		if (!entry.featured || (!options.showUnavailable && !options.alwaysShowUnavailableModelIds?.has(id))) {
 			continue;
 		}
 		const outOfDate = isOutOfDate(entry, options.currentVSCodeVersion);

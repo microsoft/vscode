@@ -931,23 +931,34 @@ suite('ChatSubagentContentPart', () => {
 			assert.deepStrictEqual(snapshots, Array.from({ length: 4 }, () => ({ pills: 1, dropdowns: 0, expanded: 'false' })));
 		});
 
-		test('should derive the editor resource from the parent session and subagent chat id', () => {
-			const resource = getSubagentEditorResource({
-				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
-				parentSessionResource: 'agent-host-copilotcli:/session',
-			});
+		test('preserves opaque subagent identities and parent query parameters in editor resources', () => {
+			const chatResources = [
+				{ chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call', fragment: 'subagent/tool-call' },
+				{ chatResource: 'vendor-chat:/workers/Waiting?revision=1#result', fragment: 'vendor-chat:/workers/Waiting?revision=1#result' },
+			];
+			assert.deepStrictEqual(chatResources.map(({ chatResource }) => {
+				const resource = getSubagentEditorResource({
+					chatResource,
+					parentSessionResource: 'agent-host-copilotcli:/session?parent=value#peer',
+				});
+				return resource && {
+					scheme: resource.scheme,
+					path: resource.path,
+					fragment: resource.fragment,
+					chatResource: new URLSearchParams(resource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM),
+					parent: new URLSearchParams(resource.query).get('parent'),
+				};
+			}), chatResources.map(({ chatResource, fragment }) => ({
+				scheme: 'agent-host-copilotcli', path: '/session', fragment, chatResource, parent: 'value',
+			})));
+		});
 
-			assert.deepStrictEqual(resource && {
-				scheme: resource.scheme,
-				path: resource.path,
-				fragment: resource.fragment,
-				chatResource: new URLSearchParams(resource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM),
-			}, {
-				scheme: 'agent-host-copilotcli',
-				path: '/session',
-				fragment: 'subagent/tool-call',
-				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
-			});
+		test('rejects malformed subagent editor resources', () => {
+			assert.deepStrictEqual([
+				getSubagentEditorResource({ chatResource: '', parentSessionResource: 'agent-host-copilotcli:/session' }),
+				getSubagentEditorResource({ chatResource: 'vendor-chat:/worker', parentSessionResource: 'invalid' }),
+				getSubagentEditorResource({ chatResource: 'vendor-chat:/worker' }),
+			], [undefined, undefined, undefined]);
 		});
 
 		test('should show compact elapsed time without worked-for copy', () => {

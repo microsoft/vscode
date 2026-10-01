@@ -735,16 +735,11 @@ suite('ChatModel', () => {
 	test('inputModel.setState preserves contrib keys owned by other writers', async function () {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
-		// The chat service records "migration hint already shown" in `contrib`,
-		// then the input widget publishes its own contrib keys on the next sync
-		// (typing, sending, model change). That rebuild must not drop the
-		// service's key, or `chat.customizations.migration.enabled: true` degrades
-		// into "always".
-		model.inputModel.setState({ contrib: { customizationMigrationHintShown: true } });
+		model.inputModel.setState({ contrib: { serviceOwnedKey: true } });
 		model.inputModel.setState({ inputText: 'typing', contrib: { widgetOwnedKey: 'from-widget' } });
 
 		assert.deepStrictEqual(model.inputModel.state.get()?.contrib, {
-			customizationMigrationHintShown: true,
+			serviceOwnedKey: true,
 			widgetOwnedKey: 'from-widget',
 		});
 	});

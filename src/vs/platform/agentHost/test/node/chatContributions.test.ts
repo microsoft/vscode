@@ -26,7 +26,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IOutgoingTurnContributionResult, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { createEditorInlineChatInstruction, type IChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
@@ -722,11 +722,11 @@ class AfterSideChatHydrationContribution extends TestContribution {
 	}
 }
 
-function createConfigurationService(enableSendInstructions: boolean): IAgentConfigurationService {
+function createConfigurationService(enableSendInstructions: boolean, enableWorkspaceSnapshot = false): IAgentConfigurationService {
 	const agentConfigService = { _serviceBrand: undefined } as IAgentConfigurationService;
 	agentConfigService.getEffectiveWorkingDirectories = () => undefined;
 	agentConfigService.getRootValue = <D extends SchemaDefinition, K extends keyof D & string>(_schema: ISchema<D>, key: K): SchemaValue<D[K]> | undefined => {
-		return enableSendInstructions && (key === AgentHostMarkdownPlanRichLinksEnabledConfigKey || key === AgentHostArtifactToolsConfigKey)
+		return (enableSendInstructions && (key === AgentHostMarkdownPlanRichLinksEnabledConfigKey || key === AgentHostArtifactToolsConfigKey)) || (enableWorkspaceSnapshot && key === AgentHostWorkspaceSnapshotEnabledConfigKey)
 			? true as SchemaValue<D[K]>
 			: undefined;
 	};
@@ -837,7 +837,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, useCompactArtifactPrompts = false, surface?: IChatSurfaceMeta) {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, useCompactArtifactPrompts = false, surface?: IChatSurfaceMeta, copilotWorkspace?: URI) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const fileService = disposables.add(new FileService(logService));
@@ -845,9 +845,10 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 	stateManager.createSession({
 		resource: 'agent-host-session://test',
-		provider: 'test',
+		provider: copilotWorkspace ? 'copilotcli' : 'test',
 		title: 'Test',
 		status: sessionStatus,
+		...(copilotWorkspace ? { workingDirectories: [copilotWorkspace.toString()] } : {}),
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
 		_meta: withChatSurfaceMeta(undefined, surface ?? (enableSendInstructions ? { surface: 'terminal', osName: 'Linux' } : undefined)),
@@ -878,7 +879,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		observed?.push('persistedFailedTurns');
 		return originalGetPersistedTurns();
 	};
-	const agentConfigService = createConfigurationService(enableSendInstructions);
+	const agentConfigService = createConfigurationService(enableSendInstructions, !!copilotWorkspace);
 	const sessionDataService = createSessionDataService(usageDatabase);
 	const worktree = new RecordingWorktreeIsolation(observed);
 	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionDataService, worktree);
@@ -1797,6 +1798,18 @@ suite('AgentHostChatContributions', () => {
 			const data = event.data as { titleGenerationStrategy?: string };
 			return data.titleGenerationStrategy;
 		}), [undefined, undefined]);
+	});
+
+	test('places the workspace snapshot between the Markdown plan and chat surface instructions on a Copilot first turn', async () => {
+		const workspace = URI.file('/workspace');
+		const contributions = createBuiltInContributions(disposables, undefined, true, undefined, undefined, undefined, workspace);
+		await contributions.fileService.writeFile(URI.joinPath(workspace, 'meta.json'), VSBuffer.fromString(''));
+		const chat = buildDefaultChatUri(contributions.session);
+		const message = { text: 'first-turn-send-order', origin: { kind: MessageKind.User } } as const;
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: '2025-01-01T00:00:00.000Z', message });
+		const result = await contributions.service.outgoingTurn({ session: contributions.session, chat, message, turnId: 'first-turn', workingDirectories: [workspace] });
+
+		assert.deepStrictEqual((result.instructions ?? []).map(instruction => ['<rich_plan_markdown>', '<workspace_info>', '<terminal_chat>'].find(tag => instruction.includes(tag)) ?? instruction), ['<rich_plan_markdown>', '<workspace_info>', '<terminal_chat>', 'rename instruction']);
 	});
 
 	test('runs built-in outgoing-turn contributions in the original sequence', async () => {
