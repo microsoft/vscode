@@ -475,6 +475,36 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		});
 	});
 
+	test('attributes parser-created plugin MCP children to their owning plugin', () => {
+		setupSession();
+		stateManager.setSessionCustomizations(sessionKey, [{
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugins/mail/plugin.json',
+			name: 'mail',
+			children: [{
+				type: CustomizationType.McpServer,
+				id: 'plugin-mcp',
+				uri: 'file:///plugins/mail/.mcp.json',
+				name: 'search',
+				state: { kind: McpServerStatus.Ready },
+			}],
+		}]);
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-plugin-mcp', 'search', { kind: ToolCallContributorKind.MCP, customizationId: 'plugin-mcp' });
+		toolComplete('turn-1', 'tc-plugin-mcp', { success: true, pastTenseMessage: 'searched' });
+		completeTurn('turn-1');
+
+		assert.deepStrictEqual({
+			languageModelToolInvoked: toolEvents()[0].data.mcpSourceKind,
+			agentHostToolInvoked: agentHostToolEvents()[0].data.mcpSourceKind,
+		}, {
+			languageModelToolInvoked: 'plugin',
+			agentHostToolInvoked: 'plugin',
+		});
+	});
+
 	test('emits client source kind for a client-contributed tool', () => {
 		setupSession();
 		startTurn('turn-1');

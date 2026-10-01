@@ -214,9 +214,12 @@ function getMcpSourceKind(customizations: readonly Customization[] | undefined, 
 	if (contributor?.kind !== ToolCallContributorKind.MCP) {
 		return undefined;
 	}
-	const customization = getCustomizationEnablementCandidates(customizations)
-		.find(candidate => candidate.customization.id === contributor.customizationId)?.customization;
-	return customization?.type === CustomizationType.McpServer ? readMcpServerSource(customization) : undefined;
+	const candidate = getCustomizationEnablementCandidates(customizations)
+		.find(candidate => candidate.customization.id === contributor.customizationId);
+	if (candidate?.customization.type !== CustomizationType.McpServer) {
+		return undefined;
+	}
+	return readMcpServerSource(candidate.customization) ?? (candidate.owningPluginUri !== undefined ? 'plugin' : undefined);
 }
 
 type AgentSignalTurnIdRouting = 'preserve' | 'remap';
