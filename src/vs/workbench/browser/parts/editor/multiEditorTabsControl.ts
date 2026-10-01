@@ -2211,7 +2211,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Remove old css classes that are not needed anymore
 			for (const tab of tabsContainer.children) {
-				tab.classList.remove('first-in-row', 'last-in-row');
+				tab.classList.remove('last-in-row');
 			}
 		}
 
@@ -2281,13 +2281,16 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			});
 		}
 
-		// Measure before changing row-boundary classes to avoid layout churn.
+		// Update the `last-in-row` class on tabs when wrapping
+		// is enabled (it doesn't do any harm otherwise). This
+		// class controls additional properties of tab when it is
+		// the last tab in a row
 		if (tabsWrapMultiLine) {
 
 			// Using a map here to change classes after the for loop is
 			// crucial for performance because changing the class on a
 			// tab can result in layouts of the rendering engine.
-			const tabs = new Map<HTMLElement, { firstInRow: boolean; lastInRow: boolean }>();
+			const tabs = new Map<HTMLElement, boolean /* last in row */>();
 
 			let currentTabsPosY: number | undefined = undefined;
 			let lastTab: HTMLElement | undefined = undefined;
@@ -2299,37 +2302,27 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				const tabPosY = tab.offsetTop;
 
 				// Marks a new or the first row of tabs
-				const firstInRow = tabPosY !== currentTabsPosY;
-				if (firstInRow) {
+				if (tabPosY !== currentTabsPosY) {
 					currentTabsPosY = tabPosY;
 					if (lastTab) {
-						tabs.get(lastTab)!.lastInRow = true;
+						tabs.set(lastTab, true); // previous tab must be last in row then
 					}
 				}
 
+				// Always remember last tab and ensure the
+				// last-in-row class is not present until
+				// we know the tab is last
 				lastTab = tab;
-				tabs.set(tab, { firstInRow, lastInRow: false });
+				tabs.set(tab, false);
 			}
 
-			// The final tab is always last-in-row.
+			// Last tab overally is always last-in-row
 			if (lastTab) {
-				tabs.get(lastTab)!.lastInRow = true;
+				tabs.set(lastTab, true);
 			}
 
-			for (const [tab, { firstInRow, lastInRow }] of tabs) {
-				tab.classList.toggle('first-in-row', firstInRow);
+			for (const [tab, lastInRow] of tabs) {
 				tab.classList.toggle('last-in-row', lastInRow);
-			}
-		} else {
-			let firstInRow = true;
-			for (const child of tabsContainer.children) {
-				if (child === this.addTabContainer) {
-					continue;
-				}
-
-				child.classList.toggle('first-in-row', firstInRow);
-				child.classList.remove('last-in-row');
-				firstInRow = false;
 			}
 		}
 
