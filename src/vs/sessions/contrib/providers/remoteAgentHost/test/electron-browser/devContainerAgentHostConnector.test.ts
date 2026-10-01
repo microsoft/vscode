@@ -54,10 +54,15 @@ suite('Dev Container Agent Host Connector', () => {
 		}, { scope: ConfigurationScope.APPLICATION, default: false, tags: ['experimental'] });
 	});
 
-	test('routes sample connections and container lifecycle with a sample identity, not a host path', async () => {
+	test('routes sample lifecycle with a sample identity and reconnects after the picker opt-in is disabled', async () => {
 		const configs: IDevContainerAgentHostConfig[] = [];
 		const lifecycle: (string | IDevContainerSampleSource)[] = [];
 		const repository = { repositoryPath: 'https://github.com/Microsoft/vscode-remote-try-go', volumeName: 'sample-volume', folder: 'vscode-remote-try-go' };
+		const configuration = new TestConfigurationService({
+			[DevContainerSamplesEnabledSettingId]: true,
+			[DevContainerAgentHostEnabledSettingId]: true,
+			[RemoteAgentHostsEnabledSettingId]: true,
+		});
 		const service = new class extends mock<IDevContainerAgentHostMainService>() {
 			override readonly onDidOutput = Event.None;
 			override readonly onDidRelayMessage = Event.None;
@@ -85,11 +90,7 @@ suite('Dev Container Agent Host Connector', () => {
 			}(),
 			store.add(new TestInstantiationService()),
 			store.add(new NullLogService()),
-			new TestConfigurationService({
-				[DevContainerSamplesEnabledSettingId]: true,
-				[DevContainerAgentHostEnabledSettingId]: true,
-				[RemoteAgentHostsEnabledSettingId]: true,
-			}),
+			configuration,
 			new class extends mock<IEnvironmentService>() { }(),
 			new class extends mock<IOutputService>() {
 				override getChannel() {
@@ -107,10 +108,17 @@ suite('Dev Container Agent Host Connector', () => {
 		const beforeConnect = configs.length;
 		const target = await connector.createConnection(source, 'devcontainer:sample', CancellationToken.None);
 		store.add(target.transportDisposable!);
+		await configuration.setUserConfiguration(DevContainerSamplesEnabledSettingId, false);
+		const selectableAfterOptOut = await connector.isAvailable(source);
+		const reconnected = await connector.createConnection(source, 'devcontainer:sample', CancellationToken.None, { resume: false });
+		store.add(reconnected.transportDisposable!);
+		await configuration.setUserConfiguration('chat.disableAIFeatures', true);
+		await assert.rejects(connector.createConnection(source, 'devcontainer:sample', CancellationToken.None), /AI features are disabled/);
 		await connector.stopContainer(source);
 		await connector.removeContainer(source);
 		assert.deepStrictEqual({
 			beforeConnect,
+			selectableAfterOptOut,
 			configs: configs.map(config => hasKey(config, { sampleId: true }) ? { sampleId: config.sampleId, resume: config.resume } : config),
 			lifecycle,
 			repository: target.repository,
@@ -118,7 +126,8 @@ suite('Dev Container Agent Host Connector', () => {
 			workspace: target.workspaceUri.path,
 		}, {
 			beforeConnect: 0,
-			configs: [{ sampleId: 'go', resume: true }],
+			selectableAfterOptOut: false,
+			configs: [{ sampleId: 'go', resume: true }, { sampleId: 'go', resume: false }],
 			lifecycle: [{ sampleId: 'go' }, { sampleId: 'go' }],
 			repository,
 			hostWorkspaceFolder: undefined,

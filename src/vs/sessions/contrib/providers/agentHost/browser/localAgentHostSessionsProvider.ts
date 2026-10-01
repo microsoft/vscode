@@ -40,7 +40,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
-import { DevContainerSamplesEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { areDevContainerSamplesEnabled, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -350,7 +350,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
 		const sample = findDevContainerSample(repositoryUri);
-		if (sample && this._configurationService.getValue<boolean>(DevContainerSamplesEnabledSettingId) === true) {
+		if (sample && areDevContainerSamplesEnabled(this._configurationService)) {
 			return {
 				uri: repositoryUri,
 				label: localize('devContainerSample.workspaceLabel', "{0} Sample", sample.name),

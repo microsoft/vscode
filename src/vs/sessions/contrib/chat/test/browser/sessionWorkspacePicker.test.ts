@@ -897,7 +897,7 @@ suite('WorkspacePicker - Connection Status', () => {
 			}),
 			supportsLocalWorkspaces: true,
 		}]);
-		const create = (enabled: boolean, hidden = false) => createTestPicker(
+		const create = (enabled: boolean, hidden = false, overrides: Record<string, boolean> = {}) => createTestPicker(
 			disposables, providersService, undefined, undefined, TestablePicker, undefined, undefined, undefined,
 			{
 				restoreFromSessions: false,
@@ -905,10 +905,11 @@ suite('WorkspacePicker - Connection Status', () => {
 					[DevContainerSamplesEnabledSettingId]: enabled,
 					[DevContainerAgentHostEnabledSettingId]: true,
 					'chat.disableAIFeatures': hidden,
+					...overrides,
 				},
 			},
 		) as TestablePicker;
-		const label = 'Try a Dev Container Sample...';
+		const label = 'Dev Container Sample...';
 		const picker = create(true);
 		const submenu = picker.getItems().find(item => item.label === label)?.submenuActions?.[0];
 		const modes: boolean[] = [];
@@ -917,6 +918,8 @@ suite('WorkspacePicker - Connection Status', () => {
 		assert.deepStrictEqual({
 			disabled: create(false).getItemLabels().includes(label),
 			hidden: create(true, true).getItemLabels().includes(label),
+			containersDisabled: create(true, false, { [DevContainerAgentHostEnabledSettingId]: false }).getItemLabels().includes(label),
+			remoteHostsDisabled: create(true, false, { [RemoteAgentHostsEnabledSettingId]: false }).getItemLabels().includes(label),
 			samples: submenu instanceof SubmenuAction ? submenu.actions.map(action => action.label) : [],
 			selected: picker.selectedResolved?.workspace.uri.toString(),
 			modes,
@@ -924,6 +927,8 @@ suite('WorkspacePicker - Connection Status', () => {
 		}, {
 			disabled: false,
 			hidden: false,
+			containersDisabled: false,
+			remoteHostsDisabled: false,
 			samples: ['Go', '.NET', 'Node.js', 'PHP', 'Python', 'Rust'],
 			selected: devContainerSampleUri(devContainerSamples[2]).toString(),
 			modes: [true],

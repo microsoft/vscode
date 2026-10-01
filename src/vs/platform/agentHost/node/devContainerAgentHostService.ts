@@ -49,8 +49,8 @@ import {
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
-import { devContainerSamples, devContainerSampleUri, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
-import { prepareDevContainerSample } from './devContainerSamples.js';
+import { DevContainerSample, devContainerSamples, devContainerSampleUri, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
+import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -234,7 +234,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	private async _connect(config: IDevContainerAgentHostConfig, tokenSource: CancellationTokenSource): Promise<IDevContainerAgentHostConnectResult> {
-		const workspaceKey = getSourceKey(hasKey(config, { sampleId: true }) ? config : config.workspaceFolder);
+		const source = hasKey(config, { sampleId: true }) ? config : config.workspaceFolder;
+		const workspaceKey = getSourceKey(source);
 		if (this._suspendedWorkspaces.has(workspaceKey) && config.resume !== true) {
 			throw new Error(localize('devContainerAgentHost.containerSuspended', "Dev Container for '{0}' is stopped.", config.name));
 		}
@@ -246,6 +247,12 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 		}));
 		this._connectionStores.set(config.connectionId, store);
+		let sampleContainerStarted = false;
+		const registerContainer = (containerId: string) => {
+			this._containerIds.set(workspaceKey, containerId);
+			this._connectionWorkspaces.set(config.connectionId, workspaceKey);
+			store.add(toDisposable(() => this._connectionWorkspaces.delete(config.connectionId)));
+		};
 
 		try {
 			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.name}`);
@@ -254,22 +261,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			let repository: IDevContainerRepository | undefined;
 			if (hasKey(config, { sampleId: true })) {
 				const sample = devContainerSamples.find(sample => sample.id === config.sampleId)!;
-				const prepared = await prepareDevContainerSample(sample, join(this._environmentService.userDataPath, 'devContainerSamples', sample.id), {
-					docker: async args => {
-						this._reportOutput(config.connectionId, `$ docker ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
-						const result = await this._runDocker(args, tokenSource.token);
-						this._reportOutput(config.connectionId, result.stdout + result.stderr);
-						return result;
-					},
-					devcontainer: args => this._runDevContainer(config.connectionId, args, tokenSource.token),
-					fetch: async url => {
-						const response = await this._requestService.request({ type: 'GET', url, callSite: 'devContainerSample', headers: { 'User-Agent': 'VSCode' } }, tokenSource.token);
-						const content = await asTextOrError(response);
-						if (!content) {
-							throw new Error(localize('devContainerAgentHost.emptySampleResponse', "Empty response while downloading the Dev Container sample: {0}", url));
-						}
-						return content;
-					},
+				const prepared = await this._prepareSample(config.connectionId, sample, tokenSource.token, containerId => {
+					sampleContainerStarted = true;
+					registerContainer(containerId);
 				});
 				upResult = prepared;
 				workspaceSelector = prepared.cliArgs;
@@ -287,10 +281,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					throw new Error(localize('devContainerAgentHost.invalidUpResult', "Dev Container CLI returned an invalid result: {0}", up.stdout.trim() || up.stderr.trim()));
 				}
 				upResult = parsed;
+				registerContainer(upResult.containerId);
 			}
-			this._containerIds.set(workspaceKey, upResult.containerId);
-			this._connectionWorkspaces.set(config.connectionId, workspaceKey);
-			store.add(toDisposable(() => this._connectionWorkspaces.delete(config.connectionId)));
 
 			const exec = this._createExec(config.connectionId, workspaceSelector, tokenSource.token);
 			const safeDirectoryStopWatch = StopWatch.create(false);
@@ -402,11 +394,40 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				...(hasKey(config, { workspaceFolder: true }) ? { hostWorkspaceFolder: config.workspaceFolder } : {}),
 			};
 		} catch (error) {
+			if (sampleContainerStarted) {
+				try {
+					await this._changeContainerState(source, 'stop');
+				} catch (cleanupError) {
+					this._logService.error(`${LOG_PREFIX} Failed to stop sample container after preparation failed`, cleanupError);
+					this._reportOutput(config.connectionId, localize('devContainerAgentHost.sampleCleanupFailed', "Failed to stop the sample container after preparation failed: {0}\n", getErrorMessage(cleanupError)));
+				}
+			}
 			if (this._connectionStores.get(config.connectionId) === store) {
 				this._connectionStores.deleteAndDispose(config.connectionId);
 			}
 			throw error;
 		}
+	}
+
+	protected _prepareSample(connectionId: string, sample: DevContainerSample, token: CancellationToken, onContainerStarted: (containerId: string) => void): Promise<IPreparedDevContainerSample> {
+		return prepareDevContainerSample(sample, join(this._environmentService.userDataPath, 'devContainerSamples', sample.id), {
+			onContainerStarted,
+			docker: async args => {
+				this._reportOutput(connectionId, `$ docker ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
+				const result = await this._runDocker(args, token);
+				this._reportOutput(connectionId, result.stdout + result.stderr);
+				return result;
+			},
+			devcontainer: args => this._runDevContainer(connectionId, args, token),
+			fetch: async url => {
+				const response = await this._requestService.request({ type: 'GET', url, callSite: 'devContainerSample', headers: { 'User-Agent': 'VSCode' } }, token);
+				const content = await asTextOrError(response);
+				if (!content) {
+					throw new Error(localize('devContainerAgentHost.emptySampleResponse', "Empty response while downloading the Dev Container sample: {0}", url));
+				}
+				return content;
+			},
+		});
 	}
 
 	private async _getServerCacheMountArgs(connectionId: string, workspaceFolder: string, token: CancellationToken): Promise<readonly string[]> {

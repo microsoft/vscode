@@ -15,7 +15,7 @@ import { getDevContainerSampleLabels, getDevContainerSampleVolumeName, parseDevC
 suite('Dev Container samples', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	const sample = devContainerSamples[2];
-	const repositoryPath = getDevContainerSampleUrl(sample);
+	const repositoryPath = 'https://github.com/Microsoft/vscode-remote-try-node';
 	const folder = 'vscode-remote-try-node';
 	const commit = 'a'.repeat(40);
 	let cacheDirectory: string;
@@ -47,11 +47,13 @@ suite('Dev Container samples', () => {
 		const name = `${folder}-${createHash('sha256').update(repositoryPath).digest('hex')}`;
 		const legacy = `${folder}-${createHash('md5').update(repositoryPath).digest('hex')}`;
 		assert.deepStrictEqual({
+			visibleUrl: getDevContainerSampleUrl(sample),
 			newVolume: getDevContainerSampleVolumeName(sample, []),
 			legacyVolume: getDevContainerSampleVolumeName(sample, [legacy]),
 			preferCurrent: getDevContainerSampleVolumeName(sample, [legacy, name]),
 			labels: getDevContainerSampleLabels({ repositoryPath, volumeName: name, folder }),
 		}, {
+			visibleUrl: 'https://github.com/microsoft/vscode-remote-try-node',
 			newVolume: name,
 			legacyVolume: legacy,
 			preferCurrent: name,
@@ -81,11 +83,15 @@ suite('Dev Container samples', () => {
 
 	test('clones before lifecycle hooks and reuses cached configuration and volumes', async () => {
 		const calls: string[] = [];
+		const fetchedUrls: string[] = [];
+		const cloneUsesLowercaseUrl: boolean[] = [];
 		const volumeName = getDevContainerSampleVolumeName(sample, []);
 		const config = { image: 'sample-image', postCreateCommand: 'npm install' };
 		let existing = false;
 		const commands: Parameters<typeof prepareDevContainerSample>[2] = {
+			onContainerStarted: id => calls.push(`started ${id}`),
 			fetch: async url => {
+				fetchedUrls.push(url);
 				calls.push(url.includes('/commits/') ? 'commit' : 'config');
 				return url.includes('/commits/') ? JSON.stringify({ sha: commit }) : JSON.stringify(config);
 			},
@@ -99,6 +105,9 @@ suite('Dev Container samples', () => {
 				} else {
 					const clone = args.includes('/bin/sh');
 					calls.push(clone ? 'clone' : 'read config');
+					if (clone) {
+						cloneUsesLowercaseUrl.push(args.at(-1)!.includes('https://github.com/microsoft/vscode-remote-try-node'));
+					}
 					stdout = clone ? '' : JSON.stringify(config);
 				}
 				return { stdout, stderr: '', code: 0 };
@@ -119,11 +128,15 @@ suite('Dev Container samples', () => {
 		const second = await prepareDevContainerSample(sample, cacheDirectory, commands);
 		assert.deepStrictEqual({
 			calls,
+			fetchedUrls,
+			cloneUsesLowercaseUrl,
 			sameIdentity: first.repository.volumeName === second.repository.volumeName,
 			config: JSON.parse(await readFile(join(cacheDirectory, 'devcontainer.json'), 'utf8')),
 		}, {
-			calls: ['commit', 'config', 'volume ls', 'volume create', 'volume inspect', 'up (skip hooks)', 'clone', 'read config', 'hooks',
-				'volume ls', 'volume inspect', 'up (skip hooks)', 'clone', 'read config', 'hooks'],
+			calls: ['commit', 'config', 'volume ls', 'volume create', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks',
+				'volume ls', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks'],
+			fetchedUrls: [`https://api.github.com/repos/microsoft/${folder}/commits/HEAD`, `https://raw.githubusercontent.com/microsoft/${folder}/${commit}/.devcontainer/devcontainer.json`],
+			cloneUsesLowercaseUrl: [true, true],
 			sameIdentity: true,
 			config: {
 				...config,
@@ -136,6 +149,7 @@ suite('Dev Container samples', () => {
 
 	test('unsupported configuration fails before creating a volume or container', async () => {
 		await assert.rejects(prepareDevContainerSample(sample, cacheDirectory, {
+			onContainerStarted: () => { throw new Error('No container should be registered'); },
 			fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"image","features":{"java":{}}}',
 			docker: async () => { throw new Error('Docker must not run'); },
 			devcontainer: async () => { throw new Error('Dev Container CLI must not run'); },
@@ -146,6 +160,7 @@ suite('Dev Container samples', () => {
 		test(`image changes require a rebuild and accept an extension-rebuilt container (rebuilt: ${rebuilt})`, async () => {
 			let lifecycleCalls = 0;
 			const preparation = prepareDevContainerSample(sample, cacheDirectory, {
+				onContainerStarted: () => { },
 				fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"old-image"}',
 				docker: async args => ({
 					stdout: args[0] === 'inspect' ? JSON.stringify(rebuilt ? 'new-image' : 'old-image')
@@ -175,7 +190,9 @@ suite('Dev Container samples', () => {
 	for (const failure of ['clone', 'lifecycle'] as const) {
 		test(`reports ${failure} failure instead of connecting an incompletely prepared sample`, async () => {
 			let lifecycleCalls = 0;
+			const started: string[] = [];
 			await assert.rejects(prepareDevContainerSample(sample, cacheDirectory, {
+				onContainerStarted: id => started.push(id),
 				fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"sample-image"}',
 				docker: async args => {
 					const isClone = args.includes('/bin/sh');
@@ -193,7 +210,24 @@ suite('Dev Container samples', () => {
 					return { stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: `/workspaces/${folder}` }), stderr: '', code: 0 };
 				},
 			}), failure === 'clone' ? /Clone failed/ : /lifecycle commands failed/);
-			assert.strictEqual(lifecycleCalls, failure === 'clone' ? 0 : 1);
+			assert.deepStrictEqual({ lifecycleCalls, started }, { lifecycleCalls: failure === 'clone' ? 0 : 1, started: ['container'] });
 		});
 	}
+
+	test('registers a container reported by a failed up command before propagating the failure', async () => {
+		const started: string[] = [];
+		await assert.rejects(prepareDevContainerSample(sample, cacheDirectory, {
+			onContainerStarted: id => started.push(id),
+			fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"sample-image"}',
+			docker: async args => ({
+				stdout: args[1] === 'inspect' ? JSON.stringify({ 'vsch.local.repository': repositoryPath }) : '',
+				stderr: '', code: 0,
+			}),
+			devcontainer: async () => ({
+				stdout: '{"outcome":"error","containerId":"container"}',
+				stderr: 'Container setup failed', code: 1,
+			}),
+		}), /Container setup failed/);
+		assert.deepStrictEqual(started, ['container']);
+	});
 });

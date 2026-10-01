@@ -36,7 +36,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../browser/devContainerSource.js';
@@ -121,6 +121,9 @@ export function ensureDevContainerAgentHostsEnabled(configurationService: IConfi
 	if (!configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 		throw new Error(localize('devContainerAgentHost.remoteAgentHostsDisabled', "Remote Agent Host connections are not enabled."));
 	}
+	if (configurationService.getValue<boolean>('chat.disableAIFeatures') === true) {
+		throw new Error(localize('devContainerAgentHost.aiDisabled', "AI features are disabled."));
+	}
 }
 
 /** Returns whether a workspace can be launched using its host's Dev Container service. */
@@ -138,7 +141,7 @@ export async function isDevContainerWorkspaceAvailable(
 		return false;
 	}
 	if (findDevContainerSample(workspaceUri)) {
-		return configurationService.getValue<boolean>(DevContainerSamplesEnabledSettingId) === true && await mainService.isDockerAvailable();
+		return areDevContainerSamplesEnabled(configurationService) && await mainService.isDockerAvailable();
 	}
 	if (workspaceUri.scheme !== Schemas.file && workspaceUri.scheme !== AGENT_HOST_SCHEME) {
 		return false;
@@ -362,13 +365,6 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean }): Promise<IDevContainerAgentHostConnection> {
 		ensureDevContainerAgentHostsEnabled(this._configurationService);
 		const sample = findDevContainerSample(workspaceUri);
-		const ensureSampleEnabled = () => {
-			if (sample && (this._configurationService.getValue<boolean>(DevContainerSamplesEnabledSettingId) !== true
-				|| this._configurationService.getValue<boolean>('chat.disableAIFeatures') === true)) {
-				throw new Error(localize('devContainerAgentHost.samplesDisabled', "Dev Container samples are not enabled."));
-			}
-		};
-		ensureSampleEnabled();
 		const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
 		if (workspaceUri.scheme !== Schemas.file && !sourceEntry && !sample) {
 			throw new Error(localize('devContainerAgentHost.workspaceRequired', "Dev Container Agent Hosts require a local, SSH, Tunnel, or WSL workspace."));
@@ -408,7 +404,6 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 
 				try {
 					ensureDevContainerAgentHostsEnabled(this._configurationService);
-					ensureSampleEnabled();
 				} catch (error) {
 					throw new NonReconnectableTransportError(error instanceof Error ? error.message : String(error));
 				}

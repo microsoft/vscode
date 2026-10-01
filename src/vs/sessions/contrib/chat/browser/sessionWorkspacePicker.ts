@@ -47,7 +47,7 @@ import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
+import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -1773,10 +1773,7 @@ export class WorkspacePicker extends Disposable {
 
 		if (this._directPickerAttachesContext !== true
 			&& (!activeGroup || activeGroup === SESSION_WORKSPACE_GROUP_LOCAL)
-			&& this.configurationService.getValue<boolean>(DevContainerSamplesEnabledSettingId) === true
-			&& this.configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId) === true
-			&& this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true
-			&& this.configurationService.getValue<boolean>('chat.disableAIFeatures') !== true
+			&& areDevContainerSamplesEnabled(this.configurationService)
 			&& allProviders.some(provider => provider.id === LOCAL_AGENT_HOST_PROVIDER_ID && isAgentHostProvider(provider))) {
 			const sampleItem: { folderUri?: URI; providerId: string; preferDevContainer: boolean } = {
 				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
@@ -1791,7 +1788,7 @@ export class WorkspacePicker extends Disposable {
 			}));
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: localize('workspacePicker.devContainer.samples', "Try a Dev Container Sample..."),
+				label: localize('workspacePicker.devContainer.samples', "Dev Container Sample..."),
 				group: { title: '', icon: Codicon.remote },
 				item: sampleItem,
 				submenuActions: [new SubmenuAction('workspacePicker.devContainer.samples', '', devContainerSamples.map(sample => toAction({

@@ -23,6 +23,7 @@ interface ISampleCommands {
 	readonly docker: (args: readonly string[]) => Promise<ICommandResult>;
 	readonly devcontainer: (args: readonly string[]) => Promise<ICommandResult>;
 	readonly fetch: (url: string) => Promise<string>;
+	readonly onContainerStarted: (containerId: string) => void;
 }
 
 export interface IPreparedDevContainerSample {
@@ -33,11 +34,16 @@ export interface IPreparedDevContainerSample {
 }
 
 export function getDevContainerSampleVolumeName(sample: DevContainerSample, existingVolumes: readonly string[]): string {
-	const url = getDevContainerSampleUrl(sample);
+	const url = getExtensionRepositoryUrl(sample);
 	const folder = getDevContainerSampleFolder(sample);
 	const name = `${folder}-${createHash('sha256').update(url).digest('hex')}`;
 	const legacyName = `${folder}-${createHash('md5').update(url).digest('hex')}`;
 	return existingVolumes.includes(name) || !existingVolumes.includes(legacyName) ? name : legacyName;
+}
+
+function getExtensionRepositoryUrl(sample: DevContainerSample): string {
+	// The extension's exact URL casing determines its volume hashes and identity labels.
+	return `https://github.com/Microsoft/${getDevContainerSampleFolder(sample)}`;
 }
 
 export function getDevContainerSampleLabels(repository: IDevContainerRepository): readonly string[] {
@@ -99,11 +105,11 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 	}
 	const folder = getDevContainerSampleFolder(sample);
 	if (sourceContent === undefined) {
-		const commit: unknown = JSON.parse(await commands.fetch(`https://api.github.com/repos/Microsoft/${folder}/commits/HEAD`));
+		const commit: unknown = JSON.parse(await commands.fetch(`https://api.github.com/repos/microsoft/${folder}/commits/HEAD`));
 		if (!isRecord(commit) || typeof commit.sha !== 'string' || !/^[a-f0-9]{40}$/.test(commit.sha)) {
 			throw new Error(localize('devContainerSample.invalidCommit', "GitHub returned an invalid sample revision."));
 		}
-		const content = await commands.fetch(`https://raw.githubusercontent.com/Microsoft/${folder}/${commit.sha}/.devcontainer/devcontainer.json`);
+		const content = await commands.fetch(`https://raw.githubusercontent.com/microsoft/${folder}/${commit.sha}/.devcontainer/devcontainer.json`);
 		parseDevContainerSampleConfiguration(content);
 		sourceContent = JSON.stringify({ commit: commit.sha, content });
 		await writeAtomic(sourcePath, sourceContent);
@@ -115,7 +121,7 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 	const config = parseDevContainerSampleConfiguration(source.content);
 	const existingVolumes = checked(await commands.docker(['volume', 'ls', '--format', '{{.Name}}']), 'docker volume ls').trim().split(/\r?\n/);
 	const repository: IDevContainerRepository = {
-		repositoryPath: getDevContainerSampleUrl(sample),
+		repositoryPath: getExtensionRepositoryUrl(sample),
 		volumeName: getDevContainerSampleVolumeName(sample, existingVolumes),
 		folder,
 	};
@@ -137,9 +143,14 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 	}));
 	await writeConfig(config);
 	const cliArgs = ['--override-config', configPath, ...getDevContainerSampleLabels(repository).flatMap(label => ['--id-label', label])];
-	const upOutput = checked(await commands.devcontainer(['up', '--log-level', 'debug', ...cliArgs, '--skip-post-create', '--mount', devContainerServerCacheMount]), 'devcontainer up');
-	const result: unknown = JSON.parse(upOutput.trim().split(/\r?\n/).at(-1)!);
-	if (!isRecord(result) || result.outcome !== 'success' || typeof result.containerId !== 'string' || !result.containerId || typeof result.remoteUser !== 'string' || !result.remoteUser || result.remoteWorkspaceFolder !== workspace) {
+	const up = await commands.devcontainer(['up', '--log-level', 'debug', ...cliArgs, '--skip-post-create', '--mount', devContainerServerCacheMount]);
+	const errors: ParseError[] = [];
+	const result: unknown = parse(up.stdout.trim().split(/\r?\n/).at(-1) ?? '', errors);
+	if (isRecord(result) && typeof result.containerId === 'string' && result.containerId) {
+		commands.onContainerStarted(result.containerId);
+	}
+	checked(up, 'devcontainer up');
+	if (errors.length || !isRecord(result) || result.outcome !== 'success' || typeof result.containerId !== 'string' || !result.containerId || typeof result.remoteUser !== 'string' || !result.remoteUser || result.remoteWorkspaceFolder !== workspace) {
 		throw new Error(localize('devContainerSample.invalidUpResult', "The Dev Container CLI returned an invalid sample container."));
 	}
 
@@ -152,7 +163,7 @@ else
 	if [ -e "$workspace" ]; then rmdir "$workspace"; fi
 	staging=$(mktemp -d /workspaces/.vscode-sample-XXXXXXXX)
 	trap 'rm -rf -- "$staging"' EXIT
-	GIT_TERMINAL_PROMPT=0 git clone --no-checkout ${shellEscape(repository.repositoryPath)} "$staging"
+	GIT_TERMINAL_PROMPT=0 git clone --no-checkout ${shellEscape(getDevContainerSampleUrl(sample))} "$staging"
 	branch=$(git -C "$staging" symbolic-ref --short HEAD)
 	git -C "$staging" checkout -B "$branch" ${shellEscape(source.commit)}
 	chown -R "$(id -u ${shellEscape(result.remoteUser)}):$(id -g ${shellEscape(result.remoteUser)})" "$staging"

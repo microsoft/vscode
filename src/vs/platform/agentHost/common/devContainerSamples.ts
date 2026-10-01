@@ -34,7 +34,7 @@ export function getDevContainerSampleFolder(sample: DevContainerSample): string 
 }
 
 export function getDevContainerSampleUrl(sample: DevContainerSample): string {
-	return `https://github.com/Microsoft/${getDevContainerSampleFolder(sample)}`;
+	return `https://github.com/microsoft/${getDevContainerSampleFolder(sample)}`;
 }
 
 export function devContainerSampleUri(sample: DevContainerSample): URI {
