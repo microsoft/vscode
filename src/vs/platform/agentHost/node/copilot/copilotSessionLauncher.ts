@@ -1143,6 +1143,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			instructionDirectories,
 			additionalDirectories,
 			systemMessage,
+			coauthorEnabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.IncludeCoAuthoredBy),
 			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false },
 			largeOutput: {
 				maxSizeBytes: 8 * 1024,
