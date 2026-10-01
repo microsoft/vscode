@@ -3641,10 +3641,13 @@ suite('Sessions - SessionsList', () => {
 
 			const mainRows = [...mainContainer.querySelectorAll<HTMLElement>('.session-item')]
 				.map(item => item.closest<HTMLElement>('.monaco-list-row')!);
+			const mainRowsContainer = mainContainer.querySelector<HTMLElement>('.monaco-list-rows');
+			assert.ok(mainRowsContainer);
 			const flatRows = [...flatContainer.querySelectorAll<HTMLElement>('.session-item')]
 				.map(item => item.closest<HTMLElement>('.monaco-list-row')!);
 			assert.deepStrictEqual({
 				mainHasSpacingClass: mainContainer.querySelector('.sessions-list-control')?.classList.contains('session-list-row-spacing'),
+				mainRowsTransform: mainRowsContainer.style.transform,
 				mainRowHeight: mainRows[0].style.height,
 				mainRowOffset: parseInt(mainRows[1].style.top) - parseInt(mainRows[0].style.top),
 				flatHasSpacingClass: flatContainer.querySelector('.sessions-list-control')?.classList.contains('session-list-row-spacing'),
@@ -3652,6 +3655,7 @@ suite('Sessions - SessionsList', () => {
 				flatRowOffset: parseInt(flatRows[1].style.top) - parseInt(flatRows[0].style.top),
 			}, {
 				mainHasSpacingClass: true,
+				mainRowsTransform: '',
 				mainRowHeight: '56px',
 				mainRowOffset: 56,
 				flatHasSpacingClass: false,
