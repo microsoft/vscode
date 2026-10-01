@@ -18,20 +18,11 @@
 	z-index: 1;
 }
 
-/* The experimental composer groups controls inside the prompt stack. Give that
- * stack the main session surface as an opaque base so translucent input colors
- * do not reveal a configured chat background between its elements. */
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-input-container {
+/* Composite the translucent input color over the main session surface rather
+ * than directly over a configured chat background. */
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-input-area {
 	background-color: var(--session-view-background);
-	border-radius:
-		0
-		var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large))
-		var(--vscode-cornerRadius-large)
-		var(--vscode-cornerRadius-large);
-}
-
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer.quick-chat .new-chat-input-container {
-	border-top-left-radius: var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large));
+	background-image: linear-gradient(var(--vscode-agentsChatInput-background), var(--vscode-agentsChatInput-background));
 }
 
 /* The tip sits in the input's notice slot, attached to the top of the input. */

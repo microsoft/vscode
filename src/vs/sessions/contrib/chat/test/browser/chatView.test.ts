@@ -1451,6 +1451,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-button-secondaryForeground', '#202020');
 		workbench.style.setProperty('--vscode-commandCenter-inactiveBorder', '#606060');
 		workbench.style.setProperty('--vscode-cornerRadius-small', '4px');
+		workbench.style.setProperty('--vscode-agentsChatInput-background', 'rgba(0, 0, 0, 0.08)');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		workbench.style.setProperty('--vscode-toolbar-activeBackground', 'rgba(0, 0, 0, 0.2)');
 		workbench.style.setProperty('--vscode-toolbar-hoverBackground', 'rgba(0, 0, 0, 0.12)');
@@ -1484,7 +1485,7 @@ suite('Sessions - Chat View', () => {
 		const productionBottomAction = dom.append(productionBottomContainer, dom.$('.action-label'));
 		const productionCombinedBottomAction = dom.append(dom.append(productionBottomContainer, dom.$('.sessions-chat-picker-slot')), dom.$('.action-label.agent-host-mode-permissions-trigger'));
 		const productionExperimentalContent = dom.append(productionNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
-		const productionExperimentalInputContainer = dom.append(productionExperimentalContent, dom.$('.new-chat-input-container'));
+		const productionExperimentalInputArea = dom.append(productionExperimentalContent, dom.$('.new-chat-input-area'));
 		const productionExperimentalWorkspaceSlot = dom.append(productionExperimentalContent, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 		const productionExperimentalWorkspaceAction = dom.append(productionExperimentalWorkspaceSlot, dom.$('.action-label'));
 		const productionExperimentalRepository = dom.append(productionExperimentalContent, dom.$('.new-chat-repo-config-container'));
@@ -1493,7 +1494,7 @@ suite('Sessions - Chat View', () => {
 		const peerNewChatWidget = dom.append(productionNewChatView, dom.$('.sessions-chat-widget.new-chat-in-session'));
 		const peerNewChatContainer = dom.append(peerNewChatWidget, dom.$('.new-chat-widget-container'));
 		const peerExperimentalContent = dom.append(peerNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
-		const peerExperimentalInputContainer = dom.append(peerExperimentalContent, dom.$('.new-chat-input-container'));
+		const peerExperimentalInputArea = dom.append(peerExperimentalContent, dom.$('.new-chat-input-area'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
@@ -1503,7 +1504,7 @@ suite('Sessions - Chat View', () => {
 		const plainNewChatWidget = dom.append(plainChatView, dom.$('.sessions-chat-widget'));
 		const plainNewChatContainer = dom.append(plainNewChatWidget, dom.$('.new-chat-widget-container'));
 		const plainExperimentalContent = dom.append(plainNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
-		const plainExperimentalInputContainer = dom.append(plainExperimentalContent, dom.$('.new-chat-input-container'));
+		const plainExperimentalInputArea = dom.append(plainExperimentalContent, dom.$('.new-chat-input-area'));
 		const plainBottomContainer = dom.append(plainNewChatContainer, dom.$('.new-chat-bottom-container'));
 		const plainBottomAction = dom.append(plainBottomContainer, dom.$('.action-label'));
 		const plainCombinedBottomAction = dom.append(dom.append(plainBottomContainer, dom.$('.sessions-chat-picker-slot')), dom.$('.action-label.agent-host-mode-permissions-trigger'));
@@ -1547,7 +1548,8 @@ suite('Sessions - Chat View', () => {
 			productionBottomActionBorderColor: productionBottomActionStyle.borderColor,
 			productionBottomActionForeground: productionBottomActionStyle.color,
 			productionCombinedBottomActionBackgroundColor: dom.getWindow(productionCombinedBottomAction).getComputedStyle(productionCombinedBottomAction).backgroundColor,
-			productionExperimentalInputBackgroundColor: dom.getWindow(productionExperimentalInputContainer).getComputedStyle(productionExperimentalInputContainer).backgroundColor,
+			productionExperimentalInputBackgroundColor: dom.getWindow(productionExperimentalInputArea).getComputedStyle(productionExperimentalInputArea).backgroundColor,
+			productionExperimentalInputBackgroundImage: dom.getWindow(productionExperimentalInputArea).getComputedStyle(productionExperimentalInputArea).backgroundImage,
 			productionExperimentalWorkspaceBackgroundColor: productionExperimentalWorkspaceActionStyle.backgroundColor,
 			productionExperimentalWorkspaceBackgroundImage: productionExperimentalWorkspaceActionStyle.backgroundImage,
 			productionExperimentalWorkspaceBorderColor: productionExperimentalWorkspaceActionStyle.borderColor,
@@ -1559,14 +1561,16 @@ suite('Sessions - Chat View', () => {
 			productionExperimentalRepositoryActionBackgroundColor: productionExperimentalRepositoryActionStyle.backgroundColor,
 			productionExperimentalRepositoryActionBackgroundImage: productionExperimentalRepositoryActionStyle.backgroundImage,
 			productionExperimentalRepositoryActionBorderStyle: productionExperimentalRepositoryActionStyle.borderStyle,
-			peerExperimentalInputBackgroundColor: dom.getWindow(peerExperimentalInputContainer).getComputedStyle(peerExperimentalInputContainer).backgroundColor,
+			peerExperimentalInputBackgroundColor: dom.getWindow(peerExperimentalInputArea).getComputedStyle(peerExperimentalInputArea).backgroundColor,
+			peerExperimentalInputBackgroundImage: dom.getWindow(peerExperimentalInputArea).getComputedStyle(peerExperimentalInputArea).backgroundImage,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
 			plainSecondaryActionBorderStyle: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).borderStyle,
 			plainContextUsageBackgroundColor: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).backgroundColor,
 			plainContextUsageBorderStyle: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).borderStyle,
 			plainBottomActionBackgroundColor: dom.getWindow(plainBottomAction).getComputedStyle(plainBottomAction).backgroundColor,
 			plainBottomActionBorderStyle: dom.getWindow(plainBottomAction).getComputedStyle(plainBottomAction).borderStyle,
-			plainExperimentalInputBackgroundColor: dom.getWindow(plainExperimentalInputContainer).getComputedStyle(plainExperimentalInputContainer).backgroundColor,
+			plainExperimentalInputBackgroundColor: dom.getWindow(plainExperimentalInputArea).getComputedStyle(plainExperimentalInputArea).backgroundColor,
+			plainExperimentalInputBackgroundImage: dom.getWindow(plainExperimentalInputArea).getComputedStyle(plainExperimentalInputArea).backgroundImage,
 			plainCombinedBottomActionBackgroundColor: dom.getWindow(plainCombinedBottomAction).getComputedStyle(plainCombinedBottomAction).backgroundColor,
 			plainCombinedModeActionBackgroundColor: dom.getWindow(plainCombinedModeAction).getComputedStyle(plainCombinedModeAction).backgroundColor,
 			plainCombinedPermissionActionBackgroundColor: dom.getWindow(plainCombinedPermissionAction).getComputedStyle(plainCombinedPermissionAction).backgroundColor,
@@ -1593,6 +1597,7 @@ suite('Sessions - Chat View', () => {
 			productionBottomActionForeground: 'rgb(32, 32, 32)',
 			productionCombinedBottomActionBackgroundColor: 'rgb(255, 255, 255)',
 			productionExperimentalInputBackgroundColor: 'rgb(255, 255, 255)',
+			productionExperimentalInputBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			productionExperimentalWorkspaceBackgroundColor: 'rgb(255, 255, 255)',
 			productionExperimentalWorkspaceBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0))',
 			productionExperimentalWorkspaceBorderColor: 'rgb(128, 128, 128)',
@@ -1604,14 +1609,16 @@ suite('Sessions - Chat View', () => {
 			productionExperimentalRepositoryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalRepositoryActionBackgroundImage: 'none',
 			productionExperimentalRepositoryActionBorderStyle: 'none',
-			peerExperimentalInputBackgroundColor: 'rgba(0, 0, 0, 0)',
+			peerExperimentalInputBackgroundColor: 'rgba(0, 0, 0, 0.08)',
+			peerExperimentalInputBackgroundImage: 'none',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBorderStyle: 'none',
 			plainContextUsageBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainContextUsageBorderStyle: 'none',
 			plainBottomActionBackgroundColor: 'rgb(255, 255, 255)',
 			plainBottomActionBorderStyle: 'none',
-			plainExperimentalInputBackgroundColor: 'rgba(0, 0, 0, 0)',
+			plainExperimentalInputBackgroundColor: 'rgba(0, 0, 0, 0.08)',
+			plainExperimentalInputBackgroundImage: 'none',
 			plainCombinedBottomActionBackgroundColor: 'rgba(0, 0, 0, 0.12)',
 			plainCombinedModeActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainCombinedPermissionActionBackgroundColor: 'rgba(0, 0, 0, 0.2)',
