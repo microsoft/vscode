@@ -52,6 +52,8 @@ import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentatio
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
@@ -712,6 +714,9 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string }>());
 	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string }> = this._onDidRequestCreateManual.event;
 
+	private readonly _onDidRequestBrowse = this._register(new Emitter<void>());
+	readonly onDidRequestBrowse: Event<void> = this._onDidRequestBrowse.event;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
@@ -728,6 +733,7 @@ export class AICustomizationListWidget extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) {
@@ -746,6 +752,12 @@ export class AICustomizationListWidget extends Disposable {
 			this.harnessService.activeHarness.read(reader);
 			this.harnessService.availableHarnesses.read(reader);
 			this.updateAddButton();
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) &&
+				this.currentSection === AICustomizationManagementSection.Skills) {
+				this.filterItems();
+			}
 		}));
 	}
 
@@ -1598,10 +1610,24 @@ export class AICustomizationListWidget extends Disposable {
 		if (entry.groupKey !== PromptsStorage.local && entry.groupKey !== PromptsStorage.user) {
 			return;
 		}
-		this.renderTargetedCreateActions(container, entry.groupKey, disposables);
+		const actions = DOM.append(container, $('.plugin-card-section-actions'));
+		this.renderTargetedCreateActions(actions, entry.groupKey, disposables);
+		if (entry.groupKey === PromptsStorage.user &&
+			this.currentSection === AICustomizationManagementSection.Skills &&
+			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true) {
+			const label = localize('browseSkills', "Browse Skills");
+			const button = disposables.add(new Button(actions, {
+				...defaultButtonStyles,
+				secondary: true,
+				title: label,
+				ariaLabel: label,
+			}));
+			button.label = label;
+			disposables.add(button.onDidClick(() => this._onDidRequestBrowse.fire()));
+		}
 	}
 
-	private renderTargetedCreateActions(header: HTMLElement, groupKey: string, disposables: DisposableStore): void {
+	private renderTargetedCreateActions(container: HTMLElement, groupKey: string, disposables: DisposableStore): void {
 		const target = groupKey === PromptsStorage.local ? 'workspace' : 'user';
 		const hasWorkspace = this.hasActiveWorkspace();
 		const actions = this.buildCreateActions().filter(action =>
@@ -1613,16 +1639,20 @@ export class AICustomizationListWidget extends Disposable {
 			return;
 		}
 
-		const container = DOM.append(header, $('.plugin-card-section-actions'));
 		const label = this.formatTargetedCreateActionLabel(primary);
+		const iconOnly = this.currentSection === AICustomizationManagementSection.Skills;
 		const button = disposables.add(new Button(container, {
 			...defaultButtonStyles,
 			secondary: true,
+			supportIcons: iconOnly,
 			title: primary.tooltip ?? label,
 			ariaLabel: primary.tooltip ?? label,
 		}));
 		button.element.classList.add('customization-create-action');
-		button.label = label;
+		if (iconOnly) {
+			button.element.classList.add('plugin-card-icon-button');
+		}
+		button.label = iconOnly ? `$(${Codicon.add.id})` : label;
 		button.enabled = primary.enabled;
 		disposables.add(button.onDidClick(() => primary.run()));
 

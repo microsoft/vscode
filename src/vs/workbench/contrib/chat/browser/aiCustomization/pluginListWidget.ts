@@ -746,6 +746,9 @@ export class PluginListWidget extends Disposable {
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
 
+	private readonly _onDidRequestBrowse = this._register(new Emitter<void>());
+	readonly onDidRequestBrowse = this._onDidRequestBrowse.event;
+
 	private sectionTitleHeader!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private marketplaceBackContainer!: HTMLElement;
@@ -1461,9 +1464,12 @@ export class PluginListWidget extends Disposable {
 	private renderPluginTreeGroupActions(entry: IPluginGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
 		const actions = DOM.append(container, $('.plugin-card-section-actions'));
 		if (entry.group === 'user' || entry.group === 'workspace') {
-			this.renderPluginAddAction(actions, disposables);
 			if (this.pluginMarketplaceService.installedPlugins.get().length > 0) {
 				this.renderPluginUpdateAction(actions, disposables);
+			}
+			this.renderPluginAddAction(actions, disposables);
+			if (entry.group === 'user' && !shouldShowLegacyPluginMarketplace(this.configurationService)) {
+				this.renderBrowseCustomizationsAction(actions, disposables);
 			}
 		} else if (entry.group === 'available') {
 			this.renderPluginAddAction(actions, disposables);
@@ -1491,14 +1497,15 @@ export class PluginListWidget extends Disposable {
 			const button = disposables.add(new ButtonWithDropdown(container, {
 				...defaultButtonStyles,
 				secondary: true,
+				supportIcons: true,
 				contextMenuProvider: this.contextMenuService,
 				addPrimaryActionToDropdown: false,
 				actions: { getActions: () => secondaryActions },
 				title: primary.tooltip ?? label,
 				ariaLabel: primary.tooltip ?? label,
 			}));
-			button.element.classList.add('plugin-installed-action');
-			button.label = label;
+			button.primaryButton.element.classList.add('plugin-card-icon-button');
+			button.label = `$(${Codicon.add.id})`;
 			button.enabled = primary.enabled !== false;
 			disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
 			return;
@@ -1506,11 +1513,12 @@ export class PluginListWidget extends Disposable {
 		const button = disposables.add(new Button(container, {
 			...defaultButtonStyles,
 			secondary: true,
+			supportIcons: true,
 			title: primary.tooltip ?? label,
 			ariaLabel: primary.tooltip ?? label,
 		}));
-		button.element.classList.add('plugin-installed-action');
-		button.label = label;
+		button.element.classList.add('plugin-card-icon-button');
+		button.label = `$(${Codicon.add.id})`;
 		button.enabled = primary.enabled !== false;
 		disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
 	}
@@ -1541,6 +1549,19 @@ export class PluginListWidget extends Disposable {
 		button.element.classList.add('plugin-installed-action');
 		button.label = `$(${Codicon.library.id}) ${label}`;
 		disposables.add(button.onDidClick(() => this.toggleBrowseMode(true)));
+	}
+
+	private renderBrowseCustomizationsAction(container: HTMLElement, disposables: DisposableStore): void {
+		const label = localize('browsePlugins', "Browse Plugins");
+		const button = disposables.add(new Button(container, {
+			...defaultButtonStyles,
+			secondary: true,
+			title: label,
+			ariaLabel: label,
+		}));
+		button.element.classList.add('plugin-installed-action');
+		button.label = label;
+		disposables.add(button.onDidClick(() => this._onDidRequestBrowse.fire()));
 	}
 
 	private updatePluginTreeEmptyState(itemCount: number): void {

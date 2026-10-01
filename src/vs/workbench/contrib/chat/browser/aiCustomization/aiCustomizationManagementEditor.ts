@@ -1436,6 +1436,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(this.listWidget.onDidRequestCreateManual(({ type, target, rootFileName }) => {
 			this.createNewItemManual(type, target, rootFileName);
 		}));
+		this.editorDisposables.add(this.listWidget.onDidRequestBrowse(() => {
+			this.selectSection(AICustomizationManagementSection.Skills, { showMarketplace: true });
+		}));
 
 		// Container for Models content (only in sessions)
 		const hasSections = new Set(this.workspaceService.managementSections);
@@ -1484,6 +1487,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorDisposables.add(this.mcpListWidget.onDidRequestOpenMigrations(() => {
 				void this.startCustomizationMigration(CustomizationMigrationCategoryId.McpServers);
 			}));
+			this.editorDisposables.add(this.mcpListWidget.onDidRequestBrowse(() => {
+				this.selectSection(AICustomizationManagementSection.McpServers, { showMarketplace: true });
+			}));
 		}
 
 		// Container for Plugins content
@@ -1498,6 +1504,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 			this.editorDisposables.add(this.pluginListWidget.onDidSelectPlugin(item => {
 				this.showEmbeddedPluginDetail(item);
+			}));
+			this.editorDisposables.add(this.pluginListWidget.onDidRequestBrowse(() => {
+				this.selectSection(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 			}));
 		}
 
@@ -4117,9 +4126,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true) {
 			return false;
 		}
-		const type = section === AICustomizationManagementSection.Plugins ? 'plugin'
-			: section === AICustomizationManagementSection.McpServers ? 'mcp'
-				: undefined;
+		const type = section === AICustomizationManagementSection.Skills ? 'skill'
+			: section === AICustomizationManagementSection.Plugins ? 'plugin'
+				: section === AICustomizationManagementSection.McpServers ? 'mcp'
+					: undefined;
 		if (!type) {
 			return false;
 		}

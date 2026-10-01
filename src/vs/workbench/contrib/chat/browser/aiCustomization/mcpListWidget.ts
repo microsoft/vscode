@@ -1686,6 +1686,9 @@ export class McpListWidget extends Disposable {
 	private readonly _onDidRequestOpenMigrations = this._register(new Emitter<void>());
 	readonly onDidRequestOpenMigrations = this._onDidRequestOpenMigrations.event;
 
+	private readonly _onDidRequestBrowse = this._register(new Emitter<void>());
+	readonly onDidRequestBrowse = this._onDidRequestBrowse.event;
+
 	private sectionTitleHeader!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private searchAndButtonContainer!: HTMLElement;
@@ -1703,8 +1706,6 @@ export class McpListWidget extends Disposable {
 	private disabledIcon!: HTMLElement;
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
-	private installedAddButton!: Button | undefined;
-
 	private filteredServers: IWorkbenchMcpServer[] = [];
 	private installedEntries: IMcpInstalledPresentation[] = [];
 	private readonly installedEntryOrder = new Map<string, number>();
@@ -2614,17 +2615,30 @@ export class McpListWidget extends Disposable {
 		if (entry.group !== 'user' && entry.group !== 'workspace') {
 			return;
 		}
-		this.renderInstalledSectionActionsWithDisposables(container, disposables);
+		this.renderInstalledSectionActionsWithDisposables(container, disposables, entry.group === 'user');
 	}
 
-	private renderInstalledSectionActionsWithDisposables(header: HTMLElement, disposables: DisposableStore): void {
+	private renderInstalledSectionActionsWithDisposables(header: HTMLElement, disposables: DisposableStore, showBrowse: boolean): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
 		const addLabel = localize('addServer', "Add Server");
-		const add = this.installedAddButton = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: addLabel }));
-		add.element.classList.add('plugin-installed-action');
-		add.label = this.narrowLayout ? localize('addServerNarrow', "Add") : addLabel;
+		const add = disposables.add(new Button(actions, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			title: addLabel,
+			ariaLabel: addLabel,
+		}));
+		add.element.classList.add('plugin-card-icon-button');
+		add.label = `$(${Codicon.add.id})`;
 		this.firstCardFocusElement ??= add.element;
 		disposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
+		if (showBrowse && this.isGalleryDiscoveryEnabled()) {
+			const browseLabel = localize('browseMcps', "Browse MCPs");
+			const browse = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, title: browseLabel, ariaLabel: browseLabel }));
+			browse.element.classList.add('plugin-installed-action');
+			browse.label = browseLabel;
+			disposables.add(browse.onDidClick(() => this._onDidRequestBrowse.fire()));
+		}
 	}
 
 	private startConnectorAction(): CancellationTokenSource {
@@ -3144,9 +3158,6 @@ export class McpListWidget extends Disposable {
 		this.wideLayout = wide;
 		this.element.classList.toggle('narrow-layout', narrow);
 		this.element.classList.toggle('wide-layout', wide);
-		if (this.installedAddButton) {
-			this.installedAddButton.label = narrow ? localize('addServerNarrow', "Add") : localize('addServer', "Add Server");
-		}
 	}
 
 	private showMcpServerActions(entry: IMcpInstalledEntry, anchor: HTMLElement | IMouseEvent): void {

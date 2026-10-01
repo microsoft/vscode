@@ -588,7 +588,7 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	test('plugin marketplace deep links open plugin-filtered Discover only when its source is enabled', async () => {
+	test('marketplace deep links open type-filtered Discover only when it is enabled', async () => {
 		const { editor, configuration } = createGatedSectionEditor();
 		const queries: string[] = [];
 		Object.assign(editor, {
@@ -599,8 +599,10 @@ suite('aiCustomizationManagementEditor', () => {
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		editor.selectSectionById(AICustomizationManagementSection.Skills, { showMarketplace: true });
+		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true });
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
-		assert.deepStrictEqual(queries, ['@type:plugin']);
+		assert.deepStrictEqual(queries, ['@type:skill', '@type:mcp', '@type:plugin']);
 	});
 
 	test('showing Discover from its navigation button resets its filters', () => {

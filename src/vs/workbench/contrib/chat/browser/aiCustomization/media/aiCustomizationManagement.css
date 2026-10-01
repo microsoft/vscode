@@ -667,6 +667,13 @@ per-word capitalization does not survive translation. */
 	gap: var(--vscode-spacing-size40);
 }
 
+.ai-customization-group-header .plugin-card-icon-button.monaco-button,
+.plugin-list-widget .plugin-card-section-actions .plugin-card-icon-button.monaco-button {
+	width: var(--vscode-spacing-size280);
+	min-width: var(--vscode-spacing-size280);
+	padding: var(--vscode-spacing-size40) 0;
+}
+
 .customization-toggle {
 	display: inline-flex;
 	align-items: center;
