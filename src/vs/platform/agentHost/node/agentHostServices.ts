@@ -146,7 +146,7 @@ export function registerAgentHostHostServices(services: ServiceCollection, input
 	services.set(IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
 	services.set(IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
 	services.set(ICodexProxyService, new SyncDescriptor(CodexProxyService, [undefined]));
-	services.set(IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [inputs.fetchFn]));
+	services.set(IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [{ fetchFn: inputs.fetchFn }]));
 	services.set(
 		IByokLmProxyService,
 		inputs.byok.kind === 'renderer' ? new SyncDescriptor(ByokLmProxyService) : new NullByokLmProxyService(),

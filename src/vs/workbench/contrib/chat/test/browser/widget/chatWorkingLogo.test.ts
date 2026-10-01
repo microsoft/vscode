@@ -6,7 +6,9 @@
 import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { retry } from '../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -388,6 +390,98 @@ suite('ChatWorkingLogo', () => {
 			active: true,
 			connected: false,
 		});
+	});
+
+	test('Draw follows the latest visibility entry when intersection changes are batched', async () => {
+		let observer: TestIntersectionObserver | undefined;
+		class TestIntersectionObserver extends mock<IntersectionObserver>() {
+			private target: Element | undefined;
+
+			constructor(private readonly callback: IntersectionObserverCallback) {
+				super();
+				observer = this;
+			}
+
+			override observe(target: Element): void {
+				this.target = target;
+			}
+
+			override disconnect(): void {
+				this.target = undefined;
+			}
+
+			report(...intersections: boolean[]): void {
+				assert.ok(this.target);
+				this.callback(intersections.map(isIntersecting => upcastPartial<IntersectionObserverEntry>({ target: this.target, isIntersecting })), this);
+			}
+		}
+
+		let now = 0;
+		let pendingFrame: (() => void) | undefined;
+		const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', {
+			now: () => now,
+			isMotionReduced: () => false,
+			intersectionObserver: TestIntersectionObserver,
+			scheduleFrame: (_window, runner) => {
+				pendingFrame = runner;
+				return toDisposable(() => pendingFrame = undefined);
+			},
+		}));
+		await Promise.resolve();
+		assert.ok(observer);
+		observer.report(false, true);
+		const scheduledAfterShowing = !!pendingFrame;
+		const paths = () => [...logo.domNode.querySelectorAll('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		const initialPaths = paths();
+		now = 300;
+		pendingFrame?.();
+		const moved = paths().some((path, index) => path !== initialPaths[index]);
+		observer.report(true, false);
+		const scheduledWhileHidden = !!pendingFrame;
+		observer.report(false, true);
+		const scheduledAfterResuming = !!pendingFrame;
+		logo.dispose();
+		assert.deepStrictEqual({
+			scheduledAfterShowing, moved, scheduledWhileHidden, scheduledAfterResuming, scheduledAfterDisposal: !!pendingFrame,
+		}, {
+			scheduledAfterShowing: true, moved: true, scheduledWhileHidden: false, scheduledAfterResuming: true, scheduledAfterDisposal: false,
+		});
+	});
+
+	test('Draw keeps moving after real visibility changes and DOM remounts', async () => {
+		const parent = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
+		parent.style.setProperty('--vscode-codiconFontSize', '16px');
+		store.add(toDisposable(() => parent.remove()));
+		const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', { isMotionReduced: () => false }));
+		parent.appendChild(logo.domNode);
+		const paths = () => [...logo.domNode.querySelectorAll('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		const nextFrame = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const waitForMotion = async () => {
+			const before = paths();
+			await retry(async () => assert.notDeepStrictEqual(paths(), before), 10, 100);
+		};
+
+		await waitForMotion();
+		parent.style.display = 'none';
+		await nextFrame();
+		await nextFrame();
+		const hidden = paths();
+		await nextFrame();
+		await nextFrame();
+		const pausedWhileHidden = paths();
+		parent.style.display = '';
+		await waitForMotion();
+		parent.remove();
+		await nextFrame();
+		await nextFrame();
+		const detached = paths();
+		await nextFrame();
+		await nextFrame();
+		const pausedWhileDetached = paths();
+		mainWindow.document.body.appendChild(parent);
+		await waitForMotion();
+
+		assert.deepStrictEqual({ pausedWhileHidden, pausedWhileDetached }, { pausedWhileHidden: hidden, pausedWhileDetached: detached });
 	});
 
 	test('disposal cancels a scheduled Draw frame', () => {
