@@ -81,7 +81,7 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -15583,7 +15583,7 @@ Use the attached image as context.
 			return created;
 		}
 
-		async function createMcpRoutingSession(connected = false) {
+		async function createMcpRoutingSession(connected = false, routingEnabled = true, serverEnabled = true) {
 			const configuration = {
 				type: McpServerType.REMOTE,
 				url: 'https://docs.example.com/mcp',
@@ -15596,14 +15596,33 @@ Use the attached image as context.
 			};
 			const activeClientToolSet = new ActiveClientToolSet();
 			activeClientToolSet.set('tool-search-client', toolSearchSnapshot.tools);
+			const serverCustomizationId = 'mcp-top-level:copilot:test-session-1:docs';
 			const created = await createAgentSession(disposables, {
 				clientSnapshot: toolSearchSnapshot,
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
-				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
+				...(serverEnabled ? {} : {
+					sessionCustomizations: () => [{
+						type: CustomizationType.McpServer,
+						id: serverCustomizationId,
+						uri: serverCustomizationId,
+						name: 'docs',
+						state: { kind: McpServerStatus.Stopped },
+					}],
+					resolveCustomizationEnablement: () => ({
+						kind: 'resolved' as const,
+						enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+						enabled: false,
+						workingDirectory: { kind: 'workspaceless' as const },
+					}),
+				}),
+				rootValues: {
+					[CopilotCliConfigKey.ToolSearchEnabled]: true,
+					...(routingEnabled ? { [AgentHostMcpToolRoutingEnabledConfigKey]: true } : {}),
+				},
 				configureMockSession: mock => {
 					if (connected) {
-						mock.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] };
+						mock.mcpListResult = { servers: [{ name: 'docs', status: serverEnabled ? 'connected' : 'disabled' }] };
 					}
 				},
 			});
@@ -15726,6 +15745,9 @@ Use the attached image as context.
 				proxy: {
 					defer: proxy.defer,
 					skipPermission: proxy.skipPermission,
+					hasServerName: proxy.description?.includes('"docs"') ?? false,
+					explainsAuthentication: proxy.description?.includes('may ask the user to authenticate') ?? false,
+					discouragesSpeculativeUse: proxy.description?.includes('do not call it speculatively') ?? false,
 					hasStaleToolDescription: proxy.description?.includes('stale_search') ?? false,
 				},
 				authRequired: authRequired.map(action => action.type === ActionType.ChatToolCallAuthRequired ? action.toolCallId : undefined),
@@ -15739,6 +15761,9 @@ Use the attached image as context.
 				proxy: {
 					defer: 'auto',
 					skipPermission: true,
+					hasServerName: true,
+					explainsAuthentication: true,
+					discouragesSpeculativeUse: true,
 					hasStaleToolDescription: true,
 				},
 				authRequired: ['mcp-route'],
@@ -15750,6 +15775,77 @@ Use the attached image as context.
 				refreshedTools: [{ name: 'current_search', description: 'Search current documentation' }],
 				changedConfigurationMissesCache: true,
 				persistedContainsSecret: false,
+			});
+		});
+
+		test('configured MCP server adds a cautious routing proxy without cached tool metadata', async () => {
+			const { runtime } = await createMcpRoutingSession();
+
+			const [toolSearch, proxy] = runtime.createClientSdkTools(true);
+			assert.ok(proxy);
+			assert.deepStrictEqual({
+				registeredTools: [toolSearch.name, proxy.name],
+				defer: proxy.defer,
+				skipPermission: proxy.skipPermission,
+				hasServerName: proxy.description?.includes('"docs"') ?? false,
+				explainsStartup: proxy.description?.includes('starts or connects to the server') ?? false,
+				explainsAuthentication: proxy.description?.includes('may ask the user to authenticate') ?? false,
+				usesNameForRouting: proxy.description?.includes('use the server name to judge relevance') ?? false,
+				discouragesSpeculativeUse: proxy.description?.includes('do not call it speculatively') ?? false,
+			}, {
+				registeredTools: ['tool_search_tool', proxy.name],
+				defer: 'auto',
+				skipPermission: true,
+				hasServerName: true,
+				explainsStartup: true,
+				explainsAuthentication: true,
+				usesNameForRouting: true,
+				discouragesSpeculativeUse: true,
+			});
+		});
+
+		test('cached MCP routing proxy is disabled by default', async () => {
+			const { runtime, storageService, configuration } = await createMcpRoutingSession(false, false);
+			const cache = new CopilotMcpToolRoutingCache(storageService, new NullLogService());
+			cache.store({ serverName: 'docs', configuration }, [{ name: 'stale_search', description: 'Search old documentation' }]);
+
+			assert.deepStrictEqual(runtime.createClientSdkTools(true).map(tool => tool.name), ['tool_search_tool']);
+		});
+
+		test('cached MCP routing proxy is hidden when the server is disabled for the session', async () => {
+			const { session, runtime, mockSession, storageService, configuration, waitForSignal, signals } = await createMcpRoutingSession(true, true, false);
+			await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+			await session.send('check disabled tools');
+			const cache = new CopilotMcpToolRoutingCache(storageService, new NullLogService());
+			cache.store({ serverName: 'docs', configuration }, [{ name: 'stale_search', description: 'Search old documentation' }]);
+			const [toolSearch, proxy] = runtime.createClientSdkTools(true);
+			assert.ok(proxy);
+			const availableTools: CurrentToolMetadata[] = [
+				{ name: proxy.name, description: proxy.description ?? '', deferLoading: true },
+			];
+			session.resetTurnState('turn-disabled-mcp-search');
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'disabled-mcp-search',
+				toolName: toolSearch.name,
+				arguments: { query: 'documentation' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const handlerPromise = invokeClientToolHandler(toolSearch, 'disabled-mcp-search', { query: 'documentation' }, availableTools);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallReady));
+			session.handleClientToolCallComplete('disabled-mcp-search', {
+				success: true,
+				pastTenseMessage: 'Searched tools',
+				content: [{ type: ToolResultContentType.Text, text: JSON.stringify([proxy.name]) }],
+			});
+			const result = await handlerPromise;
+			const readyAction = getActions(signals).find((action): action is ChatToolCallReadyAction => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'disabled-mcp-search');
+			assert.ok(readyAction);
+
+			assert.deepStrictEqual({
+				candidates: readToolCallMeta(readyAction).toolSearchCandidates,
+				toolReferences: result.toolReferences,
+			}, {
+				candidates: [],
+				toolReferences: [],
 			});
 		});
 
