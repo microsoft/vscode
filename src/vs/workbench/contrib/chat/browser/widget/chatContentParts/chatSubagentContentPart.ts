@@ -175,8 +175,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	private toolsWaitingForCarouselConfirmation: number = 0;
 	private _confirmationActive = false;
 
-	/** Observes ordinary tools through completion and nested subagents through their retained chat lifetime. */
-	private readonly _toolStateTracking = this._register(new DisposableStore());
+	/** Observes active tools and the most recent completed nested subagent. */
+	private readonly _toolStateTracking = this._register(new DisposableMap<string>());
+	private readonly _toolIconStateTracking = this._register(new DisposableStore());
 	private _toolPresentationBatchDepth = 0;
 	private _toolPresentationDirty = false;
 
@@ -959,12 +960,15 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				if (this.activeToolPresentations.delete(toolInvocation.toolCallId)) {
 					this._updateToolPresentation();
 				}
-				if (!subagent) {
-					queueMicrotask(() => this._toolStateTracking.delete(toolStateAutorun));
-				}
+				queueMicrotask(() => {
+					if (this._toolStateTracking.get(toolInvocation.toolCallId) === toolStateAutorun
+						&& (!this.getNestedSubagentActivity(toolInvocation) || this.mostRecentToolPresentation?.callId !== toolInvocation.toolCallId)) {
+						this._toolStateTracking.deleteAndDispose(toolInvocation.toolCallId);
+					}
+				});
 			}
 		});
-		this._toolStateTracking.add(toolStateAutorun);
+		this._toolStateTracking.set(toolInvocation.toolCallId, toolStateAutorun);
 	}
 
 	private updateActiveToolPresentation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, label: string | undefined, icon: ThemeIcon | undefined, state: IChatToolInvocation.State | undefined): void {
@@ -972,7 +976,15 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		const subagent = this.getNestedSubagentActivity(toolInvocation);
 		this.activeToolPresentations.delete(toolCallId);
 		if (label && icon) {
+			const previousToolCallId = this.mostRecentToolPresentation?.callId;
 			this.mostRecentToolPresentation = { callId: toolCallId, label, icon, subagent };
+			if (previousToolCallId && previousToolCallId !== toolCallId && !this.activeToolPresentations.has(previousToolCallId)) {
+				queueMicrotask(() => {
+					if (this.mostRecentToolPresentation?.callId !== previousToolCallId && !this.activeToolPresentations.has(previousToolCallId)) {
+						this._toolStateTracking.deleteAndDispose(previousToolCallId);
+					}
+				});
+			}
 		}
 		if (label && icon && state && state.type !== IChatToolInvocation.StateKind.Completed && state.type !== IChatToolInvocation.StateKind.Cancelled) {
 			this.activeToolPresentations.set(toolCallId, { label, icon, subagent });
@@ -1484,10 +1496,10 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 				// Terminal state is final and settles into the non-confirmation branch above, so dispose (deferred so we don't dispose it mid-run) to avoid leaking a listener per tool invocation.
 				if (state.type === IChatToolInvocation.StateKind.Completed || state.type === IChatToolInvocation.StateKind.Cancelled) {
-					queueMicrotask(() => this._toolStateTracking.delete(iconAutorun));
+					queueMicrotask(() => this._toolIconStateTracking.delete(iconAutorun));
 				}
 			});
-			this._toolStateTracking.add(iconAutorun);
+			this._toolIconStateTracking.add(iconAutorun);
 		} else {
 			// For serialized invocations, always show icon (already completed)
 			itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);

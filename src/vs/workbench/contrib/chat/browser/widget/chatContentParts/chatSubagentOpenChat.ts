@@ -532,7 +532,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		if (runtime?.contextTier) {
 			const property = getModelConfigProperty(model, configurationAccess, MODEL_CONFIG_GROUP_CONTEXT);
 			const value = runtime.contextTier === 'long_context' ? property?.schema.enum?.at(-1)
-				: runtime.contextTier === 'default' ? property?.schema.enum?.[0] : undefined;
+				: runtime.contextTier === 'default' ? property?.schema.default : undefined;
 			const label = property && value !== undefined ? getModelConfigValueLabel(property.schema, value)
 				: runtime.contextTier === 'long_context' ? localize('chat.subagent.longContext', "Long context")
 					: runtime.contextTier === 'default' ? localize('chat.subagent.defaultContext', "Default") : runtime.contextTier;

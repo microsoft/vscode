@@ -1579,6 +1579,36 @@ suite('ChatSubagentContentPart', () => {
 		}
 
 		for (const openInEditor of [false, true]) {
+			test(`uses the declared default context window rather than the first choice (editor=${openInEditor})`, () => {
+				const snapshots = [undefined, 128000, 256000].map(defaultWindow => {
+					instantiationService.stub(ILanguageModelsService, {
+						onDidChangeLanguageModels: Event.None,
+						lookupLanguageModel: () => upcastPartial<ILanguageModelChatMetadata>({
+							id: 'child-model',
+							configurationSchema: {
+								properties: {
+									contextSize: { type: 'number', group: 'tokens', enum: [128000, 256000], default: defaultWindow },
+								},
+							},
+						}),
+					});
+					const context: IOpenSubagentChatContext = {
+						chatResource: 'vendor-chat:/reviewer', parentSessionResource: 'agent-host-copilotcli:/session',
+						title: 'Review', modelId: 'child-model', modelName: 'Review Model',
+						modelConfiguration: { contextSize: 128000 },
+						runtimeModelConfiguration: { contextTier: 'default' },
+					};
+					const item = store.add(instantiationService.createInstance(TestOpenSubagentChatActionViewItem, context, store.add(new Action('openSubagent', 'Open Subagent')), {}, openInEditor));
+					const container = $('div');
+					item.render(container);
+					return { tooltip: item.tooltip, ariaLabel: getPillButton(container).getAttribute('aria-label') };
+				});
+				assert.deepStrictEqual(snapshots, ['Default', '128K', '256K'].map(contextWindow => ({
+					tooltip: `Open subagent chat: Review\nModel: Review Model\nContext window: ${contextWindow}`,
+					ariaLabel: `Open subagent chat: Review. Model Review Model. Context window: ${contextWindow}`,
+				})));
+			});
+
 			test(`shows the child's reasoning and context configuration in its hover and accessible label (editor=${openInEditor})`, () => {
 				const metadata = upcastPartial<ILanguageModelChatMetadata>({
 					id: 'child-model', name: 'Shared Model',
@@ -3512,6 +3542,83 @@ suite('ChatSubagentContentPart', () => {
 	});
 
 	suite('Current running tool activity', () => {
+		for (const initiallyComplete of [false, true]) {
+			test(`retains only the most recent completed nested subagent observer (initiallyComplete=${initiallyComplete})`, async () => {
+				const parent = createMockToolInvocation({ toolSpecificData: { kind: 'subagent', isActive: true } });
+				const part = createPart(parent, createMockRenderContext(false));
+				const children = Array.from({ length: 32 }, (_, index) => {
+					const state = observableValue('nestedState', createState(initiallyComplete ? IChatToolInvocation.StateKind.Completed : IChatToolInvocation.StateKind.Executing));
+					assert.ok(state instanceof BaseObservable);
+					const data: IChatSubagentToolInvocationData = { kind: 'subagent', description: `Nested ${index}`, isChatAvailable: false };
+					return {
+						state,
+						data,
+						tool: {
+							...createMockToolInvocation({ toolId: 'task', toolCallId: `nested-${index}`, subAgentInvocationId: parent.toolCallId, toolSpecificData: data }),
+							state,
+						},
+						observerCount: () => state.debugGetObservers().size,
+					};
+				});
+				const totalObservers = () => children.reduce((total, child) => total + child.observerCount(), 0);
+				const retainedCounts: number[] = [];
+				for (const child of children) {
+					part.trackToolState(child.tool);
+					if (!initiallyComplete) {
+						child.state.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+					}
+					await Promise.resolve();
+					retainedCounts.push(totalObservers());
+				}
+				part.trackToolState(createMockToolInvocation({
+					toolId: 'search', invocationMessage: 'Search', stateType: IChatToolInvocation.StateKind.Completed,
+				}));
+				await Promise.resolve();
+				const afterGenericTool = totalObservers();
+				const latest = children[children.length - 1];
+				latest.data.chatResource = 'vendor-chat:/latest';
+				latest.data.isChatAvailable = true;
+				latest.state.set({ ...latest.state.get() }, undefined);
+				const latestTarget = getOpenChatContext(part)?.activeToolSubagent;
+				part.trackToolState(createMockToolInvocation({
+					toolId: 'read_file', invocationMessage: 'Read source.ts', stateType: IChatToolInvocation.StateKind.Completed,
+				}));
+				await Promise.resolve();
+
+				assert.deepStrictEqual({
+					retainedCounts, afterGenericTool, latestTarget, afterSuperseded: totalObservers(),
+				}, {
+					retainedCounts: Array(32).fill(1),
+					afterGenericTool: 1,
+					latestTarget: { title: 'Nested 31', chatResource: 'vendor-chat:/latest', isChatAvailable: true },
+					afterSuperseded: 0,
+				});
+			});
+		}
+
+		test('keeps an older active nested subagent observed until it completes', async () => {
+			const parent = createMockToolInvocation();
+			const part = createPart(parent, createMockRenderContext(false));
+			const state = observableValue('nestedState', createState(IChatToolInvocation.StateKind.Executing));
+			assert.ok(state instanceof BaseObservable);
+			part.trackToolState({
+				...createMockToolInvocation({
+					toolId: 'task', toolCallId: 'nested', subAgentInvocationId: parent.toolCallId,
+					toolSpecificData: { kind: 'subagent', description: 'Nested review' },
+				}),
+				state,
+			});
+			part.trackToolState(createMockToolInvocation({
+				toolId: 'read_file', invocationMessage: 'Read source.ts', stateType: IChatToolInvocation.StateKind.Completed,
+			}));
+			await Promise.resolve();
+			const activeObservers = state.debugGetObservers().size;
+			state.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+			await Promise.resolve();
+
+			assert.deepStrictEqual({ activeObservers, completedObservers: state.debugGetObservers().size }, { activeObservers: 1, completedObservers: 0 });
+		});
+
 		test('batches presentation while reconstructing terminal tool history', () => {
 			instantiationService.stub(IMarkdownRendererService, mockMarkdownRenderer);
 			const parentTool = createMockToolInvocation({
@@ -3542,8 +3649,8 @@ suite('ChatSubagentContentPart', () => {
 			const button = getSubagentPill(part);
 			assert.ok(button);
 			const titleAfterBatch = button?.textContent ?? button.textContent ?? '';
-			const toolStateTracking = (part as unknown as { _toolStateTracking: { _toDispose: Set<object> } })._toolStateTracking;
-			const trackedTerminalToolCount = toolStateTracking._toDispose.size;
+			const toolStateTracking = (part as unknown as { _toolStateTracking: { size: number } })._toolStateTracking;
+			const trackedTerminalToolCount = toolStateTracking.size;
 
 			const liveTool = createMockToolInvocation({
 				toolId: 'searchFiles',
