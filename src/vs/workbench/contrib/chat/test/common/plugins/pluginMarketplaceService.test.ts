@@ -729,14 +729,16 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 	});
 
 	test('repository marketplace autoUpdate does not override the global setting', () => {
-		const repositoryMarketplace = { ...parseMarketplaceReference('microsoft/repository-plugins')!, autoUpdate: true };
+		const repositoryMarketplace = parseMarketplaceReference('microsoft/repository-plugins')!;
 
 		assert.deepStrictEqual({
-			globalOff: createService('off').isMarketplaceAutoUpdateEnabled(repositoryMarketplace),
-			globalOn: createService('on').isMarketplaceAutoUpdateEnabled(repositoryMarketplace),
+			enabledWithGlobalOff: createService('off').isMarketplaceAutoUpdateEnabled({ ...repositoryMarketplace, autoUpdate: true }),
+			enabledWithGlobalOn: createService('on').isMarketplaceAutoUpdateEnabled({ ...repositoryMarketplace, autoUpdate: true }),
+			disabledWithGlobalOn: createService('on').isMarketplaceAutoUpdateEnabled({ ...repositoryMarketplace, autoUpdate: false }),
 		}, {
-			globalOff: false,
-			globalOn: true,
+			enabledWithGlobalOff: false,
+			enabledWithGlobalOn: true,
+			disabledWithGlobalOn: false,
 		});
 	});
 });

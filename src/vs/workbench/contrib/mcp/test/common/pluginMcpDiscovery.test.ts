@@ -55,6 +55,8 @@ suite('PluginMcpDiscovery', () => {
 			_serviceBrand: undefined,
 			plugins,
 			enablementModel: new class extends mock<IAgentPluginService['enablementModel']>() { },
+			whenReady: Promise.resolve(),
+			refresh: async () => { },
 			getWorkspaceConfiguredEnablement: () => undefined,
 		}, registry));
 		discovery.start();

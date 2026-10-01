@@ -94,7 +94,9 @@ function makeAgentPluginService(
 		_serviceBrand: undefined,
 		plugins: observableValue('plugins', plugins),
 		enablementModel: { readProfileEnabled: (key: string) => profileEnablement.get(key) ?? true },
-		getWorkspaceConfiguredEnablement: (plugin: IAgentPlugin) => workspaceConfiguredEnablement.get(plugin.uri.toString()),
+		getWorkspaceConfiguredEnablement: (plugin: IAgentPlugin, workspaceFolder: URI) =>
+			workspaceConfiguredEnablement.get(`${workspaceFolder.toString()}\0${plugin.uri.toString()}`)
+			?? workspaceConfiguredEnablement.get(plugin.uri.toString()),
 	} as unknown as IAgentPluginService;
 }
 
@@ -728,6 +730,48 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 				{ kind: CustomizationEnablementKind.Global, enabled: true },
 			],
 		]);
+	});
+
+	test('publishes only the target workspace folder enablement in a multi-root window', async () => {
+		const pluginUri = URI.file('/plugins/repository-scoped');
+		const firstWorkspace = URI.file('/workspace-a');
+		const secondWorkspace = URI.file('/workspace-b');
+		const pluginService = makeAgentPluginService(
+			[makePlugin(pluginUri, { mcpServers: 1 })],
+			new Map([[pluginUri.toString(), false]]),
+			new Map([
+				[`${firstWorkspace.toString()}\0${pluginUri.toString()}`, true],
+				[`${secondWorkspace.toString()}\0${pluginUri.toString()}`, false],
+			]),
+		);
+		const resolveFor = (workspaceFolder: URI) => resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			pluginService,
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+			[workspaceFolder],
+		);
+
+		const [first, second] = await Promise.all([resolveFor(firstWorkspace), resolveFor(secondWorkspace)]);
+
+		assert.deepStrictEqual({
+			first: first[0].enablement,
+			second: second[0].enablement,
+		}, {
+			first: [
+				{ kind: CustomizationEnablementKind.Workspace, uri: firstWorkspace.toString(), enabled: true },
+				{ kind: CustomizationEnablementKind.Global, enabled: false },
+			],
+			second: [
+				{ kind: CustomizationEnablementKind.Workspace, uri: secondWorkspace.toString(), enabled: false },
+				{ kind: CustomizationEnablementKind.Global, enabled: false },
+			],
+		});
 	});
 
 	test('excludes workspace-discovered `.mcp.json` servers (the agent host discovers those itself)', async () => {

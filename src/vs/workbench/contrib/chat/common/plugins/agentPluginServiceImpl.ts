@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { RunOnceScheduler, Sequencer } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ParseError, parse as parseJSONC } from '../../../../../base/common/json.js';
@@ -51,7 +51,7 @@ import { ChatConfiguration } from '../constants.js';
 import { ContributionEnablementState, EnablementModel, IEnablementModel, isContributionDisabled, isContributionEnabled } from '../enablement.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
-import { AgentPluginCollisionEnablementModel, getAgentPluginConfiguredEnablement, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins } from './agentPluginEnablement.js';
+import { AgentPluginCollisionEnablementModel, getAgentPluginConfiguredEnablement, getAgentPluginPolicyEnablement, getAgentPluginPolicyId, getAgentPluginWorkspaceEnablement, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
@@ -94,6 +94,9 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 
 	public readonly plugins: IObservable<readonly IAgentPlugin[]>;
 	public readonly enablementModel: IEnablementModel;
+	public readonly whenReady: Promise<void>;
+	private readonly _discoveries: IAgentPluginDiscoveryWithPriority[] = [];
+	private readonly _collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -108,11 +111,10 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 
 		const pluginsEnabled = observableConfigValue(ChatConfiguration.PluginsEnabled, true, this._configurationService);
 
-		const discoveries: IAgentPluginDiscoveryWithPriority[] = [];
 		for (const registration of agentPluginDiscoveryRegistry.getAll()) {
 			const discovery = instantiationService.createInstance(registration.descriptor);
 			this._register(discovery);
-			discoveries.push({ discovery, priority: registration.priority, order: registration.order });
+			this._discoveries.push({ discovery, priority: registration.priority, order: registration.order });
 		}
 
 		// Policy-driven enforcement, applied after discovery so that enterprise
@@ -124,15 +126,13 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		);
 
 		const configuredEnablement = derived(reader => {
-			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, reader);
+			const discoveredPlugins = readDiscoveredAgentPlugins(this._discoveries, reader);
 			const policy = enabledPluginsPolicy.read(reader);
-			const workspaceEnabledPlugins = this._workspacePluginSettingsService.enabledPlugins.read(reader);
-			const workspaceMarketplaces = this._workspacePluginSettingsService.extraMarketplaces.read(reader);
 			const result = new Map<string, ContributionEnablementState>();
 			if (discoveredPlugins) {
 				for (const { plugins } of discoveredPlugins) {
 					for (const plugin of plugins) {
-						const configuredState = getAgentPluginConfiguredEnablement(plugin, policy, workspaceEnabledPlugins, workspaceMarketplaces);
+						const configuredState = getAgentPluginConfiguredEnablement(plugin, policy, undefined);
 						if (configuredState !== undefined) {
 							result.set(plugin.uri.toString(), configuredState);
 						}
@@ -142,11 +142,11 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			return result;
 		});
 
-		const collisionGroups = derived(reader => {
+		this._collisionGroups = derived(reader => {
 			if (!pluginsEnabled.read(reader)) {
 				return new Map<string, readonly string[]>();
 			}
-			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, reader);
+			const discoveredPlugins = readDiscoveredAgentPlugins(this._discoveries, reader);
 			if (!discoveredPlugins) {
 				return new Map<string, readonly string[]>();
 			}
@@ -164,9 +164,9 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			);
 		});
 
-		this.enablementModel = new AgentPluginCollisionEnablementModel(baseEnablementModel, collisionGroups, configuredEnablement);
+		this.enablementModel = new AgentPluginCollisionEnablementModel(baseEnablementModel, this._collisionGroups, configuredEnablement);
 
-		for (const { discovery } of discoveries) {
+		for (const { discovery } of this._discoveries) {
 			discovery.start(this.enablementModel);
 		}
 
@@ -174,12 +174,13 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			if (!pluginsEnabled.read(read)) {
 				return [];
 			}
-			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, read);
+			const discoveredPlugins = readDiscoveredAgentPlugins(this._discoveries, read);
 			if (!discoveredPlugins) {
 				return [];
 			}
 			return getSortedAgentPlugins(discoveredPlugins);
 		});
+		this.whenReady = this.refresh();
 
 		this._register(autorun(reader => {
 			const plugins = this.plugins.read(reader);
@@ -195,18 +196,41 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		}));
 	}
 
-	getWorkspaceConfiguredEnablement(plugin: IAgentPlugin): boolean | undefined {
-		const configuredState = getAgentPluginConfiguredEnablement(
-			plugin,
-			this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
-			this._workspacePluginSettingsService.enabledPlugins.get(),
-			this._workspacePluginSettingsService.extraMarketplaces.get(),
-		);
-		return configuredState === ContributionEnablementState.EnabledWorkspace
-			? true
-			: configuredState === ContributionEnablementState.DisabledWorkspace
-				? false
-				: undefined;
+	async refresh(): Promise<void> {
+		await Promise.all(this._discoveries.map(({ discovery }) => discovery.refresh()));
+	}
+
+	getWorkspaceConfiguredEnablement(plugin: IAgentPlugin, workspaceFolder: URI, reader?: IReader): boolean | undefined {
+		const policy = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue;
+		if (getAgentPluginPolicyEnablement(plugin, policy) !== undefined) {
+			return undefined;
+		}
+		const settings = this._workspacePluginSettingsService.getWorkspaceSettings(workspaceFolder, reader);
+		if (!settings) {
+			return undefined;
+		}
+		const configured = getAgentPluginWorkspaceEnablement(plugin, settings.enabledPlugins, settings.extraMarketplaces);
+		if (configured !== undefined) {
+			return configured;
+		}
+
+		const collisionGroup = this._collisionGroups.read(reader).get(plugin.uri.toString());
+		if (!collisionGroup) {
+			return undefined;
+		}
+		const pluginsByUri = new Map(this.plugins.read(reader).map(candidate => [candidate.uri.toString(), candidate]));
+		for (const candidateUri of collisionGroup) {
+			if (candidateUri === plugin.uri.toString()) {
+				continue;
+			}
+			const candidate = pluginsByUri.get(candidateUri);
+			if (candidate
+				&& getAgentPluginPolicyEnablement(candidate, policy) === undefined
+				&& getAgentPluginWorkspaceEnablement(candidate, settings.enabledPlugins, settings.extraMarketplaces) === true) {
+				return false;
+			}
+		}
+		return undefined;
 	}
 }
 
@@ -293,6 +317,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	private readonly _plugins = observableValue<readonly IAgentPlugin[] | undefined>('discoveredAgentPlugins', undefined);
 	public readonly plugins: IObservable<readonly IAgentPlugin[] | undefined> = this._plugins;
 
+	private readonly _refreshSequencer = new Sequencer();
 	private _discoverVersion = 0;
 	protected _enablementModel!: IEnablementModel;
 
@@ -306,6 +331,10 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	}
 
 	public abstract start(enablementModel: IEnablementModel): void;
+
+	public refresh(): Promise<void> {
+		return this._refreshSequencer.queue(() => this._refreshPlugins());
+	}
 
 	protected async _refreshPlugins(): Promise<void> {
 		const version = ++this._discoverVersion;
@@ -474,7 +503,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			try {
 				const latestFormat = await detectPluginFormat(uri, this._fileService);
 				if (latestFormat.format !== format.format) {
-					await this._refreshPlugins();
+					await this.refresh();
 					return;
 				}
 				manifest.set(await readPluginManifest(uri, format, this._fileService), undefined);
@@ -681,7 +710,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 
 	public override start(enablementModel: IEnablementModel): void {
 		this._enablementModel = enablementModel;
-		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+		const scheduler = this._register(new RunOnceScheduler(() => this.refresh(), 0));
 		this._register(autorun(reader => {
 			this._pluginLocationsConfig.read(reader);
 			scheduler.schedule();
@@ -811,7 +840,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 
 	public override start(enablementModel: IEnablementModel): void {
 		this._enablementModel = enablementModel;
-		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+		const scheduler = this._register(new RunOnceScheduler(() => this.refresh(), 0));
 		this._register(autorun(reader => {
 			this._pluginMarketplaceService.installedPlugins.read(reader);
 			scheduler.schedule();
@@ -1103,7 +1132,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 
 	public override start(enablementModel: IEnablementModel): void {
 		this._enablementModel = enablementModel;
-		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 200));
+		const scheduler = this._register(new RunOnceScheduler(() => this.refresh(), 200));
 		this._refreshScheduler = scheduler;
 		scheduler.schedule(0);
 	}
@@ -1185,7 +1214,7 @@ export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery 
 
 	public override start(enablementModel: IEnablementModel): void {
 		this._enablementModel = enablementModel;
-		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+		const scheduler = this._register(new RunOnceScheduler(() => this.refresh(), 0));
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._whenKeys)) {
 				scheduler.schedule();

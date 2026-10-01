@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -64,13 +64,18 @@ export interface IAgentPluginService {
 	readonly _serviceBrand: undefined;
 	readonly plugins: IObservable<readonly IAgentPlugin[]>;
 	readonly enablementModel: IEnablementModel;
+	/** Resolves after every discovery source has completed its initial scan. */
+	readonly whenReady: Promise<void>;
+	/** Re-runs all plugin discovery sources and resolves after their results are published. */
+	refresh(): Promise<void>;
 	/** Returns the repository's workspace decision after enterprise-policy precedence. */
-	getWorkspaceConfiguredEnablement(plugin: IAgentPlugin): boolean | undefined;
+	getWorkspaceConfiguredEnablement(plugin: IAgentPlugin, workspaceFolder: URI, reader?: IReader): boolean | undefined;
 }
 
 export interface IAgentPluginDiscovery extends IDisposable {
 	readonly plugins: IObservable<readonly IAgentPlugin[] | undefined>;
 	start(enablementModel: IEnablementModel): void;
+	refresh(): Promise<void>;
 }
 
 export const enum AgentPluginDiscoveryPriority {

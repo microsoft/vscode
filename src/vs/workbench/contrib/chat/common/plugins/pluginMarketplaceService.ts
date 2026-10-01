@@ -14,6 +14,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { isEqual, isEqualOrParent, joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -153,6 +154,8 @@ export interface IMarketplaceInstalledPlugin {
 export interface IFetchMarketplacePluginsOptions {
 	/** Bypass the marketplace caches (HTTP TTL cache and cloned-repository TTL) and re-read from the remote. */
 	readonly refresh?: boolean;
+	/** Resolve repository-configured marketplace aliases for this workspace folder only. */
+	readonly workspaceFolder?: URI;
 	/**
 	 * Called for each marketplace that could not be read. Individual failures
 	 * are otherwise swallowed so that one bad marketplace cannot fail the
@@ -203,7 +206,7 @@ export interface IPluginMarketplaceService {
 	/** Clears all reported marketplaces, or only the provided canonical IDs. */
 	clearUpdatesAvailable(marketplaceIds?: ReadonlySet<string>): void;
 	/** Returns the effective, policy-filtered marketplace references in query order. */
-	getMarketplaceReferences(): readonly IMarketplaceReference[];
+	getMarketplaceReferences(workspaceFolder?: URI): readonly IMarketplaceReference[];
 	/** Queries a stable, opaque page over selected existing Plugin marketplaces. */
 	queryMarketplacePlugins(options: IPluginMarketplaceQuery, token: CancellationToken): Promise<IPluginMarketplacePage>;
 	fetchMarketplacePlugins(token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions): Promise<IMarketplacePlugin[]>;
@@ -498,8 +501,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 	}
 
-	getMarketplaceReferences(): readonly IMarketplaceReference[] {
-		return this._getConfiguredMarketplaceReferences().filter(reference => this._isMarketplaceAllowedByStrictPolicy(reference));
+	getMarketplaceReferences(workspaceFolder?: URI): readonly IMarketplaceReference[] {
+		return this._getConfiguredMarketplaceReferences(workspaceFolder).filter(reference => this._isMarketplaceAllowedByStrictPolicy(reference));
 	}
 
 	async queryMarketplacePlugins(options: IPluginMarketplaceQuery, token: CancellationToken): Promise<IPluginMarketplacePage> {
@@ -578,7 +581,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			}
 		}
 
-		const refsToFetch = this.getMarketplaceReferences().filter(ref => !marketplaceIds || marketplaceIds.has(ref.canonicalId));
+		const refsToFetch = this.getMarketplaceReferences(options?.workspaceFolder).filter(ref => !marketplaceIds || marketplaceIds.has(ref.canonicalId));
 		const results = await Promise.all(
 			refsToFetch.map(ref => {
 				if (ref.kind === MarketplaceReferenceKind.GitHubShorthand && ref.githubRepo) {
@@ -595,17 +598,20 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return plugins;
 		}
 
-		const storedPlugins = marketplaceIds
-			? [...this.lastFetchedPlugins.get().filter(plugin => !marketplaceIds.has(plugin.marketplaceReference.canonicalId)), ...plugins]
+		const replacedMarketplaceIds = marketplaceIds ?? (options?.workspaceFolder ? new Set(refsToFetch.map(reference => reference.canonicalId)) : undefined);
+		const storedPlugins = replacedMarketplaceIds
+			? [...this.lastFetchedPlugins.get().filter(plugin => !replacedMarketplaceIds.has(plugin.marketplaceReference.canonicalId)), ...plugins]
 			: plugins;
 		this._lastFetchedPluginsStore.set({ plugins: storedPlugins, fetchedAt: Date.now() }, undefined);
 		return plugins;
 	}
 
-	private _getConfiguredMarketplaceReferences(): readonly IMarketplaceReference[] {
+	private _getConfiguredMarketplaceReferences(workspaceFolder?: URI): readonly IMarketplaceReference[] {
 		const { effectiveValues } = readConfiguredMarketplaces(this._configurationService);
 		const configured = parseMarketplaceReferences(effectiveValues);
-		const workspaceEntries = this._workspacePluginSettingsService.extraMarketplaces.get();
+		const workspaceEntries = workspaceFolder
+			? this._workspacePluginSettingsService.getWorkspaceSettings(workspaceFolder)?.extraMarketplaces ?? []
+			: this._workspacePluginSettingsService.extraMarketplaces.get();
 		return deduplicateMarketplaceReferences(workspaceEntries.map(entry => entry.reference), configured);
 	}
 
@@ -787,7 +793,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void {
-		this._pluginMetadata.set(pluginUri.toString(), plugin);
+		const key = pluginUri.toString();
+		const metadataChanged = !areMarketplacePluginsEqual(this._pluginMetadata.get(key), plugin);
+		this._pluginMetadata.set(key, plugin);
 		const entry: IStoredInstalledPlugin = {
 			pluginUri,
 			marketplace: plugin.marketplaceReference.rawValue,
@@ -796,8 +804,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		const current = this._installedPluginsStore.get();
 		const existing = current.find(e => isEqual(e.pluginUri, pluginUri));
 		if (existing) {
-			// Still update to trigger watchers to re-check, something might have happened that we want to know about
-			this._installedPluginsStore.set(current.map(c => c === existing ? entry : c), undefined);
+			if (metadataChanged || existing.marketplace !== entry.marketplace || existing.name !== entry.name) {
+				this._installedPluginsStore.set(current.map(candidate => candidate === existing ? entry : candidate), undefined);
+			}
 		} else {
 			this._installedPluginsStore.set([...current, entry], undefined);
 		}
@@ -829,7 +838,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	isMarketplaceAutoUpdateEnabled(ref: IMarketplaceReference): boolean {
 		const { extraValues } = readConfiguredMarketplaces(this._configurationService);
 		const managedRef = parseMarketplaceReferences(extraValues).find(candidate => candidate.canonicalId === ref.canonicalId);
-		return managedRef?.autoUpdate ?? this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off';
+		if (managedRef?.autoUpdate !== undefined) {
+			return managedRef.autoUpdate;
+		}
+		return this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off' && ref.autoUpdate !== false;
 	}
 
 	private _isMarketplaceAllowedByStrictPolicy(ref: IMarketplaceReference): boolean {
@@ -1180,6 +1192,36 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		this._logService.debug(`[PluginMarketplaceService] No marketplace.json found in ${reference.rawValue}`);
 		return [];
 	}
+}
+
+export function areMarketplacePluginsEqual(first: IMarketplacePlugin | undefined, second: IMarketplacePlugin): boolean {
+	if (!first) {
+		return false;
+	}
+	const firstReference = first.marketplaceReference;
+	const secondReference = second.marketplaceReference;
+	return first.name === second.name
+		&& first.description === second.description
+		&& first.version === second.version
+		&& first.source === second.source
+		&& objectsEqual(first.sourceDescriptor, second.sourceDescriptor)
+		&& first.marketplace === second.marketplace
+		&& first.marketplaceType === second.marketplaceType
+		&& firstReference.rawValue === secondReference.rawValue
+		&& firstReference.displayLabel === secondReference.displayLabel
+		&& firstReference.cloneUrl === secondReference.cloneUrl
+		&& firstReference.canonicalId === secondReference.canonicalId
+		&& objectsEqual(firstReference.cacheSegments, secondReference.cacheSegments)
+		&& firstReference.kind === secondReference.kind
+		&& firstReference.ref === secondReference.ref
+		&& firstReference.githubRepo === secondReference.githubRepo
+		&& firstReference.autoUpdate === secondReference.autoUpdate
+		&& areOptionalUrisEqual(firstReference.localRepositoryUri, secondReference.localRepositoryUri)
+		&& areOptionalUrisEqual(first.readmeUri, second.readmeUri);
+}
+
+function areOptionalUrisEqual(first: URI | undefined, second: URI | undefined): boolean {
+	return first === undefined ? second === undefined : second !== undefined && isEqual(first, second);
 }
 
 function normalizeMarketplacePath(value: string): string {

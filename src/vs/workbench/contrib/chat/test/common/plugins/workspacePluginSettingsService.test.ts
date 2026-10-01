@@ -183,6 +183,50 @@ suite('WorkspacePluginSettingsService', () => {
 		assert.strictEqual(service.enabledPlugins.get().get('shared-plugin@mp'), true);
 	}));
 
+	test('keeps plugin settings scoped to their source workspace folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const secondWorkspaceRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspace-b' });
+		workspaceContextService = new TestContextService(testWorkspace(workspaceRoot, secondWorkspaceRoot));
+		await fileService.writeFile(
+			URI.joinPath(workspaceRoot, '.github', 'copilot', 'settings.json'),
+			VSBuffer.fromString(JSON.stringify({
+				extraKnownMarketplaces: { shared: { source: 'github', repo: 'owner/marketplace-a' } },
+				enabledPlugins: { 'shared-plugin@shared': true },
+			})),
+		);
+		await fileService.writeFile(
+			URI.joinPath(secondWorkspaceRoot, '.github', 'copilot', 'settings.json'),
+			VSBuffer.fromString(JSON.stringify({
+				extraKnownMarketplaces: { shared: { source: 'github', repo: 'owner/marketplace-b' } },
+				enabledPlugins: { 'shared-plugin@shared': false },
+			})),
+		);
+
+		const service = createService();
+		await waitForState(service.workspaceSettings, settings => settings.length === 2 && settings.every(entry => entry.enabledPlugins.size === 1));
+
+		const first = service.getWorkspaceSettings(workspaceRoot);
+		const second = service.getWorkspaceSettings(secondWorkspaceRoot);
+		assert.deepStrictEqual({
+			first: {
+				enabled: first?.enabledPlugins.get('shared-plugin@shared'),
+				marketplace: first?.extraMarketplaces[0].reference.canonicalId,
+			},
+			second: {
+				enabled: second?.enabledPlugins.get('shared-plugin@shared'),
+				marketplace: second?.extraMarketplaces[0].reference.canonicalId,
+			},
+		}, {
+			first: {
+				enabled: true,
+				marketplace: 'github:owner/marketplace-a',
+			},
+			second: {
+				enabled: false,
+				marketplace: 'github:owner/marketplace-b',
+			},
+		});
+	}));
+
 	// --- extraKnownMarketplaces parsing ---
 
 	test('parses GitHub shorthand from extraKnownMarketplaces', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

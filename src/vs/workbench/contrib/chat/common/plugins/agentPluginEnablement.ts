@@ -167,20 +167,46 @@ export function getAgentPluginConfiguredEnablement(
 		return policyEnablement ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile;
 	}
 
-	const identity = getPolicyIdentity(plugin);
-	const pluginId = identity ? `${identity.name}@${identity.marketplace}` : undefined;
-	const workspaceMarketplace = identity
-		? workspaceMarketplaces?.find(entry => entry.name === identity.marketplace)
-		: undefined;
-	const matchesWorkspaceMarketplace = workspaceMarketplace === undefined
-		|| identity?.marketplaceReference?.canonicalId === workspaceMarketplace.reference.canonicalId;
-	const workspaceEnablement = pluginId === undefined || !matchesWorkspaceMarketplace
-		? undefined
-		: workspaceEnabledPlugins?.get(pluginId);
+	const workspaceEnablement = getAgentPluginWorkspaceEnablement(plugin, workspaceEnabledPlugins, workspaceMarketplaces);
 	if (workspaceEnablement !== undefined) {
 		return workspaceEnablement ? ContributionEnablementState.EnabledWorkspace : ContributionEnablementState.DisabledWorkspace;
 	}
 
+	return undefined;
+}
+
+export function getAgentPluginWorkspaceEnablement(
+	plugin: IAgentPlugin,
+	workspaceEnabledPlugins: ReadonlyMap<string, boolean> | undefined,
+	workspaceMarketplaces?: readonly IWorkspaceMarketplaceEntry[],
+): boolean | undefined {
+	const identity = getPolicyIdentity(plugin);
+	if (!identity || !workspaceEnabledPlugins) {
+		return undefined;
+	}
+
+	const pluginId = `${identity.name}@${identity.marketplace}`;
+	const workspaceMarketplace = workspaceMarketplaces?.find(entry => entry.name === identity.marketplace);
+	const matchesWorkspaceMarketplace = workspaceMarketplace === undefined
+		|| identity.marketplaceReference?.canonicalId === workspaceMarketplace.reference.canonicalId;
+	const directEnablement = matchesWorkspaceMarketplace ? workspaceEnabledPlugins.get(pluginId) : undefined;
+	if (directEnablement !== undefined) {
+		return directEnablement;
+	}
+
+	if (!identity.marketplaceReference) {
+		return undefined;
+	}
+	for (const [configuredPluginId, enabled] of workspaceEnabledPlugins) {
+		const separator = configuredPluginId.lastIndexOf('@');
+		if (separator <= 0 || configuredPluginId.slice(0, separator) !== identity.name) {
+			continue;
+		}
+		const configuredMarketplace = workspaceMarketplaces?.find(entry => entry.name === configuredPluginId.slice(separator + 1));
+		if (configuredMarketplace?.reference.canonicalId === identity.marketplaceReference.canonicalId) {
+			return enabled;
+		}
+	}
 	return undefined;
 }
 

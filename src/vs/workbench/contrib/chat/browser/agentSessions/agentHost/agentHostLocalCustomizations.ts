@@ -133,6 +133,7 @@ export async function resolveLocalCustomAgents(
 	agentPluginService: IAgentPluginService,
 	sessionType: string,
 	options: ILocalCustomizationSyncOptions | undefined,
+	workingDirectories: readonly URI[] = [],
 ): Promise<readonly AgentCustomization[]> {
 	const plugins = agentPluginService.plugins.get();
 	const result: AgentCustomization[] = [];
@@ -141,13 +142,19 @@ export async function resolveLocalCustomAgents(
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 
 	for (const agent of enumerated) {
-		if (agent.type !== PromptsType.agent || agent.disabled) {
+		if (agent.type !== PromptsType.agent) {
 			continue;
 		}
 		const plugin = agent.source === AICustomizationSources.plugin
 			? plugins.find(candidate => isEqualOrParent(agent.uri, candidate.uri))
 			: undefined;
 		if (agent.source === AICustomizationSources.plugin && !plugin) {
+			continue;
+		}
+		const workspaceConfiguredEnablement = plugin && workingDirectories[0]
+			? agentPluginService.getWorkspaceConfiguredEnablement(plugin, workingDirectories[0])
+			: undefined;
+		if (workspaceConfiguredEnablement === false || (agent.disabled && workspaceConfiguredEnablement !== true)) {
 			continue;
 		}
 		const pluginAgent = plugin?.agents.get().find(candidate => candidate.uri.toString() === agent.uri.toString());
@@ -246,11 +253,14 @@ export async function resolveCustomizationRefs(
 					kind: CustomizationEnablementKind.Global,
 					enabled: agentPluginService.enablementModel.readProfileEnabled(key),
 				});
-				const workspaceConfiguredEnablement = agentPluginService.getWorkspaceConfiguredEnablement(plugin);
-				if (workspaceConfiguredEnablement !== undefined && workingDirectories[0]) {
+				const workspaceFolder = workingDirectories[0];
+				const workspaceConfiguredEnablement = workspaceFolder
+					? agentPluginService.getWorkspaceConfiguredEnablement(plugin, workspaceFolder)
+					: undefined;
+				if (workspaceConfiguredEnablement !== undefined && workspaceFolder) {
 					enablement = withCustomizationEnablement(enablement, CustomizationEnablementKind.Workspace, {
 						kind: CustomizationEnablementKind.Workspace,
-						uri: workingDirectories[0].toString() as ProtocolURI,
+						uri: workspaceFolder.toString() as ProtocolURI,
 						enabled: workspaceConfiguredEnablement,
 					});
 				}
