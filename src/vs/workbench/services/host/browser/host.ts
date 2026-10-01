@@ -123,10 +123,8 @@ export interface IHostService {
 	setWindowDimmed(targetWindow: Window, dimmed: boolean): Promise<void>;
 
 	/**
-	 * Resizes the window by the delta, keeping the edges as indicated by
-	 * the anchor fixed in place. Has no effect when the window is maximized or in
-	 * full screen. The delta and returned content dimensions are in CSS pixels.
-	 * Returns `undefined` when the content size did not change.
+	 * Resize the window in CSS pixels, keeping the anchor fixed where the work area permits.
+	 * Returns the new content dimensions, or `undefined` if unchanged, maximized or in full screen.
 	 */
 	resizeMainWindow(delta: IWindowResizeDelta, anchor: IWindowResizeAnchor): Promise<IDimension | undefined>;
 

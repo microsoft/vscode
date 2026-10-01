@@ -81,6 +81,55 @@ suite('getResizedWindowBounds', () => {
 		getResizedWindowBounds(immutableBounds, { width: -500, height: -400 }, { right: true, bottom: true }, { width: 500, height: 400 });
 		assert.deepStrictEqual(immutableBounds, bounds);
 	});
+
+	test('repositions top and left growth without sacrificing the requested size', () => {
+		const workArea = { x: 0, y: 30, width: 1600, height: 1000 };
+		assert.deepStrictEqual(
+			getResizedWindowBounds(bounds, { width: 200, height: 300 }, { right: true, bottom: true }, undefined, workArea),
+			{ x: 0, y: 30, width: 1000, height: 900 }
+		);
+	});
+
+	test('repositions bottom and right growth without sacrificing the requested size', () => {
+		const workArea = { x: 0, y: 0, width: 1100, height: 900 };
+		assert.deepStrictEqual(
+			getResizedWindowBounds(bounds, { width: 300, height: 200 }, { right: false, bottom: false }, undefined, workArea),
+			{ x: 0, y: 100, width: 1100, height: 800 }
+		);
+	});
+
+	test('preserves the anchor when the requested rectangle fits', () => {
+		const workArea = { x: 0, y: 30, width: 1600, height: 1000 };
+		assert.deepStrictEqual(
+			getResizedWindowBounds(bounds, { width: 50, height: 100 }, { right: true, bottom: true }, undefined, workArea),
+			{ x: 50, y: 100, width: 850, height: 700 }
+		);
+	});
+
+	test('uses the work area origin on displays with negative coordinates', () => {
+		const workArea = { x: -1600, y: -1000, width: 1600, height: 960 };
+		assert.deepStrictEqual(
+			getResizedWindowBounds({ x: -1500, y: -900, width: 800, height: 600 }, { width: 200, height: 300 }, { right: true, bottom: true }, undefined, workArea),
+			{ x: -1600, y: -1000, width: 1000, height: 900 }
+		);
+	});
+
+	test('limits oversized requests to the work area', () => {
+		const workArea = Object.freeze({ x: 1600, y: 40, width: 1200, height: 900 });
+		const immutableBounds = Object.freeze({ x: 1700, y: 200, width: 800, height: 600 });
+		assert.deepStrictEqual(
+			getResizedWindowBounds(immutableBounds, { width: 1000, height: 1000 }, { right: true, bottom: true }, undefined, workArea),
+			{ x: 1600, y: 40, width: 1200, height: 900 }
+		);
+	});
+
+	test('keeps the title bar in the work area when minimum dimensions exceed it', () => {
+		const workArea = { x: 1600, y: 40, width: 400, height: 300 };
+		assert.deepStrictEqual(
+			getResizedWindowBounds(bounds, { width: 200, height: 300 }, { right: true, bottom: true }, { width: 500, height: 400 }, workArea),
+			{ x: 1600, y: 40, width: 500, height: 400 }
+		);
+	});
 });
 
 suite('getZoomedWindowResizeDelta', () => {
