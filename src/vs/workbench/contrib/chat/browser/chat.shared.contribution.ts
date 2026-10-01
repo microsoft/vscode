@@ -21,7 +21,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRequestedFileLocationSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotRequestedFileLocationValues, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_REQUESTED_FILE_LOCATION, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
@@ -1743,6 +1743,21 @@ configurationRegistry.registerConfiguration({
 			default: 1,
 			minimum: 0,
 			tags: ['experimental', 'advanced'],
+		},
+		[AgentHostCopilotRequestedFileLocationSettingId]: {
+			type: 'string',
+			enum: [...copilotRequestedFileLocationValues],
+			enumDescriptions: [
+				nls.localize('chat.agentHost.copilot.requestedFileLocation.workingDirectory', "Save requested files in the session's working directory, such as the open folder or worktree."),
+				nls.localize('chat.agentHost.copilot.requestedFileLocation.sessionWorkspace', "Save requested files in the session's storage folder, outside the working directory."),
+			],
+			markdownDescription: nls.localize('chat.agentHost.copilot.requestedFileLocation', "Controls where Copilot Agent Host sessions save files you ask for when your request doesn't name a path. A path you name always wins, and plan mode keeps its own rules. Applies to new and resumed sessions."),
+			default: DEFAULT_COPILOT_REQUESTED_FILE_LOCATION,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			agentHost: {
+				key: CopilotCliConfigKey.RequestedFileLocation,
+			},
 		},
 		[CopilotSkillCharBudgetSettingId]: {
 			type: 'number',

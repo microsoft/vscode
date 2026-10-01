@@ -1041,6 +1041,72 @@ suite('CopilotSessionLauncher shared session config', () => {
 	});
 });
 
+suite('CopilotSessionLauncher requested file location', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function launchRequestedFileLocations(rootValues: Record<string, unknown>): Promise<{ create: string | undefined; resume: string | undefined }> {
+		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
+		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: true }) } },
+		} as unknown as CopilotSession;
+		const client = {
+			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+				reportManagedSettings(config);
+				createConfigs.push(config);
+				return session;
+			},
+			resumeSession: async (_sessionId: string, config: Parameters<CopilotClient['resumeSession']>[1]) => {
+				reportManagedSettings(config);
+				resumeConfigs.push(config);
+				return session;
+			},
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+		};
+		const launcher = createTestLauncher(undefined, rootValues);
+		const basePlan = {
+			client,
+			extensionSdkPath: '/copilot-sdk',
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			disabledRootMcpServers: [],
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+		};
+		const createPlan: CopilotSessionLaunchPlan = { ...basePlan, kind: 'create', model: undefined };
+		const resumePlan: CopilotSessionLaunchPlan = { ...basePlan, kind: 'resume', fallback: { model: undefined } };
+
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(createPlan, testRuntime));
+			sessions.add(await launcher.launch(resumePlan, testRuntime));
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+		return { create: createConfigs[0].requestedFileLocation, resume: resumeConfigs[0].requestedFileLocation };
+	}
+
+	test('defaults to the working directory and forwards the configured location on create and resume', async () => {
+		assert.deepStrictEqual([
+			await launchRequestedFileLocations({}),
+			await launchRequestedFileLocations({ [CopilotCliConfigKey.RequestedFileLocation]: 'sessionWorkspace' }),
+			await launchRequestedFileLocations({ [CopilotCliConfigKey.RequestedFileLocation]: 'somewhereElse' }),
+		], [
+			{ create: 'workingDirectory', resume: 'workingDirectory' },
+			{ create: 'sessionWorkspace', resume: 'sessionWorkspace' },
+			{ create: 'workingDirectory', resume: 'workingDirectory' },
+		]);
+	});
+});
+
 suite('CopilotSessionLauncher canvas config', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
