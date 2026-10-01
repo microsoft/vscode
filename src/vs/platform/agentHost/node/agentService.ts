@@ -41,6 +41,7 @@ import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitSt
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { SESSION_IS_PROMOTED_METADATA_KEY, withSessionIsPromoted } from '../common/meta/agentSessionPromotionMeta.js';
 import { PendingMessageKind } from '../common/state/protocol/channels-chat/state.js';
+import { promoteSession } from './shared/sessionPromotion.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { IAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../common/meta/agentMessageDelegationMeta.js';
@@ -1561,6 +1562,14 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!await this._sessionRegistry.adoptExternalSession(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
 		}
+
+	}
+
+	async promoteSession(session: URI): Promise<void> {
+		if (!await this._sessionRegistry.get(session)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
+		}
+		await promoteSession(this._stateManager, session.toString(), values => this.persistSessionMetadataWithCatalog(session, values));
 	}
 
 	private _isArtifactToolsEnabled(): boolean {

@@ -1327,6 +1327,7 @@ class AutomationHistorySection extends Disposable {
 			toolbarMenuId: Menus.AutomationsHistoryItem,
 			toolbarTelemetrySource: 'automationsView.historyRow',
 			contextMenuId: Menus.AutomationsHistoryItemContext,
+			enableDragAndDrop: true,
 			markSessionReadOnOpen: false,
 			approvalModel: this.approvalModel,
 			onSessionOpen: resource => void this.openRunSession(resource),

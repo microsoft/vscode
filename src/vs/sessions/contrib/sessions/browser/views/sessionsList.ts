@@ -107,7 +107,8 @@ import { AICustomizationManagementEditorInput } from '../../../../../workbench/c
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID, PROMOTE_SESSION_COMMAND_ID } from '../automationsConstants.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { AutomationsNewBadgeState, type AutomationsNewBadgeStyle } from '../automationsNewBadge.js';
 import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -151,6 +152,11 @@ export const SessionsListFocusedChatItemContext = new RawContextKey<boolean>('se
 export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem.inGroup', false);
 export const SessionItemInExternalSectionContext = new RawContextKey<boolean>('sessionItem.inExternalSection', false);
 export const SessionItemCanImportContext = new RawContextKey<boolean>('sessionItem.canImport', false);
+export const SessionItemCanPromoteContext = new RawContextKey<boolean>('sessionItem.canPromote', false);
+
+export function canPromoteSession(session: ISession): boolean {
+	return session.isAutomation?.get() === true && !session.isPromoted?.get() && session.capabilities.get().supportsPromote === true;
+}
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolean>('sessionSection.hasGitHubRepository', false);
 export const SessionSectionHasNonCloudRepositoryContext = new RawContextKey<boolean>('sessionSection.hasNonCloudRepository', false);
@@ -2742,6 +2748,8 @@ class SessionsAccessibilityProvider {
  * model itself.
  */
 interface ISessionsListDndDelegate {
+	resolveSession(sessionId: string): ISession | undefined;
+	promoteSessions(sessions: ISession[]): void;
 	/** Whether a session may participate in reordering within its current section. */
 	isReorderable(session: ISession): boolean;
 	/** Whether a session currently renders in the Pinned section. */
@@ -2790,13 +2798,9 @@ interface IDraggedHeader {
 	readonly isWorkspace: boolean;
 }
 
-class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<SessionListItem> {
+class SessionDragAndDrop extends Disposable implements ITreeDragAndDrop<SessionListItem> {
 
-	private readonly _transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
-
-	constructor(private readonly delegate: ISessionsListDndDelegate) {
-		super();
-	}
+	protected readonly _transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	getDragURI(element: SessionListItem): string | null {
 		if (isSessionGroupItem(element)) {
@@ -2867,10 +2871,31 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 	onDragEnd(): void {
 		this._transfer.clearData(DraggedSessionIdentifier.prototype);
+	}
+
+	onDragOver(_data: IDragAndDropData, _targetElement: SessionListItem | undefined, _targetIndex: number | undefined, _targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction { return false; }
+	drop(_data: IDragAndDropData, _targetElement: SessionListItem | undefined, _targetIndex: number | undefined, _targetSector: ListViewTargetSector | undefined): void { }
+
+	protected toSessions(elements: SessionListItem[]): ISession[] {
+		return elements.filter(isSessionItem);
+	}
+}
+
+class SessionsListDragAndDrop extends SessionDragAndDrop {
+	constructor(private readonly delegate: ISessionsListDndDelegate) {
+		super();
+	}
+
+	override onDragEnd(): void {
+		super.onDragEnd();
 		this.delegate.setDropTargetHeader(undefined);
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
+	override onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
+		if (this.promotionSessions(data).length > 0) {
+			this.delegate.setDropTargetHeader(undefined);
+			return { accept: true, effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
+		}
 		const draggedHeader = this.draggedHeader(data);
 		if (draggedHeader) {
 			this.delegate.setDropTargetHeader(undefined);
@@ -2910,9 +2935,14 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		};
 	}
 
-	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): void {
+	override drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): void {
 		this.delegate.setDropTargetHeader(undefined);
 		try {
+			const promotion = this.promotionSessions(data);
+			if (promotion.length > 0) {
+				this.delegate.promoteSessions(promotion);
+				return;
+			}
 			const draggedHeader = this.draggedHeader(data);
 			if (draggedHeader) {
 				if (targetElement) {
@@ -3145,8 +3175,14 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		return this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
 	}
 
-	private toSessions(elements: SessionListItem[]): ISession[] {
-		return elements.filter(isSessionItem);
+	private promotionSessions(data: IDragAndDropData): ISession[] {
+		const identifiers = this._transfer.getData(DraggedSessionIdentifier.prototype);
+		const sessions = identifiers?.map(id => this.delegate.resolveSession(id.sessionId));
+		if (sessions?.length && sessions.every((session): session is ISession => !!session && canPromoteSession(session))) {
+			return sessions;
+		}
+		const dragged = this.draggedSessions(data);
+		return dragged.length > 0 && dragged.every(canPromoteSession) ? dragged : [];
 	}
 }
 
@@ -3409,6 +3445,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IAutomationService private readonly automationService: IAutomationService,
 		@IVoicePlaybackService private readonly _listVoicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
@@ -3664,6 +3701,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 					sessionsWithFailingCI,
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
+					resolveSession: id => this._sessionsManagementService.getSessions().find(session => session.sessionId === id),
+					promoteSessions: sessions => {
+						void this.commandService.executeCommand(PROMOTE_SESSION_COMMAND_ID, sessions).catch(error => this.notificationService.error(error));
+					},
 					isReorderable: session => this.isReorderable(session),
 					isSessionPinned: session => this.isSessionPinned(session),
 					canDropOn: (dragged, target) => this.canReorderOnto(dragged, target),
@@ -5177,6 +5218,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemInGroupContext.key, inGroup],
 			[SessionItemInExternalSectionContext.key, this.isRenderedInExternalSection(element)],
 			[SessionItemCanImportContext.key, element.isExternal?.get() === true && element.capabilities.get().supportsImport === true],
+			[SessionItemCanPromoteContext.key, canPromoteSession(element)],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
 			[SessionSupportsMultipleChatsContext.key, element.capabilities.get().supportsMultipleChats],
@@ -6090,6 +6132,7 @@ export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getS
 //#region Flat List
 
 export interface ISessionsFlatListOptions {
+	readonly enableDragAndDrop?: boolean;
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly showSessionHover?: boolean;
 	/** Called when a session row is opened (clicked / activated). */
@@ -6243,6 +6286,7 @@ export class SessionsFlatList extends Disposable {
 			this._delegate,
 			[sessionRenderer],
 			{
+				dnd: this.options.enableDragAndDrop ? this._register(new SessionDragAndDrop()) : undefined,
 				accessibilityProvider: new SessionsAccessibilityProvider(undefined, {
 					grouping: () => SessionsGrouping.Date,
 					isPinned: session => this._sessionsListModelService.isSessionPinned(session),
@@ -6304,6 +6348,7 @@ export class SessionsFlatList extends Disposable {
 			[SessionSupportsDeleteContext.key, session.capabilities.get().supportsDelete ?? false],
 			[IsQuickChatSessionContext.key, session.isQuickChat?.get() ?? false],
 			[SessionItemStatusContext.key, session.status.get()],
+			[SessionItemCanPromoteContext.key, canPromoteSession(session)],
 		]);
 		const menu = disposables.add(this.menuService.createMenu(this.options.contextMenuId, contextKeyService));
 		const actions = Separator.join(...menu.getActions({ shouldForwardArgs: true }).map(([, groupActions]) => groupActions));

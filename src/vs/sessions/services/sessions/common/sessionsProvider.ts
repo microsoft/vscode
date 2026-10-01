@@ -455,6 +455,7 @@ export interface ISessionsProvider {
 
 	/** Permanently imports an external session without sending a message or changing its identity. */
 	importSession?(sessionId: string): Promise<void>;
+	promoteSession?(sessionId: string): Promise<void>;
 
 	/**
 	 * Returns the current on-disk size of the session's isolated worktree.

@@ -78,7 +78,7 @@ import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeR
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID, PROMOTE_SESSION_COMMAND_ID } from '../../browser/automationsConstants.js';
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -2494,6 +2494,36 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('Automation promotion', () => {
+		test('dragging a history row onto Sessions invokes the shared promotion command', () => {
+			const session: ISession = {
+				...createTestSession('Automation').session,
+				isAutomation: constObservable(true),
+				capabilities: constObservable({ supportsMultipleChats: false, supportsPromote: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+			const targetContainer = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, targetContainer, {
+				grouping: () => SessionsGrouping.Workspace, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const sourceContainer = harness.createContainer();
+			const history = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, sourceContainer, {
+				onSessionOpen: () => { }, enableDragAndDrop: true,
+			}));
+			history.setSessions([session]);
+			history.layout(300, 400);
+			const source = sourceContainer.querySelector<HTMLElement>('.monaco-list-row');
+			const target = targetContainer.querySelector<HTMLElement>('.monaco-list');
+			assert.ok(source && target);
+			const dataTransfer = new DataTransfer();
+			source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+			target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+			source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+			assert.deepStrictEqual(harness.commandService.calls.filter(call => call.commandId === PROMOTE_SESSION_COMMAND_ID).map(call => call.args), [[[session]]]);
+		});
+
 		test('adds a promoted automation to the visible list without refreshing the catalog', () => {
 			const isPromoted = observableValue('isPromoted', false);
 			const session: ISession = {

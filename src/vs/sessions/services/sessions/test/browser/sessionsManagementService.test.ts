@@ -1082,6 +1082,7 @@ suite('SessionsManagementService', () => {
 			sessionId: 'session', providerId: 'test', isExternal: constObservable(true),
 			capabilities: constObservable({ supportsMultipleChats: false, supportsImport: true }),
 		});
+
 		const calls: string[] = [];
 		let fail = false;
 		const provider = new class extends TestSessionsProvider {
@@ -1101,6 +1102,24 @@ suite('SessionsManagementService', () => {
 		})), /not supported/);
 		await service.importSession(stubSession({ sessionId: 'owned', providerId: 'test' }));
 		assert.deepStrictEqual(calls, ['session', 'session']);
+	});
+
+	test('routes promotion to the owning provider and rejects unsupported sessions', async () => {
+		const promoted = observableValue('isPromoted', false);
+		const session = stubSession({
+			sessionId: 'automation', providerId: 'test', isAutomation: constObservable(true), isPromoted: promoted,
+			capabilities: constObservable({ supportsMultipleChats: false, supportsPromote: true }),
+		});
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async promoteSession(sessionId: string): Promise<void> { calls.push(sessionId); }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await service.promoteSession(session);
+		promoted.set(true, undefined);
+		await service.promoteSession(session);
+		await assert.rejects(() => service.promoteSession(stubSession({ sessionId: 'ordinary', providerId: 'test' })), /not supported/);
+		assert.deepStrictEqual(calls, ['automation']);
 	});
 
 	test('routes artifact removal to the owning provider and propagates errors', async () => {

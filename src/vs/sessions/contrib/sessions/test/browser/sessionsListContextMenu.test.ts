@@ -10,7 +10,7 @@ import { IAction, SubmenuAction } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -35,7 +35,8 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { PROMOTE_SESSION_COMMAND_ID } from '../../browser/automationsConstants.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createSession, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
@@ -334,6 +335,42 @@ suite('Sessions list context menus', () => {
 			ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			disposableIds: [],
 		});
+	});
+
+	test('automation history offers promotion only while supported and unpromoted', async () => {
+		const promoted = observableValue('promoted', false);
+		const capabilities = observableValue('capabilities', { supportsMultipleChats: false, supportsPromote: true });
+		const session: ISession = { ...createTestSession('Automation').session, isAutomation: constObservable(true), isPromoted: promoted, capabilities };
+		const harness = createListHarness(disposables, [session]);
+		const { instantiationService, store } = harness;
+		const contextKeys = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+		ChatContextKeys.enabled.bindTo(contextKeys).set(true);
+		instantiationService.stub(IContextKeyService, contextKeys);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const contextMenu = new TestContextMenuService();
+		instantiationService.stub(IContextMenuService, contextMenu);
+		const container = harness.createContainer();
+		const list = store.add(instantiationService.createInstance(SessionsFlatList, container, {
+			contextMenuId: Menus.AutomationsHistoryItemContext, onSessionOpen: () => { },
+		}));
+		list.setSessions([session]);
+		list.layout(300, 400);
+		const available = () => {
+			const row = container.querySelector<HTMLElement>('.session-item');
+			assert.ok(row);
+			contextMenu.delegate = undefined;
+			dispatchContextMenu(row);
+			const actions = contextMenu.delegate?.getActions() ?? [];
+			const result = actions.some(action => action.id === PROMOTE_SESSION_COMMAND_ID);
+			contextMenu.delegate?.onHide?.(false);
+			return result;
+		};
+		const initial = available();
+		promoted.set(true, undefined);
+		const afterPromotion = available();
+		promoted.set(false, undefined);
+		capabilities.set({ supportsMultipleChats: false, supportsPromote: false }, undefined);
+		assert.deepStrictEqual({ initial, afterPromotion, unsupported: available() }, { initial: true, afterPromotion: false, unsupported: false });
 	});
 
 	test('External menus offer Import before Mark as Done without New Chat', async () => {

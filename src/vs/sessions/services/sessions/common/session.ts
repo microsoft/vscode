@@ -888,6 +888,8 @@ export function toSessionId(providerId: string, resource: URI): string {
 export interface ISessionCapabilities {
 	/** Whether this external session can be imported without sending a message. */
 	readonly supportsImport?: boolean;
+	/** Whether this host supports explicit promotion of automation sessions. */
+	readonly supportsPromote?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */
 	readonly supportsRemoveArtifacts?: boolean;
 	/** Whether this session supports multiple chats. */

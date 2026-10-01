@@ -35,7 +35,7 @@ import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/gi
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
-import { readSessionIsPromoted, withSessionIsPromoted } from '../../../../../platform/agentHost/common/meta/agentSessionPromotionMeta.js';
+import { readSessionIsPromoted, supportsSessionPromotion, withSessionIsPromoted } from '../../../../../platform/agentHost/common/meta/agentSessionPromotionMeta.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
@@ -1508,6 +1508,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return {
 				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
 				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
+				supportsPromote: !!connection?.promoteSession && supportsSessionPromotion(connection.initializeResult.read(reader)),
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsSideChat: agentCapabilities?.multipleChats?.sideChat ?? false,
@@ -5560,6 +5561,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async archiveSession(sessionId: string): Promise<void> {
 		this._setSessionArchived(sessionId, true);
+	}
+
+	async promoteSession(sessionId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!cached || !connection?.promoteSession || !supportsSessionPromotion(connection.initializeResult.get())) {
+			throw new Error(localize('promoteSessionUnavailable', "Promotion is unavailable for this session."));
+		}
+		await connection.promoteSession(cached.backendUri);
 	}
 
 	async importSession(sessionId: string): Promise<void> {

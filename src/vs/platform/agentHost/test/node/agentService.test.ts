@@ -1428,6 +1428,31 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
+		test('explicit promotion is durable, idempotent and sends no message', async () => {
+			const database = new TestSessionDatabase();
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const sessionData = createSessionDataService(database);
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionData, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const svc = createService();
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await assert.rejects(() => svc.promoteSession(session), /Only automation/);
+			markAutomationSession(getStateManager(svc), session);
+			await svc.promoteSession(session);
+			await svc.promoteSession(session);
+			const restarted = createService();
+			registerTestAgentProvider(restarted, copilotAgent);
+			const listed = await restarted.listSessions();
+			assert.deepStrictEqual({
+				promoted: readSessionIsPromoted(getStateManager(svc).getSessionSummary(session.toString())),
+				restored: readSessionIsPromoted(listed.find(item => item.session.toString() === session.toString())),
+				messages: copilotAgent.sendMessageCalls.length,
+			}, { promoted: true, restored: true, messages: 0 });
+		});
+
 		function markAutomationSession(stateManager: ReturnType<typeof getStateManager>, session: URI): void {
 			stateManager.setAutomationRunState({
 				resource: 'ahp-automation-run:/promotion', automation: 'ahp-automation:/promotion',

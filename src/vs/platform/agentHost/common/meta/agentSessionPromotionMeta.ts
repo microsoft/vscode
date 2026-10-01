@@ -4,6 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const SESSION_IS_PROMOTED_METADATA_KEY = 'vscode.session.isPromoted';
+export const AgentHostSessionPromotionCapability = 'vscode.promoteSession';
+
+export function supportsSessionPromotion(source: { readonly _meta?: Record<string, unknown> } | undefined): boolean {
+	return source?._meta?.[AgentHostSessionPromotionCapability] === true;
+}
 
 /** Whether the host has promoted this session into the primary sessions list. */
 export function readSessionIsPromoted(source: { readonly _meta?: Record<string, unknown> } | undefined): boolean {

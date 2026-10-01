@@ -8,12 +8,13 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAppliedClientAction } from '../../../common/agentHostChatContributionsService.js';
-import { readSessionIsPromoted, SESSION_IS_PROMOTED_METADATA_KEY, withSessionIsPromoted } from '../../../common/meta/agentSessionPromotionMeta.js';
+import { readSessionIsPromoted } from '../../../common/meta/agentSessionPromotionMeta.js';
 import { readMessageRetryOf } from '../../../common/meta/agentMessageRetryMeta.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { MessageKind, PendingMessageKind, TurnState } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostSessionMetadataPersistence } from '../../shared/persistSessionMetadata.js';
+import { promoteSession } from '../../shared/sessionPromotion.js';
 
 export class SessionPromotionContribution extends Disposable implements IAgentHostChatContribution {
 	static readonly id = 'sessionPromotion';
@@ -91,18 +92,6 @@ export class SessionPromotionContribution extends Disposable implements IAgentHo
 	}
 
 	private async _persistPromotion(session: string): Promise<void> {
-		await this._metadataPersistence.persist(URI.parse(session), { [SESSION_IS_PROMOTED_METADATA_KEY]: 'true' });
-		const state = this._stateManager.getSessionState(session);
-		if (this._store.isDisposed) {
-			return;
-		}
-		if (state && !readSessionIsPromoted(state)) {
-			this._stateManager.setSessionMeta(session, withSessionIsPromoted(state._meta));
-		} else if (!state) {
-			const summary = this._stateManager.getSurfacedSessionSummary(session);
-			if (summary) {
-				this._stateManager.updateSurfacedSessionMetadata(session, { ...summary, _meta: withSessionIsPromoted(summary._meta) });
-			}
-		}
+		await promoteSession(this._stateManager, session, values => this._metadataPersistence.persist(URI.parse(session), values));
 	}
 }

@@ -93,7 +93,9 @@ Filters compose across session type, status, archive/read state, and provider. T
 
 ## Drag and drop
 
-Drag and drop changes only list-owned presentation state or opens sessions through the appropriate service:
+An unpromoted automation session dropped onto the primary list invokes the shared promotion command. The host owns that durable promotion; the drop does not implicitly pin, group, archive, or reorder the session.
+
+Other drag and drop changes only list-owned presentation state or opens sessions through the appropriate service:
 
 - sessions may reorder within valid sections;
 - sessions may move into user-created groups;

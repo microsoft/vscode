@@ -280,6 +280,10 @@ class MockAgentService implements IAgentService {
 	async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session.toString());
 	}
+	readonly promotedSessions: string[] = [];
+	async promoteSession(session: URI): Promise<void> {
+		this.promotedSessions.push(session.toString());
+	}
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
 		return { handle: '00000000-0000-4000-8000-000000000001', worktree: URI.file('/workspace.worktrees/prepared') };
@@ -495,6 +499,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,
+				'vscode.promoteSession': true,
 				'vscode.devContainers': true,
 			},
 		});
@@ -1125,6 +1130,32 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateMessage(request(3, 'vscode/reportChatUserInteraction', { ...timing, timeToTermination: -1 }));
 		assert.ok(hasKey(await invalid, { error: true }));
 		assert.strictEqual(calls.length, 1);
+	});
+
+	test('advertises and routes explicit session promotion', async () => {
+		const transport = connectClient('client-promote');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/promoteSession', { session: 'copilotcli:/session-1' }));
+		assert.deepStrictEqual({
+			capability: (initialized.result as InitializeResult)._meta?.['vscode.promoteSession'],
+			response: await response,
+			promoted: agentService.promotedSessions,
+		}, {
+			capability: true, response: { jsonrpc: '2.0', id: 20, result: null }, promoted: ['copilotcli:/session-1'],
+		});
+	});
+
+	test('rejects invalid promotion requests without mutating sessions', async () => {
+		const transport = connectClient('client-promote-invalid');
+		for (const [index, params] of [{}, { session: 'invalid' }, { session: 'copilotcli:/session#chat' }].entries()) {
+			const response = waitForResponse(transport, index + 20);
+			transport.simulateMessage(request(index + 20, 'vscode/promoteSession', params));
+			const message = await response;
+			assert.ok(isJsonRpcResponse(message) && hasKey(message, { error: true }) && message.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+		assert.deepStrictEqual(agentService.promotedSessions, []);
 	});
 
 	test('advertises and routes external session import', async () => {

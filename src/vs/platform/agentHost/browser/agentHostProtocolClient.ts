@@ -1496,6 +1496,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		await this._sendExtensionRequest(ImportSessionExtensionMethod, { session: session.toString() });
 	}
 
+	async promoteSession(session: URI): Promise<void> {
+		await this._sendExtensionRequest('vscode/promoteSession', { session: session.toString() });
+	}
+
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		const result = await this._sendExtensionRequest(CreateAgentHostDetachedWorktreeExtensionMethod, {
 			session: session.toString(),

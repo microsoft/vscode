@@ -1929,6 +1929,25 @@ suite('AgentHostProtocolClient', () => {
 		await result;
 	});
 
+	test('promoteSession sends an explicit promotion request without a turn', async () => {
+		const { client, transport } = createClient();
+		const result = client.promoteSession(URI.parse('custom-agent:/automation-session'));
+		assert.deepStrictEqual(transport.sentMessages, [{
+			jsonrpc: '2.0', id: 1, method: 'vscode/promoteSession',
+			params: { session: 'custom-agent:/automation-session' },
+		}]);
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+		await result;
+	});
+
+	test('promoteSession propagates unsupported host errors', async () => {
+		const { client, transport } = createClient();
+		const result = client.promoteSession(URI.parse('custom-agent:/automation-session'));
+		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
+		await assertRemoteProtocolError(result, error);
+	});
+
 	test('importSession propagates unsupported host errors', async () => {
 		const { client, transport } = createClient();
 		const result = client.importSession(URI.parse('copilotcli:/session-1'));

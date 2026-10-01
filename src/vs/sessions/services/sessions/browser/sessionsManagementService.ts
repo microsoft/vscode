@@ -1396,6 +1396,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		await provider.importSession(session.sessionId);
 	}
+
+	async promoteSession(session: ISession): Promise<void> {
+		if (session.isPromoted?.get()) {
+			return;
+		}
+		const provider = this._getProvider(session);
+		if (!session.isAutomation?.get() || !session.capabilities.get().supportsPromote || !provider?.promoteSession) {
+			throw new Error(localize('sessions.promoteSession.unsupported', "Promotion is not supported for this session."));
+		}
+		await provider.promoteSession(session.sessionId);
+	}
 }
 
 function isDeferredNewSessionRequestOptions(options: NewSessionRequestOptions): options is IDeferredNewSessionRequestOptions {
