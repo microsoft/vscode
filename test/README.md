@@ -54,7 +54,9 @@ The mock preview has three families of reveals. Each continues one loader, and p
 - **ASCII Resolve**: the band opens into the frame, and a full-height glyph wave draws the image.
 - **ASCII Decode**: scrambled glyphs spread from the wave's head and lock into the glyph drawing, which decodes again at the finer size.
 
-**Glyph lab (v2)** iterates on the glyph loaders and ASCII reveals, at `chat/generatedImages/chatGeneratedImages/GlyphRevealV2/Dark` (or Light):
+**Final configuration**: `chat/generatedImages/chatGeneratedImages/GlyphRevealFinal/Dark` (or Light) shows the treatment chosen to move forward with, without knobs. It uses **Glyph Wave** loading and **ASCII Resolve** in one pass, sweeping right, at medium density with 10 px glyphs. The 320 px loading band changes to the image's width first and then opens to its height, and the motion starts at 2× speed and settles to 1×. Its **Image** picker and **Upload Images...** work as in the other labs.
+
+**Glyph lab (v2)** iterates on the glyph loaders and ASCII reveals, starting from the final configuration, at `chat/generatedImages/chatGeneratedImages/GlyphRevealV2/Dark` (or Light):
 
 - **Loading**: **Glyph Wave**, or one of its alternatives. **Comets** race short streaks of glyphs along the band. **Bit Stream** shifts each row's bits along at its own tempo and lights every few bytes. **Ripples** spreads rings of glyphs from drops. **Typewriter** types the greeting out in binary behind a cursor, a line of whole bytes at a time. **Tide** rolls broad, soft swells of brighter digits through the band. Every loader keeps the greeting in its digits and carries on into either reveal.
 - **Image Reveal** and **Passes**: ASCII Resolve can sweep up to six glyph waves. Each pass before the last draws the image in fewer levels and dimmer glyphs, and fills in more of it, so the drawing builds up before the image shows.
@@ -72,6 +74,6 @@ npm run transpile-client
 npm run serve-out-rspack
 ```
 
-At the server's printed URL, select `chat/generatedImages/chatGeneratedImages/CometReveal/Dark` (or its Light variant), or `GlyphRevealV2` for the glyph lab. Choose a reveal, loader, speed, and image, then choose **Complete Generation** to run it and **Restart Preview** to replay it. Every choice resets the preview and keeps the others. All pickers support arrow keys and include descriptions. The fixture includes narrow, reduced-motion, high-contrast, and delayed referenced-image cases. With `source: Referenced`, **Load Image** releases the bytes independently of tool completion. No model call or image-generation entitlement is required.
+At the server's printed URL, select `chat/generatedImages/chatGeneratedImages/CometReveal/Dark` (or its Light variant), or `GlyphRevealFinal` for the final configuration and `GlyphRevealV2` for the glyph lab. Choose a reveal, loader, speed, and image, then choose **Complete Generation** to run it and **Restart Preview** to replay it. Every choice resets the preview and keeps the others. All pickers support arrow keys and include descriptions. The fixture includes narrow, reduced-motion, high-contrast, and delayed referenced-image cases. With `source: Referenced`, **Load Image** releases the bytes independently of tool completion. No model call or image-generation entitlement is required.
 
 If hot reload reports a duplicate workbench command registration after a TypeScript edit, reload the browser page. **Restart Preview** replays the treatment; it does not reset process-wide registrations.

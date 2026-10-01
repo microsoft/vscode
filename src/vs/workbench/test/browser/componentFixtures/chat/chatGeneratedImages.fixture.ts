@@ -435,6 +435,73 @@ function sampleLabImages(): ILabImage[] {
 	];
 }
 
+/** The sample images, plus a tall one that a frame narrows onto and a very wide one that it grows past. */
+function glyphLabImages(): ILabImage[] {
+	return [
+		...sampleLabImages(),
+		{ text: localize('generatedImage.lab.portraitImage', "Portrait"), tooltip: localize('generatedImage.lab.portraitImage.detail', "A tall image, narrower than the band, so the frame narrows onto it."), image: { data: createImage(900, 1350), mimeType: 'image/png' } },
+		{ text: localize('generatedImage.lab.panoramaImage', "Panorama"), tooltip: localize('generatedImage.lab.panoramaImage.detail', "A very wide image, so the frame grows well past the band."), image: { data: createImage(2400, 900), mimeType: 'image/png' } },
+	];
+}
+
+/** A configuration of the glyph loaders and ASCII reveals. */
+interface IGlyphRevealConfig {
+	readonly loader: string;
+	readonly reveal: string;
+	readonly passes: number;
+	readonly direction: string;
+	/** How brightly the digits swell, from 0 to 1. */
+	readonly density: number;
+	/** Size of a glyph, in pixels. */
+	readonly glyphSize: number;
+	/** Speed of the loading band, which the reveal starts at: 2 plays it twice as fast. */
+	readonly startSpeed: number;
+	/** Speed that the reveal eases to. */
+	readonly endSpeed: number;
+	/** Fixed width of the loading band, in pixels. */
+	readonly loadingWidth: number;
+	readonly resizeOrder: string;
+}
+
+/** The glyph loader and ASCII reveal chosen to move forward with, which the glyph lab also starts from. */
+const finalGlyphReveal: IGlyphRevealConfig = {
+	loader: 'wave',
+	reveal: 'ascii-resolve',
+	passes: 1,
+	direction: 'right',
+	density: 0.5,
+	glyphSize: 10,
+	startSpeed: 2,
+	endSpeed: 1,
+	loadingWidth: 320,
+	resizeOrder: 'width-first',
+};
+
+/**
+ * Styles a preview for a glyph reveal. Images keep their own size, so the frame changes from the
+ * fixed-width band to fit them, and the band holds whole rows of glyphs, about 48 pixels' worth.
+ */
+function applyGlyphReveal(preview: HTMLElement, config: IGlyphRevealConfig): void {
+	preview.classList.add(`chat-image-reveal-variant-${config.reveal}`, 'chat-image-line-variant-glyphs', 'chat-image-natural-size');
+	preview.style.setProperty('--chat-image-glyph-loader', config.loader);
+	preview.style.setProperty('--chat-image-glyph-direction', config.direction);
+	preview.style.setProperty('--chat-image-glyph-fill', String(config.density));
+	preview.style.setProperty('--chat-image-glyph-size', `${config.glyphSize}px`);
+	preview.style.setProperty('--chat-image-loading-height', `${config.glyphSize * Math.round(48 / config.glyphSize)}px`);
+	preview.style.setProperty('--chat-image-loading-width', `${config.loadingWidth}px`);
+	preview.style.setProperty('--chat-image-reveal-resize-order', config.resizeOrder);
+	preview.style.setProperty('--chat-image-reveal-passes', String(config.passes));
+	// The loading band moves at the start speed, and the reveal eases from it to the end speed.
+	preview.style.setProperty('--chat-image-motion-scale', String(1 / config.startSpeed));
+	preview.style.setProperty('--chat-image-motion-scale-end', String(1 / config.endSpeed));
+}
+
+const glyphLabInput = z.object({
+	enableAnimations: z.boolean().default(true),
+	reducedMotion: z.boolean().default(false),
+	narrow: z.boolean().default(false),
+});
+
 export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 	CometReveal: defineComponentFixture({
 		virtualTime: { enabled: false },
@@ -487,14 +554,23 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 			});
 		},
 	}),
+	GlyphRevealFinal: defineComponentFixture({
+		virtualTime: { enabled: false },
+		labels: { kind: 'animated' },
+		inputSchema: glyphLabInput,
+		render: context => renderRevealLab(context, {
+			knobs: [],
+			images: glyphLabImages(),
+			apply: preview => {
+				applyGlyphReveal(preview, finalGlyphReveal);
+				return localize('generatedImage.final.description', "The final configuration: Glyph Wave loading and ASCII Resolve in one pass, sweeping right, at medium density with 10px glyphs. The 320px loading band grows or narrows to the image's width and then opens to its height, starting at 2× speed and settling to 1×.");
+			},
+		}),
+	}),
 	GlyphRevealV2: defineComponentFixture({
 		virtualTime: { enabled: false },
 		labels: { kind: 'animated' },
-		inputSchema: z.object({
-			enableAnimations: z.boolean().default(true),
-			reducedMotion: z.boolean().default(false),
-			narrow: z.boolean().default(false),
-		}),
+		inputSchema: glyphLabInput,
 		render: context => {
 			const loaders = [
 				{ id: 'wave', text: localize('generatedImage.lab.wave', "Glyph Wave"), tooltip: localize('generatedImage.lab.wave.detail', "A dense wave of glyphs sweeps through binary digits that spell HAPPY_CODING!.") },
@@ -529,7 +605,6 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 			const passes = [1, 2, 3, 4, 5, 6].map(value => ({ value, text: String(value), tooltip: localize('generatedImage.lab.passes.detail', "How many glyph waves ASCII Resolve sweeps before the image shows.") }));
 			const widths = [240, 320, 400].map(value => ({ value, text: pixels(value) }));
 			const speeds = [0.25, 0.5, 1, 2, 3].map(value => ({ value, text: localize('generatedImage.lab.speedValue', "{0}×", value) }));
-			const normalSpeed = speeds.findIndex(speed => speed.value === 1);
 			const resizeOrders = [
 				{ id: 'width-first', text: localize('generatedImage.lab.widthFirst', "Width First"), tooltip: localize('generatedImage.lab.widthFirst.detail', "The frame grows or narrows to the image's width, and then opens to its height.") },
 				{ id: 'height-first', text: localize('generatedImage.lab.heightFirst', "Height First"), tooltip: localize('generatedImage.lab.heightFirst.detail', "The frame opens to the image's height, and then grows or narrows to its width.") },
@@ -537,39 +612,33 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 			];
 			return renderRevealLab(context, {
 				columns: 2,
+				// Every knob starts from the final configuration.
 				knobs: [
-					{ label: localize('generatedImage.lab.loading', "Loading"), options: loaders, wide: true },
-					{ label: localize('generatedImage.lab.reveal', "Image Reveal"), options: reveals },
-					{ label: localize('generatedImage.lab.passes', "Passes"), options: passes, active: 2 },
-					{ label: localize('generatedImage.lab.direction', "Direction"), options: directions, wide: true },
-					{ label: localize('generatedImage.lab.density', "Density"), options: densities, active: 2 },
-					{ label: localize('generatedImage.lab.glyphSize', "Glyph Size"), options: sizes, active: 2 },
-					{ label: localize('generatedImage.lab.startSpeed', "Start Speed"), options: speeds, active: normalSpeed },
-					{ label: localize('generatedImage.lab.endSpeed', "End Speed"), options: speeds, active: normalSpeed },
-					{ label: localize('generatedImage.lab.loadingWidth', "Loading Width"), options: widths, active: 1 },
-					{ label: localize('generatedImage.lab.resize', "Resize"), options: resizeOrders },
+					{ label: localize('generatedImage.lab.loading', "Loading"), options: loaders, active: loaders.findIndex(item => item.id === finalGlyphReveal.loader), wide: true },
+					{ label: localize('generatedImage.lab.reveal', "Image Reveal"), options: reveals, active: reveals.findIndex(item => item.id === finalGlyphReveal.reveal) },
+					{ label: localize('generatedImage.lab.passes', "Passes"), options: passes, active: passes.findIndex(item => item.value === finalGlyphReveal.passes) },
+					{ label: localize('generatedImage.lab.direction', "Direction"), options: directions, active: directions.findIndex(item => item.id === finalGlyphReveal.direction), wide: true },
+					{ label: localize('generatedImage.lab.density', "Density"), options: densities, active: densities.findIndex(item => item.value === finalGlyphReveal.density) },
+					{ label: localize('generatedImage.lab.glyphSize', "Glyph Size"), options: sizes, active: sizes.findIndex(item => item.value === finalGlyphReveal.glyphSize) },
+					{ label: localize('generatedImage.lab.startSpeed', "Start Speed"), options: speeds, active: speeds.findIndex(item => item.value === finalGlyphReveal.startSpeed) },
+					{ label: localize('generatedImage.lab.endSpeed', "End Speed"), options: speeds, active: speeds.findIndex(item => item.value === finalGlyphReveal.endSpeed) },
+					{ label: localize('generatedImage.lab.loadingWidth', "Loading Width"), options: widths, active: widths.findIndex(item => item.value === finalGlyphReveal.loadingWidth) },
+					{ label: localize('generatedImage.lab.resize', "Resize"), options: resizeOrders, active: resizeOrders.findIndex(item => item.id === finalGlyphReveal.resizeOrder) },
 				],
-				images: [
-					...sampleLabImages(),
-					{ text: localize('generatedImage.lab.portraitImage', "Portrait"), tooltip: localize('generatedImage.lab.portraitImage.detail', "A tall image, narrower than the band, so the frame narrows onto it."), image: { data: createImage(900, 1350), mimeType: 'image/png' } },
-					{ text: localize('generatedImage.lab.panoramaImage', "Panorama"), tooltip: localize('generatedImage.lab.panoramaImage.detail', "A very wide image, so the frame grows well past the band."), image: { data: createImage(2400, 900), mimeType: 'image/png' } },
-				],
+				images: glyphLabImages(),
 				apply: (preview, [loader, reveal, pass, direction, density, size, start, end, width, order]) => {
-					// Images keep their own size, so the frame grows or narrows from the fixed-width band to fit them.
-					preview.classList.add(`chat-image-reveal-variant-${reveals[reveal].id}`, 'chat-image-line-variant-glyphs', 'chat-image-natural-size');
-					const glyphSize = sizes[size].value;
-					preview.style.setProperty('--chat-image-glyph-loader', loaders[loader].id);
-					preview.style.setProperty('--chat-image-glyph-direction', directions[direction].id);
-					preview.style.setProperty('--chat-image-glyph-fill', String(densities[density].value));
-					preview.style.setProperty('--chat-image-glyph-size', `${glyphSize}px`);
-					// The band holds whole rows of glyphs, about 48 pixels' worth.
-					preview.style.setProperty('--chat-image-loading-height', `${glyphSize * Math.round(48 / glyphSize)}px`);
-					preview.style.setProperty('--chat-image-loading-width', `${widths[width].value}px`);
-					preview.style.setProperty('--chat-image-reveal-resize-order', resizeOrders[order].id);
-					preview.style.setProperty('--chat-image-reveal-passes', String(passes[pass].value));
-					// The loading band moves at the start speed, and the reveal eases from it to the end speed.
-					preview.style.setProperty('--chat-image-motion-scale', String(1 / speeds[start].value));
-					preview.style.setProperty('--chat-image-motion-scale-end', String(1 / speeds[end].value));
+					applyGlyphReveal(preview, {
+						loader: loaders[loader].id,
+						reveal: reveals[reveal].id,
+						passes: passes[pass].value,
+						direction: directions[direction].id,
+						density: densities[density].value,
+						glyphSize: sizes[size].value,
+						startSpeed: speeds[start].value,
+						endSpeed: speeds[end].value,
+						loadingWidth: widths[width].value,
+						resizeOrder: resizeOrders[order].id,
+					});
 					return localize('generatedImage.lab.description', "{0} {1}", loaders[loader].tooltip, reveals[reveal].tooltip);
 				},
 			});
