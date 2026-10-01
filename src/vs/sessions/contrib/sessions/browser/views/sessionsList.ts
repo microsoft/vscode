@@ -2894,11 +2894,6 @@ class SessionsListDragAndDrop extends SessionDragAndDrop {
 		this.delegate.setDropTargetHeader(undefined);
 	}
 
-	onDragLeave(): void {
-		this.promotionDrag = undefined;
-		this.delegate.setDropTargetHeader(undefined);
-	}
-
 	override onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
 		if (this.promotionSessions(data).length > 0) {
 			this.delegate.setDropTargetHeader(undefined);
