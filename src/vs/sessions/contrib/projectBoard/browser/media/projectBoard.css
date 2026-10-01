@@ -139,19 +139,15 @@
 	flex: 1;
 }
 
-.project-board-card-heading > .project-board-card-select {
-	flex-shrink: 0;
-	margin: 0;
+.project-board-card-selection-label,
+.project-board-card-details[hidden] {
+	display: none;
 }
 
 .project-board-card.project-board-card-selected {
 	background: var(--vscode-list-inactiveSelectionBackground);
 	color: var(--vscode-list-inactiveSelectionForeground);
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.project-board-card.project-board-card-selected:focus-visible {
 	outline-offset: 1px;
 }
 
@@ -240,12 +236,14 @@
 }
 
 .project-board-axis-controls > .monaco-button:focus,
+.project-board-card-heading > .project-board-collapse:focus,
 .project-board-child-heading > .project-board-collapse:focus,
 .project-board-tray-heading > .project-board-collapse:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 }
 
 .project-board-axis-controls > .project-board-collapse,
+.project-board-card-heading > .project-board-collapse,
 .project-board-child-heading > .project-board-collapse,
 .project-board-tray-heading > .project-board-collapse {
 	flex: 0 0 22px;
@@ -378,21 +376,21 @@
 	display: none;
 }
 
-.project-board-card:focus {
+.monaco-workbench .project-board .project-board-card:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 }
 
 .project-board-card.project-board-card-active-chat {
-	border-top-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
-	border-right-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
-	border-bottom-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	border-top-color: var(--vscode-agentsHub-activeChatBorder);
+	border-right-color: var(--vscode-agentsHub-activeChatBorder);
+	border-bottom-color: var(--vscode-agentsHub-activeChatBorder);
 }
 
 .project-board-monitored-child-label {
 	margin-top: var(--vscode-spacing-size40);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsHub-activeChatBorder);
 	color: var(--vscode-foreground);
 	background: var(--vscode-editorWidget-background);
 	font-size: var(--vscode-fontSize-label2);
@@ -521,6 +519,10 @@
 	margin: 0 0 6px;
 	padding-right: var(--vscode-spacing-size280, 28px);
 	font-size: 13px;
+}
+
+.project-board-card-heading > h4 {
+	padding-right: 0;
 }
 
 .project-board-card-unavailable {
