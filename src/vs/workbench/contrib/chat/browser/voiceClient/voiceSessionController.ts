@@ -759,6 +759,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * later focus/state event can retry rather than the reply being lost.
 	 */
 	private readonly _pendingSolicitedNarrations = new Map<string, IPendingSolicitedNarration>();
+	private _openAiNarrationInFlightId: string | undefined;
 	private static readonly _SOLICITED_NARRATION_AUDIO_START_TIMEOUT_MS = 30_000;
 	private static readonly _VOICE_PROGRESS_INITIAL_DELAY_MS = 5_000;
 	private static readonly _VOICE_PROGRESS_INTERVAL_MS = 10_000;
@@ -2194,8 +2195,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _isOpenAiRealtimeVoiceMode(): boolean {
-		const endpoint = getVoiceWebSocketUrl(this.configurationService, this.productService);
-		return shouldUseOpenAiWebSocketSubprotocolAuth(endpoint);
+		try {
+			const endpoint = getVoiceWebSocketUrl(this.configurationService, this.productService);
+			return shouldUseOpenAiWebSocketSubprotocolAuth(endpoint);
+		} catch {
+			return false;
+		}
 	}
 
 	private _autoForwardOpenAiTranscription(text: string): void {
@@ -2422,6 +2427,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._sessionRefReleaseWatchers.clearAndDisposeAll();
 		this._floatingResponseWatchers.clearAndDisposeAll();
 		this._lastSpokenAtBySession.clear();
+		this._cancelOpenAiNarration();
 		for (const [narrationId, pending] of this._pendingSolicitedNarrations) {
 			this._clearPendingSolicitedNarration(narrationId, pending);
 		}
@@ -4510,6 +4516,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._sendContext();
 			this.voiceClientService.flushSessionContext();
 		}
+		if (this._isOpenAiRealtimeVoiceMode() && kind !== 'response' && kind !== 'checkpoint') {
+			return this._speakOpenAiNarration(sessionId, kind, text, confirmationType, pending);
+		}
 		this.logService.trace(`[voice] narrate kind=${kind} id=${sessionId.slice(-32)}`);
 		const narrationId = this.voiceClientService.requestNarration(sessionId, kind, text, reuseId, checkpoint, confirmationType, pending);
 		if (!narrationId) {
@@ -4573,6 +4582,79 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			hasReceivedAudio: false,
 		});
 		return true;
+	}
+
+	private _speakOpenAiNarration(sessionId: string, kind: VoiceNarrationKind, text: string, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): boolean {
+		const synthesis = this._window?.speechSynthesis ?? mainWindow.speechSynthesis;
+		if (!synthesis) {
+			this.logService.trace('[voice] OpenAI narration skipped: speech synthesis unavailable');
+			return false;
+		}
+		if (!this._prepareForPlayback()) {
+			return false;
+		}
+
+		this._cancelOpenAiNarration();
+		const narrationId = generateUuid();
+		this._openAiNarrationInFlightId = narrationId;
+		const audioStartTimer = setTimeout(() => {
+			this._handleSolicitedNarrationAudioStartTimeout(narrationId);
+		}, VoiceSessionController._SOLICITED_NARRATION_AUDIO_START_TIMEOUT_MS);
+		const trackedNarration: IPendingSolicitedNarration = {
+			sessionId,
+			kind,
+			text,
+			pending,
+			confirmationType,
+			audioStartTimer,
+			hasReceivedAudio: true,
+		};
+		clearTimeout(audioStartTimer);
+		this._pendingSolicitedNarrations.set(narrationId, trackedNarration);
+		this._solicitedNarrationIds.add(narrationId);
+
+		const utterance = new SpeechSynthesisUtterance(text);
+		utterance.onstart = () => {
+			this._voiceState.set('speaking', undefined);
+			this._statusText.set('Speaking...', undefined);
+		};
+		utterance.onend = () => {
+			if (this._openAiNarrationInFlightId !== narrationId) {
+				return;
+			}
+			this._openAiNarrationInFlightId = undefined;
+			this._markNarrationHeard(narrationId);
+			this._restoreVoiceStateAfterNarrationTimeout();
+		};
+		utterance.onerror = () => {
+			if (this._openAiNarrationInFlightId !== narrationId) {
+				return;
+			}
+			this._openAiNarrationInFlightId = undefined;
+			const tracked = this._pendingSolicitedNarrations.get(narrationId);
+			if (tracked) {
+				this._clearPendingSolicitedNarration(narrationId, tracked);
+			}
+			this._solicitedNarrationIds.delete(narrationId);
+			this._restoreVoiceStateAfterNarrationTimeout();
+		};
+		synthesis.speak(utterance);
+		return true;
+	}
+
+	private _cancelOpenAiNarration(): void {
+		if (!this._openAiNarrationInFlightId) {
+			return;
+		}
+		const narrationId = this._openAiNarrationInFlightId;
+		this._openAiNarrationInFlightId = undefined;
+		const synthesis = this._window?.speechSynthesis ?? mainWindow.speechSynthesis;
+		synthesis?.cancel();
+		const tracked = this._pendingSolicitedNarrations.get(narrationId);
+		if (tracked) {
+			this._clearPendingSolicitedNarration(narrationId, tracked);
+		}
+		this._solicitedNarrationIds.delete(narrationId);
 	}
 
 	private _markSolicitedNarrationAudioStarted(narrationId: string | undefined): void {
