@@ -8,7 +8,7 @@ import { Codicon } from '../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
