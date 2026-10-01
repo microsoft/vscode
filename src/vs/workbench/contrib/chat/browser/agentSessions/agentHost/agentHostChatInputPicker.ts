@@ -670,6 +670,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			}, previous);
 			return;
 		}
+		trigger.classList.remove('agent-host-mode-permissions-trigger', 'chat-input-picker-split');
 		dom.clearNode(trigger);
 		if (icon) {
 			dom.append(trigger, renderIcon(getCompactCodicon(icon))).ariaHidden = 'true';
