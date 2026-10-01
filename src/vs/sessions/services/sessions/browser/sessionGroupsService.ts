@@ -158,14 +158,33 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		// membership here would turn that transient gap into a permanent,
 		// unrecoverable loss of the user's grouping.
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
+			const transientMembershipChanged = new Set<string>();
+			const inFlightSessionIds = new Set(this.sessionsManagementService.getInFlightNewSessionRequests().map(session => session.sessionId));
+			for (const session of e.added) {
+				if (inFlightSessionIds.has(session.sessionId) && this.capturePendingNewSessionGroup(session.sessionId)) {
+					transientMembershipChanged.add(session.sessionId);
+				}
+			}
 			for (const session of e.removed) {
-				this._inFlightSessionGroups.delete(session.sessionId);
+				if (this._inFlightSessionGroups.delete(session.sessionId)) {
+					transientMembershipChanged.add(session.sessionId);
+				}
+			}
+			const visibleSessionIds = new Set(this.sessionsManagementService.getSessions().map(session => session.sessionId));
+			for (const sessionId of this._inFlightSessionGroups.keys()) {
+				if (!visibleSessionIds.has(sessionId)) {
+					this._inFlightSessionGroups.delete(sessionId);
+					transientMembershipChanged.add(sessionId);
+				}
 			}
 			const changed = new Set<string>();
 			const archivedStateChanged = this.removeArchivedMembership([...e.added, ...e.changed], changed);
 			this.updateDefaultPlacement(this.sessionsManagementService.getSessions(), changed);
 			if (archivedStateChanged || changed.size > 0) {
 				this.save();
+			}
+			for (const sessionId of transientMembershipChanged) {
+				changed.add(sessionId);
 			}
 			if (changed.size > 0) {
 				this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
@@ -199,11 +218,9 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		// can no longer rebind it. A send into an existing session discards the
 		// draft (firing the discard handler below) before this fires.
 		this._register(this.sessionsManagementService.onWillSendRequest(session => {
-			if (this._pendingNewSessionGroupId === undefined) {
-				return;
+			if (this.capturePendingNewSessionGroup(session.sessionId)) {
+				this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([session.sessionId]) });
 			}
-			this._inFlightSessionGroups.set(session.sessionId, this._pendingNewSessionGroupId);
-			this._pendingNewSessionGroupId = undefined;
 		}));
 
 		// A draft graduates into a committed session with a new id; follow it.
@@ -343,17 +360,22 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	getGroupOfSession(sessionId: string): string | undefined {
-		return this._membership.get(sessionId);
+		return this._membership.get(sessionId) ?? this._inFlightSessionGroups.get(sessionId);
 	}
 
 	getSessionIdsInGroup(groupId: string): string[] {
-		const result: string[] = [];
+		const result = new Set<string>();
 		for (const [sessionId, gid] of this._membership) {
 			if (gid === groupId) {
-				result.push(sessionId);
+				result.add(sessionId);
 			}
 		}
-		return result;
+		for (const [sessionId, gid] of this._inFlightSessionGroups) {
+			if (gid === groupId) {
+				result.add(sessionId);
+			}
+		}
+		return [...result];
 	}
 
 	setPendingNewSessionGroup(groupId: string): void {
@@ -361,6 +383,15 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	// -- Helpers --
+
+	private capturePendingNewSessionGroup(sessionId: string): boolean {
+		if (this._pendingNewSessionGroupId === undefined) {
+			return false;
+		}
+		this._inFlightSessionGroups.set(sessionId, this._pendingNewSessionGroupId);
+		this._pendingNewSessionGroupId = undefined;
+		return true;
+	}
 
 	private setMembership(sessionId: string, groupId: string, changed: Set<string>): void {
 		if (this._explicitlyUngroupedSessionIds.delete(sessionId) || this._membership.get(sessionId) !== groupId) {

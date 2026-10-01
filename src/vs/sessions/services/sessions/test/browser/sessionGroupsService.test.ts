@@ -57,6 +57,7 @@ suite('SessionGroupsService', () => {
 	let newSessionDiscardedEmitter: Emitter<ISession>;
 	let instantiationService: TestInstantiationService;
 	let sessions: ISession[];
+	let inFlightSessions: ISession[];
 
 	/** Simulate a new-session send: dispatch (`onWillSendRequest`) then start. */
 	function sendNewSession(draftId: string, committedId: string = draftId): void {
@@ -80,9 +81,11 @@ suite('SessionGroupsService', () => {
 		sessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		newSessionDiscardedEmitter = disposables.add(new Emitter<ISession>());
 		sessions = [];
+		inFlightSessions = [];
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
 			getSessions: () => sessions,
+			getInFlightNewSessionRequests: () => inFlightSessions,
 			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
 			onDidChangeSessions: sessionsChangedEmitter.event,
 			onWillSendRequest: willSendRequestEmitter.event,
@@ -596,6 +599,52 @@ suite('SessionGroupsService', () => {
 
 		assert.strictEqual(service.getGroupOfSession('started'), a.id);
 		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), ['started']);
+	});
+
+	test('pending group applies while a provisional new session is published', () => {
+		const a = service.createGroup('A');
+		const draft = createSession('draft');
+		const committed = createSession('committed');
+		service.setPendingNewSessionGroup(a.id);
+		sessions = [draft];
+		inFlightSessions = [draft];
+
+		sessionsChangedEmitter.fire({ added: [draft], removed: [], changed: [] });
+
+		assert.strictEqual(service.getGroupOfSession(draft.sessionId), a.id);
+		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), [draft.sessionId]);
+
+		sessionReplacedEmitter.fire({ from: draft, to: committed });
+		sessions = [committed];
+		sessionsChangedEmitter.fire({ added: [], removed: [draft], changed: [committed] });
+		willSendRequestEmitter.fire(committed);
+		sessionStartedEmitter.fire(committed);
+
+		assert.deepStrictEqual({
+			draftGroup: service.getGroupOfSession(draft.sessionId),
+			committedGroup: service.getGroupOfSession(committed.sessionId),
+			groupMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			draftGroup: undefined,
+			committedGroup: a.id,
+			groupMembers: [committed.sessionId],
+		});
+	});
+
+	test('failed provisional new session clears transient group placement', () => {
+		const a = service.createGroup('A');
+		const draft = createSession('draft');
+		service.setPendingNewSessionGroup(a.id);
+		sessions = [draft];
+		inFlightSessions = [draft];
+		sessionsChangedEmitter.fire({ added: [draft], removed: [], changed: [] });
+
+		sessions = [];
+		inFlightSessions = [];
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [] });
+
+		assert.strictEqual(service.getGroupOfSession(draft.sessionId), undefined);
+		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), []);
 	});
 
 	test('pending group follows the draft as it graduates to a committed id', () => {
